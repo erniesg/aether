@@ -1,0 +1,44 @@
+name: claude
+
+# Autonomous Claude Code agent.
+#   - Label an issue with `claude-run` OR mention @claude in a comment → agent fires.
+#   - PR opened → agent reviews/responds.
+# Guardrails live in docs/HACKATHON-OVERNIGHT-HANDOFF-2026-04-22.md; the agent
+# reads it at the start of each run.
+
+on:
+  issues:
+    types: [opened, labeled]
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+      checks: read
+      statuses: read
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@claude"
+          label_trigger: "claude-run"
+          claude_args: |
+            --max-turns 100
+            --model claude-opus-4-7
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_GEMINI_API_KEY: ${{ secrets.GOOGLE_GEMINI_API_KEY }}
+          REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
+          VOLCENGINE_ARK_API_KEY: ${{ secrets.VOLCENGINE_ARK_API_KEY }}
