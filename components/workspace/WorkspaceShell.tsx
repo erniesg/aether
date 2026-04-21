@@ -33,11 +33,13 @@ export function WorkspaceShell({ wsId }: WorkspaceShellProps) {
   );
 }
 
+const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
+
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const { editor } = useEditorRef();
 
-  const pinnedCapabilities: Array<{ id: string; label: string }> = [];
+  const pinnedCapabilities = EMPTY_PINS;
 
   const handlePrompt = useCallback(
     async (prompt: string) => {
@@ -158,6 +160,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         <LeftRail />
         <CanvasSubstrate composerRef={composerRef} pinnedCapabilities={pinnedCapabilities} />
         <RightRail />
+        {/* canvas render is isolated from editor changes via memo — placement
+            next to rails is intentional so rails' RailProviders keep their
+            own scope and can't accidentally remount tldraw. */}
       </div>
 
       <PromptComposer

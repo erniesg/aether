@@ -91,11 +91,17 @@ export function FloatingToolbar({
 
   const onHandleDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!barRef.current) return;
-    const rect = barRef.current.getBoundingClientRect();
-    const parentRect = barRef.current.parentElement?.getBoundingClientRect();
+    const parent = barRef.current.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
+    // Pointer in the parent's coord space (same space as pos.x/pos.y, which
+    // drive the absolute `left`/`top` style). Record the offset from pointer
+    // to the toolbar's top-left so we can keep that offset stable during drag.
+    const pointerInParentX = event.clientX - parentRect.left;
+    const pointerInParentY = event.clientY - parentRect.top;
     dragDelta.current = {
-      x: event.clientX - rect.left + (parentRect?.left ?? 0),
-      y: event.clientY - rect.top + (parentRect?.top ?? 0),
+      x: pointerInParentX - pos.x,
+      y: pointerInParentY - pos.y,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -103,10 +109,14 @@ export function FloatingToolbar({
   useEffect(() => {
     const onMove = (event: globalThis.PointerEvent) => {
       if (!dragDelta.current || !barRef.current) return;
-      const parentRect = barRef.current.parentElement?.getBoundingClientRect();
+      const parent = barRef.current.parentElement;
+      if (!parent) return;
+      const parentRect = parent.getBoundingClientRect();
+      const pointerInParentX = event.clientX - parentRect.left;
+      const pointerInParentY = event.clientY - parentRect.top;
       const next = clamp(
-        event.clientX - (dragDelta.current.x - (parentRect?.left ?? 0)),
-        event.clientY - (dragDelta.current.y - (parentRect?.top ?? 0))
+        pointerInParentX - dragDelta.current.x,
+        pointerInParentY - dragDelta.current.y
       );
       setPos(next);
     };
@@ -135,8 +145,9 @@ export function FloatingToolbar({
     >
       <button
         type="button"
+        tabIndex={-1}
         onPointerDown={onHandleDown}
-        className="flex h-8 w-5 cursor-grab items-center justify-center rounded-xs text-ink-faint transition-colors hover:bg-surface-panel-muted hover:text-ink-dim active:cursor-grabbing"
+        className="flex h-8 w-5 cursor-grab items-center justify-center rounded-xs text-ink-faint transition-colors hover:bg-surface-panel-muted hover:text-ink-dim active:cursor-grabbing focus:shadow-none focus-visible:shadow-none"
         aria-label="drag toolbar"
       >
         <GripVertical size={12} strokeWidth={1.75} />

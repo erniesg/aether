@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useTheme } from '@/app/design-system/ThemeProvider';
 import { cn } from '@/lib/utils/cn';
 import { FloatingToolbar } from './FloatingToolbar';
 import type { Scope } from './FloatingToolbar';
@@ -11,6 +10,11 @@ import type { Scope } from './FloatingToolbar';
  * Dynamically imported tldraw to keep the workspace route's initial bundle
  * small. The Tldraw component ships its own stylesheet — we import it at the
  * module level of the dynamic chunk.
+ *
+ * The dynamic() call is module-level so it is only evaluated once per module
+ * load. The component itself is React.memo'd so re-renders from the
+ * workspace shell (runs store changes, theme toggles elsewhere) don't cascade
+ * into a canvas remount.
  */
 const TldrawCanvas = dynamic(() => import('./TldrawCanvas').then((m) => m.TldrawCanvas), {
   ssr: false,
@@ -21,22 +25,24 @@ const TldrawCanvas = dynamic(() => import('./TldrawCanvas').then((m) => m.Tldraw
   ),
 });
 
+const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
+
 export interface CanvasSubstrateProps {
   className?: string;
   composerRef: React.RefObject<HTMLTextAreaElement | null>;
-  pinnedCapabilities?: Array<{ id: string; label: string }>;
+  pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
 }
 
-export function CanvasSubstrate({ className, composerRef, pinnedCapabilities }: CanvasSubstrateProps) {
-  const { theme } = useTheme();
+export const CanvasSubstrate = memo(function CanvasSubstrate({
+  className,
+  composerRef,
+  pinnedCapabilities = EMPTY_PINS,
+}: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const focusComposer = () => composerRef.current?.focus();
+  const focusComposer = useCallback(() => {
+    composerRef.current?.focus();
+  }, [composerRef]);
 
   return (
     <section
@@ -44,20 +50,14 @@ export function CanvasSubstrate({ className, composerRef, pinnedCapabilities }: 
       aria-label="canvas"
       className={cn('relative flex-1 overflow-hidden bg-surface-canvas', className)}
     >
-      {mounted ? (
-        <TldrawCanvas theme={theme} />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="font-caption text-ink-faint">canvas · initialising</span>
-        </div>
-      )}
+      <TldrawCanvas />
 
       <FloatingToolbar
         scope={scope}
         onScopeChange={setScope}
         onAIPress={focusComposer}
-        pinnedCapabilities={pinnedCapabilities}
+        pinnedCapabilities={[...pinnedCapabilities]}
       />
     </section>
   );
-}
+});
