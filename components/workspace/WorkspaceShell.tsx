@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
@@ -9,9 +9,22 @@ import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
 import { PromptComposer } from '@/components/composer/PromptComposer';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
+import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
-import { finishRun, failRun, startRun, stepRun } from '@/lib/store/runs';
+import {
+  finishRun,
+  failRun,
+  startRun,
+  stepRun,
+  type CapabilityRunRecord,
+} from '@/lib/store/runs';
+import {
+  addDefinition,
+  getDefinitionById,
+  useCapabilityDefinitions,
+} from '@/lib/capability/store';
+import type { CapabilityDefinitionRecord } from '@/lib/capability/types';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -33,37 +46,60 @@ export function WorkspaceShell({ wsId }: WorkspaceShellProps) {
   );
 }
 
-const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
-
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const { editor } = useEditorRef();
+  const definitions = useCapabilityDefinitions();
+  const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
 
-  const pinnedCapabilities = EMPTY_PINS;
+  const pinnedCapabilities = useMemo(
+    () => definitions.map((d) => ({ id: d.id, label: d.name })),
+    [definitions]
+  );
 
-  const handlePrompt = useCallback(
-    async (prompt: string) => {
-      log('onSubmit fired · prompt:', prompt);
-      const runId = startRun({ tool: 'image-gen', provider: 'auto', model: '', prompt });
-      log('run started · id:', runId);
+  const runImageOnCanvas = useCallback(
+    async (
+      prompt: string,
+      options: { definitionId?: string; providerOverride?: string; modelOverride?: string } = {}
+    ) => {
+      const runId = startRun({
+        tool: 'image-gen',
+        provider: options.providerOverride ?? 'auto',
+        model: options.modelOverride ?? '',
+        prompt,
+        definitionId: options.definitionId,
+      });
       stepRun(runId, 'prepared');
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const providerOverride = urlParams.get('provider') ?? undefined;
-      const modelOverride = urlParams.get('model') ?? undefined;
-      log('config · provider:', providerOverride ?? '(default)', '· model:', modelOverride ?? '(default)', '· editor ready:', Boolean(editor));
 
       let res: Response;
       try {
         stepRun(runId, 'sending');
-        log('fetch POST /api/generate');
-        res = await fetch('/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, providerId: providerOverride, model: modelOverride }),
-        });
+        if (options.definitionId) {
+          const def = getDefinitionById(options.definitionId);
+          if (!def) {
+            failRun(runId, `unknown capability definition: ${options.definitionId}`);
+            return;
+          }
+          res = await fetch('/api/capability/rerun', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              definition: def,
+              promptOverride: prompt,
+            }),
+          });
+        } else {
+          res = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt,
+              providerId: options.providerOverride,
+              model: options.modelOverride,
+            }),
+          });
+        }
         stepRun(runId, 'received');
-        log('response · status:', res.status, res.statusText);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logError('fetch threw:', err);
@@ -72,10 +108,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
 
       stepRun(runId, 'parsing');
-      let json: any;
+      let json: { ok?: boolean; error?: string; plan?: { rewrittenPrompt?: string; rationale?: string; aspectRatio?: string }; provider?: { id?: string; model?: string }; result?: { latencyMs?: number; images?: Array<{ url: string; width: number; height: number; mimeType: string }> } };
       try {
         json = await res.json();
-        log('response body parsed:', json);
       } catch (err) {
         logError('json parse failed:', err);
         failRun(runId, `bad JSON response (${res.status})`, res.status);
@@ -84,14 +119,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       if (!res.ok || !json.ok) {
         const msg = typeof json?.error === 'string' ? json.error : res.statusText || 'unknown error';
-        logError('api returned not-ok:', msg);
         failRun(runId, msg, res.status);
         return;
       }
 
       const first = json.result?.images?.[0];
-      log('got image · width:', first?.width, 'height:', first?.height, 'urlPrefix:', (first?.url ?? '').slice(0, 60));
-
       stepRun(runId, 'placing');
       if (first && editor) {
         try {
@@ -102,15 +134,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             mimeType: first.mimeType,
             label: json.plan?.rewrittenPrompt ?? prompt,
           });
-          log('image placed on canvas');
         } catch (err) {
-          logError('dropImageOnCanvas threw:', err);
           failRun(runId, `canvas drop failed: ${err instanceof Error ? err.message : String(err)}`);
           return;
         }
-      } else if (!editor) {
-        logError('editor is null at result time — tldraw not mounted yet');
-        // Still mark the run as ok; record the image for later, but warn user.
       }
 
       finishRun(runId, {
@@ -124,9 +151,58 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         error: editor ? undefined : 'editor not ready — image stored, not placed',
         status: editor ? 'ok' : 'error',
       });
-      log('run complete');
     },
     [editor]
+  );
+
+  const handlePrompt = useCallback(
+    async (prompt: string) => {
+      log('onSubmit · prompt:', prompt);
+      const urlParams = new URLSearchParams(window.location.search);
+      const providerOverride = urlParams.get('provider') ?? undefined;
+      const modelOverride = urlParams.get('model') ?? undefined;
+      await runImageOnCanvas(prompt, { providerOverride, modelOverride });
+    },
+    [runImageOnCanvas]
+  );
+
+  const handlePin = useCallback((run: CapabilityRunRecord) => {
+    setPinTargetRun(run);
+  }, []);
+
+  const handlePinAccept = useCallback(
+    (proposal: ProposedCapability, run: CapabilityRunRecord) => {
+      const def: CapabilityDefinitionRecord = addDefinition({
+        name: proposal.name,
+        trigger: proposal.trigger,
+        paramSchema: proposal.paramSchema,
+        notes: proposal.notes,
+        exampleRunId: run.id,
+        createdBy: 'agent',
+        tool: run.tool,
+        provider: run.provider,
+        runTemplate: {
+          prompt: run.rewrittenPrompt ?? run.prompt,
+          aspectRatio: run.aspectRatio,
+          providerId: run.provider === 'auto' ? undefined : run.provider,
+          model: run.model || undefined,
+        },
+      });
+      log('pinned capability:', def.id, '·', def.name);
+      setPinTargetRun(null);
+    },
+    []
+  );
+
+  const handleCapabilityPress = useCallback(
+    async (definitionId: string) => {
+      const def = getDefinitionById(definitionId);
+      if (!def) return;
+      const prompt = def.runTemplate.prompt ?? def.trigger;
+      log('rerun capability:', def.id, '·', prompt);
+      await runImageOnCanvas(prompt, { definitionId });
+    },
+    [runImageOnCanvas]
   );
 
   return (
@@ -158,11 +234,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       <div className="flex flex-1 overflow-hidden">
         <LeftRail />
-        <CanvasSubstrate composerRef={composerRef} pinnedCapabilities={pinnedCapabilities} />
-        <RightRail />
-        {/* canvas render is isolated from editor changes via memo — placement
-            next to rails is intentional so rails' RailProviders keep their
-            own scope and can't accidentally remount tldraw. */}
+        <CanvasSubstrate
+          composerRef={composerRef}
+          pinnedCapabilities={pinnedCapabilities}
+          onCapabilityPress={handleCapabilityPress}
+        />
+        <RightRail onPin={handlePin} />
       </div>
 
       <PromptComposer
@@ -172,6 +249,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         className="h-composer"
       />
       <ComposerStatus />
+
+      <PinDialog
+        run={pinTargetRun}
+        open={pinTargetRun !== null}
+        onAccept={handlePinAccept}
+        onReject={() => setPinTargetRun(null)}
+      />
     </div>
   );
 }

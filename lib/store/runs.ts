@@ -35,6 +35,8 @@ export interface CapabilityRunRecord {
   finishedAt?: number;
   error?: string;
   httpStatus?: number;
+  /** Present when the run was spawned by a pinned capability (Phase 5 re-run). */
+  definitionId?: string;
 }
 
 type Listener = () => void;

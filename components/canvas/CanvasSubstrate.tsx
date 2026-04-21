@@ -31,12 +31,14 @@ export interface CanvasSubstrateProps {
   className?: string;
   composerRef: React.RefObject<HTMLTextAreaElement | null>;
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
+  onCapabilityPress?: (id: string) => void;
 }
 
 export const CanvasSubstrate = memo(function CanvasSubstrate({
   className,
   composerRef,
   pinnedCapabilities = EMPTY_PINS,
+  onCapabilityPress,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
 
@@ -57,6 +59,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onScopeChange={setScope}
         onAIPress={focusComposer}
         pinnedCapabilities={[...pinnedCapabilities]}
+        onCapabilityPress={onCapabilityPress}
       />
     </section>
   );

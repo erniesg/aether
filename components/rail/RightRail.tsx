@@ -4,7 +4,7 @@ import { Activity, Eye, GitBranch, Radio, type LucideIcon } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { ActionLog } from './ActionLog';
-import { useRuns } from '@/lib/store/runs';
+import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -36,7 +36,13 @@ function useSyncSummary(): { summary: string; hasContent: boolean; active: boole
   };
 }
 
-function RightRailInner({ className }: { className?: string }) {
+function RightRailInner({
+  className,
+  onPin,
+}: {
+  className?: string;
+  onPin?: (run: CapabilityRunRecord) => void;
+}) {
   const { railRef } = useRail();
   const sync = useSyncSummary();
 
@@ -69,7 +75,7 @@ function RightRailInner({ className }: { className?: string }) {
       summary: sync.summary,
       hasContent: sync.hasContent,
       active: sync.active,
-      body: <ActionLog />,
+      body: <ActionLog onPin={onPin} />,
     },
   ];
 
@@ -101,10 +107,15 @@ function RightRailInner({ className }: { className?: string }) {
   );
 }
 
-export function RightRail({ className }: { className?: string }) {
+export interface RightRailProps {
+  className?: string;
+  onPin?: (run: CapabilityRunRecord) => void;
+}
+
+export function RightRail({ className, onPin }: RightRailProps) {
   return (
     <RailProvider>
-      <RightRailInner className={className} />
+      <RightRailInner className={className} onPin={onPin} />
     </RailProvider>
   );
 }
