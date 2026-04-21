@@ -37,7 +37,9 @@ jobs:
       - name: Run Claude Code agent
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Subscription-backed OAuth token (not API credits).
+          # Generated via `claude setup-token` on the maintainer's machine.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           trigger_phrase: "@claude"
           label_trigger: "claude-run"
           claude_args: |
