@@ -8,6 +8,7 @@ import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
 import { PromptComposer } from '@/components/composer/PromptComposer';
+import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { finishRun, failRun, startRun } from '@/lib/store/runs';
@@ -122,6 +123,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         inputCount={0}
         className="h-composer"
       />
+      <ComposerStatus />
     </div>
   );
 }

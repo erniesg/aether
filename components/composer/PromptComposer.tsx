@@ -2,7 +2,7 @@
 
 import { forwardRef, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
-import { ArrowUp, Sparkles } from 'lucide-react';
+import { ArrowUp, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 export interface PromptComposerProps {
@@ -128,15 +128,16 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
           disabled={!value.trim() || disabled || pending}
           aria-label={pending ? 'generating' : 'generate'}
           className={cn(
-            'inline-flex h-8 w-8 items-center justify-center rounded-sm border',
-            'transition-colors duration-fast ease-quick',
-            'disabled:cursor-not-allowed disabled:opacity-40',
-            pending
-              ? 'border-accent bg-accent text-ink-on-accent'
-              : 'border-accent bg-accent text-ink-on-accent hover:bg-accent-strong'
+            'inline-flex h-8 w-8 items-center justify-center rounded-sm border border-accent bg-accent text-ink-on-accent',
+            'transition-colors duration-fast ease-quick hover:bg-accent-strong',
+            'disabled:cursor-not-allowed disabled:opacity-40'
           )}
         >
-          <ArrowUp size={14} strokeWidth={2} />
+          {pending ? (
+            <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+          ) : (
+            <ArrowUp size={14} strokeWidth={2} />
+          )}
         </button>
       </form>
     );

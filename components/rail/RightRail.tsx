@@ -4,6 +4,7 @@ import { Activity, Eye, GitBranch, Radio, type LucideIcon } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { ActionLog } from './ActionLog';
+import { useRuns } from '@/lib/store/runs';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -12,6 +13,7 @@ type SectionSpec = {
   icon: LucideIcon;
   summary?: string;
   hasContent?: boolean;
+  active?: boolean;
   body: React.ReactNode;
 };
 
@@ -23,39 +25,54 @@ function PlaceholderBody({ hint }: { hint: string }) {
   );
 }
 
-const RIGHT_SECTIONS: SectionSpec[] = [
-  {
-    id: 'focus',
-    label: 'focus',
-    icon: Eye,
-    summary: 'empty',
-    body: <PlaceholderBody hint="active key visual or variant set" />,
-  },
-  {
-    id: 'versions',
-    label: 'versions',
-    icon: GitBranch,
-    summary: '0 revisions',
-    body: <PlaceholderBody hint="revision history of the focus" />,
-  },
-  {
-    id: 'observations',
-    label: 'observations',
-    icon: Activity,
-    summary: 'none',
-    body: <PlaceholderBody hint="agent notes filtered by severity" />,
-  },
-  {
-    id: 'sync',
-    label: 'sync · provenance',
-    icon: Radio,
-    summary: 'see runs',
-    body: <ActionLog />,
-  },
-];
+function useSyncSummary(): { summary: string; hasContent: boolean; active: boolean } {
+  const runs = useRuns();
+  if (runs.length === 0) return { summary: 'idle', hasContent: false, active: false };
+  const running = runs.some((r) => r.status === 'running');
+  return {
+    summary: running ? 'generating' : `${runs.length} run${runs.length === 1 ? '' : 's'}`,
+    hasContent: true,
+    active: running,
+  };
+}
 
 function RightRailInner({ className }: { className?: string }) {
   const { railRef } = useRail();
+  const sync = useSyncSummary();
+
+  const sections: SectionSpec[] = [
+    {
+      id: 'focus',
+      label: 'focus',
+      icon: Eye,
+      summary: 'empty',
+      body: <PlaceholderBody hint="active key visual or variant set" />,
+    },
+    {
+      id: 'versions',
+      label: 'versions',
+      icon: GitBranch,
+      summary: '0 revisions',
+      body: <PlaceholderBody hint="revision history of the focus" />,
+    },
+    {
+      id: 'observations',
+      label: 'observations',
+      icon: Activity,
+      summary: 'none',
+      body: <PlaceholderBody hint="agent notes filtered by severity" />,
+    },
+    {
+      id: 'sync',
+      label: 'sync · provenance',
+      icon: Radio,
+      summary: sync.summary,
+      hasContent: sync.hasContent,
+      active: sync.active,
+      body: <ActionLog />,
+    },
+  ];
+
   return (
     <nav
       ref={railRef as React.RefObject<HTMLElement>}
@@ -66,7 +83,7 @@ function RightRailInner({ className }: { className?: string }) {
         className
       )}
     >
-      {RIGHT_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <RailSection
           key={section.id}
           id={section.id}
@@ -74,6 +91,7 @@ function RightRailInner({ className }: { className?: string }) {
           icon={section.icon}
           summary={section.summary}
           hasContent={section.hasContent}
+          active={section.active}
           side="left"
         >
           {section.body}
