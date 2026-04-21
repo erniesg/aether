@@ -18,17 +18,17 @@ export function TldrawCanvas({ theme }: { theme: Theme }) {
       className="absolute inset-0"
       inferDarkMode={false}
       options={{ maxPages: 1 }}
+      // tldraw's native Toolbar + StylePanel stay — primitives (select/hand/
+      // shapes/text/zoom) belong to tldraw. The Aether FloatingToolbar owns
+      // AI/capability verbs only. See docs/ARCHITECTURE + CLAUDE.md rule 6.
       components={{
         MenuPanel: null,
-        Toolbar: null,
-        NavigationPanel: null,
-        ZoomMenu: null,
-        Minimap: null,
-        ActionsMenu: null,
-        PageMenu: null,
         MainMenu: null,
         HelpMenu: null,
+        PageMenu: null,
         KeyboardShortcutsDialog: null,
+        QuickActions: null,
+        ActionsMenu: null,
       }}
       data-aether-theme={theme}
     />

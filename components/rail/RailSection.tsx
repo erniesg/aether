@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { useRail } from './RailContext';
@@ -37,8 +38,14 @@ export function RailSection({
   children,
   side = 'right',
 }: RailSectionProps) {
-  const { openSection, toggle, close } = useRail();
+  const { openSection, toggle, close, registerFlyout } = useRail();
   const isOpen = openSection === id;
+  const flyoutRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) registerFlyout(id, flyoutRef.current);
+    return () => registerFlyout(id, null);
+  }, [id, isOpen, registerFlyout]);
 
   return (
     <div className="relative">
@@ -68,6 +75,7 @@ export function RailSection({
 
       {isOpen ? (
         <aside
+          ref={flyoutRef}
           role="region"
           aria-label={label}
           data-rail-flyout={id}

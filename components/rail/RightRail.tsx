@@ -1,7 +1,7 @@
 'use client';
 
 import { Activity, Eye, GitBranch, Radio, type LucideIcon } from 'lucide-react';
-import { RailProvider } from './RailContext';
+import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { cn } from '@/lib/utils/cn';
 
@@ -53,31 +53,39 @@ const RIGHT_SECTIONS: SectionSpec[] = [
   },
 ];
 
+function RightRailInner({ className }: { className?: string }) {
+  const { railRef } = useRail();
+  return (
+    <nav
+      ref={railRef as React.RefObject<HTMLElement>}
+      aria-label="outputs"
+      data-taxonomy="output"
+      className={cn(
+        'relative flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-l border-border-soft bg-surface-panel-muted py-2',
+        className
+      )}
+    >
+      {RIGHT_SECTIONS.map((section) => (
+        <RailSection
+          key={section.id}
+          id={section.id}
+          label={section.label}
+          icon={section.icon}
+          summary={section.summary}
+          hasContent={section.hasContent}
+          side="left"
+        >
+          {section.body}
+        </RailSection>
+      ))}
+    </nav>
+  );
+}
+
 export function RightRail({ className }: { className?: string }) {
   return (
     <RailProvider>
-      <nav
-        aria-label="outputs"
-        data-taxonomy="output"
-        className={cn(
-          'relative flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-l border-border-soft bg-surface-panel-muted py-2',
-          className
-        )}
-      >
-        {RIGHT_SECTIONS.map((section) => (
-          <RailSection
-            key={section.id}
-            id={section.id}
-            label={section.label}
-            icon={section.icon}
-            summary={section.summary}
-            hasContent={section.hasContent}
-            side="left"
-          >
-            {section.body}
-          </RailSection>
-        ))}
-      </nav>
+      <RightRailInner className={className} />
     </RailProvider>
   );
 }

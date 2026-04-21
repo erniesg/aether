@@ -11,7 +11,7 @@ import {
   Target,
   type LucideIcon,
 } from 'lucide-react';
-import { RailProvider } from './RailContext';
+import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { cn } from '@/lib/utils/cn';
 
@@ -97,30 +97,38 @@ const LEFT_SECTIONS: SectionSpec[] = [
   },
 ];
 
+function LeftRailInner({ className }: { className?: string }) {
+  const { railRef } = useRail();
+  return (
+    <nav
+      ref={railRef as React.RefObject<HTMLElement>}
+      aria-label="inputs"
+      data-taxonomy="input"
+      className={cn(
+        'relative flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-r border-border-soft bg-surface-panel-muted py-2',
+        className
+      )}
+    >
+      {LEFT_SECTIONS.map((section) => (
+        <RailSection
+          key={section.id}
+          id={section.id}
+          label={section.label}
+          icon={section.icon}
+          summary={section.summary}
+          hasContent={section.hasContent}
+        >
+          {section.body}
+        </RailSection>
+      ))}
+    </nav>
+  );
+}
+
 export function LeftRail({ className }: { className?: string }) {
   return (
     <RailProvider>
-      <nav
-        aria-label="inputs"
-        data-taxonomy="input"
-        className={cn(
-          'relative flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-r border-border-soft bg-surface-panel-muted py-2',
-          className
-        )}
-      >
-        {LEFT_SECTIONS.map((section) => (
-          <RailSection
-            key={section.id}
-            id={section.id}
-            label={section.label}
-            icon={section.icon}
-            summary={section.summary}
-            hasContent={section.hasContent}
-          >
-            {section.body}
-          </RailSection>
-        ))}
-      </nav>
+      <LeftRailInner className={className} />
     </RailProvider>
   );
 }
