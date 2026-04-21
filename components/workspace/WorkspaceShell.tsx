@@ -11,7 +11,15 @@ import { PromptComposer } from '@/components/composer/PromptComposer';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
-import { finishRun, failRun, startRun } from '@/lib/store/runs';
+import { finishRun, failRun, startRun, stepRun } from '@/lib/store/runs';
+
+const LOG_TAG = '[aether/generate]';
+const log = (...args: unknown[]) => {
+  if (typeof console !== 'undefined') console.log(LOG_TAG, ...args);
+};
+const logError = (...args: unknown[]) => {
+  if (typeof console !== 'undefined') console.error(LOG_TAG, ...args);
+};
 
 export interface WorkspaceShellProps {
   wsId: string;
@@ -33,32 +41,58 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
   const handlePrompt = useCallback(
     async (prompt: string) => {
-      const runId = startRun({
-        tool: 'image-gen',
-        provider: 'auto',
-        model: '',
-        prompt,
-      });
+      log('onSubmit fired · prompt:', prompt);
+      const runId = startRun({ tool: 'image-gen', provider: 'auto', model: '', prompt });
+      log('run started · id:', runId);
+      stepRun(runId, 'prepared');
 
+      const urlParams = new URLSearchParams(window.location.search);
+      const providerOverride = urlParams.get('provider') ?? undefined;
+      const modelOverride = urlParams.get('model') ?? undefined;
+      log('config · provider:', providerOverride ?? '(default)', '· model:', modelOverride ?? '(default)', '· editor ready:', Boolean(editor));
+
+      let res: Response;
       try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const providerOverride = urlParams.get('provider') ?? undefined;
-        const modelOverride = urlParams.get('model') ?? undefined;
-
-        const res = await fetch('/api/generate', {
+        stepRun(runId, 'sending');
+        log('fetch POST /api/generate');
+        res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt, providerId: providerOverride, model: modelOverride }),
         });
-        const json = (await res.json()) as any;
-        if (!res.ok || !json.ok) {
-          const msg = typeof json?.error === 'string' ? json.error : res.statusText;
-          failRun(runId, msg);
-          return;
-        }
+        stepRun(runId, 'received');
+        log('response · status:', res.status, res.statusText);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logError('fetch threw:', err);
+        failRun(runId, `fetch failed: ${message}`);
+        return;
+      }
 
-        const first = json.result?.images?.[0];
-        if (first && editor) {
+      stepRun(runId, 'parsing');
+      let json: any;
+      try {
+        json = await res.json();
+        log('response body parsed:', json);
+      } catch (err) {
+        logError('json parse failed:', err);
+        failRun(runId, `bad JSON response (${res.status})`, res.status);
+        return;
+      }
+
+      if (!res.ok || !json.ok) {
+        const msg = typeof json?.error === 'string' ? json.error : res.statusText || 'unknown error';
+        logError('api returned not-ok:', msg);
+        failRun(runId, msg, res.status);
+        return;
+      }
+
+      const first = json.result?.images?.[0];
+      log('got image · width:', first?.width, 'height:', first?.height, 'urlPrefix:', (first?.url ?? '').slice(0, 60));
+
+      stepRun(runId, 'placing');
+      if (first && editor) {
+        try {
           dropImageOnCanvas(editor, {
             url: first.url,
             width: first.width,
@@ -66,20 +100,29 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             mimeType: first.mimeType,
             label: json.plan?.rewrittenPrompt ?? prompt,
           });
+          log('image placed on canvas');
+        } catch (err) {
+          logError('dropImageOnCanvas threw:', err);
+          failRun(runId, `canvas drop failed: ${err instanceof Error ? err.message : String(err)}`);
+          return;
         }
-
-        finishRun(runId, {
-          provider: json.provider?.id ?? 'unknown',
-          model: json.provider?.model ?? '',
-          rewrittenPrompt: json.plan?.rewrittenPrompt,
-          rationale: json.plan?.rationale,
-          aspectRatio: json.plan?.aspectRatio,
-          imageUrl: first?.url,
-          latencyMs: json.result?.latencyMs,
-        });
-      } catch (err) {
-        failRun(runId, err instanceof Error ? err.message : String(err));
+      } else if (!editor) {
+        logError('editor is null at result time — tldraw not mounted yet');
+        // Still mark the run as ok; record the image for later, but warn user.
       }
+
+      finishRun(runId, {
+        provider: json.provider?.id ?? 'unknown',
+        model: json.provider?.model ?? '',
+        rewrittenPrompt: json.plan?.rewrittenPrompt,
+        rationale: json.plan?.rationale,
+        aspectRatio: json.plan?.aspectRatio,
+        imageUrl: first?.url,
+        latencyMs: json.result?.latencyMs,
+        error: editor ? undefined : 'editor not ready — image stored, not placed',
+        status: editor ? 'ok' : 'error',
+      });
+      log('run complete');
     },
     [editor]
   );

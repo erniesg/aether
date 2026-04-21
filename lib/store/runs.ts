@@ -9,6 +9,14 @@ import { useSyncExternalStore } from 'react';
  */
 
 export type RunStatus = 'running' | 'ok' | 'error';
+export type RunStep =
+  | 'prepared'
+  | 'sending'
+  | 'awaiting'
+  | 'received'
+  | 'parsing'
+  | 'placing'
+  | 'done';
 
 export interface CapabilityRunRecord {
   id: string;
@@ -22,9 +30,11 @@ export interface CapabilityRunRecord {
   imageUrl?: string;
   latencyMs?: number;
   status: RunStatus;
+  step?: RunStep;                 // sub-state while running
   startedAt: number;
   finishedAt?: number;
   error?: string;
+  httpStatus?: number;
 }
 
 type Listener = () => void;
@@ -75,15 +85,20 @@ export function startRun(partial: Omit<CapabilityRunRecord, 'id' | 'status' | 's
   return id;
 }
 
+export function stepRun(id: string, step: RunStep): void {
+  state.runs = state.runs.map((r) => (r.id === id ? { ...r, step } : r));
+  notify();
+}
+
 export function finishRun(id: string, patch: Partial<CapabilityRunRecord>): void {
   state.runs = state.runs.map((r) =>
-    r.id === id ? { ...r, ...patch, finishedAt: Date.now(), status: patch.status ?? 'ok' } : r
+    r.id === id ? { ...r, ...patch, finishedAt: Date.now(), status: patch.status ?? 'ok', step: 'done' } : r
   );
   notify();
 }
 
-export function failRun(id: string, error: string): void {
-  finishRun(id, { status: 'error', error });
+export function failRun(id: string, error: string, httpStatus?: number): void {
+  finishRun(id, { status: 'error', error, httpStatus });
 }
 
 export function clearRuns(): void {

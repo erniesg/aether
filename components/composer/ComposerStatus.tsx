@@ -35,10 +35,11 @@ export function ComposerStatus() {
   }
 
   if (top.status === 'running') {
+    const stepLabel = top.step ?? 'starting';
     return (
       <div className="flex h-6 items-center gap-2 border-t border-accent/30 bg-accent/5 px-4 font-caption text-accent">
         <Loader2 size={10} strokeWidth={2} className="animate-spin" />
-        generating · {elapsed}s
+        generating · {stepLabel} · {elapsed}s
       </div>
     );
   }
