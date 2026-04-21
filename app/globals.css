@@ -2,36 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --bg: #fbfaf7;
-    --bg-muted: #f3f1ea;
-    --panel: #ffffff;
-    --panel-muted: #f7f5ef;
-    --border: #e4e0d3;
-    --border-soft: #edeae0;
-    --ink: #1a1816;
-    --ink-2: #4a4540;
-    --ink-dim: #807a6e;
-    --ink-faint: #b0a99a;
-    --accent-terra: #d87040;
-    --accent-blue: #3c4a5c;
-    --accent-sage: #7c9885;
-    --accent-highlight: #f4e4c8;
-  }
+@import './design-system/tokens.css';
+@import './design-system/themes.css';
 
+@layer base {
   html,
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font-family:
-      'Inter',
-      -apple-system,
-      BlinkMacSystemFont,
-      sans-serif;
+    background: rgb(var(--surface-bg));
+    color: rgb(var(--ink));
+    font-family: var(--font-sans);
     font-feature-settings: 'ss01', 'cv11';
-    letter-spacing: -0.01em;
+    letter-spacing: var(--tracking-default);
     -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
+    color: rgb(var(--ink));
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-xs);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-serif);
+    letter-spacing: var(--tracking-tight);
+  }
+  .font-caption {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+  }
+  .paper-texture {
+    background-image:
+      radial-gradient(rgb(var(--ink) / 0.02) 1px, transparent 1px),
+      radial-gradient(rgb(var(--ink) / 0.015) 1px, transparent 1px);
+    background-size: 3px 3px, 7px 7px;
+    background-position: 0 0, 1px 2px;
   }
 }

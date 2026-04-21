@@ -1,0 +1,158 @@
+/**
+ * Semantic theme tokens. Each theme maps roles (surface, ink, border, accent,
+ * focus, signal) onto the raw tokens from tokens.css. Swapping theme swaps
+ * every surface in the app by changing the cascade, zero JS re-render needed.
+ *
+ * Active theme is chosen via [data-theme="..."] attribute on <html>.
+ */
+
+/* ─── light (default / paper) ──────────────────────────────────────── */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --surface-bg: var(--c-paper);
+  --surface-bg-muted: var(--c-paper-muted);
+  --surface-panel: var(--c-panel);
+  --surface-panel-muted: var(--c-panel-muted);
+  --surface-canvas: 255 255 255;
+  --surface-overlay: 255 255 255;
+
+  --ink: var(--c-ink-900);
+  --ink-muted: var(--c-ink-700);
+  --ink-dim: var(--c-ink-500);
+  --ink-faint: var(--c-ink-300);
+  --ink-on-accent: 255 255 255;
+
+  --border: var(--c-ink-100);
+  --border-soft: var(--c-ink-50);
+  --border-strong: var(--c-ink-300);
+
+  --accent: var(--c-terra);
+  --accent-strong: var(--c-terra-deep);
+  --accent-secondary: var(--c-deep-blue);
+  --accent-tertiary: var(--c-sage);
+  --accent-highlight: var(--c-highlight);
+
+  --focus: var(--c-terra);
+
+  --signal-ok: var(--c-signal-ok);
+  --signal-warn: var(--c-signal-warn);
+  --signal-error: var(--c-signal-error);
+  --signal-info: var(--c-signal-info);
+}
+
+/* ─── dark (same palette, inverted) ────────────────────────────────── */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --surface-bg: var(--c-black-base);
+  --surface-bg-muted: 20 18 16;
+  --surface-panel: var(--c-black-panel);
+  --surface-panel-muted: var(--c-black-panel-raised);
+  --surface-canvas: 28 25 22;
+  --surface-overlay: 40 36 32;
+
+  --ink: var(--c-cream);
+  --ink-muted: var(--c-cream-dim);
+  --ink-dim: var(--c-cream-faint);
+  --ink-faint: 80 74 66;
+  --ink-on-accent: 15 13 12;
+
+  --border: 60 54 48;
+  --border-soft: 44 40 36;
+  --border-strong: 96 88 78;
+
+  --accent: var(--c-terra);
+  --accent-strong: 232 138 90;
+  --accent-secondary: 140 162 188;
+  --accent-tertiary: 156 188 166;
+  --accent-highlight: 100 86 62;
+
+  --focus: 232 138 90;
+
+  --signal-ok: 140 186 146;
+  --signal-warn: 232 178 104;
+  --signal-error: 228 120 108;
+  --signal-info: 128 168 212;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-sm: 0 2px 6px rgb(0 0 0 / 0.45);
+  --shadow-md: 0 10px 20px -8px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 20px 40px -16px rgb(0 0 0 / 0.65);
+}
+
+/* ─── synth (alt skin — deep blue substrate, terra pop) ────────────── */
+[data-theme='synth'] {
+  color-scheme: dark;
+
+  --surface-bg: var(--c-deep-blue-strong);
+  --surface-bg-muted: 28 40 56;
+  --surface-panel: 44 58 76;
+  --surface-panel-muted: 38 52 68;
+  --surface-canvas: 234 228 216;
+  --surface-overlay: 60 78 96;
+
+  --ink: 244 238 224;
+  --ink-muted: 200 210 224;
+  --ink-dim: 150 168 186;
+  --ink-faint: 100 120 140;
+  --ink-on-accent: 34 46 62;
+
+  --border: 70 90 112;
+  --border-soft: 60 78 96;
+  --border-strong: 112 140 168;
+
+  --accent: var(--c-terra);
+  --accent-strong: var(--c-terra-deep);
+  --accent-secondary: var(--c-sage);
+  --accent-tertiary: 232 178 104;
+  --accent-highlight: 244 228 200;
+
+  --focus: 232 138 90;
+
+  --signal-ok: 156 200 160;
+  --signal-warn: 240 196 120;
+  --signal-error: 232 132 118;
+  --signal-info: 144 184 228;
+
+  --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  --tracking-default: 0em;
+}
+
+/* system-preference default when user hasn't picked */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --surface-bg: var(--c-black-base);
+    --surface-bg-muted: 20 18 16;
+    --surface-panel: var(--c-black-panel);
+    --surface-panel-muted: var(--c-black-panel-raised);
+    --surface-canvas: 28 25 22;
+    --surface-overlay: 40 36 32;
+
+    --ink: var(--c-cream);
+    --ink-muted: var(--c-cream-dim);
+    --ink-dim: var(--c-cream-faint);
+    --ink-faint: 80 74 66;
+    --ink-on-accent: 15 13 12;
+
+    --border: 60 54 48;
+    --border-soft: 44 40 36;
+    --border-strong: 96 88 78;
+
+    --accent: var(--c-terra);
+    --accent-strong: 232 138 90;
+    --accent-secondary: 140 162 188;
+    --accent-tertiary: 156 188 166;
+    --accent-highlight: 100 86 62;
+
+    --focus: 232 138 90;
+
+    --signal-ok: 140 186 146;
+    --signal-warn: 232 178 104;
+    --signal-error: 228 120 108;
+    --signal-info: 128 168 212;
+  }
+}
