@@ -1,0 +1,56 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aether",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-02-28",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+
+  "env": {
+    "staging": {
+      "name": "aether-stg",
+      "routes": [
+        { "pattern": "aether-stg.berlayar.ai", "custom_domain": true }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "AETHER_ASSETS",
+          "bucket_name": "aether-stg-assets",
+          "preview_bucket_name": "aether-stg-assets"
+        }
+      ],
+      "vars": {
+        "AETHER_ENV": "staging",
+        "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai",
+        "NEXT_PUBLIC_CONVEX_URL": ""
+      }
+    },
+    "production": {
+      "name": "aether",
+      "routes": [
+        { "pattern": "aether.berlayar.ai", "custom_domain": true }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "AETHER_ASSETS",
+          "bucket_name": "aether-assets",
+          "preview_bucket_name": "aether-assets"
+        }
+      ],
+      "vars": {
+        "AETHER_ENV": "production",
+        "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai",
+        "NEXT_PUBLIC_CONVEX_URL": ""
+      }
+    }
+  }
+}

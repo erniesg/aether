@@ -1,0 +1,19 @@
+# Copy to .dev.vars (gitignored) for local development.
+# For production, use: wrangler secret put --env <staging|production> <NAME>
+
+# Core agent
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Image gen providers (pick any subset — provider is selected at runtime)
+OPENAI_API_KEY=sk-...
+GOOGLE_GEMINI_API_KEY=...
+REPLICATE_API_TOKEN=r8_...
+VOLCENGINE_ARK_API_KEY=...
+
+# Convex — set after `npx convex dev` creates a project
+NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
+CONVEX_DEPLOY_KEY=...
+
+# App
+AETHER_ENV=development
+NEXTJS_ENV=development
