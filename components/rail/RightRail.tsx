@@ -3,6 +3,7 @@
 import { Activity, Eye, GitBranch, Radio, type LucideIcon } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
+import { ActionLog } from './ActionLog';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -48,8 +49,8 @@ const RIGHT_SECTIONS: SectionSpec[] = [
     id: 'sync',
     label: 'sync · provenance',
     icon: Radio,
-    summary: 'idle',
-    body: <PlaceholderBody hint="typed action log, revert, export manifest" />,
+    summary: 'see runs',
+    body: <ActionLog />,
   },
 ];
 

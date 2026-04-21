@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
@@ -8,35 +8,83 @@ import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
 import { PromptComposer } from '@/components/composer/PromptComposer';
+import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
+import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
+import { finishRun, failRun, startRun } from '@/lib/store/runs';
 
 export interface WorkspaceShellProps {
   wsId: string;
 }
 
-/**
- * The synthesis shell — single route, lens-switched (Phase 3+), strict taxonomy.
- *   header  → navigation + metadata chips
- *   aside#L → input
- *   section → tool (canvas substrate + floating toolbar)
- *   aside#R → output + metadata
- *   footer  → tool (prompt composer)
- *
- * No category leaks anywhere. Panels do not share categories. Do not mix.
- */
 export function WorkspaceShell({ wsId }: WorkspaceShellProps) {
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  return (
+    <EditorRefProvider>
+      <WorkspaceShellInner wsId={wsId} />
+    </EditorRefProvider>
+  );
+}
 
-  // Pinned capabilities will come from Convex (Phase 5); empty for now.
+function WorkspaceShellInner({ wsId }: { wsId: string }) {
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const { editor } = useEditorRef();
+
   const pinnedCapabilities: Array<{ id: string; label: string }> = [];
 
-  const handlePrompt = async (_prompt: string) => {
-    // Phase 4 hooks the Claude agent loop in here.
-    // For now the composer clears and we can observe the submit event in tests.
-  };
+  const handlePrompt = useCallback(
+    async (prompt: string) => {
+      const runId = startRun({
+        tool: 'image-gen',
+        provider: 'auto',
+        model: '',
+        prompt,
+      });
+
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const providerOverride = urlParams.get('provider') ?? undefined;
+        const modelOverride = urlParams.get('model') ?? undefined;
+
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, providerId: providerOverride, model: modelOverride }),
+        });
+        const json = (await res.json()) as any;
+        if (!res.ok || !json.ok) {
+          const msg = typeof json?.error === 'string' ? json.error : res.statusText;
+          failRun(runId, msg);
+          return;
+        }
+
+        const first = json.result?.images?.[0];
+        if (first && editor) {
+          dropImageOnCanvas(editor, {
+            url: first.url,
+            width: first.width,
+            height: first.height,
+            mimeType: first.mimeType,
+            label: json.plan?.rewrittenPrompt ?? prompt,
+          });
+        }
+
+        finishRun(runId, {
+          provider: json.provider?.id ?? 'unknown',
+          model: json.provider?.model ?? '',
+          rewrittenPrompt: json.plan?.rewrittenPrompt,
+          rationale: json.plan?.rationale,
+          aspectRatio: json.plan?.aspectRatio,
+          imageUrl: first?.url,
+          latencyMs: json.result?.latencyMs,
+        });
+      } catch (err) {
+        failRun(runId, err instanceof Error ? err.message : String(err));
+      }
+    },
+    [editor]
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-bg">
-      {/* header — navigation + passive metadata only */}
       <Surface
         as="header"
         tone="panel"
@@ -70,8 +118,8 @@ export function WorkspaceShell({ wsId }: WorkspaceShellProps) {
 
       <PromptComposer
         ref={composerRef}
-        activeInputSet="empty"
         onSubmit={handlePrompt}
+        inputCount={0}
         className="h-composer"
       />
     </div>
