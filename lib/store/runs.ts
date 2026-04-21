@@ -1,107 +1,84 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
-
 /**
- * In-memory capability-run log. Replaces the Convex-backed store once the
- * Convex project is provisioned. Keeps the same public shape so the swap is
- * a one-file change — consumers see the same selectors.
+ * Capability-run log facade. Same public API consumers have always used
+ * (useRuns / startRun / stepRun / finishRun / failRun / clearRuns).
+ *
+ * When NEXT_PUBLIC_CONVEX_URL is set, reads come from `useQuery(api.runs.list)`
+ * and writes go through ConvexReactClient.mutation against `runs:*` functions.
+ * When the flag is empty, everything falls back to the original in-memory
+ * store so staging keeps working before Convex is provisioned.
  */
 
-export type RunStatus = 'running' | 'ok' | 'error';
-export type RunStep =
-  | 'prepared'
-  | 'sending'
-  | 'awaiting'
-  | 'received'
-  | 'parsing'
-  | 'placing'
-  | 'done';
+import type { CapabilityRunRecord, RunStatus, RunStep } from './runs.types';
+import {
+  useRunsMemory,
+  startRunMemory,
+  stepRunMemory,
+  finishRunMemory,
+  failRunMemory,
+  clearRunsMemory,
+} from './runs.memory';
+import {
+  useRunsConvex,
+  startRunConvex,
+  stepRunConvex,
+  finishRunConvex,
+  failRunConvex,
+} from './runs.convex';
+import { isConvexEnabled } from '@/lib/convex/client';
 
-export interface CapabilityRunRecord {
-  id: string;
-  tool: string;                   // 'image-gen' | 'image-edit' | etc.
-  provider: string;               // 'gemini' | 'volcengine' | ...
-  model: string;
-  prompt: string;
-  rewrittenPrompt?: string;
-  rationale?: string;
-  aspectRatio?: string;
-  imageUrl?: string;
-  latencyMs?: number;
-  status: RunStatus;
-  step?: RunStep;                 // sub-state while running
-  startedAt: number;
-  finishedAt?: number;
-  error?: string;
-  httpStatus?: number;
-}
+export type { CapabilityRunRecord, RunStatus, RunStep };
 
-type Listener = () => void;
-
-const state = {
-  runs: [] as CapabilityRunRecord[],
-};
-const listeners = new Set<Listener>();
-
-function notify() {
-  for (const l of listeners) l();
-}
-
-export function subscribe(l: Listener): () => void {
-  listeners.add(l);
-  return () => {
-    listeners.delete(l);
-  };
-}
-
-function getSnapshot(): CapabilityRunRecord[] {
-  return state.runs;
-}
-
-const SERVER_SNAPSHOT: CapabilityRunRecord[] = [];
-function getServerSnapshot(): CapabilityRunRecord[] {
-  return SERVER_SNAPSHOT;
-}
-
-export function useRuns(): CapabilityRunRecord[] {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
-
-function genId(): string {
+function genClientRunId(): string {
   return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function startRun(partial: Omit<CapabilityRunRecord, 'id' | 'status' | 'startedAt'> & { status?: RunStatus }): string {
-  const id = genId();
-  const record: CapabilityRunRecord = {
-    ...partial,
-    id,
-    status: partial.status ?? 'running',
-    startedAt: Date.now(),
-  };
-  state.runs = [record, ...state.runs].slice(0, 50);
-  notify();
-  return id;
+export function useRuns(): CapabilityRunRecord[] {
+  // NEXT_PUBLIC_CONVEX_URL is inlined at build time by Next.js, so this
+  // branch is stable across a given browser session — safe under React's
+  // rules of hooks.
+  /* eslint-disable react-hooks/rules-of-hooks */
+  if (isConvexEnabled()) return useRunsConvex();
+  return useRunsMemory();
+  /* eslint-enable react-hooks/rules-of-hooks */
+}
+
+export function startRun(
+  partial: Omit<CapabilityRunRecord, 'id' | 'status' | 'startedAt'> & { status?: RunStatus }
+): string {
+  if (isConvexEnabled()) {
+    const id = genClientRunId();
+    startRunConvex(id, partial);
+    return id;
+  }
+  return startRunMemory(partial);
 }
 
 export function stepRun(id: string, step: RunStep): void {
-  state.runs = state.runs.map((r) => (r.id === id ? { ...r, step } : r));
-  notify();
+  if (isConvexEnabled()) {
+    stepRunConvex(id, step);
+    return;
+  }
+  stepRunMemory(id, step);
 }
 
 export function finishRun(id: string, patch: Partial<CapabilityRunRecord>): void {
-  state.runs = state.runs.map((r) =>
-    r.id === id ? { ...r, ...patch, finishedAt: Date.now(), status: patch.status ?? 'ok', step: 'done' } : r
-  );
-  notify();
+  if (isConvexEnabled()) {
+    finishRunConvex(id, patch);
+    return;
+  }
+  finishRunMemory(id, patch);
 }
 
 export function failRun(id: string, error: string, httpStatus?: number): void {
-  finishRun(id, { status: 'error', error, httpStatus });
+  if (isConvexEnabled()) {
+    failRunConvex(id, error, httpStatus);
+    return;
+  }
+  failRunMemory(id, error, httpStatus);
 }
 
 export function clearRuns(): void {
-  state.runs = [];
-  notify();
+  clearRunsMemory();
 }

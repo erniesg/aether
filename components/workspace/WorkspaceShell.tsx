@@ -60,7 +60,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, providerId: providerOverride, model: modelOverride }),
+          body: JSON.stringify({ prompt, providerId: providerOverride, model: modelOverride, runId }),
         });
         stepRun(runId, 'received');
         log('response · status:', res.status, res.statusText);

@@ -118,10 +118,36 @@ export default defineSchema({
   }).index('by_ws', ['wsId']),
 
   capabilityRun: defineTable({
-    wsId: v.id('workspace'),
+    // Workspace is optional because pre-Phase-5 the UI has no wsId plumbing; a
+    // single demo workspace is implicit. Slice-A keeps the run log working
+    // without blocking on that wiring.
+    wsId: v.optional(v.id('workspace')),
     definitionId: v.optional(v.id('capabilityDefinition')),
     tool: v.string(),
     provider: v.string(),
+    model: v.string(),
+    prompt: v.string(),
+    // Client-generated correlation id. Stable across start/step/finish and
+    // lets the server and the browser agree on which record to mutate.
+    clientRunId: v.string(),
+    step: v.optional(
+      v.union(
+        v.literal('prepared'),
+        v.literal('sending'),
+        v.literal('awaiting'),
+        v.literal('received'),
+        v.literal('parsing'),
+        v.literal('placing'),
+        v.literal('done')
+      )
+    ),
+    rewrittenPrompt: v.optional(v.string()),
+    rationale: v.optional(v.string()),
+    aspectRatio: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    latencyMs: v.optional(v.number()),
+    error: v.optional(v.string()),
+    httpStatus: v.optional(v.number()),
     inputs: v.any(),
     outputs: v.any(),
     beforeSnapshotRef: v.optional(v.string()),
@@ -129,7 +155,9 @@ export default defineSchema({
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
     status: v.union(v.literal('running'), v.literal('ok'), v.literal('error')),
-  }).index('by_ws', ['wsId']),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_client_run_id', ['clientRunId']),
 
   // ─── right rail: observations ──────────────────────────────────────────
   observation: defineTable({
