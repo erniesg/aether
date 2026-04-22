@@ -122,15 +122,27 @@ async function mockGenerate(
 
 test.describe('B2 — generate happy path', () => {
   test('⇧+Enter keeps the generation scoped to one artboard', async ({ page }) => {
-    await mockGenerate(
-      page,
-      200,
-      buildGenerateStream({
-        prompt: 'a serene aether test image',
-        plannerMode: 'bypass',
-        frames: [{ id: 'canvas', label: 'Canvas', aspectRatio: '1:1' }],
-      })
-    );
+    const requests: Array<Record<string, unknown>> = [];
+    await page.route('**/api/generate', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      requests.push(body);
+      const targets = (body.targets as Array<{ id: string; label?: string; aspectRatio: string }>) ?? [
+        { id: 'canvas', label: 'Canvas', aspectRatio: '1:1' },
+      ];
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream; charset=utf-8',
+        body: buildGenerateStream({
+          prompt: 'a serene aether test image',
+          plannerMode: 'bypass',
+          frames: targets,
+        }),
+      });
+    });
     await page.goto('/workspace/demo-ws?provider=openai&bypass=1');
 
     const composer = page.getByPlaceholder('describe the generation…');
@@ -146,6 +158,10 @@ test.describe('B2 — generate happy path', () => {
 
     await composer.fill('a serene aether test image');
     await composer.press('Shift+Enter');
+
+    await expect.poll(() => requests.length, { timeout: 10_000 }).toBe(1);
+    const [request] = requests;
+    expect(((request?.targets as Array<unknown>) ?? []).length).toBe(1);
 
     await expect(page.getByText(/placed on canvas/)).toBeVisible({ timeout: 10_000 });
 
