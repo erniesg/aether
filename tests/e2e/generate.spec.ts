@@ -102,8 +102,10 @@ test.describe('B2 — generate happy path', () => {
     await composer.fill('boom');
     await composer.press('Enter');
 
-    await expect(page.getByRole('alert')).toContainText(/upstream boom/, {
-      timeout: 10_000,
-    });
+    // Next.js injects its own `role="alert"` route announcer, so filter to
+    // the ComposerStatus alert by the error text it renders.
+    await expect(
+      page.getByRole('alert').filter({ hasText: /upstream boom/ })
+    ).toBeVisible({ timeout: 10_000 });
   });
 });
