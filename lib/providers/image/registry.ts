@@ -18,18 +18,48 @@ import { createVolcengineProvider } from './volcengine';
 
 type Registry = Record<string, () => ImageGenProvider>;
 
+// Order matters: this is the fallback iteration when no `?provider=` or
+// IMAGE_GEN_PROVIDER is set. OpenAI is first because it's the most common
+// demo target and its model names (gpt-image-1/2, dall-e-*) are distinctive
+// enough that a URL like `?model=gpt-image-2` is only meaningful for openai.
 const REGISTRY: Registry = {
-  gemini: () => createGeminiProvider(),
   openai: () => createOpenAIProvider(),
+  gemini: () => createGeminiProvider(),
   replicate: () => createReplicateProvider(),
   volcengine: () => createVolcengineProvider(),
 };
 
 export const KNOWN_PROVIDER_IDS = Object.keys(REGISTRY) as ReadonlyArray<string>;
 
-export function resolveProvider(preferredId?: string): ImageGenProvider {
+/**
+ * Pick a provider. Precedence:
+ *   1. explicit `preferredId` (URL `?provider=...` or agent choice)
+ *   2. `modelHint` — if one of the known providers lists this model, prefer it.
+ *      Lets `?model=gpt-image-2` route to openai without having to pass
+ *      `?provider=openai` too. Must still pass availability check.
+ *   3. env `IMAGE_GEN_PROVIDER`
+ *   4. registry iteration order, taking the first available adapter.
+ *
+ * Throws ProviderUnavailableError when no adapter has credentials.
+ */
+export function resolveProvider(
+  preferredId?: string,
+  modelHint?: string
+): ImageGenProvider {
   const envDefault = process.env.IMAGE_GEN_PROVIDER;
-  const order = [preferredId, envDefault, ...KNOWN_PROVIDER_IDS].filter(
+
+  let modelHintedId: string | undefined;
+  if (modelHint && !preferredId) {
+    for (const id of KNOWN_PROVIDER_IDS) {
+      const p = REGISTRY[id]();
+      if (p.isAvailable() && p.listModels().includes(modelHint)) {
+        modelHintedId = id;
+        break;
+      }
+    }
+  }
+
+  const order = [preferredId, modelHintedId, envDefault, ...KNOWN_PROVIDER_IDS].filter(
     (x): x is string => typeof x === 'string' && x.length > 0
   );
 

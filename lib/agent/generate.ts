@@ -98,7 +98,9 @@ function stringifyToolInput(value: unknown): {
 }
 
 export async function runGenerate(params: GenerateParams): Promise<GenerateOutcome> {
-  const provider = resolveProvider(params.providerId);
+  // Thread `params.model` as a hint so `?model=gpt-image-2` routes to
+  // whichever provider lists that model when no provider is specified.
+  const provider = resolveProvider(params.providerId, params.model);
   const model = params.model ?? provider.listModels()[0];
 
   if (params.bypassAgent) {
