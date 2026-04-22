@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   AssetRecordType,
@@ -36,6 +36,15 @@ import type {
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { failRun, finishRun, startRun, stepRun } from '@/lib/store/runs';
 import { appendRunActivity, initRunDetails, upsertRunFrame } from '@/lib/store/runDetails';
+import { focusFrameAtIndex, getFrameShapes, zoomToAllFrames } from '@/lib/canvas/focusFrame';
+import { VoiceOrb, type VoiceCaptionEvent } from './VoiceOrb';
+import type { VoiceDispatchers } from '@/lib/voice/tools';
+import {
+  setVoiceError,
+  setVoiceState,
+  setVoiceToolCall,
+  setVoiceTranscript,
+} from '@/lib/voice/caption-store';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -66,6 +75,20 @@ export interface CanvasSubstrateProps {
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
   onVerbPress?: (verb: ToolbarVerb) => void;
+  /**
+   * Fires when the voice provider emits `run_generate`. The shell owns the
+   * generate/fan-out pipeline, so we pass the request back up rather than
+   * duplicating the stream logic here.
+   */
+  onVoiceGenerate?: (prompt: string, scope: 'single' | 'all') => void | Promise<void>;
+  /**
+   * Exposes the voice chip as a render prop so tests can inject a stub
+   * VoiceProvider. When omitted, the default `VoiceOrb` is rendered with the
+   * shared OpenAI Realtime client.
+   */
+  renderVoiceSlot?: (dispatchers: import('@/lib/voice/tools').VoiceDispatchers) => React.ReactNode;
+  /** When true, show the voice orb inside the toolbar. Defaults to true. */
+  voiceEnabled?: boolean;
 }
 
 type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
@@ -225,6 +248,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   pinnedCapabilities = EMPTY_PINS,
   onCapabilityPress,
   onVerbPress,
+  onVoiceGenerate,
+  renderVoiceSlot,
+  voiceEnabled = true,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
@@ -841,6 +867,70 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   const imageActionsTarget = selectedImage ?? segmentation?.target ?? null;
 
+  const dispatchers = useMemo<VoiceDispatchers>(
+    () => ({
+      focus_format: ({ id }) => {
+        if (!editor) return;
+        const frames = getFrameShapes(editor);
+        const idx = frames.findIndex((frame) => frame.id === id);
+        if (idx >= 0) focusFrameAtIndex(editor, idx);
+      },
+      pan_zoom: ({ artboardId, zoom }) => {
+        if (!editor) return;
+        if (artboardId) {
+          const frames = getFrameShapes(editor);
+          const idx = frames.findIndex((frame) => frame.id === artboardId);
+          if (idx >= 0) focusFrameAtIndex(editor, idx);
+          return;
+        }
+        switch (zoom) {
+          case 'in':
+            editor.zoomIn();
+            return;
+          case 'out':
+            editor.zoomOut();
+            return;
+          case 'fit':
+          default:
+            zoomToAllFrames(editor);
+        }
+      },
+      remove_background: () => {
+        openSegmentation('removebg');
+      },
+      run_capability: ({ definitionId }) => {
+        onCapabilityPress?.(definitionId);
+      },
+      run_generate: async ({ prompt, scope }) => {
+        await onVoiceGenerate?.(prompt, scope ?? 'single');
+      },
+    }),
+    [editor, onCapabilityPress, onVoiceGenerate, openSegmentation]
+  );
+
+  const handleVoiceCaption = useCallback((event: VoiceCaptionEvent) => {
+    switch (event.type) {
+      case 'state':
+        setVoiceState(event.state);
+        return;
+      case 'transcript':
+        setVoiceTranscript(event.speaker, event.text);
+        return;
+      case 'function':
+        setVoiceToolCall(event.name, event.ok, event.detail);
+        return;
+      case 'error':
+        setVoiceError(event.message);
+        return;
+    }
+  }, []);
+
+  const voiceSlot = voiceEnabled
+    ? renderVoiceSlot
+      ? renderVoiceSlot(dispatchers)
+      : <VoiceOrb dispatchers={dispatchers} onCaption={handleVoiceCaption} />
+    : null;
+
   return (
     <section
       data-taxonomy="tool"
@@ -860,6 +950,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onVerbPress={handleVerb}
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
+        voiceSlot={voiceSlot ?? undefined}
       />
 
       {imageActionsTarget ? (

@@ -67,6 +67,8 @@ export interface FloatingToolbarProps {
   /** Pinned capability chips lifted into the toolbar via pin-as-capability (Phase 5). */
   pinnedCapabilities?: Array<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
+  /** Voice-mode chip (phase 1). Rendered when provided; see VoiceOrb. */
+  voiceSlot?: React.ReactNode;
 }
 
 function readStoredPos(): Pos | null {
@@ -99,6 +101,7 @@ export function FloatingToolbar({
   onStyleAction,
   pinnedCapabilities = [],
   onCapabilityPress,
+  voiceSlot,
   className,
 }: FloatingToolbarProps) {
   const [pos, setPos] = useState<Pos>({ x: 24, y: 24 });
@@ -304,6 +307,15 @@ export function FloatingToolbar({
         onClick={() => dispatchVerb('collage')}
         active={activeTool === 'collage'}
       />
+
+      {voiceSlot ? (
+        <>
+          <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
+          <div data-voice-slot className="flex items-center">
+            {voiceSlot}
+          </div>
+        </>
+      ) : null}
 
       {pinnedCapabilities.length > 0 ? (
         <>
