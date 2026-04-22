@@ -80,6 +80,7 @@ export async function POST(request: Request) {
         ok: true,
         plan: outcome.plan,
         provider: outcome.provider,
+        debug: outcome.debug,
       });
     }
 
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
       ok: true,
       plan: outcome.plan,
       provider: outcome.provider,
+      debug: outcome.debug,
       result: {
         latencyMs: outcome.result.latencyMs,
         images: outcome.result.images.map((img) => ({

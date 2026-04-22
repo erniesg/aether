@@ -30,6 +30,11 @@ import {
   type CapabilityRunRecord,
 } from '@/lib/store/runs';
 import {
+  appendRunActivity,
+  initRunDetails,
+  patchRunDetails,
+} from '@/lib/store/runDetails';
+import {
   addDefinition,
   getDefinitionById,
   useCapabilityDefinitions,
@@ -55,6 +60,18 @@ interface GenerateResponseJson {
   provider?: {
     id?: string;
     model?: string;
+  };
+  debug?: {
+    plannerMode?: 'anthropic' | 'bypass' | 'fallback';
+    plannerModel?: string;
+    plannerError?: string;
+    toolCall?: {
+      name?: string;
+      prompt?: string;
+      aspectRatio?: string;
+      rationale?: string;
+      seed?: number;
+    };
   };
   result?: {
     latencyMs?: number;
@@ -132,18 +149,41 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         prompt,
         definitionId: options.definitionId,
       });
+      initRunDetails(runId, {
+        providerHint: options.providerOverride ?? 'auto',
+        modelHint: options.modelOverride,
+      });
+      appendRunActivity(runId, {
+        title: 'run prepared',
+        detail: options.definitionId
+          ? 'pinned capability rerun'
+          : [
+              `provider ${options.providerOverride ?? 'auto'}`,
+              options.modelOverride ? `model ${options.modelOverride}` : 'model auto',
+              options.bypassAgent ? 'planner bypassed' : 'planner active',
+            ].join(' · '),
+      });
       stepRun(runId, 'prepared');
 
       let res: Response;
       try {
         stepRun(runId, 'sending');
+        appendRunActivity(runId, {
+          title: 'sending request',
+          detail: options.definitionId ? '/api/capability/rerun' : '/api/generate',
+        });
         if (options.definitionId) {
           const def = getDefinitionById(options.definitionId);
           if (!def) {
+            appendRunActivity(runId, {
+              title: 'capability missing',
+              detail: options.definitionId,
+              tone: 'error',
+            });
             failRun(runId, `unknown capability definition: ${options.definitionId}`);
             return null;
           }
-          res = await fetch('/api/capability/rerun', {
+          const fetchPromise = fetch('/api/capability/rerun', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -152,8 +192,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               runId,
             }),
           });
+          stepRun(runId, 'awaiting');
+          appendRunActivity(runId, {
+            title: 'awaiting capability response',
+            detail: def.name,
+          });
+          res = await fetchPromise;
         } else {
-          res = await fetch('/api/generate', {
+          const fetchPromise = fetch('/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -166,11 +212,26 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               runId,
             }),
           });
+          stepRun(runId, 'awaiting');
+          appendRunActivity(runId, {
+            title: 'awaiting provider response',
+            detail: options.providerOverride ?? 'auto',
+          });
+          res = await fetchPromise;
         }
         stepRun(runId, 'received');
+        appendRunActivity(runId, {
+          title: 'response received',
+          detail: `HTTP ${res.status}`,
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logError('fetch threw:', err);
+        appendRunActivity(runId, {
+          title: 'request failed',
+          detail: message,
+          tone: 'error',
+        });
         failRun(runId, `fetch failed: ${message}`);
         return null;
       }
@@ -181,18 +242,75 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         json = await res.json();
       } catch (err) {
         logError('json parse failed:', err);
+        appendRunActivity(runId, {
+          title: 'response parse failed',
+          detail: `HTTP ${res.status}`,
+          tone: 'error',
+        });
         failRun(runId, `bad JSON response (${res.status})`, res.status);
         return null;
       }
 
       if (!res.ok || !json.ok) {
         const msg = typeof json?.error === 'string' ? json.error : res.statusText || 'unknown error';
+        appendRunActivity(runId, {
+          title: 'generation failed',
+          detail: msg,
+          tone: 'error',
+        });
         failRun(runId, msg, res.status);
         return null;
       }
 
+       patchRunDetails(runId, {
+        providerHint: json.provider?.id ?? options.providerOverride ?? 'auto',
+        modelHint: json.provider?.model ?? options.modelOverride,
+      });
+
+      if (json.debug?.plannerMode === 'anthropic' && json.debug.toolCall) {
+        appendRunActivity(runId, {
+          title: 'tool call made',
+          detail: [
+            json.debug.plannerModel ?? 'anthropic',
+            json.debug.toolCall.name ?? 'generate_image',
+            json.debug.toolCall.aspectRatio ?? '1:1',
+          ].join(' · '),
+        });
+        appendRunActivity(runId, {
+          title: 'rewrote prompt',
+          detail: json.debug.toolCall.prompt ?? prompt,
+        });
+      } else if (json.debug?.plannerMode === 'fallback') {
+        appendRunActivity(runId, {
+          title: 'planner fallback',
+          detail: 'Anthropic unavailable · raw prompt sent to provider',
+        });
+      } else if (json.debug?.plannerMode === 'bypass') {
+        appendRunActivity(runId, {
+          title: 'planner bypassed',
+          detail: 'request sent directly to the image provider',
+        });
+      }
+
+      appendRunActivity(runId, {
+        title: 'provider returned',
+        detail: [
+          json.provider?.id ?? 'unknown',
+          json.provider?.model ?? 'model auto',
+          json.result?.latencyMs ? `${(json.result.latencyMs / 1000).toFixed(1)}s` : undefined,
+          json.result?.images?.length ? `${json.result.images.length} image${json.result.images.length === 1 ? '' : 's'}` : undefined,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        tone: 'ok',
+      });
+
       const first = json.result?.images?.[0];
       stepRun(runId, 'placing');
+      appendRunActivity(runId, {
+        title: 'placing on canvas',
+        detail: options.targetFrameId ? 'target artboard' : 'viewport drop',
+      });
       if (first && editor) {
         try {
           const label = json.plan?.rewrittenPrompt ?? requestPrompt;
@@ -215,6 +333,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             });
           }
         } catch (err) {
+          appendRunActivity(runId, {
+            title: 'canvas placement failed',
+            detail: err instanceof Error ? err.message : String(err),
+            tone: 'error',
+          });
           failRun(runId, `canvas drop failed: ${err instanceof Error ? err.message : String(err)}`);
           return null;
         }
@@ -230,6 +353,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         latencyMs: json.result?.latencyMs,
         error: editor ? undefined : 'editor not ready — image stored, not placed',
         status: editor ? 'ok' : 'error',
+      });
+      appendRunActivity(runId, {
+        title: editor ? 'placed on canvas' : 'stored result',
+        detail: json.provider?.model ?? json.provider?.id ?? undefined,
+        tone: editor ? 'ok' : 'error',
       });
       return json;
     },

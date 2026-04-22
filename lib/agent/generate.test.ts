@@ -119,6 +119,17 @@ describe('agent · runGenerate', () => {
       model: 'gpt-image-1',
     });
     expect(outcome.result).toBe(FAKE_IMAGE_RESULT);
+    expect(outcome.debug).toEqual({
+      plannerMode: 'anthropic',
+      plannerModel: CLAUDE_MODEL,
+      toolCall: {
+        name: 'generate_image',
+        prompt: 'a wide cinematic desert at dusk',
+        aspectRatio: '16:9',
+        rationale: 'Wide scene benefits from a 16:9 frame.',
+        seed: 42,
+      },
+    });
   });
 
   it('planGenerate returns the shared plan without spending a provider call', async () => {
@@ -154,6 +165,17 @@ describe('agent · runGenerate', () => {
         displayName: 'OpenAI Images',
         model: 'gpt-image-1',
       },
+      debug: {
+        plannerMode: 'anthropic',
+        plannerModel: CLAUDE_MODEL,
+        toolCall: {
+          name: 'generate_image',
+          prompt: 'editorial still life, soft bounce, oat backdrop',
+          aspectRatio: '4:5',
+          rationale: 'Portrait crop suits a product hero.',
+          seed: 7,
+        },
+      },
     });
   });
 
@@ -175,6 +197,7 @@ describe('agent · runGenerate', () => {
       rewrittenPrompt: 'raw prompt',
       aspectRatio: '1:1',
     });
+    expect(outcome.debug).toEqual({ plannerMode: 'bypass' });
   });
 
   it('throws a helpful error when Claude returns no tool_use block', async () => {
@@ -198,6 +221,7 @@ describe('agent · runGenerate', () => {
       rewrittenPrompt: 'x',
       aspectRatio: '1:1',
     });
+    expect(outcome.debug).toMatchObject({ plannerMode: 'fallback' });
   });
 
   it('falls back to direct provider generation when Anthropic billing blocks the planner', async () => {
@@ -217,6 +241,7 @@ describe('agent · runGenerate', () => {
       rewrittenPrompt: 'oat milk still life',
       aspectRatio: '1:1',
     });
+    expect(outcome.debug.plannerMode).toBe('fallback');
   });
 
   it('respects an explicit providerId by passing it to resolveProvider', async () => {

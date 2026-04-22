@@ -73,6 +73,7 @@ export interface GenerateOutcome {
   };
   result: ImageGenResult;
   provider: { id: string; displayName: string; model: string };
+  debug: GenerateDebugInfo;
 }
 
 export interface GeneratePlan {
@@ -88,13 +89,37 @@ export interface GenerateProviderInfo {
   model: string;
 }
 
+export interface GenerateDebugInfo {
+  plannerMode: 'anthropic' | 'bypass' | 'fallback';
+  plannerModel?: string;
+  plannerError?: string;
+  toolCall?: {
+    name: 'generate_image';
+    prompt: string;
+    aspectRatio: string;
+    rationale?: string;
+    seed?: number;
+  };
+}
+
 const RATIO_SET = ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'] as const;
 type RatioLiteral = (typeof RATIO_SET)[number];
 
-function rawPromptPlan(params: GenerateParams): GeneratePlan {
+function rawPromptPlan(
+  params: GenerateParams,
+  mode: GenerateDebugInfo['plannerMode'],
+  plannerError?: string
+): { plan: GeneratePlan; debug: GenerateDebugInfo } {
   return {
-    rewrittenPrompt: params.prompt,
-    aspectRatio: params.aspectRatioOverride ?? '1:1',
+    plan: {
+      rewrittenPrompt: params.prompt,
+      aspectRatio: params.aspectRatioOverride ?? '1:1',
+    },
+    debug: {
+      plannerMode: mode,
+      plannerModel: mode === 'anthropic' ? CLAUDE_MODEL : undefined,
+      plannerError,
+    },
   };
 }
 
@@ -148,9 +173,12 @@ function resolveGenerateContext(params: GenerateParams): {
   };
 }
 
-async function createGeneratePlan(params: GenerateParams): Promise<GeneratePlan> {
+async function createGeneratePlan(params: GenerateParams): Promise<{
+  plan: GeneratePlan;
+  debug: GenerateDebugInfo;
+}> {
   if (params.bypassAgent) {
-    return rawPromptPlan(params);
+    return rawPromptPlan(params, 'bypass');
   }
 
   let msg: Awaited<ReturnType<Anthropic['messages']['create']>>;
@@ -175,7 +203,11 @@ async function createGeneratePlan(params: GenerateParams): Promise<GeneratePlan>
     });
   } catch (err) {
     if (shouldFallbackFromAnthropic(err)) {
-      return rawPromptPlan(params);
+      return rawPromptPlan(
+        params,
+        'fallback',
+        err instanceof Error ? err.message : String(err)
+      );
     }
     throw err;
   }
@@ -194,25 +226,39 @@ async function createGeneratePlan(params: GenerateParams): Promise<GeneratePlan>
   // still flows back as metadata when no override is set.
   const effectiveAspect = params.aspectRatioOverride ?? plan.aspectRatio;
   return {
-    rewrittenPrompt: plan.prompt,
-    aspectRatio: effectiveAspect,
-    rationale: plan.rationale,
-    seed: plan.seed,
+    plan: {
+      rewrittenPrompt: plan.prompt,
+      aspectRatio: effectiveAspect,
+      rationale: plan.rationale,
+      seed: plan.seed,
+    },
+    debug: {
+      plannerMode: 'anthropic',
+      plannerModel: CLAUDE_MODEL,
+      toolCall: {
+        name: 'generate_image',
+        prompt: plan.prompt,
+        aspectRatio: effectiveAspect,
+        rationale: plan.rationale,
+        seed: plan.seed,
+      },
+    },
   };
 }
 
 export async function planGenerate(params: GenerateParams): Promise<{
   plan: GeneratePlan;
   provider: GenerateProviderInfo;
+  debug: GenerateDebugInfo;
 }> {
   const { providerInfo } = resolveGenerateContext(params);
-  const plan = await createGeneratePlan(params);
-  return { plan, provider: providerInfo };
+  const { plan, debug } = await createGeneratePlan(params);
+  return { plan, provider: providerInfo, debug };
 }
 
 export async function runGenerate(params: GenerateParams): Promise<GenerateOutcome> {
   const { provider, providerInfo } = resolveGenerateContext(params);
-  const plan = await createGeneratePlan(params);
+  const { plan, debug } = await createGeneratePlan(params);
   const result = await provider.generate(
     {
       prompt: plan.rewrittenPrompt,
@@ -227,5 +273,6 @@ export async function runGenerate(params: GenerateParams): Promise<GenerateOutco
     plan,
     result,
     provider: providerInfo,
+    debug,
   };
 }

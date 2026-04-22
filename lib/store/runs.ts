@@ -28,6 +28,7 @@ import {
   finishRunConvex,
   failRunConvex,
 } from './runs.convex';
+import { resetRunDetailsForTests } from './runDetails';
 import { isConvexEnabled } from '@/lib/convex/client';
 
 export type { CapabilityRunRecord, RunStatus, RunStep };
@@ -92,6 +93,7 @@ export function failRun(id: string, error: string, httpStatus?: number): void {
  */
 export function resetRunsForTests(): void {
   clearRunsMemory();
+  resetRunDetailsForTests();
 }
 
 /**
