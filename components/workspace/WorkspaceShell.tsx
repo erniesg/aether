@@ -86,6 +86,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             body: JSON.stringify({
               definition: def,
               promptOverride: prompt,
+              runId,
             }),
           });
         } else {
@@ -96,6 +97,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               prompt,
               providerId: options.providerOverride,
               model: options.modelOverride,
+              runId,
             }),
           });
         }
