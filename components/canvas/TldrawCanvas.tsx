@@ -11,14 +11,10 @@ import { SafeZoneOverlay } from './SafeZoneOverlay';
 /**
  * The tldraw operator chrome we null out so the aether workspace reads as a
  * creative surface, not a pipeline inspector. NavigationPanel (bottom-right
- * page/zoom/chevron stack) is the headline removal — it's operator chrome.
- *
- * Kept intentionally: tldraw's native bottom Toolbar (primitives — select,
- * hand, draw, shape, text, eraser, arrow, frame, etc.), StylePanel (opacity,
- * colour, alignment, distribute, arrange, z-order), and ContextMenu (native
- * right-click still Just Works for power users). Reusing these keeps CLAUDE.md
- * hard rule "reuse from tldraw as much as possible" honest — we don't
- * reinvent primitives the engine already ships.
+ * page/zoom/chevron stack) is the headline removal, but the native Toolbar
+ * and StylePanel also have to go because they overlap the aether rails and
+ * split the hierarchy into two competing apps. We keep ContextMenu so power
+ * users still have a native escape hatch.
  */
 export const TLDRAW_CHROME_OVERRIDES: Partial<TLComponents> = {
   MenuPanel: null,
@@ -32,13 +28,14 @@ export const TLDRAW_CHROME_OVERRIDES: Partial<TLComponents> = {
   ZoomMenu: null,
   SharePanel: null,
   DebugPanel: null,
+  Toolbar: null,
+  StylePanel: null,
 };
 
 /**
- * Minimal tldraw wrapper. Native bottom Toolbar + StylePanel stay so creators
- * have primitive editing tools (select/hand/shapes/text/zoom, opacity,
- * arrange, distribute, z-order) — the Aether FloatingToolbar owns AI verbs.
- * See docs/ARCHITECTURE and CLAUDE.md hard rule 6.
+ * Minimal tldraw wrapper. aether owns the floating canvas chrome; tldraw's
+ * overlapping Toolbar + StylePanel are hidden, while the editor engine,
+ * context menu, and keyboard shortcuts remain intact.
  *
  * Editor instance is captured once in onMount. Theme changes propagate via
  * effect on the editor ref so tldraw's UI stays in sync with the Aether

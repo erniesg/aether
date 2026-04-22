@@ -3,14 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
+  ArrowRight,
+  Circle,
   Eraser,
   GripVertical,
+  Hand,
   LayoutDashboard,
+  MousePointer2,
   Scissors,
   ShieldAlert,
   SlidersHorizontal,
   Sparkles,
+  Square,
   SquareDashed,
+  Type,
   Wand2,
 } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
@@ -36,6 +42,14 @@ export type ToolbarVerb =
   | 'tone'
   | 'collage';
 
+export type PrimitiveTool = 'select' | 'hand' | 'text' | 'geo' | 'arrow';
+
+export type ToolbarStyleAction =
+  | 'color-black'
+  | 'color-blue'
+  | 'fill-solid'
+  | 'fill-none';
+
 export interface FloatingToolbarProps {
   scope?: Scope;
   onScopeChange?: (next: Scope) => void;
@@ -47,6 +61,8 @@ export interface FloatingToolbarProps {
    * responsible for prefilling the composer (or dispatching to /api/generate
    * directly) with a matching prompt preset. */
   onVerbPress?: (verb: ToolbarVerb) => void;
+  onPrimitiveToolPress?: (tool: PrimitiveTool) => void;
+  onStyleAction?: (action: ToolbarStyleAction) => void;
   className?: string;
   /** Pinned capability chips lifted into the toolbar via pin-as-capability (Phase 5). */
   pinnedCapabilities?: Array<{ id: string; label: string }>;
@@ -79,6 +95,8 @@ export function FloatingToolbar({
   onSafeZonesToggle,
   onAIPress,
   onVerbPress,
+  onPrimitiveToolPress,
+  onStyleAction,
   pinnedCapabilities = [],
   onCapabilityPress,
   className,
@@ -86,6 +104,10 @@ export function FloatingToolbar({
   const [pos, setPos] = useState<Pos>({ x: 24, y: 24 });
   const [activeTool, setActiveTool] = useState<string>('select');
 
+  const dispatchPrimitive = (tool: PrimitiveTool) => {
+    setActiveTool(tool);
+    onPrimitiveToolPress?.(tool);
+  };
   const dispatchVerb = (verb: ToolbarVerb) => {
     setActiveTool(verb);
     onVerbPress?.(verb);
@@ -167,7 +189,7 @@ export function FloatingToolbar({
       aria-label="canvas tools"
       data-taxonomy="tool"
       className={cn(
-        'pointer-events-auto absolute z-10 flex items-center gap-1 rounded-md border border-border bg-surface-panel p-1 shadow-sm',
+        'pointer-events-auto absolute z-10 flex max-w-[calc(100%-16px)] flex-wrap items-center gap-1 rounded-md border border-border bg-surface-panel p-1 shadow-sm',
         className
       )}
       style={{ left: pos.x, top: pos.y }}
@@ -184,14 +206,62 @@ export function FloatingToolbar({
 
       <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
 
-      {/*
-        Aether's floating toolbar is the AI/capability palette: focus-composer,
-        cutout, relight, pinned skills, safe-zones, scope. tldraw's native
-        bottom toolbar owns primitives (select, text, shape, draw, eraser,
-        hand, etc.), so reproducing them here was dead UI — the placeholder
-        select/text/shape buttons only set local activeTool state, never
-        drove the editor. Removed to keep "one button, one meaning".
-      */}
+      <IconButton
+        label="select tool"
+        icon={<MousePointer2 size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('select')}
+        active={activeTool === 'select'}
+      />
+      <IconButton
+        label="hand tool"
+        icon={<Hand size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('hand')}
+        active={activeTool === 'hand'}
+      />
+      <IconButton
+        label="text tool"
+        icon={<Type size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('text')}
+        active={activeTool === 'text'}
+      />
+      <IconButton
+        label="shape tool"
+        icon={<Square size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('geo')}
+        active={activeTool === 'geo'}
+      />
+      <IconButton
+        label="arrow tool"
+        icon={<ArrowRight size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('arrow')}
+        active={activeTool === 'arrow'}
+      />
+
+      <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
+
+      <IconButton
+        label="ink style"
+        icon={<Circle size={12} strokeWidth={2.25} className="fill-current" />}
+        onClick={() => onStyleAction?.('color-black')}
+      />
+      <IconButton
+        label="accent style"
+        icon={<Circle size={12} strokeWidth={2.25} className="fill-blue-500 text-blue-500" />}
+        onClick={() => onStyleAction?.('color-blue')}
+      />
+      <IconButton
+        label="fill solid"
+        icon={<Square size={14} strokeWidth={1.75} className="fill-current" />}
+        onClick={() => onStyleAction?.('fill-solid')}
+      />
+      <IconButton
+        label="fill none"
+        icon={<SquareDashed size={14} strokeWidth={1.75} />}
+        onClick={() => onStyleAction?.('fill-none')}
+      />
+
+      <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
+
       <IconButton
         label="AI · focus composer"
         variant="outline"

@@ -2,10 +2,17 @@
 
 import { memo, useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { DefaultColorStyle, DefaultFillStyle } from 'tldraw';
 import { cn } from '@/lib/utils/cn';
 import { FloatingToolbar } from './FloatingToolbar';
-import type { Scope, ToolbarVerb } from './FloatingToolbar';
+import type {
+  PrimitiveTool,
+  Scope,
+  ToolbarStyleAction,
+  ToolbarVerb,
+} from './FloatingToolbar';
 import type { ComposerHandle } from '@/components/composer/PromptComposer';
+import { useEditorRef } from '@/lib/store/editor-ref';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -48,10 +55,42 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   onVerbPress,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
+  const { editor } = useEditorRef();
 
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
   }, [composerRef]);
+
+  const handlePrimitiveToolPress = useCallback(
+    (tool: PrimitiveTool) => {
+      editor?.setCurrentTool(tool);
+    },
+    [editor]
+  );
+
+  const handleStyleAction = useCallback(
+    (action: ToolbarStyleAction) => {
+      if (!editor) return;
+      switch (action) {
+        case 'color-black':
+          editor.setStyleForSelectedShapes(DefaultColorStyle, 'black');
+          editor.setStyleForNextShapes(DefaultColorStyle, 'black');
+          return;
+        case 'color-blue':
+          editor.setStyleForSelectedShapes(DefaultColorStyle, 'blue');
+          editor.setStyleForNextShapes(DefaultColorStyle, 'blue');
+          return;
+        case 'fill-solid':
+          editor.setStyleForSelectedShapes(DefaultFillStyle, 'solid');
+          editor.setStyleForNextShapes(DefaultFillStyle, 'solid');
+          return;
+        case 'fill-none':
+          editor.setStyleForSelectedShapes(DefaultFillStyle, 'none');
+          editor.setStyleForNextShapes(DefaultFillStyle, 'none');
+      }
+    },
+    [editor]
+  );
 
   return (
     <section
@@ -66,6 +105,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onScopeChange={setScope}
         safeZonesVisible={safeZonesVisible}
         onSafeZonesToggle={onSafeZonesToggle}
+        onPrimitiveToolPress={handlePrimitiveToolPress}
+        onStyleAction={handleStyleAction}
         onAIPress={focusComposer}
         onVerbPress={onVerbPress}
         pinnedCapabilities={[...pinnedCapabilities]}

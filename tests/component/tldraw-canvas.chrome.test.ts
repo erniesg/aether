@@ -27,8 +27,8 @@ describe('TldrawCanvas · operator-chrome overrides', () => {
     }
   });
 
-  it('does NOT touch the native bottom Toolbar or StylePanel (primitives stay reachable)', () => {
-    expect(TLDRAW_CHROME_OVERRIDES).not.toHaveProperty('Toolbar');
-    expect(TLDRAW_CHROME_OVERRIDES).not.toHaveProperty('StylePanel');
+  it('hides the native Toolbar and StylePanel so aether owns the canvas chrome', () => {
+    expect(TLDRAW_CHROME_OVERRIDES.Toolbar).toBeNull();
+    expect(TLDRAW_CHROME_OVERRIDES.StylePanel).toBeNull();
   });
 });
