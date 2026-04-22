@@ -60,7 +60,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const runImageOnCanvas = useCallback(
     async (
       prompt: string,
-      options: { definitionId?: string; providerOverride?: string; modelOverride?: string } = {}
+      options: {
+        definitionId?: string;
+        providerOverride?: string;
+        modelOverride?: string;
+        bypassAgent?: boolean;
+      } = {}
     ) => {
       const runId = startRun({
         tool: 'image-gen',
@@ -97,6 +102,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               prompt,
               providerId: options.providerOverride,
               model: options.modelOverride,
+              bypassAgent: options.bypassAgent,
               runId,
             }),
           });
@@ -163,7 +169,15 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       const urlParams = new URLSearchParams(window.location.search);
       const providerOverride = urlParams.get('provider') ?? undefined;
       const modelOverride = urlParams.get('model') ?? undefined;
-      await runImageOnCanvas(prompt, { providerOverride, modelOverride });
+      // `?bypass=1` skips the Claude planner and pipes the prompt straight
+      // to the provider. Useful when the Anthropic key is rate-limited or
+      // out of credits, or to demo the raw provider without Claude's rewrite.
+      const bypassAgent = urlParams.get('bypass') === '1';
+      await runImageOnCanvas(prompt, {
+        providerOverride,
+        modelOverride,
+        bypassAgent,
+      });
     },
     [runImageOnCanvas]
   );

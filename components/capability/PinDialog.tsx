@@ -45,10 +45,16 @@ export function PinDialog({ run, open, onAccept, onReject }: PinDialogProps) {
 
     (async () => {
       try {
+        // `?bypass=1` lets the demo run with an empty / throttled Anthropic
+        // key — /api/capability/propose falls back to a deterministic local
+        // proposal instead of calling Claude.
+        const bypassAgent =
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).get('bypass') === '1';
         const res = await fetch('/api/capability/propose', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ run }),
+          body: JSON.stringify({ run, bypassAgent }),
           signal: ctrl.signal,
         });
         const json = (await res.json()) as { ok: boolean; proposal?: ProposedCapability; error?: string };
