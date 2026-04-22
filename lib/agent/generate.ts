@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ImageGenResult, ImageRef } from '@/lib/providers/image/types';
+import type { AspectRatio, ImageGenResult, ImageRef } from '@/lib/providers/image/types';
 import { resolveProvider } from '@/lib/providers/image/registry';
 
 /**
@@ -37,8 +37,8 @@ const TOOL_GENERATE_IMAGE: Tool = {
       prompt: { type: 'string', description: 'The rewritten, visually-specific prompt.' },
       aspectRatio: {
         type: 'string',
-        enum: ['1:1', '9:16', '16:9', '4:3', '3:4'],
-        description: 'Aspect ratio token. Portrait → 3:4. Vertical story/reel → 9:16. Wide/banner → 16:9. Landscape → 4:3. Square post → 1:1.',
+        enum: ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'],
+        description: 'Aspect ratio token. Square post → 1:1. IG portrait → 4:5. Vertical story/reel → 9:16. Portrait → 3:4 or 2:3. Landscape → 4:3 or 3:2. Wide/banner → 16:9.',
       },
       seed: { type: 'number', description: 'Optional seed for reproducibility.' },
       rationale: {
@@ -57,6 +57,11 @@ export interface GenerateParams {
   model?: string;
   /** Skip the Claude planning call; pipe the prompt straight through. */
   bypassAgent?: boolean;
+  /** Override the aspect ratio delivered to the provider. Used by the fan-out
+   * path — one Claude call rewrites the prompt, then N provider calls render
+   * that prompt into N different artboard ratios. Claude's own aspectRatio
+   * choice is ignored when this is set. */
+  aspectRatioOverride?: AspectRatio;
 }
 
 export interface GenerateOutcome {
@@ -68,10 +73,67 @@ export interface GenerateOutcome {
   };
   result: ImageGenResult;
   provider: { id: string; displayName: string; model: string };
+  debug: GenerateDebugInfo;
 }
 
-const RATIO_SET = ['1:1', '9:16', '16:9', '4:3', '3:4'] as const;
+export interface GeneratePlan {
+  rewrittenPrompt: string;
+  aspectRatio: AspectRatio;
+  rationale?: string;
+  seed?: number;
+}
+
+export interface GenerateProviderInfo {
+  id: string;
+  displayName: string;
+  model: string;
+}
+
+export interface GenerateDebugInfo {
+  plannerMode: 'anthropic' | 'bypass' | 'fallback';
+  plannerModel?: string;
+  plannerError?: string;
+  toolCall?: {
+    name: 'generate_image';
+    prompt: string;
+    aspectRatio: string;
+    rationale?: string;
+    seed?: number;
+  };
+}
+
+const RATIO_SET = ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'] as const;
 type RatioLiteral = (typeof RATIO_SET)[number];
+
+function rawPromptPlan(
+  params: GenerateParams,
+  mode: GenerateDebugInfo['plannerMode'],
+  plannerError?: string
+): { plan: GeneratePlan; debug: GenerateDebugInfo } {
+  return {
+    plan: {
+      rewrittenPrompt: params.prompt,
+      aspectRatio: params.aspectRatioOverride ?? '1:1',
+    },
+    debug: {
+      plannerMode: mode,
+      plannerModel: mode === 'anthropic' ? CLAUDE_MODEL : undefined,
+      plannerError,
+    },
+  };
+}
+
+function shouldFallbackFromAnthropic(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    /ANTHROPIC_API_KEY not set/i.test(message) ||
+    /credit balance is too low/i.test(message) ||
+    /invalid_request_error/i.test(message) ||
+    /authentication/i.test(message) ||
+    /permission/i.test(message) ||
+    /billing/i.test(message)
+  );
+}
 
 function stringifyToolInput(value: unknown): {
   prompt: string;
@@ -97,41 +159,58 @@ function stringifyToolInput(value: unknown): {
   };
 }
 
-export async function runGenerate(params: GenerateParams): Promise<GenerateOutcome> {
-  const provider = resolveProvider(params.providerId);
+function resolveGenerateContext(params: GenerateParams): {
+  provider: ReturnType<typeof resolveProvider>;
+  providerInfo: GenerateProviderInfo;
+} {
+  // Thread `params.model` as a hint so `?model=gpt-image-2` routes to
+  // whichever provider lists that model when no provider is specified.
+  const provider = resolveProvider(params.providerId, params.model);
   const model = params.model ?? provider.listModels()[0];
+  return {
+    provider,
+    providerInfo: { id: provider.id, displayName: provider.displayName, model },
+  };
+}
 
+async function createGeneratePlan(params: GenerateParams): Promise<{
+  plan: GeneratePlan;
+  debug: GenerateDebugInfo;
+}> {
   if (params.bypassAgent) {
-    const result = await provider.generate(
-      { prompt: params.prompt, refs: params.refs, aspectRatio: '1:1' },
-      { model }
-    );
-    return {
-      plan: { rewrittenPrompt: params.prompt, aspectRatio: '1:1' },
-      result,
-      provider: { id: provider.id, displayName: provider.displayName, model },
-    };
+    return rawPromptPlan(params, 'bypass');
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  const client = new Anthropic({ apiKey });
-
-  const msg = await client.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 1024,
-    system: [
-      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-    ],
-    tools: [TOOL_GENERATE_IMAGE],
-    tool_choice: { type: 'tool', name: 'generate_image' },
-    messages: [
-      {
-        role: 'user',
-        content: [{ type: 'text', text: params.prompt }],
-      },
-    ],
-  });
+  let msg: Awaited<ReturnType<Anthropic['messages']['create']>>;
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+    const client = new Anthropic({ apiKey });
+    msg = await client.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 1024,
+      system: [
+        { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ],
+      tools: [TOOL_GENERATE_IMAGE],
+      tool_choice: { type: 'tool', name: 'generate_image' },
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: params.prompt }],
+        },
+      ],
+    });
+  } catch (err) {
+    if (shouldFallbackFromAnthropic(err)) {
+      return rawPromptPlan(
+        params,
+        'fallback',
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+    throw err;
+  }
 
   const toolBlock = msg.content.find(
     (b): b is Extract<typeof b, { type: 'tool_use' }> =>
@@ -142,25 +221,58 @@ export async function runGenerate(params: GenerateParams): Promise<GenerateOutco
   }
 
   const plan = stringifyToolInput(toolBlock.input);
+  // Fan-out overrides Claude's aspect ratio so the same rewritten prompt can
+  // render into every linked artboard at the right shape. Claude's suggestion
+  // still flows back as metadata when no override is set.
+  const effectiveAspect = params.aspectRatioOverride ?? plan.aspectRatio;
+  return {
+    plan: {
+      rewrittenPrompt: plan.prompt,
+      aspectRatio: effectiveAspect,
+      rationale: plan.rationale,
+      seed: plan.seed,
+    },
+    debug: {
+      plannerMode: 'anthropic',
+      plannerModel: CLAUDE_MODEL,
+      toolCall: {
+        name: 'generate_image',
+        prompt: plan.prompt,
+        aspectRatio: effectiveAspect,
+        rationale: plan.rationale,
+        seed: plan.seed,
+      },
+    },
+  };
+}
 
+export async function planGenerate(params: GenerateParams): Promise<{
+  plan: GeneratePlan;
+  provider: GenerateProviderInfo;
+  debug: GenerateDebugInfo;
+}> {
+  const { providerInfo } = resolveGenerateContext(params);
+  const { plan, debug } = await createGeneratePlan(params);
+  return { plan, provider: providerInfo, debug };
+}
+
+export async function runGenerate(params: GenerateParams): Promise<GenerateOutcome> {
+  const { provider, providerInfo } = resolveGenerateContext(params);
+  const { plan, debug } = await createGeneratePlan(params);
   const result = await provider.generate(
     {
-      prompt: plan.prompt,
+      prompt: plan.rewrittenPrompt,
       refs: params.refs,
       aspectRatio: plan.aspectRatio,
       seed: plan.seed,
     },
-    { model }
+    { model: providerInfo.model }
   );
 
   return {
-    plan: {
-      rewrittenPrompt: plan.prompt,
-      aspectRatio: plan.aspectRatio,
-      rationale: plan.rationale,
-      seed: plan.seed,
-    },
+    plan,
     result,
-    provider: { id: provider.id, displayName: provider.displayName, model },
+    provider: providerInfo,
+    debug,
   };
 }

@@ -3,12 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
+  ArrowRight,
+  Circle,
+  Eraser,
   GripVertical,
+  Hand,
+  LayoutDashboard,
   MousePointer2,
   Scissors,
   ShieldAlert,
-  Shapes,
+  SlidersHorizontal,
   Sparkles,
+  Square,
+  SquareDashed,
   Type,
   Wand2,
 } from 'lucide-react';
@@ -21,10 +28,41 @@ type Pos = { x: number; y: number };
 
 export type Scope = 'global' | 'local';
 
+/**
+ * The AI verbs the floating toolbar exposes today. "focus" opens the composer
+ * — it's the primary entrypoint. The remainder carry prompt presets when the
+ * shell wires them up; today each press notifies onVerbPress and the shell
+ * prefills the composer + focuses it.
+ */
+export type ToolbarVerb =
+  | 'cutout'
+  | 'unmask'
+  | 'removebg'
+  | 'relight'
+  | 'tone'
+  | 'collage';
+
+export type PrimitiveTool = 'select' | 'hand' | 'text' | 'geo' | 'arrow';
+
+export type ToolbarStyleAction =
+  | 'color-black'
+  | 'color-blue'
+  | 'fill-solid'
+  | 'fill-none';
+
 export interface FloatingToolbarProps {
   scope?: Scope;
   onScopeChange?: (next: Scope) => void;
+  safeZonesVisible?: boolean;
+  onSafeZonesToggle?: (next: boolean) => void;
+  /** Primary AI entrypoint — usually focuses the composer. */
   onAIPress?: () => void;
+  /** Fires when any non-focus AI verb button is pressed. The shell is
+   * responsible for prefilling the composer (or dispatching to /api/generate
+   * directly) with a matching prompt preset. */
+  onVerbPress?: (verb: ToolbarVerb) => void;
+  onPrimitiveToolPress?: (tool: PrimitiveTool) => void;
+  onStyleAction?: (action: ToolbarStyleAction) => void;
   className?: string;
   /** Pinned capability chips lifted into the toolbar via pin-as-capability (Phase 5). */
   pinnedCapabilities?: Array<{ id: string; label: string }>;
@@ -53,14 +91,27 @@ function readStoredPos(): Pos | null {
 export function FloatingToolbar({
   scope = 'global',
   onScopeChange,
+  safeZonesVisible = false,
+  onSafeZonesToggle,
   onAIPress,
+  onVerbPress,
+  onPrimitiveToolPress,
+  onStyleAction,
   pinnedCapabilities = [],
   onCapabilityPress,
   className,
 }: FloatingToolbarProps) {
   const [pos, setPos] = useState<Pos>({ x: 24, y: 24 });
   const [activeTool, setActiveTool] = useState<string>('select');
-  const [safeZonesOn, setSafeZonesOn] = useState(false);
+
+  const dispatchPrimitive = (tool: PrimitiveTool) => {
+    setActiveTool(tool);
+    onPrimitiveToolPress?.(tool);
+  };
+  const dispatchVerb = (verb: ToolbarVerb) => {
+    setActiveTool(verb);
+    onVerbPress?.(verb);
+  };
   const dragDelta = useRef<Pos | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
 
@@ -138,7 +189,7 @@ export function FloatingToolbar({
       aria-label="canvas tools"
       data-taxonomy="tool"
       className={cn(
-        'pointer-events-auto absolute z-10 flex items-center gap-1 rounded-md border border-border bg-surface-panel p-1 shadow-sm',
+        'pointer-events-auto absolute z-10 flex max-w-[calc(100%-16px)] flex-wrap items-center gap-1 rounded-md border border-border bg-surface-panel p-1 shadow-sm',
         className
       )}
       style={{ left: pos.x, top: pos.y }}
@@ -156,22 +207,57 @@ export function FloatingToolbar({
       <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
 
       <IconButton
-        label="select"
-        active={activeTool === 'select'}
+        label="select tool"
         icon={<MousePointer2 size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('select')}
+        onClick={() => dispatchPrimitive('select')}
+        active={activeTool === 'select'}
       />
       <IconButton
-        label="text"
-        active={activeTool === 'text'}
+        label="hand tool"
+        icon={<Hand size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('hand')}
+        active={activeTool === 'hand'}
+      />
+      <IconButton
+        label="text tool"
         icon={<Type size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('text')}
+        onClick={() => dispatchPrimitive('text')}
+        active={activeTool === 'text'}
       />
       <IconButton
-        label="shape"
-        active={activeTool === 'shape'}
-        icon={<Shapes size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('shape')}
+        label="shape tool"
+        icon={<Square size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('geo')}
+        active={activeTool === 'geo'}
+      />
+      <IconButton
+        label="arrow tool"
+        icon={<ArrowRight size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('arrow')}
+        active={activeTool === 'arrow'}
+      />
+
+      <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
+
+      <IconButton
+        label="ink style"
+        icon={<Circle size={12} strokeWidth={2.25} className="fill-current" />}
+        onClick={() => onStyleAction?.('color-black')}
+      />
+      <IconButton
+        label="accent style"
+        icon={<Circle size={12} strokeWidth={2.25} className="fill-blue-500 text-blue-500" />}
+        onClick={() => onStyleAction?.('color-blue')}
+      />
+      <IconButton
+        label="fill solid"
+        icon={<Square size={14} strokeWidth={1.75} className="fill-current" />}
+        onClick={() => onStyleAction?.('fill-solid')}
+      />
+      <IconButton
+        label="fill none"
+        icon={<SquareDashed size={14} strokeWidth={1.75} />}
+        onClick={() => onStyleAction?.('fill-none')}
       />
 
       <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
@@ -183,16 +269,40 @@ export function FloatingToolbar({
         onClick={onAIPress}
       />
       <IconButton
-        label="cutout (mask a region)"
+        label="cutout · mask a region"
         icon={<Scissors size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('cutout')}
+        onClick={() => dispatchVerb('cutout')}
         active={activeTool === 'cutout'}
+      />
+      <IconButton
+        label="unmask · reveal under the mask"
+        icon={<SquareDashed size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('unmask')}
+        active={activeTool === 'unmask'}
+      />
+      <IconButton
+        label="remove bg · cut the subject out"
+        icon={<Eraser size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('removebg')}
+        active={activeTool === 'removebg'}
       />
       <IconButton
         label="relight · bg fill"
         icon={<Wand2 size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('relight')}
+        onClick={() => dispatchVerb('relight')}
         active={activeTool === 'relight'}
+      />
+      <IconButton
+        label="tone · darker, sharper, warmer"
+        icon={<SlidersHorizontal size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('tone')}
+        active={activeTool === 'tone'}
+      />
+      <IconButton
+        label="collage · compose from references"
+        icon={<LayoutDashboard size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('collage')}
+        active={activeTool === 'collage'}
       />
 
       {pinnedCapabilities.length > 0 ? (
@@ -212,10 +322,10 @@ export function FloatingToolbar({
       <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
 
       <IconButton
-        label={`safe zones · ${safeZonesOn ? 'on' : 'off'}`}
-        active={safeZonesOn}
+        label={`safe zones · ${safeZonesVisible ? 'on' : 'off'}`}
+        active={safeZonesVisible}
         icon={<ShieldAlert size={14} strokeWidth={1.75} />}
-        onClick={() => setSafeZonesOn((v) => !v)}
+        onClick={() => onSafeZonesToggle?.(!safeZonesVisible)}
       />
 
       <button

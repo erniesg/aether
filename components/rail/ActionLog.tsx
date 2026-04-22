@@ -1,6 +1,7 @@
 'use client';
 
-import { useRuns } from '@/lib/store/runs';
+import { Pin } from 'lucide-react';
+import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
 import { cn } from '@/lib/utils/cn';
 
 function formatLatency(ms?: number): string {
@@ -13,7 +14,12 @@ function shortPrompt(prompt: string): string {
   return prompt.length > 50 ? prompt.slice(0, 47) + '…' : prompt;
 }
 
-export function ActionLog() {
+export interface ActionLogProps {
+  /** Fires when the creator clicks the pin-as-skill affordance on a completed run. */
+  onPin?: (run: CapabilityRunRecord) => void;
+}
+
+export function ActionLog({ onPin }: ActionLogProps = {}) {
   const runs = useRuns();
 
   if (runs.length === 0) {
@@ -30,7 +36,7 @@ export function ActionLog() {
         <li
           key={run.id}
           className={cn(
-            'rounded-sm border p-2 transition-colors duration-fast',
+            'group relative rounded-sm border p-2 transition-colors duration-fast',
             run.status === 'running' && 'animate-pulse border-accent/50 bg-accent/5',
             run.status === 'ok' && 'border-border-soft bg-surface-panel',
             run.status === 'error' && 'border-signal-error/30 bg-signal-error/5'
@@ -73,6 +79,22 @@ export function ActionLog() {
               ) : null}
             </div>
           </div>
+
+          {run.status === 'ok' && onPin ? (
+            <button
+              type="button"
+              aria-label={`pin as skill · ${shortPrompt(run.rewrittenPrompt ?? run.prompt)}`}
+              onClick={() => onPin(run)}
+              className={cn(
+                'absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-xs',
+                'border border-border-soft bg-surface-panel text-ink-dim',
+                'opacity-0 transition-opacity duration-fast ease-quick group-hover:opacity-100 focus-visible:opacity-100',
+                'hover:border-accent hover:text-accent'
+              )}
+            >
+              <Pin size={12} strokeWidth={1.75} />
+            </button>
+          ) : null}
         </li>
       ))}
     </ol>
