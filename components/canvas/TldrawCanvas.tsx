@@ -5,6 +5,7 @@ import { Tldraw, type Editor } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { useTheme } from '@/app/design-system/ThemeProvider';
 import { useEditorRef } from '@/lib/store/editor-ref';
+import { maybeSeedArtboards } from '@/lib/canvas/seedArtboards';
 
 /**
  * Minimal tldraw wrapper. Native bottom Toolbar + StylePanel stay so
@@ -37,6 +38,9 @@ export function TldrawCanvas() {
         editorRef.current = editor;
         setEditor(editor);
         editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
+        // Seed the four hero artboards on an empty workspace so the multiformat
+        // promise is visible on first paint. No-op if the page already has shapes.
+        maybeSeedArtboards(editor);
       }}
       components={{
         MenuPanel: null,
