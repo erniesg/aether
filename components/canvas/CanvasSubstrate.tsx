@@ -4,7 +4,8 @@ import { memo, useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils/cn';
 import { FloatingToolbar } from './FloatingToolbar';
-import type { Scope } from './FloatingToolbar';
+import type { Scope, ToolbarVerb } from './FloatingToolbar';
+import type { ComposerHandle } from '@/components/composer/PromptComposer';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -29,9 +30,10 @@ const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
 
 export interface CanvasSubstrateProps {
   className?: string;
-  composerRef: React.RefObject<HTMLTextAreaElement | null>;
+  composerRef: React.RefObject<ComposerHandle | null>;
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
+  onVerbPress?: (verb: ToolbarVerb) => void;
 }
 
 export const CanvasSubstrate = memo(function CanvasSubstrate({
@@ -39,6 +41,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   composerRef,
   pinnedCapabilities = EMPTY_PINS,
   onCapabilityPress,
+  onVerbPress,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
 
@@ -58,6 +61,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         scope={scope}
         onScopeChange={setScope}
         onAIPress={focusComposer}
+        onVerbPress={onVerbPress}
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
       />

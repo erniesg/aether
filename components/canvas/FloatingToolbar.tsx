@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
+  Eraser,
   GripVertical,
+  LayoutDashboard,
   Scissors,
   ShieldAlert,
+  SlidersHorizontal,
   Sparkles,
+  SquareDashed,
   Wand2,
 } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
@@ -18,10 +22,29 @@ type Pos = { x: number; y: number };
 
 export type Scope = 'global' | 'local';
 
+/**
+ * The AI verbs the floating toolbar exposes today. "focus" opens the composer
+ * — it's the primary entrypoint. The remainder carry prompt presets when the
+ * shell wires them up; today each press notifies onVerbPress and the shell
+ * prefills the composer + focuses it.
+ */
+export type ToolbarVerb =
+  | 'cutout'
+  | 'unmask'
+  | 'removebg'
+  | 'relight'
+  | 'tone'
+  | 'collage';
+
 export interface FloatingToolbarProps {
   scope?: Scope;
   onScopeChange?: (next: Scope) => void;
+  /** Primary AI entrypoint — usually focuses the composer. */
   onAIPress?: () => void;
+  /** Fires when any non-focus AI verb button is pressed. The shell is
+   * responsible for prefilling the composer (or dispatching to /api/generate
+   * directly) with a matching prompt preset. */
+  onVerbPress?: (verb: ToolbarVerb) => void;
   className?: string;
   /** Pinned capability chips lifted into the toolbar via pin-as-capability (Phase 5). */
   pinnedCapabilities?: Array<{ id: string; label: string }>;
@@ -51,6 +74,7 @@ export function FloatingToolbar({
   scope = 'global',
   onScopeChange,
   onAIPress,
+  onVerbPress,
   pinnedCapabilities = [],
   onCapabilityPress,
   className,
@@ -58,6 +82,11 @@ export function FloatingToolbar({
   const [pos, setPos] = useState<Pos>({ x: 24, y: 24 });
   const [activeTool, setActiveTool] = useState<string>('select');
   const [safeZonesOn, setSafeZonesOn] = useState(false);
+
+  const dispatchVerb = (verb: ToolbarVerb) => {
+    setActiveTool(verb);
+    onVerbPress?.(verb);
+  };
   const dragDelta = useRef<Pos | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
 
@@ -167,16 +196,40 @@ export function FloatingToolbar({
         onClick={onAIPress}
       />
       <IconButton
-        label="cutout (mask a region)"
+        label="cutout · mask a region"
         icon={<Scissors size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('cutout')}
+        onClick={() => dispatchVerb('cutout')}
         active={activeTool === 'cutout'}
+      />
+      <IconButton
+        label="unmask · reveal under the mask"
+        icon={<SquareDashed size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('unmask')}
+        active={activeTool === 'unmask'}
+      />
+      <IconButton
+        label="remove bg · cut the subject out"
+        icon={<Eraser size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('removebg')}
+        active={activeTool === 'removebg'}
       />
       <IconButton
         label="relight · bg fill"
         icon={<Wand2 size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('relight')}
+        onClick={() => dispatchVerb('relight')}
         active={activeTool === 'relight'}
+      />
+      <IconButton
+        label="tone · darker, sharper, warmer"
+        icon={<SlidersHorizontal size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('tone')}
+        active={activeTool === 'tone'}
+      />
+      <IconButton
+        label="collage · compose from references"
+        icon={<LayoutDashboard size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchVerb('collage')}
+        active={activeTool === 'collage'}
       />
 
       {pinnedCapabilities.length > 0 ? (

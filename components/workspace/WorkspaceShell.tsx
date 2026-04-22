@@ -8,7 +8,8 @@ import { ViewSwitcher, type ViewId } from '@/components/header/ViewSwitcher';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
-import { PromptComposer } from '@/components/composer/PromptComposer';
+import { PromptComposer, type ComposerHandle } from '@/components/composer/PromptComposer';
+import type { ToolbarVerb } from '@/components/canvas/FloatingToolbar';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
@@ -48,8 +49,17 @@ export function WorkspaceShell({ wsId }: WorkspaceShellProps) {
   );
 }
 
+const VERB_PROMPT_PRESETS: Record<ToolbarVerb, string> = {
+  cutout: 'cut out the subject and leave a transparent background',
+  unmask: 'reveal everything under the current mask',
+  removebg: 'remove the background, keep the subject',
+  relight: 'relight the scene with soft directional golden-hour light',
+  tone: 'deepen the shadows, sharpen the midtones, keep the highlights calm',
+  collage: 'compose a collage from the pinned reference images',
+};
+
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const composerRef = useRef<ComposerHandle | null>(null);
   const { editor } = useEditorRef();
   const definitions = useCapabilityDefinitions();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
@@ -236,6 +246,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [runImageOnCanvas]
   );
 
+  const handleVerbPress = useCallback((verb: ToolbarVerb) => {
+    // Prefill the composer with a prompt preset for the verb and focus it.
+    // The creator can tweak the preset and submit; no implicit generation yet.
+    composerRef.current?.setPrompt(VERB_PROMPT_PRESETS[verb]);
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col bg-surface-bg">
       <Surface
@@ -275,6 +291,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           composerRef={composerRef}
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
+          onVerbPress={handleVerbPress}
         />
         <RightRail onPin={handlePin} />
       </div>

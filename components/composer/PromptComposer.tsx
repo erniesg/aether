@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useCallback, useRef, useState } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import type {
   ClipboardEvent as ReactClipboardEvent,
   DragEvent as ReactDragEvent,
@@ -9,6 +9,16 @@ import type {
 } from 'react';
 import { ArrowUp, ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+
+/**
+ * Imperative API the composer exposes to its parent. `focus` drives the
+ * "AI · focus composer" entrypoint; `setPrompt` is how AI verbs on the
+ * floating toolbar prefill the textarea with a prompt preset.
+ */
+export interface ComposerHandle {
+  focus: () => void;
+  setPrompt: (next: string) => void;
+}
 
 /**
  * Format-fanout scope for a single generation. `all` dispatches the prompt
@@ -63,7 +73,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
  * readout of what the generate action will act on (active input set).
  * Fires onSubmit with the prompt text; the agent loop owns what happens next.
  */
-export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProps>(
+export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
   function PromptComposer(
     {
       activeInputSet,
@@ -88,11 +98,18 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
     const [refError, setRefError] = useState<string | null>(null);
     const [scope, setScope] = useState<PromptScope>(defaultScope);
 
-    const setRef = (node: HTMLTextAreaElement | null) => {
-      internalRef.current = node;
-      if (typeof forwardedRef === 'function') forwardedRef(node);
-      else if (forwardedRef) forwardedRef.current = node;
-    };
+    useImperativeHandle(
+      forwardedRef,
+      () => ({
+        focus: () => internalRef.current?.focus(),
+        setPrompt: (next: string) => {
+          setValue(next);
+          // Focus after write so the creator can immediately edit the preset.
+          requestAnimationFrame(() => internalRef.current?.focus());
+        },
+      }),
+      []
+    );
 
     const ingestFiles = useCallback(
       async (files: FileList | File[]) => {
@@ -322,7 +339,7 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
           })()}
 
           <textarea
-            ref={setRef}
+            ref={internalRef}
             rows={1}
             value={value}
             onChange={(e) => setValue(e.target.value)}
