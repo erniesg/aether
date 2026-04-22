@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+function toSse(events: Array<Record<string, unknown>>): string {
+  return events
+    .map((event) => `event: generate\ndata: ${JSON.stringify(event)}\n\n`)
+    .join('');
+}
+
 /**
  * A4 — pin-as-capability hero flow.
  *
@@ -17,16 +23,43 @@ test.describe('A4 — pin-as-capability', () => {
     await page.route('**/api/generate', async (route) => {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ok: true,
-          plan: { rewrittenPrompt: 'a still life, brand palette', aspectRatio: '1:1' },
-          provider: { id: 'mock', displayName: 'mock', model: 'mock-model' },
-          result: {
-            latencyMs: 50,
-            images: [{ url: IMAGE_A, width: 1, height: 1, mimeType: 'image/png' }],
+        contentType: 'text/event-stream; charset=utf-8',
+        body: toSse([
+          { type: 'run.started', at: 1, mode: 'single', frames: { total: 1 } },
+          {
+            type: 'plan.ready',
+            at: 2,
+            plannerMode: 'bypass',
+            rewrittenPrompt: 'a still life, brand palette',
+            aspectRatio: '1:1',
+            provider: { id: 'mock', displayName: 'mock', model: 'mock-model' },
           },
-        }),
+          {
+            type: 'frame.started',
+            at: 3,
+            frame: { id: 'canvas', label: 'Canvas', index: 1, total: 1, aspectRatio: '1:1' },
+            provider: { id: 'mock', displayName: 'mock', model: 'mock-model' },
+          },
+          {
+            type: 'frame.completed',
+            at: 4,
+            frame: { id: 'canvas', label: 'Canvas', index: 1, total: 1, aspectRatio: '1:1' },
+            provider: { id: 'mock', displayName: 'mock', model: 'mock-model' },
+            latencyMs: 50,
+            image: { url: IMAGE_A, width: 1, height: 1, mimeType: 'image/png' },
+          },
+          {
+            type: 'run.completed',
+            at: 5,
+            status: 'ok',
+            frames: { total: 1, completed: 1, failed: 0 },
+            provider: { id: 'mock', displayName: 'mock', model: 'mock-model' },
+            rewrittenPrompt: 'a still life, brand palette',
+            aspectRatio: '1:1',
+            firstImageUrl: IMAGE_A,
+            elapsedMs: 50,
+          },
+        ]),
       });
     });
 

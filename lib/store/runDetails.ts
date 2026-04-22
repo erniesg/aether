@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 
 export type RunActivityTone = 'neutral' | 'ok' | 'error';
+export type RunFrameStatus = 'queued' | 'running' | 'returned' | 'placed' | 'error';
 
 export interface RunActivityRecord {
   id: string;
@@ -12,11 +13,23 @@ export interface RunActivityRecord {
   tone: RunActivityTone;
 }
 
+export interface RunFrameRecord {
+  id: string;
+  label?: string;
+  aspectRatio?: string;
+  status: RunFrameStatus;
+  startedAt?: number;
+  updatedAt: number;
+  error?: string;
+  imageUrl?: string;
+}
+
 export interface RunDetailsRecord {
   runId: string;
   providerHint?: string;
   modelHint?: string;
   activities: RunActivityRecord[];
+  frames: RunFrameRecord[];
 }
 
 type Listener = () => void;
@@ -48,8 +61,9 @@ export function useRunDetails(runId?: string | null): RunDetailsRecord | null {
 
 export function initRunDetails(
   runId: string,
-  seed: Omit<RunDetailsRecord, 'runId' | 'activities'> & {
+  seed: Partial<Omit<RunDetailsRecord, 'runId'>> & {
     activities?: RunActivityRecord[];
+    frames?: RunFrameRecord[];
   } = {}
 ): void {
   state.set(runId, {
@@ -57,6 +71,7 @@ export function initRunDetails(
     providerHint: seed.providerHint,
     modelHint: seed.modelHint,
     activities: seed.activities ?? [],
+    frames: seed.frames ?? [],
   });
   notify();
 }
@@ -65,10 +80,33 @@ export function patchRunDetails(
   runId: string,
   patch: Partial<Omit<RunDetailsRecord, 'runId' | 'activities'>>
 ): void {
-  const current = state.get(runId) ?? { runId, activities: [] };
+  const current = state.get(runId) ?? { runId, activities: [], frames: [] };
   state.set(runId, {
     ...current,
     ...patch,
+  });
+  notify();
+}
+
+export function upsertRunFrame(
+  runId: string,
+  frame: Omit<RunFrameRecord, 'updatedAt'> & { updatedAt?: number }
+): void {
+  const current = state.get(runId) ?? { runId, activities: [], frames: [] };
+  const next: RunFrameRecord = {
+    ...frame,
+    updatedAt: frame.updatedAt ?? Date.now(),
+  };
+  const idx = current.frames.findIndex((entry) => entry.id === frame.id);
+  const frames =
+    idx === -1
+      ? [...current.frames, next]
+      : current.frames.map((entry, entryIdx) =>
+          entryIdx === idx ? { ...entry, ...next } : entry
+        );
+  state.set(runId, {
+    ...current,
+    frames,
   });
   notify();
 }
@@ -80,7 +118,7 @@ export function appendRunActivity(
     tone?: RunActivityTone;
   }
 ): void {
-  const current = state.get(runId) ?? { runId, activities: [] };
+  const current = state.get(runId) ?? { runId, activities: [], frames: [] };
   const next: RunActivityRecord = {
     id: `${runId}_${current.activities.length}`,
     at: activity.at ?? Date.now(),

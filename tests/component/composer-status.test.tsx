@@ -61,4 +61,47 @@ describe('ComposerStatus', () => {
       screen.getByText(/placed on canvas · openai · gpt-image-1 · 73.7s/i)
     ).toBeInTheDocument();
   });
+
+  it('shows per-format progress in the expanded panel during fan-out', async () => {
+    const runId = startRun({
+      tool: 'image-gen',
+      provider: 'openai',
+      model: 'gpt-image-1',
+      prompt: 'a campaign still life',
+    });
+    initRunDetails(runId, {
+      providerHint: 'openai',
+      modelHint: 'gpt-image-1',
+      frames: [
+        {
+          id: 'frame_ig_post',
+          label: 'IG Post',
+          aspectRatio: '4:5',
+          status: 'placed',
+          startedAt: Date.now() - 1200,
+          updatedAt: Date.now() - 200,
+        },
+        {
+          id: 'frame_story',
+          label: 'Story',
+          aspectRatio: '9:16',
+          status: 'running',
+          startedAt: Date.now() - 1200,
+          updatedAt: Date.now() - 100,
+        },
+      ],
+    });
+    stepRun(runId, 'awaiting');
+    const user = userEvent.setup();
+
+    render(<ComposerStatus />);
+
+    await user.click(screen.getByRole('button', { name: /show activity/i }));
+
+    expect(screen.getByText(/^formats$/i)).toBeInTheDocument();
+    expect(screen.getByText(/ig post/i)).toBeInTheDocument();
+    expect(screen.getByText(/story/i)).toBeInTheDocument();
+    expect(screen.getByText(/placed/i)).toBeInTheDocument();
+    expect(screen.getByText(/rendering/i)).toBeInTheDocument();
+  });
 });

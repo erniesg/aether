@@ -20,7 +20,11 @@ import {
   getFrameShapes,
   zoomToAllFrames,
 } from '@/lib/canvas/focusFrame';
-import { dispatchFanOut, dropImageInFrame, pickAspectRatio } from '@/lib/canvas/fanOut';
+import { dropImageInFrame, pickAspectRatio } from '@/lib/canvas/fanOut';
+import {
+  readGenerateStream,
+  type GenerateStreamEvent,
+} from '@/lib/generate/stream';
 import type { AspectRatio } from '@/lib/providers/image/types';
 import {
   finishRun,
@@ -33,6 +37,7 @@ import {
   appendRunActivity,
   initRunDetails,
   patchRunDetails,
+  upsertRunFrame,
 } from '@/lib/store/runDetails';
 import {
   addDefinition,
@@ -105,6 +110,32 @@ const VERB_PROMPT_PRESETS: Record<ToolbarVerb, string> = {
   collage: 'compose a collage from the pinned reference images',
 };
 
+interface GenerateTargetSpec {
+  id: string;
+  label?: string;
+  aspectRatio: AspectRatio;
+}
+
+interface RunCompletedEvent {
+  type: 'run.completed';
+  at: number;
+  status: 'ok' | 'partial' | 'error';
+  frames: { total: number; completed: number; failed: number };
+  provider?: { id: string; model: string };
+  rewrittenPrompt?: string;
+  rationale?: string;
+  aspectRatio?: AspectRatio;
+  firstImageUrl?: string;
+  elapsedMs: number;
+  error?: string;
+}
+
+function compactFrameLabel(value?: string): string | undefined {
+  if (!value) return undefined;
+  const [head] = value.split(' · ');
+  return head?.trim() || value;
+}
+
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<ComposerHandle | null>(null);
   const { editor } = useEditorRef();
@@ -130,18 +161,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         modelOverride?: string;
         bypassAgent?: boolean;
         refs?: string[];
-        /** Prompt actually sent to the API. Defaults to `prompt`, but fan-out
-         * reuses a shared rewritten prompt while preserving the creator's
-         * original prompt in the run log. */
-        requestPrompt?: string;
-        /** Optional per-request aspect ratio (fan-out path sets one per frame). */
-        aspectRatio?: AspectRatio;
-        /** When set, place the resulting image inside this tldraw frame instead
-         * of centring it on the current viewport. */
-        targetFrameId?: string;
+        targets?: GenerateTargetSpec[];
       } = {}
-    ): Promise<GenerateResponseJson | null> => {
-      const requestPrompt = options.requestPrompt ?? prompt;
+    ): Promise<void> => {
+      const targets = options.targets ?? [];
       const runId = startRun({
         tool: 'image-gen',
         provider: options.providerOverride ?? 'auto',
@@ -152,6 +175,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       initRunDetails(runId, {
         providerHint: options.providerOverride ?? 'auto',
         modelHint: options.modelOverride,
+        frames: targets.map((target) => ({
+          id: target.id,
+          label: target.label,
+          aspectRatio: target.aspectRatio,
+          status: 'queued',
+          updatedAt: Date.now(),
+        })),
       });
       appendRunActivity(runId, {
         title: 'run prepared',
@@ -161,17 +191,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               `provider ${options.providerOverride ?? 'auto'}`,
               options.modelOverride ? `model ${options.modelOverride}` : 'model auto',
               options.bypassAgent ? 'planner bypassed' : 'planner active',
+              targets.length > 1 ? `${targets.length} formats` : 'single format',
             ].join(' · '),
       });
       stepRun(runId, 'prepared');
 
-      let res: Response;
       try {
         stepRun(runId, 'sending');
         appendRunActivity(runId, {
           title: 'sending request',
           detail: options.definitionId ? '/api/capability/rerun' : '/api/generate',
         });
+
         if (options.definitionId) {
           const def = getDefinitionById(options.definitionId);
           if (!def) {
@@ -181,9 +212,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               tone: 'error',
             });
             failRun(runId, `unknown capability definition: ${options.definitionId}`);
-            return null;
+            return;
           }
-          const fetchPromise = fetch('/api/capability/rerun', {
+
+          const res = await fetch('/api/capability/rerun', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -192,37 +224,364 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               runId,
             }),
           });
+
           stepRun(runId, 'awaiting');
           appendRunActivity(runId, {
             title: 'awaiting capability response',
             detail: def.name,
           });
-          res = await fetchPromise;
-        } else {
-          const fetchPromise = fetch('/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: requestPrompt,
-              providerId: options.providerOverride,
-              model: options.modelOverride,
-              bypassAgent: options.bypassAgent,
-              refs: options.refs?.map((url) => ({ url })),
-              aspectRatio: options.aspectRatio,
-              runId,
-            }),
+
+          let json: GenerateResponseJson;
+          try {
+            json = await res.json();
+          } catch (err) {
+            logError('capability rerun parse failed:', err);
+            failRun(runId, `bad JSON response (${res.status})`, res.status);
+            return;
+          }
+
+          if (!res.ok || !json.ok) {
+            const msg =
+              typeof json?.error === 'string' ? json.error : res.statusText || 'unknown error';
+            appendRunActivity(runId, {
+              title: 'generation failed',
+              detail: msg,
+              tone: 'error',
+            });
+            failRun(runId, msg, res.status);
+            return;
+          }
+
+          patchRunDetails(runId, {
+            providerHint: json.provider?.id ?? options.providerOverride ?? 'auto',
+            modelHint: json.provider?.model ?? options.modelOverride,
           });
-          stepRun(runId, 'awaiting');
+
+          const first = json.result?.images?.[0];
+          stepRun(runId, 'placing');
+          if (first && editor) {
+            try {
+              dropImageOnCanvas(editor, {
+                url: first.url,
+                width: first.width,
+                height: first.height,
+                mimeType: first.mimeType,
+                label: json.plan?.rewrittenPrompt ?? prompt,
+              });
+            } catch (err) {
+              appendRunActivity(runId, {
+                title: 'canvas placement failed',
+                detail: err instanceof Error ? err.message : String(err),
+                tone: 'error',
+              });
+              failRun(
+                runId,
+                `canvas drop failed: ${err instanceof Error ? err.message : String(err)}`
+              );
+              return;
+            }
+          }
+
+          finishRun(runId, {
+            provider: json.provider?.id ?? 'unknown',
+            model: json.provider?.model ?? '',
+            rewrittenPrompt: json.plan?.rewrittenPrompt,
+            rationale: json.plan?.rationale,
+            aspectRatio: json.plan?.aspectRatio,
+            imageUrl: first?.url,
+            latencyMs: json.result?.latencyMs,
+            error: editor ? undefined : 'editor not ready — image stored, not placed',
+            status: editor ? 'ok' : 'error',
+          });
           appendRunActivity(runId, {
-            title: 'awaiting provider response',
-            detail: options.providerOverride ?? 'auto',
+            title: editor ? 'placed on canvas' : 'stored result',
+            detail: `${def.name} · capability rerun`,
+            tone: editor ? 'ok' : 'error',
           });
-          res = await fetchPromise;
+          return;
         }
-        stepRun(runId, 'received');
+
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            providerId: options.providerOverride,
+            model: options.modelOverride,
+            bypassAgent: options.bypassAgent,
+            refs: options.refs?.map((url) => ({ url })),
+            targets,
+            runId,
+          }),
+        });
+
+        if (!res.ok || !res.headers.get('content-type')?.includes('text/event-stream')) {
+          let json: GenerateResponseJson | null = null;
+          try {
+            json = (await res.json()) as GenerateResponseJson;
+          } catch {
+            // ignore
+          }
+          const msg =
+            typeof json?.error === 'string' ? json.error : res.statusText || 'unknown error';
+          appendRunActivity(runId, {
+            title: 'generation failed',
+            detail: msg,
+            tone: 'error',
+          });
+          failRun(runId, msg, res.status);
+          return;
+        }
+
+        stepRun(runId, 'awaiting');
         appendRunActivity(runId, {
-          title: 'response received',
-          detail: `HTTP ${res.status}`,
+          title: 'stream connected',
+          detail: targets.length > 1 ? `${targets.length} formats` : 'single format',
+        });
+
+        let finalEvent: RunCompletedEvent | null = null;
+        let resolvedPrompt = prompt;
+        let resolvedAspect: string | undefined = targets[0]?.aspectRatio;
+        let firstImageUrl: string | undefined;
+        const placementErrors: string[] = [];
+
+        await readGenerateStream(res, async (event) => {
+          switch (event.type) {
+            case 'run.started': {
+              if (targets.length === 0 && event.frames.total === 1) {
+                upsertRunFrame(runId, {
+                  id: 'canvas',
+                  label: 'Canvas',
+                  status: 'queued',
+                  updatedAt: event.at,
+                });
+              }
+              return;
+            }
+
+            case 'planner.started': {
+              appendRunActivity(runId, {
+                title: 'planning prompt',
+                detail: event.plannerModel,
+                at: event.at,
+              });
+              return;
+            }
+
+            case 'plan.ready': {
+              resolvedPrompt = event.rewrittenPrompt;
+              resolvedAspect = event.aspectRatio;
+              patchRunDetails(runId, {
+                providerHint: event.provider.id,
+                modelHint: event.provider.model,
+              });
+
+              if (event.plannerMode === 'anthropic' && event.toolCall) {
+                appendRunActivity(runId, {
+                  title: 'tool call made',
+                  detail: [
+                    event.plannerModel ?? 'anthropic',
+                    event.toolCall.name,
+                    event.toolCall.aspectRatio,
+                  ].join(' · '),
+                  at: event.at,
+                });
+                appendRunActivity(runId, {
+                  title: 'rewrote prompt',
+                  detail: event.toolCall.prompt,
+                  at: event.at,
+                });
+              } else if (event.plannerMode === 'fallback') {
+                appendRunActivity(runId, {
+                  title: 'planner fallback',
+                  detail: 'Anthropic unavailable · raw prompt sent to provider',
+                  at: event.at,
+                });
+              } else if (event.plannerMode === 'bypass') {
+                appendRunActivity(runId, {
+                  title: 'planner bypassed',
+                  detail: 'request sent directly to the image provider',
+                  at: event.at,
+                });
+              }
+              return;
+            }
+
+            case 'frame.started': {
+              stepRun(runId, 'awaiting');
+              upsertRunFrame(runId, {
+                id: event.frame.id,
+                label: event.frame.label,
+                aspectRatio: event.frame.aspectRatio,
+                status: 'running',
+                startedAt: event.at,
+                updatedAt: event.at,
+              });
+              appendRunActivity(runId, {
+                title: 'dispatching format',
+                detail: [
+                  event.frame.label ?? event.frame.id,
+                  `${event.frame.index}/${event.frame.total}`,
+                  event.provider.id,
+                  event.provider.model,
+                  event.frame.aspectRatio,
+                ].join(' · '),
+                at: event.at,
+              });
+              return;
+            }
+
+            case 'frame.completed': {
+              stepRun(runId, 'placing');
+              if (!firstImageUrl) firstImageUrl = event.image.url;
+              upsertRunFrame(runId, {
+                id: event.frame.id,
+                label: event.frame.label,
+                aspectRatio: event.frame.aspectRatio,
+                status: 'returned',
+                startedAt: event.at - event.latencyMs,
+                updatedAt: event.at,
+                imageUrl: event.image.url,
+              });
+              appendRunActivity(runId, {
+                title: 'provider returned',
+                detail: [
+                  event.frame.label ?? event.frame.id,
+                  event.provider.id,
+                  event.provider.model,
+                  `${(event.latencyMs / 1000).toFixed(1)}s`,
+                ].join(' · '),
+                tone: 'ok',
+                at: event.at,
+              });
+
+              let placementError: string | undefined;
+              if (editor) {
+                try {
+                  if (event.frame.id === 'canvas') {
+                    dropImageOnCanvas(editor, {
+                      url: event.image.url,
+                      width: event.image.width,
+                      height: event.image.height,
+                      mimeType: event.image.mimeType,
+                      label: resolvedPrompt,
+                    });
+                  } else {
+                    const placed = dropImageInFrame(editor, event.frame.id, {
+                      url: event.image.url,
+                      width: event.image.width,
+                      height: event.image.height,
+                      mimeType: event.image.mimeType,
+                      label: resolvedPrompt,
+                    });
+                    if (!placed) throw new Error('target frame missing');
+                  }
+                } catch (err) {
+                  placementError =
+                    err instanceof Error ? err.message : String(err);
+                }
+              } else {
+                placementError = 'editor not ready — image stored, not placed';
+              }
+
+              if (placementError) {
+                placementErrors.push(placementError);
+                upsertRunFrame(runId, {
+                  id: event.frame.id,
+                  label: event.frame.label,
+                  aspectRatio: event.frame.aspectRatio,
+                  status: 'error',
+                  startedAt: event.at - event.latencyMs,
+                  updatedAt: Date.now(),
+                  error: placementError,
+                  imageUrl: event.image.url,
+                });
+                appendRunActivity(runId, {
+                  title: 'canvas placement failed',
+                  detail: `${event.frame.label ?? event.frame.id} · ${placementError}`,
+                  tone: 'error',
+                });
+              } else {
+                upsertRunFrame(runId, {
+                  id: event.frame.id,
+                  label: event.frame.label,
+                  aspectRatio: event.frame.aspectRatio,
+                  status: 'placed',
+                  startedAt: event.at - event.latencyMs,
+                  updatedAt: Date.now(),
+                  imageUrl: event.image.url,
+                });
+                appendRunActivity(runId, {
+                  title: 'placed on canvas',
+                  detail: event.frame.label ?? event.frame.id,
+                  tone: 'ok',
+                });
+              }
+              return;
+            }
+
+            case 'frame.failed': {
+              upsertRunFrame(runId, {
+                id: event.frame.id,
+                label: event.frame.label,
+                aspectRatio: event.frame.aspectRatio,
+                status: 'error',
+                startedAt: event.at,
+                updatedAt: event.at,
+                error: event.error,
+              });
+              appendRunActivity(runId, {
+                title: 'format failed',
+                detail: `${event.frame.label ?? event.frame.id} · ${event.error}`,
+                tone: 'error',
+                at: event.at,
+              });
+              return;
+            }
+
+            case 'run.completed': {
+              finalEvent = event;
+            }
+          }
+        });
+
+        const completedEvent = finalEvent as RunCompletedEvent | null;
+        if (!completedEvent) {
+          failRun(runId, 'stream ended before completion');
+          return;
+        }
+
+        const finalError =
+          placementErrors.length > 0
+            ? `${placementErrors.length} placement error${placementErrors.length === 1 ? '' : 's'}`
+            : completedEvent.error;
+        const finalStatus =
+          completedEvent.status === 'ok' && placementErrors.length === 0 ? 'ok' : 'error';
+
+        finishRun(runId, {
+          provider: completedEvent.provider?.id ?? options.providerOverride ?? 'unknown',
+          model: completedEvent.provider?.model ?? options.modelOverride ?? '',
+          rewrittenPrompt: completedEvent.rewrittenPrompt ?? resolvedPrompt,
+          rationale: completedEvent.rationale,
+          aspectRatio: completedEvent.aspectRatio ?? resolvedAspect,
+          imageUrl: firstImageUrl ?? completedEvent.firstImageUrl,
+          latencyMs: completedEvent.elapsedMs,
+          error: finalError,
+          status: finalStatus,
+        });
+        appendRunActivity(runId, {
+          title:
+            finalStatus === 'ok'
+              ? 'generation complete'
+              : completedEvent.status === 'partial'
+              ? 'generation partially complete'
+              : 'generation failed',
+          detail:
+            targets.length > 1
+              ? `${completedEvent.frames.completed}/${completedEvent.frames.total} formats placed`
+              : finalError,
+          tone: finalStatus === 'ok' ? 'ok' : 'error',
+          at: completedEvent.at,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -233,182 +592,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           tone: 'error',
         });
         failRun(runId, `fetch failed: ${message}`);
-        return null;
       }
-
-      stepRun(runId, 'parsing');
-      let json: GenerateResponseJson;
-      try {
-        json = await res.json();
-      } catch (err) {
-        logError('json parse failed:', err);
-        appendRunActivity(runId, {
-          title: 'response parse failed',
-          detail: `HTTP ${res.status}`,
-          tone: 'error',
-        });
-        failRun(runId, `bad JSON response (${res.status})`, res.status);
-        return null;
-      }
-
-      if (!res.ok || !json.ok) {
-        const msg = typeof json?.error === 'string' ? json.error : res.statusText || 'unknown error';
-        appendRunActivity(runId, {
-          title: 'generation failed',
-          detail: msg,
-          tone: 'error',
-        });
-        failRun(runId, msg, res.status);
-        return null;
-      }
-
-       patchRunDetails(runId, {
-        providerHint: json.provider?.id ?? options.providerOverride ?? 'auto',
-        modelHint: json.provider?.model ?? options.modelOverride,
-      });
-
-      if (json.debug?.plannerMode === 'anthropic' && json.debug.toolCall) {
-        appendRunActivity(runId, {
-          title: 'tool call made',
-          detail: [
-            json.debug.plannerModel ?? 'anthropic',
-            json.debug.toolCall.name ?? 'generate_image',
-            json.debug.toolCall.aspectRatio ?? '1:1',
-          ].join(' · '),
-        });
-        appendRunActivity(runId, {
-          title: 'rewrote prompt',
-          detail: json.debug.toolCall.prompt ?? prompt,
-        });
-      } else if (json.debug?.plannerMode === 'fallback') {
-        appendRunActivity(runId, {
-          title: 'planner fallback',
-          detail: 'Anthropic unavailable · raw prompt sent to provider',
-        });
-      } else if (json.debug?.plannerMode === 'bypass') {
-        appendRunActivity(runId, {
-          title: 'planner bypassed',
-          detail: 'request sent directly to the image provider',
-        });
-      }
-
-      appendRunActivity(runId, {
-        title: 'provider returned',
-        detail: [
-          json.provider?.id ?? 'unknown',
-          json.provider?.model ?? 'model auto',
-          json.result?.latencyMs ? `${(json.result.latencyMs / 1000).toFixed(1)}s` : undefined,
-          json.result?.images?.length ? `${json.result.images.length} image${json.result.images.length === 1 ? '' : 's'}` : undefined,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        tone: 'ok',
-      });
-
-      const first = json.result?.images?.[0];
-      stepRun(runId, 'placing');
-      appendRunActivity(runId, {
-        title: 'placing on canvas',
-        detail: options.targetFrameId ? 'target artboard' : 'viewport drop',
-      });
-      if (first && editor) {
-        try {
-          const label = json.plan?.rewrittenPrompt ?? requestPrompt;
-          if (options.targetFrameId) {
-            const placed = dropImageInFrame(editor, options.targetFrameId, {
-              url: first.url,
-              width: first.width,
-              height: first.height,
-              mimeType: first.mimeType,
-              label,
-            });
-            if (!placed) throw new Error('target frame missing');
-          } else {
-            dropImageOnCanvas(editor, {
-              url: first.url,
-              width: first.width,
-              height: first.height,
-              mimeType: first.mimeType,
-              label,
-            });
-          }
-        } catch (err) {
-          appendRunActivity(runId, {
-            title: 'canvas placement failed',
-            detail: err instanceof Error ? err.message : String(err),
-            tone: 'error',
-          });
-          failRun(runId, `canvas drop failed: ${err instanceof Error ? err.message : String(err)}`);
-          return null;
-        }
-      }
-
-      finishRun(runId, {
-        provider: json.provider?.id ?? 'unknown',
-        model: json.provider?.model ?? '',
-        rewrittenPrompt: json.plan?.rewrittenPrompt,
-        rationale: json.plan?.rationale,
-        aspectRatio: json.plan?.aspectRatio,
-        imageUrl: first?.url,
-        latencyMs: json.result?.latencyMs,
-        error: editor ? undefined : 'editor not ready — image stored, not placed',
-        status: editor ? 'ok' : 'error',
-      });
-      appendRunActivity(runId, {
-        title: editor ? 'placed on canvas' : 'stored result',
-        detail: json.provider?.model ?? json.provider?.id ?? undefined,
-        tone: editor ? 'ok' : 'error',
-      });
-      return json;
     },
     [editor]
-  );
-
-  const requestGenerationPlan = useCallback(
-    async (
-      prompt: string,
-      options: {
-        providerOverride?: string;
-        modelOverride?: string;
-        bypassAgent?: boolean;
-        refs?: string[];
-      } = {}
-    ): Promise<GenerateResponseJson | null> => {
-      let res: Response;
-      try {
-        res = await fetch('/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt,
-            providerId: options.providerOverride,
-            model: options.modelOverride,
-            bypassAgent: options.bypassAgent,
-            refs: options.refs?.map((url) => ({ url })),
-            planOnly: true,
-          }),
-        });
-      } catch (err) {
-        logError('plan fetch threw:', err);
-        return null;
-      }
-
-      let json: GenerateResponseJson;
-      try {
-        json = await res.json();
-      } catch (err) {
-        logError('plan json parse failed:', err);
-        return null;
-      }
-
-      if (!res.ok || !json.ok) {
-        logError('plan request failed:', json.error ?? (res.statusText || 'unknown error'));
-        return null;
-      }
-
-      return json;
-    },
-    []
   );
 
   const handlePrompt = useCallback(
@@ -429,52 +615,24 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // out of credits, or to demo the raw provider without Claude's rewrite.
       const bypassAgent = urlParams.get('bypass') === '1';
 
-      // scope='all' fans out: one generation per frame, each rendered at the
-      // frame's own aspect ratio and dropped inside it. The agent plans the
-      // prompt once (or it's piped through when bypassing) and the provider
-      // is called once per frame — shared Claude rewrite, per-frame shape.
       if (options.scope === 'all' && editor) {
         const frames = getFrameShapes(editor);
         if (frames.length > 0) {
           const targets = frames.map((f) => {
-            const props = (f as unknown as { props: { w: number; h: number } }).props;
-            return { id: f.id, w: props.w, h: props.h };
+            const props = (f as unknown as { props: { w: number; h: number; name?: string } }).props;
+            return {
+              id: f.id,
+              label: compactFrameLabel(props.name),
+              aspectRatio: pickAspectRatio(props.w, props.h),
+            };
           });
           log('fan-out · frames:', targets.length);
-          const planned = await requestGenerationPlan(prompt, {
+          await runImageOnCanvas(prompt, {
             providerOverride,
             modelOverride,
             bypassAgent,
             refs: options.refs,
-          });
-          if (planned?.plan?.rewrittenPrompt) {
-            const sharedPrompt = planned.plan.rewrittenPrompt;
-            const sharedProvider = planned.provider?.id ?? providerOverride;
-            const sharedModel = planned.provider?.model ?? modelOverride;
-            await dispatchFanOut(targets, async (target, aspectRatio) => {
-              await runImageOnCanvas(prompt, {
-                requestPrompt: sharedPrompt,
-                providerOverride: sharedProvider,
-                modelOverride: sharedModel,
-                bypassAgent: true,
-                refs: options.refs,
-                aspectRatio,
-                targetFrameId: target.id,
-              });
-            });
-            return;
-          }
-
-          logError('fan-out plan unavailable, falling back to per-frame generate');
-          await dispatchFanOut(targets, async (target, aspectRatio) => {
-            await runImageOnCanvas(prompt, {
-              providerOverride,
-              modelOverride,
-              bypassAgent,
-              refs: options.refs,
-              aspectRatio,
-              targetFrameId: target.id,
-            });
+            targets,
           });
           return;
         }
@@ -483,15 +641,19 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // scope='single' (or 'all' on an empty canvas): one generation. When the
       // creator is in the focus lens, drop into the currently-focused frame
       // with its own aspect ratio. Otherwise centre on the viewport as before.
-      let targetFrameId: string | undefined;
-      let aspectRatio: AspectRatio | undefined;
+      let targets: GenerateTargetSpec[] | undefined;
       if (view === 'focus' && editor) {
         const frames = getFrameShapes(editor);
         const target = frames[focusIdx];
         if (target) {
-          targetFrameId = target.id;
-          const props = (target as unknown as { props: { w: number; h: number } }).props;
-          aspectRatio = pickAspectRatio(props.w, props.h);
+          const props = (target as unknown as { props: { w: number; h: number; name?: string } }).props;
+          targets = [
+            {
+              id: target.id,
+              label: compactFrameLabel(props.name),
+              aspectRatio: pickAspectRatio(props.w, props.h),
+            },
+          ];
         }
       }
 
@@ -500,11 +662,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         modelOverride,
         bypassAgent,
         refs: options.refs,
-        aspectRatio,
-        targetFrameId,
+        targets,
       });
     },
-    [runImageOnCanvas, requestGenerationPlan, editor, view, focusIdx]
+    [runImageOnCanvas, editor, view, focusIdx]
   );
 
   const handlePin = useCallback((run: CapabilityRunRecord) => {
