@@ -10,17 +10,37 @@ import type {
 import { ArrowUp, ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
+/**
+ * Format-fanout scope for a single generation. `all` dispatches the prompt
+ * against every linked artboard so the key visual fans out. `single` is a
+ * one-shot override (typically via ⇧+Enter) that keeps the generation
+ * scoped to the currently-focused artboard without changing the sticky
+ * preference.
+ */
+export type PromptScope = 'all' | 'single';
+
+export interface PromptSubmitOptions {
+  /** Ad-hoc reference images as data URLs, only present when creators drop / paste / pick. */
+  refs?: string[];
+  /** Whether this generation should fan out to every linked format or scope to one. */
+  scope: PromptScope;
+}
+
 export interface PromptComposerProps {
   /** Which input set is currently driving generation. Undefined / empty
    * means there is no pinned material — the prompt will run with no refs. */
   activeInputSet?: string;
   /** Count of pinned inputs (refs + brand + product + brief items). Drives the chip label. */
   inputCount?: number;
+  /** Number of linked formats on the canvas — drives the "apply to all · N formats" chip. */
+  formatCount?: number;
+  /** Sticky scope; defaults to 'all'. Clicking the scope chip toggles this state. */
+  defaultScope?: PromptScope;
   /** Called when the creator clicks the input-set chip — typically opens the input-set rail. */
   onOpenInputSet?: () => void;
-  /** Invoked with the prompt string (and any ad-hoc reference images dropped into
-   * the composer, as base64 data URLs) on submit. */
-  onSubmit?: (prompt: string, refs?: string[]) => void | Promise<void>;
+  /** Invoked with the prompt string and a submit-options bundle
+   * (refs + scope) on submit. */
+  onSubmit?: (prompt: string, options: PromptSubmitOptions) => void | Promise<void>;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -48,6 +68,8 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
     {
       activeInputSet,
       inputCount = 0,
+      formatCount = 0,
+      defaultScope = 'all',
       onOpenInputSet,
       onSubmit,
       placeholder = 'describe the generation…',
@@ -64,6 +86,7 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
     const [refs, setRefs] = useState<string[]>([]);
     const [dragging, setDragging] = useState(false);
     const [refError, setRefError] = useState<string | null>(null);
+    const [scope, setScope] = useState<PromptScope>(defaultScope);
 
     const setRef = (node: HTMLTextAreaElement | null) => {
       internalRef.current = node;
@@ -101,12 +124,15 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
       []
     );
 
-    const submit = async () => {
+    const submit = async (overrideScope?: PromptScope) => {
       const prompt = value.trim();
       if (!prompt || pending || disabled) return;
       setPending(true);
       try {
-        await onSubmit?.(prompt, refs.length > 0 ? refs : undefined);
+        await onSubmit?.(prompt, {
+          refs: refs.length > 0 ? refs : undefined,
+          scope: overrideScope ?? scope,
+        });
         setValue('');
         setRefs([]);
       } finally {
@@ -120,10 +146,16 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
     };
 
     const handleKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.key !== 'Enter') return;
+      // ⇧+Enter is the one-shot single-format override. Plain Enter uses the
+      // sticky scope preference (click the chip to flip it persistently).
+      if (event.shiftKey) {
         event.preventDefault();
-        void submit();
+        void submit('single');
+        return;
       }
+      event.preventDefault();
+      void submit();
     };
 
     const handlePaste = (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
@@ -240,10 +272,10 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
               ? `${activeInputSet} · ${inputCount} pinned`
               : 'no inputs pinned';
             const aria = hasRefs
-              ? `${refs.length} ad-hoc reference image${refs.length === 1 ? '' : 's'} attached`
+              ? `input set · ${refs.length} ad-hoc reference image${refs.length === 1 ? '' : 's'} attached`
               : hasSet
-              ? `active input set · ${activeInputSet} · ${inputCount} pinned · click to view`
-              : 'no inputs pinned · click to open input set';
+              ? `input set · ${activeInputSet} · ${inputCount} pinned · click to view`
+              : 'input set · no inputs pinned · click to open';
             return (
               <button
                 type="button"
@@ -261,6 +293,30 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
               >
                 <Sparkles size={10} strokeWidth={2} />
                 {label}
+              </button>
+            );
+          })()}
+
+          {(() => {
+            const scopeLabel =
+              scope === 'all'
+                ? `apply to all · ${formatCount} format${formatCount === 1 ? '' : 's'}`
+                : 'only this format';
+            const aria = `format scope · ${scopeLabel} · click to toggle (⇧+Enter for one-shot single-format)`;
+            return (
+              <button
+                type="button"
+                aria-label={aria}
+                title={aria}
+                onClick={() => setScope((prev) => (prev === 'all' ? 'single' : 'all'))}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+                  scope === 'all'
+                    ? 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+                    : 'border-accent bg-accent text-ink-on-accent'
+                )}
+              >
+                {scopeLabel}
               </button>
             );
           })()}

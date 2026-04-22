@@ -13,6 +13,7 @@ import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
+import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
 import {
   finishRun,
   failRun,
@@ -168,8 +169,15 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   );
 
   const handlePrompt = useCallback(
-    async (prompt: string, refs?: string[]) => {
-      log('onSubmit · prompt:', prompt, 'refs:', refs?.length ?? 0);
+    async (prompt: string, options: { refs?: string[]; scope: 'all' | 'single' }) => {
+      log(
+        'onSubmit · prompt:',
+        prompt,
+        'refs:',
+        options.refs?.length ?? 0,
+        'scope:',
+        options.scope
+      );
       const urlParams = new URLSearchParams(window.location.search);
       const providerOverride = urlParams.get('provider') ?? undefined;
       const modelOverride = urlParams.get('model') ?? undefined;
@@ -177,11 +185,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // to the provider. Useful when the Anthropic key is rate-limited or
       // out of credits, or to demo the raw provider without Claude's rewrite.
       const bypassAgent = urlParams.get('bypass') === '1';
+      // Scope is surfaced for future fan-out wiring — today a single
+      // generation still resolves to one canvas drop.
       await runImageOnCanvas(prompt, {
         providerOverride,
         modelOverride,
         bypassAgent,
-        refs,
+        refs: options.refs,
       });
     },
     [runImageOnCanvas]
@@ -273,6 +283,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         ref={composerRef}
         onSubmit={handlePrompt}
         inputCount={0}
+        formatCount={DEFAULT_ARTBOARDS.length}
         className="h-composer"
       />
       <ComposerStatus />
