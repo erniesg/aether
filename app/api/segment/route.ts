@@ -5,7 +5,9 @@ import {
   resolveSegmentationProvider,
 } from '@/lib/providers/segmentation/registry';
 import type {
+  SegmentationBoxPrompt,
   SegmentationMode,
+  SegmentationPointPrompt,
   SegmentationProviderStatus,
 } from '@/lib/providers/segmentation/types';
 import {
@@ -47,6 +49,56 @@ function parsePositiveNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
+function parseCoordinate(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function parseBoxPrompt(value: unknown): SegmentationBoxPrompt | null | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null) return null;
+
+  const candidate = value as Record<string, unknown>;
+  const x = parseCoordinate(candidate.x);
+  const y = parseCoordinate(candidate.y);
+  const w = parsePositiveNumber(candidate.w);
+  const h = parsePositiveNumber(candidate.h);
+
+  if (x === undefined || y === undefined || w === undefined || h === undefined) {
+    return null;
+  }
+
+  return { x, y, w, h };
+}
+
+function parsePointPrompts(
+  value: unknown
+): SegmentationPointPrompt[] | null | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return null;
+
+  const points: SegmentationPointPrompt[] = [];
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) return null;
+    const candidate = item as Record<string, unknown>;
+    const x = parseCoordinate(candidate.x);
+    const y = parseCoordinate(candidate.y);
+    const label =
+      candidate.label === 'fg' || candidate.label === 'bg'
+        ? candidate.label
+        : undefined;
+
+    if (x === undefined || y === undefined || label === undefined) {
+      return null;
+    }
+
+    points.push({ x, y, label });
+  }
+
+  return points;
+}
+
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -72,6 +124,8 @@ export async function POST(request: Request) {
   const sourceUrl = typeof b.sourceUrl === 'string' ? b.sourceUrl.trim() : '';
   const prompt = typeof b.prompt === 'string' ? b.prompt.trim() : undefined;
   const mode = parseMode(b.mode);
+  const box = parseBoxPrompt(b.box);
+  const points = parsePointPrompts(b.points);
   const width = parsePositiveNumber(b.width);
   const height = parsePositiveNumber(b.height);
 
@@ -99,6 +153,14 @@ export async function POST(request: Request) {
     return jsonError(400, 'width and height are required');
   }
 
+  if (box === null) {
+    return jsonError(400, 'box must be an object with x, y, w, h');
+  }
+
+  if (points === null) {
+    return jsonError(400, 'points must be an array of { x, y, label }');
+  }
+
   try {
     const provider = resolveSegmentationProvider(providerId, model);
     const result = await provider.segment(
@@ -106,6 +168,8 @@ export async function POST(request: Request) {
         sourceUrl,
         mode,
         prompt,
+        box,
+        points,
         size: { w: width, h: height },
       },
       { model: model ?? provider.listModels()[0] ?? provider.id }

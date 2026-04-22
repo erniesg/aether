@@ -1,4 +1,5 @@
 export type SegmentationMode = 'removebg' | 'cutout' | 'unmask';
+export type SegmentationRefinementMode = 'point-fg' | 'point-bg' | 'box';
 export const KNOWN_SEGMENTATION_PROVIDER_IDS = ['sam3', 'sam2'] as const;
 export type SegmentationProviderId =
   (typeof KNOWN_SEGMENTATION_PROVIDER_IDS)[number];
@@ -41,6 +42,8 @@ export interface SegmentationProviderStatus {
   displayName: string;
   models: string[];
   supportsTextPrompt: boolean;
+  supportsPointPrompt: boolean;
+  supportsBoxPrompt: boolean;
   available: boolean;
   unavailableReason?: string;
 }
@@ -49,6 +52,8 @@ export interface SegmentationProvider {
   id: SegmentationProviderId;
   displayName: string;
   supportsTextPrompt: boolean;
+  supportsPointPrompt: boolean;
+  supportsBoxPrompt: boolean;
   isAvailable(): boolean;
   getAvailabilityIssue(): string | undefined;
   listModels(): string[];

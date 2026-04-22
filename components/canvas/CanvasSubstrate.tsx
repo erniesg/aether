@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils/cn';
 import { FloatingToolbar } from './FloatingToolbar';
 import { SegmentationPanel, type SegmentationPreviewPayload } from './SegmentationPanel';
 import { SegmentationPreviewOverlay } from './SegmentationPreviewOverlay';
+import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
 import type {
   PrimitiveTool,
   Scope,
@@ -24,8 +25,11 @@ import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import type {
+  SegmentationBoxPrompt,
   SegmentationProviderId,
   SegmentationProviderStatus,
+  SegmentationPointPrompt,
+  SegmentationRefinementMode,
 } from '@/lib/providers/segmentation/types';
 import { useEditorRef } from '@/lib/store/editor-ref';
 
@@ -66,6 +70,9 @@ interface SegmentationDraft {
   verb: SegmentationVerb;
   providerId: SegmentationProviderId;
   prompt: string;
+  refinementMode: SegmentationRefinementMode | null;
+  points: SegmentationPointPrompt[];
+  box?: SegmentationBoxPrompt;
   loading: boolean;
   approved: boolean;
   error?: string;
@@ -84,6 +91,8 @@ const DEFAULT_SEGMENTATION_PROVIDERS: SegmentationProviderStatus[] = [
     displayName: 'SAM 3 via Modal',
     models: ['sam3.1', 'sam3'],
     supportsTextPrompt: true,
+    supportsPointPrompt: true,
+    supportsBoxPrompt: true,
     available: false,
     unavailableReason: 'checking availability',
   },
@@ -92,6 +101,8 @@ const DEFAULT_SEGMENTATION_PROVIDERS: SegmentationProviderStatus[] = [
     displayName: 'SAM 2 via Replicate',
     models: ['meta/sam-2'],
     supportsTextPrompt: false,
+    supportsPointPrompt: false,
+    supportsBoxPrompt: false,
     available: false,
     unavailableReason: 'checking availability',
   },
@@ -258,6 +269,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         verb,
         providerId,
         prompt: defaultPromptForVerb(verb),
+        refinementMode: null,
+        points: [],
+        box: undefined,
         loading: false,
         approved: false,
         error: pickAvailableSegmentationProvider(segmentationProviders, providerId)
@@ -317,6 +331,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           sourceUrl: selectedImage.sourceUrl,
           mode: segmentation.verb,
           prompt: segmentation.prompt || undefined,
+          points: segmentation.points.length > 0 ? segmentation.points : undefined,
+          box: segmentation.box,
           width: selectedImage.intrinsicWidth,
           height: selectedImage.intrinsicHeight,
         }),
@@ -437,6 +453,64 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       controller.abort();
     };
   }, [segmentation?.targetShapeId]);
+
+  const handleSegmentationRefinementModeChange = useCallback(
+    (mode: SegmentationRefinementMode | null) => {
+      setSegmentation((current) =>
+        current
+          ? {
+              ...current,
+              refinementMode: mode,
+            }
+          : current
+      );
+    },
+    []
+  );
+
+  const handleSegmentationPointAdd = useCallback((point: SegmentationPointPrompt) => {
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            approved: false,
+            error: undefined,
+            preview: undefined,
+            points: [...current.points, point],
+          }
+        : current
+    );
+  }, []);
+
+  const handleSegmentationBoxChange = useCallback((box?: SegmentationBoxPrompt) => {
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            approved: false,
+            error: undefined,
+            preview: undefined,
+            box,
+          }
+        : current
+    );
+  }, []);
+
+  const handleSegmentationRefinementClear = useCallback(() => {
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            approved: false,
+            box: undefined,
+            error: undefined,
+            points: [],
+            preview: undefined,
+            refinementMode: null,
+          }
+        : current
+    );
+  }, []);
 
   const handleApproveSegmentation = useCallback(() => {
     if (!editor || !selectedImage || !segmentation?.preview) return;
@@ -583,6 +657,21 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         />
       ) : null}
 
+      {segmentation && selectedImage ? (
+        <SegmentationRefinementOverlay
+          rect={selectedImage.screenBounds}
+          imageSize={{
+            width: selectedImage.intrinsicWidth,
+            height: selectedImage.intrinsicHeight,
+          }}
+          mode={segmentation.refinementMode}
+          points={segmentation.points}
+          box={segmentation.box}
+          onAddPoint={handleSegmentationPointAdd}
+          onBoxChange={handleSegmentationBoxChange}
+        />
+      ) : null}
+
       <SegmentationPanel
         open={segmentation !== null}
         verb={segmentation?.verb ?? 'removebg'}
@@ -590,6 +679,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         providers={segmentationProviders}
         providerStatusLoading={segmentationProvidersLoading}
         prompt={segmentation?.prompt ?? ''}
+        pointCount={segmentation?.points.length ?? 0}
+        hasBox={Boolean(segmentation?.box)}
+        refinementMode={segmentation?.refinementMode ?? null}
         loading={segmentation?.loading}
         approved={segmentation?.approved}
         error={segmentation?.error}
@@ -599,8 +691,14 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           setSegmentation((current) => (current ? { ...current, prompt: value } : current))
         }
         onProviderChange={(value) =>
-          setSegmentation((current) => (current ? { ...current, providerId: value } : current))
+          setSegmentation((current) =>
+            current
+              ? { ...current, providerId: value, refinementMode: null }
+              : current
+          )
         }
+        onRefinementModeChange={handleSegmentationRefinementModeChange}
+        onClearRefinement={handleSegmentationRefinementClear}
         onPreview={handlePreviewSegmentation}
         onApprove={handleApproveSegmentation}
         onReject={() =>

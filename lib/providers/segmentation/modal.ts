@@ -25,6 +25,8 @@ export function createModalSam3Provider(
     id: 'sam3',
     displayName: 'SAM 3 via Modal',
     supportsTextPrompt: true,
+    supportsPointPrompt: true,
+    supportsBoxPrompt: true,
     isAvailable: () => Boolean(endpoint),
     getAvailabilityIssue: () =>
       endpoint ? undefined : 'SAM 3 is not connected',

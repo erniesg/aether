@@ -17,6 +17,7 @@ The toolbar already exposes `cutout`, `unmask`, and `removebg`, but the repo has
 - toolbar `cutout` / `removebg` / `unmask` now open a canvas-side segmentation panel when an image layer is selected
 - added preview overlay, approve/reject flow, and undo/redo hooks
 - added solid / gradient / opacity background fills behind the approved cutout
+- added point / box refinement prompts for the selected image, routed through `/api/segment`
 
 ## Important limitations
 
@@ -42,7 +43,6 @@ See [2026-04-23-segmentation-capability.md](/Users/erniesg/code/erniesg/aether-i
 ## Remaining work
 
 - add provenance persistence for segmentation actions
-- support point / box refinement prompts in the canvas UI
 - decide whether `sam2` should stay automatic-only or be replaced with a more interactive fallback
 - add export-safe and version-history-aware handling for derived cutouts/background fills
 

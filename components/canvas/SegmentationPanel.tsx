@@ -5,6 +5,7 @@ import type { BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
 import {
   KNOWN_SEGMENTATION_PROVIDER_IDS,
   type SegmentationProviderId,
+  type SegmentationRefinementMode,
   type SegmentationProviderStatus,
 } from '@/lib/providers/segmentation/types';
 
@@ -25,12 +26,17 @@ export interface SegmentationPanelProps {
   providers: ReadonlyArray<SegmentationProviderStatus>;
   providerStatusLoading?: boolean;
   prompt: string;
+  pointCount: number;
+  hasBox: boolean;
+  refinementMode: SegmentationRefinementMode | null;
   loading?: boolean;
   approved?: boolean;
   error?: string;
   backgroundFill: BackgroundFillSpec;
   onPromptChange: (value: string) => void;
   onProviderChange: (value: SegmentationProviderId) => void;
+  onRefinementModeChange: (value: SegmentationRefinementMode | null) => void;
+  onClearRefinement: () => void;
   onPreview: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -63,12 +69,17 @@ export function SegmentationPanel({
   providers,
   providerStatusLoading = false,
   prompt,
+  pointCount,
+  hasBox,
+  refinementMode,
   loading = false,
   approved = false,
   error,
   backgroundFill,
   onPromptChange,
   onProviderChange,
+  onRefinementModeChange,
+  onClearRefinement,
   onPreview,
   onApprove,
   onReject,
@@ -87,6 +98,8 @@ export function SegmentationPanel({
   const providerById = new Map(providers.map((provider) => [provider.id, provider]));
   const activeProvider = providerById.get(providerId);
   const activeProviderSupportsTextPrompt = activeProvider?.supportsTextPrompt ?? true;
+  const activeProviderSupportsRefinement =
+    activeProvider?.supportsPointPrompt || activeProvider?.supportsBoxPrompt;
   const hasAvailableProvider = providers.some((provider) => provider.available);
   const previewDisabled =
     loading ||
@@ -147,6 +160,77 @@ export function SegmentationPanel({
             {providerId} uses automatic masks. text prompt support lives on sam3.
           </p>
         ) : null}
+
+        <div className="flex flex-col gap-1">
+          <span className="font-caption text-ink-dim">refine</span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() =>
+                onRefinementModeChange(
+                  refinementMode === 'point-fg' ? null : 'point-fg'
+                )
+              }
+              disabled={!activeProviderSupportsRefinement}
+              className={`rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors ${
+                refinementMode === 'point-fg'
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink disabled:cursor-not-allowed disabled:text-ink-faint'
+              }`}
+            >
+              fg point
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onRefinementModeChange(
+                  refinementMode === 'point-bg' ? null : 'point-bg'
+                )
+              }
+              disabled={!activeProviderSupportsRefinement}
+              className={`rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors ${
+                refinementMode === 'point-bg'
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink disabled:cursor-not-allowed disabled:text-ink-faint'
+              }`}
+            >
+              bg point
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onRefinementModeChange(refinementMode === 'box' ? null : 'box')
+              }
+              disabled={!activeProviderSupportsRefinement}
+              className={`rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors ${
+                refinementMode === 'box'
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink disabled:cursor-not-allowed disabled:text-ink-faint'
+              }`}
+            >
+              box
+            </button>
+            <button
+              type="button"
+              onClick={onClearRefinement}
+              disabled={pointCount === 0 && !hasBox}
+              className="rounded-sm border border-border-soft px-2 py-1 font-caption text-2xs text-ink transition-colors hover:bg-surface-panel-muted disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              clear hints
+            </button>
+          </div>
+          {activeProviderSupportsRefinement ? (
+            <p className="font-caption text-2xs text-ink-dim">
+              click the canvas for fg/bg points or drag a box. {pointCount} point
+              {pointCount === 1 ? '' : 's'}
+              {hasBox ? ' + box' : ''}
+            </p>
+          ) : (
+            <p className="font-caption text-2xs text-ink-dim">
+              interactive refinement lives on sam3.
+            </p>
+          )}
+        </div>
 
         <label className="flex flex-col gap-1">
           <span className="font-caption text-ink-dim">prompt</span>

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
       displayName: 'SAM 3 via Modal',
       models: ['sam3.1'],
       supportsTextPrompt: true,
+      supportsPointPrompt: true,
+      supportsBoxPrompt: true,
       available: true,
     },
     {
@@ -18,6 +20,8 @@ const mocks = vi.hoisted(() => ({
       displayName: 'SAM 2 via Replicate',
       models: ['meta/sam-2'],
       supportsTextPrompt: false,
+      supportsPointPrompt: false,
+      supportsBoxPrompt: false,
       available: false,
       unavailableReason: 'Replicate SAM 2 is not connected',
     },
@@ -26,6 +30,8 @@ const mocks = vi.hoisted(() => ({
     id: 'sam3',
     displayName: 'SAM 3 via Modal',
     supportsTextPrompt: true,
+    supportsPointPrompt: true,
+    supportsBoxPrompt: true,
     getAvailabilityIssue: () => undefined,
     listModels: () => ['sam3.1'],
     segment: mocks.segment,
@@ -76,6 +82,46 @@ describe('/api/segment', () => {
     expect(json.preview.maskDataUrl).toBe(TINY_PNG);
     expect(json.preview.cutoutDataUrl).toContain('data:image/svg+xml');
     expect(json.preview.sourceDataUrl).toBe(TINY_PNG);
+  });
+
+  it('forwards point and box refinement prompts to the provider', async () => {
+    mocks.segment.mockResolvedValue({
+      provider: 'sam3',
+      model: 'sam3.1',
+      maskUrl: TINY_PNG,
+      width: 1024,
+      height: 1024,
+    });
+
+    const { POST } = await import('@/app/api/segment/route');
+    await POST(
+      new Request('http://localhost/api/segment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceUrl: TINY_PNG,
+          mode: 'cutout',
+          points: [
+            { x: 120, y: 180, label: 'fg' },
+            { x: 12, y: 24, label: 'bg' },
+          ],
+          box: { x: 40, y: 60, w: 320, h: 400 },
+          width: 1024,
+          height: 1024,
+        }),
+      })
+    );
+
+    expect(mocks.segment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        points: [
+          { x: 120, y: 180, label: 'fg' },
+          { x: 12, y: 24, label: 'bg' },
+        ],
+        box: { x: 40, y: 60, w: 320, h: 400 },
+      }),
+      expect.any(Object)
+    );
   });
 
   it('returns provider availability for both known providers', async () => {

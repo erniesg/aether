@@ -26,6 +26,8 @@ export function createReplicateSegmentationProvider(
     id: 'sam2',
     displayName: 'SAM 2 via Replicate',
     supportsTextPrompt: false,
+    supportsPointPrompt: false,
+    supportsBoxPrompt: false,
     isAvailable: () => Boolean(apiKey),
     getAvailabilityIssue: () =>
       apiKey ? undefined : 'Replicate SAM 2 is not connected',

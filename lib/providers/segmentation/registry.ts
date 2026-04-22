@@ -81,6 +81,8 @@ export function listSegmentationProviders(): SegmentationProviderStatus[] {
       displayName: provider.displayName,
       models: provider.listModels(),
       supportsTextPrompt: provider.supportsTextPrompt,
+      supportsPointPrompt: provider.supportsPointPrompt,
+      supportsBoxPrompt: provider.supportsBoxPrompt,
       available: unavailableReason === undefined,
       unavailableReason,
     };
