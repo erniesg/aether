@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
@@ -252,6 +252,23 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     composerRef.current?.setPrompt(VERB_PROMPT_PRESETS[verb]);
   }, []);
 
+  // ⌘+. / Ctrl+. toggles between canvas and focus lenses. Focus hides both
+  // rails so the canvas fills the viewport — for moments when the creator
+  // wants to concentrate on the making without the surrounding context.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const isShortcut =
+        event.key === '.' && (event.metaKey || event.ctrlKey) && !event.shiftKey;
+      if (!isShortcut) return;
+      event.preventDefault();
+      setView((prev) => (prev === 'focus' ? 'canvas' : 'focus'));
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const inFocus = view === 'focus';
+
   return (
     <div className="flex min-h-screen flex-col bg-surface-bg">
       <Surface
@@ -286,14 +303,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       </Surface>
 
       <div className="flex flex-1 overflow-hidden">
-        <LeftRail />
+        {inFocus ? null : <LeftRail />}
         <CanvasSubstrate
           composerRef={composerRef}
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
         />
-        <RightRail onPin={handlePin} />
+        {inFocus ? null : <RightRail onPin={handlePin} />}
       </div>
 
       <PromptComposer
