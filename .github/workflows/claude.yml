@@ -35,6 +35,8 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Code agent
+        id: agent
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           # Subscription-backed OAuth token (not API credits).
@@ -43,10 +45,60 @@ jobs:
           trigger_phrase: "@claude"
           label_trigger: "claude-run"
           claude_args: |
-            --max-turns 100
+            --max-turns 250
             --model claude-opus-4-7
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_GEMINI_API_KEY: ${{ secrets.GOOGLE_GEMINI_API_KEY }}
           REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
           VOLCENGINE_ARK_API_KEY: ${{ secrets.VOLCENGINE_ARK_API_KEY }}
+
+      # Decouple PR creation from the agent's turn budget. Runs even when the
+      # agent step hits --max-turns or errors out, as long as it successfully
+      # pushed commits to a claude/issue-<n>-* branch. Opens a PR if none is
+      # open yet for that branch. A no-op in every other case.
+      - name: Open PR for pushed agent branch (budget-independent)
+        if: always() && github.event_name == 'issues' && github.event.action == 'labeled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
+        run: |
+          set -u
+          git fetch origin --prune --quiet
+          BRANCH=$(git branch -r --list "origin/claude/issue-${ISSUE_NUMBER}-*" \
+            | sed 's|^ *origin/||' \
+            | sort -r \
+            | head -n 1)
+          if [ -z "${BRANCH:-}" ]; then
+            echo "::notice::No claude/issue-${ISSUE_NUMBER}-* branch on origin — nothing to PR."
+            exit 0
+          fi
+          AHEAD=$(git rev-list --count "origin/main..origin/${BRANCH}")
+          if [ "${AHEAD}" -eq 0 ]; then
+            echo "::notice::Branch ${BRANCH} has 0 commits ahead of main — nothing to PR."
+            exit 0
+          fi
+          if gh pr list --head "${BRANCH}" --state open --json number --jq 'length' | grep -qv '^0$'; then
+            echo "::notice::PR already open for ${BRANCH}."
+            exit 0
+          fi
+          BODY=$(cat <<BODY
+          Auto-opened by \`claude.yml\` because the agent pushed ${AHEAD} commits to \`${BRANCH}\` but did not complete its own \`gh pr create\` step (agent step outcome: \`${AGENT_OUTCOME}\`).
+
+          Closes #${ISSUE_NUMBER}.
+
+          Review checklist:
+          - CI must pass (typecheck · unit tests · e2e).
+          - Codex review surfaces in the timeline.
+          - Read the agent's sticky comment on issue #${ISSUE_NUMBER} for its TDD log.
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          BODY
+          )
+          gh pr create \
+            --title "${ISSUE_TITLE}" \
+            --body "${BODY}" \
+            --base main \
+            --head "${BRANCH}"
