@@ -1,18 +1,22 @@
 'use client';
 
+import { useState } from 'react';
 import {
-  Bookmark,
-  FolderKanban,
+  Flag,
   Layers3,
+  Package2,
   PaintBucket,
-  Package,
-  PencilLine,
-  Sparkles,
-  Target,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
+import {
+  DEMO_CREATOR_CONTEXT,
+  describeWorkspaceMode,
+  summarizeInputSet,
+  type SignalContext,
+} from '@/lib/context/model';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -24,11 +28,10 @@ type SectionSpec = {
   body: React.ReactNode;
 };
 
-/**
- * Lifecycle-ordered input rail. Hard rule: sources → references → clusters →
- * input sets → brand → product → brief → output targets. Nothing else goes
- * into the left rail — no tools, no navigation, no output, no metadata.
- */
+type ReferencesTabId = 'images' | 'templates' | 'elements';
+
+const CONTEXT = DEMO_CREATOR_CONTEXT;
+
 function PlaceholderBody({ hint }: { hint: string }) {
   return (
     <div className="flex h-24 items-center justify-center">
@@ -37,63 +40,249 @@ function PlaceholderBody({ hint }: { hint: string }) {
   );
 }
 
-const LEFT_SECTIONS: SectionSpec[] = [
+function CampaignBody() {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">goal</span>
+        <textarea
+          defaultValue={CONTEXT.campaign.goal}
+          rows={3}
+          className="resize-none rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">audience</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.audience}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">channels</span>
+        <div className="flex flex-wrap gap-1">
+          {CONTEXT.campaign.channels.map((channel) => (
+            <span
+              key={channel}
+              className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-mono text-2xs uppercase tracking-wide text-ink-dim"
+            >
+              {channel}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">cta</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.cta}</span>
+      </div>
+      <div className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+        <span className="font-caption text-ink-dim">active input set</span>
+        <p className="mt-1 font-caption text-xs text-ink">{summarizeInputSet(CONTEXT)}</p>
+      </div>
+    </div>
+  );
+}
+
+function OfferBody() {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">offer</span>
+        <span className="font-display text-sm text-ink">{CONTEXT.offer.name}</span>
+        <span className="font-caption text-xs text-ink-dim">{CONTEXT.offer.summary}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">claims</span>
+        <div className="flex flex-wrap gap-1">
+          {CONTEXT.offer.claims.map((claim) => (
+            <span
+              key={claim}
+              className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-caption text-xs text-ink"
+            >
+              {claim}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">hero asset</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.offer.heroAsset}</span>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeRow({ label, note }: { label: string; note: string }) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5">
+      <div className="flex flex-col">
+        <span className="font-caption text-ink">{note}</span>
+        <span className="font-caption text-xs text-ink-dim">{label}</span>
+      </div>
+    </li>
+  );
+}
+
+function BrandBody() {
+  const modeLabel = CONTEXT.workspaceMode === 'venture' ? 'venture' : 'studio';
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">{modeLabel}</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.workspaceLabel}</span>
+        <span className="font-display text-sm text-ink">{CONTEXT.brand.name}</span>
+        <span className="font-caption text-xs text-ink-dim">
+          {describeWorkspaceMode(CONTEXT.workspaceMode)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">knowledge</span>
+        <ul className="flex flex-col gap-2">
+          {CONTEXT.brand.knowledgeSources.map((source) => (
+            <KnowledgeRow key={source.id} label={source.label} note={source.note} />
+          ))}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">palette</span>
+        <div className="flex gap-1">
+          {CONTEXT.brand.palette.map((color) => (
+            <span
+              key={color}
+              title={color}
+              className="inline-block h-5 w-5 rounded-xs border border-border-soft"
+              style={{ background: color }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">type</span>
+        {CONTEXT.brand.type.map((entry) => (
+          <span key={entry} className="font-caption text-xs text-ink">
+            {entry}
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">voice</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.brand.voice}</span>
+      </div>
+    </div>
+  );
+}
+
+function ReferencesBody() {
+  const [tab, setTab] = useState<ReferencesTabId>('images');
+  const tabs: Array<{ id: ReferencesTabId; label: string }> = [
+    { id: 'images', label: 'images' },
+    { id: 'templates', label: 'templates' },
+    { id: 'elements', label: 'elements' },
+  ];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div role="tablist" aria-label="references" className="flex items-center gap-0.5">
+        {tabs.map((tabSpec) => {
+          const active = tabSpec.id === tab;
+          return (
+            <button
+              key={tabSpec.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => setTab(tabSpec.id)}
+              className={cn(
+                'rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+                active
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+              )}
+            >
+              {tabSpec.label}
+            </button>
+          );
+        })}
+      </div>
+      {tab === 'images' ? (
+        <PlaceholderBody hint="drop or paste reference images to pin" />
+      ) : tab === 'templates' ? (
+        <PlaceholderBody hint="starting layouts seed an artboard" />
+      ) : (
+        <PlaceholderBody hint="stock shapes · icons · stickers" />
+      )}
+    </div>
+  );
+}
+
+type SignalSeed = SignalContext;
+
+const SEED_SIGNALS: ReadonlyArray<SignalSeed> = CONTEXT.signals;
+
+function SignalsBody() {
+  return (
+    <ul className="flex flex-col gap-2">
+      {SEED_SIGNALS.map((signal) => (
+        <li
+          key={signal.id}
+          className="flex items-center justify-between gap-3 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+        >
+          <div className="flex flex-col">
+            <span className="font-caption text-ink">{signal.title}</span>
+            <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+              {signal.platform} · {signal.lift}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The creator context rail separates what changes rarely from what changes
+ * per campaign and per run: brand knowledge, offer facts, the active campaign,
+ * pinned references, and live signals. The prompt composer remains the canvas
+ * form of the current input set, so we keep that concept out of the rail.
+ */
+const LEFT_SECTIONS: ReadonlyArray<SectionSpec> = [
   {
-    id: 'sources',
-    label: 'sources',
-    icon: Bookmark,
-    summary: '0 ingested',
-    body: <PlaceholderBody hint="drop a url, upload, or repo" />,
+    id: 'brand',
+    label: 'brand',
+    icon: PaintBucket,
+    summary: `${CONTEXT.brand.knowledgeSources.length} sources`,
+    hasContent: true,
+    body: <BrandBody />,
+  },
+  {
+    id: 'offer',
+    label: 'offer',
+    icon: Package2,
+    summary: `${CONTEXT.offer.claims.length} claims`,
+    hasContent: true,
+    body: <OfferBody />,
+  },
+  {
+    id: 'campaign',
+    label: 'campaign',
+    icon: Flag,
+    summary: `${CONTEXT.campaign.channels.length} channels`,
+    hasContent: true,
+    body: <CampaignBody />,
   },
   {
     id: 'references',
     label: 'references',
     icon: Layers3,
     summary: '0 pinned',
-    body: <PlaceholderBody hint="curated refs land here" />,
+    body: <ReferencesBody />,
   },
   {
-    id: 'clusters',
-    label: 'clusters',
-    icon: FolderKanban,
-    summary: 'none',
-    body: <PlaceholderBody hint="group refs into reusable signal" />,
-  },
-  {
-    id: 'input-set',
-    label: 'input set',
-    icon: Sparkles,
-    summary: 'empty',
-    hasContent: false,
-    body: <PlaceholderBody hint="active input set drives the composer" />,
-  },
-  {
-    id: 'brand',
-    label: 'brand',
-    icon: PaintBucket,
-    summary: 'undefined',
-    body: <PlaceholderBody hint="palette, type, voice" />,
-  },
-  {
-    id: 'product',
-    label: 'product',
-    icon: Package,
-    summary: 'undefined',
-    body: <PlaceholderBody hint="claims, hero assets" />,
-  },
-  {
-    id: 'brief',
-    label: 'brief',
-    icon: PencilLine,
-    summary: 'undefined',
-    body: <PlaceholderBody hint="audience, cta, channel, locale" />,
-  },
-  {
-    id: 'targets',
-    label: 'output targets',
-    icon: Target,
-    summary: '0 formats',
-    body: <PlaceholderBody hint="platforms, formats, safe zones" />,
+    id: 'signals',
+    label: 'signals',
+    icon: TrendingUp,
+    summary: `${SEED_SIGNALS.length} live`,
+    hasContent: true,
+    body: <SignalsBody />,
   },
 ];
 
