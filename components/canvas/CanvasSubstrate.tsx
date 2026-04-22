@@ -36,6 +36,7 @@ import type {
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { failRun, finishRun, startRun, stepRun } from '@/lib/store/runs';
 import { appendRunActivity, initRunDetails, upsertRunFrame } from '@/lib/store/runDetails';
+import { readSegmentStream } from '@/lib/segment/stream';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -436,7 +437,10 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     try {
       const response = await fetch('/api/segment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
         body: JSON.stringify({
           providerId: segmentation.providerId,
           sourceUrl: targetImage.sourceUrl,
@@ -446,29 +450,28 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           box: segmentation.box,
           width: targetImage.intrinsicWidth,
           height: targetImage.intrinsicHeight,
+          runId,
         }),
       });
 
-      const json = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        code?: string;
-        provider?: { id: SegmentationProviderId; model: string };
-        providers?: SegmentationProviderStatus[];
-        preview?: SegmentationPreviewPayload;
-      };
+      const contentType = response.headers.get('content-type') ?? '';
 
-      if (!response.ok || !json.ok || !json.preview) {
-        if (json.providers) {
+      if (!contentType.includes('text/event-stream')) {
+        const json = (await response.json().catch(() => null)) as {
+          error?: string;
+          code?: string;
+          providers?: SegmentationProviderStatus[];
+        } | null;
+
+        if (json?.providers) {
           setSegmentationProviders(json.providers);
         }
 
         const providerError =
-          json.code === 'provider_unavailable' && json.providers
+          json?.code === 'provider_unavailable' && json.providers
             ? formatSegmentationProviderError(json.providers, segmentation.providerId)
             : undefined;
-
-        const message = providerError || json.error || response.statusText;
+        const message = providerError || json?.error || response.statusText;
         appendRunActivity(runId, {
           title: 'preview failed',
           detail: message,
@@ -487,40 +490,112 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         throw new Error(message);
       }
 
-      appendRunActivity(runId, {
-        title: 'preview ready',
-        detail: 'toggle preview or approve to apply',
-        tone: 'ok',
-      });
-      if (frame) {
-        upsertRunFrame(runId, {
-          id: frame.id,
-          label: frame.label,
-          aspectRatio: frame.aspectRatio,
-          status: 'returned',
-          imageUrl: json.preview.cutoutDataUrl,
-        });
-      }
-      finishRun(runId, {
-        provider: json.provider?.id ?? segmentation.providerId,
-        model: json.provider?.model ?? activeProvider.models[0] ?? '',
-        imageUrl: json.preview.cutoutDataUrl,
-        status: 'ok',
+      let completed = false;
+      let failureMessage: string | undefined;
+
+      await readSegmentStream(response, async (event) => {
+        switch (event.type) {
+          case 'segment.started': {
+            stepRun(runId, 'sending');
+            appendRunActivity(runId, {
+              title: 'segmentation running',
+              detail: `${event.provider.id} · ${event.mode}`,
+            });
+            return;
+          }
+          case 'segment.progress': {
+            const nextStep =
+              event.phase === 'postprocess' ? 'parsing' : 'awaiting';
+            stepRun(runId, nextStep);
+            appendRunActivity(runId, {
+              title: event.phase,
+              detail:
+                event.phase === 'inference'
+                  ? 'provider inference'
+                  : event.phase === 'postprocess'
+                  ? 'composing cutout'
+                  : 'uploading source',
+            });
+            return;
+          }
+          case 'segment.completed': {
+            completed = true;
+            const preview: SegmentationPreviewPayload = event.preview;
+            appendRunActivity(runId, {
+              title: 'preview ready',
+              detail: 'toggle preview or approve to apply',
+              tone: 'ok',
+            });
+            if (frame) {
+              upsertRunFrame(runId, {
+                id: frame.id,
+                label: frame.label,
+                aspectRatio: frame.aspectRatio,
+                status: 'returned',
+                imageUrl: preview.cutoutDataUrl,
+              });
+            }
+            finishRun(runId, {
+              provider: event.provider.id,
+              model: event.provider.model || activeProvider.models[0] || '',
+              imageUrl: preview.cutoutDataUrl,
+              latencyMs: event.latencyMs,
+              status: 'ok',
+            });
+            setSegmentation((current) =>
+              current
+                ? {
+                    ...current,
+                    loading: false,
+                    error: undefined,
+                    approved: false,
+                    previewVisible: true,
+                    providerId: event.provider.id,
+                    preview,
+                  }
+                : current
+            );
+            return;
+          }
+          case 'segment.failed': {
+            if (event.providers) {
+              setSegmentationProviders(event.providers);
+            }
+            const providerError =
+              event.code === 'provider_unavailable' && event.providers
+                ? formatSegmentationProviderError(event.providers, segmentation.providerId)
+                : undefined;
+            const message = providerError || event.error;
+            failureMessage = message;
+            const httpStatus =
+              event.code === 'provider_unavailable'
+                ? 503
+                : event.code === 'segmentation_failed'
+                ? 502
+                : response.status || 500;
+            appendRunActivity(runId, {
+              title: 'preview failed',
+              detail: message,
+              tone: 'error',
+            });
+            if (frame) {
+              upsertRunFrame(runId, {
+                id: frame.id,
+                label: frame.label,
+                aspectRatio: frame.aspectRatio,
+                status: 'error',
+                error: message,
+              });
+            }
+            failRun(runId, message, httpStatus);
+            return;
+          }
+        }
       });
 
-      setSegmentation((current) =>
-        current
-          ? {
-              ...current,
-              loading: false,
-              error: undefined,
-              approved: false,
-              previewVisible: true,
-              providerId: json.provider?.id ?? current.providerId,
-              preview: json.preview,
-            }
-          : current
-      );
+      if (!completed) {
+        throw new Error(failureMessage ?? 'segmentation stream closed without completion');
+      }
     } catch (error) {
       setSegmentation((current) =>
         current

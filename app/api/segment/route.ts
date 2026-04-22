@@ -8,6 +8,8 @@ import type {
   SegmentationBoxPrompt,
   SegmentationMode,
   SegmentationPointPrompt,
+  SegmentationProvider,
+  SegmentationProviderId,
   SegmentationProviderStatus,
 } from '@/lib/providers/segmentation/types';
 import {
@@ -18,6 +20,11 @@ import {
   buildMaskedImageDataUrl,
   fetchAsDataUrl,
 } from '@/lib/segment/dataUrl';
+import {
+  encodeSegmentEvent,
+  inferSegmentMode,
+  type SegmentStreamEvent,
+} from '@/lib/segment/stream';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,6 +44,41 @@ function jsonError(
     },
     { status }
   );
+}
+
+function streamError(
+  runId: string,
+  status: number,
+  error: string,
+  code?: string,
+  providers?: SegmentationProviderStatus[]
+) {
+  const event: SegmentStreamEvent = {
+    type: 'segment.failed',
+    at: Date.now(),
+    runId,
+    error,
+    ...(code ? { code } : {}),
+    ...(providers ? { providers } : {}),
+  };
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encodeSegmentEvent(event));
+      controller.close();
+    },
+  });
+  return new Response(body, {
+    status,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+    },
+  });
+}
+
+function generateRunId(): string {
+  return `seg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function parseMode(value: unknown): SegmentationMode | null {
@@ -128,6 +170,7 @@ export async function POST(request: Request) {
   const points = parsePointPrompts(b.points);
   const width = parsePositiveNumber(b.width);
   const height = parsePositiveNumber(b.height);
+  const clientRunId = typeof b.runId === 'string' ? b.runId : undefined;
 
   if (!sourceUrl) {
     return jsonError(400, 'sourceUrl is required');
@@ -161,64 +204,155 @@ export async function POST(request: Request) {
     return jsonError(400, 'points must be an array of { x, y, label }');
   }
 
+  const runId = clientRunId ?? generateRunId();
+
+  let provider: SegmentationProvider;
   try {
-    const provider = resolveSegmentationProvider(providerId, model);
-    const result = await provider.segment(
-      {
-        sourceUrl,
-        mode,
-        prompt,
-        box,
-        points,
-        size: { w: width, h: height },
-      },
-      { model: model ?? provider.listModels()[0] ?? provider.id }
-    );
-
-    const [sourceDataUrl, maskDataUrl] = await Promise.all([
-      fetchAsDataUrl(sourceUrl),
-      fetchAsDataUrl(result.maskUrl),
-    ]);
-
-    const alphaCutoutDataUrl = result.alphaCutoutUrl
-      ? await fetchAsDataUrl(result.alphaCutoutUrl)
-      : buildMaskedImageDataUrl({
-          sourceDataUrl,
-          maskDataUrl,
-          width: result.width,
-          height: result.height,
-          invertMask: mode === 'unmask',
-        });
-
-    return NextResponse.json({
-      ok: true,
-      provider: {
-        id: result.provider,
-        model: result.model,
-      },
-      preview: {
-        sourceDataUrl,
-        maskDataUrl,
-        cutoutDataUrl: alphaCutoutDataUrl,
-        width: result.width,
-        height: result.height,
-        bbox: result.bbox,
-        invertMask: mode === 'unmask',
-      },
-      raw: result.raw,
-    });
+    provider = resolveSegmentationProvider(providerId, model);
   } catch (err) {
     if (err instanceof SegmentationUnavailableError) {
-      return jsonError(503, err.message, 'provider_unavailable', {
-        providers: listSegmentationProviders(),
-      });
+      return streamError(
+        runId,
+        503,
+        err.message,
+        'provider_unavailable',
+        listSegmentationProviders()
+      );
     }
-
-    if (err instanceof SegmentationError) {
-      return jsonError(502, err.message, 'segmentation_failed');
-    }
-
     const message = err instanceof Error ? err.message : String(err);
-    return jsonError(500, message);
+    return streamError(runId, 500, message);
   }
+
+  const resolvedModel = model ?? provider.listModels()[0] ?? provider.id;
+  const streamMode = inferSegmentMode({
+    verb: mode,
+    hasPoints: Array.isArray(points) && points.length > 0,
+    hasBox: box !== undefined && box !== null,
+    hasPrompt: typeof prompt === 'string' && prompt.length > 0,
+  });
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      void (async () => {
+        const startedAt = Date.now();
+        const emit = (event: SegmentStreamEvent) => {
+          controller.enqueue(encodeSegmentEvent(event));
+        };
+
+        emit({
+          type: 'segment.started',
+          at: Date.now(),
+          runId,
+          provider: {
+            id: provider.id,
+            displayName: provider.displayName,
+            model: resolvedModel,
+          },
+          mode: streamMode,
+          verb: mode,
+        });
+
+        try {
+          emit({
+            type: 'segment.progress',
+            at: Date.now(),
+            runId,
+            phase: 'inference',
+          });
+
+          const result = await provider.segment(
+            {
+              sourceUrl,
+              mode,
+              prompt,
+              box: box ?? undefined,
+              points: points ?? undefined,
+              size: { w: width, h: height },
+            },
+            { model: resolvedModel }
+          );
+
+          emit({
+            type: 'segment.progress',
+            at: Date.now(),
+            runId,
+            phase: 'postprocess',
+          });
+
+          const [sourceDataUrl, maskDataUrl] = await Promise.all([
+            fetchAsDataUrl(sourceUrl),
+            fetchAsDataUrl(result.maskUrl),
+          ]);
+
+          const alphaCutoutDataUrl = result.alphaCutoutUrl
+            ? await fetchAsDataUrl(result.alphaCutoutUrl)
+            : buildMaskedImageDataUrl({
+                sourceDataUrl,
+                maskDataUrl,
+                width: result.width,
+                height: result.height,
+                invertMask: mode === 'unmask',
+              });
+
+          const providerRef = {
+            id: result.provider as SegmentationProviderId,
+            displayName: provider.displayName,
+            model: result.model,
+          };
+
+          emit({
+            type: 'segment.completed',
+            at: Date.now(),
+            runId,
+            provider: providerRef,
+            latencyMs: Date.now() - startedAt,
+            outputs: {
+              maskUrl: result.maskUrl,
+              ...(mode === 'unmask'
+                ? { backgroundFillUrl: alphaCutoutDataUrl }
+                : { cutoutUrl: alphaCutoutDataUrl }),
+            },
+            preview: {
+              sourceDataUrl,
+              maskDataUrl,
+              cutoutDataUrl: alphaCutoutDataUrl,
+              width: result.width,
+              height: result.height,
+              bbox: result.bbox,
+              invertMask: mode === 'unmask',
+            },
+          });
+
+          controller.close();
+        } catch (err) {
+          const code =
+            err instanceof SegmentationUnavailableError
+              ? 'provider_unavailable'
+              : err instanceof SegmentationError
+              ? 'segmentation_failed'
+              : 'unknown_error';
+          const message = err instanceof Error ? err.message : String(err);
+          emit({
+            type: 'segment.failed',
+            at: Date.now(),
+            runId,
+            error: message,
+            code,
+            ...(err instanceof SegmentationUnavailableError
+              ? { providers: listSegmentationProviders() }
+              : {}),
+          });
+          controller.close();
+        }
+      })();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+    },
+  });
 }

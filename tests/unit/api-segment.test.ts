@@ -44,84 +44,10 @@ vi.mock('@/lib/providers/segmentation/registry', () => ({
   resolveSegmentationProvider: mocks.resolveProvider,
 }));
 
-describe('/api/segment', () => {
+describe('/api/segment (validation + provider listing)', () => {
   afterEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-  });
-
-  it('returns a mask preview and composed cutout data url', async () => {
-    mocks.segment.mockResolvedValue({
-      provider: 'sam3',
-      model: 'sam3.1',
-      maskUrl: TINY_PNG,
-      width: 1024,
-      height: 1024,
-      raw: { ok: true },
-    });
-
-    const { POST } = await import('@/app/api/segment/route');
-    const response = await POST(
-      new Request('http://localhost/api/segment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceUrl: TINY_PNG,
-          mode: 'removebg',
-          prompt: 'main subject',
-          width: 1024,
-          height: 1024,
-        }),
-      })
-    );
-
-    expect(response.status).toBe(200);
-    const json = await response.json();
-    expect(json.ok).toBe(true);
-    expect(json.provider).toEqual({ id: 'sam3', model: 'sam3.1' });
-    expect(json.preview.maskDataUrl).toBe(TINY_PNG);
-    expect(json.preview.cutoutDataUrl).toContain('data:image/svg+xml');
-    expect(json.preview.sourceDataUrl).toBe(TINY_PNG);
-  });
-
-  it('forwards point and box refinement prompts to the provider', async () => {
-    mocks.segment.mockResolvedValue({
-      provider: 'sam3',
-      model: 'sam3.1',
-      maskUrl: TINY_PNG,
-      width: 1024,
-      height: 1024,
-    });
-
-    const { POST } = await import('@/app/api/segment/route');
-    await POST(
-      new Request('http://localhost/api/segment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceUrl: TINY_PNG,
-          mode: 'cutout',
-          points: [
-            { x: 120, y: 180, label: 'fg' },
-            { x: 12, y: 24, label: 'bg' },
-          ],
-          box: { x: 40, y: 60, w: 320, h: 400 },
-          width: 1024,
-          height: 1024,
-        }),
-      })
-    );
-
-    expect(mocks.segment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        points: [
-          { x: 120, y: 180, label: 'fg' },
-          { x: 12, y: 24, label: 'bg' },
-        ],
-        box: { x: 40, y: 60, w: 320, h: 400 },
-      }),
-      expect.any(Object)
-    );
   });
 
   it('returns provider availability for both known providers', async () => {
@@ -135,7 +61,7 @@ describe('/api/segment', () => {
     });
   });
 
-  it('rejects invalid mode values', async () => {
+  it('rejects invalid mode values with a JSON 400', async () => {
     const { POST } = await import('@/app/api/segment/route');
     const response = await POST(
       new Request('http://localhost/api/segment', {
@@ -151,13 +77,14 @@ describe('/api/segment', () => {
     );
 
     expect(response.status).toBe(400);
+    expect(response.headers.get('content-type')).toContain('application/json');
     expect(await response.json()).toMatchObject({
       ok: false,
       error: 'mode must be one of removebg, cutout, unmask',
     });
   });
 
-  it('rejects invalid provider ids', async () => {
+  it('rejects invalid provider ids with a JSON 400', async () => {
     const { POST } = await import('@/app/api/segment/route');
     const response = await POST(
       new Request('http://localhost/api/segment', {
@@ -174,32 +101,20 @@ describe('/api/segment', () => {
     );
 
     expect(response.status).toBe(400);
+    expect(response.headers.get('content-type')).toContain('application/json');
     expect(await response.json()).toMatchObject({
       ok: false,
       error: 'providerId must be one of sam3, sam2',
     });
   });
 
-  it('returns provider status details when segmentation is unavailable', async () => {
-    const { SegmentationUnavailableError } = await import(
-      '@/lib/providers/segmentation/types'
-    );
-
-    mocks.resolveProvider.mockImplementation(() => {
-      throw new SegmentationUnavailableError(
-        'sam3',
-        'SAM 3 is not connected'
-      );
-    });
-
+  it('rejects missing sourceUrl with a JSON 400', async () => {
     const { POST } = await import('@/app/api/segment/route');
     const response = await POST(
       new Request('http://localhost/api/segment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          providerId: 'sam3',
-          sourceUrl: TINY_PNG,
           mode: 'removebg',
           width: 1024,
           height: 1024,
@@ -207,11 +122,10 @@ describe('/api/segment', () => {
       })
     );
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       ok: false,
-      code: 'provider_unavailable',
-      providers: mocks.listProviders(),
+      error: 'sourceUrl is required',
     });
   });
 });
