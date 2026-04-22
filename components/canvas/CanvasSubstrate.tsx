@@ -31,6 +31,8 @@ const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
 export interface CanvasSubstrateProps {
   className?: string;
   composerRef: React.RefObject<ComposerHandle | null>;
+  safeZonesVisible?: boolean;
+  onSafeZonesToggle?: (next: boolean) => void;
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
   onVerbPress?: (verb: ToolbarVerb) => void;
@@ -39,6 +41,8 @@ export interface CanvasSubstrateProps {
 export const CanvasSubstrate = memo(function CanvasSubstrate({
   className,
   composerRef,
+  safeZonesVisible = false,
+  onSafeZonesToggle,
   pinnedCapabilities = EMPTY_PINS,
   onCapabilityPress,
   onVerbPress,
@@ -55,11 +59,13 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       aria-label="canvas"
       className={cn('relative flex-1 overflow-hidden bg-surface-canvas', className)}
     >
-      <TldrawCanvas />
+      <TldrawCanvas safeZonesVisible={safeZonesVisible} />
 
       <FloatingToolbar
         scope={scope}
         onScopeChange={setScope}
+        safeZonesVisible={safeZonesVisible}
+        onSafeZonesToggle={onSafeZonesToggle}
         onAIPress={focusComposer}
         onVerbPress={onVerbPress}
         pinnedCapabilities={[...pinnedCapabilities]}

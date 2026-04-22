@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildProposalMessages,
   parseProposalToolInput,
+  proposeCapabilityFromRun,
   PROPOSAL_SYSTEM_PROMPT,
   PROPOSAL_TOOL,
 } from '@/lib/agent/proposeCapability';
@@ -77,5 +78,23 @@ describe('capability proposal prompt builder', () => {
     expect(() => parseProposalToolInput({ trigger: 'x', paramSchema: {} })).toThrow(/name/);
     expect(() => parseProposalToolInput({ name: 'x', paramSchema: {} })).toThrow(/trigger/);
     expect(() => parseProposalToolInput({ name: 'x', trigger: 'y' })).toThrow(/paramSchema/);
+  });
+
+  it('falls back locally when Anthropic billing blocks capability proposal', async () => {
+    const client = {
+      messages: {
+        create: vi.fn().mockRejectedValue(
+          new Error('credit balance is too low to access the Anthropic API')
+        ),
+      },
+    };
+
+    const proposal = await proposeCapabilityFromRun(baseRun, {
+      client: client as never,
+    });
+
+    expect(proposal.name).toMatch(/recolor/i);
+    expect(proposal.trigger).toMatch(/selected layer/i);
+    expect(proposal.notes).toMatch(/distilled locally/i);
   });
 });

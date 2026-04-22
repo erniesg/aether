@@ -94,6 +94,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const definitions = useCapabilityDefinitions();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
   const [view, setView] = useState<ViewId>('canvas');
+  const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   // Focus lens cycles through frames via arrow keys; declared early so fan-out
   // logic in handlePrompt can pick the focused frame for single-scope dispatch.
   const [focusIdx, setFocusIdx] = useState(0);
@@ -504,11 +505,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         <LeftRail />
         <CanvasSubstrate
           composerRef={composerRef}
+          safeZonesVisible={safeZonesVisible}
+          onSafeZonesToggle={setSafeZonesVisible}
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
         />
-        <RightRail onPin={handlePin} />
+        <RightRail onPin={handlePin} safeZonesVisible={safeZonesVisible} />
       </div>
 
       <PromptComposer

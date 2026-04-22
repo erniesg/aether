@@ -48,4 +48,17 @@ describe('FloatingToolbar · AI verbs', () => {
     await userEvent.click(screen.getByRole('button', { name: /ai · focus composer/i }));
     expect(onAIPress).toHaveBeenCalledTimes(1);
   });
+
+  it('delegates the safe-zones toggle through onSafeZonesToggle with the next visible state', async () => {
+    const onSafeZonesToggle = vi.fn<(next: boolean) => void>();
+    render(
+      <FloatingToolbar
+        safeZonesVisible={true}
+        onSafeZonesToggle={onSafeZonesToggle}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /safe zones · on/i }));
+    expect(onSafeZonesToggle).toHaveBeenCalledWith(false);
+  });
 });

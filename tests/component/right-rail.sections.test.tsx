@@ -86,4 +86,16 @@ describe('RightRail · creator-language rewrite', () => {
     const rail = screen.getByRole('navigation', { name: /outputs/i });
     expect(rail).toHaveAttribute('data-taxonomy', 'output');
   });
+
+  it('formats flyout reflects whether safe zones are on or off', async () => {
+    const { container } = render(<RightRail safeZonesVisible={false} />);
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="formats"]'
+    );
+    expect(trigger).not.toBeNull();
+    await userEvent.click(trigger!);
+
+    expect(screen.getByText(/safe zones off · one hero fans out/i)).toBeInTheDocument();
+  });
 });

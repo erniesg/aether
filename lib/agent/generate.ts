@@ -91,6 +91,25 @@ export interface GenerateProviderInfo {
 const RATIO_SET = ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'] as const;
 type RatioLiteral = (typeof RATIO_SET)[number];
 
+function rawPromptPlan(params: GenerateParams): GeneratePlan {
+  return {
+    rewrittenPrompt: params.prompt,
+    aspectRatio: params.aspectRatioOverride ?? '1:1',
+  };
+}
+
+function shouldFallbackFromAnthropic(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    /ANTHROPIC_API_KEY not set/i.test(message) ||
+    /credit balance is too low/i.test(message) ||
+    /invalid_request_error/i.test(message) ||
+    /authentication/i.test(message) ||
+    /permission/i.test(message) ||
+    /billing/i.test(message)
+  );
+}
+
 function stringifyToolInput(value: unknown): {
   prompt: string;
   aspectRatio: RatioLiteral;
@@ -131,29 +150,35 @@ function resolveGenerateContext(params: GenerateParams): {
 
 async function createGeneratePlan(params: GenerateParams): Promise<GeneratePlan> {
   if (params.bypassAgent) {
-    const aspectRatio = params.aspectRatioOverride ?? '1:1';
-    return { rewrittenPrompt: params.prompt, aspectRatio };
+    return rawPromptPlan(params);
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  const client = new Anthropic({ apiKey });
-
-  const msg = await client.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 1024,
-    system: [
-      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-    ],
-    tools: [TOOL_GENERATE_IMAGE],
-    tool_choice: { type: 'tool', name: 'generate_image' },
-    messages: [
-      {
-        role: 'user',
-        content: [{ type: 'text', text: params.prompt }],
-      },
-    ],
-  });
+  let msg: Awaited<ReturnType<Anthropic['messages']['create']>>;
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+    const client = new Anthropic({ apiKey });
+    msg = await client.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 1024,
+      system: [
+        { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ],
+      tools: [TOOL_GENERATE_IMAGE],
+      tool_choice: { type: 'tool', name: 'generate_image' },
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: params.prompt }],
+        },
+      ],
+    });
+  } catch (err) {
+    if (shouldFallbackFromAnthropic(err)) {
+      return rawPromptPlan(params);
+    }
+    throw err;
+  }
 
   const toolBlock = msg.content.find(
     (b): b is Extract<typeof b, { type: 'tool_use' }> =>

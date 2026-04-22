@@ -1,11 +1,13 @@
 import type { Editor } from 'tldraw';
 import { createShapeId } from 'tldraw';
+import type { SafeZonePresetId } from './safeZones';
 
 export interface ArtboardSeed {
   /** Label shown in tldraw's native frame header (editable by creators). */
   name: string;
   w: number;
   h: number;
+  preset: SafeZonePresetId;
 }
 
 /**
@@ -15,10 +17,15 @@ export interface ArtboardSeed {
  * sheet. Sizes drive tldraw's native frame shape directly — no custom shape.
  */
 export const DEFAULT_ARTBOARDS: ReadonlyArray<ArtboardSeed> = [
-  { name: 'IG Post · 1080×1350', w: 1080, h: 1350 },
-  { name: 'Story · 1080×1920', w: 1080, h: 1920 },
-  { name: 'Reel cover · 1080×1920', w: 1080, h: 1920 },
-  { name: 'LinkedIn · 1200×627', w: 1200, h: 627 },
+  { name: 'IG Post · 1080×1350', w: 1080, h: 1350, preset: 'ig-post' },
+  { name: 'Story · 1080×1920', w: 1080, h: 1920, preset: 'story' },
+  { name: 'Reel cover · 1080×1920', w: 1080, h: 1920, preset: 'reel-cover' },
+  {
+    name: 'LinkedIn · 1200×627',
+    w: 1200,
+    h: 627,
+    preset: 'linkedin-landscape',
+  },
 ];
 
 const GAP_PX = 160;
@@ -42,6 +49,7 @@ export function seedArtboards(
       x: cursorX,
       y: 0,
       props: { w: s.w, h: s.h, name: s.name },
+      meta: { aetherPreset: s.preset },
     });
     ids.push(id);
     cursorX += s.w + GAP_PX;

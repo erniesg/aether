@@ -187,12 +187,36 @@ describe('agent · runGenerate', () => {
     expect(mocks.providerGenerate).not.toHaveBeenCalled();
   });
 
-  it('throws when ANTHROPIC_API_KEY is missing and agent is not bypassed', async () => {
+  it('falls back to direct provider generation when ANTHROPIC_API_KEY is missing', async () => {
     delete process.env.ANTHROPIC_API_KEY;
-    await expect(runGenerate({ prompt: 'x' })).rejects.toThrow(
-      /ANTHROPIC_API_KEY not set/
-    );
+
+    const outcome = await runGenerate({ prompt: 'x' });
+
     expect(mocks.AnthropicCtor).not.toHaveBeenCalled();
+    expect(mocks.providerGenerate).toHaveBeenCalledTimes(1);
+    expect(outcome.plan).toEqual({
+      rewrittenPrompt: 'x',
+      aspectRatio: '1:1',
+    });
+  });
+
+  it('falls back to direct provider generation when Anthropic billing blocks the planner', async () => {
+    mocks.messagesCreate.mockRejectedValueOnce(
+      new Error(
+        '400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}'
+      )
+    );
+
+    const outcome = await runGenerate({ prompt: 'oat milk still life' });
+
+    expect(mocks.messagesCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.providerGenerate).toHaveBeenCalledTimes(1);
+    const [req] = mocks.providerGenerate.mock.calls[0]!;
+    expect(req.prompt).toBe('oat milk still life');
+    expect(outcome.plan).toEqual({
+      rewrittenPrompt: 'oat milk still life',
+      aspectRatio: '1:1',
+    });
   });
 
   it('respects an explicit providerId by passing it to resolveProvider', async () => {

@@ -128,6 +128,18 @@ export interface ProposeCapabilityOptions {
   client?: Anthropic;
 }
 
+function shouldFallbackFromAnthropic(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    /ANTHROPIC_API_KEY not set/i.test(message) ||
+    /credit balance is too low/i.test(message) ||
+    /invalid_request_error/i.test(message) ||
+    /authentication/i.test(message) ||
+    /permission/i.test(message) ||
+    /billing/i.test(message)
+  );
+}
+
 export async function proposeCapabilityFromRun(
   run: CapabilityRunRecord,
   opts: ProposeCapabilityOptions = {}
@@ -140,16 +152,24 @@ export async function proposeCapabilityFromRun(
     return localFallback(run);
   }
   const client = opts.client ?? new Anthropic({ apiKey: apiKey! });
-  const msg = await client.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 512,
-    system: [
-      { type: 'text', text: PROPOSAL_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-    ],
-    tools: [PROPOSAL_TOOL],
-    tool_choice: { type: 'tool', name: 'propose_capability' },
-    messages: buildProposalMessages(run),
-  });
+  let msg: Awaited<ReturnType<Anthropic['messages']['create']>>;
+  try {
+    msg = await client.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 512,
+      system: [
+        { type: 'text', text: PROPOSAL_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ],
+      tools: [PROPOSAL_TOOL],
+      tool_choice: { type: 'tool', name: 'propose_capability' },
+      messages: buildProposalMessages(run),
+    });
+  } catch (err) {
+    if (shouldFallbackFromAnthropic(err)) {
+      return localFallback(run);
+    }
+    throw err;
+  }
 
   const toolBlock = msg.content.find(
     (b): b is Extract<typeof b, { type: 'tool_use' }> =>

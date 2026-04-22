@@ -37,7 +37,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
       </head>
-      <body className="min-h-screen bg-surface-bg text-ink antialiased">
+      <body
+        suppressHydrationWarning
+        className="min-h-screen bg-surface-bg text-ink antialiased"
+      >
         <ConvexClientProvider>
           <ThemeProvider>{children}</ThemeProvider>
         </ConvexClientProvider>

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Tldraw, type Editor, type TLComponents } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { useTheme } from '@/app/design-system/ThemeProvider';
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { maybeSeedArtboards } from '@/lib/canvas/seedArtboards';
+import { SafeZoneOverlay } from './SafeZoneOverlay';
 
 /**
  * The tldraw operator chrome we null out so the aether workspace reads as a
@@ -43,10 +44,21 @@ export const TLDRAW_CHROME_OVERRIDES: Partial<TLComponents> = {
  * effect on the editor ref so tldraw's UI stays in sync with the Aether
  * theme without re-mounting.
  */
-export function TldrawCanvas() {
+export interface TldrawCanvasProps {
+  safeZonesVisible?: boolean;
+}
+
+export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
   const { theme } = useTheme();
   const { setEditor } = useEditorRef();
   const editorRef = useRef<Editor | null>(null);
+  const components = useMemo<Partial<TLComponents>>(
+    () => ({
+      ...TLDRAW_CHROME_OVERRIDES,
+      InFrontOfTheCanvas: () => <SafeZoneOverlay visible={safeZonesVisible} />,
+    }),
+    [safeZonesVisible]
+  );
 
   // Keep tldraw's internal colour scheme aligned with the Aether theme.
   useEffect(() => {
@@ -68,7 +80,7 @@ export function TldrawCanvas() {
         // promise is visible on first paint. No-op if the page already has shapes.
         maybeSeedArtboards(editor);
       }}
-      components={TLDRAW_CHROME_OVERRIDES}
+      components={components}
     />
   );
 }

@@ -39,6 +39,8 @@ export type ToolbarVerb =
 export interface FloatingToolbarProps {
   scope?: Scope;
   onScopeChange?: (next: Scope) => void;
+  safeZonesVisible?: boolean;
+  onSafeZonesToggle?: (next: boolean) => void;
   /** Primary AI entrypoint — usually focuses the composer. */
   onAIPress?: () => void;
   /** Fires when any non-focus AI verb button is pressed. The shell is
@@ -73,6 +75,8 @@ function readStoredPos(): Pos | null {
 export function FloatingToolbar({
   scope = 'global',
   onScopeChange,
+  safeZonesVisible = false,
+  onSafeZonesToggle,
   onAIPress,
   onVerbPress,
   pinnedCapabilities = [],
@@ -81,7 +85,6 @@ export function FloatingToolbar({
 }: FloatingToolbarProps) {
   const [pos, setPos] = useState<Pos>({ x: 24, y: 24 });
   const [activeTool, setActiveTool] = useState<string>('select');
-  const [safeZonesOn, setSafeZonesOn] = useState(false);
 
   const dispatchVerb = (verb: ToolbarVerb) => {
     setActiveTool(verb);
@@ -249,10 +252,10 @@ export function FloatingToolbar({
       <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
 
       <IconButton
-        label={`safe zones · ${safeZonesOn ? 'on' : 'off'}`}
-        active={safeZonesOn}
+        label={`safe zones · ${safeZonesVisible ? 'on' : 'off'}`}
+        active={safeZonesVisible}
         icon={<ShieldAlert size={14} strokeWidth={1.75} />}
-        onClick={() => setSafeZonesOn((v) => !v)}
+        onClick={() => onSafeZonesToggle?.(!safeZonesVisible)}
       />
 
       <button

@@ -61,7 +61,7 @@ function FocusBody() {
   );
 }
 
-function FormatsBody() {
+function FormatsBody({ safeZonesVisible }: { safeZonesVisible: boolean }) {
   // Four seeded artboards align with lib/canvas/seedArtboards. Kept in sync by
   // eye today — a follow-up slice binds this to the editor's frame shapes.
   const FORMATS = [
@@ -73,7 +73,7 @@ function FormatsBody() {
   return (
     <div className="flex flex-col gap-2">
       <span className="font-caption text-ink-dim">
-        safe zones on · one hero fans out
+        safe zones {safeZonesVisible ? 'on' : 'off'} · one hero fans out
       </span>
       <ul className="grid grid-cols-2 gap-2">
         {FORMATS.map((name) => (
@@ -110,9 +110,11 @@ function useGenerationsSummary(): {
 function RightRailInner({
   className,
   onPin,
+  safeZonesVisible,
 }: {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
+  safeZonesVisible: boolean;
 }) {
   const { railRef } = useRail();
   const gens = useGenerationsSummary();
@@ -131,7 +133,7 @@ function RightRailInner({
       icon: LayoutGrid,
       summary: '4 targets',
       hasContent: true,
-      body: <FormatsBody />,
+      body: <FormatsBody safeZonesVisible={safeZonesVisible} />,
     },
     {
       id: 'all-generations',
@@ -182,12 +184,21 @@ function RightRailInner({
 export interface RightRailProps {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
+  safeZonesVisible?: boolean;
 }
 
-export function RightRail({ className, onPin }: RightRailProps) {
+export function RightRail({
+  className,
+  onPin,
+  safeZonesVisible = true,
+}: RightRailProps) {
   return (
     <RailProvider>
-      <RightRailInner className={className} onPin={onPin} />
+      <RightRailInner
+        className={className}
+        onPin={onPin}
+        safeZonesVisible={safeZonesVisible}
+      />
     </RailProvider>
   );
 }
