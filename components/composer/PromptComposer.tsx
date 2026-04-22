@@ -182,39 +182,51 @@ export const PromptComposer = forwardRef<HTMLTextAreaElement, PromptComposerProp
         onDrop={handleDrop}
         data-taxonomy="tool"
         className={cn(
-          'relative flex w-full flex-col border-t border-border-soft bg-surface-panel px-4',
+          'relative flex w-full items-center gap-2 border-t border-border-soft bg-surface-panel px-4',
           className
         )}
       >
         {refs.length > 0 ? (
+          // Float the ref-thumb tray above the composer so the fixed
+          // h-composer footprint stays stable and refs don't bleed into the
+          // canvas area. Reads as an extension of the composer upward —
+          // same panel tone, rounded top corners, no gap between tray and
+          // composer body.
           <div
-            className="flex flex-wrap items-center gap-1.5 pt-2"
-            aria-label={`${refs.length} reference image${refs.length === 1 ? '' : 's'}`}
+            className="pointer-events-none absolute bottom-full left-2 right-2 flex justify-start"
+            aria-hidden={false}
           >
-            {refs.map((dataUrl, i) => (
-              <span
-                key={i}
-                className="relative inline-flex h-10 w-10 overflow-hidden rounded-xs border border-border-soft bg-surface-panel-muted"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={dataUrl}
-                  alt={`reference ${i + 1}`}
-                  className="h-full w-full object-cover"
-                />
-                <button
-                  type="button"
-                  aria-label={`remove reference ${i + 1}`}
-                  onClick={() => removeRef(i)}
-                  className="absolute right-0 top-0 inline-flex h-4 w-4 items-center justify-center rounded-bl-xs border-b border-l border-border-soft bg-surface-panel text-ink-dim transition-colors hover:text-ink"
+            <div
+              role="list"
+              aria-label={`${refs.length} reference image${refs.length === 1 ? '' : 's'}`}
+              className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-t-md border border-b-0 border-border-soft bg-surface-panel px-2 py-1.5"
+            >
+              {refs.map((dataUrl, i) => (
+                <span
+                  key={i}
+                  role="listitem"
+                  className="relative inline-flex h-10 w-10 overflow-hidden rounded-xs border border-border-soft bg-surface-panel-muted"
                 >
-                  <X size={9} strokeWidth={2} />
-                </button>
-              </span>
-            ))}
-            {refError ? (
-              <span className="font-caption text-ink-dim">{refError}</span>
-            ) : null}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={dataUrl}
+                    alt={`reference ${i + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`remove reference ${i + 1}`}
+                    onClick={() => removeRef(i)}
+                    className="absolute right-0 top-0 inline-flex h-4 w-4 items-center justify-center rounded-bl-xs border-b border-l border-border-soft bg-surface-panel text-ink-dim transition-colors hover:text-ink"
+                  >
+                    <X size={9} strokeWidth={2} />
+                  </button>
+                </span>
+              ))}
+              {refError ? (
+                <span className="font-caption text-ink-dim">{refError}</span>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
