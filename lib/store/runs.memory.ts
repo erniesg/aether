@@ -16,7 +16,7 @@ function notify() {
   for (const l of listeners) l();
 }
 
-function subscribe(l: Listener): () => void {
+export function subscribeMemory(l: Listener): () => void {
   listeners.add(l);
   return () => {
     listeners.delete(l);
@@ -33,7 +33,7 @@ function getServerSnapshot(): CapabilityRunRecord[] {
 }
 
 export function useRunsMemory(): CapabilityRunRecord[] {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  return useSyncExternalStore(subscribeMemory, getSnapshot, getServerSnapshot);
 }
 
 function genId(): string {

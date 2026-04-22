@@ -18,6 +18,7 @@ import {
   finishRunMemory,
   failRunMemory,
   clearRunsMemory,
+  subscribeMemory,
 } from './runs.memory';
 import {
   useRunsConvex,
@@ -81,4 +82,13 @@ export function failRun(id: string, error: string, httpStatus?: number): void {
 
 export function clearRuns(): void {
   clearRunsMemory();
+}
+
+/**
+ * Preserved from main's public surface so callers (and tests) that subscribe
+ * to store notifications keep working. Only observes the in-memory listener
+ * set — when Convex is active, updates arrive via `useQuery`, not listeners.
+ */
+export function subscribe(l: () => void): () => void {
+  return subscribeMemory(l);
 }
