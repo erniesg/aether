@@ -72,7 +72,7 @@ describe('segmentation provider registry', () => {
       {
         id: 'sam2',
         displayName: 'SAM 2 via Replicate',
-        models: ['meta/sam-2'],
+        models: ['men1scus/birefnet'],
         supportsTextPrompt: false,
         supportsPointPrompt: false,
         supportsBoxPrompt: false,

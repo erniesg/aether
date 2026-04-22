@@ -26,4 +26,5 @@ Updated: 2026-04-23
 - Selected image layers now support previewing a segmentation overlay, approving the cutout, and painting a solid or gradient background with opacity behind the result. Live provider validation is still blocked on missing local segmentation credentials.
 - The segmentation panel now asks `/api/segment` for provider status, disables unavailable `sam2` / `sam3` chips, and shows an explicit empty-provider state instead of silently falling through.
 - SAM 3-backed refinement prompts are now wired through the same flow: creators can place fg/bg points or drag a box on the selected image, then send those prompts through `/api/segment` before approving the cutout.
+- Replicate-backed `sam2` now uses BiRefNet for the working auto background-removal path, so creator-facing `removebg` can function without `sam3` even though promptable segmentation still belongs to `sam3`.
 - Creator-friendly version history is now captured as a follow-up issue in `docs/issues/2026-04-23-design-version-history.md`.

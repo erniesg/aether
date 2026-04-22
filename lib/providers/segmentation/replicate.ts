@@ -6,15 +6,15 @@ import type {
 } from './types';
 import { SegmentationError } from './types';
 
-const DEFAULT_MODEL = 'meta/sam-2';
+const LEGACY_MODEL = 'meta/sam-2';
+const DEFAULT_MODEL = 'men1scus/birefnet';
+const DEFAULT_VERSION =
+  'f74986db0355b58403ed20963af156525e2891ea3c2d499bfbfb2a28cd87c5d7';
 
 type ReplicatePrediction = {
   id: string;
   status: string;
-  output?: {
-    combined_mask?: string;
-    individual_masks?: string[];
-  };
+  output?: string | string[] | { combined_mask?: string; individual_masks?: string[] };
   urls?: { get?: string };
   error?: string;
 };
@@ -41,11 +41,12 @@ export function createReplicateSegmentationProvider(
         throw new SegmentationError('REPLICATE_API_TOKEN not set', 'sam2');
       }
 
-      const model = opts.model || DEFAULT_MODEL;
+      const model =
+        !opts.model || opts.model === LEGACY_MODEL ? DEFAULT_MODEL : opts.model;
       const elapsed = mark();
 
       const createRes = await fetchWithTimeout(
-        `https://api.replicate.com/v1/models/${model}/predictions`,
+        'https://api.replicate.com/v1/predictions',
         {
           method: 'POST',
           headers: {
@@ -54,12 +55,9 @@ export function createReplicateSegmentationProvider(
             Prefer: 'wait=60',
           },
           body: JSON.stringify({
+            version: DEFAULT_VERSION,
             input: {
               image: req.sourceUrl,
-              points_per_side: 32,
-              pred_iou_thresh: 0.88,
-              stability_score_thresh: 0.95,
-              use_m2m: true,
             },
           }),
         }
@@ -96,19 +94,26 @@ export function createReplicateSegmentationProvider(
         );
       }
 
-      const maskUrl = pred.output?.combined_mask;
-      if (!maskUrl) {
-        throw new SegmentationError('no combined mask returned', 'sam2');
+      const outputUrl = Array.isArray(pred.output)
+        ? pred.output[0]
+        : typeof pred.output === 'string'
+          ? pred.output
+          : pred.output?.combined_mask;
+
+      if (!outputUrl) {
+        throw new SegmentationError('no cutout returned', 'sam2');
       }
 
       return {
         provider: 'sam2',
         model,
-        maskUrl,
+        maskUrl: outputUrl,
+        alphaCutoutUrl: outputUrl,
         width: req.size?.w ?? 1024,
         height: req.size?.h ?? 1024,
         raw: {
           latencyMs: elapsed(),
+          mode: req.mode,
           prediction: pred,
         },
       };
