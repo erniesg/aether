@@ -65,6 +65,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         providerOverride?: string;
         modelOverride?: string;
         bypassAgent?: boolean;
+        refs?: string[];
       } = {}
     ) => {
       const runId = startRun({
@@ -103,6 +104,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               providerId: options.providerOverride,
               model: options.modelOverride,
               bypassAgent: options.bypassAgent,
+              refs: options.refs?.map((url) => ({ url })),
               runId,
             }),
           });
@@ -164,8 +166,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   );
 
   const handlePrompt = useCallback(
-    async (prompt: string) => {
-      log('onSubmit · prompt:', prompt);
+    async (prompt: string, refs?: string[]) => {
+      log('onSubmit · prompt:', prompt, 'refs:', refs?.length ?? 0);
       const urlParams = new URLSearchParams(window.location.search);
       const providerOverride = urlParams.get('provider') ?? undefined;
       const modelOverride = urlParams.get('model') ?? undefined;
@@ -177,6 +179,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         providerOverride,
         modelOverride,
         bypassAgent,
+        refs,
       });
     },
     [runImageOnCanvas]
