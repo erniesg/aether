@@ -2,7 +2,8 @@
 
 /**
  * Capability-run log facade. Same public API consumers have always used
- * (useRuns / startRun / stepRun / finishRun / failRun / clearRuns).
+ * (useRuns / startRun / stepRun / finishRun / failRun). The only extra export
+ * is `resetRunsForTests`, which is — as the name says — test-only plumbing.
  *
  * When NEXT_PUBLIC_CONVEX_URL is set, reads come from `useQuery(api.runs.list)`
  * and writes go through ConvexReactClient.mutation against `runs:*` functions.
@@ -80,7 +81,16 @@ export function failRun(id: string, error: string, httpStatus?: number): void {
   failRunMemory(id, error, httpStatus);
 }
 
-export function clearRuns(): void {
+/**
+ * Test-only helper — empties the in-memory listener-backed store so each
+ * test starts from a clean slate. No production UI invokes a "clear runs"
+ * action, so there's nothing to dispatch to Convex here; the tests that
+ * call this always run with `NEXT_PUBLIC_CONVEX_URL` empty, which routes
+ * all reads/writes through memory anyway. If we ever grow a real
+ * "delete my run history" feature for creators, that becomes a separate
+ * server-side mutation, not this.
+ */
+export function resetRunsForTests(): void {
   clearRunsMemory();
 }
 

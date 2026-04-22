@@ -114,13 +114,13 @@ describe('runs store — in-memory fallback (NEXT_PUBLIC_CONVEX_URL unset)', () 
     expect(result.current[0].prompt).toBe('p54');
   });
 
-  it('clearRuns empties the store', async () => {
+  it('resetRunsForTests empties the store', async () => {
     const runs = await import('@/lib/store/runs');
     act(() => {
       runs.startRun({ tool: 'image-gen', provider: 'gemini', model: '', prompt: 'x' });
     });
     act(() => {
-      runs.clearRuns();
+      runs.resetRunsForTests();
     });
     const { result } = renderHook(() => runs.useRuns());
     expect(result.current).toEqual([]);

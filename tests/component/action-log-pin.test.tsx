@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ActionLog } from '@/components/rail/ActionLog';
-import { clearRuns, startRun, finishRun } from '@/lib/store/runs';
+import { resetRunsForTests, startRun, finishRun } from '@/lib/store/runs';
 
 afterEach(() => {
   cleanup();
-  clearRuns();
+  resetRunsForTests();
   vi.restoreAllMocks();
 });
 

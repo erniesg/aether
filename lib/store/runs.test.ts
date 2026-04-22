@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
-  clearRuns,
+  resetRunsForTests,
   failRun,
   finishRun,
   startRun,
@@ -12,11 +12,11 @@ import {
 
 describe('runs store', () => {
   beforeEach(() => {
-    clearRuns();
+    resetRunsForTests();
   });
 
   afterEach(() => {
-    clearRuns();
+    resetRunsForTests();
   });
 
   it('useRuns starts empty', () => {
@@ -128,7 +128,7 @@ describe('runs store', () => {
     expect(tick).toBeGreaterThan(0);
     const before = tick;
     unsubscribe();
-    clearRuns();
+    resetRunsForTests();
     expect(tick).toBe(before);
   });
 });
