@@ -17,3 +17,13 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   });
 }
+
+// jsdom's HTMLImageElement has no `.decode()`. tldraw's asset preloader races
+// that call on mount, producing an async "image.decode is not a function"
+// rejection that pollutes unrelated tests. Resolve to a noop so the preloader
+// completes cleanly.
+if (typeof HTMLImageElement !== 'undefined' && !HTMLImageElement.prototype.decode) {
+  HTMLImageElement.prototype.decode = function decode() {
+    return Promise.resolve();
+  };
+}
