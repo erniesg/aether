@@ -36,10 +36,12 @@ import {
   failRun,
   startRun,
   stepRun,
+  useRuns,
   type CapabilityRunRecord,
 } from '@/lib/store/runs';
 import {
   appendRunActivity,
+  getAllRunDetailsSnapshot,
   initRunDetails,
   patchRunDetails,
   upsertRunFrame,
@@ -50,6 +52,10 @@ import {
   useCapabilityDefinitions,
 } from '@/lib/capability/store';
 import type { CapabilityDefinitionRecord } from '@/lib/capability/types';
+import {
+  buildExportRequestBody,
+  downloadExportPack,
+} from '@/lib/export/client';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -162,7 +168,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<ComposerHandle | null>(null);
   const { editor } = useEditorRef();
   const definitions = useCapabilityDefinitions();
+  const runs = useRuns();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   // Focus lens cycles through frames via arrow keys; the active format state
@@ -669,11 +677,72 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     if (idx >= 0 && idx !== focusIdx) setFocusIdx(idx);
   }, [view, activeFormatId, focusIdx, formats]);
 
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const boards: { id: string; label: string; aspectRatio: string }[] =
+        formats.length > 0
+          ? formats.map((format) => ({
+              id: format.id,
+              label: format.label ?? format.id,
+              aspectRatio: format.aspectRatio,
+            }))
+          : DEFAULT_ARTBOARDS.map((seed, idx) => ({
+              id: seed.preset ?? `artboard-${idx}`,
+              label: seed.name.split(' · ')[0] ?? seed.preset ?? `artboard-${idx}`,
+              aspectRatio: pickAspectRatio(seed.w, seed.h),
+            }));
+
+      const { body, skipped } = await buildExportRequestBody({
+        workspaceId: wsId,
+        artboards: boards,
+        runs,
+        runDetails: getAllRunDetailsSnapshot(),
+        pinnedSkills: definitions.map((def) => ({
+          definitionId: def.id,
+          name: def.name,
+        })),
+      });
+
+      const resolvedCount = Array.isArray((body as { artboards?: unknown[] }).artboards)
+        ? (body as { artboards: unknown[] }).artboards.length
+        : 0;
+      if (resolvedCount === 0) {
+        log('export skipped · no completed generations to pack');
+        if (typeof window !== 'undefined') {
+          window.alert(
+            skipped.length > 0
+              ? `nothing to export yet — generate on an artboard first (${skipped.length} empty)`
+              : 'nothing to export yet — generate on an artboard first'
+          );
+        }
+        return;
+      }
+
+      await downloadExportPack(wsId, body);
+      log('export downloaded ·', resolvedCount, 'format(s) · skipped', skipped.length);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logError('export failed:', message);
+      if (typeof window !== 'undefined') window.alert(`export failed: ${message}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, formats, wsId, runs, definitions]);
+
   const handlePrompt = useCallback(
     async (
       prompt: string,
       options: { refs?: string[]; scope: 'all' | 'single'; targetId?: string }
     ) => {
+      const trimmed = prompt.trim();
+      if (/^\/export\b/i.test(trimmed)) {
+        log('onSubmit · /export command');
+        await handleExport();
+        return;
+      }
+
       log(
         'onSubmit · prompt:',
         prompt,
@@ -729,7 +798,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         targets,
       });
     },
-    [runImageOnCanvas, editor, view, focusIdx, formats, activeFormatId]
+    [runImageOnCanvas, editor, view, focusIdx, formats, activeFormatId, handleExport]
   );
 
   const handlePin = useCallback((run: CapabilityRunRecord) => {
@@ -864,7 +933,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
         />
-        <RightRail onPin={handlePin} safeZonesVisible={safeZonesVisible} />
+        <RightRail
+          onPin={handlePin}
+          onExport={handleExport}
+          exportDisabled={exporting}
+          safeZonesVisible={safeZonesVisible}
+        />
       </div>
 
       <PromptComposer
