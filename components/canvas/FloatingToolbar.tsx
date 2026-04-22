@@ -4,12 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   GripVertical,
-  MousePointer2,
   Scissors,
   ShieldAlert,
-  Shapes,
   Sparkles,
-  Type,
   Wand2,
 } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
@@ -155,27 +152,14 @@ export function FloatingToolbar({
 
       <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
 
-      <IconButton
-        label="select"
-        active={activeTool === 'select'}
-        icon={<MousePointer2 size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('select')}
-      />
-      <IconButton
-        label="text"
-        active={activeTool === 'text'}
-        icon={<Type size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('text')}
-      />
-      <IconButton
-        label="shape"
-        active={activeTool === 'shape'}
-        icon={<Shapes size={14} strokeWidth={1.75} />}
-        onClick={() => setActiveTool('shape')}
-      />
-
-      <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
-
+      {/*
+        Aether's floating toolbar is the AI/capability palette: focus-composer,
+        cutout, relight, pinned skills, safe-zones, scope. tldraw's native
+        bottom toolbar owns primitives (select, text, shape, draw, eraser,
+        hand, etc.), so reproducing them here was dead UI — the placeholder
+        select/text/shape buttons only set local activeTool state, never
+        drove the editor. Removed to keep "one button, one meaning".
+      */}
       <IconButton
         label="AI · focus composer"
         variant="outline"
