@@ -23,7 +23,7 @@ describe('replicate adapter · contract', () => {
     const fastSetTimeout = ((handler: TimerHandler) => {
       if (typeof handler === 'function') (handler as () => void)();
       return 0 as unknown as ReturnType<typeof setTimeout>;
-    }) as typeof setTimeout;
+    }) as unknown as typeof setTimeout;
     vi.stubGlobal('setTimeout', fastSetTimeout);
   });
 

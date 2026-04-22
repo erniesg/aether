@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const messagesCreate = vi.fn();
-  const AnthropicCtor = vi.fn(() => ({
-    messages: { create: messagesCreate },
-  }));
+  // Regular function (not arrow) so `new Anthropic({ apiKey })` in generate.ts
+  // sees a constructor. JavaScript uses the returned object as the instance.
+  const AnthropicCtor = vi.fn(function () {
+    return { messages: { create: messagesCreate } };
+  });
   const providerGenerate = vi.fn();
   const fakeProvider = {
     id: 'openai',
@@ -13,7 +15,7 @@ const mocks = vi.hoisted(() => {
     listModels: () => ['gpt-image-1'],
     generate: providerGenerate,
   };
-  const resolveProvider = vi.fn(() => fakeProvider);
+  const resolveProvider = vi.fn((_id?: string) => fakeProvider);
   return {
     messagesCreate,
     AnthropicCtor,
