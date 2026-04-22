@@ -15,6 +15,7 @@ import { PinDialog, type ProposedCapability } from '@/components/capability/PinD
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
+import { focusFrameAtIndex, zoomToAllFrames } from '@/lib/canvas/focusFrame';
 import {
   finishRun,
   failRun,
@@ -252,9 +253,23 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     composerRef.current?.setPrompt(VERB_PROMPT_PRESETS[verb]);
   }, []);
 
-  // ⌘+. / Ctrl+. toggles between canvas and focus lenses. Focus hides both
-  // rails so the canvas fills the viewport — for moments when the creator
-  // wants to concentrate on the making without the surrounding context.
+  // Focus lens is a camera/selection change, not a chrome toggle. When view
+  // flips to 'focus' we zoom to a single artboard; arrow keys cycle through
+  // frames in document order. Switching back to 'canvas' zooms to fit every
+  // frame — the panoramic default. Rails stay mounted in both lenses.
+  const [focusIdx, setFocusIdx] = useState(0);
+
+  useEffect(() => {
+    if (!editor) return;
+    if (view === 'focus') {
+      const resolved = focusFrameAtIndex(editor, focusIdx);
+      if (resolved !== null && resolved !== focusIdx) setFocusIdx(resolved);
+    } else {
+      zoomToAllFrames(editor);
+    }
+  }, [view, focusIdx, editor]);
+
+  // ⌘+. / Ctrl+. toggles the focus lens globally.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const isShortcut =
@@ -267,7 +282,22 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const inFocus = view === 'focus';
+  // Arrow keys cycle through frames while the focus lens is active. No-op
+  // in canvas mode so creators can still use arrows to nudge selected shapes.
+  useEffect(() => {
+    if (view !== 'focus') return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        setFocusIdx((i) => i + 1);
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setFocusIdx((i) => i - 1);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [view]);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-bg">
@@ -303,14 +333,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       </Surface>
 
       <div className="flex flex-1 overflow-hidden">
-        {inFocus ? null : <LeftRail />}
+        <LeftRail />
         <CanvasSubstrate
           composerRef={composerRef}
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
         />
-        {inFocus ? null : <RightRail onPin={handlePin} />}
+        <RightRail onPin={handlePin} />
       </div>
 
       <PromptComposer
