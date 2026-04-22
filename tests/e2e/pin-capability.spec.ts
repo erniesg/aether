@@ -82,7 +82,7 @@ test.describe('A4 — pin-as-capability', () => {
     // A4.1 — first generation.
     const composer = page.getByRole('textbox');
     await composer.fill('a still life');
-    await composer.press('Enter');
+    await composer.press('Shift+Enter');
 
     // open the "all generations" rail flyout so the action log is visible
     const generationsIcon = page

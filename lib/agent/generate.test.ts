@@ -35,7 +35,7 @@ vi.mock('@/lib/providers/image/registry', () => ({
   KNOWN_PROVIDER_IDS: ['openai'],
 }));
 
-import { runGenerate, CLAUDE_MODEL } from './generate';
+import { planGenerate, runGenerate, CLAUDE_MODEL } from './generate';
 
 const FAKE_IMAGE_RESULT = {
   provider: 'openai',
@@ -119,6 +119,42 @@ describe('agent · runGenerate', () => {
       model: 'gpt-image-1',
     });
     expect(outcome.result).toBe(FAKE_IMAGE_RESULT);
+  });
+
+  it('planGenerate returns the shared plan without spending a provider call', async () => {
+    mocks.messagesCreate.mockResolvedValueOnce({
+      content: [
+        {
+          type: 'tool_use',
+          name: 'generate_image',
+          id: 'tu_plan',
+          input: {
+            prompt: 'editorial still life, soft bounce, oat backdrop',
+            aspectRatio: '4:5',
+            rationale: 'Portrait crop suits a product hero.',
+            seed: 7,
+          },
+        },
+      ],
+    });
+
+    const outcome = await planGenerate({ prompt: 'still life for instagram' });
+
+    expect(mocks.messagesCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.providerGenerate).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      plan: {
+        rewrittenPrompt: 'editorial still life, soft bounce, oat backdrop',
+        aspectRatio: '4:5',
+        rationale: 'Portrait crop suits a product hero.',
+        seed: 7,
+      },
+      provider: {
+        id: 'openai',
+        displayName: 'OpenAI Images',
+        model: 'gpt-image-1',
+      },
+    });
   });
 
   it('bypassAgent: true skips Anthropic and pipes the prompt straight through', async () => {

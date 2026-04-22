@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { runGenerate } from '@/lib/agent/generate';
+import { planGenerate, runGenerate } from '@/lib/agent/generate';
 import { listAvailableProviders } from '@/lib/providers/image/registry';
 import { ImageGenError, ProviderUnavailableError } from '@/lib/providers/image/types';
 import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   const model = typeof b.model === 'string' ? b.model : undefined;
   const refs = Array.isArray(b.refs) ? (b.refs as Array<{ url: string; weight?: number }>) : undefined;
   const bypassAgent = b.bypassAgent === true;
+  const planOnly = b.planOnly === true;
   const clientRunId = typeof b.runId === 'string' ? b.runId : undefined;
   // Optional per-request aspect ratio override used by the fan-out path.
   // Narrowed against the AspectRatio union; a bad value is treated as absent
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
       ? (rawRatio as (typeof ALLOWED_RATIOS)[number])
       : undefined;
   console.log(
-    `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} aspect=${aspectRatioOverride ?? 'auto'} promptLen=${prompt.length}`
+    `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} planOnly=${planOnly} aspect=${aspectRatioOverride ?? 'auto'} promptLen=${prompt.length}`
   );
 
   if (clientRunId) {
@@ -63,6 +64,25 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (planOnly) {
+      const outcome = await planGenerate({
+        prompt,
+        providerId,
+        model,
+        refs,
+        bypassAgent,
+        aspectRatioOverride,
+      });
+      console.log(
+        `[generate/${reqId}] planned · provider=${outcome.provider.id} model=${outcome.provider.model} aspect=${outcome.plan.aspectRatio}`
+      );
+      return NextResponse.json({
+        ok: true,
+        plan: outcome.plan,
+        provider: outcome.provider,
+      });
+    }
+
     const outcome = await runGenerate({
       prompt,
       providerId,

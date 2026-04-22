@@ -37,8 +37,8 @@ const TOOL_GENERATE_IMAGE: Tool = {
       prompt: { type: 'string', description: 'The rewritten, visually-specific prompt.' },
       aspectRatio: {
         type: 'string',
-        enum: ['1:1', '9:16', '16:9', '4:3', '3:4'],
-        description: 'Aspect ratio token. Portrait → 3:4. Vertical story/reel → 9:16. Wide/banner → 16:9. Landscape → 4:3. Square post → 1:1.',
+        enum: ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'],
+        description: 'Aspect ratio token. Square post → 1:1. IG portrait → 4:5. Vertical story/reel → 9:16. Portrait → 3:4 or 2:3. Landscape → 4:3 or 3:2. Wide/banner → 16:9.',
       },
       seed: { type: 'number', description: 'Optional seed for reproducibility.' },
       rationale: {
@@ -75,7 +75,20 @@ export interface GenerateOutcome {
   provider: { id: string; displayName: string; model: string };
 }
 
-const RATIO_SET = ['1:1', '9:16', '16:9', '4:3', '3:4'] as const;
+export interface GeneratePlan {
+  rewrittenPrompt: string;
+  aspectRatio: AspectRatio;
+  rationale?: string;
+  seed?: number;
+}
+
+export interface GenerateProviderInfo {
+  id: string;
+  displayName: string;
+  model: string;
+}
+
+const RATIO_SET = ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'] as const;
 type RatioLiteral = (typeof RATIO_SET)[number];
 
 function stringifyToolInput(value: unknown): {
@@ -102,23 +115,24 @@ function stringifyToolInput(value: unknown): {
   };
 }
 
-export async function runGenerate(params: GenerateParams): Promise<GenerateOutcome> {
+function resolveGenerateContext(params: GenerateParams): {
+  provider: ReturnType<typeof resolveProvider>;
+  providerInfo: GenerateProviderInfo;
+} {
   // Thread `params.model` as a hint so `?model=gpt-image-2` routes to
   // whichever provider lists that model when no provider is specified.
   const provider = resolveProvider(params.providerId, params.model);
   const model = params.model ?? provider.listModels()[0];
+  return {
+    provider,
+    providerInfo: { id: provider.id, displayName: provider.displayName, model },
+  };
+}
 
+async function createGeneratePlan(params: GenerateParams): Promise<GeneratePlan> {
   if (params.bypassAgent) {
     const aspectRatio = params.aspectRatioOverride ?? '1:1';
-    const result = await provider.generate(
-      { prompt: params.prompt, refs: params.refs, aspectRatio },
-      { model }
-    );
-    return {
-      plan: { rewrittenPrompt: params.prompt, aspectRatio },
-      result,
-      provider: { id: provider.id, displayName: provider.displayName, model },
-    };
+    return { rewrittenPrompt: params.prompt, aspectRatio };
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -154,25 +168,39 @@ export async function runGenerate(params: GenerateParams): Promise<GenerateOutco
   // render into every linked artboard at the right shape. Claude's suggestion
   // still flows back as metadata when no override is set.
   const effectiveAspect = params.aspectRatioOverride ?? plan.aspectRatio;
+  return {
+    rewrittenPrompt: plan.prompt,
+    aspectRatio: effectiveAspect,
+    rationale: plan.rationale,
+    seed: plan.seed,
+  };
+}
 
+export async function planGenerate(params: GenerateParams): Promise<{
+  plan: GeneratePlan;
+  provider: GenerateProviderInfo;
+}> {
+  const { providerInfo } = resolveGenerateContext(params);
+  const plan = await createGeneratePlan(params);
+  return { plan, provider: providerInfo };
+}
+
+export async function runGenerate(params: GenerateParams): Promise<GenerateOutcome> {
+  const { provider, providerInfo } = resolveGenerateContext(params);
+  const plan = await createGeneratePlan(params);
   const result = await provider.generate(
     {
-      prompt: plan.prompt,
+      prompt: plan.rewrittenPrompt,
       refs: params.refs,
-      aspectRatio: effectiveAspect,
+      aspectRatio: plan.aspectRatio,
       seed: plan.seed,
     },
-    { model }
+    { model: providerInfo.model }
   );
 
   return {
-    plan: {
-      rewrittenPrompt: plan.prompt,
-      aspectRatio: effectiveAspect,
-      rationale: plan.rationale,
-      seed: plan.seed,
-    },
+    plan,
     result,
-    provider: { id: provider.id, displayName: provider.displayName, model },
+    provider: providerInfo,
   };
 }

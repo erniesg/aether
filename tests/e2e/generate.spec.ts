@@ -45,7 +45,7 @@ async function mockGenerate(
 }
 
 test.describe('B2 — generate happy path', () => {
-  test('prompt → image on canvas → all-generations rail flips to "1 run"', async ({
+  test('⇧+Enter keeps the generation scoped to one artboard', async ({
     page,
   }) => {
     await mockGenerate(page, 200, HAPPY_FIXTURE);
@@ -65,14 +65,15 @@ test.describe('B2 — generate happy path', () => {
     await expect(page.getByText(/idle · type a prompt/)).toBeVisible();
 
     await composer.fill('a serene aether test image');
-    await composer.press('Enter');
+    await composer.press('Shift+Enter');
 
     // ComposerStatus flips to "placed on canvas".
     await expect(page.getByText(/placed on canvas/)).toBeVisible({
       timeout: 10_000,
     });
 
-    // Right-rail all-generations summary should now read "1 run".
+    // Single-scope submit produces one run, even though the sticky default is
+    // "apply to all".
     const generationsSection = page.locator('[data-rail-section="all-generations"]');
     await expect(generationsSection).toHaveAttribute('aria-label', /1 run\b/);
 
@@ -107,5 +108,117 @@ test.describe('B2 — generate happy path', () => {
     await expect(
       page.getByRole('alert').filter({ hasText: /upstream boom/ })
     ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('scope=all rewrites once, then fans out one bypassed render per artboard', async ({
+    page,
+  }) => {
+    const requests: Array<Record<string, unknown>> = [];
+    await page.route('**/api/generate', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      requests.push(body);
+
+      if (body.planOnly === true) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            plan: {
+              rewrittenPrompt: 'shared editorial still life, warm bounce, oat backdrop',
+              aspectRatio: '1:1',
+              rationale: 'fan-out test fixture',
+            },
+            provider: {
+              id: 'openai',
+              displayName: 'OpenAI Images',
+              model: 'gpt-image-1',
+            },
+          }),
+        });
+        return;
+      }
+
+      const aspectRatio = typeof body.aspectRatio === 'string' ? body.aspectRatio : '1:1';
+      const dims =
+        aspectRatio === '4:5'
+          ? { width: 1024, height: 1280 }
+          : aspectRatio === '9:16'
+          ? { width: 1024, height: 1792 }
+          : aspectRatio === '16:9'
+          ? { width: 1792, height: 1024 }
+          : { width: 1024, height: 1024 };
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          plan: {
+            rewrittenPrompt: 'shared editorial still life, warm bounce, oat backdrop',
+            aspectRatio,
+            rationale: 'fan-out test fixture',
+          },
+          provider: {
+            id: 'openai',
+            displayName: 'OpenAI Images',
+            model: 'gpt-image-1',
+          },
+          result: {
+            latencyMs: 42,
+            images: [
+              {
+                url: TINY_PNG,
+                width: dims.width,
+                height: dims.height,
+                mimeType: 'image/png',
+              },
+            ],
+          },
+        }),
+      });
+    });
+
+    await page.goto('/workspace/demo-ws');
+    await expect(page.locator('.tl-container')).toBeVisible();
+    await page
+      .locator('.tl-container .tl-canvas, .tl-container .tl-svg-container')
+      .first()
+      .waitFor({ timeout: 15_000 });
+
+    const composer = page.getByPlaceholder('describe the generation…');
+    await composer.fill('build me a cross-format campaign visual');
+    await composer.press('Enter');
+
+    await expect.poll(() => requests.length, { timeout: 10_000 }).toBe(5);
+
+    const planRequests = requests.filter((r) => r.planOnly === true);
+    expect(planRequests).toHaveLength(1);
+    expect(planRequests[0]?.bypassAgent).toBe(false);
+
+    const imageRequests = requests.filter((r) => r.planOnly !== true);
+    expect(imageRequests).toHaveLength(4);
+    expect(imageRequests.every((r) => r.bypassAgent === true)).toBe(true);
+    expect(imageRequests.every((r) => r.prompt === 'shared editorial still life, warm bounce, oat backdrop')).toBe(true);
+    expect(imageRequests.every((r) => r.providerId === 'openai')).toBe(true);
+    expect(imageRequests.every((r) => r.model === 'gpt-image-1')).toBe(true);
+    expect(
+      imageRequests
+        .map((r) => r.aspectRatio)
+        .sort()
+    ).toEqual(['16:9', '4:5', '9:16', '9:16']);
+
+    await expect(page.getByText(/placed on canvas/)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const generationsSection = page.locator('[data-rail-section="all-generations"]');
+    await expect(generationsSection).toHaveAttribute('aria-label', /4 runs\b/);
+    await generationsSection.click();
+
+    const flyout = page.locator('[data-rail-flyout="all-generations"]');
+    await expect(flyout).toBeVisible();
+    await expect(flyout.locator('ol > li')).toHaveCount(4);
+    await expect(flyout.locator(`img[src="${TINY_PNG}"]`)).toHaveCount(4);
   });
 });
