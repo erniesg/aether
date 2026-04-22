@@ -8,7 +8,11 @@ import { ViewSwitcher, type ViewId } from '@/components/header/ViewSwitcher';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
-import { PromptComposer, type ComposerHandle } from '@/components/composer/PromptComposer';
+import {
+  PromptComposer,
+  type ComposerHandle,
+  type PromptFormatOption,
+} from '@/components/composer/PromptComposer';
 import type { ToolbarVerb } from '@/components/canvas/FloatingToolbar';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
@@ -17,6 +21,7 @@ import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
 import {
   focusFrameAtIndex,
+  getActiveFrameShape,
   getFrameShapes,
   zoomToAllFrames,
 } from '@/lib/canvas/focusFrame';
@@ -116,6 +121,15 @@ interface GenerateTargetSpec {
   aspectRatio: AspectRatio;
 }
 
+interface FrameShapeSpec {
+  id: string;
+  props: {
+    w: number;
+    h: number;
+    name?: string;
+  };
+}
+
 interface RunCompletedEvent {
   type: 'run.completed';
   at: number;
@@ -136,6 +150,14 @@ function compactFrameLabel(value?: string): string | undefined {
   return head?.trim() || value;
 }
 
+function frameToTargetSpec(frame: FrameShapeSpec): GenerateTargetSpec {
+  return {
+    id: frame.id,
+    label: compactFrameLabel(frame.props.name),
+    aspectRatio: pickAspectRatio(frame.props.w, frame.props.h),
+  };
+}
+
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<ComposerHandle | null>(null);
   const { editor } = useEditorRef();
@@ -143,13 +165,23 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
-  // Focus lens cycles through frames via arrow keys; declared early so fan-out
-  // logic in handlePrompt can pick the focused frame for single-scope dispatch.
+  // Focus lens cycles through frames via arrow keys; the active format state
+  // mirrors this so the composer always shows the current single-format target.
   const [focusIdx, setFocusIdx] = useState(0);
+  const [formats, setFormats] = useState<GenerateTargetSpec[]>([]);
+  const [activeFormatId, setActiveFormatId] = useState<string | null>(null);
 
   const pinnedCapabilities = useMemo(
     () => definitions.map((d) => ({ id: d.id, label: d.name })),
     [definitions]
+  );
+  const composerFormats = useMemo<PromptFormatOption[]>(
+    () =>
+      formats.map((format) => ({
+        id: format.id,
+        label: format.label ?? format.id,
+      })),
+    [formats]
   );
 
   const runImageOnCanvas = useCallback(
@@ -597,15 +629,60 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [editor]
   );
 
+  useEffect(() => {
+    if (!editor) {
+      setFormats([]);
+      setActiveFormatId(null);
+      return;
+    }
+
+    const syncFormats = () => {
+      const nextFormats = getFrameShapes(editor).map((frame) =>
+        frameToTargetSpec(frame as unknown as FrameShapeSpec)
+      );
+      const selectedFrameId = getActiveFrameShape(editor)?.id ?? null;
+
+      setFormats(nextFormats);
+      setActiveFormatId((current) => {
+        if (selectedFrameId && nextFormats.some((format) => format.id === selectedFrameId)) {
+          return selectedFrameId;
+        }
+        if (current && nextFormats.some((format) => format.id === current)) return current;
+        return nextFormats[0]?.id ?? null;
+      });
+    };
+
+    syncFormats();
+    return editor.store.listen(syncFormats);
+  }, [editor]);
+
+  useEffect(() => {
+    if (view !== 'focus' || formats.length === 0) return;
+    const wrappedIndex = ((focusIdx % formats.length) + formats.length) % formats.length;
+    const target = formats[wrappedIndex];
+    if (target && target.id !== activeFormatId) setActiveFormatId(target.id);
+  }, [view, focusIdx, formats, activeFormatId]);
+
+  useEffect(() => {
+    if (view !== 'focus' || !activeFormatId) return;
+    const idx = formats.findIndex((format) => format.id === activeFormatId);
+    if (idx >= 0 && idx !== focusIdx) setFocusIdx(idx);
+  }, [view, activeFormatId, focusIdx, formats]);
+
   const handlePrompt = useCallback(
-    async (prompt: string, options: { refs?: string[]; scope: 'all' | 'single' }) => {
+    async (
+      prompt: string,
+      options: { refs?: string[]; scope: 'all' | 'single'; targetId?: string }
+    ) => {
       log(
         'onSubmit · prompt:',
         prompt,
         'refs:',
         options.refs?.length ?? 0,
         'scope:',
-        options.scope
+        options.scope,
+        'target:',
+        options.targetId ?? activeFormatId ?? 'canvas'
       );
       const urlParams = new URLSearchParams(window.location.search);
       const providerOverride = urlParams.get('provider') ?? undefined;
@@ -616,16 +693,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       const bypassAgent = urlParams.get('bypass') === '1';
 
       if (options.scope === 'all' && editor) {
-        const frames = getFrameShapes(editor);
-        if (frames.length > 0) {
-          const targets = frames.map((f) => {
-            const props = (f as unknown as { props: { w: number; h: number; name?: string } }).props;
-            return {
-              id: f.id,
-              label: compactFrameLabel(props.name),
-              aspectRatio: pickAspectRatio(props.w, props.h),
-            };
-          });
+        if (formats.length > 0) {
+          const targets = formats;
           log('fan-out · frames:', targets.length);
           await runImageOnCanvas(prompt, {
             providerOverride,
@@ -639,22 +708,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
 
       // scope='single' (or 'all' on an empty canvas): one generation. When the
-      // creator is in the focus lens, drop into the currently-focused frame
-      // with its own aspect ratio. Otherwise centre on the viewport as before.
+      // creator picks a single target, drop into that frame with its own aspect
+      // ratio. If no explicit target exists, fall back to the focus lens.
       let targets: GenerateTargetSpec[] | undefined;
-      if (view === 'focus' && editor) {
-        const frames = getFrameShapes(editor);
-        const target = frames[focusIdx];
-        if (target) {
-          const props = (target as unknown as { props: { w: number; h: number; name?: string } }).props;
-          targets = [
-            {
-              id: target.id,
-              label: compactFrameLabel(props.name),
-              aspectRatio: pickAspectRatio(props.w, props.h),
-            },
-          ];
-        }
+      const targetId = options.targetId ?? activeFormatId;
+      const explicitTarget = targetId ? formats.find((format) => format.id === targetId) : undefined;
+      if (explicitTarget) {
+        targets = [explicitTarget];
+      } else if (view === 'focus' && formats.length > 0) {
+        const wrappedIndex = ((focusIdx % formats.length) + formats.length) % formats.length;
+        const target = formats[wrappedIndex];
+        if (target) targets = [target];
       }
 
       await runImageOnCanvas(prompt, {
@@ -665,7 +729,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         targets,
       });
     },
-    [runImageOnCanvas, editor, view, focusIdx]
+    [runImageOnCanvas, editor, view, focusIdx, formats, activeFormatId]
   );
 
   const handlePin = useCallback((run: CapabilityRunRecord) => {
@@ -807,7 +871,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         ref={composerRef}
         onSubmit={handlePrompt}
         inputCount={0}
-        formatCount={DEFAULT_ARTBOARDS.length}
+        formatCount={formats.length > 0 ? formats.length : DEFAULT_ARTBOARDS.length}
+        formats={composerFormats}
+        activeFormatId={activeFormatId ?? undefined}
+        onActiveFormatChange={setActiveFormatId}
         className="h-composer"
       />
       <ComposerStatus />

@@ -7,7 +7,7 @@ import type {
   FormEvent,
   KeyboardEvent,
 } from 'react';
-import { ArrowUp, ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
+import { ArrowUp, ChevronDown, ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -34,6 +34,13 @@ export interface PromptSubmitOptions {
   refs?: string[];
   /** Whether this generation should fan out to every linked format or scope to one. */
   scope: PromptScope;
+  /** Active target artboard when scope resolves to a single format. */
+  targetId?: string;
+}
+
+export interface PromptFormatOption {
+  id: string;
+  label: string;
 }
 
 export interface PromptComposerProps {
@@ -44,8 +51,14 @@ export interface PromptComposerProps {
   inputCount?: number;
   /** Number of linked formats on the canvas — drives the "apply to all · N formats" chip. */
   formatCount?: number;
+  /** Available linked formats the creator can target directly in single scope. */
+  formats?: ReadonlyArray<PromptFormatOption>;
+  /** Active format id when scope is single. */
+  activeFormatId?: string;
   /** Sticky scope; defaults to 'all'. Clicking the scope chip toggles this state. */
   defaultScope?: PromptScope;
+  /** Called when the creator picks a different single-format target. */
+  onActiveFormatChange?: (formatId: string) => void;
   /** Called when the creator clicks the input-set chip — typically opens the input-set rail. */
   onOpenInputSet?: () => void;
   /** Invoked with the prompt string and a submit-options bundle
@@ -79,7 +92,10 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       activeInputSet,
       inputCount = 0,
       formatCount = 0,
+      formats = [],
+      activeFormatId,
       defaultScope = 'all',
+      onActiveFormatChange,
       onOpenInputSet,
       onSubmit,
       placeholder = 'describe the generation…',
@@ -97,6 +113,9 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     const [dragging, setDragging] = useState(false);
     const [refError, setRefError] = useState<string | null>(null);
     const [scope, setScope] = useState<PromptScope>(defaultScope);
+    const activeFormat =
+      formats.find((format) => format.id === activeFormatId) ?? formats[0];
+    const resolvedActiveFormatId = activeFormat?.id;
 
     useImperativeHandle(
       forwardedRef,
@@ -149,6 +168,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
         await onSubmit?.(prompt, {
           refs: refs.length > 0 ? refs : undefined,
           scope: overrideScope ?? scope,
+          targetId: (overrideScope ?? scope) === 'single' ? resolvedActiveFormatId : undefined,
         });
         setValue('');
         setRefs([]);
@@ -319,7 +339,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
               scope === 'all'
                 ? `apply to all · ${formatCount} format${formatCount === 1 ? '' : 's'}`
                 : 'only this format';
-            const aria = `format scope · ${scopeLabel} · click to toggle (⇧+Enter for one-shot single-format)`;
+            const aria = `format scope · ${scopeLabel}${activeFormat ? ` · active ${activeFormat.label}` : ''} · click to toggle (⇧+Enter for one-shot single-format)`;
             return (
               <button
                 type="button"
@@ -337,6 +357,32 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
               </button>
             );
           })()}
+
+          {scope === 'single' && activeFormat ? (
+            <label className="relative inline-flex items-center">
+              <span className="sr-only">active format</span>
+              <select
+                aria-label="active format"
+                value={activeFormat.id}
+                onChange={(event) => onActiveFormatChange?.(event.target.value)}
+                className={cn(
+                  'appearance-none rounded-pill border border-border-soft bg-surface-panel-muted py-0.5 pl-2 pr-7 font-mono text-2xs uppercase tracking-wide text-ink',
+                  'transition-colors duration-fast ease-quick hover:border-border focus:border-accent focus:outline-none'
+                )}
+              >
+                {formats.map((format) => (
+                  <option key={format.id} value={format.id}>
+                    {format.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={12}
+                strokeWidth={2}
+                className="pointer-events-none absolute right-2 text-ink-dim"
+              />
+            </label>
+          ) : null}
 
           <textarea
             ref={internalRef}

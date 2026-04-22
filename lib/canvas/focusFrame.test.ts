@@ -1,17 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
-import { focusFrameAtIndex, getFrameShapes, zoomToAllFrames } from './focusFrame';
+import {
+  focusFrameAtIndex,
+  getActiveFrameShape,
+  getFrameShapes,
+  zoomToAllFrames,
+} from './focusFrame';
 
-type MockShape = { id: string; type: 'frame' | 'image' };
+type MockShape = {
+  id: string;
+  type: 'frame' | 'image';
+  parentId?: string;
+};
 type MockEditor = {
   getCurrentPageShapes: ReturnType<typeof vi.fn>;
+  getOnlySelectedShape: ReturnType<typeof vi.fn>;
+  getShape: ReturnType<typeof vi.fn>;
   select: ReturnType<typeof vi.fn>;
   zoomToSelection: ReturnType<typeof vi.fn>;
   setSelectedShapes: ReturnType<typeof vi.fn>;
 };
 
-function makeEditor(shapes: MockShape[]): MockEditor {
+function makeEditor(shapes: MockShape[], selected?: MockShape | null): MockEditor {
   return {
     getCurrentPageShapes: vi.fn(() => shapes),
+    getOnlySelectedShape: vi.fn(() => selected ?? null),
+    getShape: vi.fn((id: string) => shapes.find((shape) => shape.id === id)),
     select: vi.fn(),
     zoomToSelection: vi.fn(),
     setSelectedShapes: vi.fn(),
@@ -63,6 +76,22 @@ describe('focusFrame · tldraw-native frame focus + zoom', () => {
     expect(focusFrameAtIndex(editor as never, 0)).toBeNull();
     expect(editor.select).not.toHaveBeenCalled();
     expect(editor.zoomToSelection).not.toHaveBeenCalled();
+  });
+
+  it('getActiveFrameShape returns the selected frame directly', () => {
+    const selected = FRAMES[1]!;
+    const editor = makeEditor(FRAMES, selected);
+    expect(getActiveFrameShape(editor as never)?.id).toBe('shape:story');
+  });
+
+  it('getActiveFrameShape resolves the parent frame when a child image is selected', () => {
+    const image = {
+      id: 'shape:image-inside-story',
+      type: 'image' as const,
+      parentId: 'shape:story',
+    };
+    const editor = makeEditor([...FRAMES, image], image);
+    expect(getActiveFrameShape(editor as never)?.id).toBe('shape:story');
   });
 
   it('zoomToAllFrames selects all frames, zooms, then releases selection', () => {

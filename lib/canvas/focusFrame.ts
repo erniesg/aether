@@ -10,6 +10,20 @@ export function getFrameShapes(editor: Editor): TLShape[] {
 }
 
 /**
+ * Resolve the currently active frame from the creator's selection. Selecting
+ * a frame uses it directly; selecting a child shape nested inside a frame
+ * resolves back to the owning frame so composer targeting stays intuitive.
+ */
+export function getActiveFrameShape(editor: Editor): TLShape | null {
+  const selected = editor.getOnlySelectedShape();
+  if (!selected) return null;
+  if (selected.type === 'frame') return selected;
+  if (!selected.parentId) return null;
+  const parent = editor.getShape(selected.parentId);
+  return parent?.type === 'frame' ? parent : null;
+}
+
+/**
  * Focus a frame by its position in the document's frame list. Indices wrap
  * both directions so `-1` goes to the last frame and `len` goes back to 0.
  * Returns the resolved (wrapped) index, or `null` if the page has no frames.
