@@ -22,8 +22,8 @@ export interface SelectedImageInfo {
   };
 }
 
-export function getSelectedImageInfo(editor: Editor): SelectedImageInfo | null {
-  const selected = editor.getOnlySelectedShape();
+export function getImageInfo(editor: Editor, shapeId: string): SelectedImageInfo | null {
+  const selected = editor.getShape(shapeId as never);
   if (!selected || selected.type !== 'image') return null;
 
   const shape = selected as TLImageShape & { meta?: Record<string, unknown> };
@@ -66,4 +66,10 @@ export function getSelectedImageInfo(editor: Editor): SelectedImageInfo | null {
       h: bottomRight.y - topLeft.y,
     },
   };
+}
+
+export function getSelectedImageInfo(editor: Editor): SelectedImageInfo | null {
+  const selected = editor.getOnlySelectedShape();
+  if (!selected || selected.type !== 'image') return null;
+  return getImageInfo(editor, selected.id);
 }

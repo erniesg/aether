@@ -36,6 +36,7 @@ function renderPanel(props: Partial<ComponentProps<typeof SegmentationPanel>> = 
     onRefinementModeChange: vi.fn(),
     onClearRefinement: vi.fn(),
     onPreview: vi.fn(),
+    onPreviewVisibilityChange: vi.fn(),
     onApprove: vi.fn(),
     onReject: vi.fn(),
     onClose: vi.fn(),
@@ -78,7 +79,7 @@ describe('SegmentationPanel', () => {
 
     expect(screen.getByRole('button', { name: /sam2/i })).toBeDisabled();
 
-    await userEvent.click(screen.getByRole('button', { name: /preview outline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /preview cutout/i }));
     expect(handlers.onPreview).toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole('button', { name: /undo/i }));
@@ -106,7 +107,7 @@ describe('SegmentationPanel', () => {
       })),
     });
 
-    expect(screen.getByRole('button', { name: /preview outline/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /preview cutout/i })).toBeDisabled();
   });
 
   it('disables prompt input for providers without text prompting', async () => {
@@ -171,5 +172,21 @@ describe('SegmentationPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /apply background/i }));
     expect(handlers.onApplyBackground).toHaveBeenCalled();
+  });
+
+  it('lets the creator hide and reshow the preview before approval', async () => {
+    const handlers = renderPanel({
+      previewVisible: true,
+      preview: {
+        sourceDataUrl: 'data:image/png;base64,aaa',
+        maskDataUrl: 'data:image/png;base64,bbb',
+        cutoutDataUrl: 'data:image/svg+xml,ccc',
+        width: 1024,
+        height: 1024,
+      },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /hide preview/i }));
+    expect(handlers.onPreviewVisibilityChange).toHaveBeenCalledWith(false);
   });
 });

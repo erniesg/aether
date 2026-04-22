@@ -32,12 +32,14 @@ export interface SegmentationPanelProps {
   loading?: boolean;
   approved?: boolean;
   error?: string;
+  previewVisible?: boolean;
   backgroundFill: BackgroundFillSpec;
   onPromptChange: (value: string) => void;
   onProviderChange: (value: SegmentationProviderId) => void;
   onRefinementModeChange: (value: SegmentationRefinementMode | null) => void;
   onClearRefinement: () => void;
   onPreview: () => void;
+  onPreviewVisibilityChange: (visible: boolean) => void;
   onApprove: () => void;
   onReject: () => void;
   onClose: () => void;
@@ -75,12 +77,14 @@ export function SegmentationPanel({
   loading = false,
   approved = false,
   error,
+  previewVisible = false,
   backgroundFill,
   onPromptChange,
   onProviderChange,
   onRefinementModeChange,
   onClearRefinement,
   onPreview,
+  onPreviewVisibilityChange,
   onApprove,
   onReject,
   onClose,
@@ -261,7 +265,7 @@ export function SegmentationPanel({
               ? 'checking providers…'
               : loading
                 ? 'previewing…'
-                : 'preview outline'}
+                : 'preview cutout'}
           </button>
           <button
             type="button"
@@ -297,6 +301,13 @@ export function SegmentationPanel({
               </button>
               <button
                 type="button"
+                onClick={() => onPreviewVisibilityChange(!previewVisible)}
+                className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
+              >
+                {previewVisible ? 'hide preview' : 'show preview'}
+              </button>
+              <button
+                type="button"
                 onClick={onReject}
                 className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
               >
@@ -306,7 +317,7 @@ export function SegmentationPanel({
             <p className="mt-2 font-caption text-2xs text-ink-dim">
               {approved
                 ? 'cutout applied. paint a background behind it or undo.'
-                : 'preview is on canvas. approve to replace the selected image with the cutout.'}
+                : 'preview is on canvas. toggle it or approve to replace the selected image with the cutout.'}
             </p>
           </div>
         ) : null}

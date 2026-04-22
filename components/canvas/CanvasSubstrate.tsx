@@ -15,6 +15,7 @@ import { FloatingToolbar } from './FloatingToolbar';
 import { SegmentationPanel, type SegmentationPreviewPayload } from './SegmentationPanel';
 import { SegmentationPreviewOverlay } from './SegmentationPreviewOverlay';
 import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
+import { SelectedImageActions } from './SelectedImageActions';
 import type {
   PrimitiveTool,
   Scope,
@@ -23,7 +24,8 @@ import type {
 } from './FloatingToolbar';
 import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
-import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
+import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
+import { pickAspectRatio } from '@/lib/canvas/fanOut';
 import type {
   SegmentationBoxPrompt,
   SegmentationProviderId,
@@ -32,6 +34,8 @@ import type {
   SegmentationRefinementMode,
 } from '@/lib/providers/segmentation/types';
 import { useEditorRef } from '@/lib/store/editor-ref';
+import { failRun, finishRun, startRun, stepRun } from '@/lib/store/runs';
+import { appendRunActivity, initRunDetails, upsertRunFrame } from '@/lib/store/runDetails';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -70,11 +74,14 @@ interface SegmentationDraft {
   verb: SegmentationVerb;
   providerId: SegmentationProviderId;
   prompt: string;
+  target: SelectedImageInfo;
   refinementMode: SegmentationRefinementMode | null;
   points: SegmentationPointPrompt[];
   box?: SegmentationBoxPrompt;
   loading: boolean;
   approved: boolean;
+  previewVisible: boolean;
+  runId?: string;
   error?: string;
   preview?: SegmentationPreviewPayload;
   targetShapeId: string;
@@ -132,6 +139,23 @@ function defaultPromptForVerb(verb: SegmentationVerb): string {
   }
 }
 
+function labelForSegmentationVerb(verb: SegmentationVerb): string {
+  switch (verb) {
+    case 'removebg':
+      return 'remove background';
+    case 'unmask':
+      return 'unmask';
+    default:
+      return 'segment';
+  }
+}
+
+function summarizeSegmentationRun(verb: SegmentationVerb, prompt: string) {
+  if (verb === 'removebg') return 'remove background';
+  if (verb === 'unmask') return prompt ? `unmask · ${prompt}` : 'unmask';
+  return prompt ? `segment · ${prompt}` : 'segment';
+}
+
 function pickAvailableSegmentationProvider(
   providers: ReadonlyArray<SegmentationProviderStatus>,
   preferredId: SegmentationProviderId = 'sam3'
@@ -176,6 +200,21 @@ function getBackgroundIndex(
   return previous
     ? getIndexBetween(previous.index, shape.index as IndexKey)
     : getIndexBelow(shape.index as IndexKey);
+}
+
+function resolveSegmentationFrame(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>,
+  target: SelectedImageInfo
+) {
+  const parent = editor.getShape(target.parentId as never) as
+    | { id: string; type: string; props?: { w?: number; h?: number; name?: string } }
+    | undefined;
+  if (!parent || parent.type !== 'frame' || !parent.props?.w || !parent.props?.h) return null;
+  return {
+    id: parent.id,
+    label: parent.props.name,
+    aspectRatio: pickAspectRatio(parent.props.w, parent.props.h),
+  };
 }
 
 export const CanvasSubstrate = memo(function CanvasSubstrate({
@@ -246,8 +285,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       setSelectedImage(next);
       setSegmentation((current) => {
         if (!current) return current;
-        if (!next || current.targetShapeId !== next.shapeId) return null;
-        return current;
+        const target = getImageInfo(editor, current.targetShapeId);
+        if (!target) return null;
+        return {
+          ...current,
+          target,
+        };
       });
     };
 
@@ -257,7 +300,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   const openSegmentation = useCallback(
     (verb: SegmentationVerb) => {
-      if (!selectedImage) {
+      const target = selectedImage ?? segmentation?.target;
+      if (!target) {
         onVerbPress?.(verb);
         return;
       }
@@ -269,19 +313,32 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         verb,
         providerId,
         prompt: defaultPromptForVerb(verb),
+        target,
         refinementMode: null,
         points: [],
         box: undefined,
         loading: false,
         approved: false,
+        previewVisible: false,
         error: pickAvailableSegmentationProvider(segmentationProviders, providerId)
           ? undefined
           : NO_SEGMENTATION_PROVIDER_ERROR,
-        targetShapeId: selectedImage.shapeId,
+        targetShapeId: target.shapeId,
       });
     },
-    [onVerbPress, segmentationProviders, selectedImage]
+    [onVerbPress, segmentation?.target, segmentationProviders, selectedImage]
   );
+
+  const handlePreviewVisibilityChange = useCallback((visible: boolean) => {
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            previewVisible: visible,
+          }
+        : current
+    );
+  }, []);
 
   const handleVerb = useCallback(
     (verb: ToolbarVerb) => {
@@ -294,8 +351,52 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     [onVerbPress, openSegmentation]
   );
 
+  const beginSegmentationRun = useCallback(
+    (
+      draft: SegmentationDraft,
+      provider: SegmentationProviderStatus,
+      target: SelectedImageInfo
+    ) => {
+      const runId = startRun({
+        tool: draft.verb === 'removebg' ? 'cutout' : 'image-edit',
+        provider: draft.providerId,
+        model: provider.models[0] ?? '',
+        prompt: summarizeSegmentationRun(draft.verb, draft.prompt),
+      });
+
+      const frame = editor ? resolveSegmentationFrame(editor, target) : null;
+      initRunDetails(runId, {
+        providerHint: draft.providerId,
+        modelHint: provider.models[0],
+        frames: frame
+          ? [
+              {
+                id: frame.id,
+                label: frame.label,
+                aspectRatio: frame.aspectRatio,
+                status: 'running',
+                updatedAt: Date.now(),
+              },
+            ]
+          : [],
+      });
+      appendRunActivity(runId, {
+        title: 'selected image',
+        detail: frame?.label ?? target.shapeId,
+      });
+      appendRunActivity(runId, {
+        title: 'requesting preview',
+        detail: `${labelForSegmentationVerb(draft.verb)} · ${draft.providerId}`,
+      });
+      stepRun(runId, 'awaiting');
+      return { runId, frame };
+    },
+    [editor]
+  );
+
   const handlePreviewSegmentation = useCallback(async () => {
-    if (!segmentation || !selectedImage) return;
+    if (!segmentation) return;
+    const targetImage = segmentation.target;
 
     const activeProvider = segmentationProviders.find(
       (provider) => provider.id === segmentation.providerId
@@ -303,7 +404,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
     if (segmentationProvidersLoading) return;
 
-    if (!activeProvider?.available) {
+    if (!activeProvider || !activeProvider.available) {
       setSegmentation((current) =>
         current
           ? {
@@ -322,19 +423,29 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       current ? { ...current, loading: true, error: undefined, approved: false } : current
     );
 
+    const { runId, frame } = beginSegmentationRun(segmentation, activeProvider, targetImage);
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            runId,
+          }
+        : current
+    );
+
     try {
       const response = await fetch('/api/segment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           providerId: segmentation.providerId,
-          sourceUrl: selectedImage.sourceUrl,
+          sourceUrl: targetImage.sourceUrl,
           mode: segmentation.verb,
           prompt: segmentation.prompt || undefined,
           points: segmentation.points.length > 0 ? segmentation.points : undefined,
           box: segmentation.box,
-          width: selectedImage.intrinsicWidth,
-          height: selectedImage.intrinsicHeight,
+          width: targetImage.intrinsicWidth,
+          height: targetImage.intrinsicHeight,
         }),
       });
 
@@ -357,8 +468,45 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
             ? formatSegmentationProviderError(json.providers, segmentation.providerId)
             : undefined;
 
-        throw new Error(providerError || json.error || response.statusText);
+        const message = providerError || json.error || response.statusText;
+        appendRunActivity(runId, {
+          title: 'preview failed',
+          detail: message,
+          tone: 'error',
+        });
+        if (frame) {
+          upsertRunFrame(runId, {
+            id: frame.id,
+            label: frame.label,
+            aspectRatio: frame.aspectRatio,
+            status: 'error',
+            error: message,
+          });
+        }
+        failRun(runId, message, response.status);
+        throw new Error(message);
       }
+
+      appendRunActivity(runId, {
+        title: 'preview ready',
+        detail: 'toggle preview or approve to apply',
+        tone: 'ok',
+      });
+      if (frame) {
+        upsertRunFrame(runId, {
+          id: frame.id,
+          label: frame.label,
+          aspectRatio: frame.aspectRatio,
+          status: 'returned',
+          imageUrl: json.preview.cutoutDataUrl,
+        });
+      }
+      finishRun(runId, {
+        provider: json.provider?.id ?? segmentation.providerId,
+        model: json.provider?.model ?? activeProvider.models[0] ?? '',
+        imageUrl: json.preview.cutoutDataUrl,
+        status: 'ok',
+      });
 
       setSegmentation((current) =>
         current
@@ -367,6 +515,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
               loading: false,
               error: undefined,
               approved: false,
+              previewVisible: true,
               providerId: json.provider?.id ?? current.providerId,
               preview: json.preview,
             }
@@ -384,10 +533,10 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       );
     }
   }, [
+    beginSegmentationRun,
     segmentation,
     segmentationProviders,
     segmentationProvidersLoading,
-    selectedImage,
   ]);
 
   useEffect(() => {
@@ -476,6 +625,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
             approved: false,
             error: undefined,
             preview: undefined,
+            previewVisible: false,
             points: [...current.points, point],
           }
         : current
@@ -490,6 +640,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
             approved: false,
             error: undefined,
             preview: undefined,
+            previewVisible: false,
             box,
           }
         : current
@@ -506,6 +657,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
             error: undefined,
             points: [],
             preview: undefined,
+            previewVisible: false,
             refinementMode: null,
           }
         : current
@@ -513,9 +665,10 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   }, []);
 
   const handleApproveSegmentation = useCallback(() => {
-    if (!editor || !selectedImage || !segmentation?.preview) return;
+    if (!editor || !segmentation?.preview) return;
+    const targetImage = segmentation.target;
 
-    const shape = editor.getShape(selectedImage.shapeId as never) as
+    const shape = editor.getShape(targetImage.shapeId as never) as
       | { type: 'image'; meta?: Record<string, unknown> }
       | undefined;
     if (!shape || shape.type !== 'image') return;
@@ -542,14 +695,14 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       },
     ]);
     editor.updateShape({
-      id: selectedImage.shapeId as never,
+      id: targetImage.shapeId as never,
       type: 'image',
       props: {
         assetId,
       },
       meta: {
         ...(shape.meta ?? {}),
-        aetherOriginalSrc: selectedImage.sourceUrl,
+        aetherOriginalSrc: targetImage.sourceUrl,
         aetherCutout: true,
         aetherSegmentationVerb: segmentation.verb,
         aetherSegmentationProvider: segmentation.providerId,
@@ -557,17 +710,40 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       },
     } as never);
 
+    if (segmentation.runId) {
+      appendRunActivity(segmentation.runId, {
+        title: 'applied to canvas',
+        detail: labelForSegmentationVerb(segmentation.verb),
+        tone: 'ok',
+      });
+      const frame = resolveSegmentationFrame(editor, targetImage);
+      if (frame) {
+        upsertRunFrame(segmentation.runId, {
+          id: frame.id,
+          label: frame.label,
+          aspectRatio: frame.aspectRatio,
+          status: 'placed',
+          imageUrl: segmentation.preview.cutoutDataUrl,
+        });
+      }
+      finishRun(segmentation.runId, {
+        imageUrl: segmentation.preview.cutoutDataUrl,
+        status: 'ok',
+      });
+    }
+
     setSegmentation((current) =>
       current ? { ...current, approved: true, error: undefined } : current
     );
-  }, [editor, segmentation, selectedImage]);
+  }, [editor, segmentation]);
 
   const handleApplyBackground = useCallback(() => {
-    if (!editor || !selectedImage) return;
+    if (!editor || !segmentation) return;
+    const targetImage = segmentation.target;
 
     const backgroundDataUrl = buildBackgroundFillDataUrl({
-      width: selectedImage.intrinsicWidth,
-      height: selectedImage.intrinsicHeight,
+      width: targetImage.intrinsicWidth,
+      height: targetImage.intrinsicHeight,
       fill: backgroundFill,
     });
 
@@ -581,8 +757,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         props: {
           name: 'background fill',
           src: backgroundDataUrl,
-          w: selectedImage.intrinsicWidth,
-          h: selectedImage.intrinsicHeight,
+          w: targetImage.intrinsicWidth,
+          h: targetImage.intrinsicHeight,
           mimeType: 'image/svg+xml',
           isAnimated: false,
         },
@@ -592,42 +768,78 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       },
     ]);
 
-    const existingBackgroundId = findBackgroundShapeId(editor, selectedImage.shapeId);
+    const existingBackgroundId = findBackgroundShapeId(editor, targetImage.shapeId);
     if (existingBackgroundId) {
       editor.updateShape({
         id: existingBackgroundId as never,
         type: 'image',
-        x: selectedImage.x,
-        y: selectedImage.y,
+        x: targetImage.x,
+        y: targetImage.y,
         props: {
           assetId,
-          w: selectedImage.width,
-          h: selectedImage.height,
+          w: targetImage.width,
+          h: targetImage.height,
         },
       } as never);
-      editor.select(selectedImage.shapeId as never);
+      editor.select(targetImage.shapeId as never);
+      if (segmentation.runId) {
+        appendRunActivity(segmentation.runId, {
+          title: 'background applied',
+          detail: `${backgroundFill.mode} · ${Math.round(backgroundFill.opacity * 100)}%`,
+          tone: 'ok',
+        });
+      }
       return;
     }
 
     editor.createShape({
       id: undefined,
       type: 'image',
-      parentId: selectedImage.parentId as never,
-      x: selectedImage.x,
-      y: selectedImage.y,
-      index: getBackgroundIndex(editor, selectedImage),
+      parentId: targetImage.parentId as never,
+      x: targetImage.x,
+      y: targetImage.y,
+      index: getBackgroundIndex(editor, targetImage),
       props: {
         assetId,
-        w: selectedImage.width,
-        h: selectedImage.height,
+        w: targetImage.width,
+        h: targetImage.height,
       },
       meta: {
         aetherRole: 'background-fill',
-        aetherForShapeId: selectedImage.shapeId,
+        aetherForShapeId: targetImage.shapeId,
       },
     } as never);
-    editor.select(selectedImage.shapeId as never);
-  }, [backgroundFill, editor, selectedImage]);
+    editor.select(targetImage.shapeId as never);
+    if (segmentation.runId) {
+      appendRunActivity(segmentation.runId, {
+        title: 'background applied',
+        detail: `${backgroundFill.mode} · ${Math.round(backgroundFill.opacity * 100)}%`,
+        tone: 'ok',
+      });
+    }
+  }, [backgroundFill, editor, segmentation]);
+
+  const handleRejectSegmentation = useCallback(() => {
+    if (segmentation?.runId) {
+      appendRunActivity(segmentation.runId, {
+        title: 'preview dismissed',
+        detail: 'kept original image',
+      });
+    }
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            approved: false,
+            preview: undefined,
+            previewVisible: false,
+            error: undefined,
+          }
+        : current
+    );
+  }, [segmentation?.runId]);
+
+  const imageActionsTarget = selectedImage ?? segmentation?.target ?? null;
 
   return (
     <section
@@ -650,19 +862,33 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onCapabilityPress={onCapabilityPress}
       />
 
-      {segmentation?.preview && !segmentation.approved && selectedImage ? (
-        <SegmentationPreviewOverlay
-          preview={segmentation.preview}
-          rect={selectedImage.screenBounds}
+      {imageActionsTarget ? (
+        <SelectedImageActions
+          rect={imageActionsTarget.screenBounds}
+          hasPreview={Boolean(segmentation?.preview)}
+          previewVisible={segmentation?.previewVisible ?? false}
+          disabled={segmentation?.loading}
+          onRemoveBg={() => openSegmentation('removebg')}
+          onCutout={() => openSegmentation('cutout')}
+          onPreviewVisibilityChange={handlePreviewVisibilityChange}
         />
       ) : null}
 
-      {segmentation && selectedImage ? (
+      {segmentation?.preview &&
+      segmentation.previewVisible &&
+      !segmentation.approved ? (
+        <SegmentationPreviewOverlay
+          preview={segmentation.preview}
+          rect={segmentation.target.screenBounds}
+        />
+      ) : null}
+
+      {segmentation ? (
         <SegmentationRefinementOverlay
-          rect={selectedImage.screenBounds}
+          rect={segmentation.target.screenBounds}
           imageSize={{
-            width: selectedImage.intrinsicWidth,
-            height: selectedImage.intrinsicHeight,
+            width: segmentation.target.intrinsicWidth,
+            height: segmentation.target.intrinsicHeight,
           }}
           mode={segmentation.refinementMode}
           points={segmentation.points}
@@ -686,26 +912,42 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         approved={segmentation?.approved}
         error={segmentation?.error}
         preview={segmentation?.preview}
+        previewVisible={segmentation?.previewVisible}
         backgroundFill={backgroundFill}
         onPromptChange={(value) =>
-          setSegmentation((current) => (current ? { ...current, prompt: value } : current))
+          setSegmentation((current) =>
+            current
+              ? {
+                  ...current,
+                  prompt: value,
+                  approved: false,
+                  preview: undefined,
+                  previewVisible: false,
+                }
+              : current
+          )
         }
         onProviderChange={(value) =>
           setSegmentation((current) =>
             current
-              ? { ...current, providerId: value, refinementMode: null }
+              ? {
+                  ...current,
+                  providerId: value,
+                  refinementMode: null,
+                  approved: false,
+                  error: undefined,
+                  preview: undefined,
+                  previewVisible: false,
+                }
               : current
           )
         }
         onRefinementModeChange={handleSegmentationRefinementModeChange}
         onClearRefinement={handleSegmentationRefinementClear}
         onPreview={handlePreviewSegmentation}
+        onPreviewVisibilityChange={handlePreviewVisibilityChange}
         onApprove={handleApproveSegmentation}
-        onReject={() =>
-          setSegmentation((current) =>
-            current ? { ...current, approved: false, preview: undefined, error: undefined } : current
-          )
-        }
+        onReject={handleRejectSegmentation}
         onClose={() => setSegmentation(null)}
         onBackgroundModeChange={(mode) =>
           setBackgroundFill((current) => ({ ...current, mode }))
