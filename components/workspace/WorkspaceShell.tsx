@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { ViewSwitcher, type ViewId } from '@/components/header/ViewSwitcher';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
@@ -51,6 +52,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const { editor } = useEditorRef();
   const definitions = useCapabilityDefinitions();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
+  const [view, setView] = useState<ViewId>('canvas');
 
   const pinnedCapabilities = useMemo(
     () => definitions.map((d) => ({ id: d.id, label: d.name })),
@@ -231,7 +233,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         tone="panel"
         taxonomy="navigation"
         border="soft"
-        className="flex h-header items-center justify-between px-4"
+        className="grid h-header grid-cols-3 items-center px-4"
       >
         <div className="flex items-center gap-3">
           <span className="font-display text-base tracking-tight">aether</span>
@@ -240,7 +242,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           </span>
           <span className="font-caption text-ink-dim">workspace · {wsId}</span>
         </div>
-        <div className="flex items-center gap-2" data-taxonomy="metadata">
+        <div className="flex justify-center">
+          <ViewSwitcher view={view} onChangeView={setView} />
+        </div>
+        <div
+          className="flex items-center justify-end gap-2"
+          data-taxonomy="metadata"
+        >
           <Chip tone="neutral" size="sm">
             scaffold
           </Chip>
