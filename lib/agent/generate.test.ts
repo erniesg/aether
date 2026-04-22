@@ -220,6 +220,45 @@ describe('agent · runGenerate', () => {
     expect(mocks.providerGenerate).not.toHaveBeenCalled();
   });
 
+  it('aspectRatioOverride wins in bypassAgent mode — client tells provider exactly what shape to return', async () => {
+    const outcome = await runGenerate({
+      prompt: 'raw',
+      bypassAgent: true,
+      aspectRatioOverride: '4:5',
+    });
+
+    const [req] = mocks.providerGenerate.mock.calls[0]!;
+    expect(req.aspectRatio).toBe('4:5');
+    expect(outcome.plan.aspectRatio).toBe('4:5');
+  });
+
+  it('aspectRatioOverride wins in agent mode too — Claude still rewrites the prompt, client still picks the ratio', async () => {
+    mocks.messagesCreate.mockResolvedValueOnce({
+      content: [
+        {
+          type: 'tool_use',
+          name: 'generate_image',
+          id: 'tu_over',
+          // Claude proposes 16:9, but the client wants 9:16 (e.g. a vertical
+          // artboard in a fan-out). The override must win at the provider.
+          input: { prompt: 'editorial still life', aspectRatio: '16:9' },
+        },
+      ],
+    });
+
+    const outcome = await runGenerate({
+      prompt: 'a still life',
+      aspectRatioOverride: '9:16',
+    });
+
+    const [req] = mocks.providerGenerate.mock.calls[0]!;
+    expect(req.aspectRatio).toBe('9:16');
+    expect(outcome.plan).toMatchObject({
+      rewrittenPrompt: 'editorial still life',
+      aspectRatio: '9:16',
+    });
+  });
+
   it('sends a cached system prompt block to Claude', async () => {
     mocks.messagesCreate.mockResolvedValueOnce({
       content: [

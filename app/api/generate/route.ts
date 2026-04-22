@@ -39,8 +39,17 @@ export async function POST(request: Request) {
   const refs = Array.isArray(b.refs) ? (b.refs as Array<{ url: string; weight?: number }>) : undefined;
   const bypassAgent = b.bypassAgent === true;
   const clientRunId = typeof b.runId === 'string' ? b.runId : undefined;
+  // Optional per-request aspect ratio override used by the fan-out path.
+  // Narrowed against the AspectRatio union; a bad value is treated as absent
+  // (agent/bypass default takes over) rather than rejected at the edge.
+  const ALLOWED_RATIOS = ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'] as const;
+  const rawRatio = typeof b.aspectRatio === 'string' ? b.aspectRatio : undefined;
+  const aspectRatioOverride =
+    rawRatio && (ALLOWED_RATIOS as readonly string[]).includes(rawRatio)
+      ? (rawRatio as (typeof ALLOWED_RATIOS)[number])
+      : undefined;
   console.log(
-    `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} promptLen=${prompt.length}`
+    `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} aspect=${aspectRatioOverride ?? 'auto'} promptLen=${prompt.length}`
   );
 
   if (clientRunId) {
@@ -54,7 +63,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const outcome = await runGenerate({ prompt, providerId, model, refs, bypassAgent });
+    const outcome = await runGenerate({
+      prompt,
+      providerId,
+      model,
+      refs,
+      bypassAgent,
+      aspectRatioOverride,
+    });
     console.log(
       `[generate/${reqId}] ok · provider=${outcome.provider.id} model=${outcome.provider.model} latency=${outcome.result.latencyMs}ms images=${outcome.result.images.length}`
     );

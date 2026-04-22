@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ImageGenResult, ImageRef } from '@/lib/providers/image/types';
+import type { AspectRatio, ImageGenResult, ImageRef } from '@/lib/providers/image/types';
 import { resolveProvider } from '@/lib/providers/image/registry';
 
 /**
@@ -57,6 +57,11 @@ export interface GenerateParams {
   model?: string;
   /** Skip the Claude planning call; pipe the prompt straight through. */
   bypassAgent?: boolean;
+  /** Override the aspect ratio delivered to the provider. Used by the fan-out
+   * path — one Claude call rewrites the prompt, then N provider calls render
+   * that prompt into N different artboard ratios. Claude's own aspectRatio
+   * choice is ignored when this is set. */
+  aspectRatioOverride?: AspectRatio;
 }
 
 export interface GenerateOutcome {
@@ -104,12 +109,13 @@ export async function runGenerate(params: GenerateParams): Promise<GenerateOutco
   const model = params.model ?? provider.listModels()[0];
 
   if (params.bypassAgent) {
+    const aspectRatio = params.aspectRatioOverride ?? '1:1';
     const result = await provider.generate(
-      { prompt: params.prompt, refs: params.refs, aspectRatio: '1:1' },
+      { prompt: params.prompt, refs: params.refs, aspectRatio },
       { model }
     );
     return {
-      plan: { rewrittenPrompt: params.prompt, aspectRatio: '1:1' },
+      plan: { rewrittenPrompt: params.prompt, aspectRatio },
       result,
       provider: { id: provider.id, displayName: provider.displayName, model },
     };
@@ -144,12 +150,16 @@ export async function runGenerate(params: GenerateParams): Promise<GenerateOutco
   }
 
   const plan = stringifyToolInput(toolBlock.input);
+  // Fan-out overrides Claude's aspect ratio so the same rewritten prompt can
+  // render into every linked artboard at the right shape. Claude's suggestion
+  // still flows back as metadata when no override is set.
+  const effectiveAspect = params.aspectRatioOverride ?? plan.aspectRatio;
 
   const result = await provider.generate(
     {
       prompt: plan.prompt,
       refs: params.refs,
-      aspectRatio: plan.aspectRatio,
+      aspectRatio: effectiveAspect,
       seed: plan.seed,
     },
     { model }
@@ -158,7 +168,7 @@ export async function runGenerate(params: GenerateParams): Promise<GenerateOutco
   return {
     plan: {
       rewrittenPrompt: plan.prompt,
-      aspectRatio: plan.aspectRatio,
+      aspectRatio: effectiveAspect,
       rationale: plan.rationale,
       seed: plan.seed,
     },
