@@ -84,9 +84,11 @@ test.describe('A4 — pin-as-capability', () => {
     await composer.fill('a still life');
     await composer.press('Enter');
 
-    // open the sync · provenance rail flyout so the action log is visible
-    const syncIcon = page.getByRole('button', { name: /sync · provenance/i }).first();
-    await syncIcon.click();
+    // open the "all generations" rail flyout so the action log is visible
+    const generationsIcon = page
+      .getByRole('button', { name: /all generations/i })
+      .first();
+    await generationsIcon.click();
 
     const pinButton = page.getByRole('button', { name: /pin as skill/i }).first();
     await expect(pinButton).toBeAttached({ timeout: 10_000 });

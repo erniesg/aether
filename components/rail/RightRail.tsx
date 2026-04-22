@@ -1,6 +1,12 @@
 'use client';
 
-import { Activity, Eye, GitBranch, Radio, type LucideIcon } from 'lucide-react';
+import {
+  Calendar,
+  Eye,
+  LayoutGrid,
+  Radio,
+  type LucideIcon,
+} from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { ActionLog } from './ActionLog';
@@ -25,9 +31,74 @@ function PlaceholderBody({ hint }: { hint: string }) {
   );
 }
 
-function useSyncSummary(): { summary: string; hasContent: boolean; active: boolean } {
+/**
+ * The "This focus" flyout: version tree + Script subsection. The version tree
+ * is a stub today (one seeded row) — the creator loop hasn't yet produced
+ * v1→vN, but the affordance needs to exist so the progressive-disclosure
+ * contract holds from first paint. Script is the caption / voiceover / copy
+ * per format — the script beat of "idea → picture → script" lives here.
+ */
+function FocusBody() {
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="flex flex-col gap-1.5" aria-label="version tree">
+        <span className="font-caption text-ink-dim">versions</span>
+        <ol className="flex flex-col gap-1">
+          <li className="flex items-center gap-2 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5">
+            <span className="font-mono text-2xs uppercase tracking-wide text-accent">v1</span>
+            <span className="truncate font-caption text-ink">
+              select an artboard to branch
+            </span>
+          </li>
+        </ol>
+      </section>
+
+      <section className="flex flex-col gap-1.5" aria-label="script">
+        <span className="font-caption text-ink-dim">script</span>
+        <PlaceholderBody hint="caption · voiceover · copy per format" />
+      </section>
+    </div>
+  );
+}
+
+function FormatsBody() {
+  // Four seeded artboards align with lib/canvas/seedArtboards. Kept in sync by
+  // eye today — a follow-up slice binds this to the editor's frame shapes.
+  const FORMATS = [
+    'IG Post · 1080×1350',
+    'Story · 1080×1920',
+    'Reel cover · 1080×1920',
+    'LinkedIn · 1200×627',
+  ];
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="font-caption text-ink-dim">
+        safe zones on · one hero fans out
+      </span>
+      <ul className="grid grid-cols-2 gap-2">
+        {FORMATS.map((name) => (
+          <li
+            key={name}
+            className="flex h-20 flex-col justify-between rounded-sm border border-dashed border-border-soft bg-surface-panel-muted p-2"
+          >
+            <span className="font-caption text-ink">{name.split(' · ')[0]}</span>
+            <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+              {name.split(' · ')[1]}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function useGenerationsSummary(): {
+  summary: string;
+  hasContent: boolean;
+  active: boolean;
+} {
   const runs = useRuns();
-  if (runs.length === 0) return { summary: 'idle', hasContent: false, active: false };
+  if (runs.length === 0) return { summary: 'empty', hasContent: false, active: false };
   const running = runs.some((r) => r.status === 'running');
   return {
     summary: running ? 'generating' : `${runs.length} run${runs.length === 1 ? '' : 's'}`,
@@ -44,38 +115,39 @@ function RightRailInner({
   onPin?: (run: CapabilityRunRecord) => void;
 }) {
   const { railRef } = useRail();
-  const sync = useSyncSummary();
+  const gens = useGenerationsSummary();
 
   const sections: SectionSpec[] = [
     {
       id: 'focus',
-      label: 'focus',
+      label: 'this focus',
       icon: Eye,
-      summary: 'empty',
-      body: <PlaceholderBody hint="active key visual or variant set" />,
+      summary: 'nothing selected',
+      body: <FocusBody />,
     },
     {
-      id: 'versions',
-      label: 'versions',
-      icon: GitBranch,
-      summary: '0 revisions',
-      body: <PlaceholderBody hint="revision history of the focus" />,
+      id: 'formats',
+      label: 'formats',
+      icon: LayoutGrid,
+      summary: '4 targets',
+      hasContent: true,
+      body: <FormatsBody />,
     },
     {
-      id: 'observations',
-      label: 'observations',
-      icon: Activity,
-      summary: 'none',
-      body: <PlaceholderBody hint="agent notes filtered by severity" />,
-    },
-    {
-      id: 'sync',
-      label: 'sync · provenance',
+      id: 'all-generations',
+      label: 'all generations',
       icon: Radio,
-      summary: sync.summary,
-      hasContent: sync.hasContent,
-      active: sync.active,
+      summary: gens.summary,
+      hasContent: gens.hasContent,
+      active: gens.active,
       body: <ActionLog onPin={onPin} />,
+    },
+    {
+      id: 'scheduled',
+      label: 'scheduled',
+      icon: Calendar,
+      summary: 'empty',
+      body: <PlaceholderBody hint="auto-publish timeline · post-hackathon" />,
     },
   ];
 

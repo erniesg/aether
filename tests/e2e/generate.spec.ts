@@ -45,7 +45,7 @@ async function mockGenerate(
 }
 
 test.describe('B2 — generate happy path', () => {
-  test('prompt → image on canvas → sync rail flips to "1 run"', async ({
+  test('prompt → image on canvas → all-generations rail flips to "1 run"', async ({
     page,
   }) => {
     await mockGenerate(page, 200, HAPPY_FIXTURE);
@@ -72,9 +72,9 @@ test.describe('B2 — generate happy path', () => {
       timeout: 10_000,
     });
 
-    // Right-rail sync · provenance summary should now read "1 run".
-    const syncSection = page.locator('[data-rail-section="sync"]');
-    await expect(syncSection).toHaveAttribute('aria-label', /1 run\b/);
+    // Right-rail all-generations summary should now read "1 run".
+    const generationsSection = page.locator('[data-rail-section="all-generations"]');
+    await expect(generationsSection).toHaveAttribute('aria-label', /1 run\b/);
 
     // And the tldraw image shape count should have incremented.
     await expect
@@ -83,10 +83,10 @@ test.describe('B2 — generate happy path', () => {
       })
       .toBeGreaterThan(initialImages);
 
-    // Open the sync rail to reveal the ActionLog — the newly-placed run
-    // should be listed with its image thumb visible.
-    await syncSection.click();
-    const flyout = page.locator('[data-rail-flyout="sync"]');
+    // Open the rail to reveal the ActionLog — the newly-placed run should
+    // be listed with its image thumb visible.
+    await generationsSection.click();
+    const flyout = page.locator('[data-rail-flyout="all-generations"]');
     await expect(flyout).toBeVisible();
     await expect(flyout.locator(`img[src="${TINY_PNG}"]`)).toBeVisible();
   });
