@@ -2,14 +2,21 @@
 
 import { useState } from 'react';
 import {
+  Flag,
   Layers3,
+  Package2,
   PaintBucket,
-  PencilLine,
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
+import {
+  DEMO_CREATOR_CONTEXT,
+  describeWorkspaceMode,
+  summarizeInputSet,
+  type SignalContext,
+} from '@/lib/context/model';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -23,6 +30,8 @@ type SectionSpec = {
 
 type ReferencesTabId = 'images' | 'templates' | 'elements';
 
+const CONTEXT = DEMO_CREATOR_CONTEXT;
+
 function PlaceholderBody({ hint }: { hint: string }) {
   return (
     <div className="flex h-24 items-center justify-center">
@@ -31,24 +40,139 @@ function PlaceholderBody({ hint }: { hint: string }) {
   );
 }
 
-function BriefBody() {
+function CampaignBody() {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="font-caption text-ink-dim">one-line brief</span>
-      <textarea
-        defaultValue="Launch the spring skincare line with a slow-morning, golden-hour mood."
-        rows={3}
-        className="resize-none rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
-      />
-      <span className="mt-1 font-caption text-ink-dim">audience · channel · cta</span>
-      <PlaceholderBody hint="structured fields unlock when the one-liner is pinned" />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">goal</span>
+        <textarea
+          defaultValue={CONTEXT.campaign.goal}
+          rows={3}
+          className="resize-none rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">audience</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.audience}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">channels</span>
+        <div className="flex flex-wrap gap-1">
+          {CONTEXT.campaign.channels.map((channel) => (
+            <span
+              key={channel}
+              className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-mono text-2xs uppercase tracking-wide text-ink-dim"
+            >
+              {channel}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">cta</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.cta}</span>
+      </div>
+      <div className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+        <span className="font-caption text-ink-dim">active input set</span>
+        <p className="mt-1 font-caption text-xs text-ink">{summarizeInputSet(CONTEXT)}</p>
+      </div>
+    </div>
+  );
+}
+
+function OfferBody() {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">offer</span>
+        <span className="font-display text-sm text-ink">{CONTEXT.offer.name}</span>
+        <span className="font-caption text-xs text-ink-dim">{CONTEXT.offer.summary}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">claims</span>
+        <div className="flex flex-wrap gap-1">
+          {CONTEXT.offer.claims.map((claim) => (
+            <span
+              key={claim}
+              className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-caption text-xs text-ink"
+            >
+              {claim}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">hero asset</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.offer.heroAsset}</span>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeRow({ label, note }: { label: string; note: string }) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5">
+      <div className="flex flex-col">
+        <span className="font-caption text-ink">{note}</span>
+        <span className="font-caption text-xs text-ink-dim">{label}</span>
+      </div>
+    </li>
+  );
+}
+
+function BrandBody() {
+  const modeLabel = CONTEXT.workspaceMode === 'venture' ? 'venture' : 'studio';
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">{modeLabel}</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.workspaceLabel}</span>
+        <span className="font-display text-sm text-ink">{CONTEXT.brand.name}</span>
+        <span className="font-caption text-xs text-ink-dim">
+          {describeWorkspaceMode(CONTEXT.workspaceMode)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">knowledge</span>
+        <ul className="flex flex-col gap-2">
+          {CONTEXT.brand.knowledgeSources.map((source) => (
+            <KnowledgeRow key={source.id} label={source.label} note={source.note} />
+          ))}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">palette</span>
+        <div className="flex gap-1">
+          {CONTEXT.brand.palette.map((color) => (
+            <span
+              key={color}
+              title={color}
+              className="inline-block h-5 w-5 rounded-xs border border-border-soft"
+              style={{ background: color }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">type</span>
+        {CONTEXT.brand.type.map((entry) => (
+          <span key={entry} className="font-caption text-xs text-ink">
+            {entry}
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="font-caption text-ink-dim">voice</span>
+        <span className="font-caption text-xs text-ink">{CONTEXT.brand.voice}</span>
+      </div>
     </div>
   );
 }
 
 function ReferencesBody() {
   const [tab, setTab] = useState<ReferencesTabId>('images');
-  const TABS: Array<{ id: ReferencesTabId; label: string }> = [
+  const tabs: Array<{ id: ReferencesTabId; label: string }> = [
     { id: 'images', label: 'images' },
     { id: 'templates', label: 'templates' },
     { id: 'elements', label: 'elements' },
@@ -57,16 +181,16 @@ function ReferencesBody() {
   return (
     <div className="flex flex-col gap-2">
       <div role="tablist" aria-label="references" className="flex items-center gap-0.5">
-        {TABS.map((t) => {
-          const active = t.id === tab;
+        {tabs.map((tabSpec) => {
+          const active = tabSpec.id === tab;
           return (
             <button
-              key={t.id}
+              key={tabSpec.id}
               type="button"
               role="tab"
               aria-selected={active}
               aria-current={active ? 'page' : undefined}
-              onClick={() => setTab(t.id)}
+              onClick={() => setTab(tabSpec.id)}
               className={cn(
                 'rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
                 active
@@ -74,7 +198,7 @@ function ReferencesBody() {
                   : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
               )}
             >
-              {t.label}
+              {tabSpec.label}
             </button>
           );
         })}
@@ -90,30 +214,22 @@ function ReferencesBody() {
   );
 }
 
-type SignalSeed = {
-  title: string;
-  platform: string;
-  lift: string;
-};
+type SignalSeed = SignalContext;
 
-const SEED_SIGNALS: ReadonlyArray<SignalSeed> = [
-  { title: 'Clean-girl aesthetic', platform: 'TikTok EU', lift: '+341%' },
-  { title: 'Golden-hour product', platform: 'Instagram', lift: '+124%' },
-  { title: 'Slow-morning rituals', platform: 'Pinterest', lift: '+89%' },
-];
+const SEED_SIGNALS: ReadonlyArray<SignalSeed> = CONTEXT.signals;
 
 function SignalsBody() {
   return (
     <ul className="flex flex-col gap-2">
-      {SEED_SIGNALS.map((s) => (
+      {SEED_SIGNALS.map((signal) => (
         <li
-          key={s.title}
+          key={signal.id}
           className="flex items-center justify-between gap-3 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
         >
           <div className="flex flex-col">
-            <span className="font-caption text-ink">{s.title}</span>
+            <span className="font-caption text-ink">{signal.title}</span>
             <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
-              {s.platform} · {s.lift}
+              {signal.platform} · {signal.lift}
             </span>
           </div>
         </li>
@@ -122,54 +238,36 @@ function SignalsBody() {
   );
 }
 
-function BrandBody() {
-  const PALETTE = ['#0F1013', '#E8E4D6', '#C48B5E', '#7C9885', '#2E4057'];
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">palette</span>
-        <div className="flex gap-1">
-          {PALETTE.map((c) => (
-            <span
-              key={c}
-              title={c}
-              className="inline-block h-5 w-5 rounded-xs border border-border-soft"
-              style={{ background: c }}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">type</span>
-        <span className="font-display text-sm text-ink">Editorial serif</span>
-        <span className="font-caption text-xs text-ink-dim">+ mono caption</span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">voice</span>
-        <span className="font-caption text-xs text-ink">
-          slow, certain, more gesture than grammar.
-        </span>
-      </div>
-    </div>
-  );
-}
-
 /**
- * The four inputs the creator feeds into the canvas before generating:
- * a brief, pinned references (images/templates/elements), trending signals
- * to stay current, and the brand kit. Replaces the old eight operator-shaped
- * sections (sources, clusters, input-set, product, targets — all folded in
- * or deferred). Progressive disclosure: each section is icon + chip in the
- * compact column; body opens on click.
+ * The creator context rail separates what changes rarely from what changes
+ * per campaign and per run: brand knowledge, offer facts, the active campaign,
+ * pinned references, and live signals. The prompt composer remains the canvas
+ * form of the current input set, so we keep that concept out of the rail.
  */
 const LEFT_SECTIONS: ReadonlyArray<SectionSpec> = [
   {
-    id: 'brief',
-    label: 'brief',
-    icon: PencilLine,
-    summary: '1 line',
+    id: 'brand',
+    label: 'brand',
+    icon: PaintBucket,
+    summary: `${CONTEXT.brand.knowledgeSources.length} sources`,
     hasContent: true,
-    body: <BriefBody />,
+    body: <BrandBody />,
+  },
+  {
+    id: 'offer',
+    label: 'offer',
+    icon: Package2,
+    summary: `${CONTEXT.offer.claims.length} claims`,
+    hasContent: true,
+    body: <OfferBody />,
+  },
+  {
+    id: 'campaign',
+    label: 'campaign',
+    icon: Flag,
+    summary: `${CONTEXT.campaign.channels.length} channels`,
+    hasContent: true,
+    body: <CampaignBody />,
   },
   {
     id: 'references',
@@ -182,17 +280,9 @@ const LEFT_SECTIONS: ReadonlyArray<SectionSpec> = [
     id: 'signals',
     label: 'signals',
     icon: TrendingUp,
-    summary: `${SEED_SIGNALS.length} trending`,
+    summary: `${SEED_SIGNALS.length} live`,
     hasContent: true,
     body: <SignalsBody />,
-  },
-  {
-    id: 'brand',
-    label: 'brand kit',
-    icon: PaintBucket,
-    summary: '5 swatches',
-    hasContent: true,
-    body: <BrandBody />,
   },
 ];
 

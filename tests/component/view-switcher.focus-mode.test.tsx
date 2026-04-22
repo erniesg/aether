@@ -20,11 +20,11 @@ function renderShell() {
 
 /**
  * Focus is a lens — a camera/selection change on the same project, not a
- * chrome toggle. Rails stay mounted (brief, refs, signals, brand on the
- * left; versions, formats, generations on the right). The shell switches
- * the tldraw camera target via focusFrameAtIndex() — that side-effect path
- * is unit-tested in lib/canvas/focusFrame.test.ts. Here we verify the pill
- * state transitions and the fact that rails are untouched.
+ * chrome toggle. Rails stay mounted (brand, offer, campaign, refs, signals
+ * on the left; versions, formats, generations on the right). The shell
+ * switches the tldraw camera target via focusFrameAtIndex() — that
+ * side-effect path is unit-tested in lib/canvas/focusFrame.test.ts. Here we
+ * verify the pill state transitions and the fact that rails are untouched.
  */
 describe('ViewSwitcher · focus lens = camera, not chrome', () => {
   it('both rails stay mounted in canvas view (default)', () => {
@@ -39,7 +39,7 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^focus/i }));
 
     // Rails stay. This is the contract: focus is about the canvas camera,
-    // not the shell layout. Creators still need brief/refs/brand while
+    // not the shell layout. Creators still need brand/campaign/refs while
     // zoomed into a single artboard.
     expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();

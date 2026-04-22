@@ -5,26 +5,63 @@ import { LeftRail } from '@/components/rail/LeftRail';
 
 afterEach(cleanup);
 
-describe('LeftRail · collapsed to four creator-facing sections', () => {
-  it('renders exactly four rail sections in brief · references · signals · brand order', () => {
+describe('LeftRail · stable context first, run material last', () => {
+  it('renders exactly five rail sections in brand · offer · campaign · references · signals order', () => {
     const { container } = render(<LeftRail />);
 
     const sections = Array.from(
       container.querySelectorAll<HTMLElement>('[data-rail-section]')
     );
     const ids = sections.map((s) => s.dataset.railSection);
-    expect(ids).toEqual(['brief', 'references', 'signals', 'brand']);
+    expect(ids).toEqual(['brand', 'offer', 'campaign', 'references', 'signals']);
   });
 
-  it('drops the deprecated operator-shaped sections (sources, clusters, input-set, product, targets)', () => {
+  it('drops the deprecated operator-shaped sections (sources, clusters, input-set, product, brief, targets)', () => {
     const { container } = render(<LeftRail />);
 
-    const dropped = ['sources', 'clusters', 'input-set', 'product', 'targets'];
+    const dropped = ['sources', 'clusters', 'input-set', 'product', 'brief', 'targets'];
     for (const id of dropped) {
       expect(
         container.querySelector(`[data-rail-section="${id}"]`)
       ).toBeNull();
     }
+  });
+
+  it('brand section surfaces long-lived knowledge sources from site · repo · docs · assets', async () => {
+    const { container } = render(<LeftRail />);
+
+    const brandTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="brand"]'
+    );
+    expect(brandTrigger).not.toBeNull();
+    await userEvent.click(brandTrigger!);
+
+    const flyout = container.querySelector<HTMLElement>('[data-rail-flyout="brand"]');
+    expect(flyout).not.toBeNull();
+    const text = (flyout!.textContent ?? '').toLowerCase();
+    expect(text).toContain('brand site');
+    expect(text).toContain('repo');
+    expect(text).toContain('uploaded docs');
+    expect(text).toContain('assets');
+  });
+
+  it('campaign section separates the current goal from stable brand data', async () => {
+    const { container } = render(<LeftRail />);
+
+    const campaignTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="campaign"]'
+    );
+    expect(campaignTrigger).not.toBeNull();
+    await userEvent.click(campaignTrigger!);
+
+    const flyout = container.querySelector<HTMLElement>('[data-rail-flyout="campaign"]');
+    expect(flyout).not.toBeNull();
+    const text = (flyout!.textContent ?? '').toLowerCase();
+    expect(text).toContain('goal');
+    expect(text).toContain('audience');
+    expect(text).toContain('channels');
+    expect(text).toContain('cta');
+    expect(text).toContain('active input set');
   });
 
   it('references section exposes images · templates · elements tabs', async () => {

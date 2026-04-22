@@ -40,7 +40,7 @@ export interface PromptComposerProps {
   /** Which input set is currently driving generation. Undefined / empty
    * means there is no pinned material — the prompt will run with no refs. */
   activeInputSet?: string;
-  /** Count of pinned inputs (refs + brand + product + brief items). Drives the chip label. */
+  /** Count of pinned inputs (refs + brand + offer + campaign items). Drives the chip label. */
   inputCount?: number;
   /** Number of linked formats on the canvas — drives the "apply to all · N formats" chip. */
   formatCount?: number;

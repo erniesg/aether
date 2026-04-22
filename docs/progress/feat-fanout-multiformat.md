@@ -9,7 +9,7 @@ Updated: 2026-04-23
 - [x] Ship true streamed `/api/generate` events into the workspace UI
 - [x] Fix canvas chrome hierarchy so rails own the edge of the shell
 - [x] Write SAM / promptable segmentation decision doc
-- [ ] Define brief / brand / campaign information model and add scaffolding
+- [x] Define brief / brand / campaign information model and add scaffolding
 
 ## Notes
 
@@ -19,3 +19,4 @@ Updated: 2026-04-23
 - Local validation on `http://127.0.0.1:3001/workspace/demo-ws?provider=openai&bypass=1` showed activity visible after about 2.1s and final placement after about 49.2s.
 - Local validation on the formats flyout shows no native tldraw chrome at the right edge; `.tlui-style-panel` and `.tlui-toolbar` both resolve to zero instances.
 - Segmentation decision is now recorded locally: use a hosted remove-background backend first, add a dedicated segmentation provider seam next, and treat SAM 3 as a future GPU-backed service rather than an in-worker dependency.
+- Left rail now scaffolds `brand -> offer -> campaign -> references -> signals`, backed by a typed creator-context model; the composer remains the canvas-side form of the active input set.
