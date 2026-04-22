@@ -2,6 +2,11 @@
 
 import { X } from 'lucide-react';
 import type { BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
+import {
+  KNOWN_SEGMENTATION_PROVIDER_IDS,
+  type SegmentationProviderId,
+  type SegmentationProviderStatus,
+} from '@/lib/providers/segmentation/types';
 
 export interface SegmentationPreviewPayload {
   sourceDataUrl: string;
@@ -16,14 +21,16 @@ export interface SegmentationPreviewPayload {
 export interface SegmentationPanelProps {
   open: boolean;
   verb: 'cutout' | 'removebg' | 'unmask';
-  providerId: 'sam2' | 'sam3';
+  providerId: SegmentationProviderId;
+  providers: ReadonlyArray<SegmentationProviderStatus>;
+  providerStatusLoading?: boolean;
   prompt: string;
   loading?: boolean;
   approved?: boolean;
   error?: string;
   backgroundFill: BackgroundFillSpec;
   onPromptChange: (value: string) => void;
-  onProviderChange: (value: 'sam2' | 'sam3') => void;
+  onProviderChange: (value: SegmentationProviderId) => void;
   onPreview: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -53,6 +60,8 @@ export function SegmentationPanel({
   open,
   verb,
   providerId,
+  providers,
+  providerStatusLoading = false,
   prompt,
   loading = false,
   approved = false,
@@ -75,6 +84,16 @@ export function SegmentationPanel({
 }: SegmentationPanelProps) {
   if (!open) return null;
 
+  const providerById = new Map(providers.map((provider) => [provider.id, provider]));
+  const activeProvider = providerById.get(providerId);
+  const activeProviderSupportsTextPrompt = activeProvider?.supportsTextPrompt ?? true;
+  const hasAvailableProvider = providers.some((provider) => provider.available);
+  const previewDisabled =
+    loading ||
+    providerStatusLoading ||
+    !hasAvailableProvider ||
+    activeProvider?.available === false;
+
   return (
     <aside className="pointer-events-auto absolute bottom-6 left-6 z-20 w-80 rounded-md border border-border bg-surface-panel p-3 shadow-md">
       <div className="flex items-start justify-between gap-3">
@@ -94,17 +113,23 @@ export function SegmentationPanel({
 
       <div className="mt-3 flex flex-col gap-3">
         <div className="flex items-center gap-1">
-          {(['sam3', 'sam2'] as const).map((id) => {
+          {KNOWN_SEGMENTATION_PROVIDER_IDS.map((id) => {
             const active = providerId === id;
+            const provider = providerById.get(id);
+            const disabled = providerStatusLoading || provider?.available === false;
             return (
               <button
                 key={id}
                 type="button"
                 onClick={() => onProviderChange(id)}
+                disabled={disabled}
+                title={provider?.unavailableReason}
                 className={`rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors ${
                   active
                     ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+                    : disabled
+                      ? 'cursor-not-allowed border-border-soft bg-surface-panel-muted text-ink-faint opacity-60'
+                      : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
                 }`}
               >
                 {id}
@@ -113,12 +138,30 @@ export function SegmentationPanel({
           })}
         </div>
 
+        {providerStatusLoading ? (
+          <p className="font-caption text-2xs text-ink-dim">checking cutout providers…</p>
+        ) : null}
+
+        {!providerStatusLoading && activeProvider && !activeProviderSupportsTextPrompt ? (
+          <p className="font-caption text-2xs text-ink-dim">
+            {providerId} uses automatic masks. text prompt support lives on sam3.
+          </p>
+        ) : null}
+
         <label className="flex flex-col gap-1">
           <span className="font-caption text-ink-dim">prompt</span>
           <input
+            aria-label="prompt"
             value={prompt}
             onChange={(event) => onPromptChange(event.target.value)}
-            placeholder={verb === 'removebg' ? 'main subject' : 'person holding the product'}
+            disabled={!activeProviderSupportsTextPrompt}
+            placeholder={
+              activeProviderSupportsTextPrompt
+                ? verb === 'removebg'
+                  ? 'main subject'
+                  : 'person holding the product'
+                : 'automatic masks only'
+            }
             className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 font-caption text-xs text-ink outline-none transition-colors focus:border-accent"
           />
         </label>
@@ -127,10 +170,14 @@ export function SegmentationPanel({
           <button
             type="button"
             onClick={onPreview}
-            disabled={loading}
+            disabled={previewDisabled}
             className="rounded-sm bg-accent px-3 py-1.5 font-caption text-xs text-ink-on-accent transition-opacity disabled:opacity-60"
           >
-            {loading ? 'previewing…' : 'preview outline'}
+            {providerStatusLoading
+              ? 'checking providers…'
+              : loading
+                ? 'previewing…'
+                : 'preview outline'}
           </button>
           <button
             type="button"

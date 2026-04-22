@@ -1,4 +1,7 @@
 export type SegmentationMode = 'removebg' | 'cutout' | 'unmask';
+export const KNOWN_SEGMENTATION_PROVIDER_IDS = ['sam3', 'sam2'] as const;
+export type SegmentationProviderId =
+  (typeof KNOWN_SEGMENTATION_PROVIDER_IDS)[number];
 
 export interface SegmentationBoxPrompt {
   x: number;
@@ -23,7 +26,7 @@ export interface SegmentationRequest {
 }
 
 export interface SegmentationResult {
-  provider: string;
+  provider: SegmentationProviderId;
   model: string;
   maskUrl: string;
   alphaCutoutUrl?: string;
@@ -33,11 +36,21 @@ export interface SegmentationResult {
   raw?: unknown;
 }
 
+export interface SegmentationProviderStatus {
+  id: SegmentationProviderId;
+  displayName: string;
+  models: string[];
+  supportsTextPrompt: boolean;
+  available: boolean;
+  unavailableReason?: string;
+}
+
 export interface SegmentationProvider {
-  id: string;
+  id: SegmentationProviderId;
   displayName: string;
   supportsTextPrompt: boolean;
   isAvailable(): boolean;
+  getAvailabilityIssue(): string | undefined;
   listModels(): string[];
   segment(req: SegmentationRequest, opts: { model: string }): Promise<SegmentationResult>;
 }

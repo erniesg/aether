@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import {
-  listAvailableSegmentationProviders,
+  KNOWN_SEGMENTATION_PROVIDER_IDS,
+  listSegmentationProviders,
   resolveSegmentationProvider,
 } from '@/lib/providers/segmentation/registry';
-import type { SegmentationMode } from '@/lib/providers/segmentation/types';
+import type {
+  SegmentationMode,
+  SegmentationProviderStatus,
+} from '@/lib/providers/segmentation/types';
 import {
   SegmentationError,
   SegmentationUnavailableError,
@@ -16,8 +20,21 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function jsonError(status: number, error: string, code?: string) {
-  return NextResponse.json(code ? { ok: false, error, code } : { ok: false, error }, { status });
+function jsonError(
+  status: number,
+  error: string,
+  code?: string,
+  extras?: { providers?: SegmentationProviderStatus[] }
+) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error,
+      ...(code ? { code } : {}),
+      ...(extras?.providers ? { providers: extras.providers } : {}),
+    },
+    { status }
+  );
 }
 
 function parseMode(value: unknown): SegmentationMode | null {
@@ -33,7 +50,7 @@ function parsePositiveNumber(value: unknown): number | undefined {
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    providers: listAvailableSegmentationProviders(),
+    providers: listSegmentationProviders(),
   });
 }
 
@@ -64,6 +81,18 @@ export async function POST(request: Request) {
 
   if (!mode) {
     return jsonError(400, 'mode must be one of removebg, cutout, unmask');
+  }
+
+  if (
+    providerId &&
+    !KNOWN_SEGMENTATION_PROVIDER_IDS.includes(
+      providerId as (typeof KNOWN_SEGMENTATION_PROVIDER_IDS)[number]
+    )
+  ) {
+    return jsonError(
+      400,
+      `providerId must be one of ${KNOWN_SEGMENTATION_PROVIDER_IDS.join(', ')}`
+    );
   }
 
   if (!width || !height) {
@@ -116,7 +145,9 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     if (err instanceof SegmentationUnavailableError) {
-      return jsonError(503, err.message, 'provider_unavailable');
+      return jsonError(503, err.message, 'provider_unavailable', {
+        providers: listSegmentationProviders(),
+      });
     }
 
     if (err instanceof SegmentationError) {

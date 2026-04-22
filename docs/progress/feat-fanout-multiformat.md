@@ -24,4 +24,5 @@ Updated: 2026-04-23
 - Left rail now scaffolds `brand -> offer -> campaign -> references -> signals`, backed by a typed creator-context model; the composer remains the canvas-side form of the active input set.
 - `/api/segment` now exists with `sam2` and `sam3` adapters. `sam2` is currently official Replicate auto-mask generation; `sam3` is the prompt-based path via a Modal endpoint.
 - Selected image layers now support previewing a segmentation overlay, approving the cutout, and painting a solid or gradient background with opacity behind the result. Live provider validation is still blocked on missing local segmentation credentials.
+- The segmentation panel now asks `/api/segment` for provider status, disables unavailable `sam2` / `sam3` chips, and shows an explicit empty-provider state instead of silently falling through.
 - Creator-friendly version history is now captured as a follow-up issue in `docs/issues/2026-04-23-design-version-history.md`.

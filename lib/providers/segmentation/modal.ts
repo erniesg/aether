@@ -26,6 +26,8 @@ export function createModalSam3Provider(
     displayName: 'SAM 3 via Modal',
     supportsTextPrompt: true,
     isAvailable: () => Boolean(endpoint),
+    getAvailabilityIssue: () =>
+      endpoint ? undefined : 'SAM 3 is not connected',
     listModels: () => ['sam3.1', 'sam3'],
 
     async segment(

@@ -23,6 +23,10 @@ import type {
 import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
+import type {
+  SegmentationProviderId,
+  SegmentationProviderStatus,
+} from '@/lib/providers/segmentation/types';
 import { useEditorRef } from '@/lib/store/editor-ref';
 
 /**
@@ -60,7 +64,7 @@ type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
 
 interface SegmentationDraft {
   verb: SegmentationVerb;
-  providerId: 'sam2' | 'sam3';
+  providerId: SegmentationProviderId;
   prompt: string;
   loading: boolean;
   approved: boolean;
@@ -68,6 +72,35 @@ interface SegmentationDraft {
   preview?: SegmentationPreviewPayload;
   targetShapeId: string;
 }
+
+const SEGMENTATION_PROVIDER_NAMES: Record<SegmentationProviderId, string> = {
+  sam3: 'SAM 3',
+  sam2: 'SAM 2',
+};
+
+const DEFAULT_SEGMENTATION_PROVIDERS: SegmentationProviderStatus[] = [
+  {
+    id: 'sam3',
+    displayName: 'SAM 3 via Modal',
+    models: ['sam3.1', 'sam3'],
+    supportsTextPrompt: true,
+    available: false,
+    unavailableReason: 'checking availability',
+  },
+  {
+    id: 'sam2',
+    displayName: 'SAM 2 via Replicate',
+    models: ['meta/sam-2'],
+    supportsTextPrompt: false,
+    available: false,
+    unavailableReason: 'checking availability',
+  },
+];
+
+const NO_SEGMENTATION_PROVIDER_ERROR =
+  "Segmentation isn't connected here yet. Add SAM 3 or Replicate SAM 2 to preview cutouts.";
+const SEGMENTATION_PROVIDER_CHECK_ERROR =
+  "Couldn't check cutout providers. Try again in a moment.";
 
 const DEFAULT_BACKGROUND_FILL: BackgroundFillSpec = {
   mode: 'solid',
@@ -86,6 +119,27 @@ function defaultPromptForVerb(verb: SegmentationVerb): string {
     default:
       return '';
   }
+}
+
+function pickAvailableSegmentationProvider(
+  providers: ReadonlyArray<SegmentationProviderStatus>,
+  preferredId: SegmentationProviderId = 'sam3'
+): SegmentationProviderId | null {
+  const preferred = providers.find(
+    (provider) => provider.id === preferredId && provider.available
+  );
+  if (preferred) return preferred.id;
+  return providers.find((provider) => provider.available)?.id ?? null;
+}
+
+function formatSegmentationProviderError(
+  providers: ReadonlyArray<SegmentationProviderStatus>,
+  preferredId?: SegmentationProviderId
+) {
+  const fallback = pickAvailableSegmentationProvider(providers, preferredId);
+  if (!fallback) return NO_SEGMENTATION_PROVIDER_ERROR;
+  if (!preferredId || preferredId === fallback) return '';
+  return `${SEGMENTATION_PROVIDER_NAMES[preferredId]} isn't available here yet. Switch to ${SEGMENTATION_PROVIDER_NAMES[fallback]} to preview the cutout.`;
 }
 
 function findBackgroundShapeId(editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>, imageShapeId: string) {
@@ -127,6 +181,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
   const [backgroundFill, setBackgroundFill] =
     useState<BackgroundFillSpec>(DEFAULT_BACKGROUND_FILL);
+  const [segmentationProviders, setSegmentationProviders] = useState<
+    SegmentationProviderStatus[]
+  >(DEFAULT_SEGMENTATION_PROVIDERS);
+  const [segmentationProvidersLoading, setSegmentationProvidersLoading] =
+    useState(false);
   const { editor } = useEditorRef();
 
   const focusComposer = useCallback(() => {
@@ -192,16 +251,22 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         return;
       }
 
+      const providerId =
+        pickAvailableSegmentationProvider(segmentationProviders, 'sam3') ?? 'sam3';
+
       setSegmentation({
         verb,
-        providerId: 'sam3',
+        providerId,
         prompt: defaultPromptForVerb(verb),
         loading: false,
         approved: false,
+        error: pickAvailableSegmentationProvider(segmentationProviders, providerId)
+          ? undefined
+          : NO_SEGMENTATION_PROVIDER_ERROR,
         targetShapeId: selectedImage.shapeId,
       });
     },
-    [onVerbPress, selectedImage]
+    [onVerbPress, segmentationProviders, selectedImage]
   );
 
   const handleVerb = useCallback(
@@ -217,6 +282,27 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   const handlePreviewSegmentation = useCallback(async () => {
     if (!segmentation || !selectedImage) return;
+
+    const activeProvider = segmentationProviders.find(
+      (provider) => provider.id === segmentation.providerId
+    );
+
+    if (segmentationProvidersLoading) return;
+
+    if (!activeProvider?.available) {
+      setSegmentation((current) =>
+        current
+          ? {
+              ...current,
+              error: formatSegmentationProviderError(
+                segmentationProviders,
+                current.providerId
+              ),
+            }
+          : current
+      );
+      return;
+    }
 
     setSegmentation((current) =>
       current ? { ...current, loading: true, error: undefined, approved: false } : current
@@ -239,12 +325,23 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       const json = (await response.json()) as {
         ok?: boolean;
         error?: string;
-        provider?: { id: 'sam2' | 'sam3'; model: string };
+        code?: string;
+        provider?: { id: SegmentationProviderId; model: string };
+        providers?: SegmentationProviderStatus[];
         preview?: SegmentationPreviewPayload;
       };
 
       if (!response.ok || !json.ok || !json.preview) {
-        throw new Error(json.error ?? response.statusText);
+        if (json.providers) {
+          setSegmentationProviders(json.providers);
+        }
+
+        const providerError =
+          json.code === 'provider_unavailable' && json.providers
+            ? formatSegmentationProviderError(json.providers, segmentation.providerId)
+            : undefined;
+
+        throw new Error(providerError || json.error || response.statusText);
       }
 
       setSegmentation((current) =>
@@ -270,7 +367,76 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           : current
       );
     }
-  }, [segmentation, selectedImage]);
+  }, [
+    segmentation,
+    segmentationProviders,
+    segmentationProvidersLoading,
+    selectedImage,
+  ]);
+
+  useEffect(() => {
+    if (!segmentation) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    setSegmentationProvidersLoading(true);
+
+    fetch('/api/segment', { signal: controller.signal })
+      .then(async (response) => {
+        const json = (await response.json()) as {
+          ok?: boolean;
+          error?: string;
+          providers?: SegmentationProviderStatus[];
+        };
+
+        if (!response.ok || !json.ok || !json.providers) {
+          throw new Error(json.error ?? response.statusText);
+        }
+
+        if (cancelled) return;
+
+        const providers = json.providers;
+        setSegmentationProviders(providers);
+        setSegmentation((current) => {
+          if (!current) return current;
+          const nextProviderId =
+            pickAvailableSegmentationProvider(providers, current.providerId) ??
+            current.providerId;
+          const providerError = formatSegmentationProviderError(providers, current.providerId);
+          return {
+            ...current,
+            providerId: nextProviderId,
+            error: providerError || current.error,
+          };
+        });
+      })
+      .catch((error) => {
+        if (cancelled || controller.signal.aborted) return;
+        setSegmentationProviders(DEFAULT_SEGMENTATION_PROVIDERS);
+        setSegmentation((current) =>
+          current
+            ? {
+                ...current,
+                error:
+                  error instanceof Error && error.name === 'AbortError'
+                    ? current.error
+                    : SEGMENTATION_PROVIDER_CHECK_ERROR,
+              }
+            : current
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSegmentationProvidersLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [segmentation?.targetShapeId]);
 
   const handleApproveSegmentation = useCallback(() => {
     if (!editor || !selectedImage || !segmentation?.preview) return;
@@ -421,6 +587,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         open={segmentation !== null}
         verb={segmentation?.verb ?? 'removebg'}
         providerId={segmentation?.providerId ?? 'sam3'}
+        providers={segmentationProviders}
+        providerStatusLoading={segmentationProvidersLoading}
         prompt={segmentation?.prompt ?? ''}
         loading={segmentation?.loading}
         approved={segmentation?.approved}
