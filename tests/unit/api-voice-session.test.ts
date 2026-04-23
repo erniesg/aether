@@ -85,6 +85,43 @@ describe('/api/voice/session', () => {
     expect(session.clientSecret).toBe('ek');
   });
 
+  it('mints a Gemini Live auth token and never surfaces the primary Google key', async () => {
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-primary-must-not-leak';
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-native-audio';
+    process.env.GEMINI_LIVE_VOICE = 'Kore';
+
+    const issueGeminiTokenImpl = vi.fn(async (params: {
+      apiKey: string;
+      model: string;
+      voice: string;
+    }) => {
+      expect(params).toEqual({
+        apiKey: 'gk-primary-must-not-leak',
+        model: 'gemini-live-2.5-flash-native-audio',
+        voice: 'Kore',
+      });
+      return {
+        name: 'tokens/ephemeral_gemini_123',
+        expireTime: new Date(Date.now() + 60_000).toISOString(),
+      };
+    });
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({ issueGeminiTokenImpl });
+
+    expect(session).toEqual(
+      expect.objectContaining({
+        sessionId: 'tokens/ephemeral_gemini_123',
+        clientSecret: 'tokens/ephemeral_gemini_123',
+        model: 'gemini-live-2.5-flash-native-audio',
+        voice: 'Kore',
+        provider: 'gemini-live',
+      })
+    );
+    expect(JSON.stringify(session)).not.toContain('gk-primary-must-not-leak');
+  });
+
   it('returns 503 when OPENAI_API_KEY is missing', async () => {
     delete process.env.OPENAI_API_KEY;
     const { POST } = await import('@/app/api/voice/session/route');
@@ -93,6 +130,17 @@ describe('/api/voice/session', () => {
     const json = await response.json();
     expect(json.ok).toBe(false);
     expect(json.error).toMatch(/OPENAI_API_KEY/);
+  });
+
+  it('returns 503 when GOOGLE_GEMINI_API_KEY is missing', async () => {
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    delete process.env.GOOGLE_GEMINI_API_KEY;
+    const { POST } = await import('@/app/api/voice/session/route');
+    const response = await POST();
+    expect(response.status).toBe(503);
+    const json = await response.json();
+    expect(json.ok).toBe(false);
+    expect(json.error).toMatch(/GOOGLE_GEMINI_API_KEY/);
   });
 
   it('returns 502 when OpenAI rejects the session request', async () => {
@@ -115,5 +163,25 @@ describe('/api/voice/session', () => {
       })
     );
     expect(JSON.stringify(json)).not.toContain('sk-test');
+  });
+
+  it('GET reports Gemini Live defaults and configuration state without exposing secrets', async () => {
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-test';
+    process.env.GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-native-audio';
+    process.env.GEMINI_LIVE_VOICE = 'Kore';
+    const { GET } = await import('@/app/api/voice/session/route');
+    const response = await GET();
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        ok: true,
+        provider: 'gemini-live',
+        model: 'gemini-live-2.5-flash-native-audio',
+        voice: 'Kore',
+        configured: true,
+      })
+    );
+    expect(JSON.stringify(json)).not.toContain('gk-test');
   });
 });

@@ -4,13 +4,17 @@
 # Core agent
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Voice — OpenAI Realtime is the default; provider is swappable at runtime.
-# The primary OPENAI_API_KEY is used server-side only, to mint ephemeral
-# client_secret tokens for the browser. Never ship the primary key to the
-# client.
+# Voice — provider is swappable at runtime.
+# OpenAI uses OPENAI_API_KEY server-side only to mint ephemeral client_secret
+# tokens for the browser. Gemini Live uses GOOGLE_GEMINI_API_KEY server-side
+# to mint short-lived auth tokens for the browser.
 VOICE_PROVIDER=openai-realtime
 VOICE_MODEL=gpt-4o-realtime-preview
 VOICE_VOICE=alloy
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview
+OPENAI_REALTIME_VOICE=alloy
+GEMINI_LIVE_MODEL=gemini-live-2.5-flash-native-audio
+GEMINI_LIVE_VOICE=Kore
 
 # Image gen providers (pick any subset — provider is selected at runtime)
 OPENAI_API_KEY=sk-...
