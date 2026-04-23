@@ -22,6 +22,8 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: 1496938045876731955
           CAPABILITY_LABEL: capability authoring
           HUMAN_REVIEW_ACTION: review the capability authoring result and decide whether to merge
           HUMAN_REVIEW_REASON: aether item was explicitly labeled route-human

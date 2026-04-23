@@ -15,6 +15,7 @@ Tracks the initial setup for capability authoring and human review routing.
   - author a new skill over an existing tool or workflow
   - author a new tool when no execution primitive exists yet
 - add a repo-native `route-human` review contract for Discord notifications
+- route `route-human` notifications to Discord channel `1496938045876731955`
 - keep the first implementation artifact-first and provider-agnostic
 
 ## Managed-agent setup plan
@@ -27,5 +28,6 @@ Tracks the initial setup for capability authoring and human review routing.
 ## Notes
 
 - Discord delivery is intentionally label-driven so review escalation stays explicit.
-- The workflow fails closed when no Discord webhook secret is configured.
+- The workflow prefers webhook delivery when configured, and otherwise falls back to `DISCORD_BOT_TOKEN` + the fixed channel id `1496938045876731955`.
+- The workflow fails closed when neither webhook nor bot-token delivery is configured.
 - The gaussian-splat issue is treated as the first proving seam, not as the first foundation slice.

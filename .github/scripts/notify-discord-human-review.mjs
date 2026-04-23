@@ -30,8 +30,12 @@ function buildMessage({ route, capabilityLabel, requestedAction, reason, issue, 
 
 async function main() {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK;
-  if (!webhookUrl) {
-    console.log('DISCORD_WEBHOOK_URL/DISCORD_WEBHOOK not set; skipping route-human notification.');
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  const channelId = process.env.DISCORD_CHANNEL_ID;
+  if (!webhookUrl && !(botToken && channelId)) {
+    console.log(
+      'DISCORD_WEBHOOK_URL/DISCORD_WEBHOOK or DISCORD_BOT_TOKEN+DISCORD_CHANNEL_ID not set; skipping route-human notification.'
+    );
     return;
   }
 
@@ -69,14 +73,29 @@ async function main() {
     branch,
   });
 
-  const response = await fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content }),
-  });
+  if (webhookUrl) {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Discord webhook failed with HTTP ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Discord webhook failed with HTTP ${response.status}`);
+    }
+  } else {
+    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bot ${botToken}`,
+      },
+      body: JSON.stringify({ content }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Discord API failed with HTTP ${response.status}`);
+    }
   }
 
   console.log('Sent route-human Discord notification.');
