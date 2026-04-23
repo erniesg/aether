@@ -1,10 +1,9 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   AssetRecordType,
-  DefaultColorStyle,
   DefaultFillStyle,
   type IndexKey,
   getIndexBelow,
@@ -17,7 +16,6 @@ import { SegmentationPreviewOverlay } from './SegmentationPreviewOverlay';
 import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
 import { SelectedImageActions } from './SelectedImageActions';
 import type {
-  PrimitiveTool,
   Scope,
   ToolbarStyleAction,
   ToolbarVerb,
@@ -25,6 +23,17 @@ import type {
 import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
 import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
+import {
+  DEFAULT_SKETCH_BRUSH_STATE,
+  type PrimitiveTool,
+  type SketchBrushColor,
+  type SketchBrushSize,
+  type SketchBrushState,
+} from '@/lib/canvas/sketchBrush';
+import {
+  applyPrimitiveTool,
+  applySketchBrushStyles,
+} from '@/lib/canvas/sketchBrushEditor';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
 import { placeSpatialPreviewOnCanvas } from '@/lib/spatial/canvas';
 import type {
@@ -34,6 +43,7 @@ import type {
   SegmentationPointPrompt,
   SegmentationRefinementMode,
 } from '@/lib/providers/segmentation/types';
+import type { ImageElementSuggestion } from '@/lib/providers/vision/types';
 import { inferDataUrlMimeType } from '@/lib/segment/dataUrl';
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { failRun, finishRun, startRun, stepRun } from '@/lib/store/runs';
@@ -116,9 +126,12 @@ interface SegmentationDraft {
   box?: SegmentationBoxPrompt;
   loading: boolean;
   plateLoading: boolean;
+  elementsLoading: boolean;
   approved: boolean;
   previewVisible: boolean;
   activeRegionId: string | null;
+  elementsSummary?: string;
+  elements?: ImageElementSuggestion[];
   generatedPlate?: GeneratedPlatePreview;
   runId?: string;
   error?: string;
@@ -248,6 +261,20 @@ function findBackgroundShapeId(editor: NonNullable<ReturnType<typeof useEditorRe
         (candidate.meta as Record<string, unknown> | undefined)?.aetherForShapeId === imageShapeId
     );
   return shape?.id ?? null;
+}
+
+function resolveClearableSketchShapeIds(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>,
+  sessionShapeIds: readonly string[]
+) {
+  const activeSessionShapeIds = sessionShapeIds.filter(
+    (id) => editor.getShape(id as never)?.type === 'draw'
+  );
+  if (activeSessionShapeIds.length > 0) return activeSessionShapeIds;
+
+  return editor
+    .getSelectedShapeIds()
+    .filter((id) => editor.getShape(id)?.type === 'draw');
 }
 
 function upsertBackgroundAsset(params: {
@@ -400,6 +427,10 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   voiceEnabled = true,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
+  const [sketchBrush, setSketchBrush] = useState<SketchBrushState>(
+    DEFAULT_SKETCH_BRUSH_STATE
+  );
+  const [sketchSessionShapeIds, setSketchSessionShapeIds] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
   const [backgroundFill, setBackgroundFill] =
@@ -409,6 +440,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   >(DEFAULT_SEGMENTATION_PROVIDERS);
   const [segmentationProvidersLoading, setSegmentationProvidersLoading] =
     useState(false);
+  const trackedDrawShapeIds = useRef<Set<string>>(new Set());
   const { editor } = useEditorRef();
 
   const focusComposer = useCallback(() => {
@@ -417,43 +449,96 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   const handlePrimitiveToolPress = useCallback(
     (tool: PrimitiveTool) => {
-      editor?.setCurrentTool(tool);
+      setSketchBrush((current) => ({ ...current, tool }));
+      if (!editor) return;
+      applyPrimitiveTool(editor, tool);
     },
     [editor]
   );
 
+  const handleBrushColorChange = useCallback((color: SketchBrushColor) => {
+    setSketchBrush((current) => ({ ...current, color }));
+  }, []);
+
+  const handleBrushSizeChange = useCallback((size: SketchBrushSize) => {
+    setSketchBrush((current) => ({ ...current, size }));
+  }, []);
+
   const handleStyleAction = useCallback(
     (action: ToolbarStyleAction) => {
-      if (!editor) return;
       switch (action) {
         case 'color-black':
-          editor.setStyleForSelectedShapes(DefaultColorStyle, 'black');
-          editor.setStyleForNextShapes(DefaultColorStyle, 'black');
+          handleBrushColorChange('black');
+          return;
+        case 'color-white':
+          handleBrushColorChange('white');
           return;
         case 'color-blue':
-          editor.setStyleForSelectedShapes(DefaultColorStyle, 'blue');
-          editor.setStyleForNextShapes(DefaultColorStyle, 'blue');
+          handleBrushColorChange('blue');
+          return;
+        case 'color-brand-primary':
+          handleBrushColorChange('brand-primary');
+          return;
+        case 'color-brand-accent':
+          handleBrushColorChange('brand-accent');
+          return;
+        case 'size-small':
+          handleBrushSizeChange('small');
+          return;
+        case 'size-medium':
+          handleBrushSizeChange('medium');
+          return;
+        case 'size-large':
+          handleBrushSizeChange('large');
           return;
         case 'fill-solid':
+          if (!editor) return;
           editor.setStyleForSelectedShapes(DefaultFillStyle, 'solid');
           editor.setStyleForNextShapes(DefaultFillStyle, 'solid');
           return;
         case 'fill-none':
+          if (!editor) return;
           editor.setStyleForSelectedShapes(DefaultFillStyle, 'none');
           editor.setStyleForNextShapes(DefaultFillStyle, 'none');
       }
     },
-    [editor]
+    [editor, handleBrushColorChange, handleBrushSizeChange]
   );
 
   useEffect(() => {
+    if (!editor) return;
+    applySketchBrushStyles(editor, sketchBrush);
+  }, [editor, sketchBrush.color, sketchBrush.size]);
+
+  useEffect(() => {
     if (!editor) {
+      trackedDrawShapeIds.current = new Set();
+      setSketchSessionShapeIds([]);
       setSelectedImage(null);
       setSegmentation(null);
       return;
     }
 
     const sync = () => {
+      const currentDrawShapeIds = editor
+        .getCurrentPageShapes()
+        .filter((shape) => shape.type === 'draw')
+        .map((shape) => String(shape.id));
+      const nextTrackedDrawShapeIds = new Set(currentDrawShapeIds);
+      const newDrawShapeIds = currentDrawShapeIds.filter(
+        (id) => !trackedDrawShapeIds.current.has(id)
+      );
+      trackedDrawShapeIds.current = nextTrackedDrawShapeIds;
+      setSketchSessionShapeIds((current) => {
+        const stillPresent = current.filter((id) => nextTrackedDrawShapeIds.has(id));
+        if (newDrawShapeIds.length === 0 || sketchBrush.tool !== 'draw') return stillPresent;
+        const known = new Set(stillPresent);
+        return [
+          ...stillPresent,
+          ...newDrawShapeIds.filter((id) => !known.has(id)),
+        ];
+      });
+
       const next = getSelectedImageInfo(editor);
       setSelectedImage(next);
       setSegmentation((current) => {
@@ -469,7 +554,27 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
     sync();
     return editor.store.listen(sync);
-  }, [editor]);
+  }, [editor, sketchBrush.tool]);
+
+  const handleClearSketch = useCallback(() => {
+    if (!editor) return;
+    const shapeIds = resolveClearableSketchShapeIds(editor, sketchSessionShapeIds);
+    if (shapeIds.length === 0) return;
+    editor.deleteShapes(shapeIds as never);
+    setSketchSessionShapeIds([]);
+  }, [editor, sketchSessionShapeIds]);
+
+  const handleConfirmSketch = useCallback(() => {
+    if (!editor) return;
+    const shapeIds = sketchSessionShapeIds.filter(
+      (id) => editor.getShape(id as never)?.type === 'draw'
+    );
+    if (shapeIds.length > 0) {
+      editor.setSelectedShapes(shapeIds as never);
+    }
+    setSketchSessionShapeIds([]);
+    handlePrimitiveToolPress('select');
+  }, [editor, handlePrimitiveToolPress, sketchSessionShapeIds]);
 
   const openSegmentation = useCallback(
     (verb: SegmentationVerb) => {
@@ -492,9 +597,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         box: undefined,
         loading: false,
         plateLoading: false,
+        elementsLoading: true,
         approved: false,
         previewVisible: false,
         activeRegionId: null,
+        elementsSummary: undefined,
+        elements: undefined,
         error: pickAvailableSegmentationProvider(segmentationProviders, providerId)
           ? undefined
           : NO_SEGMENTATION_PROVIDER_ERROR,
@@ -930,6 +1038,81 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     };
   }, [segmentation?.targetShapeId]);
 
+  useEffect(() => {
+    if (!segmentation?.target.sourceUrl) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+    const targetShapeId = segmentation.targetShapeId;
+
+    setSegmentation((current) =>
+      current && current.targetShapeId === targetShapeId
+        ? {
+            ...current,
+            elementsLoading: true,
+            elementsSummary: undefined,
+            elements: undefined,
+          }
+        : current
+    );
+
+    fetch('/api/segment/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceUrl: segmentation.target.sourceUrl,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const json = (await response.json()) as {
+          ok?: boolean;
+          inventory?: {
+            summary?: string;
+            elements?: ImageElementSuggestion[];
+          };
+        };
+
+        if (!response.ok || !json.ok || !json.inventory) {
+          throw new Error(response.statusText);
+        }
+
+        if (cancelled) return;
+
+        setSegmentation((current) =>
+          current && current.targetShapeId === targetShapeId
+            ? {
+                ...current,
+                elementsLoading: false,
+                elementsSummary: json.inventory?.summary,
+                elements: Array.isArray(json.inventory?.elements)
+                  ? json.inventory.elements
+                  : [],
+              }
+            : current
+        );
+      })
+      .catch((error) => {
+        if (cancelled || controller.signal.aborted) return;
+        if (error instanceof Error && error.name === 'AbortError') return;
+        setSegmentation((current) =>
+          current && current.targetShapeId === targetShapeId
+            ? {
+                ...current,
+                elementsLoading: false,
+                elementsSummary: undefined,
+                elements: [],
+              }
+            : current
+        );
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [segmentation?.targetShapeId, segmentation?.target.sourceUrl]);
+
   const handleSegmentationRefinementModeChange = useCallback(
     (mode: SegmentationRefinementMode | null) => {
       setSegmentation((current) =>
@@ -1281,6 +1464,21 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       remove_background: () => {
         openSegmentation('removebg');
       },
+      select_tool: ({ tool }) => {
+        handlePrimitiveToolPress(tool);
+      },
+      set_brush_color: ({ color }) => {
+        handleBrushColorChange(color);
+      },
+      set_brush_size: ({ size }) => {
+        handleBrushSizeChange(size);
+      },
+      clear_sketch: () => {
+        handleClearSketch();
+      },
+      confirm_sketch: () => {
+        handleConfirmSketch();
+      },
       run_capability: ({ definitionId }) => {
         onCapabilityPress?.(definitionId);
       },
@@ -1288,7 +1486,17 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         await onVoiceGenerate?.(prompt, scope ?? 'single');
       },
     }),
-    [editor, onCapabilityPress, onVoiceGenerate, openSegmentation]
+    [
+      editor,
+      handleBrushColorChange,
+      handleBrushSizeChange,
+      handleClearSketch,
+      handleConfirmSketch,
+      handlePrimitiveToolPress,
+      onCapabilityPress,
+      onVoiceGenerate,
+      openSegmentation,
+    ]
   );
 
   const handleVoiceCaption = useCallback((event: VoiceCaptionEvent) => {
@@ -1327,6 +1535,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onScopeChange={setScope}
         safeZonesVisible={safeZonesVisible}
         onSafeZonesToggle={onSafeZonesToggle}
+        activePrimitiveTool={sketchBrush.tool}
+        brushState={sketchBrush}
         onPrimitiveToolPress={handlePrimitiveToolPress}
         onStyleAction={handleStyleAction}
         onAIPress={focusComposer}
@@ -1387,6 +1597,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         loading={segmentation?.loading}
         approved={segmentation?.approved}
         error={segmentation?.error}
+        elementsLoading={segmentation?.elementsLoading}
+        elementsSummary={segmentation?.elementsSummary}
+        elements={segmentation?.elements}
         preview={activeSegmentationPreview}
         previewVisible={segmentation?.previewVisible}
         backgroundFill={backgroundFill}
@@ -1436,6 +1649,22 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           )
         }
         onGenerateBackgroundPlate={handleGenerateBackgroundPlate}
+        onElementSelect={(prompt) =>
+          setSegmentation((current) =>
+            current
+              ? {
+                  ...current,
+                  prompt,
+                  approved: false,
+                  error: undefined,
+                  activeRegionId: null,
+                  generatedPlate: undefined,
+                  preview: undefined,
+                  previewVisible: false,
+                }
+              : current
+          )
+        }
         onRefinementModeChange={handleSegmentationRefinementModeChange}
         onClearRefinement={handleSegmentationRefinementClear}
         onPreview={handlePreviewSegmentation}

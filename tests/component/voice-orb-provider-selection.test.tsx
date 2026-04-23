@@ -69,6 +69,11 @@ describe('VoiceOrb provider selection', () => {
           focus_format: vi.fn(),
           pan_zoom: vi.fn(),
           remove_background: vi.fn(),
+          select_tool: vi.fn(),
+          set_brush_color: vi.fn(),
+          set_brush_size: vi.fn(),
+          clear_sketch: vi.fn(),
+          confirm_sketch: vi.fn(),
           run_capability: vi.fn(),
           run_generate: vi.fn(),
         }}
