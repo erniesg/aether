@@ -74,7 +74,10 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     const filename = `aether-${fileSafeId(workspaceId)}.zip`;
-    return new Response(zip, {
+    // JSZip returns Uint8Array<ArrayBufferLike>; DOM BodyInit wants
+    // ArrayBufferView<ArrayBuffer>. The cast is safe — the buffer is freshly
+    // allocated by jszip, not a SharedArrayBuffer view.
+    return new Response(zip as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
