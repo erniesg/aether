@@ -12,6 +12,7 @@ import {
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { BrandSection, brandSectionSummary } from './sections/BrandSection';
+import { OfferSection, offerSectionSummary } from './sections/OfferSection';
 import {
   DEMO_CREATOR_CONTEXT,
   summarizeInputSet,
@@ -79,36 +80,6 @@ function CampaignBody() {
     </div>
   );
 }
-
-function OfferBody() {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">offer</span>
-        <span className="font-display text-sm text-ink">{CONTEXT.offer.name}</span>
-        <span className="font-caption text-xs text-ink-dim">{CONTEXT.offer.summary}</span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">claims</span>
-        <div className="flex flex-wrap gap-1">
-          {CONTEXT.offer.claims.map((claim) => (
-            <span
-              key={claim}
-              className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-caption text-xs text-ink"
-            >
-              {claim}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">hero asset</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.offer.heroAsset}</span>
-      </div>
-    </div>
-  );
-}
-
 
 function ReferencesBody() {
   const [tab, setTab] = useState<ReferencesTabId>('images');
@@ -197,9 +168,9 @@ const LEFT_SECTIONS: ReadonlyArray<SectionSpec> = [
     id: 'offer',
     label: 'offer',
     icon: Package2,
-    summary: `${CONTEXT.offer.claims.length} claims`,
+    summary: offerSectionSummary(CONTEXT.offer),
     hasContent: true,
-    body: <OfferBody />,
+    body: <OfferSection />,
   },
   {
     id: 'campaign',
