@@ -24,7 +24,22 @@ import type {
 } from './FloatingToolbar';
 import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
-import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
+import {
+  getImageInfo,
+  getSelectedImageInfo,
+  getSelectionStripInfo,
+  type SelectedImageInfo,
+  type SelectionStripInfo,
+} from '@/lib/canvas/selectedImage';
+import {
+  applyAlign,
+  applyDistribute,
+  applyOpacity,
+  applyOrder,
+  type AlignAction,
+  type DistributeAction,
+  type OrderAction,
+} from '@/lib/canvas/shapeControls';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
 import type {
   SegmentationBoxPrompt,
@@ -254,6 +269,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
+  const [selectionStrip, setSelectionStrip] = useState<SelectionStripInfo | null>(null);
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
   const [backgroundFill, setBackgroundFill] =
     useState<BackgroundFillSpec>(DEFAULT_BACKGROUND_FILL);
@@ -302,6 +318,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   useEffect(() => {
     if (!editor) {
       setSelectedImage(null);
+      setSelectionStrip(null);
       setSegmentation(null);
       return;
     }
@@ -309,6 +326,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     const sync = () => {
       const next = getSelectedImageInfo(editor);
       setSelectedImage(next);
+      setSelectionStrip(getSelectionStripInfo(editor));
       setSegmentation((current) => {
         if (!current) return current;
         const target = getImageInfo(editor, current.targetShapeId);
@@ -865,7 +883,56 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     );
   }, [segmentation?.runId]);
 
+  const handleOpacityChange = useCallback(
+    (opacity: number) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length === 0) return;
+      editor.markHistoryStoppingPoint('set opacity');
+      applyOpacity(editor, ids, opacity);
+    },
+    [editor]
+  );
+
+  const handleOrder = useCallback(
+    (action: OrderAction) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length === 0) return;
+      editor.markHistoryStoppingPoint('reorder');
+      applyOrder(editor, ids, action);
+    },
+    [editor]
+  );
+
+  const handleAlign = useCallback(
+    (action: AlignAction) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length < 2) return;
+      editor.markHistoryStoppingPoint('align');
+      applyAlign(editor, ids, action);
+    },
+    [editor]
+  );
+
+  const handleDistribute = useCallback(
+    (action: DistributeAction) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length < 2) return;
+      editor.markHistoryStoppingPoint('distribute');
+      applyDistribute(editor, ids, action);
+    },
+    [editor]
+  );
+
   const imageActionsTarget = selectedImage ?? segmentation?.target ?? null;
+  const stripRect =
+    selectionStrip && selectionStrip.selectionCount >= 2
+      ? selectionStrip.screenBounds
+      : (imageActionsTarget?.screenBounds ?? selectionStrip?.screenBounds ?? null);
+  const showStrip = stripRect !== null && (imageActionsTarget !== null || (selectionStrip !== null && selectionStrip.selectionCount >= 2));
 
   const dispatchers = useMemo<VoiceDispatchers>(
     () => ({
@@ -953,15 +1020,22 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         voiceSlot={voiceSlot ?? undefined}
       />
 
-      {imageActionsTarget ? (
+      {showStrip && stripRect ? (
         <SelectedImageActions
-          rect={imageActionsTarget.screenBounds}
+          rect={stripRect}
+          selectionCount={selectionStrip?.selectionCount ?? 1}
+          isSingleImage={Boolean(imageActionsTarget) && (selectionStrip?.selectionCount ?? 1) === 1}
+          opacity={selectionStrip?.opacity ?? 1}
           hasPreview={Boolean(segmentation?.preview)}
           previewVisible={segmentation?.previewVisible ?? false}
           disabled={segmentation?.loading}
           onRemoveBg={() => openSegmentation('removebg')}
           onCutout={() => openSegmentation('cutout')}
           onPreviewVisibilityChange={handlePreviewVisibilityChange}
+          onOpacityChange={handleOpacityChange}
+          onOrder={handleOrder}
+          onAlign={handleAlign}
+          onDistribute={handleDistribute}
         />
       ) : null}
 
