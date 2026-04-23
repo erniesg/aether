@@ -5,7 +5,13 @@
  * before the Convex project is provisioned. Swap-in is one file per store.
  */
 
-export type CapabilityTool = 'image-gen' | 'image-edit' | 'bg-fill' | 'cutout' | 'relight';
+export type CapabilityTool =
+  | 'image-gen'
+  | 'image-edit'
+  | 'bg-fill'
+  | 'cutout'
+  | 'relight'
+  | 'splat';
 
 /**
  * Minimum shape needed to re-run the same tool-chain against a new layer.
