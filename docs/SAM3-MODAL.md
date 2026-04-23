@@ -167,6 +167,42 @@ Then attach it in the decorator:
 secrets=[modal.Secret.from_name("aether-sam3")]
 ```
 
+### Hugging Face token for `facebook/sam3`
+
+The SAM3 runner in this repo expects a Hugging Face token in the Modal secret
+under the key `HF_TOKEN`.
+
+Generate it in Hugging Face:
+
+1. Open `https://huggingface.co/settings/tokens`
+2. Create a new token
+3. Use a fine-grained or read token that can access the gated `facebook/sam3` repo
+4. Make sure your HF account has already been granted access to `facebook/sam3`
+
+Then update the Modal secret used by this app:
+
+```bash
+modal secret create aether-sam3-secrets \
+  HF_TOKEN=hf_... \
+  SAM3_BEARER_TOKEN=your-shared-bearer-token \
+  --force
+```
+
+Notes:
+
+- `HF_TOKEN` is read in `modal/sam3_app.py` when the model loads.
+- `SAM3_BEARER_TOKEN` is optional endpoint auth. If you already use it, include it again when replacing the secret.
+- Modal CLI does not expose existing secret values, so you cannot "grab" the current token back out. You can only replace the secret with a new set of values.
+- Local `aether` should then use the same bearer token via `SAM3_MODAL_TOKEN` in `.dev.vars`.
+
+Quick verification:
+
+```bash
+modal run modal/sam3_app.py::debug_hf_access
+```
+
+That should report `token_present: true` and `repo_access: ok`.
+
 ## Dev and deploy
 
 Use Modal's dev server while iterating:

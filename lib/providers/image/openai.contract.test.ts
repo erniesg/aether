@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createOpenAIProvider } from './openai';
+import sharp from 'sharp';
+import { createOpenAIProvider, normalizeMaskBufferForOpenAI } from './openai';
 import { ImageGenError } from './types';
 
 const GENERATIONS_ENDPOINT = 'https://api.openai.com/v1/images/generations';
@@ -11,6 +12,15 @@ function jsonResponse(body: unknown, init: Partial<ResponseInit> = {}): Response
     headers: { 'Content-Type': 'application/json' },
     ...init,
   });
+}
+
+async function grayscalePngDataUrl(value: number): Promise<string> {
+  const png = await sharp(Buffer.from([value]), {
+    raw: { width: 1, height: 1, channels: 1 },
+  })
+    .png()
+    .toBuffer();
+  return `data:image/png;base64,${png.toString('base64')}`;
 }
 
 describe('openai adapter · contract', () => {
@@ -195,6 +205,70 @@ describe('openai adapter · contract', () => {
     });
     expect(init?.body).toBeInstanceOf(FormData);
     expect(result.images[0]?.url).toBe('https://example.com/edit.png');
+  });
+
+  it('supports explicit image edits with a source image and mask', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [{ b64_json: 'cGxhdGU=' }] })
+    );
+    const provider = createOpenAIProvider('sk-test');
+    const sourcePng = await grayscalePngDataUrl(255);
+    const grayscaleMask = await grayscalePngDataUrl(255);
+    const result = await provider.edit!(
+      {
+        prompt: 'rebuild the cloth background naturally',
+        sourceUrl: sourcePng,
+        maskUrl: grayscaleMask,
+        size: { w: 1400, h: 1000 },
+      },
+      { model: 'gpt-image-1' }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(EDITS_ENDPOINT);
+    expect(init?.headers).toMatchObject({
+      Authorization: 'Bearer sk-test',
+    });
+    expect(init?.body).toBeInstanceOf(FormData);
+
+    const form = init?.body as FormData;
+    expect(form.get('model')).toBe('gpt-image-1');
+    expect(form.get('prompt')).toBe('rebuild the cloth background naturally');
+    expect(form.get('size')).toBe('1536x1024');
+    expect(form.get('image')).toBeInstanceOf(File);
+    expect(form.get('mask')).toBeInstanceOf(File);
+
+    expect(result.images[0]?.url).toBe('data:image/png;base64,cGxhdGU=');
+    expect(result.images[0]?.width).toBe(1536);
+    expect(result.images[0]?.height).toBe(1024);
+  });
+
+  it('normalizes grayscale png masks into rgba pngs before upload', async () => {
+    const grayscaleMask = await grayscalePngDataUrl(255);
+    const normalized = await normalizeMaskBufferForOpenAI(grayscaleMask);
+    const maskMeta = await sharp(normalized.buffer).metadata();
+
+    expect(normalized.ext).toBe('png');
+    expect(maskMeta.channels).toBe(4);
+    expect(maskMeta.hasAlpha).toBe(true);
+  });
+
+  it('rejects explicit edits when the source image is not a base64 data url', async () => {
+    const provider = createOpenAIProvider('sk-test');
+    const err = await provider
+      .edit!(
+        {
+          prompt: 'repair background',
+          sourceUrl: 'https://example.com/source.png',
+        },
+        { model: 'gpt-image-1' }
+      )
+      .catch((error) => error);
+
+    expect(err).toBeInstanceOf(ImageGenError);
+    expect(String(err)).toMatch(/source image must be a base64 data URL/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('accepts large data-url refs without regex backtracking or stack overflow', async () => {

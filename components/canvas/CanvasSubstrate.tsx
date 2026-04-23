@@ -98,6 +98,14 @@ export interface CanvasSubstrateProps {
 
 type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
 
+interface GeneratedPlatePreview {
+  regionId: string | null;
+  dataUrl: string;
+  mimeType: string;
+  width: number;
+  height: number;
+}
+
 interface SegmentationDraft {
   verb: SegmentationVerb;
   providerId: SegmentationProviderId;
@@ -107,8 +115,11 @@ interface SegmentationDraft {
   points: SegmentationPointPrompt[];
   box?: SegmentationBoxPrompt;
   loading: boolean;
+  plateLoading: boolean;
   approved: boolean;
   previewVisible: boolean;
+  activeRegionId: string | null;
+  generatedPlate?: GeneratedPlatePreview;
   runId?: string;
   error?: string;
   preview?: SegmentationPreviewPayload;
@@ -342,6 +353,39 @@ function resolveSegmentationFrame(
   };
 }
 
+function resolveActiveSegmentationPreview(
+  draft: SegmentationDraft | null
+): SegmentationPreviewPayload | undefined {
+  if (!draft?.preview) return undefined;
+
+  const activeRegion =
+    draft.activeRegionId === null
+      ? undefined
+      : draft.preview.regions?.find((region) => region.id === draft.activeRegionId);
+
+  const generatedPlateDataUrl =
+    draft.generatedPlate &&
+    draft.generatedPlate.regionId === draft.activeRegionId
+      ? draft.generatedPlate.dataUrl
+      : undefined;
+
+  if (!activeRegion) {
+    return {
+      ...draft.preview,
+      backgroundPlateDataUrl:
+        generatedPlateDataUrl ?? draft.preview.backgroundPlateDataUrl,
+    };
+  }
+
+  return {
+    ...draft.preview,
+    maskDataUrl: activeRegion.maskDataUrl,
+    cutoutDataUrl: activeRegion.cutoutDataUrl,
+    bbox: activeRegion.bbox,
+    backgroundPlateDataUrl: generatedPlateDataUrl,
+  };
+}
+
 export const CanvasSubstrate = memo(function CanvasSubstrate({
   className,
   composerRef,
@@ -447,8 +491,10 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         points: [],
         box: undefined,
         loading: false,
+        plateLoading: false,
         approved: false,
         previewVisible: false,
+        activeRegionId: null,
         error: pickAvailableSegmentationProvider(segmentationProviders, providerId)
           ? undefined
           : NO_SEGMENTATION_PROVIDER_ERROR,
@@ -791,9 +837,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           ? {
               ...current,
               loading: false,
+              plateLoading: false,
               error: undefined,
               approved: false,
               previewVisible: true,
+              activeRegionId: null,
+              generatedPlate: undefined,
               providerId: json.provider?.id ?? current.providerId,
               preview: json.preview,
             }
@@ -898,14 +947,16 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const handleSegmentationPointAdd = useCallback((point: SegmentationPointPrompt) => {
     setSegmentation((current) =>
       current
-        ? {
-            ...current,
-            approved: false,
-            error: undefined,
-            preview: undefined,
-            previewVisible: false,
-            points: [...current.points, point],
-          }
+          ? {
+              ...current,
+              approved: false,
+              error: undefined,
+              activeRegionId: null,
+              generatedPlate: undefined,
+              preview: undefined,
+              previewVisible: false,
+              points: [...current.points, point],
+            }
         : current
     );
   }, []);
@@ -913,14 +964,16 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const handleSegmentationBoxChange = useCallback((box?: SegmentationBoxPrompt) => {
     setSegmentation((current) =>
       current
-        ? {
-            ...current,
-            approved: false,
-            error: undefined,
-            preview: undefined,
-            previewVisible: false,
-            box,
-          }
+          ? {
+              ...current,
+              approved: false,
+              error: undefined,
+              activeRegionId: null,
+              generatedPlate: undefined,
+              preview: undefined,
+              previewVisible: false,
+              box,
+            }
         : current
     );
   }, []);
@@ -928,22 +981,26 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const handleSegmentationRefinementClear = useCallback(() => {
     setSegmentation((current) =>
       current
-        ? {
-            ...current,
-            approved: false,
-            box: undefined,
-            error: undefined,
-            points: [],
-            preview: undefined,
-            previewVisible: false,
-            refinementMode: null,
-          }
+          ? {
+              ...current,
+              approved: false,
+              box: undefined,
+              error: undefined,
+              activeRegionId: null,
+              generatedPlate: undefined,
+              points: [],
+              preview: undefined,
+              previewVisible: false,
+              refinementMode: null,
+            }
         : current
     );
   }, []);
 
   const handleApproveSegmentation = useCallback(() => {
     if (!editor || !segmentation?.preview) return;
+    const activePreview = resolveActiveSegmentationPreview(segmentation);
+    if (!activePreview) return;
     const targetImage = segmentation.target;
 
     const shape = editor.getShape(targetImage.shapeId as never) as
@@ -960,9 +1017,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         typeName: 'asset',
         props: {
           name: `${segmentation.verb} result`,
-          src: segmentation.preview.cutoutDataUrl,
-          w: segmentation.preview.width,
-          h: segmentation.preview.height,
+          src: activePreview.cutoutDataUrl,
+          w: activePreview.width,
+          h: activePreview.height,
           mimeType: 'image/svg+xml',
           isAnimated: false,
         },
@@ -986,6 +1043,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         aetherSegmentationProvider: segmentation.providerId,
         aetherSegmentationPrompt: segmentation.prompt,
         aetherSegmentationRegionCount: segmentation.preview.regions?.length ?? 0,
+        aetherSegmentationRegionId: segmentation.activeRegionId ?? 'all',
       },
     } as never);
 
@@ -1002,11 +1060,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           label: frame.label,
           aspectRatio: frame.aspectRatio,
           status: 'placed',
-          imageUrl: segmentation.preview.cutoutDataUrl,
+          imageUrl: activePreview.cutoutDataUrl,
         });
       }
       finishRun(segmentation.runId, {
-        imageUrl: segmentation.preview.cutoutDataUrl,
+        imageUrl: activePreview.cutoutDataUrl,
         status: 'ok',
       });
     }
@@ -1045,7 +1103,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   }, [backgroundFill, editor, segmentation]);
 
   const handleApplyBackgroundPlate = useCallback(() => {
-    if (!editor || !segmentation?.preview?.backgroundPlateDataUrl) return;
+    const activePreview = resolveActiveSegmentationPreview(segmentation);
+    if (!editor || !segmentation || !activePreview?.backgroundPlateDataUrl) return;
     const targetImage = segmentation.target;
 
     editor.markHistoryStoppingPoint('apply background plate');
@@ -1053,19 +1112,120 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       editor,
       targetImage,
       name: 'background plate',
-      src: segmentation.preview.backgroundPlateDataUrl,
-      mimeType: inferDataUrlMimeType(segmentation.preview.backgroundPlateDataUrl),
+      src: activePreview.backgroundPlateDataUrl,
+      mimeType: inferDataUrlMimeType(activePreview.backgroundPlateDataUrl),
       sourceTag: 'plate',
     });
 
     if (segmentation.runId) {
       appendRunActivity(segmentation.runId, {
         title: 'background plate applied',
-        detail: 'generated clean plate',
+        detail:
+          segmentation.activeRegionId === null
+            ? 'generated clean plate'
+            : `generated clean plate · ${segmentation.activeRegionId}`,
         tone: 'ok',
       });
     }
   }, [editor, segmentation]);
+
+  const handleGenerateBackgroundPlate = useCallback(async () => {
+    if (!segmentation?.preview) return;
+
+    const activePreview = resolveActiveSegmentationPreview(segmentation);
+    if (!activePreview) return;
+
+    const regionId = segmentation.activeRegionId ?? null;
+
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            plateLoading: true,
+            error: undefined,
+          }
+        : current
+    );
+
+    if (segmentation.runId) {
+      appendRunActivity(segmentation.runId, {
+        title: 'generating clean plate',
+        detail: regionId ? `selection · ${regionId}` : 'selection · all regions',
+      });
+    }
+
+    try {
+      const response = await fetch('/api/segment/plate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: 'openai',
+          sourceUrl: activePreview.sourceDataUrl,
+          maskUrl: activePreview.maskDataUrl,
+          width: activePreview.width,
+          height: activePreview.height,
+        }),
+      });
+
+      const json = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        plate?: {
+          dataUrl: string;
+          mimeType: string;
+          width: number;
+          height: number;
+        };
+      };
+
+      if (!response.ok || !json.ok || !json.plate) {
+        throw new Error(json.error || response.statusText);
+      }
+      const plate = json.plate;
+
+      if (segmentation.runId) {
+        appendRunActivity(segmentation.runId, {
+          title: 'clean plate ready',
+          detail: regionId ? `selection · ${regionId}` : 'selection · all regions',
+          tone: 'ok',
+        });
+      }
+
+      setSegmentation((current) =>
+        current
+          ? {
+              ...current,
+              plateLoading: false,
+              generatedPlate: {
+                regionId,
+                dataUrl: plate.dataUrl,
+                mimeType: plate.mimeType,
+                width: plate.width,
+                height: plate.height,
+              },
+            }
+          : current
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (segmentation.runId) {
+        appendRunActivity(segmentation.runId, {
+          title: 'clean plate failed',
+          detail: message,
+          tone: 'error',
+        });
+      }
+      setSegmentation((current) =>
+        current
+          ? {
+              ...current,
+              plateLoading: false,
+              error: message,
+            }
+          : current
+      );
+    }
+  }, [segmentation]);
 
   const handleRejectSegmentation = useCallback(() => {
     if (segmentation?.runId) {
@@ -1088,6 +1248,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   }, [segmentation?.runId]);
 
   const imageActionsTarget = selectedImage ?? segmentation?.target ?? null;
+  const activeSegmentationPreview = resolveActiveSegmentationPreview(segmentation);
 
   const dispatchers = useMemo<VoiceDispatchers>(
     () => ({
@@ -1188,11 +1349,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         />
       ) : null}
 
-      {segmentation?.preview &&
+      {segmentation &&
+      activeSegmentationPreview &&
       segmentation.previewVisible &&
       !segmentation.approved ? (
         <SegmentationPreviewOverlay
-          preview={segmentation.preview}
+          preview={activeSegmentationPreview}
           rect={segmentation.target.screenBounds}
         />
       ) : null}
@@ -1225,7 +1387,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         loading={segmentation?.loading}
         approved={segmentation?.approved}
         error={segmentation?.error}
-        preview={segmentation?.preview}
+        preview={activeSegmentationPreview}
         previewVisible={segmentation?.previewVisible}
         backgroundFill={backgroundFill}
         onPromptChange={(value) =>
@@ -1235,6 +1397,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
                   ...current,
                   prompt: value,
                   approved: false,
+                  activeRegionId: null,
+                  generatedPlate: undefined,
                   preview: undefined,
                   previewVisible: false,
                 }
@@ -1250,12 +1414,28 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
                   refinementMode: null,
                   approved: false,
                   error: undefined,
+                  activeRegionId: null,
+                  generatedPlate: undefined,
                   preview: undefined,
                   previewVisible: false,
                 }
               : current
           )
         }
+        activeRegionId={segmentation?.activeRegionId ?? null}
+        plateGenerationLoading={segmentation?.plateLoading}
+        onActiveRegionChange={(value) =>
+          setSegmentation((current) =>
+            current
+              ? {
+                  ...current,
+                  activeRegionId: value,
+                  error: undefined,
+                }
+              : current
+          )
+        }
+        onGenerateBackgroundPlate={handleGenerateBackgroundPlate}
         onRefinementModeChange={handleSegmentationRefinementModeChange}
         onClearRefinement={handleSegmentationRefinementClear}
         onPreview={handlePreviewSegmentation}

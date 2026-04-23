@@ -106,7 +106,12 @@ class SegmentRegionResponse(BaseModel):
     score: float | None = None
 
 
-SegmentResponse.model_rebuild()
+if hasattr(SegmentResponse, "model_rebuild"):
+    SegmentResponse.model_rebuild()
+elif hasattr(SegmentResponse, "update_forward_refs"):
+    SegmentResponse.update_forward_refs(
+        SegmentRegionResponse=SegmentRegionResponse
+    )
 
 
 def _decode_image_bytes(image_url: str) -> bytes:
