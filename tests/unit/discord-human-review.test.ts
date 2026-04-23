@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDiscordHumanReviewMessage,
   isDiscordHumanReviewConfigured,
+  resolveDiscordHumanReviewDelivery,
 } from '@/lib/review/discordHumanReview';
 
 describe('Discord human-review notification', () => {
@@ -38,6 +39,25 @@ describe('Discord human-review notification', () => {
     expect(isDiscordHumanReviewConfigured({ DISCORD_WEBHOOK: 'https://discord.test/hook' })).toBe(
       true
     );
+    expect(
+      isDiscordHumanReviewConfigured({
+        DISCORD_BOT_TOKEN: 'bot-token',
+        DISCORD_CHANNEL_ID: '1496938045876731955',
+      })
+    ).toBe(true);
     expect(isDiscordHumanReviewConfigured({})).toBe(false);
+  });
+
+  it('resolves bot delivery when a bot token and channel id are configured', () => {
+    expect(
+      resolveDiscordHumanReviewDelivery({
+        DISCORD_BOT_TOKEN: 'bot-token',
+        DISCORD_CHANNEL_ID: '1496938045876731955',
+      })
+    ).toEqual({
+      kind: 'bot',
+      botToken: 'bot-token',
+      channelId: '1496938045876731955',
+    });
   });
 });
