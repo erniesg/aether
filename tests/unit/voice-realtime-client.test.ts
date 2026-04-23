@@ -144,6 +144,11 @@ describe('OpenAIRealtimeClient', () => {
       'focus_format',
       'pan_zoom',
       'remove_background',
+      'select_tool',
+      'set_brush_color',
+      'set_brush_size',
+      'clear_sketch',
+      'confirm_sketch',
       'run_capability',
       'run_generate',
     ]);

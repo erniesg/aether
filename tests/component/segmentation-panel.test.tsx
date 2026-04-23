@@ -48,6 +48,7 @@ function renderPanel(props: Partial<ComponentProps<typeof SegmentationPanel>> = 
     onApplyBackgroundPlate: vi.fn(),
     onActiveRegionChange: vi.fn(),
     onGenerateBackgroundPlate: vi.fn(),
+    onElementSelect: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
   };
@@ -254,6 +255,33 @@ describe('SegmentationPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /generate clean plate/i }));
     expect(handlers.onGenerateBackgroundPlate).toHaveBeenCalled();
+  });
+
+  it('shows detected image elements and lets the creator use one as the prompt', async () => {
+    const handlers = renderPanel({
+      elementsLoading: false,
+      elementsSummary:
+        'A marble bust with exposed brain, a robotic hand, and floating glitch blocks.',
+      elements: [
+        {
+          id: 'head',
+          label: 'marble bust head',
+          prompt: 'marble bust head',
+          prominence: 'primary',
+        },
+        {
+          id: 'robot-hand',
+          label: 'robotic hand',
+          prompt: 'robotic hand',
+          prominence: 'secondary',
+        },
+      ],
+    });
+
+    expect(screen.getByText(/marble bust with exposed brain/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /marble bust head/i }));
+    expect(handlers.onElementSelect).toHaveBeenCalledWith('marble bust head');
   });
 
   it('lets the creator hide and reshow the preview before approval', async () => {

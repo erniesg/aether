@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react';
 import type { BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
+import type { ImageElementSuggestion } from '@/lib/providers/vision/types';
 import {
   KNOWN_SEGMENTATION_PROVIDER_IDS,
   type SegmentationProviderId,
@@ -41,6 +42,9 @@ export interface SegmentationPanelProps {
   loading?: boolean;
   approved?: boolean;
   error?: string;
+  elementsLoading?: boolean;
+  elementsSummary?: string;
+  elements?: ReadonlyArray<ImageElementSuggestion>;
   previewVisible?: boolean;
   backgroundFill: BackgroundFillSpec;
   onPromptChange: (value: string) => void;
@@ -62,6 +66,7 @@ export interface SegmentationPanelProps {
   plateGenerationLoading?: boolean;
   onActiveRegionChange?: (value: string | null) => void;
   onGenerateBackgroundPlate?: () => void;
+  onElementSelect?: (prompt: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   preview?: SegmentationPreviewPayload;
@@ -98,6 +103,9 @@ export function SegmentationPanel({
   loading = false,
   approved = false,
   error,
+  elementsLoading = false,
+  elementsSummary,
+  elements = [],
   previewVisible = false,
   backgroundFill,
   onPromptChange,
@@ -119,6 +127,7 @@ export function SegmentationPanel({
   plateGenerationLoading = false,
   onActiveRegionChange,
   onGenerateBackgroundPlate,
+  onElementSelect,
   onUndo,
   onRedo,
   preview,
@@ -189,6 +198,38 @@ export function SegmentationPanel({
           <p className="font-caption text-2xs text-ink-dim">
             {providerId} uses automatic masks. text prompt support lives on sam3.
           </p>
+        ) : null}
+
+        {elementsLoading || elementsSummary || elements.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <span className="font-caption text-ink-dim">image elements</span>
+            {elementsLoading ? (
+              <p className="font-caption text-2xs text-ink-dim">
+                grounding the image before extraction…
+              </p>
+            ) : null}
+            {!elementsLoading && elementsSummary ? (
+              <p className="font-caption text-2xs text-ink-dim">{elementsSummary}</p>
+            ) : null}
+            {!elementsLoading && elements.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {elements.map((element) => (
+                  <button
+                    key={element.id}
+                    type="button"
+                    onClick={() => onElementSelect?.(element.prompt)}
+                    className={`rounded-pill border px-2 py-0.5 font-caption text-2xs transition-colors ${
+                      element.prominence === 'primary'
+                        ? 'border-accent/40 bg-accent/10 text-ink hover:border-accent hover:text-ink'
+                        : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+                    }`}
+                  >
+                    {element.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="flex flex-col gap-1">

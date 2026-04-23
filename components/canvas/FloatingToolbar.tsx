@@ -10,6 +10,7 @@ import {
   Hand,
   LayoutDashboard,
   MousePointer2,
+  PenLine,
   Scissors,
   ShieldAlert,
   SlidersHorizontal,
@@ -20,6 +21,10 @@ import {
   Wand2,
 } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
+import type {
+  PrimitiveTool,
+  SketchBrushState,
+} from '@/lib/canvas/sketchBrush';
 import { cn } from '@/lib/utils/cn';
 
 const STORAGE_KEY = 'aether.toolbar.pos';
@@ -42,11 +47,15 @@ export type ToolbarVerb =
   | 'tone'
   | 'collage';
 
-export type PrimitiveTool = 'select' | 'hand' | 'text' | 'geo' | 'arrow';
-
 export type ToolbarStyleAction =
   | 'color-black'
+  | 'color-white'
   | 'color-blue'
+  | 'color-brand-primary'
+  | 'color-brand-accent'
+  | 'size-small'
+  | 'size-medium'
+  | 'size-large'
   | 'fill-solid'
   | 'fill-none';
 
@@ -61,6 +70,8 @@ export interface FloatingToolbarProps {
    * responsible for prefilling the composer (or dispatching to /api/generate
    * directly) with a matching prompt preset. */
   onVerbPress?: (verb: ToolbarVerb) => void;
+  activePrimitiveTool?: PrimitiveTool;
+  brushState?: Pick<SketchBrushState, 'color' | 'size'>;
   onPrimitiveToolPress?: (tool: PrimitiveTool) => void;
   onStyleAction?: (action: ToolbarStyleAction) => void;
   className?: string;
@@ -97,6 +108,8 @@ export function FloatingToolbar({
   onSafeZonesToggle,
   onAIPress,
   onVerbPress,
+  activePrimitiveTool = 'select',
+  brushState,
   onPrimitiveToolPress,
   onStyleAction,
   pinnedCapabilities = [],
@@ -105,14 +118,13 @@ export function FloatingToolbar({
   className,
 }: FloatingToolbarProps) {
   const [pos, setPos] = useState<Pos>({ x: 24, y: 24 });
-  const [activeTool, setActiveTool] = useState<string>('select');
+  const [activeVerb, setActiveVerb] = useState<ToolbarVerb | null>(null);
 
   const dispatchPrimitive = (tool: PrimitiveTool) => {
-    setActiveTool(tool);
     onPrimitiveToolPress?.(tool);
   };
   const dispatchVerb = (verb: ToolbarVerb) => {
-    setActiveTool(verb);
+    setActiveVerb(verb);
     onVerbPress?.(verb);
   };
   const dragDelta = useRef<Pos | null>(null);
@@ -213,45 +225,98 @@ export function FloatingToolbar({
         label="select tool"
         icon={<MousePointer2 size={14} strokeWidth={1.75} />}
         onClick={() => dispatchPrimitive('select')}
-        active={activeTool === 'select'}
+        active={activePrimitiveTool === 'select'}
       />
       <IconButton
         label="hand tool"
         icon={<Hand size={14} strokeWidth={1.75} />}
         onClick={() => dispatchPrimitive('hand')}
-        active={activeTool === 'hand'}
+        active={activePrimitiveTool === 'hand'}
+      />
+      <IconButton
+        label="sketch tool"
+        icon={<PenLine size={14} strokeWidth={1.75} />}
+        onClick={() => dispatchPrimitive('draw')}
+        active={activePrimitiveTool === 'draw'}
       />
       <IconButton
         label="text tool"
         icon={<Type size={14} strokeWidth={1.75} />}
         onClick={() => dispatchPrimitive('text')}
-        active={activeTool === 'text'}
+        active={activePrimitiveTool === 'text'}
       />
       <IconButton
         label="shape tool"
         icon={<Square size={14} strokeWidth={1.75} />}
         onClick={() => dispatchPrimitive('geo')}
-        active={activeTool === 'geo'}
+        active={activePrimitiveTool === 'geo'}
       />
       <IconButton
         label="arrow tool"
         icon={<ArrowRight size={14} strokeWidth={1.75} />}
         onClick={() => dispatchPrimitive('arrow')}
-        active={activeTool === 'arrow'}
+        active={activePrimitiveTool === 'arrow'}
       />
 
       <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
 
       <IconButton
-        label="ink style"
+        label="ink black"
         icon={<Circle size={12} strokeWidth={2.25} className="fill-current" />}
         onClick={() => onStyleAction?.('color-black')}
+        active={brushState?.color === 'black'}
       />
       <IconButton
-        label="accent style"
+        label="ink white"
+        className="text-white"
+        icon={<Circle size={12} strokeWidth={2.25} className="fill-current" />}
+        onClick={() => onStyleAction?.('color-white')}
+        active={brushState?.color === 'white'}
+      />
+      <IconButton
+        label="ink blue"
         icon={<Circle size={12} strokeWidth={2.25} className="fill-blue-500 text-blue-500" />}
         onClick={() => onStyleAction?.('color-blue')}
+        active={brushState?.color === 'blue'}
       />
+      <IconButton
+        label="brand primary"
+        icon={<Circle size={12} strokeWidth={2.25} className="fill-sky-400 text-sky-400" />}
+        onClick={() => onStyleAction?.('color-brand-primary')}
+        active={brushState?.color === 'brand-primary'}
+      />
+      <IconButton
+        label="brand accent"
+        icon={
+          <Circle size={12} strokeWidth={2.25} className="fill-violet-500 text-violet-500" />
+        }
+        onClick={() => onStyleAction?.('color-brand-accent')}
+        active={brushState?.color === 'brand-accent'}
+      />
+
+      <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
+
+      <IconButton
+        label="brush size small"
+        icon={<Circle size={8} strokeWidth={2.25} className="fill-current" />}
+        onClick={() => onStyleAction?.('size-small')}
+        active={brushState?.size === 'small'}
+      />
+      <IconButton
+        label="brush size medium"
+        icon={<Circle size={10} strokeWidth={2.25} className="fill-current" />}
+        onClick={() => onStyleAction?.('size-medium')}
+        active={brushState?.size === 'medium'}
+      />
+      <IconButton
+        label="brush size large"
+        icon={<Circle size={12} strokeWidth={2.25} className="fill-current" />}
+        onClick={() => onStyleAction?.('size-large')}
+        active={brushState?.size === 'large'}
+      />
+
+      <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
+
       <IconButton
         label="fill solid"
         icon={<Square size={14} strokeWidth={1.75} className="fill-current" />}
@@ -275,37 +340,37 @@ export function FloatingToolbar({
         label="cutout · mask a region"
         icon={<Scissors size={14} strokeWidth={1.75} />}
         onClick={() => dispatchVerb('cutout')}
-        active={activeTool === 'cutout'}
+        active={activeVerb === 'cutout'}
       />
       <IconButton
         label="unmask · reveal under the mask"
         icon={<SquareDashed size={14} strokeWidth={1.75} />}
         onClick={() => dispatchVerb('unmask')}
-        active={activeTool === 'unmask'}
+        active={activeVerb === 'unmask'}
       />
       <IconButton
         label="remove bg · cut the subject out"
         icon={<Eraser size={14} strokeWidth={1.75} />}
         onClick={() => dispatchVerb('removebg')}
-        active={activeTool === 'removebg'}
+        active={activeVerb === 'removebg'}
       />
       <IconButton
         label="relight · bg fill"
         icon={<Wand2 size={14} strokeWidth={1.75} />}
         onClick={() => dispatchVerb('relight')}
-        active={activeTool === 'relight'}
+        active={activeVerb === 'relight'}
       />
       <IconButton
         label="tone · darker, sharper, warmer"
         icon={<SlidersHorizontal size={14} strokeWidth={1.75} />}
         onClick={() => dispatchVerb('tone')}
-        active={activeTool === 'tone'}
+        active={activeVerb === 'tone'}
       />
       <IconButton
         label="collage · compose from references"
         icon={<LayoutDashboard size={14} strokeWidth={1.75} />}
         onClick={() => dispatchVerb('collage')}
-        active={activeTool === 'collage'}
+        active={activeVerb === 'collage'}
       />
 
       {voiceSlot ? (

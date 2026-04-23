@@ -64,6 +64,19 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
     editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
   }, [theme]);
 
+  useEffect(() => {
+    return () => {
+      setEditor(null);
+      if (typeof window !== 'undefined') {
+        (
+          window as Window & {
+            __AETHER_EDITOR__?: Editor | null;
+          }
+        ).__AETHER_EDITOR__ = null;
+      }
+    };
+  }, [setEditor]);
+
   return (
     <Tldraw
       className="absolute inset-0"
@@ -73,6 +86,13 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
         editorRef.current = editor;
         setEditor(editor);
         editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
+        if (typeof window !== 'undefined') {
+          (
+            window as Window & {
+              __AETHER_EDITOR__?: Editor | null;
+            }
+          ).__AETHER_EDITOR__ = editor;
+        }
         // Seed the four hero artboards on an empty workspace so the multiformat
         // promise is visible on first paint. No-op if the page already has shapes.
         maybeSeedArtboards(editor);

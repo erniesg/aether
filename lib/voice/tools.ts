@@ -1,3 +1,14 @@
+import {
+  normalizeVoiceBrushColor,
+  normalizeVoiceBrushSize,
+  normalizeVoiceSelectableTool,
+  type PrimitiveTool,
+  type SketchBrushColor,
+  type SketchBrushSize,
+  VOICE_BRUSH_COLORS,
+  VOICE_BRUSH_SIZES,
+  VOICE_SELECTABLE_TOOLS,
+} from '@/lib/canvas/sketchBrush';
 import type { VoiceToolDefinition } from './types';
 
 /**
@@ -5,8 +16,8 @@ import type { VoiceToolDefinition } from './types';
  * every entry here is something a creator can say and observe happening on
  * the canvas without the model needing to negotiate multi-step plans.
  *
- * `run_generate` is the Claude-passthrough — the realtime model hands the
- * prompt to the existing agent loop rather than planning the generation
+ * `run_generate` is still the Claude-passthrough — the realtime model hands
+ * the prompt to the existing agent loop rather than planning the generation
  * itself.
  */
 export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
@@ -50,6 +61,77 @@ export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
     name: 'remove_background',
     description:
       "Remove the background from the creator's currently-selected image. Dispatches the segmentation flow.",
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'select_tool',
+    description:
+      'Switch the canvas tool. Use draw for sketching, select to return to selection, or hand to pan.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tool: {
+          type: 'string',
+          description: 'Canvas tool to activate. sketch is an alias for draw.',
+          enum: [...VOICE_SELECTABLE_TOOLS],
+        },
+      },
+      required: ['tool'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'set_brush_color',
+    description:
+      'Set the sketch brush color from the bounded creator palette.',
+    parameters: {
+      type: 'object',
+      properties: {
+        color: {
+          type: 'string',
+          description: 'Named brush color from the mapped palette.',
+          enum: [...VOICE_BRUSH_COLORS],
+        },
+      },
+      required: ['color'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'set_brush_size',
+    description:
+      'Set the sketch brush size. Use this before drawing the next stroke.',
+    parameters: {
+      type: 'object',
+      properties: {
+        size: {
+          type: 'string',
+          description: 'Brush thickness preset.',
+          enum: [...VOICE_BRUSH_SIZES],
+        },
+      },
+      required: ['size'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'clear_sketch',
+    description:
+      'Delete the current sketch strokes from the active sketch session.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'confirm_sketch',
+    description:
+      'Finish the current sketch session and switch back to the select tool.',
     parameters: {
       type: 'object',
       properties: {},
@@ -111,6 +193,13 @@ export interface VoiceDispatchers {
     zoom?: 'fit' | 'in' | 'out';
   }) => void | Promise<void>;
   remove_background: () => void | Promise<void>;
+  select_tool: (args: {
+    tool: Extract<PrimitiveTool, 'select' | 'hand' | 'draw'>;
+  }) => void | Promise<void>;
+  set_brush_color: (args: { color: SketchBrushColor }) => void | Promise<void>;
+  set_brush_size: (args: { size: SketchBrushSize }) => void | Promise<void>;
+  clear_sketch: () => void | Promise<void>;
+  confirm_sketch: () => void | Promise<void>;
   run_capability: (args: { definitionId: string }) => void | Promise<void>;
   run_generate: (args: {
     prompt: string;
@@ -153,6 +242,38 @@ export async function dispatchVoiceFunctionCall(
     case 'remove_background': {
       await dispatchers.remove_background();
       return { ok: true, detail: 'dispatched segmentation' };
+    }
+    case 'select_tool': {
+      const tool = normalizeVoiceSelectableTool(args.tool);
+      if (!tool || (tool !== 'select' && tool !== 'hand' && tool !== 'draw')) {
+        return { ok: false, error: 'select_tool requires select, hand, draw, or sketch' };
+      }
+      await dispatchers.select_tool({ tool });
+      return { ok: true, detail: `selected ${tool}` };
+    }
+    case 'set_brush_color': {
+      const color = normalizeVoiceBrushColor(args.color);
+      if (!color) {
+        return { ok: false, error: 'set_brush_color requires a bounded palette color' };
+      }
+      await dispatchers.set_brush_color({ color });
+      return { ok: true, detail: `brush color ${color}` };
+    }
+    case 'set_brush_size': {
+      const size = normalizeVoiceBrushSize(args.size);
+      if (!size) {
+        return { ok: false, error: 'set_brush_size requires small, medium, or large' };
+      }
+      await dispatchers.set_brush_size({ size });
+      return { ok: true, detail: `brush size ${size}` };
+    }
+    case 'clear_sketch': {
+      await dispatchers.clear_sketch();
+      return { ok: true, detail: 'cleared sketch' };
+    }
+    case 'confirm_sketch': {
+      await dispatchers.confirm_sketch();
+      return { ok: true, detail: 'confirmed sketch' };
     }
     case 'run_capability': {
       const definitionId =
