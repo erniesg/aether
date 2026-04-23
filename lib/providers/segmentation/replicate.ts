@@ -98,7 +98,7 @@ export function createReplicateSegmentationProvider(
         ? pred.output[0]
         : typeof pred.output === 'string'
           ? pred.output
-          : pred.output?.combined_mask;
+          : pred.output?.combined_mask ?? pred.output?.individual_masks?.[0];
 
       if (!outputUrl) {
         throw new SegmentationError('no cutout returned', 'sam2');
@@ -109,6 +109,15 @@ export function createReplicateSegmentationProvider(
         model,
         maskUrl: outputUrl,
         alphaCutoutUrl: outputUrl,
+        regions: Array.isArray(pred.output)
+          ? undefined
+          : typeof pred.output === 'string'
+            ? undefined
+            : pred.output?.individual_masks?.map((maskUrl, index) => ({
+                id: `region-${index + 1}`,
+                maskUrl,
+                alphaCutoutUrl: maskUrl,
+              })),
         width: req.size?.w ?? 1024,
         height: req.size?.h ?? 1024,
         raw: {

@@ -14,7 +14,13 @@ describe('sam2 replicate adapter · contract', () => {
           JSON.stringify({
             id: 'pred_1',
             status: 'succeeded',
-            output: 'https://cdn.example.com/cutout.png',
+            output: {
+              combined_mask: 'https://cdn.example.com/cutout.png',
+              individual_masks: [
+                'https://cdn.example.com/region-1.png',
+                'https://cdn.example.com/region-2.png',
+              ],
+            },
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
@@ -52,6 +58,18 @@ describe('sam2 replicate adapter · contract', () => {
       alphaCutoutUrl: 'https://cdn.example.com/cutout.png',
       width: 800,
       height: 600,
+      regions: [
+        {
+          id: 'region-1',
+          maskUrl: 'https://cdn.example.com/region-1.png',
+          alphaCutoutUrl: 'https://cdn.example.com/region-1.png',
+        },
+        {
+          id: 'region-2',
+          maskUrl: 'https://cdn.example.com/region-2.png',
+          alphaCutoutUrl: 'https://cdn.example.com/region-2.png',
+        },
+      ],
     });
   });
 });

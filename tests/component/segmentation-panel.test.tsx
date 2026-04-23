@@ -45,6 +45,7 @@ function renderPanel(props: Partial<ComponentProps<typeof SegmentationPanel>> = 
     onBackgroundColorBChange: vi.fn(),
     onBackgroundOpacityChange: vi.fn(),
     onApplyBackground: vi.fn(),
+    onApplyBackgroundPlate: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
   };
@@ -168,10 +169,50 @@ describe('SegmentationPanel', () => {
     });
 
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /apply background/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /apply background fill/i })
+    ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: /apply background/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /apply background fill/i })
+    );
     expect(handlers.onApplyBackground).toHaveBeenCalled();
+  });
+
+  it('surfaces region count and generated plate actions when provided', async () => {
+    const handlers = renderPanel({
+      approved: true,
+      preview: {
+        sourceDataUrl: 'data:image/png;base64,aaa',
+        maskDataUrl: 'data:image/png;base64,bbb',
+        cutoutDataUrl: 'data:image/svg+xml,ccc',
+        width: 1024,
+        height: 1024,
+        regions: [
+          {
+            id: 'region-1',
+            maskDataUrl: 'data:image/png;base64,bbb',
+            cutoutDataUrl: 'data:image/svg+xml,ccc',
+          },
+          {
+            id: 'region-2',
+            maskDataUrl: 'data:image/png;base64,ddd',
+            cutoutDataUrl: 'data:image/svg+xml,eee',
+          },
+        ],
+        backgroundPlateDataUrl: 'data:image/png;base64,fff',
+      },
+    });
+
+    expect(screen.getByText(/detected 2 separate regions from the mask/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/generated background plate is available/i)
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /apply generated plate/i })
+    );
+    expect(handlers.onApplyBackgroundPlate).toHaveBeenCalled();
   });
 
   it('lets the creator hide and reshow the preview before approval', async () => {

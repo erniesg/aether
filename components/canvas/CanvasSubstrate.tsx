@@ -34,6 +34,7 @@ import type {
   SegmentationPointPrompt,
   SegmentationRefinementMode,
 } from '@/lib/providers/segmentation/types';
+import { inferDataUrlMimeType } from '@/lib/segment/dataUrl';
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { failRun, finishRun, startRun, stepRun } from '@/lib/store/runs';
 import { appendRunActivity, initRunDetails, upsertRunFrame } from '@/lib/store/runDetails';
@@ -236,6 +237,81 @@ function findBackgroundShapeId(editor: NonNullable<ReturnType<typeof useEditorRe
         (candidate.meta as Record<string, unknown> | undefined)?.aetherForShapeId === imageShapeId
     );
   return shape?.id ?? null;
+}
+
+function upsertBackgroundAsset(params: {
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>;
+  targetImage: SelectedImageInfo;
+  name: string;
+  src: string;
+  mimeType: string;
+  sourceTag: 'fill' | 'plate';
+}) {
+  const { editor, targetImage } = params;
+  const assetId = AssetRecordType.createId();
+  editor.createAssets([
+    {
+      id: assetId,
+      type: 'image',
+      typeName: 'asset',
+      props: {
+        name: params.name,
+        src: params.src,
+        w: targetImage.intrinsicWidth,
+        h: targetImage.intrinsicHeight,
+        mimeType: params.mimeType,
+        isAnimated: false,
+      },
+      meta: {
+        aetherRole:
+          params.sourceTag === 'plate'
+            ? 'background-plate-asset'
+            : 'background-fill-asset',
+      },
+    },
+  ]);
+
+  const existingBackgroundId = findBackgroundShapeId(editor, targetImage.shapeId);
+  if (existingBackgroundId) {
+    editor.updateShape({
+      id: existingBackgroundId as never,
+      type: 'image',
+      x: targetImage.x,
+      y: targetImage.y,
+      props: {
+        assetId,
+        w: targetImage.width,
+        h: targetImage.height,
+      },
+      meta: {
+        aetherRole: 'background-fill',
+        aetherForShapeId: targetImage.shapeId,
+        aetherBackgroundSource: params.sourceTag,
+      },
+    } as never);
+    editor.select(targetImage.shapeId as never);
+    return;
+  }
+
+  editor.createShape({
+    id: undefined,
+    type: 'image',
+    parentId: targetImage.parentId as never,
+    x: targetImage.x,
+    y: targetImage.y,
+    index: getBackgroundIndex(editor, targetImage),
+    props: {
+      assetId,
+      w: targetImage.width,
+      h: targetImage.height,
+    },
+    meta: {
+      aetherRole: 'background-fill',
+      aetherForShapeId: targetImage.shapeId,
+      aetherBackgroundSource: params.sourceTag,
+    },
+  } as never);
+  editor.select(targetImage.shapeId as never);
 }
 
 function getBackgroundIndex(
@@ -682,6 +758,18 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         detail: 'toggle preview or approve to apply',
         tone: 'ok',
       });
+      if (json.preview.regions?.length) {
+        appendRunActivity(runId, {
+          title: 'regions detected',
+          detail: `${json.preview.regions.length} candidate ${json.preview.regions.length === 1 ? 'region' : 'regions'}`,
+        });
+      }
+      if (json.preview.backgroundPlateDataUrl) {
+        appendRunActivity(runId, {
+          title: 'background plate',
+          detail: 'provider returned a reusable clean plate',
+        });
+      }
       if (frame) {
         upsertRunFrame(runId, {
           id: frame.id,
@@ -897,6 +985,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         aetherSegmentationVerb: segmentation.verb,
         aetherSegmentationProvider: segmentation.providerId,
         aetherSegmentationPrompt: segmentation.prompt,
+        aetherSegmentationRegionCount: segmentation.preview.regions?.length ?? 0,
       },
     } as never);
 
@@ -937,69 +1026,15 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       fill: backgroundFill,
     });
 
-    const assetId = AssetRecordType.createId();
     editor.markHistoryStoppingPoint('apply background fill');
-    editor.createAssets([
-      {
-        id: assetId,
-        type: 'image',
-        typeName: 'asset',
-        props: {
-          name: 'background fill',
-          src: backgroundDataUrl,
-          w: targetImage.intrinsicWidth,
-          h: targetImage.intrinsicHeight,
-          mimeType: 'image/svg+xml',
-          isAnimated: false,
-        },
-        meta: {
-          aetherRole: 'background-fill-asset',
-        },
-      },
-    ]);
-
-    const existingBackgroundId = findBackgroundShapeId(editor, targetImage.shapeId);
-    if (existingBackgroundId) {
-      editor.updateShape({
-        id: existingBackgroundId as never,
-        type: 'image',
-        x: targetImage.x,
-        y: targetImage.y,
-        props: {
-          assetId,
-          w: targetImage.width,
-          h: targetImage.height,
-        },
-      } as never);
-      editor.select(targetImage.shapeId as never);
-      if (segmentation.runId) {
-        appendRunActivity(segmentation.runId, {
-          title: 'background applied',
-          detail: `${backgroundFill.mode} · ${Math.round(backgroundFill.opacity * 100)}%`,
-          tone: 'ok',
-        });
-      }
-      return;
-    }
-
-    editor.createShape({
-      id: undefined,
-      type: 'image',
-      parentId: targetImage.parentId as never,
-      x: targetImage.x,
-      y: targetImage.y,
-      index: getBackgroundIndex(editor, targetImage),
-      props: {
-        assetId,
-        w: targetImage.width,
-        h: targetImage.height,
-      },
-      meta: {
-        aetherRole: 'background-fill',
-        aetherForShapeId: targetImage.shapeId,
-      },
-    } as never);
-    editor.select(targetImage.shapeId as never);
+    upsertBackgroundAsset({
+      editor,
+      targetImage,
+      name: 'background fill',
+      src: backgroundDataUrl,
+      mimeType: 'image/svg+xml',
+      sourceTag: 'fill',
+    });
     if (segmentation.runId) {
       appendRunActivity(segmentation.runId, {
         title: 'background applied',
@@ -1008,6 +1043,29 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       });
     }
   }, [backgroundFill, editor, segmentation]);
+
+  const handleApplyBackgroundPlate = useCallback(() => {
+    if (!editor || !segmentation?.preview?.backgroundPlateDataUrl) return;
+    const targetImage = segmentation.target;
+
+    editor.markHistoryStoppingPoint('apply background plate');
+    upsertBackgroundAsset({
+      editor,
+      targetImage,
+      name: 'background plate',
+      src: segmentation.preview.backgroundPlateDataUrl,
+      mimeType: inferDataUrlMimeType(segmentation.preview.backgroundPlateDataUrl),
+      sourceTag: 'plate',
+    });
+
+    if (segmentation.runId) {
+      appendRunActivity(segmentation.runId, {
+        title: 'background plate applied',
+        detail: 'generated clean plate',
+        tone: 'ok',
+      });
+    }
+  }, [editor, segmentation]);
 
   const handleRejectSegmentation = useCallback(() => {
     if (segmentation?.runId) {
@@ -1218,6 +1276,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           setBackgroundFill((current) => ({ ...current, opacity }))
         }
         onApplyBackground={handleApplyBackground}
+        onApplyBackgroundPlate={handleApplyBackgroundPlate}
         onUndo={() => editor?.undo()}
         onRedo={() => editor?.redo()}
       />

@@ -14,6 +14,7 @@ import binascii
 import io
 import json
 import os
+from collections import deque
 from typing import Annotated, Literal
 from urllib.parse import unquote_to_bytes
 from urllib.request import Request, urlopen
@@ -88,10 +89,24 @@ class SegmentRequest(BaseModel):
 class SegmentResponse(BaseModel):
     mask_url: str
     alpha_cutout_url: str | None = None
+    background_plate_url: str | None = None
     bbox: dict[str, int] | None = None
+    regions: list["SegmentRegionResponse"] | None = None
     width: int | None = None
     height: int | None = None
     model: str | None = None
+
+
+class SegmentRegionResponse(BaseModel):
+    id: str | None = None
+    label: str | None = None
+    mask_url: str
+    alpha_cutout_url: str | None = None
+    bbox: dict[str, int] | None = None
+    score: float | None = None
+
+
+SegmentResponse.model_rebuild()
 
 
 def _decode_image_bytes(image_url: str) -> bytes:
@@ -122,8 +137,7 @@ def _load_image(image_url: str):
         return image.convert("RGB")
 
 
-def _mask_to_data_url(mask) -> str:
-    from PIL import Image
+def _binary_mask(mask):
     import numpy as np
 
     mask_array = np.asarray(mask)
@@ -133,8 +147,14 @@ def _mask_to_data_url(mask) -> str:
         mask_array = mask_array.any(axis=0)
     if mask_array.ndim != 2:
         raise ValueError(f"unexpected mask shape: {mask_array.shape}")
+    return mask_array > 0
 
-    binary = (mask_array > 0).astype("uint8") * 255
+
+def _mask_to_data_url(mask) -> str:
+    from PIL import Image
+    import numpy as np
+
+    binary = _binary_mask(mask).astype("uint8") * 255
     buffer = io.BytesIO()
     Image.fromarray(binary, mode="L").save(buffer, format="PNG")
     encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
@@ -144,15 +164,12 @@ def _mask_to_data_url(mask) -> str:
 def _mask_bbox(mask) -> dict[str, int] | None:
     import numpy as np
 
-    mask_array = np.asarray(mask)
-    if mask_array.ndim == 4:
-        mask_array = mask_array[:, 0, :, :]
-    if mask_array.ndim == 3:
-        mask_array = mask_array.any(axis=0)
-    if mask_array.ndim != 2:
+    try:
+        mask_array = _binary_mask(mask)
+    except ValueError:
         return None
 
-    ys, xs = np.nonzero(mask_array > 0)
+    ys, xs = np.nonzero(mask_array)
     if len(xs) == 0 or len(ys) == 0:
         return None
 
@@ -166,6 +183,85 @@ def _mask_bbox(mask) -> dict[str, int] | None:
         "w": x1 - x0 + 1,
         "h": y1 - y0 + 1,
     }
+
+
+def _extract_regions(mask) -> list[SegmentRegionResponse]:
+    import numpy as np
+
+    binary = _binary_mask(mask)
+    height, width = binary.shape
+    total_area = int(binary.sum())
+    if total_area == 0:
+        return []
+
+    visited = np.zeros((height, width), dtype=bool)
+    min_area = max(64, int(height * width * 0.0002))
+    regions: list[tuple[int, SegmentRegionResponse]] = []
+
+    for y in range(height):
+        for x in range(width):
+            if not binary[y, x] or visited[y, x]:
+                continue
+
+            queue = deque([(x, y)])
+            visited[y, x] = True
+            pixels: list[tuple[int, int]] = []
+            x0 = x1 = x
+            y0 = y1 = y
+
+            while queue:
+                cx, cy = queue.popleft()
+                pixels.append((cy, cx))
+                if cx < x0:
+                    x0 = cx
+                if cx > x1:
+                    x1 = cx
+                if cy < y0:
+                    y0 = cy
+                if cy > y1:
+                    y1 = cy
+
+                for nx, ny in (
+                    (cx - 1, cy),
+                    (cx + 1, cy),
+                    (cx, cy - 1),
+                    (cx, cy + 1),
+                ):
+                    if (
+                        0 <= nx < width
+                        and 0 <= ny < height
+                        and binary[ny, nx]
+                        and not visited[ny, nx]
+                    ):
+                        visited[ny, nx] = True
+                        queue.append((nx, ny))
+
+            area = len(pixels)
+            if area < min_area:
+                continue
+
+            region_mask = np.zeros((height, width), dtype=bool)
+            ys, xs = zip(*pixels)
+            region_mask[list(ys), list(xs)] = True
+            regions.append(
+                (
+                    area,
+                    SegmentRegionResponse(
+                        id=f"region-{len(regions) + 1}",
+                        mask_url=_mask_to_data_url(region_mask),
+                        bbox={
+                            "x": x0,
+                            "y": y0,
+                            "w": x1 - x0 + 1,
+                            "h": y1 - y0 + 1,
+                        },
+                        score=round(area / total_area, 4),
+                    ),
+                )
+            )
+
+    regions.sort(key=lambda item: item[0], reverse=True)
+    return [region for _, region in regions]
 
 
 def _box_to_xyxy(box: SegmentBox | None):
@@ -326,9 +422,14 @@ class Sam3Runner:
         if bbox is None:
             raise RuntimeError("sam3 returned an empty mask")
 
+        regions = _extract_regions(mask)
+        if len(regions) <= 1:
+            regions = None
+
         return SegmentResponse(
             mask_url=_mask_to_data_url(mask),
             bbox=bbox,
+            regions=regions,
             width=image.width,
             height=image.height,
             model=model_name,

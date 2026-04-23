@@ -14,7 +14,16 @@ describe('sam3 modal adapter · contract', () => {
           JSON.stringify({
             mask_url: 'https://sam3.example.com/mask.png',
             alpha_cutout_url: 'https://sam3.example.com/cutout.png',
+            background_plate_url: 'https://sam3.example.com/plate.png',
             bbox: { x: 10, y: 20, w: 300, h: 420 },
+            regions: [
+              {
+                id: 'region-1',
+                mask_url: 'https://sam3.example.com/region-1-mask.png',
+                bbox: { x: 12, y: 24, w: 48, h: 60 },
+                score: 0.94,
+              },
+            ],
             width: 1024,
             height: 1280,
             model: 'sam3.1',
@@ -51,9 +60,18 @@ describe('sam3 modal adapter · contract', () => {
       model: 'sam3.1',
       maskUrl: 'https://sam3.example.com/mask.png',
       alphaCutoutUrl: 'https://sam3.example.com/cutout.png',
+      backgroundPlateUrl: 'https://sam3.example.com/plate.png',
       bbox: { x: 10, y: 20, w: 300, h: 420 },
       width: 1024,
       height: 1280,
+      regions: [
+        {
+          id: 'region-1',
+          maskUrl: 'https://sam3.example.com/region-1-mask.png',
+          bbox: { x: 12, y: 24, w: 48, h: 60 },
+          score: 0.94,
+        },
+      ],
     });
   });
 });
