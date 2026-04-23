@@ -266,7 +266,17 @@ export function extractFromRepo(files: RepoFiles, repoUrl?: string): BrandRawExt
   if (files.readme) {
     const paragraphs = files.readme
       .split(/\n{2,}/)
-      .map((p) => p.replace(/[#>*_`-]/g, '').replace(/\s+/g, ' ').trim())
+      .map((p) =>
+        p
+          // Strip markdown bullets / quote / heading markers at line start only,
+          // so compound words like "golden-hour" survive.
+          .replace(/^\s*[-*+>#]+\s*/gm, '')
+          // Strip inline emphasis + inline code fences. Hyphen is intentionally
+          // absent from this class — it belongs to prose, not markdown syntax.
+          .replace(/[*_`]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+      )
       .filter((p) => p.length >= 40 && p.length <= 280);
     out.voiceSamples = paragraphs.slice(0, 4);
   }
@@ -284,9 +294,19 @@ export interface FilesPayload {
 export function extractFromFiles(payload: FilesPayload): BrandRawExtract {
   const out = emptyBrandRawExtract();
   const texts = (payload.texts ?? []).filter((t) => typeof t === 'string' && t.trim() !== '');
+  const joined = texts.join('\n');
 
-  out.hexes = extractHexColorsFromText(texts.join('\n'));
-  out.families = extractFontFamiliesFromCss(texts.join('\n'));
+  out.hexes = extractHexColorsFromText(joined);
+  out.families = extractFontFamiliesFromCss(joined);
+  // Plain-text bundles rarely contain CSS; creators paste shorthand like
+  //   `Display: "Canela Deck", Body: "Inter"`
+  // Pick those up too so a brand packet from Notion/Docs yields typography.
+  for (const match of joined.matchAll(
+    /(?:display|body|mono|sans|serif|heading|headline|brand)\s*[:=]\s*["']([^"']+)["']/gi
+  )) {
+    const fam = match[1]?.trim();
+    if (fam && !out.families.includes(fam)) out.families.push(fam);
+  }
   out.voiceSamples = texts
     .flatMap((t) => t.split(/\n{2,}|\.\s+/))
     .map((s) => s.replace(/\s+/g, ' ').trim())
