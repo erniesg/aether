@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { OpenAIRealtimeClient } from '@/lib/voice/realtime-client';
 import type {
   VoiceFunctionCallEvent,
   VoiceOrbStateEvent,
+  VoiceSessionCredentials,
   VoiceTranscriptEvent,
 } from '@/lib/voice/types';
 
@@ -78,8 +79,13 @@ function makeFakeMicStream(): MediaStream {
 
 describe('OpenAIRealtimeClient', () => {
   let pc: FakePeerConnection;
-  let sdpExchange: ReturnType<typeof vi.fn>;
-  let fetchSession: ReturnType<typeof vi.fn>;
+  // Type the mocks against the dep signatures so `vi.fn()` assignment narrows to
+  // the optional function slots on RealtimeClientDeps. Without the generic the
+  // inferred Mock<Procedure | Constructable> can't satisfy the call signature.
+  let sdpExchange: Mock<
+    (offerSdp: string, credentials: VoiceSessionCredentials) => Promise<string>
+  >;
+  let fetchSession: Mock<(endpoint: string) => Promise<VoiceSessionCredentials>>;
 
   beforeEach(() => {
     pc = new FakePeerConnection();
