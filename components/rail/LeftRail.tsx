@@ -11,9 +11,9 @@ import {
 } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
+import { BrandSection, brandSectionSummary } from './sections/BrandSection';
 import {
   DEMO_CREATOR_CONTEXT,
-  describeWorkspaceMode,
   summarizeInputSet,
   type SignalContext,
 } from '@/lib/context/model';
@@ -109,66 +109,6 @@ function OfferBody() {
   );
 }
 
-function KnowledgeRow({ label, note }: { label: string; note: string }) {
-  return (
-    <li className="flex items-center justify-between gap-3 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5">
-      <div className="flex flex-col">
-        <span className="font-caption text-ink">{note}</span>
-        <span className="font-caption text-xs text-ink-dim">{label}</span>
-      </div>
-    </li>
-  );
-}
-
-function BrandBody() {
-  const modeLabel = CONTEXT.workspaceMode === 'venture' ? 'venture' : 'studio';
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">{modeLabel}</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.workspaceLabel}</span>
-        <span className="font-display text-sm text-ink">{CONTEXT.brand.name}</span>
-        <span className="font-caption text-xs text-ink-dim">
-          {describeWorkspaceMode(CONTEXT.workspaceMode)}
-        </span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">knowledge</span>
-        <ul className="flex flex-col gap-2">
-          {CONTEXT.brand.knowledgeSources.map((source) => (
-            <KnowledgeRow key={source.id} label={source.label} note={source.note} />
-          ))}
-        </ul>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">palette</span>
-        <div className="flex gap-1">
-          {CONTEXT.brand.palette.map((color) => (
-            <span
-              key={color}
-              title={color}
-              className="inline-block h-5 w-5 rounded-xs border border-border-soft"
-              style={{ background: color }}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">type</span>
-        {CONTEXT.brand.type.map((entry) => (
-          <span key={entry} className="font-caption text-xs text-ink">
-            {entry}
-          </span>
-        ))}
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">voice</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.brand.voice}</span>
-      </div>
-    </div>
-  );
-}
 
 function ReferencesBody() {
   const [tab, setTab] = useState<ReferencesTabId>('images');
@@ -249,9 +189,9 @@ const LEFT_SECTIONS: ReadonlyArray<SectionSpec> = [
     id: 'brand',
     label: 'brand',
     icon: PaintBucket,
-    summary: `${CONTEXT.brand.knowledgeSources.length} sources`,
+    summary: brandSectionSummary(CONTEXT.brand),
     hasContent: true,
-    body: <BrandBody />,
+    body: <BrandSection />,
   },
   {
     id: 'offer',
