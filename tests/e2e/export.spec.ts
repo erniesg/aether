@@ -1,5 +1,15 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Download } from '@playwright/test';
 import JSZip from 'jszip';
+import { readFile } from 'node:fs/promises';
+
+async function readDownloadBytes(download: Download): Promise<Buffer> {
+  // `response.body()` is empty once the browser hands the response off to a
+  // download — read the saved file instead. Playwright keeps it in a temp dir
+  // until the test ends.
+  const path = await download.path();
+  if (!path) throw new Error('download had no path');
+  return readFile(path);
+}
 
 const TINY_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZwkmBYAAAAASUVORK5CYII=';
@@ -133,7 +143,7 @@ test.describe('H1 — export pack', () => {
     expect(response.headers()['content-type']).toContain('application/zip');
     expect(download.suggestedFilename()).toMatch(/^aether-demo-ws\.zip$/);
 
-    const buf = await response.body();
+    const buf = await readDownloadBytes(download);
     const archive = await JSZip.loadAsync(buf);
     const fileList = Object.keys(archive.files).sort();
     expect(fileList).toContain('manifest.json');
@@ -171,7 +181,7 @@ test.describe('H1 — export pack', () => {
     expect(response.ok()).toBe(true);
     expect(download.suggestedFilename()).toMatch(/^aether-demo-ws\.zip$/);
 
-    const archive = await JSZip.loadAsync(await response.body());
+    const archive = await JSZip.loadAsync(await readDownloadBytes(download));
     expect(archive.file('manifest.json')).not.toBeNull();
   });
 });
