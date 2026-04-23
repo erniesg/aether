@@ -17,6 +17,11 @@ export interface CapabilityRunRecord {
   provider: string;
   model: string;
   prompt: string;
+  artifactKind?: 'image' | 'spatial';
+  outputFormat?: 'particle-field' | 'gaussian-splat';
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image';
+  sourceImageShapeId?: string;
   rewrittenPrompt?: string;
   rationale?: string;
   aspectRatio?: string;

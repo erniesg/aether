@@ -89,6 +89,11 @@ describe('/api/capability/rerun', () => {
     });
     expect(mocks.recordRunStart).toHaveBeenCalledWith({
       clientRunId: 'run_cap_rerun',
+      artifactKind: 'image',
+      outputFormat: undefined,
+      quality: undefined,
+      sourceMode: undefined,
+      sourceImageShapeId: undefined,
       tool: 'image-gen',
       provider: 'openai',
       model: 'gpt-image-1',
@@ -171,6 +176,94 @@ describe('/api/capability/rerun', () => {
         kind: 'tool',
         id: 'image-gen',
         version: 1,
+      },
+    });
+  });
+
+  it('reruns spatial capabilities against a selected image target', async () => {
+    mocks.runGenerate.mockReset();
+
+    const { POST } = await import('@/app/api/capability/rerun/route');
+    const response = await POST(
+      new Request('http://localhost/api/capability/rerun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId: 'run_spatial_rerun',
+          targetImage: {
+            sourceUrl: 'https://cdn.test/source.png',
+            width: 1200,
+            height: 900,
+            shapeId: 'shape:image:1',
+          },
+          definition: {
+            id: 'cap_splat',
+            version: 3,
+            createdAt: 1,
+            name: 'hero splat',
+            trigger: 'turn the selected image into a hero splat',
+            paramSchema: { type: 'object', properties: { layerId: { type: 'string' } } },
+            createdBy: 'agent',
+            tool: 'spatial-gen',
+            provider: 'draft',
+            entryRef: {
+              kind: 'tool',
+              id: 'spatial-gen',
+              version: 1,
+            },
+            runTemplate: {
+              prompt: 'turn the selected image into a hero splat',
+              artifactKind: 'spatial',
+              format: 'gaussian-splat',
+              quality: 'draft',
+              sourceMode: 'selected-image',
+              providerId: 'draft',
+              model: 'particle-field-v1',
+            },
+          },
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.recordRunStart).toHaveBeenCalledWith({
+      clientRunId: 'run_spatial_rerun',
+      artifactKind: 'spatial',
+      outputFormat: 'gaussian-splat',
+      quality: 'draft',
+      sourceMode: 'selected-image',
+      sourceImageShapeId: 'shape:image:1',
+      tool: 'spatial-gen',
+      provider: 'draft',
+      model: 'particle-field-v1',
+      prompt: 'turn the selected image into a hero splat',
+      aspectRatio: undefined,
+      definitionId: 'cap_splat',
+      definitionVersion: 3,
+      entryRef: {
+        kind: 'tool',
+        id: 'spatial-gen',
+        version: 1,
+      },
+    });
+
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      definitionId: 'cap_splat',
+      entryRef: {
+        kind: 'tool',
+        id: 'spatial-gen',
+        version: 1,
+      },
+      artifactKind: 'spatial',
+      result: {
+        format: 'gaussian-splat',
+        images: [
+          {
+            url: expect.stringContaining('data:image/svg+xml'),
+            mimeType: 'image/svg+xml',
+          },
+        ],
       },
     });
   });

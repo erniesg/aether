@@ -29,6 +29,10 @@ export interface CapabilityRunTemplate {
   /** Provider-routing hint; still resolved via the registry, never hardcoded. */
   providerId?: string;
   model?: string;
+  artifactKind?: 'image' | 'spatial';
+  format?: 'particle-field' | 'gaussian-splat';
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image';
 }
 
 export interface CapabilityParamSchema {

@@ -140,6 +140,11 @@ export default defineSchema({
         version: v.number(),
       })
     ),
+    artifactKind: v.optional(v.union(v.literal('image'), v.literal('spatial'))),
+    outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
+    quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
+    sourceMode: v.optional(v.literal('selected-image')),
+    sourceImageShapeId: v.optional(v.string()),
     tool: v.string(),
     provider: v.string(),
     model: v.string(),

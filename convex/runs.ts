@@ -32,6 +32,11 @@ interface RunDoc {
     id: string;
     version: number;
   };
+  artifactKind?: 'image' | 'spatial';
+  outputFormat?: 'particle-field' | 'gaussian-splat';
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image';
+  sourceImageShapeId?: string;
   tool: string;
   provider: string;
   model: string;
@@ -71,6 +76,11 @@ function toRecord(doc: RunDoc) {
     definitionId: doc.definitionId,
     definitionVersion: doc.definitionVersion,
     entryRef: doc.entryRef,
+    artifactKind: doc.artifactKind,
+    outputFormat: doc.outputFormat,
+    quality: doc.quality,
+    sourceMode: doc.sourceMode,
+    sourceImageShapeId: doc.sourceImageShapeId,
   };
 }
 
@@ -108,6 +118,11 @@ export const start = mutationGeneric({
         version: v.number(),
       })
     ),
+    artifactKind: v.optional(v.union(v.literal('image'), v.literal('spatial'))),
+    outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
+    quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
+    sourceMode: v.optional(v.literal('selected-image')),
+    sourceImageShapeId: v.optional(v.string()),
     tool: v.string(),
     provider: v.string(),
     model: v.string(),
@@ -124,6 +139,11 @@ export const start = mutationGeneric({
       definitionId: args.definitionId,
       definitionVersion: args.definitionVersion,
       entryRef: args.entryRef,
+      artifactKind: args.artifactKind,
+      outputFormat: args.outputFormat,
+      quality: args.quality,
+      sourceMode: args.sourceMode,
+      sourceImageShapeId: args.sourceImageShapeId,
       tool: args.tool,
       provider: args.provider,
       model: args.model,

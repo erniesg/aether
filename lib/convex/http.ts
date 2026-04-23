@@ -29,6 +29,11 @@ const runsApi = (anyApi as unknown as {
 
 export interface ServerRunStart {
   clientRunId: string;
+  artifactKind?: 'image' | 'spatial';
+  outputFormat?: 'particle-field' | 'gaussian-splat';
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image';
+  sourceImageShapeId?: string;
   tool: string;
   provider: string;
   model: string;

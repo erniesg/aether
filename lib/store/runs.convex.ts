@@ -33,6 +33,11 @@ export function startRunConvex(
   if (!client) return;
   void client.mutation(runsApi.start as never, {
     clientRunId: id,
+    artifactKind: partial.artifactKind,
+    outputFormat: partial.outputFormat,
+    quality: partial.quality,
+    sourceMode: partial.sourceMode,
+    sourceImageShapeId: partial.sourceImageShapeId,
     tool: partial.tool,
     provider: partial.provider,
     model: partial.model,

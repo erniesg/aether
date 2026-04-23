@@ -7,7 +7,6 @@ import {
   DefaultColorStyle,
   DefaultFillStyle,
   type IndexKey,
-  createShapeId,
   getIndexBelow,
   getIndexBetween,
 } from 'tldraw';
@@ -27,6 +26,7 @@ import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
 import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
+import { placeSpatialPreviewOnCanvas } from '@/lib/spatial/canvas';
 import type {
   SegmentationBoxPrompt,
   SegmentationProviderId,
@@ -76,6 +76,9 @@ export interface CanvasSubstrateProps {
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
   onVerbPress?: (verb: ToolbarVerb) => void;
+  onSpatializeFromSelection?: (
+    request: { prompt: string; format: 'particle-field' | 'gaussian-splat'; quality: 'draft' | 'standard' | 'high' }
+  ) => void | Promise<void>;
   /**
    * Fires when the voice provider emits `run_generate`. The shell owns the
    * generate/fan-out pipeline, so we pass the request back up rather than
@@ -271,6 +274,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   pinnedCapabilities = EMPTY_PINS,
   onCapabilityPress,
   onVerbPress,
+  onSpatializeFromSelection,
   onVoiceGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
@@ -405,8 +409,22 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     const target = selectedImage ?? segmentation?.target;
     if (!target) return;
 
+    if (onSpatializeFromSelection) {
+      await onSpatializeFromSelection({
+        prompt: 'turn the selected image into a particle field',
+        format: 'particle-field',
+        quality: 'draft',
+      });
+      return;
+    }
+
     const runId = startRun({
       tool: 'spatial-gen',
+      artifactKind: 'spatial',
+      outputFormat: 'particle-field',
+      quality: 'draft',
+      sourceMode: 'selected-image',
+      sourceImageShapeId: target.shapeId,
       provider: 'draft',
       model: 'particle-field-v1',
       prompt: 'particle field from selected image',
@@ -479,46 +497,14 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         return;
       }
 
-      const assetId = AssetRecordType.createId();
-      const shapeId = createShapeId();
-      editor.markHistoryStoppingPoint('spatialize image');
-      editor.createAssets([
-        {
-          id: assetId,
-          type: 'image',
-          typeName: 'asset',
-          props: {
-            name: 'particle field draft',
-            src: json.preview.imageDataUrl,
-            w: json.preview.width ?? target.intrinsicWidth,
-            h: json.preview.height ?? target.intrinsicHeight,
-            mimeType: 'image/svg+xml',
-            isAnimated: false,
-          },
-          meta: {
-            aetherRole: 'spatial-preview-asset',
-            aetherProviderId: json.provider?.id ?? 'draft',
-          },
-        },
-      ]);
-      editor.createShape({
-        id: shapeId,
-        type: 'image',
-        x: target.x + target.width + 40,
-        y: target.y,
-        props: {
-          assetId,
-          w: target.width,
-          h: target.height,
-        },
-        meta: {
-          aetherRole: 'spatial-preview',
-          aetherSourceShapeId: target.shapeId,
-          aetherSpatialFormat: json.result?.format ?? 'particle-field',
-          aetherSpatialProvider: json.provider?.id ?? 'draft',
-        },
-      } as never);
-      editor.select(shapeId);
+      placeSpatialPreviewOnCanvas(editor, target, {
+        previewImageUrl: json.preview.imageDataUrl,
+        width: json.preview.width ?? target.intrinsicWidth,
+        height: json.preview.height ?? target.intrinsicHeight,
+        label: 'particle field draft',
+        providerId: json.provider?.id ?? 'draft',
+        format: (json.result?.format as 'particle-field' | 'gaussian-splat' | undefined) ?? 'particle-field',
+      });
 
       appendRunActivity(runId, {
         title: 'spatial draft placed',
@@ -553,7 +539,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         tone: 'error',
       });
     }
-  }, [editor, segmentation?.target, selectedImage]);
+  }, [editor, onSpatializeFromSelection, segmentation?.target, selectedImage]);
 
   const beginSegmentationRun = useCallback(
     (
