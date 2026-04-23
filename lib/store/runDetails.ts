@@ -59,6 +59,12 @@ export function useRunDetails(runId?: string | null): RunDetailsRecord | null {
   );
 }
 
+/** Read-only snapshot of every in-memory run-details record. Used by callbacks
+ * (e.g. export pack assembly) that need a fresh read outside React's hook tree. */
+export function getAllRunDetailsSnapshot(): RunDetailsRecord[] {
+  return Array.from(state.values());
+}
+
 export function initRunDetails(
   runId: string,
   seed: Partial<Omit<RunDetailsRecord, 'runId'>> & {
