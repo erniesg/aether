@@ -17,6 +17,15 @@ export interface SegmentationPreviewPayload {
   height: number;
   bbox?: { x: number; y: number; w: number; h: number };
   invertMask?: boolean;
+  regions?: Array<{
+    id?: string;
+    label?: string;
+    maskDataUrl: string;
+    cutoutDataUrl: string;
+    bbox?: { x: number; y: number; w: number; h: number };
+    score?: number;
+  }>;
+  backgroundPlateDataUrl?: string;
 }
 
 export interface SegmentationPanelProps {
@@ -48,6 +57,7 @@ export interface SegmentationPanelProps {
   onBackgroundColorBChange: (value: string) => void;
   onBackgroundOpacityChange: (value: number) => void;
   onApplyBackground: () => void;
+  onApplyBackgroundPlate?: () => void;
   onUndo: () => void;
   onRedo: () => void;
   preview?: SegmentationPreviewPayload;
@@ -93,6 +103,7 @@ export function SegmentationPanel({
   onBackgroundColorBChange,
   onBackgroundOpacityChange,
   onApplyBackground,
+  onApplyBackgroundPlate,
   onUndo,
   onRedo,
   preview,
@@ -319,12 +330,31 @@ export function SegmentationPanel({
                 ? 'cutout applied. paint a background behind it or undo.'
                 : 'preview is on canvas. toggle it or approve to replace the selected image with the cutout.'}
             </p>
+            {preview.regions && preview.regions.length > 1 ? (
+              <p className="mt-1 font-caption text-2xs text-ink-dim">
+                detected {preview.regions.length} separate regions from the mask.
+              </p>
+            ) : null}
+            {preview.backgroundPlateDataUrl ? (
+              <p className="mt-1 font-caption text-2xs text-ink-dim">
+                a generated background plate is available for the removed area.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
         {approved ? (
           <div className="flex flex-col gap-2 rounded-sm border border-border-soft bg-surface-panel-muted p-2">
             <span className="font-caption text-ink-dim">background</span>
+            {preview?.backgroundPlateDataUrl ? (
+              <button
+                type="button"
+                onClick={onApplyBackgroundPlate}
+                className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
+              >
+                apply generated plate
+              </button>
+            ) : null}
             <div className="flex items-center gap-1">
               {(['solid', 'gradient'] as const).map((mode) => {
                 const active = backgroundFill.mode === mode;
@@ -389,7 +419,7 @@ export function SegmentationPanel({
               onClick={onApplyBackground}
               className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
             >
-              apply background
+              apply background fill
             </button>
           </div>
         ) : null}

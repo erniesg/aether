@@ -84,6 +84,54 @@ describe('/api/segment', () => {
     expect(json.preview.sourceDataUrl).toBe(TINY_PNG);
   });
 
+  it('normalizes segmentation regions and an optional background plate', async () => {
+    mocks.segment.mockResolvedValue({
+      provider: 'sam3',
+      model: 'sam3.1',
+      maskUrl: TINY_PNG,
+      backgroundPlateUrl: TINY_PNG,
+      regions: [
+        {
+          id: 'region-1',
+          maskUrl: TINY_PNG,
+          bbox: { x: 10, y: 20, w: 30, h: 40 },
+          score: 0.91,
+        },
+      ],
+      width: 1024,
+      height: 1024,
+      raw: { ok: true },
+    });
+
+    const { POST } = await import('@/app/api/segment/route');
+    const response = await POST(
+      new Request('http://localhost/api/segment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceUrl: TINY_PNG,
+          mode: 'removebg',
+          width: 1024,
+          height: 1024,
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.ok).toBe(true);
+    expect(json.preview.backgroundPlateDataUrl).toBe(TINY_PNG);
+    expect(json.preview.regions).toEqual([
+      expect.objectContaining({
+        id: 'region-1',
+        maskDataUrl: TINY_PNG,
+        bbox: { x: 10, y: 20, w: 30, h: 40 },
+        score: 0.91,
+      }),
+    ]);
+    expect(json.preview.regions[0].cutoutDataUrl).toContain('data:image/svg+xml');
+  });
+
   it('forwards point and box refinement prompts to the provider', async () => {
     mocks.segment.mockResolvedValue({
       provider: 'sam3',

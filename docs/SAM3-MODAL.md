@@ -56,6 +56,15 @@ Your endpoint should return JSON shaped like:
 {
   "mask_url": "https://.../mask.png",
   "alpha_cutout_url": "https://.../cutout.png",
+  "background_plate_url": "https://.../plate.png",
+  "regions": [
+    {
+      "id": "region-1",
+      "mask_url": "https://.../region-1-mask.png",
+      "bbox": { "x": 10, "y": 20, "w": 300, "h": 420 },
+      "score": 0.92
+    }
+  ],
   "bbox": { "x": 10, "y": 20, "w": 300, "h": 420 },
   "width": 1024,
   "height": 1280,
@@ -67,6 +76,8 @@ Notes:
 
 - `mask_url` is required.
 - `alpha_cutout_url` is optional. If omitted, `aether` will compose the cutout preview itself.
+- `background_plate_url` is optional. If present, `aether` can apply it as the clean background layer behind the cutout.
+- `regions` is optional. Use it when the mask really represents multiple disconnected objects or fragments that should be inspectable separately.
 - `bbox`, `width`, `height`, and `model` are optional but recommended.
 
 ## Minimal Modal shape
