@@ -27,6 +27,11 @@ function seed(
     notes: partial?.notes,
     tool: partial?.tool ?? 'image-gen',
     provider: partial?.provider ?? 'auto',
+    entryRef: partial?.entryRef ?? {
+      kind: 'tool',
+      id: 'image-gen',
+      version: 1,
+    },
     runTemplate: partial?.runTemplate ?? { prompt: 'recolor using palette' },
   });
 }
@@ -41,6 +46,11 @@ describe('capability/store', () => {
     expect(def.createdBy).toBe('agent');
     expect(def.name).toBe('recolor to brand palette');
     expect(def.createdAt).toBeGreaterThan(0);
+    expect(def.entryRef).toEqual({
+      kind: 'tool',
+      id: 'image-gen',
+      version: 1,
+    });
   });
 
   it('lists definitions most-recent first', () => {

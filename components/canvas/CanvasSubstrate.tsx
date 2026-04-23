@@ -7,6 +7,7 @@ import {
   DefaultColorStyle,
   DefaultFillStyle,
   type IndexKey,
+  createShapeId,
   getIndexBelow,
   getIndexBetween,
 } from 'tldraw';
@@ -108,6 +109,28 @@ interface SegmentationDraft {
   error?: string;
   preview?: SegmentationPreviewPayload;
   targetShapeId: string;
+}
+
+interface SpatialResponseJson {
+  ok?: boolean;
+  error?: string;
+  provider?: {
+    id?: string;
+    model?: string;
+  };
+  preview?: {
+    imageDataUrl?: string;
+    width?: number;
+    height?: number;
+  };
+  result?: {
+    format?: string;
+    latencyMs?: number;
+    sceneSpec?: {
+      kind?: string;
+      pointCount?: number;
+    };
+  };
 }
 
 const SEGMENTATION_PROVIDER_NAMES: Record<SegmentationProviderId, string> = {
@@ -376,6 +399,161 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     },
     [onVerbPress, openSegmentation]
   );
+
+  const handleSpatialize = useCallback(async () => {
+    if (!editor) return;
+    const target = selectedImage ?? segmentation?.target;
+    if (!target) return;
+
+    const runId = startRun({
+      tool: 'spatial-gen',
+      provider: 'draft',
+      model: 'particle-field-v1',
+      prompt: 'particle field from selected image',
+    });
+
+    const frame = resolveSegmentationFrame(editor, target);
+    initRunDetails(runId, {
+      providerHint: 'draft',
+      modelHint: 'particle-field-v1',
+      frames: frame
+        ? [
+            {
+              id: frame.id,
+              label: frame.label,
+              aspectRatio: frame.aspectRatio,
+              status: 'running',
+              updatedAt: Date.now(),
+            },
+          ]
+        : [],
+    });
+    appendRunActivity(runId, {
+      title: 'selected image',
+      detail: frame?.label ?? target.shapeId,
+    });
+    appendRunActivity(runId, {
+      title: 'building spatial draft',
+      detail: 'particle field · draft',
+    });
+    stepRun(runId, 'awaiting');
+
+    try {
+      const response = await fetch('/api/spatial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceUrl: target.sourceUrl,
+          width: target.intrinsicWidth,
+          height: target.intrinsicHeight,
+          prompt: 'particle field from selected image',
+          format: 'particle-field',
+          quality: 'draft',
+        }),
+      });
+
+      let json: SpatialResponseJson;
+      try {
+        json = await response.json();
+      } catch (err) {
+        failRun(runId, `bad JSON response (${response.status})`, response.status);
+        appendRunActivity(runId, {
+          title: 'spatial preview failed',
+          detail: err instanceof Error ? err.message : String(err),
+          tone: 'error',
+        });
+        return;
+      }
+
+      if (!response.ok || !json.ok || !json.preview?.imageDataUrl) {
+        const message =
+          typeof json?.error === 'string'
+            ? json.error
+            : response.statusText || 'spatial draft failed';
+        failRun(runId, message, response.status);
+        appendRunActivity(runId, {
+          title: 'spatial preview failed',
+          detail: message,
+          tone: 'error',
+        });
+        return;
+      }
+
+      const assetId = AssetRecordType.createId();
+      const shapeId = createShapeId();
+      editor.markHistoryStoppingPoint('spatialize image');
+      editor.createAssets([
+        {
+          id: assetId,
+          type: 'image',
+          typeName: 'asset',
+          props: {
+            name: 'particle field draft',
+            src: json.preview.imageDataUrl,
+            w: json.preview.width ?? target.intrinsicWidth,
+            h: json.preview.height ?? target.intrinsicHeight,
+            mimeType: 'image/svg+xml',
+            isAnimated: false,
+          },
+          meta: {
+            aetherRole: 'spatial-preview-asset',
+            aetherProviderId: json.provider?.id ?? 'draft',
+          },
+        },
+      ]);
+      editor.createShape({
+        id: shapeId,
+        type: 'image',
+        x: target.x + target.width + 40,
+        y: target.y,
+        props: {
+          assetId,
+          w: target.width,
+          h: target.height,
+        },
+        meta: {
+          aetherRole: 'spatial-preview',
+          aetherSourceShapeId: target.shapeId,
+          aetherSpatialFormat: json.result?.format ?? 'particle-field',
+          aetherSpatialProvider: json.provider?.id ?? 'draft',
+        },
+      } as never);
+      editor.select(shapeId);
+
+      appendRunActivity(runId, {
+        title: 'spatial draft placed',
+        detail:
+          json.result?.sceneSpec?.pointCount !== undefined
+            ? `${json.result.sceneSpec.pointCount} particles`
+            : 'particle field',
+        tone: 'ok',
+      });
+      if (frame) {
+        upsertRunFrame(runId, {
+          id: frame.id,
+          label: frame.label,
+          aspectRatio: frame.aspectRatio,
+          status: 'placed',
+          imageUrl: json.preview.imageDataUrl,
+        });
+      }
+      finishRun(runId, {
+        provider: json.provider?.id ?? 'draft',
+        model: json.provider?.model ?? 'particle-field-v1',
+        imageUrl: json.preview.imageDataUrl,
+        latencyMs: json.result?.latencyMs,
+        status: 'ok',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      failRun(runId, `fetch failed: ${message}`);
+      appendRunActivity(runId, {
+        title: 'spatial preview failed',
+        detail: message,
+        tone: 'error',
+      });
+    }
+  }, [editor, segmentation?.target, selectedImage]);
 
   const beginSegmentationRun = useCallback(
     (
@@ -961,6 +1139,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           disabled={segmentation?.loading}
           onRemoveBg={() => openSegmentation('removebg')}
           onCutout={() => openSegmentation('cutout')}
+          onSpatialize={handleSpatialize}
           onPreviewVisibilityChange={handlePreviewVisibilityChange}
         />
       ) : null}

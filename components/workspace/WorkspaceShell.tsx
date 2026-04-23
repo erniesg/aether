@@ -51,7 +51,11 @@ import {
   getDefinitionById,
   useCapabilityDefinitions,
 } from '@/lib/capability/store';
-import type { CapabilityDefinitionRecord } from '@/lib/capability/types';
+import {
+  resolveCapabilityDefinitionEntryRef,
+  type CapabilityDefinitionRecord,
+} from '@/lib/capability/types';
+import { resolveToolEntryRef } from '@/lib/tool/registry';
 import {
   buildExportRequestBody,
   downloadExportPack,
@@ -205,12 +209,15 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       } = {}
     ): Promise<void> => {
       const targets = options.targets ?? [];
+      const definition = options.definitionId ? getDefinitionById(options.definitionId) : undefined;
       const runId = startRun({
         tool: 'image-gen',
         provider: options.providerOverride ?? 'auto',
         model: options.modelOverride ?? '',
         prompt,
         definitionId: options.definitionId,
+        definitionVersion: definition?.version,
+        entryRef: definition ? resolveCapabilityDefinitionEntryRef(definition) : undefined,
       });
       initRunDetails(runId, {
         providerHint: options.providerOverride ?? 'auto',
@@ -244,7 +251,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         });
 
         if (options.definitionId) {
-          const def = getDefinitionById(options.definitionId);
+          const def = definition;
           if (!def) {
             appendRunActivity(runId, {
               title: 'capability missing',
@@ -816,6 +823,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         createdBy: 'agent',
         tool: run.tool,
         provider: run.provider,
+        entryRef: resolveToolEntryRef(run.tool),
         runTemplate: {
           prompt: run.rewrittenPrompt ?? run.prompt,
           aspectRatio: run.aspectRatio,

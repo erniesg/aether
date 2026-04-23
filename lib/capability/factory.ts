@@ -1,14 +1,9 @@
-export type CapabilityEntryKind = 'tool' | 'workflow' | 'skill';
+import type { CapabilityEntryKind, CapabilityEntryRef } from './entry';
+
 export type CapabilityEntryStatus = 'draft' | 'published' | 'archived';
 export type CapabilityPublishScope = 'workspace' | 'team';
 export type CapabilityFactoryAction = 'invoke-entry' | 'author-skill' | 'author-workflow' | 'author-tool';
 export type CapabilityReviewRoute = 'route-human';
-
-export interface CapabilityEntryRef {
-  kind: CapabilityEntryKind;
-  id: string;
-  version: number;
-}
 
 export interface CapabilityRegistryEntry extends CapabilityEntryRef {
   status: CapabilityEntryStatus;

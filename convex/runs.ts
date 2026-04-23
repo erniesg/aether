@@ -25,6 +25,13 @@ const STATUS_VALIDATOR = v.union(v.literal('running'), v.literal('ok'), v.litera
 interface RunDoc {
   _id: unknown;
   clientRunId: string;
+  definitionId?: string;
+  definitionVersion?: number;
+  entryRef?: {
+    kind: 'tool' | 'workflow' | 'skill';
+    id: string;
+    version: number;
+  };
   tool: string;
   provider: string;
   model: string;
@@ -61,6 +68,9 @@ function toRecord(doc: RunDoc) {
     finishedAt: doc.finishedAt,
     error: doc.error,
     httpStatus: doc.httpStatus,
+    definitionId: doc.definitionId,
+    definitionVersion: doc.definitionVersion,
+    entryRef: doc.entryRef,
   };
 }
 
@@ -89,6 +99,15 @@ export const start = mutationGeneric({
   args: {
     clientRunId: v.string(),
     wsId: v.optional(v.id('workspace')),
+    definitionId: v.optional(v.string()),
+    definitionVersion: v.optional(v.number()),
+    entryRef: v.optional(
+      v.object({
+        kind: v.union(v.literal('tool'), v.literal('workflow'), v.literal('skill')),
+        id: v.string(),
+        version: v.number(),
+      })
+    ),
     tool: v.string(),
     provider: v.string(),
     model: v.string(),
@@ -102,6 +121,9 @@ export const start = mutationGeneric({
     await ctx.db.insert('capabilityRun', {
       clientRunId: args.clientRunId,
       wsId: args.wsId,
+      definitionId: args.definitionId,
+      definitionVersion: args.definitionVersion,
+      entryRef: args.entryRef,
       tool: args.tool,
       provider: args.provider,
       model: args.model,

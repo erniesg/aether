@@ -5,7 +5,16 @@
  * before the Convex project is provisioned. Swap-in is one file per store.
  */
 
-export type CapabilityTool = 'image-gen' | 'image-edit' | 'bg-fill' | 'cutout' | 'relight';
+import type { CapabilityEntryRef } from './entry';
+import { resolveToolEntryRef } from '@/lib/tool/registry';
+
+export type CapabilityTool =
+  | 'image-gen'
+  | 'image-edit'
+  | 'bg-fill'
+  | 'cutout'
+  | 'relight'
+  | 'spatial-gen';
 
 /**
  * Minimum shape needed to re-run the same tool-chain against a new layer.
@@ -38,6 +47,7 @@ export interface CapabilityDefinitionInit {
   notes?: string;
   tool: string;
   provider: string;
+  entryRef: CapabilityEntryRef;
   runTemplate: CapabilityRunTemplate;
 }
 
@@ -45,4 +55,10 @@ export interface CapabilityDefinitionRecord extends CapabilityDefinitionInit {
   id: string;
   version: number;
   createdAt: number;
+}
+
+export function resolveCapabilityDefinitionEntryRef(
+  definition: { entryRef?: CapabilityEntryRef; tool: string }
+): CapabilityEntryRef {
+  return definition.entryRef ?? resolveToolEntryRef(definition.tool);
 }

@@ -31,3 +31,6 @@ Tracks the initial setup for capability authoring and human review routing.
 - The workflow prefers webhook delivery when configured, and otherwise falls back to `DISCORD_BOT_TOKEN` + the fixed channel id `1496938045876731955`.
 - The workflow fails closed when neither webhook nor bot-token delivery is configured.
 - The gaussian-splat issue is treated as the first proving seam, not as the first foundation slice.
+- Typed tool, workflow, and skill registries now exist, and pinned capability definitions store a versioned `entryRef`.
+- Capability reruns now carry `definitionVersion` and `entryRef` through the run/provenance path without breaking current `image-gen` behavior.
+- A first draft spatial seam is live on-site via selected-image `particles`: `/api/spatial` routes through a provider-agnostic spatial registry and drops a particle-field preview back onto the canvas.

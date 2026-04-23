@@ -38,6 +38,9 @@ export function startRunConvex(
     model: partial.model,
     prompt: partial.prompt,
     aspectRatio: partial.aspectRatio,
+    definitionId: partial.definitionId,
+    definitionVersion: partial.definitionVersion,
+    entryRef: partial.entryRef,
     startedAt: Date.now(),
   } as never);
 }

@@ -112,8 +112,17 @@ export default defineSchema({
     name: v.string(),
     trigger: v.string(),
     paramSchema: v.any(),
-    exampleRunId: v.optional(v.id('capabilityRun')),
+    exampleRunId: v.optional(v.string()),
     createdBy: v.union(v.literal('human'), v.literal('agent')),
+    notes: v.optional(v.string()),
+    tool: v.string(),
+    provider: v.string(),
+    entryRef: v.object({
+      kind: v.union(v.literal('tool'), v.literal('workflow'), v.literal('skill')),
+      id: v.string(),
+      version: v.number(),
+    }),
+    runTemplate: v.any(),
     version: v.number(),
   }).index('by_ws', ['wsId']),
 
@@ -122,7 +131,15 @@ export default defineSchema({
     // single demo workspace is implicit. Slice-A keeps the run log working
     // without blocking on that wiring.
     wsId: v.optional(v.id('workspace')),
-    definitionId: v.optional(v.id('capabilityDefinition')),
+    definitionId: v.optional(v.string()),
+    definitionVersion: v.optional(v.number()),
+    entryRef: v.optional(
+      v.object({
+        kind: v.union(v.literal('tool'), v.literal('workflow'), v.literal('skill')),
+        id: v.string(),
+        version: v.number(),
+      })
+    ),
     tool: v.string(),
     provider: v.string(),
     model: v.string(),

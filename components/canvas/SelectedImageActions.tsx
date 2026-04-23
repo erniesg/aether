@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, EyeOff, Eraser, Scissors } from 'lucide-react';
+import { Eye, EyeOff, Eraser, Scissors, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 export interface SelectedImageActionsProps {
@@ -10,6 +10,7 @@ export interface SelectedImageActionsProps {
   disabled?: boolean;
   onRemoveBg: () => void;
   onCutout: () => void;
+  onSpatialize: () => void;
   onPreviewVisibilityChange?: (visible: boolean) => void;
 }
 
@@ -20,6 +21,7 @@ export function SelectedImageActions({
   disabled = false,
   onRemoveBg,
   onCutout,
+  onSpatialize,
   onPreviewVisibilityChange,
 }: SelectedImageActionsProps) {
   return (
@@ -58,6 +60,20 @@ export function SelectedImageActions({
       >
         <Scissors size={13} strokeWidth={1.75} />
         segment
+      </button>
+
+      <button
+        type="button"
+        onClick={onSpatialize}
+        disabled={disabled}
+        className={cn(
+          'inline-flex items-center gap-1 rounded-sm border px-2 py-1 font-caption text-xs transition-colors',
+          'border-border-soft bg-surface-panel text-ink-dim hover:bg-surface-panel-muted hover:text-ink',
+          'disabled:cursor-not-allowed disabled:opacity-50'
+        )}
+      >
+        <Sparkles size={13} strokeWidth={1.75} />
+        particles
       </button>
 
       {hasPreview ? (

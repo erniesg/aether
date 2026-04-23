@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
+import type { CapabilityEntryRef } from '@/lib/capability/entry';
 
 /**
  * Convex HTTP client for server-side runtimes (Next.js route handlers).
@@ -33,6 +34,9 @@ export interface ServerRunStart {
   model: string;
   prompt: string;
   aspectRatio?: string;
+  definitionId?: string;
+  definitionVersion?: number;
+  entryRef?: CapabilityEntryRef;
 }
 
 export async function recordRunStart(input: ServerRunStart): Promise<void> {
