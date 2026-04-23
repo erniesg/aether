@@ -18,6 +18,14 @@ GOOGLE_GEMINI_API_KEY=...
 REPLICATE_API_TOKEN=r8_...
 VOLCENGINE_ARK_API_KEY=...
 
+# Segmentation providers
+# `sam2` uses REPLICATE_API_TOKEN.
+# `sam3` expects an external HTTP endpoint, typically a Modal web endpoint.
+SAM3_MODAL_URL=https://<workspace>--<label>.modal.run
+SAM3_MODAL_TOKEN=
+# Optional default provider when more than one is connected.
+SEGMENTATION_PROVIDER=sam3
+
 # Convex — set after `npx convex dev` creates a project
 NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
 CONVEX_DEPLOY_KEY=...
