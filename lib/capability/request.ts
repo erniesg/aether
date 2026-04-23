@@ -13,6 +13,14 @@ export type CapabilityRequestPlan =
       artifactKind: 'image' | 'spatial';
     }
   | {
+      kind: 'factory';
+      artifactKind: 'spatial';
+      publishScope: 'team';
+      draftToolId: 'spatial-gen';
+      spatialFormat: 'particle-field' | 'gaussian-splat';
+      sourceMode: 'selected-image';
+    }
+  | {
       kind: 'tool';
       toolId: 'image-gen' | 'spatial-gen';
       artifactKind: 'image' | 'spatial';
@@ -85,9 +93,10 @@ export function resolveCapabilityRequest(
       };
     }
     return {
-      kind: 'tool',
-      toolId: 'spatial-gen',
+      kind: 'factory',
       artifactKind: 'spatial',
+      publishScope: 'team',
+      draftToolId: 'spatial-gen',
       spatialFormat: resolveSpatialFormat(context.prompt),
       sourceMode: 'selected-image',
     };

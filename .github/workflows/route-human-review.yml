@@ -2,13 +2,16 @@ name: route-human-review
 
 on:
   issues:
-    types: [labeled]
+    types: [opened, labeled]
   pull_request:
     types: [labeled]
 
 jobs:
   notify:
-    if: github.event.label.name == 'route-human'
+    if: |
+      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'route-human') ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'route-human')) ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'route-human')
     runs-on: ubuntu-latest
     permissions:
       contents: read

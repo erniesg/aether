@@ -34,5 +34,8 @@ Tracks the initial setup for capability authoring and human review routing.
 - Typed tool, workflow, and skill registries now exist, and pinned capability definitions store a versioned `entryRef`.
 - Capability reruns now carry `definitionVersion` and `entryRef` through the run/provenance path without breaking current `image-gen` behavior.
 - A first draft spatial seam is live on-site via selected-image `particles`: `/api/spatial` routes through a provider-agnostic spatial registry and drops a particle-field preview back onto the canvas.
-- Natural-language routing now resolves gaussian-splat / particle-field asks to `spatial-gen` when an image is selected, and spatial capabilities can be pinned and rerun through `/api/capability/rerun`.
+- Natural-language routing now sends missing gaussian-splat / particle-field asks into a capability-factory lane instead of pretending a published creator tool already exists.
+- `/api/capability/factory` now creates or reuses a `claude-run` + `route-human` GitHub issue for missing capability authoring and returns a draft fallback when a local seam exists.
+- The workspace now auto-adds a draft reusable capability in-session and runs the local draft seam while managed-agent publication is pending.
 - Current canvas rendering for the spatial seam is an artifact-first SVG preview placed beside the source image; it is not yet a live WebGL particle or splat renderer.
+- `route-human-review.yml` now also handles issues opened already carrying the `route-human` label, which is how the factory route creates review requests.

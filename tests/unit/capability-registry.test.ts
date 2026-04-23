@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getToolEntryRef, getToolRegistryEntry } from '@/lib/tool/registry';
+import {
+  getToolEntryRef,
+  getToolRegistryEntry,
+  listPublishedToolRegistryEntries,
+} from '@/lib/tool/registry';
 import { getWorkflowRegistryEntry } from '@/lib/workflow/registry';
 import { getSkillRegistryEntry } from '@/lib/skill/registry';
 
@@ -12,6 +16,7 @@ describe('typed capability registries', () => {
       artifactKind: 'image',
       label: 'Image generation',
       outputKind: 'image',
+      status: 'published',
     });
 
     expect(getToolEntryRef('image-gen')).toEqual({
@@ -29,6 +34,7 @@ describe('typed capability registries', () => {
       artifactKind: 'image',
       label: 'Basic image render',
       toolIds: ['image-gen'],
+      status: 'published',
     });
   });
 
@@ -44,6 +50,21 @@ describe('typed capability registries', () => {
         id: 'image-render-basic',
         version: 1,
       },
+      status: 'published',
     });
+  });
+
+  it('keeps spatial-gen out of the published creator tool list until the factory publishes it', () => {
+    expect(getToolRegistryEntry('spatial-gen')).toEqual({
+      kind: 'tool',
+      id: 'spatial-gen',
+      version: 1,
+      artifactKind: 'spatial',
+      label: 'Spatial generation',
+      outputKind: 'image',
+      status: 'draft',
+    });
+
+    expect(listPublishedToolRegistryEntries().map((entry) => entry.id)).not.toContain('spatial-gen');
   });
 });

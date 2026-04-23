@@ -5,6 +5,7 @@ export interface WorkflowRegistryEntry extends CapabilityEntryRef<'workflow'> {
   artifactKind: string;
   label: string;
   toolIds: ToolRegistryId[];
+  status: 'draft' | 'published' | 'archived';
 }
 
 const WORKFLOW_REGISTRY = {
@@ -15,6 +16,7 @@ const WORKFLOW_REGISTRY = {
     artifactKind: 'image',
     label: 'Basic image render',
     toolIds: ['image-gen'],
+    status: 'published',
   },
 } as const satisfies Record<string, WorkflowRegistryEntry>;
 
@@ -22,6 +24,10 @@ export type WorkflowRegistryId = keyof typeof WORKFLOW_REGISTRY;
 
 export function listWorkflowRegistryEntries(): WorkflowRegistryEntry[] {
   return Object.values(WORKFLOW_REGISTRY);
+}
+
+export function listPublishedWorkflowRegistryEntries(): WorkflowRegistryEntry[] {
+  return listWorkflowRegistryEntries().filter((entry) => entry.status === 'published');
 }
 
 export function getWorkflowRegistryEntry(id: string): WorkflowRegistryEntry | null {

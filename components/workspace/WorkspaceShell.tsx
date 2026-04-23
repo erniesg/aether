@@ -141,6 +141,38 @@ interface SpatialResponseJson {
   };
 }
 
+interface FactoryResponseJson {
+  ok?: boolean;
+  error?: string;
+  creatorMessage?: string;
+  plan?: {
+    action?: string;
+    reviewRoute?: string;
+    humanReviewRequired?: boolean;
+  };
+  issue?: {
+    number?: number;
+    url?: string;
+    title?: string;
+  };
+  draftInvocation?: {
+    toolId?: 'spatial-gen';
+    providerId?: string;
+    model?: string;
+    format?: SpatialFormat;
+    quality?: SpatialQuality;
+  };
+  draftCapability?: {
+    name?: string;
+    trigger?: string;
+    notes?: string;
+    tool?: string;
+    provider?: string;
+    entryRef?: CapabilityDefinitionRecord['entryRef'];
+    runTemplate?: CapabilityDefinitionRecord['runTemplate'];
+  };
+}
+
 export interface WorkspaceShellProps {
   wsId: string;
 }
@@ -878,6 +910,146 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [editor]
   );
 
+  const requestCapabilityFactory = useCallback(
+    async (
+      prompt: string,
+      options: {
+        artifactKind: 'spatial';
+        sourceMode: 'selected-image';
+      }
+    ): Promise<void> => {
+      const runId = startRun({
+        tool: 'capability-factory',
+        provider: 'github',
+        model: 'claude-run',
+        prompt,
+        artifactKind: options.artifactKind,
+      });
+      initRunDetails(runId, {
+        providerHint: 'github',
+        modelHint: 'claude-run',
+      });
+      appendRunActivity(runId, {
+        title: 'missing capability detected',
+        detail: `${options.artifactKind} · requesting managed-agent build`,
+      });
+      stepRun(runId, 'sending');
+
+      try {
+        const response = await fetch('/api/capability/factory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            artifactKind: options.artifactKind,
+            publishScope: 'team',
+            sourceMode: options.sourceMode,
+          }),
+        });
+
+        let json: FactoryResponseJson;
+        try {
+          json = await response.json();
+        } catch (err) {
+          failRun(runId, `bad JSON response (${response.status})`, response.status);
+          logError('factory parse failed:', err);
+          return;
+        }
+
+        if (!response.ok || !json.ok || !json.plan?.action) {
+          const message =
+            typeof json?.error === 'string'
+              ? json.error
+              : response.statusText || 'capability factory failed';
+          appendRunActivity(runId, {
+            title: 'factory request failed',
+            detail: message,
+            tone: 'error',
+          });
+          failRun(runId, message, response.status);
+          return;
+        }
+
+        if (json.issue?.number) {
+          appendRunActivity(runId, {
+            title: 'authoring issue opened',
+            detail: `#${json.issue.number} · ${json.plan.reviewRoute ?? 'claude-run'}`,
+            tone: 'ok',
+          });
+        }
+
+        let definitionId: string | undefined;
+        if (
+          typeof json.draftCapability?.name === 'string' &&
+          typeof json.draftCapability?.trigger === 'string' &&
+          typeof json.draftCapability?.tool === 'string' &&
+          typeof json.draftCapability?.provider === 'string' &&
+          json.draftCapability.entryRef &&
+          json.draftCapability.runTemplate
+        ) {
+          const existing = definitions.find(
+            (definition) =>
+              definition.name === json.draftCapability?.name ||
+              definition.trigger === json.draftCapability?.trigger
+          );
+          const definition =
+            existing ??
+            addDefinition({
+              name: json.draftCapability.name,
+              trigger: json.draftCapability.trigger,
+              paramSchema: {
+                type: 'object',
+                properties: {
+                  layerId: { type: 'string' },
+                },
+                required: ['layerId'],
+              },
+              notes: json.draftCapability.notes,
+              createdBy: 'agent',
+              tool: json.draftCapability.tool,
+              provider: json.draftCapability.provider,
+              entryRef: json.draftCapability.entryRef,
+              runTemplate: json.draftCapability.runTemplate,
+            });
+          definitionId = definition.id;
+          appendRunActivity(runId, {
+            title: existing ? 'draft capability reused' : 'draft capability added',
+            detail: definition.name,
+            tone: 'ok',
+          });
+        }
+
+        finishRun(runId, {
+          provider: 'github',
+          model: 'claude-run',
+          rewrittenPrompt: prompt,
+          rationale: json.creatorMessage,
+          status: 'ok',
+        });
+
+        if (json.draftInvocation?.toolId === 'spatial-gen') {
+          await runSpatialOnCanvas(prompt, {
+            definitionId,
+            providerOverride: json.draftInvocation.providerId,
+            modelOverride: json.draftInvocation.model,
+            formatOverride: json.draftInvocation.format,
+            qualityOverride: json.draftInvocation.quality,
+          });
+          return;
+        }
+
+        if (json.creatorMessage && typeof window !== 'undefined') {
+          window.alert(json.creatorMessage);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logError('factory run failed:', err);
+        failRun(runId, `factory failed: ${message}`);
+      }
+    },
+    [definitions, runSpatialOnCanvas]
+  );
+
   useEffect(() => {
     if (!editor) {
       setFormats([]);
@@ -1033,6 +1205,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         return;
       }
 
+      if (requestPlan.kind === 'factory') {
+        await requestCapabilityFactory(prompt, {
+          artifactKind: requestPlan.artifactKind,
+          sourceMode: requestPlan.sourceMode,
+        });
+        return;
+      }
+
       if (requestPlan.kind === 'tool' && requestPlan.toolId === 'spatial-gen') {
         await runSpatialOnCanvas(prompt, {
           providerOverride,
@@ -1080,7 +1260,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         targets,
       });
     },
-    [runImageOnCanvas, runSpatialOnCanvas, editor, definitions, view, focusIdx, formats, activeFormatId, handleExport]
+    [
+      runImageOnCanvas,
+      runSpatialOnCanvas,
+      requestCapabilityFactory,
+      editor,
+      definitions,
+      view,
+      focusIdx,
+      formats,
+      activeFormatId,
+      handleExport,
+    ]
   );
 
   const handlePin = useCallback((run: CapabilityRunRecord) => {

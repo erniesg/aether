@@ -15,27 +15,29 @@ function makeContext(
 }
 
 describe('capability request resolver', () => {
-  it('routes gaussian splat asks with a selected image to the spatial tool', () => {
+  it('routes gaussian splat asks with a selected image into the capability factory lane', () => {
     const plan = resolveCapabilityRequest(makeContext());
 
     expect(plan).toEqual({
-      kind: 'tool',
-      toolId: 'spatial-gen',
+      kind: 'factory',
       artifactKind: 'spatial',
+      publishScope: 'team',
+      draftToolId: 'spatial-gen',
       spatialFormat: 'gaussian-splat',
       sourceMode: 'selected-image',
     });
   });
 
-  it('recognizes particle language as the particle-field spatial mode', () => {
+  it('recognizes particle language as the particle-field factory mode', () => {
     const plan = resolveCapabilityRequest(
       makeContext({ prompt: 'turn this into particles on the canvas' })
     );
 
     expect(plan).toEqual({
-      kind: 'tool',
-      toolId: 'spatial-gen',
+      kind: 'factory',
       artifactKind: 'spatial',
+      publishScope: 'team',
+      draftToolId: 'spatial-gen',
       spatialFormat: 'particle-field',
       sourceMode: 'selected-image',
     });

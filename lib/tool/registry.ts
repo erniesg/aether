@@ -4,6 +4,7 @@ export interface ToolRegistryEntry extends CapabilityEntryRef<'tool'> {
   artifactKind: string;
   label: string;
   outputKind: 'image';
+  status: 'draft' | 'published' | 'archived';
 }
 
 const TOOL_REGISTRY = {
@@ -14,6 +15,7 @@ const TOOL_REGISTRY = {
     artifactKind: 'image',
     label: 'Image generation',
     outputKind: 'image',
+    status: 'published',
   },
   'image-edit': {
     kind: 'tool',
@@ -22,6 +24,7 @@ const TOOL_REGISTRY = {
     artifactKind: 'image',
     label: 'Image edit',
     outputKind: 'image',
+    status: 'published',
   },
   'bg-fill': {
     kind: 'tool',
@@ -30,6 +33,7 @@ const TOOL_REGISTRY = {
     artifactKind: 'image',
     label: 'Background fill',
     outputKind: 'image',
+    status: 'published',
   },
   cutout: {
     kind: 'tool',
@@ -38,6 +42,7 @@ const TOOL_REGISTRY = {
     artifactKind: 'image',
     label: 'Cutout',
     outputKind: 'image',
+    status: 'published',
   },
   relight: {
     kind: 'tool',
@@ -46,6 +51,7 @@ const TOOL_REGISTRY = {
     artifactKind: 'image',
     label: 'Relight',
     outputKind: 'image',
+    status: 'published',
   },
   'spatial-gen': {
     kind: 'tool',
@@ -54,6 +60,7 @@ const TOOL_REGISTRY = {
     artifactKind: 'spatial',
     label: 'Spatial generation',
     outputKind: 'image',
+    status: 'draft',
   },
 } as const satisfies Record<string, ToolRegistryEntry>;
 
@@ -61,6 +68,10 @@ export type ToolRegistryId = keyof typeof TOOL_REGISTRY;
 
 export function listToolRegistryEntries(): ToolRegistryEntry[] {
   return Object.values(TOOL_REGISTRY);
+}
+
+export function listPublishedToolRegistryEntries(): ToolRegistryEntry[] {
+  return listToolRegistryEntries().filter((entry) => entry.status === 'published');
 }
 
 export function getToolRegistryEntry(id: string): ToolRegistryEntry | null {

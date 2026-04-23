@@ -4,6 +4,7 @@ export interface SkillRegistryEntry extends CapabilityEntryRef<'skill'> {
   artifactKind: string;
   label: string;
   baseEntryRef: CapabilityEntryRef<'tool' | 'workflow'>;
+  status: 'draft' | 'published' | 'archived';
 }
 
 const SKILL_REGISTRY = {
@@ -18,6 +19,7 @@ const SKILL_REGISTRY = {
       id: 'image-render-basic',
       version: 1,
     },
+    status: 'published',
   },
 } as const satisfies Record<string, SkillRegistryEntry>;
 
@@ -25,6 +27,10 @@ export type SkillRegistryId = keyof typeof SKILL_REGISTRY;
 
 export function listSkillRegistryEntries(): SkillRegistryEntry[] {
   return Object.values(SKILL_REGISTRY);
+}
+
+export function listPublishedSkillRegistryEntries(): SkillRegistryEntry[] {
+  return listSkillRegistryEntries().filter((entry) => entry.status === 'published');
 }
 
 export function getSkillRegistryEntry(id: string): SkillRegistryEntry | null {
