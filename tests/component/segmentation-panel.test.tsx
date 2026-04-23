@@ -46,6 +46,8 @@ function renderPanel(props: Partial<ComponentProps<typeof SegmentationPanel>> = 
     onBackgroundOpacityChange: vi.fn(),
     onApplyBackground: vi.fn(),
     onApplyBackgroundPlate: vi.fn(),
+    onActiveRegionChange: vi.fn(),
+    onGenerateBackgroundPlate: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
   };
@@ -213,6 +215,45 @@ describe('SegmentationPanel', () => {
       screen.getByRole('button', { name: /apply generated plate/i })
     );
     expect(handlers.onApplyBackgroundPlate).toHaveBeenCalled();
+  });
+
+  it('lets the creator target a region and generate a clean plate for it', async () => {
+    const handlers = renderPanel({
+      activeRegionId: 'region-1',
+      preview: {
+        sourceDataUrl: 'data:image/png;base64,aaa',
+        maskDataUrl: 'data:image/png;base64,bbb',
+        cutoutDataUrl: 'data:image/svg+xml,ccc',
+        width: 1024,
+        height: 1024,
+        regions: [
+          {
+            id: 'region-1',
+            label: 'main cluster',
+            maskDataUrl: 'data:image/png;base64,bbb',
+            cutoutDataUrl: 'data:image/svg+xml,ccc',
+            score: 0.94,
+          },
+          {
+            id: 'region-2',
+            label: 'stray fragment',
+            maskDataUrl: 'data:image/png;base64,ddd',
+            cutoutDataUrl: 'data:image/svg+xml,eee',
+            score: 0.06,
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByRole('button', { name: /all regions/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /main cluster/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /stray fragment/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /stray fragment/i }));
+    expect(handlers.onActiveRegionChange).toHaveBeenCalledWith('region-2');
+
+    await userEvent.click(screen.getByRole('button', { name: /generate clean plate/i }));
+    expect(handlers.onGenerateBackgroundPlate).toHaveBeenCalled();
   });
 
   it('lets the creator hide and reshow the preview before approval', async () => {
