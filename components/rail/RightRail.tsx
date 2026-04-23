@@ -2,6 +2,7 @@
 
 import {
   Calendar,
+  Download,
   Eye,
   LayoutGrid,
   Radio,
@@ -21,6 +22,7 @@ type SectionSpec = {
   hasContent?: boolean;
   active?: boolean;
   body: React.ReactNode;
+  headerAction?: React.ReactNode;
 };
 
 function PlaceholderBody({ hint }: { hint: string }) {
@@ -110,14 +112,39 @@ function useGenerationsSummary(): {
 function RightRailInner({
   className,
   onPin,
+  onExport,
+  exportDisabled,
   safeZonesVisible,
 }: {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
+  onExport?: () => void | Promise<void>;
+  exportDisabled?: boolean;
   safeZonesVisible: boolean;
 }) {
   const { railRef } = useRail();
   const gens = useGenerationsSummary();
+
+  const exportAction = onExport ? (
+    <button
+      type="button"
+      onClick={() => {
+        void onExport();
+      }}
+      disabled={exportDisabled}
+      aria-label="export"
+      title="export pack · PNGs + manifest.json"
+      data-testid="rail-export-button"
+      className={cn(
+        'inline-flex h-6 items-center gap-1 rounded-sm border border-border-soft bg-surface-panel px-2 font-mono text-2xs uppercase tracking-wide text-ink',
+        'transition-colors duration-fast ease-quick hover:border-border hover:text-ink',
+        'disabled:cursor-not-allowed disabled:opacity-40'
+      )}
+    >
+      <Download size={10} strokeWidth={2} />
+      export
+    </button>
+  ) : null;
 
   const sections: SectionSpec[] = [
     {
@@ -126,6 +153,7 @@ function RightRailInner({
       icon: Eye,
       summary: 'nothing selected',
       body: <FocusBody />,
+      headerAction: exportAction,
     },
     {
       id: 'formats',
@@ -173,6 +201,7 @@ function RightRailInner({
           hasContent={section.hasContent}
           active={section.active}
           side="left"
+          headerAction={section.headerAction}
         >
           {section.body}
         </RailSection>
@@ -184,12 +213,17 @@ function RightRailInner({
 export interface RightRailProps {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
+  /** Invoked when the creator hits the `export` header action on `this focus`. */
+  onExport?: () => void | Promise<void>;
+  exportDisabled?: boolean;
   safeZonesVisible?: boolean;
 }
 
 export function RightRail({
   className,
   onPin,
+  onExport,
+  exportDisabled,
   safeZonesVisible = true,
 }: RightRailProps) {
   return (
@@ -197,6 +231,8 @@ export function RightRail({
       <RightRailInner
         className={className}
         onPin={onPin}
+        onExport={onExport}
+        exportDisabled={exportDisabled}
         safeZonesVisible={safeZonesVisible}
       />
     </RailProvider>

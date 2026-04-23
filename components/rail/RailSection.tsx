@@ -20,6 +20,9 @@ export interface RailSectionProps {
   children?: ReactNode;
   /** Which side the flyout opens to. */
   side?: 'left' | 'right';
+  /** Optional element rendered flush-right in the flyout header. Reserved for
+   * single primary actions scoped to the section (e.g. `export` on focus). */
+  headerAction?: ReactNode;
 }
 
 /**
@@ -37,6 +40,7 @@ export function RailSection({
   active,
   children,
   side = 'right',
+  headerAction,
 }: RailSectionProps) {
   const { openSection, toggle, close, registerFlyout } = useRail();
   const isOpen = openSection === id;
@@ -90,9 +94,12 @@ export function RailSection({
               <Icon size={14} strokeWidth={1.75} className="text-ink-dim" />
               <span className="font-caption text-ink">{label}</span>
             </div>
-            {summary ? (
-              <span className="font-caption text-ink-dim">{summary}</span>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {summary ? (
+                <span className="font-caption text-ink-dim">{summary}</span>
+              ) : null}
+              {headerAction}
+            </div>
           </header>
           <div className="max-h-[60vh] overflow-y-auto p-3">{children}</div>
           <footer className="flex justify-end border-t border-border-soft px-3 py-1.5">
