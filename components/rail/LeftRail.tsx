@@ -6,6 +6,7 @@ import {
   Layers3,
   Package2,
   PaintBucket,
+  Sparkles,
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
@@ -17,6 +18,10 @@ import {
   summarizeInputSet,
   type SignalContext,
 } from '@/lib/context/model';
+import {
+  openCampaignPicker,
+  useCampaignPick,
+} from '@/lib/campaigns/store';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -25,6 +30,7 @@ type SectionSpec = {
   icon: LucideIcon;
   summary?: string;
   hasContent?: boolean;
+  headerAction?: React.ReactNode;
   body: React.ReactNode;
 };
 
@@ -41,24 +47,37 @@ function PlaceholderBody({ hint }: { hint: string }) {
 }
 
 function CampaignBody() {
+  const pick = useCampaignPick();
+  const briefValue = pick?.briefBody ?? CONTEXT.campaign.goal;
+  const channels = pick?.formats.map((f) => formatChannelLabel(f)) ?? CONTEXT.campaign.channels;
+  const toneTokens = pick?.tone ?? [];
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">goal</span>
+        <span className="font-caption text-ink-dim">brief</span>
         <textarea
-          defaultValue={CONTEXT.campaign.goal}
-          rows={3}
+          key={pick?.pickedAt ?? 'initial'}
+          defaultValue={briefValue}
+          data-testid="campaign-brief-textarea"
+          rows={4}
           className="resize-none rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
         />
       </div>
+      {pick ? (
+        <div className="flex flex-col gap-1">
+          <span className="font-caption text-ink-dim">intent</span>
+          <span className="font-caption text-xs text-ink">{pick.intent}</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <span className="font-caption text-ink-dim">audience</span>
+          <span className="font-caption text-xs text-ink">{CONTEXT.campaign.audience}</span>
+        </div>
+      )}
       <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">audience</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.audience}</span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">channels</span>
-        <div className="flex flex-wrap gap-1">
-          {CONTEXT.campaign.channels.map((channel) => (
+        <span className="font-caption text-ink-dim">formats</span>
+        <div className="flex flex-wrap gap-1" data-testid="campaign-formats">
+          {channels.map((channel) => (
             <span
               key={channel}
               className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-mono text-2xs uppercase tracking-wide text-ink-dim"
@@ -68,15 +87,60 @@ function CampaignBody() {
           ))}
         </div>
       </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">cta</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.cta}</span>
-      </div>
-      <div className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
-        <span className="font-caption text-ink-dim">active input set</span>
-        <p className="mt-1 font-caption text-xs text-ink">{summarizeInputSet(CONTEXT)}</p>
-      </div>
+      {toneTokens.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          <span className="font-caption text-ink-dim">tone</span>
+          <div className="flex flex-wrap gap-1">
+            {toneTokens.map((tone) => (
+              <span
+                key={tone}
+                className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-caption text-xs text-ink"
+              >
+                {tone}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {!pick ? (
+        <div className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+          <span className="font-caption text-ink-dim">active input set</span>
+          <p className="mt-1 font-caption text-xs text-ink">{summarizeInputSet(CONTEXT)}</p>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+const FORMAT_CHANNEL_LABELS: Record<string, string> = {
+  'ig-post': 'IG post',
+  story: 'story',
+  'reel-cover': 'reel cover',
+  'linkedin-landscape': 'LinkedIn',
+};
+function formatChannelLabel(formatId: string): string {
+  return FORMAT_CHANNEL_LABELS[formatId] ?? formatId;
+}
+
+function CampaignHeaderAction() {
+  const { close } = useRail();
+  return (
+    <button
+      type="button"
+      data-testid="campaign-pick-open"
+      onClick={(event) => {
+        event.stopPropagation();
+        // Collapse the rail flyout before opening the dialog so the dialog's
+        // outside-click doesn't race with the rail's own outside-click
+        // detector and close each other.
+        close();
+        openCampaignPicker();
+      }}
+      className="inline-flex items-center gap-1 rounded-sm border border-border-soft bg-surface-panel px-1.5 py-0.5 font-caption text-xs text-ink-dim transition-colors hover:border-accent hover:text-accent"
+    >
+      <Sparkles size={12} strokeWidth={1.75} />
+      pick
+    </button>
   );
 }
 
@@ -207,6 +271,7 @@ const LEFT_SECTIONS: ReadonlyArray<SectionSpec> = [
     icon: Flag,
     summary: `${CONTEXT.campaign.channels.length} channels`,
     hasContent: true,
+    headerAction: <CampaignHeaderAction />,
     body: <CampaignBody />,
   },
   {
@@ -246,6 +311,7 @@ function LeftRailInner({ className }: { className?: string }) {
           icon={section.icon}
           summary={section.summary}
           hasContent={section.hasContent}
+          headerAction={section.headerAction}
         >
           {section.body}
         </RailSection>

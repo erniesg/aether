@@ -18,7 +18,17 @@ import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
-import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
+import {
+  DEFAULT_ARTBOARDS,
+  reseedArtboardsForCampaign,
+} from '@/lib/canvas/seedArtboards';
+import { CampaignPicker } from '@/components/campaigns/CampaignPicker';
+import {
+  closeCampaignPicker,
+  setCampaignPick,
+  useCampaignPickerOpen,
+} from '@/lib/campaigns/store';
+import type { CampaignPick } from '@/lib/campaigns/types';
 import {
   focusFrameAtIndex,
   getActiveFrameShape,
@@ -169,6 +179,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const { editor } = useEditorRef();
   const definitions = useCapabilityDefinitions();
   const runs = useRuns();
+  const campaignPickerOpen = useCampaignPickerOpen();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
@@ -801,6 +812,21 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [runImageOnCanvas, editor, view, focusIdx, formats, activeFormatId, handleExport]
   );
 
+  const handleCampaignPick = useCallback(
+    (pick: Omit<CampaignPick, 'pickedAt'>) => {
+      setCampaignPick(pick);
+      if (editor) {
+        try {
+          reseedArtboardsForCampaign(editor, pick.formats);
+        } catch (err) {
+          logError('reseed artboards failed:', err);
+        }
+      }
+      closeCampaignPicker();
+    },
+    [editor]
+  );
+
   const handlePin = useCallback((run: CapabilityRunRecord) => {
     setPinTargetRun(run);
   }, []);
@@ -961,6 +987,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         open={pinTargetRun !== null}
         onAccept={handlePinAccept}
         onReject={() => setPinTargetRun(null)}
+      />
+
+      <CampaignPicker
+        open={campaignPickerOpen}
+        onOpenChange={(next) => {
+          if (!next) closeCampaignPicker();
+        }}
+        onPick={handleCampaignPick}
       />
     </div>
   );

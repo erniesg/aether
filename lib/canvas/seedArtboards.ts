@@ -11,6 +11,29 @@ export interface ArtboardSeed {
 }
 
 /**
+ * Canonical dimensions for every supported artboard preset. Keyed by
+ * `SafeZonePresetId` so the campaign picker can turn a `formats[]` list back
+ * into `ArtboardSeed[]` without re-declaring sizes.
+ */
+export const ARTBOARD_PRESET_SEEDS: Readonly<Record<SafeZonePresetId, ArtboardSeed>> = {
+  'ig-post': { name: 'IG Post · 1080×1350', w: 1080, h: 1350, preset: 'ig-post' },
+  story: { name: 'Story · 1080×1920', w: 1080, h: 1920, preset: 'story' },
+  'reel-cover': { name: 'Reel cover · 1080×1920', w: 1080, h: 1920, preset: 'reel-cover' },
+  'linkedin-landscape': {
+    name: 'LinkedIn · 1200×627',
+    w: 1200,
+    h: 627,
+    preset: 'linkedin-landscape',
+  },
+};
+
+export function presetIdsToSeeds(
+  presets: ReadonlyArray<SafeZonePresetId>
+): ArtboardSeed[] {
+  return presets.map((id) => ARTBOARD_PRESET_SEEDS[id]);
+}
+
+/**
  * The four hero formats aether seeds on an empty workspace so the multiformat
  * promise is visible the moment the canvas loads. Anchored to the creator
  * platforms we optimise for; dimensions match each platform's current spec
@@ -77,4 +100,74 @@ export function maybeSeedArtboards(editor: Editor): string[] {
     // best-effort framing; never throw out of a mount hook
   }
   return ids;
+}
+
+/**
+ * Non-destructively align the page's artboards with a campaign's declared
+ * `formats` list:
+ *   - every declared format gets a frame (keep existing, append missing)
+ *   - empty frames whose preset is NOT in the declared list are removed
+ *   - frames that already hold user content (child shapes) are left alone
+ *     regardless of whether they match the campaign — the pick is a
+ *     non-destructive suggestion, not a wipe
+ *
+ * Returns the ids of frames newly created.
+ */
+export function reseedArtboardsForCampaign(
+  editor: Editor,
+  formats: ReadonlyArray<SafeZonePresetId>
+): string[] {
+  const pageShapes = editor.getCurrentPageShapes();
+  const frames = pageShapes.filter((s) => s.type === 'frame');
+  const childCount = new Map<string, number>();
+  for (const shape of pageShapes) {
+    const parentId = (shape as unknown as { parentId?: string }).parentId;
+    if (!parentId) continue;
+    childCount.set(parentId, (childCount.get(parentId) ?? 0) + 1);
+  }
+
+  const kept = new Map<SafeZonePresetId, (typeof frames)[number]>();
+  const obsolete: typeof frames = [];
+  for (const frame of frames) {
+    const preset = (frame.meta as Record<string, unknown> | undefined)?.aetherPreset as
+      | SafeZonePresetId
+      | undefined;
+    if (preset && formats.includes(preset) && !kept.has(preset)) {
+      kept.set(preset, frame);
+      continue;
+    }
+    const hasChildren = (childCount.get(frame.id) ?? 0) > 0;
+    if (!hasChildren) obsolete.push(frame);
+  }
+  if (obsolete.length > 0) {
+    editor.deleteShapes(obsolete);
+  }
+
+  // Re-read after deletions so the x-layout picks up the correct rightmost edge.
+  const survivors = editor
+    .getCurrentPageShapes()
+    .filter((s) => s.type === 'frame');
+  const rightmost = survivors.reduce((acc, s) => {
+    const w = ((s as unknown as { props?: { w?: number } }).props?.w ?? 0);
+    return Math.max(acc, s.x + w);
+  }, 0);
+  const missing = formats.filter((preset) => !kept.has(preset));
+  const gap = 160;
+  let cursorX = survivors.length > 0 ? rightmost + gap : 0;
+  const createdIds: string[] = [];
+  for (const preset of missing) {
+    const seed = ARTBOARD_PRESET_SEEDS[preset];
+    const id = createShapeId();
+    editor.createShape({
+      id,
+      type: 'frame',
+      x: cursorX,
+      y: 0,
+      props: { w: seed.w, h: seed.h, name: seed.name },
+      meta: { aetherPreset: seed.preset },
+    });
+    createdIds.push(id);
+    cursorX += seed.w + gap;
+  }
+  return createdIds;
 }

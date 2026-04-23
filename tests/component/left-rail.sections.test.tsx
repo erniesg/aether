@@ -45,7 +45,7 @@ describe('LeftRail · stable context first, run material last', () => {
     expect(text).toContain('assets');
   });
 
-  it('campaign section separates the current goal from stable brand data', async () => {
+  it('campaign section surfaces the brief, audience, formats, and input set', async () => {
     const { container } = render(<LeftRail />);
 
     const campaignTrigger = container.querySelector<HTMLButtonElement>(
@@ -57,11 +57,14 @@ describe('LeftRail · stable context first, run material last', () => {
     const flyout = container.querySelector<HTMLElement>('[data-rail-flyout="campaign"]');
     expect(flyout).not.toBeNull();
     const text = (flyout!.textContent ?? '').toLowerCase();
-    expect(text).toContain('goal');
+    expect(text).toContain('brief');
     expect(text).toContain('audience');
-    expect(text).toContain('channels');
-    expect(text).toContain('cta');
+    expect(text).toContain('formats');
     expect(text).toContain('active input set');
+    // The campaign section exposes a header action opening the picker.
+    expect(
+      flyout!.querySelector('[data-testid="campaign-pick-open"]')
+    ).not.toBeNull();
   });
 
   it('references section exposes images · templates · elements tabs', async () => {
