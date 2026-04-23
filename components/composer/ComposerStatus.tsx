@@ -11,7 +11,53 @@ import {
 } from 'lucide-react';
 import { useRuns } from '@/lib/store/runs';
 import { useRunDetails } from '@/lib/store/runDetails';
+import { useVoiceCaption } from '@/lib/voice/caption-store';
 import { cn } from '@/lib/utils/cn';
+
+const VOICE_STATE_LABELS = {
+  idle: 'voice · idle',
+  listening: 'voice · listening',
+  thinking: 'voice · thinking',
+  speaking: 'voice · speaking',
+} as const;
+
+function renderVoiceLine(voice: ReturnType<typeof useVoiceCaption>) {
+  if (voice.updatedAt === 0) return null;
+  if (voice.state === 'idle' && !voice.transcript && !voice.error && !voice.lastToolCall) {
+    return null;
+  }
+  const stateLabel = VOICE_STATE_LABELS[voice.state];
+  const segments: string[] = [stateLabel];
+  if (voice.lastToolCall) {
+    const prefix = voice.lastToolCall.ok ? '✓' : '✗';
+    const detail = voice.lastToolCall.detail ? ` · ${voice.lastToolCall.detail}` : '';
+    segments.push(`${prefix} ${voice.lastToolCall.name}${detail}`);
+  }
+  if (voice.transcript) {
+    const speaker = voice.transcript.speaker === 'user' ? 'you' : 'aether';
+    segments.push(`${speaker}: ${voice.transcript.text}`);
+  }
+  if (voice.error) {
+    segments.push(`error: ${voice.error}`);
+  }
+  return (
+    <div
+      data-taxonomy="metadata"
+      data-voice-caption
+      data-voice-state={voice.state}
+      className={cn(
+        'flex h-6 items-center gap-2 border-t px-4 font-caption',
+        voice.error
+          ? 'border-signal-error/30 bg-signal-error/5 text-signal-error'
+          : voice.state === 'speaking'
+          ? 'border-accent/30 bg-accent/5 text-accent'
+          : 'border-border-soft bg-surface-bg-muted text-ink-dim'
+      )}
+    >
+      <span className="truncate">{segments.join(' · ')}</span>
+    </div>
+  );
+}
 
 const STEP_LABELS = {
   prepared: 'prepared',
@@ -65,6 +111,7 @@ export function ComposerStatus() {
   const runs = useRuns();
   const top = runs[0];
   const details = useRunDetails(top?.id);
+  const voice = useVoiceCaption();
   const [elapsed, setElapsed] = useState(0);
   const [expanded, setExpanded] = useState(false);
 
@@ -173,6 +220,8 @@ export function ComposerStatus() {
     ) : null;
 
   if (!top) {
+    const voiceLine = renderVoiceLine(voice);
+    if (voiceLine) return voiceLine;
     return (
       <div className="flex h-6 items-center gap-2 border-t border-border-soft bg-surface-bg-muted px-4 font-caption text-ink-faint">
         <Sparkles size={10} strokeWidth={2} className="text-ink-faint" />

@@ -863,6 +863,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
+          onVoiceGenerate={async (prompt, scope) => {
+            await handlePrompt(prompt, { scope });
+          }}
         />
         <RightRail onPin={handlePin} safeZonesVisible={safeZonesVisible} />
       </div>
