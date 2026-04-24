@@ -142,7 +142,7 @@ test.describe('selected image controls · opacity · order · align', () => {
         const editor = (window as unknown as {
           editor: { setSelectedShapes: (ids: string[]) => unknown };
         }).editor;
-        editor.setSelectedShapes(ids);
+        editor.setSelectedShapes([...ids]);
       },
       [[redId, blueId]] as const
     );
