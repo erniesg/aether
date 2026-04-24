@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, Eye, EyeOff, Eraser, Scissors } from 'lucide-react';
+import { Download, Eye, EyeOff, Eraser, Scissors, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 export interface SelectedImageActionsProps {
@@ -10,6 +10,7 @@ export interface SelectedImageActionsProps {
   disabled?: boolean;
   onRemoveBg: () => void;
   onCutout: () => void;
+  onEditRegion?: () => void;
   onDownloadOriginal?: () => void;
   onPreviewVisibilityChange?: (visible: boolean) => void;
 }
@@ -21,6 +22,7 @@ export function SelectedImageActions({
   disabled = false,
   onRemoveBg,
   onCutout,
+  onEditRegion,
   onDownloadOriginal,
   onPreviewVisibilityChange,
 }: SelectedImageActionsProps) {
@@ -61,6 +63,22 @@ export function SelectedImageActions({
         <Scissors size={13} strokeWidth={1.75} />
         segment
       </button>
+
+      {onEditRegion ? (
+        <button
+          type="button"
+          onClick={onEditRegion}
+          disabled={disabled}
+          className={cn(
+            'inline-flex items-center gap-1 rounded-sm border px-2 py-1 font-caption text-xs transition-colors',
+            'border-border-soft bg-surface-panel text-ink-dim hover:bg-surface-panel-muted hover:text-ink',
+            'disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+        >
+          <Wand2 size={13} strokeWidth={1.75} />
+          edit region
+        </button>
+      ) : null}
 
       {onDownloadOriginal ? (
         <button

@@ -17,6 +17,7 @@ import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
 import { SelectedImageActions } from './SelectedImageActions';
 import { SelectedFrameActions } from './SelectedFrameActions';
 import { AirBrushOverlay } from './AirBrushOverlay';
+import { MaskBrushOverlay, type MaskBrushCommit } from './MaskBrushOverlay';
 import { MotionArtifactPreview, type MotionArtifact } from './MotionArtifactPreview';
 import type {
   Scope,
@@ -44,6 +45,12 @@ import {
   type AirBrushPoint,
 } from '@/lib/canvas/airBrush';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
+import { buildMaskPixels } from '@/lib/canvas/maskRaster';
+import {
+  resolveSafeZonePresetId,
+  SAFE_ZONE_PRESETS,
+  type SafeZonePresetId,
+} from '@/lib/canvas/safeZones';
 import type {
   SegmentationBoxPrompt,
   SegmentationProviderId,
@@ -591,6 +598,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
   const [selectedFrame, setSelectedFrame] = useState<SelectedFrameInfo | null>(null);
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
+  const [maskEdit, setMaskEdit] = useState<
+    { target: SelectedImageInfo; busy: boolean; error?: string | null } | null
+  >(null);
   const [backgroundFill, setBackgroundFill] =
     useState<BackgroundFillSpec>(DEFAULT_BACKGROUND_FILL);
   const [segmentationProviders, setSegmentationProviders] = useState<
@@ -1342,6 +1352,115 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     );
   }, []);
 
+  const resolveImagePresetId = useCallback(
+    (target: SelectedImageInfo): SafeZonePresetId | null => {
+      if (!editor) return null;
+      const parent = editor.getShape(target.parentId as never) as
+        | { type: string; props?: { name?: string; w?: number; h?: number }; meta?: Record<string, unknown> }
+        | undefined;
+      if (!parent || parent.type !== 'frame') return null;
+      return resolveSafeZonePresetId({
+        props: { name: parent.props?.name, w: parent.props?.w, h: parent.props?.h },
+        meta: parent.meta,
+      });
+    },
+    [editor]
+  );
+
+  const handleMaskEditOpen = useCallback((target: SelectedImageInfo) => {
+    setMaskEdit({ target, busy: false, error: null });
+  }, []);
+
+  const handleMaskEditApply = useCallback(
+    async (commit: MaskBrushCommit) => {
+      if (!editor || !maskEdit) return;
+      const target = maskEdit.target;
+      setMaskEdit((current) =>
+        current ? { ...current, busy: true, error: null } : current
+      );
+      try {
+        const { intrinsicWidth: w, intrinsicHeight: h } = target;
+        const pixels = buildMaskPixels(commit.strokes, w, h, 'openai');
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('canvas 2d unavailable');
+        const imageData = ctx.createImageData(w, h);
+        imageData.data.set(pixels);
+        ctx.putImageData(imageData, 0, 0);
+        const maskDataUrl = canvas.toDataURL('image/png');
+
+        const preset = resolveImagePresetId(target) ?? undefined;
+
+        const res = await fetch('/api/generate/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: commit.prompt,
+            sourceUrl: target.sourceUrl,
+            maskUrl: maskDataUrl,
+            preset,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok: boolean;
+          error?: string;
+          images?: Array<{ url: string; dataUrl?: string; width: number; height: number; mimeType: string }>;
+        };
+        if (!res.ok || !json.ok) {
+          throw new Error(json.error ?? `edit failed (${res.status})`);
+        }
+        const edited = json.images?.[0];
+        if (!edited) throw new Error('no image returned');
+        const newSrc = edited.dataUrl ?? edited.url;
+        if (!newSrc) throw new Error('no image returned');
+
+        const assetId = AssetRecordType.createId();
+        editor.markHistoryStoppingPoint('mask edit');
+        editor.createAssets([
+          {
+            id: assetId,
+            type: 'image',
+            typeName: 'asset',
+            props: {
+              name: 'mask edit',
+              src: newSrc,
+              w: edited.width ?? w,
+              h: edited.height ?? h,
+              mimeType: edited.mimeType ?? 'image/png',
+              isAnimated: false,
+            },
+            meta: {
+              aetherRole: 'mask-edit-result',
+            },
+          },
+        ]);
+        const shape = editor.getShape(target.shapeId as never) as
+          | { meta?: Record<string, unknown> }
+          | undefined;
+        editor.updateShape({
+          id: target.shapeId as never,
+          type: 'image',
+          props: { assetId },
+          meta: {
+            ...(shape?.meta ?? {}),
+            aetherOriginalSrc: target.sourceUrl,
+            aetherMaskEditPrompt: commit.prompt,
+          },
+        } as never);
+
+        setMaskEdit(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setMaskEdit((current) =>
+          current ? { ...current, busy: false, error: message } : current
+        );
+      }
+    },
+    [editor, maskEdit, resolveImagePresetId]
+  );
+
   const handleApproveSegmentation = useCallback(() => {
     if (!editor || !segmentation?.preview) return;
     const activePreview = resolveActiveSegmentationPreview(segmentation);
@@ -1711,7 +1830,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     void downloadImageSource(target.sourceUrl, filenameForSelectedImage(target));
   }, []);
 
-  const imageActionsTarget = segmentation ? null : selectedImage;
+  const imageActionsTarget = segmentation || maskEdit ? null : selectedImage;
   const activeSegmentationPreview = resolveActiveSegmentationPreview(segmentation);
 
   const dispatchers = useMemo<VoiceDispatchers>(
@@ -1870,8 +1989,32 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           disabled={segmentation?.loading}
           onRemoveBg={() => openSegmentation('removebg')}
           onCutout={() => openSegmentation('cutout')}
+          onEditRegion={() => handleMaskEditOpen(imageActionsTarget)}
           onDownloadOriginal={() => handleDownloadSelectedImage(imageActionsTarget)}
           onPreviewVisibilityChange={handlePreviewVisibilityChange}
+        />
+      ) : null}
+
+      {maskEdit ? (
+        <MaskBrushOverlay
+          rect={maskEdit.target.screenBounds}
+          imageSize={{
+            width: maskEdit.target.intrinsicWidth,
+            height: maskEdit.target.intrinsicHeight,
+          }}
+          presetHint={
+            (() => {
+              const p = resolveImagePresetId(maskEdit.target);
+              return p ? SAFE_ZONE_PRESETS[p].label : undefined;
+            })()
+          }
+          promptHint="describe the edit for the brushed region…"
+          busy={maskEdit.busy}
+          errorMessage={maskEdit.error ?? null}
+          onCancel={() => setMaskEdit(null)}
+          onApply={(commit) => {
+            void handleMaskEditApply(commit);
+          }}
         />
       ) : null}
 

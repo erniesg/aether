@@ -68,6 +68,32 @@ describe('SelectedImageActions', () => {
     expect(onPreviewVisibilityChange).toHaveBeenCalledWith(false);
   });
 
+  it('renders an edit-region entry when onEditRegion is provided', async () => {
+    const onEditRegion = vi.fn();
+    render(
+      <SelectedImageActions
+        rect={{ x: 80, y: 120, w: 480, h: 640 }}
+        onRemoveBg={vi.fn()}
+        onCutout={vi.fn()}
+        onEditRegion={onEditRegion}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /edit region/i }));
+    expect(onEditRegion).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the edit-region entry when onEditRegion is not provided', () => {
+    render(
+      <SelectedImageActions
+        rect={{ x: 80, y: 120, w: 480, h: 640 }}
+        onRemoveBg={vi.fn()}
+        onCutout={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /edit region/i })).toBeNull();
+  });
+
   it('shows a show-preview toggle when preview data exists but is hidden', async () => {
     const onPreviewVisibilityChange = vi.fn();
     render(
