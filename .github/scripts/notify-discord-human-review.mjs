@@ -6,26 +6,79 @@ function readEventPayload() {
   return JSON.parse(fs.readFileSync(eventPath, 'utf8'));
 }
 
-function buildMessage({ route, capabilityLabel, requestedAction, reason, issue, pullRequest, branch }) {
-  const lines = [
-    `aether · ${route}`,
-    `Capability: ${capabilityLabel}`,
-    `Action: ${requestedAction}`,
-    `Reason: ${reason}`,
+// Colors picked to be distinctive on Discord's dark theme.
+const COLOR_ROUTE_HUMAN = 0xe88d67;  // amber — requires attention
+const COLOR_APPROVE = 0x0e8a16;      // green
+const COLOR_REQUEST = 0xfbca04;      // yellow
+const COLOR_BLOCK = 0xb60205;        // red
+
+function buildEmbed({
+  color,
+  title,
+  description,
+  url,
+  fields,
+}) {
+  const embed = {
+    color,
+    title,
+    description,
+    timestamp: new Date().toISOString(),
+  };
+  if (url) embed.url = url;
+  if (fields && fields.length > 0) embed.fields = fields;
+  return embed;
+}
+
+// Link buttons (style 5). Discord renders these as clickable buttons on
+// messages from app-owned webhooks; on non-app webhooks they fall back to
+// plain URLs in content. We ALSO include markdown links in the content body
+// as a universal fallback so Ernie always has a one-click path.
+function buildLinkButtons(actions) {
+  if (!actions || actions.length === 0) return undefined;
+  return [
+    {
+      type: 1,
+      components: actions.map((a) => ({
+        type: 2,
+        style: 5,
+        label: a.label,
+        url: a.url,
+      })),
+    },
   ];
+}
 
-  if (issue?.number && issue?.url) {
-    const title = issue.title ? ` · ${issue.title}` : '';
-    lines.push(`Issue: #${issue.number}${title} · ${issue.url}`);
+async function send(webhookUrl, botToken, channelId, body) {
+  if (webhookUrl) {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(
+        `Discord webhook failed with HTTP ${response.status}: ${text}`
+      );
+    }
+    return;
   }
-  if (pullRequest?.number && pullRequest?.url) {
-    lines.push(`PR: #${pullRequest.number} · ${pullRequest.url}`);
+  const response = await fetch(
+    `https://discord.com/api/v10/channels/${channelId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bot ${botToken}`,
+      },
+      body: JSON.stringify(body),
+    }
+  );
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Discord API failed with HTTP ${response.status}: ${text}`);
   }
-  if (branch) {
-    lines.push(`Branch: ${branch}`);
-  }
-
-  return lines.join('\n');
 }
 
 async function main() {
@@ -60,44 +113,79 @@ async function main() {
     process.env.GITHUB_REF_NAME ||
     '';
 
-  const content = buildMessage({
-    route: 'route-human',
-    capabilityLabel: process.env.CAPABILITY_LABEL || 'capability authoring',
-    requestedAction:
-      process.env.HUMAN_REVIEW_ACTION || 'review the capability authoring result and decide whether to merge',
-    reason:
-      process.env.HUMAN_REVIEW_REASON ||
-      'A capability-authoring branch or issue was explicitly routed to human review.',
-    issue,
-    pullRequest,
-    branch,
-  });
+  const capabilityLabel =
+    process.env.CAPABILITY_LABEL || 'capability authoring';
+  const requestedAction =
+    process.env.HUMAN_REVIEW_ACTION ||
+    'review the capability authoring result and decide whether to merge';
+  const reason =
+    process.env.HUMAN_REVIEW_REASON ||
+    'A capability-authoring branch or issue was explicitly routed to human review.';
 
-  if (webhookUrl) {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content }),
+  const primaryTarget = pullRequest ?? issue;
+  const title = primaryTarget
+    ? `aether · route-human · ${primaryTarget.title ?? `#${primaryTarget.number}`}`
+    : 'aether · route-human';
+  const primaryUrl = primaryTarget?.url;
+
+  const fields = [
+    { name: 'action', value: requestedAction, inline: false },
+    { name: 'reason', value: reason, inline: false },
+  ];
+  if (capabilityLabel) {
+    fields.unshift({ name: 'capability', value: capabilityLabel, inline: true });
+  }
+  if (branch) fields.push({ name: 'branch', value: `\`${branch}\``, inline: true });
+  if (pullRequest?.number) {
+    fields.push({
+      name: 'PR',
+      value: `[#${pullRequest.number}](${pullRequest.url})`,
+      inline: true,
     });
-
-    if (!response.ok) {
-      throw new Error(`Discord webhook failed with HTTP ${response.status}`);
-    }
-  } else {
-    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bot ${botToken}`,
-      },
-      body: JSON.stringify({ content }),
+  }
+  if (issue?.number) {
+    fields.push({
+      name: 'issue',
+      value: `[#${issue.number}](${issue.url})`,
+      inline: true,
     });
-
-    if (!response.ok) {
-      throw new Error(`Discord API failed with HTTP ${response.status}`);
-    }
   }
 
+  const actions = [];
+  if (pullRequest?.url) {
+    actions.push({ label: 'Open PR', url: pullRequest.url });
+    actions.push({ label: 'Review diff', url: `${pullRequest.url}/files` });
+    actions.push({ label: 'Comment', url: `${pullRequest.url}#issuecomment-new` });
+  } else if (issue?.url) {
+    actions.push({ label: 'Open issue', url: issue.url });
+    actions.push({ label: 'Comment', url: `${issue.url}#issuecomment-new` });
+  }
+
+  // Plain-text fallback included in content so even bare webhooks (non-app,
+  // no button rendering) still give Ernie a single clickable link on mobile.
+  const contentLines = [];
+  if (primaryUrl) contentLines.push(primaryUrl);
+  const content = contentLines.join('\n') || undefined;
+
+  const body = {
+    content,
+    embeds: [
+      buildEmbed({
+        color: COLOR_ROUTE_HUMAN,
+        title,
+        description: [
+          `**${capabilityLabel}** — needs human review`,
+          reason,
+        ].join('\n\n'),
+        url: primaryUrl,
+        fields,
+      }),
+    ],
+    components: buildLinkButtons(actions),
+    allowed_mentions: { parse: [] },
+  };
+
+  await send(webhookUrl, botToken, channelId, body);
   console.log('Sent route-human Discord notification.');
 }
 

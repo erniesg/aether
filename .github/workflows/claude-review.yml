@@ -53,9 +53,38 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # /review is a slash-command the agent reads from its own
-          # instructions; --strict flips the rubric in lib/review/reviewerPrompt.ts.
-          prompt: "/review --strict"
+          # Plain-text review prompt. We previously used "/review --strict"
+          # but claude-code-action@v1 doesn't recognize that as a built-in
+          # slash command, so the agent no-opped and never produced a
+          # VERDICT. Spelled-out prompt is the portable form.
+          prompt: |
+            You are the reviewer agent for this PR. You have NO prior context
+            from the author — read the PR diff, the linked issue's acceptance
+            criteria (look for "Closes #N" in the PR body), the test output,
+            and any artifact URLs posted as PR comments. Do NOT attempt to
+            modify code; you only comment.
+
+            Apply STRICT review: red/green TDD compliance, hard rules from
+            docs/AGENT-BRIEFING.md (provider seam, typed provenance, UI
+            taxonomy, restraint, canvas-as-substrate), and the acceptance
+            checklist from the linked issue. Flag any test that is mocked
+            when it should be integration, any hardcoded provider, any UI
+            mixing taxonomy categories.
+
+            Post ONE PR comment using the GitHub tools. The comment must
+            end with EXACTLY one of these lines (no markdown emphasis, no
+            trailing whitespace):
+
+              VERDICT: APPROVE
+              VERDICT: REQUEST_CHANGES
+              VERDICT: BLOCK
+
+            - APPROVE: all acceptance criteria met, tests green, no hard-rule
+              violations.
+            - REQUEST_CHANGES: small fixable issues; the author agent will
+              pick it up again.
+            - BLOCK: architectural concern or spec violation that needs
+              human resolution.
           claude_args: |
             --max-turns 40
             --model claude-opus-4-7
