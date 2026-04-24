@@ -11,6 +11,7 @@ import {
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { ActionLog } from './ActionLog';
+import { IconButton } from '@/components/ui/IconButton';
 import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
 import type { GuardedLayoutPlan } from '@/lib/canvas/layoutGuard';
 import {
@@ -236,13 +237,14 @@ function RightRailInner({
 }) {
   const { railRef } = useRail();
   const gens = useGenerationsSummary();
+  const handleExportClick = () => {
+    void onExport?.();
+  };
 
   const exportAction = onExport ? (
     <button
       type="button"
-      onClick={() => {
-        void onExport();
-      }}
+      onClick={handleExportClick}
       disabled={exportDisabled}
       aria-label="export"
       title="export pack · PNGs + manifest.json"
@@ -326,6 +328,20 @@ function RightRailInner({
           {section.body}
         </RailSection>
       ))}
+      {onExport ? (
+        <div className="mt-auto border-t border-border-soft px-1 pt-2">
+          <IconButton
+            size="md"
+            variant="outline"
+            label="export pack"
+            title="export pack · PNGs + manifest.json"
+            data-testid="rail-export-pack-button"
+            disabled={exportDisabled}
+            icon={<Download size={15} strokeWidth={1.75} />}
+            onClick={handleExportClick}
+          />
+        </div>
+      ) : null}
     </nav>
   );
 }
