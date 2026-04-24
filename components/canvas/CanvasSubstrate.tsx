@@ -37,7 +37,11 @@ import {
   applyPrimitiveTool,
   applySketchBrushStyles,
 } from '@/lib/canvas/sketchBrushEditor';
-import type { AirBrushPoint } from '@/lib/canvas/airBrush';
+import {
+  messageFromUnknownError,
+  recordAirBrushDebugEvent,
+  type AirBrushPoint,
+} from '@/lib/canvas/airBrush';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
 import type {
   SegmentationBoxPrompt,
@@ -113,6 +117,11 @@ export interface CanvasSubstrateProps {
 }
 
 type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
+type FrameShapeWithBounds = {
+  id: string;
+  type: 'frame';
+  props: { w?: number; h?: number; name?: string };
+};
 
 interface GeneratedPlatePreview {
   regionId: string | null;
@@ -259,6 +268,64 @@ function resolveClearableSketchShapeIds(
   return editor
     .getSelectedShapeIds()
     .filter((id) => editor.getShape(id)?.type === 'draw');
+}
+
+function resolveAirBrushTargetFrame(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>
+): FrameShapeWithBounds | null {
+  const selectedFrame = editor.getOnlySelectedShape();
+  if (selectedFrame?.type === 'frame') return selectedFrame as FrameShapeWithBounds;
+  return (getFrameShapes(editor)[0] as FrameShapeWithBounds | undefined) ?? null;
+}
+
+function resolveAirBrushClientPoint({
+  editor,
+  fallbackBounds,
+  point,
+}: {
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>;
+  fallbackBounds: DOMRect;
+  point: AirBrushPoint;
+}) {
+  const targetFrame = resolveAirBrushTargetFrame(editor);
+  if (targetFrame) {
+    const frameBounds = editor.getShapePageBounds(targetFrame.id as never);
+    if (frameBounds && frameBounds.w > 0 && frameBounds.h > 0) {
+      const topLeft = editor.pageToScreen({
+        x: frameBounds.x,
+        y: frameBounds.y,
+      });
+      const bottomRight = editor.pageToScreen({
+        x: frameBounds.x + frameBounds.w,
+        y: frameBounds.y + frameBounds.h,
+      });
+      const left = Math.min(topLeft.x, bottomRight.x);
+      const top = Math.min(topLeft.y, bottomRight.y);
+      const width = Math.abs(bottomRight.x - topLeft.x);
+      const height = Math.abs(bottomRight.y - topLeft.y);
+      if (width > 0 && height > 0) {
+        return {
+          point: {
+            x: left + width * point.x,
+            y: top + height * point.y,
+            z: point.pressure ?? (point.state === 'end' ? 0 : 0.55),
+          },
+          frameId: targetFrame.id,
+          frameLabel: targetFrame.props.name,
+        };
+      }
+    }
+  }
+
+  return {
+    point: {
+      x: fallbackBounds.left + fallbackBounds.width * point.x,
+      y: fallbackBounds.top + fallbackBounds.height * point.y,
+      z: point.pressure ?? (point.state === 'end' ? 0 : 0.55),
+    },
+    frameId: null,
+    frameLabel: null,
+  };
 }
 
 function upsertBackgroundAsset(params: {
@@ -446,47 +513,132 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     [editor]
   );
 
+  const sketchSessionShapeIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    sketchSessionShapeIdsRef.current = sketchSessionShapeIds;
+  }, [sketchSessionShapeIds]);
+
+  const captureSketchAsReference = useCallback(async () => {
+    if (!editor) return;
+    const ids = sketchSessionShapeIdsRef.current.filter(
+      (id) => editor.getShape(id as never)?.type === 'draw'
+    );
+    if (ids.length === 0) return;
+    try {
+      const { url } = await editor.toImageDataUrl(ids as never, {
+        background: true,
+        padding: 48,
+        scale: 1,
+      });
+      composerRef.current?.addReferenceDataUrl(url);
+    } catch {
+      // export failed (rare, e.g. headless canvas during teardown); swallow
+    }
+  }, [editor, composerRef]);
+
   const handleAirBrushToggle = useCallback(
     (active: boolean) => {
       setAirBrushActive(active);
-      if (active) handlePrimitiveToolPress('draw');
+      if (active) {
+        if (editor && getFrameShapes(editor).length > 0) {
+          focusFrameAtIndex(editor, 0);
+        }
+        handlePrimitiveToolPress('draw');
+      } else {
+        // Finished air-brushing; feed the sketch into the composer as a
+        // reference chip. User can now type a prompt and the drawn shape is
+        // automatically the generation context.
+        void captureSketchAsReference();
+      }
     },
-    [handlePrimitiveToolPress]
+    [editor, handlePrimitiveToolPress, captureSketchAsReference]
   );
 
   const handleAirBrushPoint = useCallback(
     (point: AirBrushPoint) => {
-      if (!editor || point.state === 'hover') return;
+      if (point.state === 'hover') return;
+      if (!editor) {
+        recordAirBrushDebugEvent('dispatch-skipped', {
+          reason: 'missing-editor',
+          state: point.state,
+          intent: point.intent ?? 'draw',
+        });
+        return;
+      }
       const bounds = canvasRootRef.current?.getBoundingClientRect();
-      if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
-
-      if (point.state === 'start') {
-        handlePrimitiveToolPress('draw');
+      if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
+        recordAirBrushDebugEvent('dispatch-skipped', {
+          reason: 'missing-canvas-bounds',
+          state: point.state,
+          intent: point.intent ?? 'draw',
+          bounds: bounds
+            ? { width: bounds.width, height: bounds.height }
+            : null,
+        });
+        return;
       }
 
-      editor.dispatch({
-        type: 'pointer',
-        target: 'canvas',
-        name:
-          point.state === 'start'
-            ? 'pointer_down'
-            : point.state === 'end'
-              ? 'pointer_up'
-              : 'pointer_move',
-        point: {
-          x: bounds.left + bounds.width * point.x,
-          y: bounds.top + bounds.height * point.y,
-          z: point.pressure ?? (point.state === 'end' ? 0 : 0.55),
-        },
-        pointerId: 74701,
-        button: 0,
-        isPen: false,
-        shiftKey: false,
-        altKey: false,
-        ctrlKey: false,
-        metaKey: false,
-        accelKey: false,
+      if (point.state === 'start') {
+        if ((point.intent ?? 'draw') === 'erase') {
+          editor.setCurrentTool('eraser');
+        } else {
+          handlePrimitiveToolPress('draw');
+        }
+      }
+
+      const name =
+        point.state === 'start'
+          ? 'pointer_down'
+          : point.state === 'end'
+            ? 'pointer_up'
+            : 'pointer_move';
+      const target = resolveAirBrushClientPoint({
+        editor,
+        fallbackBounds: bounds,
+        point,
       });
+
+      try {
+        editor.dispatch({
+          type: 'pointer',
+          target: 'canvas',
+          name,
+          point: target.point,
+          pointerId: 74701,
+          button: 0,
+          isPen: false,
+          shiftKey: false,
+          altKey: false,
+          ctrlKey: false,
+          metaKey: false,
+          accelKey: false,
+        });
+        const dispatchedPointCount =
+          typeof window === 'undefined'
+            ? 1
+            : (window.__AETHER_AIR_BRUSH_DEBUG__?.dispatchedPointCount ?? 0) + 1;
+        recordAirBrushDebugEvent(
+          'dispatch',
+          {
+            name,
+            state: point.state,
+            intent: point.intent ?? 'draw',
+            frameId: target.frameId,
+            frameLabel: target.frameLabel,
+            x: Number(point.x.toFixed(3)),
+            y: Number(point.y.toFixed(3)),
+          },
+          { dispatchedPointCount },
+          { log: name !== 'pointer_move' }
+        );
+      } catch (err) {
+        recordAirBrushDebugEvent('dispatch-error', {
+          error: messageFromUnknownError(err, 'air brush pointer dispatch failed'),
+          name,
+          state: point.state,
+          intent: point.intent ?? 'draw',
+        });
+      }
     },
     [editor, handlePrimitiveToolPress]
   );
