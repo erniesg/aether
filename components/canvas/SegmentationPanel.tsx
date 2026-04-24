@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react';
 import type { BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
+import type { ImageElementSuggestion } from '@/lib/providers/vision/types';
 import {
   KNOWN_SEGMENTATION_PROVIDER_IDS,
   type SegmentationProviderId,
@@ -17,6 +18,15 @@ export interface SegmentationPreviewPayload {
   height: number;
   bbox?: { x: number; y: number; w: number; h: number };
   invertMask?: boolean;
+  regions?: Array<{
+    id?: string;
+    label?: string;
+    maskDataUrl: string;
+    cutoutDataUrl: string;
+    bbox?: { x: number; y: number; w: number; h: number };
+    score?: number;
+  }>;
+  backgroundPlateDataUrl?: string;
 }
 
 export interface SegmentationPanelProps {
@@ -32,6 +42,9 @@ export interface SegmentationPanelProps {
   loading?: boolean;
   approved?: boolean;
   error?: string;
+  elementsLoading?: boolean;
+  elementsSummary?: string;
+  elements?: ReadonlyArray<ImageElementSuggestion>;
   previewVisible?: boolean;
   backgroundFill: BackgroundFillSpec;
   onPromptChange: (value: string) => void;
@@ -48,6 +61,12 @@ export interface SegmentationPanelProps {
   onBackgroundColorBChange: (value: string) => void;
   onBackgroundOpacityChange: (value: number) => void;
   onApplyBackground: () => void;
+  onApplyBackgroundPlate?: () => void;
+  activeRegionId?: string | null;
+  plateGenerationLoading?: boolean;
+  onActiveRegionChange?: (value: string | null) => void;
+  onGenerateBackgroundPlate?: () => void;
+  onElementSelect?: (prompt: string) => void;
   onUndo: () => void;
   onRedo: () => void;
   preview?: SegmentationPreviewPayload;
@@ -64,6 +83,13 @@ function labelForVerb(verb: 'cutout' | 'removebg' | 'unmask'): string {
   }
 }
 
+function labelForRegion(
+  region: NonNullable<SegmentationPreviewPayload['regions']>[number],
+  index: number
+) {
+  return region.label?.trim() || `region ${index + 1}`;
+}
+
 export function SegmentationPanel({
   open,
   verb,
@@ -77,6 +103,9 @@ export function SegmentationPanel({
   loading = false,
   approved = false,
   error,
+  elementsLoading = false,
+  elementsSummary,
+  elements = [],
   previewVisible = false,
   backgroundFill,
   onPromptChange,
@@ -93,6 +122,12 @@ export function SegmentationPanel({
   onBackgroundColorBChange,
   onBackgroundOpacityChange,
   onApplyBackground,
+  onApplyBackgroundPlate,
+  activeRegionId = null,
+  plateGenerationLoading = false,
+  onActiveRegionChange,
+  onGenerateBackgroundPlate,
+  onElementSelect,
   onUndo,
   onRedo,
   preview,
@@ -163,6 +198,38 @@ export function SegmentationPanel({
           <p className="font-caption text-2xs text-ink-dim">
             {providerId} uses automatic masks. text prompt support lives on sam3.
           </p>
+        ) : null}
+
+        {elementsLoading || elementsSummary || elements.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <span className="font-caption text-ink-dim">image elements</span>
+            {elementsLoading ? (
+              <p className="font-caption text-2xs text-ink-dim">
+                grounding the image before extraction…
+              </p>
+            ) : null}
+            {!elementsLoading && elementsSummary ? (
+              <p className="font-caption text-2xs text-ink-dim">{elementsSummary}</p>
+            ) : null}
+            {!elementsLoading && elements.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {elements.map((element) => (
+                  <button
+                    key={element.id}
+                    type="button"
+                    onClick={() => onElementSelect?.(element.prompt)}
+                    className={`rounded-pill border px-2 py-0.5 font-caption text-2xs transition-colors ${
+                      element.prominence === 'primary'
+                        ? 'border-accent/40 bg-accent/10 text-ink hover:border-accent hover:text-ink'
+                        : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+                    }`}
+                  >
+                    {element.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="flex flex-col gap-1">
@@ -319,12 +386,71 @@ export function SegmentationPanel({
                 ? 'cutout applied. paint a background behind it or undo.'
                 : 'preview is on canvas. toggle it or approve to replace the selected image with the cutout.'}
             </p>
+            {preview.regions && preview.regions.length > 1 ? (
+              <div className="mt-2 flex flex-col gap-1">
+                <span className="font-caption text-2xs text-ink-dim">
+                  detected {preview.regions.length} separate regions from the mask.
+                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onActiveRegionChange?.(null)}
+                    disabled={approved}
+                    className={`rounded-pill border px-2 py-0.5 font-caption text-2xs transition-colors ${
+                      activeRegionId === null
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-border-soft bg-surface-panel text-ink-dim hover:text-ink disabled:cursor-not-allowed disabled:opacity-50'
+                    }`}
+                  >
+                    all regions
+                  </button>
+                  {preview.regions.map((region, index) => (
+                    <button
+                      key={region.id ?? `region-${index}`}
+                      type="button"
+                      onClick={() => onActiveRegionChange?.(region.id ?? null)}
+                      disabled={approved}
+                      className={`rounded-pill border px-2 py-0.5 font-caption text-2xs transition-colors ${
+                        activeRegionId === (region.id ?? null)
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-border-soft bg-surface-panel text-ink-dim hover:text-ink disabled:cursor-not-allowed disabled:opacity-50'
+                      }`}
+                    >
+                      {labelForRegion(region, index)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {preview.backgroundPlateDataUrl ? (
+              <p className="mt-1 font-caption text-2xs text-ink-dim">
+                a generated background plate is available for the current selection.
+              </p>
+            ) : onGenerateBackgroundPlate ? (
+              <button
+                type="button"
+                onClick={onGenerateBackgroundPlate}
+                disabled={plateGenerationLoading}
+                className="mt-2 rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {plateGenerationLoading ? 'generating clean plate…' : 'generate clean plate'}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
         {approved ? (
           <div className="flex flex-col gap-2 rounded-sm border border-border-soft bg-surface-panel-muted p-2">
             <span className="font-caption text-ink-dim">background</span>
+            {preview?.backgroundPlateDataUrl ? (
+              <button
+                type="button"
+                onClick={onApplyBackgroundPlate}
+                className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
+              >
+                apply generated plate
+              </button>
+            ) : null}
             <div className="flex items-center gap-1">
               {(['solid', 'gradient'] as const).map((mode) => {
                 const active = backgroundFill.mode === mode;
@@ -389,7 +515,7 @@ export function SegmentationPanel({
               onClick={onApplyBackground}
               className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
             >
-              apply background
+              apply background fill
             </button>
           </div>
         ) : null}

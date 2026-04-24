@@ -56,6 +56,15 @@ Your endpoint should return JSON shaped like:
 {
   "mask_url": "https://.../mask.png",
   "alpha_cutout_url": "https://.../cutout.png",
+  "background_plate_url": "https://.../plate.png",
+  "regions": [
+    {
+      "id": "region-1",
+      "mask_url": "https://.../region-1-mask.png",
+      "bbox": { "x": 10, "y": 20, "w": 300, "h": 420 },
+      "score": 0.92
+    }
+  ],
   "bbox": { "x": 10, "y": 20, "w": 300, "h": 420 },
   "width": 1024,
   "height": 1280,
@@ -67,6 +76,8 @@ Notes:
 
 - `mask_url` is required.
 - `alpha_cutout_url` is optional. If omitted, `aether` will compose the cutout preview itself.
+- `background_plate_url` is optional. If present, `aether` can apply it as the clean background layer behind the cutout.
+- `regions` is optional. Use it when the mask really represents multiple disconnected objects or fragments that should be inspectable separately.
 - `bbox`, `width`, `height`, and `model` are optional but recommended.
 
 ## Minimal Modal shape
@@ -155,6 +166,42 @@ Then attach it in the decorator:
 ```python
 secrets=[modal.Secret.from_name("aether-sam3")]
 ```
+
+### Hugging Face token for `facebook/sam3`
+
+The SAM3 runner in this repo expects a Hugging Face token in the Modal secret
+under the key `HF_TOKEN`.
+
+Generate it in Hugging Face:
+
+1. Open `https://huggingface.co/settings/tokens`
+2. Create a new token
+3. Use a fine-grained or read token that can access the gated `facebook/sam3` repo
+4. Make sure your HF account has already been granted access to `facebook/sam3`
+
+Then update the Modal secret used by this app:
+
+```bash
+modal secret create aether-sam3-secrets \
+  HF_TOKEN=hf_... \
+  SAM3_BEARER_TOKEN=your-shared-bearer-token \
+  --force
+```
+
+Notes:
+
+- `HF_TOKEN` is read in `modal/sam3_app.py` when the model loads.
+- `SAM3_BEARER_TOKEN` is optional endpoint auth. If you already use it, include it again when replacing the secret.
+- Modal CLI does not expose existing secret values, so you cannot "grab" the current token back out. You can only replace the secret with a new set of values.
+- Local `aether` should then use the same bearer token via `SAM3_MODAL_TOKEN` in `.dev.vars`.
+
+Quick verification:
+
+```bash
+modal run modal/sam3_app.py::debug_hf_access
+```
+
+That should report `token_present: true` and `repo_access: ok`.
 
 ## Dev and deploy
 

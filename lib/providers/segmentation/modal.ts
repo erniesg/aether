@@ -11,7 +11,19 @@ type ModalResponse = {
   mask_url?: string;
   alphaCutoutUrl?: string;
   alpha_cutout_url?: string;
+  backgroundPlateUrl?: string;
+  background_plate_url?: string;
   bbox?: { x: number; y: number; w: number; h: number };
+  regions?: Array<{
+    id?: string;
+    label?: string;
+    maskUrl?: string;
+    mask_url?: string;
+    alphaCutoutUrl?: string;
+    alpha_cutout_url?: string;
+    bbox?: { x: number; y: number; w: number; h: number };
+    score?: number;
+  }>;
   width?: number;
   height?: number;
   model?: string;
@@ -85,7 +97,24 @@ export function createModalSam3Provider(
         model: data.model ?? opts.model ?? 'sam3.1',
         maskUrl,
         alphaCutoutUrl: data.alphaCutoutUrl ?? data.alpha_cutout_url,
+        backgroundPlateUrl:
+          data.backgroundPlateUrl ?? data.background_plate_url,
         bbox: data.bbox,
+        regions: data.regions?.flatMap((region, index) => {
+            const regionMaskUrl = region.maskUrl ?? region.mask_url;
+            if (!regionMaskUrl) return [];
+            return [
+              {
+                id: region.id ?? `region-${index + 1}`,
+                label: region.label,
+                maskUrl: regionMaskUrl,
+                alphaCutoutUrl:
+                  region.alphaCutoutUrl ?? region.alpha_cutout_url,
+                bbox: region.bbox,
+                score: region.score,
+              },
+            ];
+          }),
         width: data.width ?? req.size?.w ?? 1024,
         height: data.height ?? req.size?.h ?? 1024,
         raw: {

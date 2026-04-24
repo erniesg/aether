@@ -45,6 +45,10 @@ function renderPanel(props: Partial<ComponentProps<typeof SegmentationPanel>> = 
     onBackgroundColorBChange: vi.fn(),
     onBackgroundOpacityChange: vi.fn(),
     onApplyBackground: vi.fn(),
+    onApplyBackgroundPlate: vi.fn(),
+    onActiveRegionChange: vi.fn(),
+    onGenerateBackgroundPlate: vi.fn(),
+    onElementSelect: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
   };
@@ -168,10 +172,116 @@ describe('SegmentationPanel', () => {
     });
 
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /apply background/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /apply background fill/i })
+    ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: /apply background/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /apply background fill/i })
+    );
     expect(handlers.onApplyBackground).toHaveBeenCalled();
+  });
+
+  it('surfaces region count and generated plate actions when provided', async () => {
+    const handlers = renderPanel({
+      approved: true,
+      preview: {
+        sourceDataUrl: 'data:image/png;base64,aaa',
+        maskDataUrl: 'data:image/png;base64,bbb',
+        cutoutDataUrl: 'data:image/svg+xml,ccc',
+        width: 1024,
+        height: 1024,
+        regions: [
+          {
+            id: 'region-1',
+            maskDataUrl: 'data:image/png;base64,bbb',
+            cutoutDataUrl: 'data:image/svg+xml,ccc',
+          },
+          {
+            id: 'region-2',
+            maskDataUrl: 'data:image/png;base64,ddd',
+            cutoutDataUrl: 'data:image/svg+xml,eee',
+          },
+        ],
+        backgroundPlateDataUrl: 'data:image/png;base64,fff',
+      },
+    });
+
+    expect(screen.getByText(/detected 2 separate regions from the mask/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/generated background plate is available/i)
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /apply generated plate/i })
+    );
+    expect(handlers.onApplyBackgroundPlate).toHaveBeenCalled();
+  });
+
+  it('lets the creator target a region and generate a clean plate for it', async () => {
+    const handlers = renderPanel({
+      activeRegionId: 'region-1',
+      preview: {
+        sourceDataUrl: 'data:image/png;base64,aaa',
+        maskDataUrl: 'data:image/png;base64,bbb',
+        cutoutDataUrl: 'data:image/svg+xml,ccc',
+        width: 1024,
+        height: 1024,
+        regions: [
+          {
+            id: 'region-1',
+            label: 'main cluster',
+            maskDataUrl: 'data:image/png;base64,bbb',
+            cutoutDataUrl: 'data:image/svg+xml,ccc',
+            score: 0.94,
+          },
+          {
+            id: 'region-2',
+            label: 'stray fragment',
+            maskDataUrl: 'data:image/png;base64,ddd',
+            cutoutDataUrl: 'data:image/svg+xml,eee',
+            score: 0.06,
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByRole('button', { name: /all regions/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /main cluster/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /stray fragment/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /stray fragment/i }));
+    expect(handlers.onActiveRegionChange).toHaveBeenCalledWith('region-2');
+
+    await userEvent.click(screen.getByRole('button', { name: /generate clean plate/i }));
+    expect(handlers.onGenerateBackgroundPlate).toHaveBeenCalled();
+  });
+
+  it('shows detected image elements and lets the creator use one as the prompt', async () => {
+    const handlers = renderPanel({
+      elementsLoading: false,
+      elementsSummary:
+        'A marble bust with exposed brain, a robotic hand, and floating glitch blocks.',
+      elements: [
+        {
+          id: 'head',
+          label: 'marble bust head',
+          prompt: 'marble bust head',
+          prominence: 'primary',
+        },
+        {
+          id: 'robot-hand',
+          label: 'robotic hand',
+          prompt: 'robotic hand',
+          prominence: 'secondary',
+        },
+      ],
+    });
+
+    expect(screen.getByText(/marble bust with exposed brain/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /marble bust head/i }));
+    expect(handlers.onElementSelect).toHaveBeenCalledWith('marble bust head');
   });
 
   it('lets the creator hide and reshow the preview before approval', async () => {

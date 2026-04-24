@@ -31,6 +31,25 @@ const REGISTRY: Registry = {
 
 export const KNOWN_PROVIDER_IDS = Object.keys(REGISTRY) as ReadonlyArray<string>;
 
+function buildResolutionOrder(preferredId?: string, modelHint?: string) {
+  const envDefault = process.env.IMAGE_GEN_PROVIDER;
+
+  let modelHintedId: string | undefined;
+  if (modelHint && !preferredId) {
+    for (const id of KNOWN_PROVIDER_IDS) {
+      const provider = REGISTRY[id]();
+      if (provider.isAvailable() && provider.listModels().includes(modelHint)) {
+        modelHintedId = id;
+        break;
+      }
+    }
+  }
+
+  return [preferredId, modelHintedId, envDefault, ...KNOWN_PROVIDER_IDS].filter(
+    (x): x is string => typeof x === 'string' && x.length > 0
+  );
+}
+
 /**
  * Pick a provider. Precedence:
  *   1. explicit `preferredId` (URL `?provider=...` or agent choice)
@@ -46,22 +65,7 @@ export function resolveProvider(
   preferredId?: string,
   modelHint?: string
 ): ImageGenProvider {
-  const envDefault = process.env.IMAGE_GEN_PROVIDER;
-
-  let modelHintedId: string | undefined;
-  if (modelHint && !preferredId) {
-    for (const id of KNOWN_PROVIDER_IDS) {
-      const p = REGISTRY[id]();
-      if (p.isAvailable() && p.listModels().includes(modelHint)) {
-        modelHintedId = id;
-        break;
-      }
-    }
-  }
-
-  const order = [preferredId, modelHintedId, envDefault, ...KNOWN_PROVIDER_IDS].filter(
-    (x): x is string => typeof x === 'string' && x.length > 0
-  );
+  const order = buildResolutionOrder(preferredId, modelHint);
 
   for (const id of order) {
     const factory = REGISTRY[id];
@@ -73,6 +77,27 @@ export function resolveProvider(
   throw new ProviderUnavailableError(
     preferredId ?? 'any',
     'no provider has credentials set (checked: ' + KNOWN_PROVIDER_IDS.join(', ') + ')'
+  );
+}
+
+export function resolveEditableProvider(
+  preferredId?: string,
+  modelHint?: string
+): ImageGenProvider {
+  const order = buildResolutionOrder(preferredId, modelHint);
+
+  for (const id of order) {
+    const factory = REGISTRY[id];
+    if (!factory) continue;
+    const provider = factory();
+    if (provider.isAvailable() && typeof provider.edit === 'function') {
+      return provider;
+    }
+  }
+
+  throw new ProviderUnavailableError(
+    preferredId ?? 'any',
+    'no editable provider has credentials set (checked: ' + KNOWN_PROVIDER_IDS.join(', ') + ')'
   );
 }
 

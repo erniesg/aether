@@ -9,6 +9,7 @@ import type {
   SegmentationMode,
   SegmentationPointPrompt,
   SegmentationProviderStatus,
+  SegmentationRegionResult,
 } from '@/lib/providers/segmentation/types';
 import {
   SegmentationError,
@@ -21,6 +22,43 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+interface SegmentationPreviewRegionPayload {
+  id?: string;
+  label?: string;
+  maskDataUrl: string;
+  cutoutDataUrl: string;
+  bbox?: SegmentationBoxPrompt;
+  score?: number;
+}
+
+async function normalizePreviewRegion(params: {
+  region: SegmentationRegionResult;
+  sourceDataUrl: string;
+  width: number;
+  height: number;
+  invertMask?: boolean;
+}): Promise<SegmentationPreviewRegionPayload> {
+  const maskDataUrl = await fetchAsDataUrl(params.region.maskUrl);
+  const cutoutDataUrl = params.region.alphaCutoutUrl
+    ? await fetchAsDataUrl(params.region.alphaCutoutUrl)
+    : buildMaskedImageDataUrl({
+        sourceDataUrl: params.sourceDataUrl,
+        maskDataUrl,
+        width: params.width,
+        height: params.height,
+        invertMask: params.invertMask,
+      });
+
+  return {
+    id: params.region.id,
+    label: params.region.label,
+    maskDataUrl,
+    cutoutDataUrl,
+    bbox: params.region.bbox,
+    score: params.region.score,
+  };
+}
 
 function jsonError(
   status: number,
@@ -175,10 +213,32 @@ export async function POST(request: Request) {
       { model: model ?? provider.listModels()[0] ?? provider.id }
     );
 
-    const [sourceDataUrl, maskDataUrl] = await Promise.all([
-      fetchAsDataUrl(sourceUrl),
-      fetchAsDataUrl(result.maskUrl),
-    ]);
+    const sourceDataUrlPromise = fetchAsDataUrl(sourceUrl);
+    const maskDataUrlPromise = fetchAsDataUrl(result.maskUrl);
+    const backgroundPlateDataUrlPromise = result.backgroundPlateUrl
+      ? fetchAsDataUrl(result.backgroundPlateUrl)
+      : Promise.resolve(undefined);
+    const regionsPromise = result.regions?.length
+      ? Promise.all(
+          result.regions.map(async (region) =>
+            normalizePreviewRegion({
+              region,
+              sourceDataUrl: await sourceDataUrlPromise,
+              width: result.width,
+              height: result.height,
+              invertMask: mode === 'unmask',
+            })
+          )
+        )
+      : Promise.resolve(undefined);
+
+    const [sourceDataUrl, maskDataUrl, backgroundPlateDataUrl, regions] =
+      await Promise.all([
+        sourceDataUrlPromise,
+        maskDataUrlPromise,
+        backgroundPlateDataUrlPromise,
+        regionsPromise,
+      ]);
 
     const alphaCutoutDataUrl = result.alphaCutoutUrl
       ? await fetchAsDataUrl(result.alphaCutoutUrl)
@@ -204,6 +264,8 @@ export async function POST(request: Request) {
         height: result.height,
         bbox: result.bbox,
         invertMask: mode === 'unmask',
+        regions,
+        backgroundPlateDataUrl,
       },
       raw: result.raw,
     });

@@ -18,6 +18,7 @@ The toolbar already exposes `cutout`, `unmask`, and `removebg`, but the repo has
 - added preview overlay, approve/reject flow, and undo/redo hooks
 - added solid / gradient / opacity background fills behind the approved cutout
 - added point / box refinement prompts for the selected image, routed through `/api/segment`
+- widened the seam so providers can optionally return disconnected `regions` and a generated `backgroundPlateUrl`, ready for future photo-decompose flows
 
 ## Important limitations
 

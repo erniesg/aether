@@ -26,12 +26,23 @@ export interface SegmentationRequest {
   size?: { w: number; h: number };
 }
 
+export interface SegmentationRegionResult {
+  id?: string;
+  label?: string;
+  maskUrl: string;
+  alphaCutoutUrl?: string;
+  bbox?: SegmentationBoxPrompt;
+  score?: number;
+}
+
 export interface SegmentationResult {
   provider: SegmentationProviderId;
   model: string;
   maskUrl: string;
   alphaCutoutUrl?: string;
+  backgroundPlateUrl?: string;
   bbox?: SegmentationBoxPrompt;
+  regions?: SegmentationRegionResult[];
   width: number;
   height: number;
   raw?: unknown;
