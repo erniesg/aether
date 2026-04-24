@@ -19,11 +19,15 @@
     "deploy:stg": "opennextjs-cloudflare build && wrangler deploy --env staging",
     "deploy:prod": "opennextjs-cloudflare build && wrangler deploy --env production",
     "convex:dev": "convex dev",
-    "convex:deploy": "convex deploy"
+    "convex:deploy": "convex deploy",
+    "video:text-mask": "tsx scripts/video/emit-hyperframes-text-mask.ts",
+    "video:double-exposure": "tsx scripts/video/emit-hyperframes-double-exposure.ts",
+    "video:double-exposure:skills": "tsx scripts/video/emit-hyperframes-double-exposure.ts --list-skills"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
     "@google/genai": "^1.50.1",
+    "@mediapipe/tasks-vision": "^0.10.34",
     "@opennextjs/cloudflare": "^1.19.0",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-dropdown-menu": "^2.1.0",
