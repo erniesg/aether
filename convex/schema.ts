@@ -211,4 +211,35 @@ export default defineSchema({
     downloadUrl: v.string(),
     createdAt: v.number(),
   }).index('by_ws', ['wsId']),
+
+  // Publisher seam (issue #9 — Slice 1). One row per platform post; multi-
+  // platform fan-out is N rows. `wsId` optional for the same reason it is on
+  // `signalSubscription` — pre-Phase-5 the UI has no workspace plumbing.
+  scheduledPost: defineTable({
+    wsId: v.optional(v.id('workspace')),
+    platform: v.union(
+      v.literal('instagram'),
+      v.literal('tiktok'),
+      v.literal('x'),
+      v.literal('linkedin'),
+      v.literal('youtube-shorts'),
+      v.literal('xhs'),
+      v.literal('douyin'),
+      v.literal('pinterest')
+    ),
+    mediaUrls: v.array(v.string()),
+    caption: v.string(),
+    hashtags: v.array(v.string()),
+    scheduledAt: v.string(), // ISO8601
+    accountId: v.optional(v.string()),
+    createdAt: v.number(),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('scheduled'),
+      v.literal('published'),
+      v.literal('cancelled')
+    ),
+    provider: v.optional(v.string()),
+    externalId: v.optional(v.string()),
+  }).index('by_ws', ['wsId']),
 });
