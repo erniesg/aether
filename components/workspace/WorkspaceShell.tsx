@@ -16,6 +16,8 @@ import {
 import type { ToolbarVerb } from '@/components/canvas/FloatingToolbar';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
+import { PublishPreview } from '@/components/workspace/PublishPreview';
+import { useScheduledPosts, getPreviewPublisher } from '@/lib/publisher/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
@@ -261,6 +263,23 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
+  const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
+  useEffect(() => {
+    // Deep-link: `?publishPreview=<id>` opens the overlay on mount. The
+    // PreviewPublisher returns this URL from schedule() so a shared link lands
+    // the viewer straight on the preview.
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('publishPreview')) setPublishPreviewOpen(true);
+  }, []);
+  const scheduledPosts = useScheduledPosts(wsId);
+  const heroMediaUrls = useMemo(() => {
+    // Latest completed run's image — good enough for an M1 preview until the
+    // export pack (issue #5) threads real per-artboard URLs through.
+    const withImage = runs.filter((r) => r.imageUrl && r.status === 'ok');
+    const latest = withImage[withImage.length - 1];
+    return latest?.imageUrl ? [latest.imageUrl] : [];
+  }, [runs]);
   // Focus lens cycles through frames via arrow keys; the active format state
   // mirrors this so the composer always shows the current single-format target.
   const [focusIdx, setFocusIdx] = useState(0);
@@ -1433,6 +1452,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           onExport={handleExport}
           exportDisabled={exporting}
           safeZonesVisible={safeZonesVisible}
+          workspaceId={wsId}
+          heroMediaUrls={heroMediaUrls}
+          onOpenPublishPreview={() => setPublishPreviewOpen(true)}
         />
       </div>
 
@@ -1454,6 +1476,39 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         onAccept={handlePinAccept}
         onReject={() => setPinTargetRun(null)}
       />
+
+      {publishPreviewOpen ? (
+        <div
+          role="dialog"
+          aria-label="publish preview"
+          data-testid="publish-preview-overlay"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-surface-panel/70 backdrop-blur-sm"
+          onClick={() => setPublishPreviewOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[85vh] w-[min(640px,90vw)] flex-col gap-3 overflow-y-auto rounded-md border border-border bg-surface-panel p-4 shadow-md"
+          >
+            <header className="flex items-center justify-between gap-2 border-b border-border-soft pb-2">
+              <span className="font-caption text-ink">publish preview</span>
+              <button
+                type="button"
+                onClick={() => setPublishPreviewOpen(false)}
+                data-testid="publish-preview-close"
+                className="font-caption text-2xs uppercase tracking-wide text-ink-dim hover:text-ink"
+              >
+                close
+              </button>
+            </header>
+            <PublishPreview
+              posts={scheduledPosts}
+              onCancel={(id) => {
+                void getPreviewPublisher(wsId).cancel(id);
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

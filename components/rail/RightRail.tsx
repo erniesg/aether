@@ -11,6 +11,11 @@ import {
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { ActionLog } from './ActionLog';
+import {
+  PublishSection,
+  publishSectionSummary,
+} from './sections/PublishSection';
+import { useScheduledPosts } from '@/lib/publisher/store';
 import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
 import { cn } from '@/lib/utils/cn';
 
@@ -115,15 +120,22 @@ function RightRailInner({
   onExport,
   exportDisabled,
   safeZonesVisible,
+  workspaceId,
+  heroMediaUrls,
+  onOpenPublishPreview,
 }: {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
   onExport?: () => void | Promise<void>;
   exportDisabled?: boolean;
   safeZonesVisible: boolean;
+  workspaceId: string;
+  heroMediaUrls?: string[];
+  onOpenPublishPreview?: (postId: string) => void;
 }) {
   const { railRef } = useRail();
   const gens = useGenerationsSummary();
+  const scheduledPosts = useScheduledPosts(workspaceId);
 
   const exportAction = onExport ? (
     <button
@@ -174,10 +186,17 @@ function RightRailInner({
     },
     {
       id: 'scheduled',
-      label: 'scheduled',
+      label: 'publish',
       icon: Calendar,
-      summary: 'empty',
-      body: <PlaceholderBody hint="auto-publish timeline · post-hackathon" />,
+      summary: publishSectionSummary(scheduledPosts.length),
+      hasContent: scheduledPosts.length > 0,
+      body: (
+        <PublishSection
+          workspaceId={workspaceId}
+          heroMediaUrls={heroMediaUrls}
+          onOpenPreview={onOpenPublishPreview}
+        />
+      ),
     },
   ];
 
@@ -217,6 +236,14 @@ export interface RightRailProps {
   onExport?: () => void | Promise<void>;
   exportDisabled?: boolean;
   safeZonesVisible?: boolean;
+  /** Defaults to 'demo-ws' so legacy renders without a wsId still work — the
+   * workspace shell always threads the real id through. */
+  workspaceId?: string;
+  /** Hero media URLs from the current export pack, threaded into the publish
+   * lens. Empty when nothing has been generated — the lens falls back to a
+   * 1x1 placeholder so the flow still works for demo. */
+  heroMediaUrls?: string[];
+  onOpenPublishPreview?: (postId: string) => void;
 }
 
 export function RightRail({
@@ -225,6 +252,9 @@ export function RightRail({
   onExport,
   exportDisabled,
   safeZonesVisible = true,
+  workspaceId = 'demo-ws',
+  heroMediaUrls,
+  onOpenPublishPreview,
 }: RightRailProps) {
   return (
     <RailProvider>
@@ -234,6 +264,9 @@ export function RightRail({
         onExport={onExport}
         exportDisabled={exportDisabled}
         safeZonesVisible={safeZonesVisible}
+        workspaceId={workspaceId}
+        heroMediaUrls={heroMediaUrls}
+        onOpenPublishPreview={onOpenPublishPreview}
       />
     </RailProvider>
   );
