@@ -27,9 +27,12 @@ export type ReviewVerdict = 'APPROVE' | 'REQUEST_CHANGES' | 'BLOCK';
 const VERDICT_VALUES = ['APPROVE', 'REQUEST_CHANGES', 'BLOCK'] as const;
 
 // Captures `VERDICT: <TOKEN>` where TOKEN is one of the three allowed values.
-// The `g` flag lets us iterate and keep the last match; markdown emphasis
-// characters around the match are stripped at the caller site.
-const VERDICT_LINE = /VERDICT:\s*(APPROVE|REQUEST_CHANGES|BLOCK)\b/g;
+// The `g` flag lets us iterate and keep the last match. Terminator is a
+// negative lookahead for uppercase letters rather than \b — \b treats `_` as a
+// word character, which breaks the markdown-emphasis tolerance case
+// (`_VERDICT: BLOCK_`). `(?![A-Z])` rejects accidental partial matches like
+// `APPROVED` while allowing `*` / `_` / whitespace / EOS as valid boundaries.
+const VERDICT_LINE = /VERDICT:\s*(APPROVE|REQUEST_CHANGES|BLOCK)(?![A-Z])/g;
 
 export function parseVerdict(commentBody: string | null | undefined): ReviewVerdict | null {
   if (!commentBody) return null;
