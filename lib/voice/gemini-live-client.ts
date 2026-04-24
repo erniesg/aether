@@ -218,7 +218,12 @@ class BrowserPcmRecorder implements GeminiAudioRecorder {
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const context = new AudioContext();
+    // Gemini Live expects 16kHz PCM input. Default AudioContext on most
+    // machines (48kHz on Mac) produces audio Gemini transcribes as silence —
+    // the user never sees a transcript despite the mic being active. Pin
+    // the graph to 16kHz so the processor callback hands us correctly-rated
+    // samples and our outgoing mimeType matches what Live expects.
+    const context = new AudioContext({ sampleRate: 16000 });
     await context.resume();
 
     const source = context.createMediaStreamSource(stream);

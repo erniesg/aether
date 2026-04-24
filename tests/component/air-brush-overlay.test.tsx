@@ -495,7 +495,7 @@ describe('AirBrushOverlay', () => {
     expect(onEndAirBrush).not.toHaveBeenCalled();
   });
 
-  it('fires onEndAirBrush after a stroke has started and an open palm is sustained', async () => {
+  it('fires onEndAirBrush after a stroke started and both hands show open palm sustained', async () => {
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       rafCallbacks.push(callback);
@@ -532,17 +532,20 @@ describe('AirBrushOverlay', () => {
       handedness: [[{ score: 0.95, categoryName: 'Right' }]],
     };
     const openPalm = buildOpenPalmHand();
-    const openFrame = {
-      landmarks: [openPalm],
-      handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+    const twoHandOpenFrame = {
+      landmarks: [openPalm, openPalm],
+      handedness: [
+        [{ score: 0.95, categoryName: 'Right' }],
+        [{ score: 0.95, categoryName: 'Left' }],
+      ],
     };
 
     // 3 pinched frames (warmup = 2, then at least one emitted start), then
-    // switch to open palm.
+    // switch to two-hand open palm.
     let frameIndex = 0;
     const detectForVideo = vi.fn(() => {
       frameIndex += 1;
-      return frameIndex <= 3 ? pinchedFrame : openFrame;
+      return frameIndex <= 3 ? pinchedFrame : twoHandOpenFrame;
     });
     const onEndAirBrush = vi.fn();
 
@@ -559,7 +562,10 @@ describe('AirBrushOverlay', () => {
 
     await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
 
-    for (let i = 0; i < 20; i += 1) {
+    // Need at least 3 pinched frames + DONE_GESTURE_HOLD_FRAMES (15) of
+    // two-hand open palm; over-provision ticks to cover RAF scheduling
+    // variance.
+    for (let i = 0; i < 30; i += 1) {
       act(() => {
         rafCallbacks.shift()?.(100 + i * 16);
       });
@@ -569,6 +575,77 @@ describe('AirBrushOverlay', () => {
     await waitFor(() => {
       expect(onEndAirBrush).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('ignores a single open palm even after a stroke has started', async () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      {
+        clearRect: vi.fn(),
+        setTransform: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+      } as unknown as CanvasRenderingContext2D
+    );
+
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+
+    const pinchedFrame = {
+      landmarks: [trackedHand()],
+      handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+    };
+    const singleOpenPalmFrame = {
+      landmarks: [buildOpenPalmHand()],
+      handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+    };
+
+    let frameIndex = 0;
+    const detectForVideo = vi.fn(() => {
+      frameIndex += 1;
+      return frameIndex <= 3 ? pinchedFrame : singleOpenPalmFrame;
+    });
+    const onEndAirBrush = vi.fn();
+
+    render(
+      <AirBrushOverlay
+        active
+        onEndAirBrush={onEndAirBrush}
+        createHandLandmarker={async () => ({
+          detectForVideo,
+          close: vi.fn(),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+
+    for (let i = 0; i < 30; i += 1) {
+      act(() => {
+        rafCallbacks.shift()?.(100 + i * 16);
+      });
+      if (rafCallbacks.length === 0) break;
+    }
+
+    expect(onEndAirBrush).not.toHaveBeenCalled();
   });
 });
 

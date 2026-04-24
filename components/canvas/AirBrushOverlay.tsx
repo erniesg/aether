@@ -58,10 +58,13 @@ export interface AirBrushOverlayProps {
 // moves the index tip landmark by a few pixels; without this, every pinch
 // leaves a tiny dot at the start of the stroke.
 const PINCH_WARMUP_FRAMES = 2;
-// Open-palm gesture: sustain for this many frames (~0.33s at 30fps) before
-// auto-capturing. Short enough to feel responsive, long enough to avoid
-// triggering while the creator is momentarily between strokes.
-const OPEN_PALM_HOLD_FRAMES = 10;
+// "Done" gesture: both hands shown open-palm to the camera (five fingertips
+// extended, no pinch) for this many frames (~0.5s at 30fps). Requires *both*
+// hands because a single open hand is the natural rest pose between strokes
+// and was firing false positives. Two simultaneous open palms is a deliberate
+// surrender/stop gesture.
+const DONE_GESTURE_HOLD_FRAMES = 15;
+const DONE_GESTURE_HANDS_REQUIRED = 2;
 
 type CameraState = 'idle' | 'requesting' | 'ready' | 'error';
 type TrackingState = 'idle' | 'loading' | 'ready' | 'error';
@@ -879,27 +882,32 @@ export function AirBrushOverlay({
         if (!drawActive) pinchWarmupCountRef.current.draw = 0;
         if (!eraseActive) pinchWarmupCountRef.current.erase = 0;
 
-        // Open-palm "done" gesture: either hand with five fingertips extended
-        // away from the wrist and no pinch, held for OPEN_PALM_HOLD_FRAMES.
+        // "Done" gesture: both hands held open-palm (five fingertips extended,
+        // no pinch) at the camera for DONE_GESTURE_HOLD_FRAMES. A single open
+        // palm is the creator's natural rest pose between strokes and was
+        // firing false positives. Requiring two hands at once makes this
+        // unambiguously deliberate.
         const handsLandmarks = frame?.landmarks ?? [];
-        let openPalmSeen = false;
+        let openPalmHands = 0;
         for (const hand of handsLandmarks) {
           if (detectOpenPalm(hand, { minHandSpan: 0.05 }).detected) {
-            openPalmSeen = true;
-            break;
+            openPalmHands += 1;
           }
         }
-        if (openPalmSeen && hasStartedCameraStrokeRef.current) {
+        if (
+          openPalmHands >= DONE_GESTURE_HANDS_REQUIRED &&
+          hasStartedCameraStrokeRef.current
+        ) {
           openPalmHoldFramesRef.current += 1;
           if (
-            openPalmHoldFramesRef.current >= OPEN_PALM_HOLD_FRAMES &&
+            openPalmHoldFramesRef.current >= DONE_GESTURE_HOLD_FRAMES &&
             !endAirBrushFiredRef.current &&
             onEndAirBrushRef.current
           ) {
             endAirBrushFiredRef.current = true;
             publishDebug(
               'stroke-ended',
-              { reason: 'open-palm-gesture' },
+              { reason: 'two-hand-open-palm' },
               {},
               { log: true }
             );
