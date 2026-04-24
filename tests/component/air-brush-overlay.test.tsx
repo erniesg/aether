@@ -1,14 +1,24 @@
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AirBrushOverlay } from '@/components/canvas/AirBrushOverlay';
+import type { AirBrushHandLandmark } from '@/lib/canvas/airBrush';
 import type { CreateAirBrushHandLandmarker } from '@/lib/canvas/mediaPipeHandLandmarker';
 
 afterEach(() => {
   cleanup();
+  delete window.__AETHER_AIR_BRUSH_DEBUG__;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+// jsdom doesn't implement HTMLMediaElement.play(); the overlay now calls it
+// explicitly after attaching the stream to coax browsers out of a
+// paused-but-ready state. Stub it to a resolved promise in every test.
+Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+  configurable: true,
+  value: vi.fn().mockResolvedValue(undefined),
 });
 
 function installMediaDevices(getUserMedia: () => Promise<MediaStream>) {
@@ -23,6 +33,33 @@ function installMediaDevices(getUserMedia: () => Promise<MediaStream>) {
 const noFingerTracking: CreateAirBrushHandLandmarker = async () => {
   throw new Error('finger tracking unavailable');
 };
+
+function trackedHand(
+  overrides: Partial<Record<number, Partial<AirBrushHandLandmark>>> = {}
+) {
+  const landmarks = Array.from({ length: 21 }, () => ({
+    x: 0.54,
+    y: 0.74,
+    z: 0,
+    visibility: 0.95,
+  }));
+  landmarks[0] = { x: 0.52, y: 0.82, z: 0, visibility: 0.95 };
+  landmarks[5] = { x: 0.46, y: 0.62, z: 0, visibility: 0.95 };
+  landmarks[6] = { x: 0.44, y: 0.5, z: 0, visibility: 0.95 };
+  landmarks[7] = { x: 0.39, y: 0.45, z: 0, visibility: 0.95 };
+  landmarks[8] = { x: 0.25, y: 0.4, z: 0, visibility: 0.95 };
+  landmarks[17] = { x: 0.64, y: 0.68, z: 0, visibility: 0.95 };
+
+  for (const [index, patch] of Object.entries(overrides)) {
+    const landmarkIndex = Number(index);
+    landmarks[landmarkIndex] = {
+      ...landmarks[landmarkIndex],
+      ...patch,
+    };
+  }
+
+  return landmarks;
+}
 
 describe('AirBrushOverlay', () => {
   it('requests the browser camera and exposes pointer fallback status', async () => {
@@ -60,6 +97,39 @@ describe('AirBrushOverlay', () => {
       await screen.findByText(/air brush · pointer fallback/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/camera unavailable/i)).toBeInTheDocument();
+  });
+
+  it('records tracker load failures in the app-owned debug snapshot', async () => {
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+
+    render(
+      <AirBrushOverlay
+        active
+        createHandLandmarker={async () => {
+          throw new Error('cdn blocked');
+        }}
+      />
+    );
+
+    expect(
+      await screen.findByText(/finger tracking unavailable/i)
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.__AETHER_AIR_BRUSH_DEBUG__).toMatchObject({
+        lastStage: 'tracker-error',
+        lastError: 'cdn blocked',
+        trackingState: 'error',
+      });
+    });
+    expect(
+      window.__AETHER_AIR_BRUSH_DEBUG__?.events.some(
+        (event) => event.stage === 'camera-ready'
+      )
+    ).toBe(true);
   });
 
   it('does not request the camera until air brush mode is active', async () => {
@@ -110,6 +180,94 @@ describe('AirBrushOverlay', () => {
     expect(onCapture).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png/));
   });
 
+  it('uses the live pad as an app-owned pointer fallback when camera is unavailable', async () => {
+    installMediaDevices(vi.fn(async () => {
+      throw new Error('no camera');
+    }) as unknown as () => Promise<MediaStream>);
+    const onPoint = vi.fn();
+
+    render(
+      <AirBrushOverlay
+        active
+        onPoint={onPoint}
+        createHandLandmarker={noFingerTracking}
+      />
+    );
+
+    await screen.findByText(/camera unavailable/i);
+    const pad = screen.getByLabelText(/air brush fallback pad/i);
+    vi.spyOn(pad, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      top: 200,
+      width: 400,
+      height: 300,
+      right: 500,
+      bottom: 500,
+      x: 100,
+      y: 200,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(pad, 'setPointerCapture', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(pad, 'releasePointerCapture', {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    fireEvent.pointerDown(pad, {
+      clientX: 200,
+      clientY: 260,
+      pointerId: 9,
+      pressure: 0.5,
+    });
+    fireEvent.pointerMove(pad, {
+      clientX: 300,
+      clientY: 320,
+      pointerId: 9,
+      pressure: 0.5,
+    });
+    fireEvent.pointerUp(pad, {
+      clientX: 300,
+      clientY: 320,
+      pointerId: 9,
+      pressure: 0.5,
+    });
+
+    expect(onPoint).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+        state: 'start',
+        source: 'pointer',
+      })
+    );
+    expect(onPoint).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+        state: 'move',
+        source: 'pointer',
+      })
+    );
+    expect(onPoint).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+        state: 'end',
+        source: 'pointer',
+      })
+    );
+    expect(window.__AETHER_AIR_BRUSH_DEBUG__).toMatchObject({
+      lastStage: 'pointer-fallback',
+      emittedPointCount: 3,
+    });
+  });
+
   it('emits MediaPipe index-finger points when landmark tracking is ready', async () => {
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -118,6 +276,24 @@ describe('AirBrushOverlay', () => {
     });
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
     vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+    const landmarkContext = {
+      clearRect: vi.fn(),
+      setTransform: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      landmarkContext as unknown as CanvasRenderingContext2D
+    );
 
     const stop = vi.fn();
     installMediaDevices(
@@ -127,15 +303,8 @@ describe('AirBrushOverlay', () => {
     );
     const onPoint = vi.fn();
     const detectForVideo = vi.fn(() => ({
-      landmarks: [
-        Array.from({ length: 21 }, (_, index) => ({
-          x: index === 8 ? 0.25 : 0.5,
-          y: index === 8 ? 0.4 : 0.5,
-          z: 0,
-          visibility: 0.95,
-        })),
-      ],
-      handedness: [[{ score: 0.95 }]],
+      landmarks: [trackedHand()],
+      handedness: [[{ score: 0.95, categoryName: 'Right' }]],
     }));
 
     render(
@@ -149,7 +318,10 @@ describe('AirBrushOverlay', () => {
       />
     );
 
-    expect(await screen.findByText(/draw with finger/i)).toBeInTheDocument();
+    expect(await screen.findByText(/show hand to camera/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/air brush hand landmarks/i)
+    ).toBeInTheDocument();
     await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
 
     act(() => {
@@ -163,6 +335,74 @@ describe('AirBrushOverlay', () => {
           y: 0.4,
           state: 'start',
           source: 'camera',
+          intent: 'draw',
+        })
+      );
+    });
+    expect(landmarkContext.stroke).toHaveBeenCalled();
+    expect(landmarkContext.arc).toHaveBeenCalled();
+  });
+
+  it('uses the left index finger as the erase stream when both hands are visible', async () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+    const onPoint = vi.fn();
+    const detectForVideo = vi.fn(() => ({
+      landmarks: [
+        trackedHand({ 8: { x: 0.25, y: 0.4 } }),
+        trackedHand({
+          0: { x: 0.58, y: 0.82 },
+          5: { x: 0.64, y: 0.62 },
+          6: { x: 0.66, y: 0.54 },
+          7: { x: 0.69, y: 0.48 },
+          8: { x: 0.72, y: 0.42 },
+          17: { x: 0.46, y: 0.68 },
+        }),
+      ],
+      handedness: [
+        [{ score: 0.95, categoryName: 'Right' }],
+        [{ score: 0.96, categoryName: 'Left' }],
+      ],
+    }));
+
+    render(
+      <AirBrushOverlay
+        active
+        onPoint={onPoint}
+        createHandLandmarker={async () => ({
+          detectForVideo,
+          close: vi.fn(),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(100);
+    });
+
+    await waitFor(() => {
+      expect(onPoint).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x: 0.28,
+          y: 0.42,
+          state: 'start',
+          source: 'camera',
+          intent: 'erase',
         })
       );
     });
