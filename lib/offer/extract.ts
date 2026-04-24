@@ -307,7 +307,9 @@ export function extractFromHtml(html: string, baseUrl?: string): OfferRawExtract
   if (!out.name) {
     const ogTitle = metaContent(html, 'property', 'og:title');
     const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
-    const name = (ogTitle ?? title ?? '').replace(/\s+/g, ' ').trim();
+    const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1];
+    const raw = ogTitle ?? title ?? h1 ?? '';
+    const name = decodeHtmlEntities(raw.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
     if (name) out.name = name;
   }
   if (!out.tagline) {

@@ -212,11 +212,11 @@ function ClaimChips({
             />
             <button
               type="button"
-              aria-label={`remove claim ${i + 1}`}
               onClick={() => remove(i)}
               className="font-mono text-2xs text-ink-dim opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink"
             >
-              ×
+              <span className="sr-only">Remove claim {i + 1}</span>
+              <span aria-hidden="true">×</span>
             </button>
           </li>
         ))}
