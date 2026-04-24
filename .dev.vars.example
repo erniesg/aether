@@ -4,19 +4,42 @@
 # Core agent
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Voice — OpenAI Realtime is the default; provider is swappable at runtime.
-# The primary OPENAI_API_KEY is used server-side only, to mint ephemeral
-# client_secret tokens for the browser. Never ship the primary key to the
-# client.
+# Voice — provider is swappable at runtime.
+# OpenAI uses OPENAI_API_KEY server-side only to mint ephemeral client_secret
+# tokens for the browser. Gemini Live uses GOOGLE_GEMINI_API_KEY server-side
+# to mint short-lived auth tokens for the browser.
 VOICE_PROVIDER=openai-realtime
 VOICE_MODEL=gpt-4o-realtime-preview
 VOICE_VOICE=alloy
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview
+OPENAI_REALTIME_VOICE=alloy
+GEMINI_LIVE_MODEL=gemini-live-2.5-flash-native-audio
+GEMINI_LIVE_VOICE=Kore
 
 # Image gen providers (pick any subset — provider is selected at runtime)
 OPENAI_API_KEY=sk-...
 GOOGLE_GEMINI_API_KEY=...
 REPLICATE_API_TOKEN=r8_...
 VOLCENGINE_ARK_API_KEY=...
+
+# Segmentation providers
+# `sam2` uses REPLICATE_API_TOKEN.
+# `sam3` expects an external HTTP endpoint, typically a Modal web endpoint.
+SAM3_MODAL_URL=https://<workspace>--<label>.modal.run
+SAM3_MODAL_TOKEN=
+# Optional default provider when more than one is connected.
+SEGMENTATION_PROVIDER=sam3
+
+# Spatial (gaussian splat / particle field) providers.
+# `draft` is always available and renders a local SVG preview — no keys needed.
+# `replicate-splat` uses REPLICATE_API_TOKEN (model: jd7h/splatter-image by default).
+# `modal-splat` expects an external HTTP endpoint (see docs/SAM3-MODAL.md for the pattern).
+SPATIAL_REPLICATE_VERSION=
+SPATIAL_MODAL_URL=https://<workspace>--splat.modal.run
+SPATIAL_MODAL_TOKEN=
+# Optional default provider for the spatial seam. If unset, the factory
+# prefers real providers over `draft` when their keys are present.
+SPATIAL_PROVIDER=draft
 
 # Convex — set after `npx convex dev` creates a project
 NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud

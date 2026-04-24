@@ -97,4 +97,21 @@ describe('capability proposal prompt builder', () => {
     expect(proposal.trigger).toMatch(/selected layer/i);
     expect(proposal.notes).toMatch(/distilled locally/i);
   });
+
+  it('uses a spatial-aware fallback for spatial generation runs', async () => {
+    const proposal = await proposeCapabilityFromRun(
+      {
+        ...baseRun,
+        tool: 'spatial-gen',
+        artifactKind: 'spatial',
+        outputFormat: 'gaussian-splat',
+        sourceMode: 'selected-image',
+        prompt: 'turn this image into a gaussian splat',
+      },
+      { bypassAgent: true }
+    );
+
+    expect(proposal.name).toBe('gaussian splat');
+    expect(proposal.trigger).toMatch(/selected image/i);
+  });
 });

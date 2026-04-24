@@ -38,6 +38,21 @@ describe('ActionLog pin affordance', () => {
     expect(screen.queryByRole('button', { name: /pin as skill/i })).toBeNull();
   });
 
+  it('does not render a pin button for capability-factory bookkeeping runs', () => {
+    act(() => {
+      const id = startRun({
+        tool: 'capability-factory',
+        provider: 'github',
+        model: 'claude-run',
+        prompt: 'turn this image into a gaussian splat',
+      });
+      finishRun(id, { latencyMs: 100, rationale: 'authoring request opened' });
+    });
+
+    render(<ActionLog onPin={() => {}} />);
+    expect(screen.queryByRole('button', { name: /pin as skill/i })).toBeNull();
+  });
+
   it('invokes the onPin callback with the clicked run', async () => {
     let capturedRunId: string = '';
     act(() => {

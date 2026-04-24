@@ -19,6 +19,10 @@ export interface ActionLogProps {
   onPin?: (run: CapabilityRunRecord) => void;
 }
 
+function canPinRun(run: CapabilityRunRecord): boolean {
+  return run.tool !== 'capability-factory';
+}
+
 export function ActionLog({ onPin }: ActionLogProps = {}) {
   const runs = useRuns();
 
@@ -80,7 +84,7 @@ export function ActionLog({ onPin }: ActionLogProps = {}) {
             </div>
           </div>
 
-          {run.status === 'ok' && onPin ? (
+          {run.status === 'ok' && onPin && canPinRun(run) ? (
             <button
               type="button"
               aria-label={`pin as skill · ${shortPrompt(run.rewrittenPrompt ?? run.prompt)}`}

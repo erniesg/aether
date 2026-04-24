@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
+import type { CapabilityEntryRef } from '@/lib/capability/entry';
 
 /**
  * Convex HTTP client for server-side runtimes (Next.js route handlers).
@@ -28,11 +29,19 @@ const runsApi = (anyApi as unknown as {
 
 export interface ServerRunStart {
   clientRunId: string;
+  artifactKind?: 'image' | 'spatial';
+  outputFormat?: 'particle-field' | 'gaussian-splat';
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image';
+  sourceImageShapeId?: string;
   tool: string;
   provider: string;
   model: string;
   prompt: string;
   aspectRatio?: string;
+  definitionId?: string;
+  definitionVersion?: number;
+  entryRef?: CapabilityEntryRef;
 }
 
 export async function recordRunStart(input: ServerRunStart): Promise<void> {

@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Mic, MicOff, Radio, Volume2 } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
+import { fetchVoiceSession } from '@/lib/voice/session-client';
 import type {
   VoiceFunctionCallEvent,
   VoiceOrbState,
   VoiceProvider,
+  VoiceSessionCredentials,
   VoiceTranscriptEvent,
 } from '@/lib/voice/types';
 import { createVoiceProvider } from '@/lib/voice/realtime-client';
@@ -63,12 +65,22 @@ export function VoiceOrb({
     if (provider && provider !== activeProvider) setActiveProvider(provider);
   }, [provider, activeProvider]);
 
-  const ensureProvider = useCallback((): VoiceProvider => {
-    if (activeProvider) return activeProvider;
-    const next = provider ?? createVoiceProvider('openai-realtime');
+  const ensureProvider = useCallback(async (): Promise<{
+    provider: VoiceProvider;
+    credentials?: VoiceSessionCredentials;
+  }> => {
+    if (activeProvider) return { provider: activeProvider };
+    if (provider) {
+      setActiveProvider(provider);
+      return { provider };
+    }
+
+    const endpoint = sessionEndpoint ?? '/api/voice/session';
+    const credentials = await fetchVoiceSession(endpoint);
+    const next = createVoiceProvider(credentials.provider);
     setActiveProvider(next);
-    return next;
-  }, [activeProvider, provider]);
+    return { provider: next, credentials };
+  }, [activeProvider, provider, sessionEndpoint]);
 
   useEffect(() => {
     return () => {
@@ -135,12 +147,13 @@ export function VoiceOrb({
   }, [activeProvider]);
 
   const connectIfNeeded = useCallback(async () => {
-    const active = ensureProvider();
-    if (active.isConnected()) return active;
     setConnecting(true);
     setError(null);
     try {
-      await active.connect({ sessionEndpoint });
+      const { provider: active, credentials } = await ensureProvider();
+      if (active.isConnected()) return active;
+      await active.connect({ sessionEndpoint, credentials });
+      return active;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -149,18 +162,17 @@ export function VoiceOrb({
     } finally {
       setConnecting(false);
     }
-    return active;
   }, [ensureProvider, onCaption, sessionEndpoint]);
 
   const handleToggle = useCallback(async () => {
-    const active = ensureProvider();
+    const active = activeProvider ?? provider;
     if (continuous) {
       setContinuous(false);
-      active.disconnect();
+      active?.disconnect();
       setState('idle');
       return;
     }
-    if (active.isConnected()) {
+    if (active?.isConnected()) {
       active.disconnect();
       setState('idle');
       return;
@@ -170,7 +182,7 @@ export function VoiceOrb({
     } catch {
       // connectIfNeeded already surfaced the error
     }
-  }, [connectIfNeeded, continuous, ensureProvider]);
+  }, [activeProvider, connectIfNeeded, continuous, provider]);
 
   const handlePointerDown = useCallback(() => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);

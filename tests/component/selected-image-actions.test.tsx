@@ -12,12 +12,14 @@ describe('SelectedImageActions', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
     expect(screen.getByRole('toolbar', { name: /selected image actions/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /remove bg/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /segment/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /particles/i })).toBeInTheDocument();
   });
 
   it('routes direct remove-bg clicks through the dedicated handler', async () => {
@@ -27,6 +29,7 @@ describe('SelectedImageActions', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={onRemoveBg}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
@@ -41,6 +44,7 @@ describe('SelectedImageActions', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
         hasPreview
         previewVisible
         onPreviewVisibilityChange={onPreviewVisibilityChange}
@@ -58,6 +62,7 @@ describe('SelectedImageActions', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
         hasPreview
         previewVisible={false}
         onPreviewVisibilityChange={onPreviewVisibilityChange}
@@ -66,5 +71,20 @@ describe('SelectedImageActions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /show preview/i }));
     expect(onPreviewVisibilityChange).toHaveBeenCalledWith(true);
+  });
+
+  it('routes the particles action through the spatial handler', async () => {
+    const onSpatialize = vi.fn();
+    render(
+      <SelectedImageActions
+        rect={{ x: 80, y: 120, w: 480, h: 640 }}
+        onRemoveBg={vi.fn()}
+        onCutout={vi.fn()}
+        onSpatialize={onSpatialize}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /particles/i }));
+    expect(onSpatialize).toHaveBeenCalledTimes(1);
   });
 });

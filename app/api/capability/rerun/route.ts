@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { runGenerate } from '@/lib/agent/generate';
 import { ImageGenError, ProviderUnavailableError } from '@/lib/providers/image/types';
-import type { CapabilityDefinitionRecord } from '@/lib/capability/types';
+import { resolveSpatialProvider } from '@/lib/providers/spatial/registry';
+import { SpatialBuildError, SpatialUnavailableError } from '@/lib/providers/spatial/types';
+import {
+  resolveCapabilityDefinitionEntryRef,
+  type CapabilityDefinitionRecord,
+} from '@/lib/capability/types';
+import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,6 +17,13 @@ interface RerunBody {
   targetLayerId?: string;
   promptOverride?: string;
   bypassAgent?: boolean;
+  runId?: string;
+  targetImage?: {
+    sourceUrl?: string;
+    width?: number;
+    height?: number;
+    shapeId?: string;
+  };
 }
 
 /**
@@ -46,14 +59,133 @@ export async function POST(request: Request) {
     );
   }
   const bypassAgent = b.bypassAgent === true;
+  const runId = typeof b.runId === 'string' && b.runId.trim() ? b.runId.trim() : undefined;
   const providerId = def.runTemplate.providerId;
   const model = def.runTemplate.model;
+  const entryRef = resolveCapabilityDefinitionEntryRef(def);
+
+  if (runId) {
+    await recordRunStart({
+      clientRunId: runId,
+      artifactKind: def.runTemplate.artifactKind ?? (def.tool === 'spatial-gen' ? 'spatial' : 'image'),
+      outputFormat: def.runTemplate.format,
+      quality: def.runTemplate.quality,
+      sourceMode: def.runTemplate.sourceMode,
+      sourceImageShapeId:
+        typeof b.targetImage?.shapeId === 'string' ? b.targetImage.shapeId : undefined,
+      tool: def.tool,
+      provider: providerId ?? def.provider,
+      model: model ?? '',
+      prompt,
+      aspectRatio: def.runTemplate.aspectRatio,
+      definitionId: def.id,
+      definitionVersion: def.version,
+      entryRef,
+    });
+  }
 
   try {
+    if (def.tool === 'spatial-gen') {
+      const sourceUrl = typeof b.targetImage?.sourceUrl === 'string' ? b.targetImage.sourceUrl : '';
+      const width =
+        typeof b.targetImage?.width === 'number' && Number.isFinite(b.targetImage.width)
+          ? b.targetImage.width
+          : 0;
+      const height =
+        typeof b.targetImage?.height === 'number' && Number.isFinite(b.targetImage.height)
+          ? b.targetImage.height
+          : 0;
+      if (!sourceUrl || width <= 0 || height <= 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'spatial capability rerun requires a selected target image with sourceUrl, width, and height',
+          },
+          { status: 400 }
+        );
+      }
+
+      const provider = resolveSpatialProvider(providerId, model);
+      const providerModel = model ?? provider.listModels()[0] ?? provider.id;
+      const result = await provider.build(
+        {
+          sourceUrl,
+          width,
+          height,
+          prompt,
+          format: def.runTemplate.format ?? 'gaussian-splat',
+          quality: def.runTemplate.quality ?? 'draft',
+        },
+        { model: providerModel }
+      );
+
+      if (runId) {
+        await recordRunFinish(runId, {
+          provider: result.provider,
+          model: result.model,
+          rewrittenPrompt: prompt,
+          imageUrl: result.previewImageUrl,
+          latencyMs: result.latencyMs,
+        });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        definitionId: def.id,
+        definitionVersion: def.version,
+        entryRef,
+        artifactKind: 'spatial',
+        targetLayerId: b.targetLayerId ?? b.targetImage?.shapeId,
+        provider: {
+          id: result.provider,
+          displayName: provider.displayName,
+          model: result.model,
+        },
+        plan: {
+          rewrittenPrompt: prompt,
+          aspectRatio: `${width}:${height}`,
+        },
+        result: {
+          format: result.format,
+          sceneSpec: result.sceneSpec,
+          latencyMs: result.latencyMs,
+          images: [
+            {
+              url: result.previewImageUrl,
+              width,
+              height,
+              mimeType: 'image/svg+xml',
+            },
+          ],
+        },
+      });
+    }
+
+    if (def.tool !== 'image-gen') {
+      return NextResponse.json(
+        { ok: false, error: `capability rerun for '${def.tool}' is not implemented yet` },
+        { status: 501 }
+      );
+    }
+
     const outcome = await runGenerate({ prompt, providerId, model, bypassAgent });
+    const first = outcome.result.images[0];
+    if (runId) {
+      await recordRunFinish(runId, {
+        provider: outcome.provider.id,
+        model: outcome.provider.model,
+        rewrittenPrompt: outcome.plan.rewrittenPrompt,
+        rationale: outcome.plan.rationale,
+        aspectRatio: outcome.plan.aspectRatio,
+        imageUrl: first?.url,
+        latencyMs: outcome.result.latencyMs,
+      });
+    }
     return NextResponse.json({
       ok: true,
       definitionId: def.id,
+      definitionVersion: def.version,
+      entryRef,
       targetLayerId: b.targetLayerId,
       plan: outcome.plan,
       provider: outcome.provider,
@@ -69,18 +201,35 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     if (err instanceof ProviderUnavailableError) {
+      if (runId) await recordRunFail(runId, err.message, 503);
+      return NextResponse.json(
+        { ok: false, error: err.message, code: 'provider_unavailable' },
+        { status: 503 }
+      );
+    }
+    if (err instanceof SpatialUnavailableError) {
+      if (runId) await recordRunFail(runId, err.message, 503);
       return NextResponse.json(
         { ok: false, error: err.message, code: 'provider_unavailable' },
         { status: 503 }
       );
     }
     if (err instanceof ImageGenError) {
+      if (runId) await recordRunFail(runId, err.message, 502);
       return NextResponse.json(
         { ok: false, error: err.message, code: 'image_gen_failed' },
         { status: 502 }
       );
     }
+    if (err instanceof SpatialBuildError) {
+      if (runId) await recordRunFail(runId, err.message, 502);
+      return NextResponse.json(
+        { ok: false, error: err.message, code: 'spatial_build_failed' },
+        { status: 502 }
+      );
+    }
     const message = err instanceof Error ? err.message : String(err);
+    if (runId) await recordRunFail(runId, message, 500);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

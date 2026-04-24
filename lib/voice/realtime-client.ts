@@ -9,11 +9,13 @@
  * `client_secret` from /api/voice/session and uses it as the bearer token
  * for the SDP handshake at `https://api.openai.com/v1/realtime`.
  *
- * Gemini Live will be a sibling module implementing the same VoiceProvider
- * surface; nothing in this file is OpenAI-specific beyond the SDP endpoint
- * and control-event parsing.
+ * Gemini Live is implemented as a sibling module behind the same
+ * VoiceProvider surface; this file stays OpenAI-specific beyond the SDP
+ * endpoint and control-event parsing.
  */
 
+import { GeminiLiveClient, type GeminiLiveClientOptions } from './gemini-live-client';
+import { fetchVoiceSession } from './session-client';
 import { VOICE_TOOL_DEFINITIONS } from './tools';
 import type {
   VoiceConnectOptions,
@@ -21,6 +23,7 @@ import type {
   VoiceFunctionResult,
   VoiceOrbStateEvent,
   VoiceProvider,
+  VoiceProviderId,
   VoiceSessionCredentials,
   VoiceTranscriptEvent,
 } from './types';
@@ -69,6 +72,10 @@ export interface OpenAIRealtimeClientOptions {
   deps?: RealtimeClientDeps;
 }
 
+export type VoiceProviderFactoryOptions =
+  | OpenAIRealtimeClientOptions
+  | GeminiLiveClientOptions;
+
 export class OpenAIRealtimeClient implements VoiceProvider {
   readonly id = 'openai-realtime' as const;
 
@@ -86,7 +93,7 @@ export class OpenAIRealtimeClient implements VoiceProvider {
         options.deps?.getMicStream ?? defaultGetMicStream,
       createPeerConnection:
         options.deps?.createPeerConnection ?? defaultCreatePeerConnection,
-      fetchSession: options.deps?.fetchSession ?? defaultFetchSession,
+      fetchSession: options.deps?.fetchSession ?? fetchVoiceSession,
       sdpExchange: options.deps?.sdpExchange ?? defaultSdpExchange,
     };
   }
@@ -374,20 +381,6 @@ function defaultCreatePeerConnection(): RTCPeerConnection {
   return new RTCPeerConnection();
 }
 
-async function defaultFetchSession(
-  endpoint: string
-): Promise<VoiceSessionCredentials> {
-  const res = await fetch(endpoint, { method: 'POST' });
-  if (!res.ok) {
-    throw new Error(`voice: session endpoint returned ${res.status}`);
-  }
-  const json = (await res.json()) as { ok?: boolean; session?: VoiceSessionCredentials; error?: string };
-  if (!json.ok || !json.session) {
-    throw new Error(json.error ?? 'voice: session endpoint returned no session');
-  }
-  return json.session;
-}
-
 async function defaultSdpExchange(
   offerSdp: string,
   credentials: VoiceSessionCredentials
@@ -410,13 +403,18 @@ async function defaultSdpExchange(
 }
 
 /**
- * Resolve the right voice provider given the current env config. Gemini Live
- * is a planned sibling — add it here when the adapter lands.
+ * Resolve the right realtime adapter for the provider selected by the
+ * session-mint route.
  */
 export function createVoiceProvider(
-  providerId: string = 'openai-realtime',
-  options: OpenAIRealtimeClientOptions = {}
+  providerId: VoiceProviderId = 'openai-realtime',
+  options: VoiceProviderFactoryOptions = {}
 ): VoiceProvider {
-  if (providerId === 'openai-realtime') return new OpenAIRealtimeClient(options);
+  if (providerId === 'openai-realtime') {
+    return new OpenAIRealtimeClient(options as OpenAIRealtimeClientOptions);
+  }
+  if (providerId === 'gemini-live') {
+    return new GeminiLiveClient(options as GeminiLiveClientOptions);
+  }
   throw new Error(`voice: unsupported provider "${providerId}"`);
 }
