@@ -1,5 +1,6 @@
 import type { ImageGenProvider, ImageGenRequest, ImageGenResult, ImageRef } from './types';
 import { ImageGenError } from './types';
+import { applyComposition } from './composition';
 import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const GENERATIONS_ENDPOINT = 'https://api.openai.com/v1/images/generations';
@@ -106,6 +107,11 @@ export function createOpenAIProvider(
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
     const model = opts.model || DEFAULT_MODEL;
     const { size, width, height } = pickOpenAISize(req);
+    const applied = applyComposition(
+      { prompt: req.prompt, negativePrompt: req.negativePrompt },
+      req.composition ?? {},
+      'openai'
+    );
 
     // OpenAI's edit endpoint only accepts uploaded image files. The composer
     // sends ad-hoc refs as base64 data URLs, so only those should route to
@@ -115,7 +121,7 @@ export function createOpenAIProvider(
       (r): r is ImageRef => isBase64DataUrl(r?.url)
     );
     if (refs.length > 0) {
-      return editWithRefs(req, refs, model, size, width, height);
+      return editWithRefs(req, refs, model, size, width, height, applied.prompt);
     }
 
     const elapsed = mark();
@@ -127,7 +133,7 @@ export function createOpenAIProvider(
       },
       body: JSON.stringify({
         model,
-        prompt: req.prompt,
+        prompt: applied.prompt,
         n: req.n ?? 1,
         size,
         quality: 'high',
@@ -168,13 +174,14 @@ export function createOpenAIProvider(
     model: string,
     size: OpenAISize,
     width: number,
-    height: number
+    height: number,
+    prompt: string = req.prompt
   ): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
 
     const form = new FormData();
     form.append('model', model);
-    form.append('prompt', req.prompt);
+    form.append('prompt', prompt);
     form.append('n', String(req.n ?? 1));
     form.append('size', size);
     form.append('quality', 'high');

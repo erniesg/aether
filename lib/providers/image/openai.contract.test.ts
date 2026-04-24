@@ -197,6 +197,24 @@ describe('openai adapter · contract', () => {
     expect(result.images[0]?.url).toBe('https://example.com/edit.png');
   });
 
+  it("applies composition textStrategy='none' — appends a natural-language text-suppression clause", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [{ url: 'https://example.com/no-text.png' }] })
+    );
+    const provider = createOpenAIProvider('sk-test');
+    await provider.generate(
+      { prompt: 'sunset cityscape', composition: { textStrategy: 'none' } },
+      { model: 'gpt-image-1' }
+    );
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init?.body as string);
+    expect(body.prompt.toLowerCase()).toContain('sunset cityscape');
+    expect(body.prompt.toLowerCase()).toContain('no text');
+    expect(body.prompt.toLowerCase()).toContain('no typography');
+    expect(body.prompt.toLowerCase()).toContain('pure imagery only');
+  });
+
   it('accepts large data-url refs without regex backtracking or stack overflow', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ data: [{ url: 'https://example.com/large-edit.png' }] })
