@@ -125,7 +125,7 @@ describe('GeminiLiveClient', () => {
     }>;
     expect(
       tools[0]?.functionDeclarations?.map((tool) => tool.name),
-    ).toContain('end_air_brush');
+    ).toContain('run_generate');
   });
 
   it('fetches a Gemini session, opens the live transport, and streams mic audio', async () => {
