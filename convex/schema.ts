@@ -67,6 +67,22 @@ export default defineSchema({
     heroAsset: v.optional(v.string()),
   }).index('by_ws', ['wsId']),
 
+  // Workspace-scoped visual-composition policy. Brand leads set the default
+  // once; creators inherit it and can override per call. Mirrors
+  // `lib/providers/image/composition.ts` — the union of valid values is
+  // enforced there, not at the Convex layer, so adding a new constraint
+  // token doesn't force a schema migration.
+  brandPolicy: defineTable({
+    wsId: v.id('workspace'),
+    defaultComposition: v.object({
+      textStrategy: v.optional(
+        v.union(v.literal('none'), v.literal('baked'), v.literal('auto'))
+      ),
+      constraints: v.optional(v.array(v.string())),
+    }),
+    updatedAt: v.number(),
+  }).index('by_wsId', ['wsId']),
+
   brief: defineTable({
     wsId: v.id('workspace'),
     audience: v.string(),
