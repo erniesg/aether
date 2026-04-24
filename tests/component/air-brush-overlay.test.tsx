@@ -58,6 +58,15 @@ function trackedHand(
     };
   }
 
+  // Overlay requires a thumb+index pinch to emit a stroke. Default the thumb
+  // (landmark 4) to sit right next to the (possibly overridden) index tip so
+  // every fixture represents "pinched, stroke active." Callers who want to
+  // test pen-up pass `4: { x: ..., y: ... }` explicitly.
+  if (overrides[4] === undefined) {
+    const tip = landmarks[8];
+    landmarks[4] = { x: tip.x + 0.01, y: tip.y + 0.01, z: 0, visibility: 0.95 };
+  }
+
   return landmarks;
 }
 

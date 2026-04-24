@@ -334,6 +334,80 @@ describe('air brush input helpers', () => {
     expect(tinyPalm.metrics?.palmSpan).toBe(0);
   });
 
+  it('only emits a draw point while thumb and index are pinched together', () => {
+    // Thumb (landmark 4) is parked away from the index tip in the default
+    // pointingHand fixture; that should read as "pen up" with requirePinch.
+    const penUpHand = pointingHand();
+    expect(penUpHand[4]).toEqual({ x: 0.54, y: 0.74, z: 0, visibility: 0.95 });
+
+    const penUp = evaluateMediaPipeHandLandmarks({
+      frame: {
+        landmarks: [penUpHand],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      },
+      activeStroke: false,
+      preferredHand: 'Right',
+      intent: 'draw',
+      requirePinch: true,
+    });
+    expect(penUp.accepted).toBe(false);
+    expect(penUp.reason).toBe('pinch-open');
+    expect(penUp.metrics?.pinching).toBe(false);
+    expect(penUp.metrics?.pinchDistance).toBeGreaterThan(
+      penUp.metrics?.pinchThreshold ?? 0
+    );
+    expect(penUp.point).toBeNull();
+
+    // Thumb moved onto the index tip → pinch closed → stroke starts.
+    const penDown = evaluateMediaPipeHandLandmarks({
+      frame: {
+        landmarks: [
+          pointingHand({ 4: { x: 0.21, y: 0.36 } }),
+        ],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      },
+      activeStroke: false,
+      preferredHand: 'Right',
+      intent: 'draw',
+      requirePinch: true,
+    });
+    expect(penDown.accepted).toBe(true);
+    expect(penDown.point).toMatchObject({
+      state: 'start',
+      source: 'camera',
+      intent: 'draw',
+    });
+  });
+
+  it('ends the active stroke when the pinch opens mid-stroke', () => {
+    const previousPoint = {
+      x: 0.75,
+      y: 0.45,
+      pressure: 0.7,
+      state: 'move' as const,
+      source: 'camera' as const,
+      intent: 'draw' as const,
+    };
+    const penUp = evaluateMediaPipeHandLandmarks({
+      frame: {
+        landmarks: [pointingHand()],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      },
+      previousPoint,
+      activeStroke: true,
+      preferredHand: 'Right',
+      intent: 'draw',
+      requirePinch: true,
+    });
+
+    expect(penUp.accepted).toBe(false);
+    expect(penUp.reason).toBe('pinch-open');
+    expect(penUp.point).toEqual({
+      ...previousPoint,
+      state: 'end',
+    });
+  });
+
   it('returns handedness-mismatch when the preferred hand is not in the frame', () => {
     const evaluation = evaluateMediaPipeHandLandmarks({
       frame: {

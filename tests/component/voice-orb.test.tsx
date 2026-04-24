@@ -87,6 +87,7 @@ describe('VoiceOrb', () => {
       adjust_brush_size: vi.fn(),
       clear_sketch: vi.fn(),
       confirm_sketch: vi.fn(),
+      end_air_brush: vi.fn(),
       run_capability: vi.fn(),
       run_generate: vi.fn(),
     };
@@ -109,6 +110,7 @@ describe('VoiceOrb', () => {
       adjust_brush_size: vi.fn(),
       clear_sketch: vi.fn(),
       confirm_sketch: vi.fn(),
+      end_air_brush: vi.fn(),
       run_capability: vi.fn(),
       run_generate: vi.fn(),
     };
@@ -142,6 +144,7 @@ describe('VoiceOrb', () => {
       adjust_brush_size: vi.fn(),
       clear_sketch: vi.fn(),
       confirm_sketch: vi.fn(),
+      end_air_brush: vi.fn(),
       run_capability: vi.fn(),
       run_generate: vi.fn(),
     };
@@ -180,6 +183,7 @@ describe('VoiceOrb', () => {
       adjust_brush_size: vi.fn(),
       clear_sketch: vi.fn(),
       confirm_sketch: vi.fn(),
+      end_air_brush: vi.fn(),
       run_capability: vi.fn(),
       run_generate: vi.fn(),
     };
