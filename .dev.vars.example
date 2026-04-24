@@ -13,7 +13,7 @@ VOICE_MODEL=gpt-4o-realtime-preview
 VOICE_VOICE=alloy
 OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview
 OPENAI_REALTIME_VOICE=alloy
-GEMINI_LIVE_MODEL=gemini-live-2.5-flash-native-audio
+GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
 GEMINI_LIVE_VOICE=Kore
 
 # Image gen providers (pick any subset — provider is selected at runtime)

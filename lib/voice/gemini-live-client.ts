@@ -1,9 +1,12 @@
 import type {
   FunctionDeclaration,
   LiveCallbacks,
+  LiveConnectConfig,
   LiveServerMessage,
   Modality,
   Schema,
+  StartSensitivity,
+  EndSensitivity,
 } from '@google/genai/web';
 import { VOICE_TOOL_DEFINITIONS } from './tools';
 import { fetchVoiceSession } from './session-client';
@@ -26,14 +29,62 @@ interface Listeners {
   error: Set<(error: Error) => void>;
 }
 
-interface RecorderChunk {
+export const GEMINI_INPUT_SAMPLE_RATE = 16_000;
+const GEMINI_OUTPUT_SAMPLE_RATE = 24_000;
+export const GEMINI_GREETING_TEXT = "I'm ready to create with you";
+
+const GEMINI_SYSTEM_INSTRUCTION = [
+  "You are aether's voice companion for a creator-first canvas tool.",
+  'Keep spoken replies brief.',
+  'Call tools eagerly instead of narrating when the creator asks for an available canvas action.',
+  "When the creator says they are done drawing, calls it done, says 'send this', or similar, call end_air_brush.",
+  'When the creator asks to generate or introduce something, call run_generate with the creator prompt exactly as spoken and scope single unless they explicitly ask for all formats.',
+].join(' ');
+
+export interface RecorderChunk {
   mimeType: string;
   data: string;
 }
 
+type VoiceDebugStage =
+  | 'setup-complete'
+  | 'incoming-message'
+  | 'outgoing-audio'
+  | 'outgoing-text'
+  | 'tool-response'
+  | 'error'
+  | 'close'
+  | 'greeting';
+
+interface VoiceDebugEvent {
+  at: string;
+  stage: VoiceDebugStage;
+  detail?: Record<string, unknown>;
+}
+
+interface VoiceDebugSnapshot {
+  lastStage?: VoiceDebugStage;
+  lastError?: string;
+  events: VoiceDebugEvent[];
+}
+
+declare global {
+  interface Window {
+    __AETHER_VOICE_DEBUG__?: VoiceDebugSnapshot;
+  }
+}
+
+const MAX_VOICE_DEBUG_EVENTS = 100;
+
 type GeminiLiveMessage = Pick<
   LiveServerMessage,
-  'setupComplete' | 'serverContent' | 'toolCall' | 'toolCallCancellation'
+  | 'setupComplete'
+  | 'serverContent'
+  | 'toolCall'
+  | 'toolCallCancellation'
+  | 'goAway'
+  | 'voiceActivity'
+  | 'voiceActivityDetectionSignal'
 >;
 
 interface GeminiLiveSessionLike {
@@ -46,6 +97,8 @@ interface GeminiLiveSessionLike {
     audio?: { data?: string; mimeType?: string };
     audioStreamEnd?: boolean;
     text?: string;
+    activityStart?: Record<string, never>;
+    activityEnd?: Record<string, never>;
   }): void;
   sendToolResponse(params: {
     functionResponses: Array<{
@@ -73,10 +126,13 @@ export interface GeminiLiveClientDeps {
   fetchSession?: (endpoint: string) => Promise<VoiceSessionCredentials>;
   connectLiveSession?: (
     credentials: VoiceSessionCredentials,
-    callbacks: LiveCallbacks
+    callbacks: LiveCallbacks,
   ) => Promise<GeminiLiveSessionLike>;
-  createRecorder?: (onChunk: (chunk: RecorderChunk) => void) => GeminiAudioRecorder;
+  createRecorder?: (
+    onChunk: (chunk: RecorderChunk) => void,
+  ) => GeminiAudioRecorder;
   createPlayer?: () => GeminiAudioPlayer;
+  playGreeting?: (text: string) => void;
 }
 
 export interface GeminiLiveClientOptions {
@@ -103,7 +159,8 @@ function safeCall(fn: () => void): void {
   try {
     fn();
   } catch (err) {
-    if (typeof console !== 'undefined') console.error('[voice] listener threw:', err);
+    if (typeof console !== 'undefined')
+      console.error('[voice] listener threw:', err);
   }
 }
 
@@ -134,6 +191,80 @@ function float32ToPcm16Base64(chunk: Float32Array): string {
   return arrayBufferToBase64(out.buffer);
 }
 
+function concatFloat32(
+  a: Float32Array<ArrayBufferLike>,
+  b: Float32Array<ArrayBufferLike>,
+): Float32Array<ArrayBufferLike> {
+  if (a.length === 0) return b.slice();
+  if (b.length === 0) return a.slice();
+  const out = new Float32Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+export class GeminiPcm16Encoder {
+  private readonly ratio: number;
+  private carry: Float32Array<ArrayBufferLike> = new Float32Array(0);
+  private nextSourceOffset = 0;
+
+  constructor(
+    private readonly sourceSampleRate: number,
+    private readonly targetSampleRate = GEMINI_INPUT_SAMPLE_RATE,
+  ) {
+    this.ratio =
+      sourceSampleRate > 0 && targetSampleRate > 0
+        ? sourceSampleRate / targetSampleRate
+        : 1;
+  }
+
+  encode(input: Float32Array<ArrayBufferLike>): RecorderChunk {
+    if (
+      this.sourceSampleRate === this.targetSampleRate ||
+      !Number.isFinite(this.ratio) ||
+      this.ratio <= 0
+    ) {
+      return {
+        mimeType: `audio/pcm;rate=${this.targetSampleRate}`,
+        data: float32ToPcm16Base64(input),
+      };
+    }
+
+    const buffer = concatFloat32(this.carry, input);
+    if (buffer.length < 2) {
+      this.carry = buffer;
+      return {
+        mimeType: `audio/pcm;rate=${this.targetSampleRate}`,
+        data: '',
+      };
+    }
+
+    const samples: number[] = [];
+    let position = this.nextSourceOffset;
+    while (position + 1 < buffer.length) {
+      const left = Math.floor(position);
+      const right = Math.min(left + 1, buffer.length - 1);
+      const mix = position - left;
+      const sample =
+        (buffer[left] ?? 0) * (1 - mix) + (buffer[right] ?? 0) * mix;
+      samples.push(sample);
+      position += this.ratio;
+    }
+
+    const keepStart = Math.min(
+      buffer.length,
+      Math.max(0, Math.floor(position) - 1),
+    );
+    this.carry = buffer.slice(keepStart);
+    this.nextSourceOffset = position - keepStart;
+
+    return {
+      mimeType: `audio/pcm;rate=${this.targetSampleRate}`,
+      data: float32ToPcm16Base64(Float32Array.from(samples)),
+    };
+  }
+}
+
 function pcm16ToFloat32(buffer: ArrayBuffer): Float32Array {
   const view = new DataView(buffer);
   const out = new Float32Array(buffer.byteLength / 2);
@@ -148,6 +279,76 @@ function normalizeToolResponse(output: unknown): Record<string, unknown> {
     return output as Record<string, unknown>;
   }
   return { output };
+}
+
+function isVoiceDebugEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (process.env.NODE_ENV === 'production') return false;
+  try {
+    return (
+      new URLSearchParams(window.location.search).get('voice-debug') === '1'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function byteLengthFromBase64(data: string): number {
+  if (!data) return 0;
+  try {
+    return atob(data).length;
+  } catch {
+    const trimmed = data.replace(/=+$/, '');
+    return Math.floor((trimmed.length * 3) / 4);
+  }
+}
+
+function recordVoiceDebugEvent(
+  stage: VoiceDebugStage,
+  detail: Record<string, unknown> = {},
+  patch: Partial<Omit<VoiceDebugSnapshot, 'events'>> = {},
+): void {
+  if (!isVoiceDebugEnabled()) return;
+  const previous = window.__AETHER_VOICE_DEBUG__ ?? { events: [] };
+  const error =
+    typeof detail.error === 'string' && detail.error.length > 0
+      ? detail.error
+      : previous.lastError;
+  const event: VoiceDebugEvent = {
+    at: new Date().toISOString(),
+    stage,
+    detail,
+  };
+  const next: VoiceDebugSnapshot = {
+    ...previous,
+    ...patch,
+    lastStage: stage,
+    lastError: error,
+    events: [...previous.events, event].slice(-MAX_VOICE_DEBUG_EVENTS),
+  };
+  window.__AETHER_VOICE_DEBUG__ = next;
+
+  if (typeof console !== 'undefined') {
+    console.info('[voice]', stage, detail);
+  }
+}
+
+function defaultPlayGreeting(text: string): void {
+  if (typeof window === 'undefined') return;
+  if (typeof window.speechSynthesis === 'undefined') return;
+  if (typeof SpeechSynthesisUtterance === 'undefined') return;
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 0.9;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    // The greeting is a local readiness cue. Lack of platform TTS should not
+    // block the actual Gemini Live session.
+  }
 }
 
 function toGeminiScalarType(type: VoiceToolProperty['type']): Schema['type'] {
@@ -177,7 +378,7 @@ function toGeminiSchema(schema: VoiceToolSchema): Schema {
               }
             : {}),
         } satisfies Schema,
-      ])
+      ]),
     ),
     ...(schema.required?.length ? { required: [...schema.required] } : {}),
   };
@@ -201,6 +402,7 @@ class BrowserPcmRecorder implements GeminiAudioRecorder {
   private source: MediaStreamAudioSourceNode | null = null;
   private processor: ScriptProcessorNode | null = null;
   private sink: GainNode | null = null;
+  private encoder: GeminiPcm16Encoder | null = null;
 
   constructor(private readonly onChunk: (chunk: RecorderChunk) => void) {}
 
@@ -220,6 +422,7 @@ class BrowserPcmRecorder implements GeminiAudioRecorder {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const context = new AudioContext();
     await context.resume();
+    const encoder = new GeminiPcm16Encoder(context.sampleRate);
 
     const source = context.createMediaStreamSource(stream);
     const processor = context.createScriptProcessor(2048, 1, 1);
@@ -229,10 +432,9 @@ class BrowserPcmRecorder implements GeminiAudioRecorder {
     processor.onaudioprocess = (event) => {
       const input = event.inputBuffer.getChannelData(0);
       if (!input.length) return;
-      this.onChunk({
-        mimeType: `audio/pcm;rate=${context.sampleRate}`,
-        data: float32ToPcm16Base64(input),
-      });
+      const chunk = encoder.encode(input);
+      if (!chunk.data) return;
+      this.onChunk(chunk);
     };
 
     source.connect(processor);
@@ -244,6 +446,7 @@ class BrowserPcmRecorder implements GeminiAudioRecorder {
     this.source = source;
     this.processor = processor;
     this.sink = sink;
+    this.encoder = encoder;
   }
 
   stop(): void {
@@ -261,6 +464,7 @@ class BrowserPcmRecorder implements GeminiAudioRecorder {
     this.source = null;
     this.processor = null;
     this.sink = null;
+    this.encoder = null;
   }
 }
 
@@ -299,7 +503,7 @@ class BrowserPcmPlayer implements GeminiAudioPlayer {
       this.playing = true;
       this.scheduledTime = Math.max(
         this.context.currentTime + 0.08,
-        this.context.currentTime
+        this.context.currentTime,
       );
     }
     this.schedule();
@@ -341,7 +545,11 @@ class BrowserPcmPlayer implements GeminiAudioPlayer {
       this.scheduledTime < this.context.currentTime + scheduleAhead
     ) {
       const chunk = this.queue.shift()!;
-      const buffer = this.context.createBuffer(1, chunk.length, 24000);
+      const buffer = this.context.createBuffer(
+        1,
+        chunk.length,
+        GEMINI_OUTPUT_SAMPLE_RATE,
+      );
       buffer.getChannelData(0).set(chunk);
 
       const source = this.context.createBufferSource();
@@ -350,7 +558,11 @@ class BrowserPcmPlayer implements GeminiAudioPlayer {
       source.onended = () => {
         this.activeSources.delete(source);
         source.disconnect();
-        if (this.streamComplete && !this.queue.length && !this.activeSources.size) {
+        if (
+          this.streamComplete &&
+          !this.queue.length &&
+          !this.activeSources.size
+        ) {
           this.finish();
         }
       };
@@ -365,7 +577,7 @@ class BrowserPcmPlayer implements GeminiAudioPlayer {
       if (this.scheduleTimer) clearTimeout(this.scheduleTimer);
       const nextDelayMs = Math.max(
         16,
-        (this.scheduledTime - this.context.currentTime - 0.05) * 1000
+        (this.scheduledTime - this.context.currentTime - 0.05) * 1000,
       );
       this.scheduleTimer = setTimeout(() => this.schedule(), nextDelayMs);
       return;
@@ -387,43 +599,58 @@ class BrowserPcmPlayer implements GeminiAudioPlayer {
   }
 }
 
+export function buildGeminiLiveConfig(
+  credentials: VoiceSessionCredentials,
+): LiveConnectConfig {
+  return {
+    responseModalities: ['AUDIO' as Modality],
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
+    realtimeInputConfig: {
+      automaticActivityDetection: {
+        disabled: false,
+        startOfSpeechSensitivity: 'START_SENSITIVITY_LOW' as StartSensitivity,
+        endOfSpeechSensitivity: 'END_SENSITIVITY_LOW' as EndSensitivity,
+        prefixPaddingMs: 20,
+        silenceDurationMs: 100,
+      },
+    },
+    speechConfig: {
+      voiceConfig: {
+        prebuiltVoiceConfig: {
+          voiceName: credentials.voice,
+        },
+      },
+    },
+    systemInstruction: {
+      parts: [
+        {
+          text: GEMINI_SYSTEM_INSTRUCTION,
+        },
+      ],
+    },
+    tools: [
+      {
+        functionDeclarations: VOICE_TOOL_DEFINITIONS.map(
+          toGeminiFunctionDeclaration,
+        ),
+      },
+    ],
+  };
+}
+
 async function defaultConnectLiveSession(
   credentials: VoiceSessionCredentials,
-  callbacks: LiveCallbacks
+  callbacks: LiveCallbacks,
 ): Promise<GeminiLiveSessionLike> {
   const { GoogleGenAI } = await import('@google/genai/web');
   const client = new GoogleGenAI({
     apiKey: credentials.clientSecret,
-    apiVersion: 'v1alpha',
+    httpOptions: { apiVersion: 'v1alpha' },
   });
   return client.live.connect({
     model: credentials.model,
-    config: {
-      responseModalities: ['AUDIO' as Modality],
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: credentials.voice,
-          },
-        },
-      },
-      systemInstruction: {
-        parts: [
-          {
-            text: "You are aether's voice companion. Keep replies brief and call tools eagerly rather than narrating.",
-          },
-        ],
-      },
-      tools: [
-        {
-          functionDeclarations: VOICE_TOOL_DEFINITIONS.map(
-            toGeminiFunctionDeclaration
-          ),
-        },
-      ],
-    },
+    config: buildGeminiLiveConfig(credentials),
     callbacks,
   }) as Promise<GeminiLiveSessionLike>;
 }
@@ -438,6 +665,9 @@ export class GeminiLiveClient implements VoiceProvider {
   private player: GeminiAudioPlayer | null = null;
   private callNames = new Map<string, string>();
   private deps: Required<GeminiLiveClientDeps>;
+  private closingIntentionally = false;
+  private reportedConnectionLoss = false;
+  private greetingPlayed = false;
 
   constructor(options: GeminiLiveClientOptions = {}) {
     this.deps = {
@@ -449,6 +679,7 @@ export class GeminiLiveClient implements VoiceProvider {
         ((onChunk) => new BrowserPcmRecorder(onChunk)),
       createPlayer:
         options.deps?.createPlayer ?? (() => new BrowserPcmPlayer()),
+      playGreeting: options.deps?.playGreeting ?? defaultPlayGreeting,
     };
   }
 
@@ -460,7 +691,7 @@ export class GeminiLiveClient implements VoiceProvider {
 
     if (credentials.provider !== 'gemini-live') {
       throw new Error(
-        `voice: Gemini adapter received ${credentials.provider} credentials`
+        `voice: Gemini adapter received ${credentials.provider} credentials`,
       );
     }
 
@@ -473,9 +704,14 @@ export class GeminiLiveClient implements VoiceProvider {
       if (this.connected) this.emitState('idle');
     };
 
+    let session: GeminiLiveSessionLike | null = null;
+    this.closingIntentionally = false;
+    this.reportedConnectionLoss = false;
+    this.greetingPlayed = false;
+
     try {
       await player.resume();
-      const session = await this.deps.connectLiveSession(credentials, {
+      session = await this.deps.connectLiveSession(credentials, {
         onopen: () => {
           // wait for setupComplete before marking idle
         },
@@ -485,16 +721,30 @@ export class GeminiLiveClient implements VoiceProvider {
             typeof event?.message === 'string' && event.message
               ? event.message
               : 'gemini live error';
-          this.emitError(new Error(message));
+          this.handleConnectionLoss(new Error(message));
         },
-        onclose: () => {
-          this.connected = false;
-          this.emitState('idle');
+        onclose: (event) => {
+          if (this.closingIntentionally) {
+            this.connected = false;
+            this.emitState('idle');
+            recordVoiceDebugEvent('close', { expected: true });
+            return;
+          }
+          const reason =
+            typeof event?.reason === 'string' && event.reason
+              ? event.reason
+              : 'Gemini Live connection closed';
+          this.handleConnectionLoss(new Error(`voice: ${reason}`));
         },
       });
 
       const recorder = this.deps.createRecorder((chunk) => {
-        session.sendRealtimeInput({ audio: chunk });
+        recordVoiceDebugEvent('outgoing-audio', {
+          mimeType: chunk.mimeType,
+          byteLength: byteLengthFromBase64(chunk.data),
+          base64Length: chunk.data.length,
+        });
+        session?.sendRealtimeInput({ audio: chunk });
         this.emitState('listening');
       });
       await recorder.start();
@@ -505,7 +755,7 @@ export class GeminiLiveClient implements VoiceProvider {
       this.connected = true;
     } catch (err) {
       player.stop();
-      this.session?.close();
+      session?.close();
       this.session = null;
       this.player = null;
       this.recorder?.stop();
@@ -516,6 +766,7 @@ export class GeminiLiveClient implements VoiceProvider {
 
   disconnect(): void {
     this.connected = false;
+    this.closingIntentionally = true;
     try {
       this.session?.sendRealtimeInput({ audioStreamEnd: true });
     } catch {
@@ -532,6 +783,7 @@ export class GeminiLiveClient implements VoiceProvider {
     this.recorder = null;
     this.player = null;
     this.callNames.clear();
+    this.greetingPlayed = false;
   }
 
   isConnected(): boolean {
@@ -540,21 +792,20 @@ export class GeminiLiveClient implements VoiceProvider {
 
   sendText(text: string): void {
     if (!this.session) return;
-    this.session.sendClientContent({
-      turns: [
-        {
-          role: 'user',
-          parts: [{ text }],
-        },
-      ],
-      turnComplete: true,
+    recordVoiceDebugEvent('outgoing-text', {
+      textLength: text.length,
     });
+    this.session.sendRealtimeInput({ text });
     this.emitState('thinking');
   }
 
   sendFunctionResult(result: VoiceFunctionResult): void {
     if (!this.session) return;
     const name = this.callNames.get(result.callId);
+    recordVoiceDebugEvent('tool-response', {
+      callId: result.callId,
+      name,
+    });
     this.session.sendToolResponse({
       functionResponses: [
         {
@@ -570,7 +821,9 @@ export class GeminiLiveClient implements VoiceProvider {
     return subscribe(this.listeners.transcript, listener);
   }
 
-  onFunctionCall(listener: (event: VoiceFunctionCallEvent) => void): () => void {
+  onFunctionCall(
+    listener: (event: VoiceFunctionCallEvent) => void,
+  ): () => void {
     return subscribe(this.listeners.fn, listener);
   }
 
@@ -589,10 +842,40 @@ export class GeminiLiveClient implements VoiceProvider {
 
   private handleMessage(message: GeminiLiveMessage): void {
     const now = Date.now();
+    recordVoiceDebugEvent('incoming-message', { message });
+
+    const voiceActivityType = message.voiceActivity?.voiceActivityType;
+    const vadSignalType = message.voiceActivityDetectionSignal?.vadSignalType;
+    if (
+      voiceActivityType === 'ACTIVITY_START' ||
+      vadSignalType === 'VAD_SIGNAL_TYPE_SOS'
+    ) {
+      this.emitState('listening');
+    } else if (
+      voiceActivityType === 'ACTIVITY_END' ||
+      vadSignalType === 'VAD_SIGNAL_TYPE_EOS'
+    ) {
+      this.emitState('thinking');
+    }
 
     if (message.setupComplete) {
+      recordVoiceDebugEvent('setup-complete', {
+        sessionId: message.setupComplete.sessionId,
+      });
+      if (!this.greetingPlayed) {
+        this.greetingPlayed = true;
+        this.deps.playGreeting(GEMINI_GREETING_TEXT);
+        recordVoiceDebugEvent('greeting', { text: GEMINI_GREETING_TEXT });
+      }
       this.emitState('idle');
       return;
+    }
+
+    if (message.goAway?.timeLeft) {
+      recordVoiceDebugEvent('close', {
+        expected: false,
+        timeLeft: message.goAway.timeLeft,
+      });
     }
 
     if (message.toolCall?.functionCalls?.length) {
@@ -628,7 +911,10 @@ export class GeminiLiveClient implements VoiceProvider {
 
     if (serverContent.inputTranscription?.text) {
       this.emitTranscript({
-        kind: 'final',
+        kind:
+          serverContent.inputTranscription.finished === false
+            ? 'partial'
+            : 'final',
         speaker: 'user',
         text: serverContent.inputTranscription.text,
         at: now,
@@ -637,8 +923,11 @@ export class GeminiLiveClient implements VoiceProvider {
     }
 
     if (serverContent.outputTranscription?.text) {
+      const outputTranscriptionFinished =
+        serverContent.outputTranscription.finished ??
+        serverContent.turnComplete;
       this.emitTranscript({
-        kind: serverContent.turnComplete ? 'final' : 'partial',
+        kind: outputTranscriptionFinished ? 'final' : 'partial',
         speaker: 'assistant',
         text: serverContent.outputTranscription.text,
         at: now,
@@ -647,7 +936,10 @@ export class GeminiLiveClient implements VoiceProvider {
 
     let sawAudio = false;
     for (const part of serverContent.modelTurn?.parts ?? []) {
-      if (part.inlineData?.mimeType?.startsWith('audio/pcm') && part.inlineData.data) {
+      if (
+        part.inlineData?.mimeType?.startsWith('audio/pcm') &&
+        part.inlineData.data
+      ) {
         this.player?.enqueuePcm16(base64ToArrayBuffer(part.inlineData.data));
         sawAudio = true;
         this.emitState('speaking');
@@ -674,7 +966,8 @@ export class GeminiLiveClient implements VoiceProvider {
   }
 
   private emitTranscript(event: VoiceTranscriptEvent): void {
-    for (const listener of this.listeners.transcript) safeCall(() => listener(event));
+    for (const listener of this.listeners.transcript)
+      safeCall(() => listener(event));
   }
 
   private emitFn(event: VoiceFunctionCallEvent): void {
@@ -683,10 +976,26 @@ export class GeminiLiveClient implements VoiceProvider {
 
   private emitState(state: VoiceOrbStateEvent['state']): void {
     const event: VoiceOrbStateEvent = { state, at: Date.now() };
-    for (const listener of this.listeners.state) safeCall(() => listener(event));
+    for (const listener of this.listeners.state)
+      safeCall(() => listener(event));
   }
 
   private emitError(err: Error): void {
     for (const listener of this.listeners.error) safeCall(() => listener(err));
+  }
+
+  private handleConnectionLoss(err: Error): void {
+    if (this.closingIntentionally || this.reportedConnectionLoss) return;
+    this.reportedConnectionLoss = true;
+    this.connected = false;
+    recordVoiceDebugEvent('error', { error: err.message });
+    this.recorder?.stop();
+    this.player?.stop();
+    this.session = null;
+    this.recorder = null;
+    this.player = null;
+    this.callNames.clear();
+    this.emitState('idle');
+    this.emitError(err);
   }
 }
