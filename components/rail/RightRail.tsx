@@ -2,12 +2,14 @@
 
 import {
   Calendar,
+  Columns3,
   Download,
   Eye,
   LayoutGrid,
   Radio,
   type LucideIcon,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { ActionLog } from './ActionLog';
@@ -17,6 +19,12 @@ import {
 } from './sections/PublishSection';
 import { useScheduledPosts } from '@/lib/publisher/store';
 import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
+import { setFocusedClusterCard, useFocusedClusterCard } from '@/lib/clusters/focus';
+import {
+  moveClusterCard,
+  useClusters,
+  type ClusterCard,
+} from '@/lib/clusters/store';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -114,6 +122,105 @@ function useGenerationsSummary(): {
   };
 }
 
+/**
+ * Right-rail focus panel for a selected cluster card. Rendered only when the
+ * kanban lens has a focused card (hard rule #3 — output + metadata lives on
+ * the right). Shows full-sized preview, attribution, cluster it belongs to,
+ * and a "promote to input set" affordance that moves the card to Shortlisted.
+ */
+function ClusterFocusBody({ card, siblings }: { card: ClusterCard; siblings: ClusterCard[] }) {
+  const author = card.attribution.author;
+  const attribution = author
+    ? `${card.attribution.source} · ${author}`
+    : card.attribution.source;
+  return (
+    <div className="flex flex-col gap-3" data-testid="cluster-focus">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={card.thumbnailUrl}
+        alt={attribution}
+        className="h-44 w-full rounded-xs border border-border-soft object-cover"
+      />
+      <section className="flex flex-col gap-1.5" aria-label="attribution">
+        <span className="font-caption text-ink-dim">attribution</span>
+        <a
+          href={card.attribution.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="truncate font-caption text-xs text-ink hover:text-accent"
+          title={card.attribution.url}
+        >
+          {attribution}
+        </a>
+      </section>
+      <section className="flex flex-col gap-1.5" aria-label="direction">
+        <span className="font-caption text-ink-dim">direction</span>
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink">
+          {card.clusterLabel}
+        </span>
+      </section>
+      <section className="flex flex-col gap-1.5" aria-label="state">
+        <span className="font-caption text-ink-dim">state</span>
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink">
+          {card.column}
+        </span>
+      </section>
+      {siblings.length > 0 ? (
+        <section className="flex flex-col gap-1.5" aria-label="siblings">
+          <span className="font-caption text-ink-dim">siblings in cluster</span>
+          <ul className="grid grid-cols-3 gap-1" data-testid="cluster-focus-siblings">
+            {siblings.map((sibling) => (
+              <li
+                key={sibling.referenceId}
+                className="overflow-hidden rounded-xs border border-border-soft"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={sibling.thumbnailUrl}
+                  alt={sibling.attribution.source}
+                  className="h-10 w-full object-cover"
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-testid="cluster-focus-promote"
+          onClick={() => {
+            const updated = moveClusterCard(card.referenceId, 'Shortlisted');
+            if (updated) {
+              setFocusedClusterCard({
+                ...card,
+                column: 'Shortlisted',
+                movedAt: updated.at,
+              });
+            }
+          }}
+          disabled={card.column === 'Shortlisted'}
+          className={cn(
+            'inline-flex h-7 items-center rounded-sm border border-border-soft bg-surface-panel px-2 font-mono text-2xs uppercase tracking-wide text-ink',
+            'transition-colors hover:border-accent hover:text-accent',
+            'disabled:cursor-not-allowed disabled:opacity-40'
+          )}
+        >
+          promote to input set
+        </button>
+        <button
+          type="button"
+          data-testid="cluster-focus-dismiss"
+          onClick={() => setFocusedClusterCard(null)}
+          className="inline-flex h-7 items-center font-caption text-ink-dim hover:text-ink"
+        >
+          dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RightRailInner({
   className,
   onPin,
@@ -133,9 +240,31 @@ function RightRailInner({
   heroMediaUrls?: string[];
   onOpenPublishPreview?: (postId: string) => void;
 }) {
-  const { railRef } = useRail();
+  const { railRef, openSection, toggle } = useRail();
   const gens = useGenerationsSummary();
   const scheduledPosts = useScheduledPosts(workspaceId);
+  const focusedCard = useFocusedClusterCard();
+  useEffect(() => {
+    // Auto-open the cluster-focus section whenever a new card gets focus.
+    // Closing the section is a creator choice; we don't force-close on
+    // unfocus so the layout stays stable.
+    if (focusedCard && openSection !== 'cluster-focus') {
+      toggle('cluster-focus');
+    }
+    // openSection intentionally excluded — we react to focus changes only,
+    // not to rail toggles that happen for other reasons.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedCard?.referenceId]);
+  const allClusterCards = useClusters();
+  const clusterSiblings = focusedCard
+    ? allClusterCards
+        .filter(
+          (c) =>
+            c.clusterId === focusedCard.clusterId &&
+            c.referenceId !== focusedCard.referenceId
+        )
+        .slice(0, 6)
+    : [];
 
   const exportAction = onExport ? (
     <button
@@ -159,6 +288,19 @@ function RightRailInner({
   ) : null;
 
   const sections: SectionSpec[] = [
+    ...(focusedCard
+      ? [
+          {
+            id: 'cluster-focus',
+            label: 'cluster card',
+            icon: Columns3,
+            summary: focusedCard.clusterLabel,
+            hasContent: true,
+            active: true,
+            body: <ClusterFocusBody card={focusedCard} siblings={clusterSiblings} />,
+          } as SectionSpec,
+        ]
+      : []),
     {
       id: 'focus',
       label: 'this focus',

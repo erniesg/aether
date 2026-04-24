@@ -5,6 +5,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   ArrowRight,
   Circle,
+  Columns3,
   Eraser,
   GripVertical,
   Hand,
@@ -69,6 +70,11 @@ export interface FloatingToolbarProps {
   onCapabilityPress?: (id: string) => void;
   /** Voice-mode chip (phase 1). Rendered when provided; see VoiceOrb. */
   voiceSlot?: React.ReactNode;
+  /** Toggles the cluster kanban lens. Lens-switches live on canvas chrome
+   * (hard rule #3 — `tool` category) rather than the header, so the lens
+   * stays attached to the canvas substrate. */
+  clusterLensActive?: boolean;
+  onClusterLensToggle?: () => void;
 }
 
 function readStoredPos(): Pos | null {
@@ -102,6 +108,8 @@ export function FloatingToolbar({
   pinnedCapabilities = [],
   onCapabilityPress,
   voiceSlot,
+  clusterLensActive,
+  onClusterLensToggle,
   className,
 }: FloatingToolbarProps) {
   const [pos, setPos] = useState<Pos>({ x: 24, y: 24 });
@@ -339,6 +347,16 @@ export function FloatingToolbar({
         icon={<ShieldAlert size={14} strokeWidth={1.75} />}
         onClick={() => onSafeZonesToggle?.(!safeZonesVisible)}
       />
+
+      {onClusterLensToggle ? (
+        <IconButton
+          label={`cluster lens · ${clusterLensActive ? 'on' : 'off'}`}
+          active={clusterLensActive}
+          icon={<Columns3 size={14} strokeWidth={1.75} />}
+          onClick={onClusterLensToggle}
+          data-testid="toolbar-cluster-lens"
+        />
+      ) : null}
 
       <button
         type="button"

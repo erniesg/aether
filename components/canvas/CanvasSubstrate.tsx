@@ -12,6 +12,7 @@ import {
 } from 'tldraw';
 import { cn } from '@/lib/utils/cn';
 import { FloatingToolbar } from './FloatingToolbar';
+import { ClusterLens } from './lenses/ClusterLens';
 import { SegmentationPanel, type SegmentationPreviewPayload } from './SegmentationPanel';
 import { SegmentationPreviewOverlay } from './SegmentationPreviewOverlay';
 import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
@@ -282,6 +283,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [scope, setScope] = useState<Scope>('global');
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
+  const [clusterLensOpen, setClusterLensOpen] = useState(false);
   const [backgroundFill, setBackgroundFill] =
     useState<BackgroundFillSpec>(DEFAULT_BACKGROUND_FILL);
   const [segmentationProviders, setSegmentationProviders] = useState<
@@ -1115,7 +1117,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
         voiceSlot={voiceSlot ?? undefined}
+        clusterLensActive={clusterLensOpen}
+        onClusterLensToggle={() => setClusterLensOpen((prev) => !prev)}
       />
+
+      {clusterLensOpen ? <ClusterLens /> : null}
 
       {imageActionsTarget ? (
         <SelectedImageActions

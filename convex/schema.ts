@@ -43,6 +43,59 @@ export default defineSchema({
     memberIds: v.array(v.id('referenceItem')),
   }).index('by_ws', ['wsId']),
 
+  // Cluster kanban (issue #26). A `clusterCard` row is the UI-facing shape —
+  // the kanban columns read and write these directly. `wsId` is optional for
+  // the same reason it is on `capabilityRun` / `signalSubscription`: pre-
+  // Phase-5 there is no workspace plumbing in the UI and a single demo
+  // workspace is implicit.
+  clusterCard: defineTable({
+    wsId: v.optional(v.id('workspace')),
+    /** Matches a `referenceItem._id` when Convex is provisioned; otherwise the
+     * client-generated `ReferenceRecord.id`. */
+    referenceId: v.string(),
+    /** Cluster id as a string — `-1` is the noise bucket (HDBSCAN). */
+    clusterId: v.string(),
+    clusterLabel: v.string(),
+    thumbnailUrl: v.string(),
+    attribution: v.object({
+      source: v.string(),
+      author: v.optional(v.string()),
+      url: v.string(),
+    }),
+    score: v.optional(v.number()),
+    column: v.union(
+      v.literal('Found'),
+      v.literal('Shortlisted'),
+      v.literal('Generating'),
+      v.literal('Hero')
+    ),
+    /** 512-d CLIP embedding for future re-ranking / similarity queries. */
+    embedding: v.optional(v.array(v.float64())),
+    movedAt: v.number(),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_reference', ['referenceId'])
+    .index('by_cluster', ['clusterId']),
+
+  // Typed provenance ring-buffer for drag-between-columns events (hard rule #8).
+  clusterStateChange: defineTable({
+    wsId: v.optional(v.id('workspace')),
+    cardId: v.string(),
+    fromColumn: v.union(
+      v.literal('Found'),
+      v.literal('Shortlisted'),
+      v.literal('Generating'),
+      v.literal('Hero')
+    ),
+    toColumn: v.union(
+      v.literal('Found'),
+      v.literal('Shortlisted'),
+      v.literal('Generating'),
+      v.literal('Hero')
+    ),
+    at: v.number(),
+  }).index('by_ws', ['wsId']),
+
   inputSet: defineTable({
     wsId: v.id('workspace'),
     references: v.array(v.id('referenceItem')),
