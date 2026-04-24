@@ -10,9 +10,12 @@ export const dynamic = 'force-dynamic';
 
 const OPENAI_DEFAULT_MODEL = 'gpt-4o-realtime-preview';
 const OPENAI_DEFAULT_VOICE = 'alloy';
-const GEMINI_DEFAULT_MODEL = 'gemini-live-2.5-flash-native-audio';
+const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 const GEMINI_DEFAULT_VOICE = 'Kore';
 const OPENAI_SESSIONS_URL = 'https://api.openai.com/v1/realtime/sessions';
+const STALE_GEMINI_LIVE_MODEL_ALIASES = new Map([
+  ['gemini-live-2.5-flash-native-audio', GEMINI_DEFAULT_MODEL],
+]);
 
 interface SessionIssuerDeps {
   apiKey?: string;
@@ -28,22 +31,24 @@ interface SessionIssuerDeps {
   }) => Promise<{ name?: string; expireTime?: string }>;
 }
 
-function currentProvider(
-  override?: VoiceProviderId
-): VoiceProviderId {
-  return override ?? ((process.env.VOICE_PROVIDER ??
-    'openai-realtime') as VoiceProviderId);
+function currentProvider(override?: VoiceProviderId): VoiceProviderId {
+  return (
+    override ??
+    ((process.env.VOICE_PROVIDER ?? 'openai-realtime') as VoiceProviderId)
+  );
 }
 
-function resolveModel(
-  provider: VoiceProviderId,
-  override?: string
-): string {
-  if (override) return override;
+function resolveModel(provider: VoiceProviderId, override?: string): string {
+  if (override) {
+    return provider === 'gemini-live'
+      ? (STALE_GEMINI_LIVE_MODEL_ALIASES.get(override) ?? override)
+      : override;
+  }
   if (provider === 'gemini-live') {
-    const configured =
-      process.env.GEMINI_LIVE_MODEL ?? process.env.VOICE_MODEL;
-    if (configured && !/^gpt-/i.test(configured)) return configured;
+    const configured = process.env.GEMINI_LIVE_MODEL ?? process.env.VOICE_MODEL;
+    if (configured && !/^gpt-/i.test(configured)) {
+      return STALE_GEMINI_LIVE_MODEL_ALIASES.get(configured) ?? configured;
+    }
     return GEMINI_DEFAULT_MODEL;
   }
 
@@ -53,10 +58,7 @@ function resolveModel(
   return OPENAI_DEFAULT_MODEL;
 }
 
-function resolveVoice(
-  provider: VoiceProviderId,
-  override?: string
-): string {
+function resolveVoice(provider: VoiceProviderId, override?: string): string {
   if (override) return override;
   if (provider === 'gemini-live') {
     return (
@@ -83,33 +85,33 @@ async function defaultIssueGeminiToken({
   const { GoogleGenAI } = await import('@google/genai/node');
   const client = new GoogleGenAI({
     apiKey,
-    apiVersion: 'v1alpha',
+    httpOptions: { apiVersion: 'v1alpha' },
   });
   return client.authTokens.create({
     config: {
       uses: 1,
       expireTime: new Date(Date.now() + 30 * 60_000).toISOString(),
       newSessionExpireTime: new Date(Date.now() + 60_000).toISOString(),
+      httpOptions: { apiVersion: 'v1alpha' },
     },
   });
 }
 
 async function issueGeminiLiveSession(
-  deps: SessionIssuerDeps = {}
+  deps: SessionIssuerDeps = {},
 ): Promise<VoiceSessionCredentials> {
   const apiKey =
     deps.geminiApiKey ?? deps.apiKey ?? process.env.GOOGLE_GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'voice: GOOGLE_GEMINI_API_KEY is required to mint a Gemini Live token'
+      'voice: GOOGLE_GEMINI_API_KEY is required to mint a Gemini Live token',
     );
   }
 
   const provider: VoiceProviderId = 'gemini-live';
   const model = resolveModel(provider, deps.model);
   const voice = resolveVoice(provider, deps.voice);
-  const issueGeminiToken =
-    deps.issueGeminiTokenImpl ?? defaultIssueGeminiToken;
+  const issueGeminiToken = deps.issueGeminiTokenImpl ?? defaultIssueGeminiToken;
   const token = await issueGeminiToken({ apiKey, model, voice });
   const clientSecret = token.name;
   if (!clientSecret) {
@@ -134,7 +136,7 @@ async function issueGeminiLiveSession(
  * up a Next server.
  */
 export async function issueVoiceSession(
-  deps: SessionIssuerDeps = {}
+  deps: SessionIssuerDeps = {},
 ): Promise<VoiceSessionCredentials> {
   const provider = currentProvider(deps.provider);
 
@@ -149,7 +151,7 @@ export async function issueVoiceSession(
   const apiKey = deps.apiKey ?? process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'voice: OPENAI_API_KEY is required to mint a realtime session'
+      'voice: OPENAI_API_KEY is required to mint a realtime session',
     );
   }
 
@@ -182,7 +184,7 @@ export async function issueVoiceSession(
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(
-      `voice: OpenAI session request failed (${res.status})${text ? ` · ${text.slice(0, 200)}` : ''}`
+      `voice: OpenAI session request failed (${res.status})${text ? ` · ${text.slice(0, 200)}` : ''}`,
     );
   }
 

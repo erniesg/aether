@@ -31,8 +31,15 @@
       "vars": {
         "AETHER_ENV": "staging",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai",
-        "NEXT_PUBLIC_CONVEX_URL": "",
-        "VOICE_PROVIDER": "openai-realtime"
+        "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
+        "VOICE_PROVIDER": "openai-realtime",
+        "OPENAI_REALTIME_MODEL": "gpt-4o-realtime-preview",
+        "OPENAI_REALTIME_VOICE": "alloy",
+        "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+        "GEMINI_LIVE_VOICE": "Kore",
+        "SAM3_MODAL_URL": "https://berlayar-ai--aether-sam3.modal.run",
+        "SEGMENTATION_PROVIDER": "sam3",
+        "VIDEO_PROVIDER": "hyperframes"
       }
     },
     "production": {
@@ -50,8 +57,15 @@
       "vars": {
         "AETHER_ENV": "production",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai",
-        "NEXT_PUBLIC_CONVEX_URL": "",
-        "VOICE_PROVIDER": "openai-realtime"
+        "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
+        "VOICE_PROVIDER": "openai-realtime",
+        "OPENAI_REALTIME_MODEL": "gpt-4o-realtime-preview",
+        "OPENAI_REALTIME_VOICE": "alloy",
+        "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+        "GEMINI_LIVE_VOICE": "Kore",
+        "SAM3_MODAL_URL": "https://berlayar-ai--aether-sam3.modal.run",
+        "SEGMENTATION_PROVIDER": "sam3",
+        "VIDEO_PROVIDER": "hyperframes"
       }
     }
   }

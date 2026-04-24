@@ -55,7 +55,7 @@ describe('VoiceOrb provider selection', () => {
       sessionId: 'tokens/gemini-session',
       clientSecret: 'tokens/gemini-session',
       expiresAt: Date.now() + 60_000,
-      model: 'gemini-live-2.5-flash-native-audio',
+      model: 'gemini-3.1-flash-live-preview',
       voice: 'Kore',
       provider: 'gemini-live',
     };
@@ -73,11 +73,11 @@ describe('VoiceOrb provider selection', () => {
           run_generate: vi.fn(),
         }}
         sessionEndpoint="/api/voice/session"
-      />
+      />,
     );
 
     await userEvent.click(
-      screen.getByRole('button', { name: /voice · idle · click to talk/i })
+      screen.getByRole('button', { name: /voice · idle · click to talk/i }),
     );
 
     await waitFor(() => {
