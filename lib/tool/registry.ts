@@ -1,9 +1,11 @@
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
 
+export type ToolArtifactKind = 'image' | 'spatial' | 'video' | 'audio';
+
 export interface ToolRegistryEntry extends CapabilityEntryRef<'tool'> {
-  artifactKind: string;
+  artifactKind: ToolArtifactKind;
   label: string;
-  outputKind: 'image';
+  outputKind: ToolArtifactKind;
   status: 'draft' | 'published' | 'archived';
 }
 
@@ -61,6 +63,42 @@ const TOOL_REGISTRY = {
     label: 'Spatial generation',
     outputKind: 'image',
     status: 'draft',
+  },
+  'video-gen': {
+    kind: 'tool',
+    id: 'video-gen',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Video generation',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'audio-gen': {
+    kind: 'tool',
+    id: 'audio-gen',
+    version: 1,
+    artifactKind: 'audio',
+    label: 'Audio generation',
+    outputKind: 'audio',
+    status: 'draft',
+  },
+  removebg: {
+    kind: 'tool',
+    id: 'removebg',
+    version: 1,
+    artifactKind: 'image',
+    label: 'Remove background',
+    outputKind: 'image',
+    status: 'published',
+  },
+  unmask: {
+    kind: 'tool',
+    id: 'unmask',
+    version: 1,
+    artifactKind: 'image',
+    label: 'Unmask',
+    outputKind: 'image',
+    status: 'published',
   },
 } as const satisfies Record<string, ToolRegistryEntry>;
 
