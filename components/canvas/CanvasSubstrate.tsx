@@ -616,6 +616,32 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   useEffect(() => {
     if (!segmentation) return;
+    if (segmentation.verb !== 'removebg') return;
+    if (segmentation.runId !== undefined) return;
+    if (segmentation.loading) return;
+    if (segmentation.preview) return;
+    if (segmentationProvidersLoading) return;
+
+    const activeProvider = segmentationProviders.find(
+      (provider) => provider.id === segmentation.providerId
+    );
+    if (!activeProvider?.available) return;
+
+    void handlePreviewSegmentation();
+  }, [
+    segmentation?.verb,
+    segmentation?.runId,
+    segmentation?.loading,
+    segmentation?.preview,
+    segmentation?.providerId,
+    segmentation?.targetShapeId,
+    segmentationProvidersLoading,
+    segmentationProviders,
+    handlePreviewSegmentation,
+  ]);
+
+  useEffect(() => {
+    if (!segmentation) return;
 
     const controller = new AbortController();
     let cancelled = false;
