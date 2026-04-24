@@ -25,3 +25,19 @@ CONVEX_DEPLOY_KEY=...
 # App
 AETHER_ENV=development
 NEXTJS_ENV=development
+
+# Route-human (Discord review gate) — see docs/DISCORD-SETUP.md.
+# DISCORD_WEBHOOK_URL: where the reviewer agent posts ready-for-ernie cards.
+# Fail-closed: if unset, sendReviewNotification throws and the CI job fails
+# visibly so reviews are never silently dropped.
+DISCORD_WEBHOOK_URL=
+# DISCORD_PUBLIC_KEY: hex-encoded Ed25519 public key from the Discord app
+# page. Used by the interaction route to verify every incoming request.
+DISCORD_PUBLIC_KEY=
+DISCORD_APPLICATION_ID=
+# Token the interaction route uses to merge / label / close / comment in
+# response to button presses. CLAUDE_CODE_OAUTH_TOKEN is used when set;
+# override with GITHUB_MERGE_TOKEN if you need a different scope.
+GITHUB_MERGE_TOKEN=
+# "owner/repo" — the repo the interaction route is authorized to act on.
+GITHUB_REPOSITORY=erniesg/aether
