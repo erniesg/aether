@@ -37,4 +37,18 @@ export interface CapabilityRunRecord {
   definitionId?: string;
   definitionVersion?: number;
   entryRef?: CapabilityEntryRef;
+  /**
+   * Input payload recorded for runs that started with user-picked references
+   * (air-brush sketches, clipboard images, layout-guard copy, etc). Widened
+   * from 410bb14 so WorkspaceShell can record what went into a run. Kept
+   * intentionally loose — each run type owns its own shape.
+   */
+  inputs?: {
+    refs?: string[];
+    [key: string]: unknown;
+  };
+  /** Logical scope the run was spawned against. */
+  scope?: 'workspace' | 'team' | string;
+  /** Output refs the run produced — URLs, asset ids, etc. */
+  outputRefs?: string[];
 }

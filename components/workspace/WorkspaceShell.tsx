@@ -8,6 +8,7 @@ import { ViewSwitcher, type ViewId } from '@/components/header/ViewSwitcher';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
+import type { MotionArtifact } from '@/components/canvas/MotionArtifactPreview';
 import {
   PromptComposer,
   type ComposerHandle,
@@ -27,6 +28,11 @@ import {
   zoomToAllFrames,
 } from '@/lib/canvas/focusFrame';
 import { dropImageInFrame, pickAspectRatio } from '@/lib/canvas/fanOut';
+import type { GuardedLayoutPlan } from '@/lib/canvas/layoutGuard';
+import {
+  DEFAULT_MANAGED_LAYOUT_COPY,
+  applyGuardedCopyLayoutToCanvas,
+} from '@/lib/canvas/layoutGuardCanvas';
 import {
   readGenerateStream,
   type GenerateStreamEvent,
@@ -261,6 +267,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
+  const [layoutGuardEnabled, setLayoutGuardEnabled] = useState(true);
+  const [layoutPlan, setLayoutPlan] = useState<GuardedLayoutPlan | null>(null);
+  const [motionArtifact, setMotionArtifact] = useState<MotionArtifact | null>(null);
   // Focus lens cycles through frames via arrow keys; the active format state
   // mirrors this so the composer always shows the current single-format target.
   const [focusIdx, setFocusIdx] = useState(0);
@@ -1144,6 +1153,114 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     }
   }, [exporting, formats, wsId, runs, definitions]);
 
+  const handleApplyGuardedLayout = useCallback(
+    (copy = DEFAULT_MANAGED_LAYOUT_COPY) => {
+      const runId = startRun({
+        tool: 'layout-guard',
+        provider: 'deterministic',
+        model: 'layout-guard-v1',
+        prompt: copy,
+        inputs: {
+          copy,
+          dynamicAdjustment: layoutGuardEnabled,
+        },
+        scope: 'workspace',
+      });
+      initRunDetails(runId, {
+        providerHint: 'deterministic',
+        modelHint: 'layout-guard-v1',
+        frames: formats.map((format) => ({
+          id: format.id,
+          label: format.label,
+          aspectRatio: format.aspectRatio,
+          status: 'running',
+          updatedAt: Date.now(),
+        })),
+      });
+      appendRunActivity(runId, {
+        title: 'layout guard prepared',
+        detail: layoutGuardEnabled
+          ? 'dynamic placement · avoid zones active'
+          : 'static placement · validation only',
+      });
+      stepRun(runId, 'placing');
+
+      if (!editor) {
+        const message = 'editor not ready';
+        appendRunActivity(runId, {
+          title: 'layout failed',
+          detail: message,
+          tone: 'error',
+        });
+        failRun(runId, message);
+        return;
+      }
+
+      try {
+        const startedAt = Date.now();
+        const result = applyGuardedCopyLayoutToCanvas(editor, {
+          copy,
+          dynamicAdjustment: layoutGuardEnabled,
+        });
+        setLayoutPlan(result.plan);
+
+        for (const placement of result.plan.placements) {
+          upsertRunFrame(runId, {
+            id: placement.frameId,
+            label: placement.frameLabel,
+            status:
+              result.plan.status === 'blocked' && placement.collidingRegionIds.length > 0
+                ? 'error'
+                : 'placed',
+            error:
+              placement.collidingRegionIds.length > 0
+                ? `${placement.collidingRegionIds.length} protected overlap${placement.collidingRegionIds.length === 1 ? '' : 's'}`
+                : undefined,
+            updatedAt: Date.now(),
+          });
+        }
+
+        appendRunActivity(runId, {
+          title: 'copy placed',
+          detail: `${result.shapeIds.length} text layer${result.shapeIds.length === 1 ? '' : 's'} · ${result.plan.locale}`,
+          tone: result.plan.status === 'blocked' ? 'error' : 'ok',
+        });
+        appendRunActivity(runId, {
+          title: 'validation',
+          detail:
+            result.plan.issues.length === 0
+              ? 'ready to schedule'
+              : `${result.plan.status} · ${result.plan.issues.length} issue${result.plan.issues.length === 1 ? '' : 's'}`,
+          tone: result.plan.status === 'blocked' ? 'error' : 'ok',
+        });
+        finishRun(runId, {
+          status: result.plan.status === 'blocked' ? 'error' : 'ok',
+          rewrittenPrompt: 'guarded multilingual copy layout',
+          latencyMs: Date.now() - startedAt,
+          error:
+            result.plan.status === 'blocked'
+              ? result.plan.issues.map((issue) => issue.message).join('; ')
+              : undefined,
+          inputs: {
+            copy,
+            locale: result.plan.locale,
+            dynamicAdjustment: result.plan.dynamicAdjustment,
+            avoidRegionCount: result.plan.avoidanceRegions.length,
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        appendRunActivity(runId, {
+          title: 'layout failed',
+          detail: message,
+          tone: 'error',
+        });
+        failRun(runId, message);
+      }
+    },
+    [editor, formats, layoutGuardEnabled]
+  );
+
   const handlePrompt = useCallback(
     async (
       prompt: string,
@@ -1155,6 +1272,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         await handleExport();
         return;
       }
+
+      if (/^\/layout\b/i.test(trimmed)) {
+        const copy = trimmed.replace(/^\/layout\b/i, '').trim() || DEFAULT_MANAGED_LAYOUT_COPY;
+        log('onSubmit · /layout command');
+        handleApplyGuardedLayout(copy);
+        return;
+      }
+
+      // Motion routing (shouldRoutePromptToMotion + runMotionOnCanvas) deferred
+      // to a follow-up PR — the helpers live in 410bb14 but require further
+      // WorkspaceShell integration (motion artifact state machine + video
+      // provider wiring) that's outside this PR's scope.
 
       log(
         'onSubmit · prompt:',
@@ -1415,6 +1544,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           composerRef={composerRef}
           safeZonesVisible={safeZonesVisible}
           onSafeZonesToggle={setSafeZonesVisible}
+          layoutGuardEnabled={layoutGuardEnabled}
+          onLayoutGuardToggle={setLayoutGuardEnabled}
+          onApplyGuardedLayout={() => handleApplyGuardedLayout()}
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
@@ -1427,12 +1559,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           onVoiceGenerate={async (prompt, scope) => {
             await handlePrompt(prompt, { scope });
           }}
+          motionArtifact={motionArtifact}
+          onMotionArtifactDismiss={() => setMotionArtifact(null)}
         />
         <RightRail
           onPin={handlePin}
           onExport={handleExport}
           exportDisabled={exporting}
           safeZonesVisible={safeZonesVisible}
+          layoutGuardEnabled={layoutGuardEnabled}
+          layoutPlan={layoutPlan}
+          formats={composerFormats}
         />
       </div>
 
