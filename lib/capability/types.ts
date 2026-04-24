@@ -6,7 +6,7 @@
  */
 
 import type { CapabilityEntryRef } from './entry';
-import { resolveToolEntryRef } from '@/lib/tool/registry';
+import { resolveToolEntryRef, type ArtifactKind } from '@/lib/tool/registry';
 
 export type CapabilityTool =
   | 'image-gen'
@@ -14,7 +14,8 @@ export type CapabilityTool =
   | 'bg-fill'
   | 'cutout'
   | 'relight'
-  | 'spatial-gen';
+  | 'spatial-gen'
+  | 'text-apply';
 
 /**
  * Minimum shape needed to re-run the same tool-chain against a new layer.
@@ -29,7 +30,7 @@ export interface CapabilityRunTemplate {
   /** Provider-routing hint; still resolved via the registry, never hardcoded. */
   providerId?: string;
   model?: string;
-  artifactKind?: 'image' | 'spatial';
+  artifactKind?: ArtifactKind;
   format?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
   sourceMode?: 'selected-image';
