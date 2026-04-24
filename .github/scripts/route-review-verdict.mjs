@@ -92,35 +92,76 @@ function removeLabel(target, label) {
   }
 }
 
-async function sendDiscord(message) {
+// Colors on Discord's dark theme.
+const COLOR_APPROVE = 0x0e8a16;
+const COLOR_REQUEST = 0xfbca04;
+const COLOR_BLOCK = 0xb60205;
+const COLOR_ROUTE_HUMAN = 0xe88d67;
+
+// Link buttons (style 5) + markdown-link fallback in content. On app-owned
+// webhooks Discord renders the buttons; on non-app webhooks it ignores the
+// `components` field and the content links remain clickable.
+function buildPrActionRow(prUrl) {
+  if (!prUrl) return undefined;
+  return [
+    {
+      type: 1,
+      components: [
+        { type: 2, style: 5, label: 'Open PR', url: prUrl },
+        { type: 2, style: 5, label: 'Review diff', url: `${prUrl}/files` },
+        { type: 2, style: 5, label: 'Comment', url: `${prUrl}#issuecomment-new` },
+      ],
+    },
+  ];
+}
+
+async function sendDiscordEmbed({ color, title, description, url, fields }) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  const channelId = process.env.DISCORD_CHANNEL_ID;
+
+  if (!webhookUrl && !(botToken && channelId)) {
+    throw new Error(
+      'No Discord delivery configured — set DISCORD_WEBHOOK_URL or DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID. ' +
+        'Fail closed so verdicts never silently drop.'
+    );
+  }
+
+  const embed = { color, title, description, timestamp: new Date().toISOString() };
+  if (url) embed.url = url;
+  if (fields && fields.length > 0) embed.fields = fields;
+
+  const body = {
+    content: url,
+    embeds: [embed],
+    components: buildPrActionRow(url),
+    allowed_mentions: { parse: [] },
+  };
+
   if (webhookUrl) {
     const res = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: message, allowed_mentions: { parse: [] } }),
+      body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`Discord webhook failed: ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Discord webhook failed: ${res.status} ${text}`);
+    }
     return;
   }
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  const channelId = process.env.DISCORD_CHANNEL_ID;
-  if (botToken && channelId) {
-    const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bot ${botToken}`,
-      },
-      body: JSON.stringify({ content: message, allowed_mentions: { parse: [] } }),
-    });
-    if (!res.ok) throw new Error(`Discord bot POST failed: ${res.status} ${res.statusText}`);
-    return;
+  const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Discord bot POST failed: ${res.status} ${text}`);
   }
-  throw new Error(
-    'No Discord delivery configured — set DISCORD_WEBHOOK_URL or DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID. ' +
-      'Fail closed so APPROVE verdicts never silently drop.'
-  );
 }
 
 async function main() {
@@ -147,10 +188,28 @@ async function main() {
   const prTarget = { type: 'pr', number: pr.number };
   const issueTarget = issueNumber ? { type: 'issue', number: issueNumber } : null;
 
+  const commonFields = [
+    { name: 'branch', value: `\`${pr.headRefName}\``, inline: true },
+    { name: 'PR', value: `[#${pr.number}](${pr.url})`, inline: true },
+  ];
+  if (issueNumber) {
+    commonFields.push({
+      name: 'issue',
+      value: `[#${issueNumber}](https://github.com/${process.env.GITHUB_REPOSITORY}/issues/${issueNumber})`,
+      inline: true,
+    });
+  }
+
   if (verdict === 'APPROVE') {
     addLabels(prTarget, ['ready-for-ernie']);
-    const msg = `aether · reviewer APPROVED\nPR #${pr.number} · ${pr.title}\n${pr.url}`;
-    await sendDiscord(msg);
+    await sendDiscordEmbed({
+      color: COLOR_APPROVE,
+      title: `aether · reviewer APPROVED · ${pr.title}`,
+      description:
+        'Reviewer agent passed. Click **Open PR** to merge on GitHub, or **Review diff** to eyeball the changes first.',
+      url: pr.url,
+      fields: commonFields,
+    });
     return;
   }
 
@@ -161,18 +220,43 @@ async function main() {
       console.warn('REQUEST_CHANGES but no linked issue — add `route-human` to PR instead.');
       addLabels(prTarget, ['route-human']);
     }
+    // Ping so Ernie knows changes are being iterated on.
+    await sendDiscordEmbed({
+      color: COLOR_REQUEST,
+      title: `aether · reviewer REQUESTED_CHANGES · ${pr.title}`,
+      description:
+        'Reviewer flagged issues. Author agent has been re-dispatched. No action needed unless the loop stalls.',
+      url: pr.url,
+      fields: commonFields,
+    });
     return;
   }
 
   if (verdict === 'BLOCK') {
     addLabels(prTarget, ['blocked']);
     if (issueTarget) addLabels(issueTarget, ['blocked']);
+    await sendDiscordEmbed({
+      color: COLOR_BLOCK,
+      title: `aether · reviewer BLOCKED · ${pr.title}`,
+      description:
+        'Reviewer rejected architectural/scope reasons. Human resolution required.',
+      url: pr.url,
+      fields: commonFields,
+    });
     return;
   }
 
   // No verdict: fail-closed route to human review.
   console.warn('no parseable VERDICT in reviewer comment — routing to human.');
   addLabels(prTarget, ['route-human']);
+  await sendDiscordEmbed({
+    color: COLOR_ROUTE_HUMAN,
+    title: `aether · route-human · ${pr.title}`,
+    description:
+      'Reviewer agent did not produce a parseable VERDICT. Manual review required.',
+    url: pr.url,
+    fields: commonFields,
+  });
 }
 
 main().catch((err) => {
