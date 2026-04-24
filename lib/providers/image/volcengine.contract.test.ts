@@ -101,4 +101,49 @@ describe('volcengine (Seedream) adapter · contract', () => {
       provider.generate({ prompt: 'x' }, { model: 'doubao-seedream-3-0-t2i-250415' })
     ).rejects.toThrow(/no images returned/);
   });
+
+  describe('edit (SeedEdit i2i)', () => {
+    it('exposes an edit method when the key is present', () => {
+      const provider = createVolcengineProvider('ark');
+      expect(typeof provider.edit).toBe('function');
+    });
+
+    it('posts the seededit model + source image url to the Ark endpoint', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({ data: [{ url: 'https://volc.cdn/edited.png' }] })
+      );
+      const provider = createVolcengineProvider('ark_test');
+      const result = await provider.edit!(
+        {
+          prompt: 'change the shirt colour to red',
+          sourceUrl: 'https://example.com/shirt.png',
+          seed: 42,
+        },
+        { model: 'doubao-seededit-3-0-i2i-250628' }
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0]!;
+      const body = JSON.parse(init?.body as string);
+      expect(body.model).toBe('doubao-seededit-3-0-i2i-250628');
+      expect(body.prompt).toMatch(/shirt colour to red/);
+      expect(body.image).toBe('https://example.com/shirt.png');
+      expect(body.seed).toBe(42);
+      expect(body.response_format).toBe('url');
+
+      expect(result.provider).toBe('volcengine');
+      expect(result.images[0]?.url).toBe('https://volc.cdn/edited.png');
+    });
+
+    it('rejects when sourceUrl is missing', async () => {
+      const provider = createVolcengineProvider('ark');
+      await expect(
+        provider.edit!(
+          { prompt: 'x' } as never,
+          { model: 'doubao-seededit-3-0-i2i-250628' }
+        )
+      ).rejects.toThrow(/sourceUrl/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -124,4 +124,94 @@ describe('gemini (imagen) adapter · contract', () => {
       provider.generate({ prompt: 'x' }, { model: 'imagen-4.0-generate-001' })
     ).rejects.toThrow(/no predictions returned/);
   });
+
+  describe('edit (gemini-2.5-flash-image-preview)', () => {
+    it('exposes an edit method when the key is present', () => {
+      const provider = createGeminiProvider('key');
+      expect(typeof provider.edit).toBe('function');
+    });
+
+    it('posts to :generateContent with inlineData + text parts', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    inlineData: {
+                      data: 'ZWRpdGVk',
+                      mimeType: 'image/png',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+      );
+      const provider = createGeminiProvider('key-abc');
+      const result = await provider.edit!(
+        {
+          prompt: 'add a red hat',
+          sourceUrl: 'data:image/png;base64,c291cmNl',
+        },
+        { model: 'gemini-2.5-flash-image-preview' }
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0]!;
+      expect(String(url)).toContain('gemini-2.5-flash-image-preview:generateContent');
+      expect(String(url)).toContain('key=key-abc');
+      const body = JSON.parse(init?.body as string);
+      expect(body.contents).toHaveLength(1);
+      const parts = body.contents[0].parts;
+      expect(parts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ text: 'add a red hat' }),
+          expect.objectContaining({
+            inlineData: expect.objectContaining({
+              mimeType: 'image/png',
+              data: 'c291cmNl',
+            }),
+          }),
+        ])
+      );
+
+      expect(result.provider).toBe('gemini');
+      expect(result.images[0]?.url).toBe('data:image/png;base64,ZWRpdGVk');
+      expect(result.images[0]?.mimeType).toBe('image/png');
+    });
+
+    it('rejects imagen models for edit', async () => {
+      const provider = createGeminiProvider('key');
+      await expect(
+        provider.edit!(
+          { prompt: 'x', sourceUrl: 'data:image/png;base64,Zm9v' },
+          { model: 'imagen-4.0-generate-001' }
+        )
+      ).rejects.toThrow(/image-to-image/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects when sourceUrl is missing', async () => {
+      const provider = createGeminiProvider('key');
+      await expect(
+        provider.edit!(
+          { prompt: 'x' } as never,
+          { model: 'gemini-2.5-flash-image-preview' }
+        )
+      ).rejects.toThrow(/sourceUrl/);
+    });
+
+    it('rejects sourceUrl schemes that are neither http(s) nor data:image', async () => {
+      const provider = createGeminiProvider('key');
+      await expect(
+        provider.edit!(
+          { prompt: 'x', sourceUrl: 'blob:local' } as never,
+          { model: 'gemini-2.5-flash-image-preview' }
+        )
+      ).rejects.toThrow();
+    });
+  });
 });
