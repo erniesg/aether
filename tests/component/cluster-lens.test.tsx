@@ -76,8 +76,10 @@ describe('ClusterLens · kanban', () => {
       found.querySelectorAll<HTMLElement>('[data-cluster-group]')
     );
     expect(groups).toHaveLength(2);
-    expect(within(found).getByText('slow morning')).toBeInTheDocument();
-    expect(within(found).getByText('raw desert')).toBeInTheDocument();
+    // Label appears both as the group header and as a per-card tag — assert
+    // at least one occurrence in the Found column rather than strict-single.
+    expect(within(found).getAllByText('slow morning').length).toBeGreaterThan(0);
+    expect(within(found).getAllByText('raw desert').length).toBeGreaterThan(0);
   });
 
   it('simulating a drop onto Shortlisted column routes through the move machine', () => {
