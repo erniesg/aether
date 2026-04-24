@@ -18,7 +18,7 @@ function makeCredentials(): VoiceSessionCredentials {
     sessionId: 'tokens/gemini-session',
     clientSecret: 'tokens/gemini-session',
     expiresAt: Date.now() + 60_000,
-    model: 'gemini-3.1-flash-live-preview',
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     voice: 'Kore',
     provider: 'gemini-live',
   };
@@ -31,8 +31,8 @@ function createHarness() {
   let callbacks: {
     onopen?: () => void;
     onmessage?: (message: unknown) => void;
-    onerror?: (event: { message?: string }) => void;
-    onclose?: (event?: { reason?: string }) => void;
+    onerror?: (event: { message?: string; type?: string }) => void;
+    onclose?: (event?: { code?: number; reason?: string; wasClean?: boolean }) => void;
   } | null = null;
 
   const session = {
@@ -213,6 +213,41 @@ describe('GeminiLiveClient', () => {
           event.detail?.byteLength === 3,
       ),
     ).toBe(true);
+  });
+
+  it('records Live close diagnostics in debug mode', async () => {
+    window.history.replaceState({}, '', '/workspace/demo-ws?voice-debug=1');
+    const harness = createHarness();
+    const client = new GeminiLiveClient({
+      deps: {
+        fetchSession: harness.fetchSession,
+        connectLiveSession: harness.connectLiveSession,
+        createRecorder: harness.createRecorder,
+        createPlayer: harness.createPlayer,
+        playGreeting: harness.playGreeting,
+      },
+    });
+
+    await client.connect({ credentials: harness.credentials });
+    harness.getCallbacks().onclose?.({
+      code: 1008,
+      reason: 'model rejected setup',
+      wasClean: false,
+    });
+
+    expect(window.__AETHER_VOICE_DEBUG__?.lastStage).toBe('error');
+    expect(window.__AETHER_VOICE_DEBUG__?.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'close',
+          detail: expect.objectContaining({
+            code: 1008,
+            reason: 'model rejected setup',
+            wasClean: false,
+          }),
+        }),
+      ]),
+    );
   });
 
   it('sends typed creator turns through realtime input for Live responsiveness', async () => {

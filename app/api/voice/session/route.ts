@@ -10,11 +10,12 @@ export const dynamic = 'force-dynamic';
 
 const OPENAI_DEFAULT_MODEL = 'gpt-4o-realtime-preview';
 const OPENAI_DEFAULT_VOICE = 'alloy';
-const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
+const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const GEMINI_DEFAULT_VOICE = 'Kore';
 const OPENAI_SESSIONS_URL = 'https://api.openai.com/v1/realtime/sessions';
 const STALE_GEMINI_LIVE_MODEL_ALIASES = new Map([
   ['gemini-live-2.5-flash-native-audio', GEMINI_DEFAULT_MODEL],
+  ['gemini-3.1-flash-live-preview', GEMINI_DEFAULT_MODEL],
 ]);
 
 interface SessionIssuerDeps {

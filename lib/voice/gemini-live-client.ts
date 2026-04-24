@@ -47,6 +47,7 @@ export interface RecorderChunk {
 }
 
 type VoiceDebugStage =
+  | 'open'
   | 'setup-complete'
   | 'incoming-message'
   | 'outgoing-audio'
@@ -329,8 +330,43 @@ function recordVoiceDebugEvent(
   window.__AETHER_VOICE_DEBUG__ = next;
 
   if (typeof console !== 'undefined') {
-    console.info('[voice]', stage, detail);
+    console.info(`[voice] ${stage} ${stringifyVoiceDebugDetail(detail)}`);
   }
+}
+
+function stringifyVoiceDebugDetail(detail: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function liveCloseEventDetail(event: unknown): Record<string, unknown> {
+  const source = event as Partial<CloseEvent> | undefined;
+  const detail: Record<string, unknown> = {};
+  if (typeof source?.code === 'number') detail.code = source.code;
+  if (typeof source?.reason === 'string') detail.reason = source.reason;
+  if (typeof source?.wasClean === 'boolean') detail.wasClean = source.wasClean;
+  if (typeof source?.type === 'string') detail.type = source.type;
+  return detail;
+}
+
+function liveErrorEventDetail(event: unknown): Record<string, unknown> {
+  const source = event as Partial<ErrorEvent> | undefined;
+  const detail: Record<string, unknown> = {};
+  if (typeof source?.message === 'string' && source.message) {
+    detail.message = source.message;
+  }
+  if (typeof source?.type === 'string') detail.type = source.type;
+  const error = source?.error;
+  if (error instanceof Error) {
+    detail.errorName = error.name;
+    detail.errorMessage = error.message;
+  } else if (typeof error === 'string' && error) {
+    detail.errorMessage = error;
+  }
+  return detail;
 }
 
 function defaultPlayGreeting(text: string): void {
@@ -713,13 +749,18 @@ export class GeminiLiveClient implements VoiceProvider {
       await player.resume();
       session = await this.deps.connectLiveSession(credentials, {
         onopen: () => {
+          recordVoiceDebugEvent('open');
           // wait for setupComplete before marking idle
         },
         onmessage: (message) => this.handleMessage(message),
         onerror: (event) => {
+          const detail = liveErrorEventDetail(event);
+          recordVoiceDebugEvent('error', detail);
           const message =
-            typeof event?.message === 'string' && event.message
-              ? event.message
+            typeof detail.message === 'string' && detail.message
+              ? detail.message
+              : typeof detail.errorMessage === 'string' && detail.errorMessage
+              ? detail.errorMessage
               : 'gemini live error';
           this.handleConnectionLoss(new Error(message));
         },
@@ -730,9 +771,11 @@ export class GeminiLiveClient implements VoiceProvider {
             recordVoiceDebugEvent('close', { expected: true });
             return;
           }
+          const detail = liveCloseEventDetail(event);
+          recordVoiceDebugEvent('close', { expected: false, ...detail });
           const reason =
-            typeof event?.reason === 'string' && event.reason
-              ? event.reason
+            typeof detail.reason === 'string' && detail.reason
+              ? detail.reason
               : 'Gemini Live connection closed';
           this.handleConnectionLoss(new Error(`voice: ${reason}`));
         },
