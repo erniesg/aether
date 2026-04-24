@@ -43,6 +43,7 @@ interface GenerateTargetInput {
   preset?: unknown;
   focusArea?: unknown;
   negativeZones?: unknown;
+  guidanceRef?: unknown;
 }
 
 interface GenerateTarget {
@@ -53,6 +54,14 @@ interface GenerateTarget {
   preset?: SafeZonePresetId;
   focusArea?: NormalizedRect;
   negativeZones?: ReadonlyArray<NegativeZoneInput>;
+  /** Optional data:image/* PNG encoding the safe-zone as a visual cue. */
+  guidanceRef?: string;
+}
+
+function parseGuidanceRefUrl(value: unknown): string | undefined {
+  return typeof value === 'string' && value.startsWith('data:image/')
+    ? value
+    : undefined;
 }
 
 interface StreamFrameSuccess {
@@ -142,6 +151,7 @@ function parseTargets(value: unknown): GenerateTarget[] | null {
       preset: parsePresetId(v.preset),
       focusArea: parseNormalizedRect(v.focusArea),
       negativeZones: parseNegativeZones(v.negativeZones),
+      guidanceRef: parseGuidanceRefUrl(v.guidanceRef),
     });
   }
   return targets;
@@ -339,6 +349,7 @@ export async function POST(request: Request) {
     focusArea: parseNormalizedRect(b.focusArea),
     negativeZones: parseNegativeZones(b.negativeZones),
   };
+  const defaultGuidanceRef = parseGuidanceRefUrl(b.guidanceRef);
 
   console.log(
     `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} planOnly=${planOnly} aspect=${aspectRatioOverride ?? 'auto'} promptLen=${prompt.length}`
@@ -489,9 +500,13 @@ export async function POST(request: Request) {
                 console.log(
                   `[generate/${reqId}] frame started · ${frame.index}/${frame.total} ${frame.label ?? frame.id} aspect=${frame.aspectRatio} size=${target.size ? `${target.size.w}x${target.size.h}` : 'auto'} refs=${frameRefs?.length ?? 0}`
                 );
+                const guidanceRefUrl = target.guidanceRef ?? defaultGuidanceRef;
+                const augmentedRefs: ImageRef[] | undefined = guidanceRefUrl
+                  ? [{ url: guidanceRefUrl, weight: 0.3 }, ...(frameRefs ?? [])]
+                  : frameRefs;
                 const baseRequest: ImageGenRequest = {
                   prompt: framePrompt,
-                  refs: frameRefs,
+                  refs: augmentedRefs,
                   aspectRatio: target.aspectRatio,
                   size: target.size,
                   seed: planned.plan.seed,
