@@ -219,8 +219,9 @@ export function ComposerStatus() {
       </div>
     ) : null;
 
+  const voiceLine = renderVoiceLine(voice);
+
   if (!top) {
-    const voiceLine = renderVoiceLine(voice);
     if (voiceLine) return voiceLine;
     return (
       <div className="flex h-6 items-center gap-2 border-t border-border-soft bg-surface-bg-muted px-4 font-caption text-ink-faint">
@@ -235,6 +236,7 @@ export function ComposerStatus() {
     return (
       <div className="relative">
         {activityPanel}
+        {voiceLine}
         <div className="flex h-6 items-center justify-between border-t border-accent/30 bg-accent/5 px-4 font-caption text-accent">
           <div className="flex min-w-0 items-center gap-2 truncate">
             <Loader2 size={10} strokeWidth={2} className="animate-spin shrink-0" />
@@ -264,6 +266,7 @@ export function ComposerStatus() {
     return (
       <div className="relative">
         {activityPanel}
+        {voiceLine}
         <div className="flex h-6 items-center justify-between border-t border-signal-ok/30 bg-signal-ok/5 px-4 font-caption text-signal-ok">
           <div className="flex min-w-0 items-center gap-2 truncate">
             <CheckCircle2 size={10} strokeWidth={2} className="shrink-0" />
@@ -289,6 +292,7 @@ export function ComposerStatus() {
   return (
     <div className="relative">
       {activityPanel}
+      {voiceLine}
       <div
         className="flex h-6 items-center justify-between border-t border-signal-error/30 bg-signal-error/5 px-4 font-caption text-signal-error"
         role="alert"

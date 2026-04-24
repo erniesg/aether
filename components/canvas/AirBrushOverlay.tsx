@@ -385,6 +385,10 @@ export function AirBrushOverlay({
   });
   const openPalmHoldFramesRef = useRef(0);
   const endAirBrushFiredRef = useRef(false);
+  // The creator's natural starting pose is an open hand, which would fire the
+  // done gesture before they ever drew anything. Require at least one camera
+  // stroke to have started before the gesture becomes armed.
+  const hasStartedCameraStrokeRef = useRef(false);
   const pointerFallbackActiveRef = useRef(false);
   const pointerFallbackIdRef = useRef<number | null>(null);
   const [cameraState, setCameraState] = useState<CameraState>('idle');
@@ -613,6 +617,7 @@ export function AirBrushOverlay({
       pinchWarmupCountRef.current = { draw: 0, erase: 0 };
       openPalmHoldFramesRef.current = 0;
       endAirBrushFiredRef.current = false;
+      hasStartedCameraStrokeRef.current = false;
       pointerFallbackActiveRef.current = false;
       pointerFallbackIdRef.current = null;
       lastCameraPointRef.current = null;
@@ -884,7 +889,7 @@ export function AirBrushOverlay({
             break;
           }
         }
-        if (openPalmSeen) {
+        if (openPalmSeen && hasStartedCameraStrokeRef.current) {
           openPalmHoldFramesRef.current += 1;
           if (
             openPalmHoldFramesRef.current >= OPEN_PALM_HOLD_FRAMES &&
@@ -967,6 +972,11 @@ export function AirBrushOverlay({
           for (const point of pointsToEmit) {
             emittedPointCount += 1;
             onPointRef.current?.(point);
+            if (point.state === 'start') {
+              // First real stroke has started — arm the open-palm gesture.
+              // Until this happens, an open hand is just the resting pose.
+              hasStartedCameraStrokeRef.current = true;
+            }
             if (point.state !== 'end') {
               setDetectionCountState((current) => current + 1);
               stateSnapshotRef.current = {
