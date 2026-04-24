@@ -69,7 +69,10 @@ test.describe('references multi-source ingest', () => {
     await expect(chip).toBeVisible();
     await expect(chip).toHaveAttribute('data-reference-source', 'pinterest');
     await expect(chip).toHaveAttribute('data-reference-kind', 'image');
-    await expect(chip.getByRole('img')).toHaveAttribute(
+    // locator('img') targets the HTML <img> tag specifically; the chip also
+    // contains a lucide <X> SVG remove-icon which getByRole('img') picks up
+    // and triggers a strict-mode violation.
+    await expect(chip.locator('img')).toHaveAttribute(
       'src',
       PINTEREST_RECORD.previewUrl
     );
