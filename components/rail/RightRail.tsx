@@ -11,6 +11,12 @@ import {
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { ActionLog } from './ActionLog';
+import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
+import type { GuardedLayoutPlan } from '@/lib/canvas/layoutGuard';
+import {
+  buildManagedScheduleDraft,
+  formatScheduleTime,
+} from '@/lib/workflow/schedule';
 import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
 import { cn } from '@/lib/utils/cn';
 
@@ -24,6 +30,8 @@ type SectionSpec = {
   body: React.ReactNode;
   headerAction?: React.ReactNode;
 };
+
+type RailFormat = { id: string; label?: string };
 
 function PlaceholderBody({ hint }: { hint: string }) {
   return (
@@ -63,7 +71,22 @@ function FocusBody() {
   );
 }
 
-function FormatsBody({ safeZonesVisible }: { safeZonesVisible: boolean }) {
+function defaultRailFormats(): RailFormat[] {
+  return DEFAULT_ARTBOARDS.map((seed) => ({
+    id: seed.preset,
+    label: seed.name.split(' · ')[0] ?? seed.name,
+  }));
+}
+
+function FormatsBody({
+  safeZonesVisible,
+  layoutGuardEnabled,
+  layoutPlan,
+}: {
+  safeZonesVisible: boolean;
+  layoutGuardEnabled: boolean;
+  layoutPlan?: GuardedLayoutPlan | null;
+}) {
   // Four seeded artboards align with lib/canvas/seedArtboards. Kept in sync by
   // eye today — a follow-up slice binds this to the editor's frame shapes.
   const FORMATS = [
@@ -76,6 +99,12 @@ function FormatsBody({ safeZonesVisible }: { safeZonesVisible: boolean }) {
     <div className="flex flex-col gap-2">
       <span className="font-caption text-ink-dim">
         safe zones {safeZonesVisible ? 'on' : 'off'} · one hero fans out
+      </span>
+      <span className="font-caption text-ink-dim">
+        layout guard {layoutGuardEnabled ? 'on' : 'off'} ·{' '}
+        {layoutPlan
+          ? `${layoutPlan.avoidanceRegions.length} protected zones · ${layoutPlan.status}`
+          : 'ready for guarded copy'}
       </span>
       <ul className="grid grid-cols-2 gap-2">
         {FORMATS.map((name) => (
@@ -98,15 +127,89 @@ function useGenerationsSummary(): {
   summary: string;
   hasContent: boolean;
   active: boolean;
+  hasCompletedOutput: boolean;
 } {
   const runs = useRuns();
-  if (runs.length === 0) return { summary: 'empty', hasContent: false, active: false };
+  if (runs.length === 0) {
+    return {
+      summary: 'empty',
+      hasContent: false,
+      active: false,
+      hasCompletedOutput: false,
+    };
+  }
   const running = runs.some((r) => r.status === 'running');
   return {
     summary: running ? 'generating' : `${runs.length} run${runs.length === 1 ? '' : 's'}`,
     hasContent: true,
     active: running,
+    hasCompletedOutput: runs.some(
+      (run) =>
+        run.status === 'ok' &&
+        (run.artifactKind === 'image' || run.artifactKind === 'video' || run.imageUrl)
+    ),
   };
+}
+
+function ScheduledBody({
+  formats,
+  layoutPlan,
+}: {
+  formats: ReadonlyArray<RailFormat>;
+  layoutPlan?: GuardedLayoutPlan | null;
+}) {
+  const runs = useRuns();
+  const schedule = buildManagedScheduleDraft({
+    formats: formats.length > 0 ? formats : defaultRailFormats(),
+    runs,
+    layoutPlan,
+  });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-caption text-ink">validation</span>
+          <span
+            className={cn(
+              'rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide',
+              schedule.status === 'ready'
+                ? 'border-accent/40 bg-accent/10 text-accent'
+                : 'border-border-soft bg-surface-panel text-ink-dim'
+            )}
+          >
+            {schedule.status}
+          </span>
+        </div>
+        <p className="mt-1 font-caption text-2xs text-ink-dim">
+          {schedule.validation.hasOutput ? 'outputs present' : 'needs generated outputs'} ·
+          layout {schedule.validation.layoutStatus}
+          {schedule.validation.issueCount > 0
+            ? ` · ${schedule.validation.issueCount} issue${schedule.validation.issueCount === 1 ? '' : 's'}`
+            : ''}
+        </p>
+      </div>
+
+      <ol className="flex flex-col gap-1.5">
+        {schedule.slots.slice(0, 4).map((slot) => (
+          <li
+            key={slot.id}
+            className="flex items-center justify-between gap-3 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+          >
+            <div className="min-w-0">
+              <span className="block truncate font-caption text-ink">{slot.platform}</span>
+              <span className="block truncate font-mono text-2xs uppercase tracking-wide text-ink-dim">
+                {slot.format}
+              </span>
+            </div>
+            <span className="shrink-0 font-caption text-2xs text-ink-dim">
+              {formatScheduleTime(slot.scheduledFor)}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
 }
 
 function RightRailInner({
@@ -115,12 +218,18 @@ function RightRailInner({
   onExport,
   exportDisabled,
   safeZonesVisible,
+  layoutGuardEnabled,
+  layoutPlan,
+  formats,
 }: {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
   onExport?: () => void | Promise<void>;
   exportDisabled?: boolean;
   safeZonesVisible: boolean;
+  layoutGuardEnabled: boolean;
+  layoutPlan?: GuardedLayoutPlan | null;
+  formats: ReadonlyArray<RailFormat>;
 }) {
   const { railRef } = useRail();
   const gens = useGenerationsSummary();
@@ -161,7 +270,13 @@ function RightRailInner({
       icon: LayoutGrid,
       summary: '4 targets',
       hasContent: true,
-      body: <FormatsBody safeZonesVisible={safeZonesVisible} />,
+      body: (
+        <FormatsBody
+          safeZonesVisible={safeZonesVisible}
+          layoutGuardEnabled={layoutGuardEnabled}
+          layoutPlan={layoutPlan}
+        />
+      ),
     },
     {
       id: 'all-generations',
@@ -176,8 +291,10 @@ function RightRailInner({
       id: 'scheduled',
       label: 'scheduled',
       icon: Calendar,
-      summary: 'empty',
-      body: <PlaceholderBody hint="auto-publish timeline · post-hackathon" />,
+      summary:
+        layoutPlan?.status === 'ready' && gens.hasCompletedOutput ? 'ready' : 'draft',
+      hasContent: true,
+      body: <ScheduledBody formats={formats} layoutPlan={layoutPlan} />,
     },
   ];
 
@@ -217,6 +334,9 @@ export interface RightRailProps {
   onExport?: () => void | Promise<void>;
   exportDisabled?: boolean;
   safeZonesVisible?: boolean;
+  layoutGuardEnabled?: boolean;
+  layoutPlan?: GuardedLayoutPlan | null;
+  formats?: ReadonlyArray<RailFormat>;
 }
 
 export function RightRail({
@@ -225,6 +345,9 @@ export function RightRail({
   onExport,
   exportDisabled,
   safeZonesVisible = true,
+  layoutGuardEnabled = true,
+  layoutPlan,
+  formats = [],
 }: RightRailProps) {
   return (
     <RailProvider>
@@ -234,6 +357,9 @@ export function RightRail({
         onExport={onExport}
         exportDisabled={exportDisabled}
         safeZonesVisible={safeZonesVisible}
+        layoutGuardEnabled={layoutGuardEnabled}
+        layoutPlan={layoutPlan}
+        formats={formats}
       />
     </RailProvider>
   );
