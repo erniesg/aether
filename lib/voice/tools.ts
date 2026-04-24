@@ -158,6 +158,16 @@ export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
     },
   },
   {
+    name: 'end_air_brush',
+    description:
+      "Stop the air-brush (finger drawing) session and commit the strokes into the bottom composer as a reference the creator can immediately use in run_generate. Call this when the creator signals they're done drawing (e.g. 'I'm done', 'aether done', 'send this').",
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'run_capability',
     description:
       'Rerun a pinned capability by its definition id. Use this when the creator names a pinned skill.',
@@ -222,6 +232,7 @@ export interface VoiceDispatchers {
   }) => void | Promise<void>;
   clear_sketch: () => void | Promise<void>;
   confirm_sketch: () => void | Promise<void>;
+  end_air_brush: () => void | Promise<void>;
   run_capability: (args: { definitionId: string }) => void | Promise<void>;
   run_generate: (args: {
     prompt: string;
@@ -304,6 +315,10 @@ export async function dispatchVoiceFunctionCall(
     case 'confirm_sketch': {
       await dispatchers.confirm_sketch();
       return { ok: true, detail: 'confirmed sketch' };
+    }
+    case 'end_air_brush': {
+      await dispatchers.end_air_brush();
+      return { ok: true, detail: 'captured sketch as reference' };
     }
     case 'run_capability': {
       const definitionId =

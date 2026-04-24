@@ -1704,6 +1704,15 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       confirm_sketch: () => {
         handleConfirmSketch();
       },
+      // Voice-driven "I'm done drawing": stop air brush AND await the capture
+      // so the sketch is in the composer's ref list before any subsequent
+      // run_generate call fires. The chip-driven toggle uses fire-and-forget
+      // because the UI doesn't need to wait, but voice tool dispatch is
+      // sequential — the model will emit run_generate after this resolves.
+      end_air_brush: async () => {
+        await captureSketchAsReference();
+        setAirBrushActive(false);
+      },
       run_capability: ({ definitionId }) => {
         onCapabilityPress?.(definitionId);
       },
@@ -1712,6 +1721,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       },
     }),
     [
+      captureSketchAsReference,
       editor,
       handleAdjustBrushSize,
       handleBrushColorChange,

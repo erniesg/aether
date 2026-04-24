@@ -20,6 +20,7 @@ function mockDispatchers(): VoiceDispatchers & {
   const adjust_brush_size = vi.fn();
   const clear_sketch = vi.fn();
   const confirm_sketch = vi.fn();
+  const end_air_brush = vi.fn();
   const run_capability = vi.fn();
   const run_generate = vi.fn();
   return {
@@ -32,6 +33,7 @@ function mockDispatchers(): VoiceDispatchers & {
     adjust_brush_size,
     clear_sketch,
     confirm_sketch,
+    end_air_brush,
     run_capability,
     run_generate,
     _mocks: {
@@ -44,6 +46,7 @@ function mockDispatchers(): VoiceDispatchers & {
       adjust_brush_size,
       clear_sketch,
       confirm_sketch,
+      end_air_brush,
       run_capability,
       run_generate,
     },
@@ -62,6 +65,7 @@ describe('voice tools', () => {
       'adjust_brush_size',
       'clear_sketch',
       'confirm_sketch',
+      'end_air_brush',
       'run_capability',
       'run_generate',
     ]);
@@ -149,6 +153,28 @@ describe('voice tools', () => {
 
     expect(dispatchers._mocks.clear_sketch).toHaveBeenCalledWith();
     expect(dispatchers._mocks.confirm_sketch).toHaveBeenCalledWith();
+  });
+
+  it('awaits end_air_brush so downstream run_generate sees the captured reference', async () => {
+    const dispatchers = mockDispatchers();
+    let resolveCapture!: () => void;
+    const capturePromise = new Promise<void>((resolve) => {
+      resolveCapture = resolve;
+    });
+    dispatchers._mocks.end_air_brush.mockImplementationOnce(() => capturePromise);
+
+    let outcome: Awaited<ReturnType<typeof dispatchVoiceFunctionCall>> | null = null;
+    const pending = dispatchVoiceFunctionCall('end_air_brush', {}, dispatchers).then(
+      (result) => {
+        outcome = result;
+      }
+    );
+
+    expect(outcome).toBeNull();
+    resolveCapture();
+    await pending;
+    expect(outcome).toEqual({ ok: true, detail: 'captured sketch as reference' });
+    expect(dispatchers._mocks.end_air_brush).toHaveBeenCalledWith();
   });
 
   it('passes the prompt + scope through run_generate', async () => {

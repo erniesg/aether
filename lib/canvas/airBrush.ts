@@ -7,6 +7,7 @@ export type AirBrushInputMode =
   | 'pointer-fallback'
   | 'unavailable';
 
+const THUMB_TIP_LANDMARK = 4;
 const INDEX_FINGER_TIP_LANDMARK = 8;
 const INDEX_FINGER_MCP_LANDMARK = 5;
 const PINKY_MCP_LANDMARK = 17;
@@ -16,6 +17,12 @@ const DEFAULT_DEAD_ZONE = 0.006;
 const DEFAULT_MIN_HAND_SPAN = 0.05;
 const DEFAULT_MIN_INDEX_EXTENSION = 0.06;
 const INDEX_REACH_PALM_RATIO = 0.3;
+// Pinch: thumb tip close to index tip relative to palm span. Hysteresis keeps
+// small tremors from flickering the stroke on/off — you must clearly close
+// (ratio * palmSpan) to start and clearly open (1.4 * ratio * palmSpan) to
+// end.
+const DEFAULT_PINCH_RATIO = 0.48;
+const PINCH_HYSTERESIS = 1.4;
 
 export interface AirBrushPoint {
   x: number;
@@ -83,6 +90,8 @@ export interface TranslateHandLandmarksInput {
   minIndexExtension?: number;
   smoothing?: number;
   deadZone?: number;
+  requirePinch?: boolean;
+  pinchRatio?: number;
 }
 
 function clamp01(value: number) {
@@ -161,7 +170,8 @@ export type AirBrushRejectionReason =
   | 'handedness-low'
   | 'tip-missing'
   | 'palm-too-small'
-  | 'index-too-close';
+  | 'index-too-close'
+  | 'pinch-open';
 
 export interface AirBrushLandmarkMetrics {
   handIndex?: number;
@@ -170,6 +180,9 @@ export interface AirBrushLandmarkMetrics {
   palmSpan?: number;
   indexReach?: number;
   requiredReach?: number;
+  pinching?: boolean;
+  pinchDistance?: number;
+  pinchThreshold?: number;
 }
 
 export interface AirBrushLandmarkEvaluation {
@@ -303,6 +316,8 @@ export function evaluateMediaPipeHandLandmarks({
   minIndexExtension = DEFAULT_MIN_INDEX_EXTENSION,
   smoothing = DEFAULT_SMOOTHING,
   deadZone = DEFAULT_DEAD_ZONE,
+  requirePinch = false,
+  pinchRatio = DEFAULT_PINCH_RATIO,
 }: TranslateHandLandmarksInput): AirBrushLandmarkEvaluation {
   const endPoint = activeStroke ? endCameraStroke(previousPoint) : null;
   const reject = (
@@ -343,8 +358,14 @@ export function evaluateMediaPipeHandLandmarks({
   // meaningfully (it's a Pose-model field); the hand's geometric layout below
   // is the real acceptance signal.
 
+  let gatePalmSpan: number | undefined;
+  let gateIndexReach: number | undefined;
+  let gateRequiredReach: number | undefined;
   if (requireExtendedIndexFinger) {
     const gate = evaluateIndexFingerGate({ hand, minHandSpan, minIndexExtension });
+    gatePalmSpan = gate.palmSpan;
+    gateIndexReach = gate.indexReach;
+    gateRequiredReach = gate.requiredReach;
     if (!gate.accepted) {
       return reject(gate.reason ?? 'tip-missing', {
         handIndex,
@@ -354,6 +375,54 @@ export function evaluateMediaPipeHandLandmarks({
         indexReach: gate.indexReach,
         requiredReach: gate.requiredReach,
       });
+    }
+  }
+
+  if (requirePinch) {
+    const thumb = hand[THUMB_TIP_LANDMARK];
+    if (!thumb || !Number.isFinite(thumb.x) || !Number.isFinite(thumb.y)) {
+      return reject('tip-missing', {
+        handIndex,
+        handedness,
+        score,
+        palmSpan: gatePalmSpan,
+        indexReach: gateIndexReach,
+        requiredReach: gateRequiredReach,
+      });
+    }
+    const palmSpan =
+      gatePalmSpan ??
+      Math.max(
+        hand[0] && hand[PINKY_MCP_LANDMARK]
+          ? landmarkDistance(hand[0], hand[PINKY_MCP_LANDMARK])
+          : 0,
+        hand[INDEX_FINGER_MCP_LANDMARK] && hand[PINKY_MCP_LANDMARK]
+          ? landmarkDistance(hand[INDEX_FINGER_MCP_LANDMARK], hand[PINKY_MCP_LANDMARK])
+          : 0
+      );
+    const pinchDistance = landmarkDistance(thumb, tip);
+    const closeThreshold = palmSpan * pinchRatio;
+    const openThreshold = closeThreshold * PINCH_HYSTERESIS;
+    const pinching = activeStroke
+      ? pinchDistance <= openThreshold
+      : pinchDistance <= closeThreshold;
+    if (!pinching) {
+      return {
+        point: endPoint,
+        accepted: false,
+        reason: 'pinch-open',
+        metrics: {
+          handIndex,
+          handedness,
+          score,
+          palmSpan,
+          indexReach: gateIndexReach,
+          requiredReach: gateRequiredReach,
+          pinching: false,
+          pinchDistance,
+          pinchThreshold: closeThreshold,
+        },
+      };
     }
   }
 
@@ -389,14 +458,28 @@ export function evaluateMediaPipeHandLandmarks({
       point: null,
       accepted: false,
       reason: undefined,
-      metrics: { handIndex, handedness, score },
+      metrics: {
+        handIndex,
+        handedness,
+        score,
+        palmSpan: gatePalmSpan,
+        pinching: requirePinch ? true : undefined,
+      },
     };
   }
 
   return {
     point: next,
     accepted: true,
-    metrics: { handIndex, handedness, score },
+    metrics: {
+      handIndex,
+      handedness,
+      score,
+      palmSpan: gatePalmSpan,
+      indexReach: gateIndexReach,
+      requiredReach: gateRequiredReach,
+      pinching: requirePinch ? true : undefined,
+    },
   };
 }
 

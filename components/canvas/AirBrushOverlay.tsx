@@ -110,8 +110,9 @@ const REJECTION_REASON_PRIORITY: Record<AirBrushRejectionReason, number> = {
   'palm-too-small': 4,
   'tip-missing': 3,
   'handedness-low': 2,
-  'no-hand': 1,
-  'handedness-mismatch': 0,
+  'pinch-open': 1,
+  'no-hand': 0,
+  'handedness-mismatch': -1,
 };
 
 function pickPrimaryRejection(
@@ -143,6 +144,8 @@ function formatRejectionReason(reason: AirBrushRejectionReason): string {
       return 'move closer';
     case 'index-too-close':
       return 'extend index';
+    case 'pinch-open':
+      return 'pinch thumb + index';
   }
 }
 
@@ -165,6 +168,15 @@ function formatRejectionHint(rejection: AirBrushRejectionSnapshot | null): strin
   const palm = rejection.metrics?.palmSpan;
   if (rejection.reason === 'palm-too-small' && typeof palm === 'number') {
     return `${label} · ${palm.toFixed(2)}`;
+  }
+  const pinchDistance = rejection.metrics?.pinchDistance;
+  const pinchThreshold = rejection.metrics?.pinchThreshold;
+  if (
+    rejection.reason === 'pinch-open' &&
+    typeof pinchDistance === 'number' &&
+    typeof pinchThreshold === 'number'
+  ) {
+    return `${label} · ${pinchDistance.toFixed(2)}/${pinchThreshold.toFixed(2)}`;
   }
   return label;
 }
@@ -810,6 +822,7 @@ export function AirBrushOverlay({
           activeStroke: activeIntent === 'erase',
           preferredHand: 'Left',
           intent: 'erase',
+          requirePinch: true,
         });
         const drawEval = evaluateMediaPipeHandLandmarks({
           frame,
@@ -818,6 +831,7 @@ export function AirBrushOverlay({
           activeStroke: activeIntent === 'draw',
           preferredHand: 'Right',
           intent: 'draw',
+          requirePinch: true,
         });
         const erasePoint = eraseEval.point;
         const drawPoint = drawEval.point;
