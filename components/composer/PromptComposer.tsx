@@ -8,6 +8,8 @@ import type {
   KeyboardEvent,
 } from 'react';
 import { ArrowUp, ChevronDown, ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
+import { ingestUrlViaApi } from '@/lib/references/client';
+import { addReference } from '@/lib/references/store';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -196,10 +198,11 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     };
 
     const handlePaste = (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
-      const items = event.clipboardData?.items;
-      if (!items) return;
+      const clip = event.clipboardData;
+      if (!clip) return;
+      // Image bytes beat URL paste — real bitmap trumps a share link.
       const files: File[] = [];
-      for (const item of Array.from(items)) {
+      for (const item of Array.from(clip.items ?? [])) {
         if (item.kind === 'file' && item.type.startsWith('image/')) {
           const f = item.getAsFile();
           if (f) files.push(f);
@@ -208,6 +211,32 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       if (files.length > 0) {
         event.preventDefault();
         void ingestFiles(files);
+        return;
+      }
+      const text = clip.getData('text/plain').trim();
+      if (text && /^https?:\/\/\S+$/i.test(text)) {
+        event.preventDefault();
+        void (async () => {
+          setRefError(null);
+          try {
+            const outcome = await ingestUrlViaApi(text);
+            addReference(outcome.record);
+            if (outcome.record.kind === 'image' && outcome.record.previewUrl) {
+              setRefs((prev) => {
+                if (prev.length >= MAX_REFS) {
+                  setRefError(`keeping the first ${MAX_REFS} references`);
+                  return prev;
+                }
+                return [...prev, outcome.record.previewUrl];
+              });
+            }
+            if (outcome.fallback) {
+              setRefError('no preview — kept as link-only reference');
+            }
+          } catch (err) {
+            setRefError(err instanceof Error ? err.message : 'ingest failed');
+          }
+        })();
       }
     };
 
