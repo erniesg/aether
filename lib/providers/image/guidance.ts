@@ -86,7 +86,7 @@ function centerCropFragments(preset: SafeZonePresetId, cropAspectRatio: number):
       },
     ],
     suffix: [
-      `Keep the subject and any key detail inside the centered Reel cover crop window — roughly ${pct(rect.w)} × ${pct(rect.h)} of the frame, centered. The area outside that window is cropped away in Meta's cover preview.`,
+      `Keep the hero subject inside the ${pct(rect.w)} × ${pct(rect.h)} centered Reel cover window.`,
     ],
     negative: [REEL_COVER_NEGATIVE],
   };
@@ -128,16 +128,13 @@ function insetFragments(
     });
   }
 
-  const parts: string[] = [];
-  if (insets.top > 0) parts.push(`the top ${pct(insets.top)}`);
-  if (insets.bottom > 0) parts.push(`the bottom ${pct(insets.bottom)}`);
-  if (insets.right > 0) parts.push(`the right edge (${pct(insets.right)})`);
-  if (insets.left > 0) parts.push(`the left edge (${pct(insets.left)})`);
+  const safeW = Math.max(0, 1 - insets.left - insets.right);
+  const safeH = Math.max(0, 1 - insets.top - insets.bottom);
 
   const suffix =
-    parts.length > 0
+    safeW > 0 && safeH > 0
       ? [
-          `Leave ${parts.join(', ')} of the frame clear of critical subject matter and text — platform UI, stickers, and captions render there.`,
+          `Keep the hero subject inside the ${pct(safeW)} × ${pct(safeH)} ${label}; platform UI overlays the remaining border.`,
         ]
       : [];
 

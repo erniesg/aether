@@ -17,8 +17,9 @@ describe('applyGuidanceToRequest', () => {
     const base: ImageGenRequest = { prompt: BASE_PROMPT, aspectRatio: '9:16' };
     const out = applyGuidanceToRequest(base, { preset: 'story' });
     expect(out.prompt.startsWith(BASE_PROMPT)).toBe(true);
-    expect(out.prompt.toLowerCase()).toContain('top 14%');
-    expect(out.prompt.toLowerCase()).toContain('bottom 20%');
+    expect(out.prompt).toContain('90%');
+    expect(out.prompt).toContain('66%');
+    expect(out.prompt.toLowerCase()).toContain('safe area');
     expect(out.negativePrompt).toBeDefined();
     expect(out.negativePrompt!.toLowerCase()).toContain('stickers');
   });
@@ -48,6 +49,6 @@ describe('applyGuidanceToRequest', () => {
       negativeZones: [{ x: 0.1, y: 0.4, w: 0.2, h: 0.1, label: 'partner logo' }],
     });
     expect(out.prompt.toLowerCase()).toContain('partner logo');
-    expect(out.prompt.toLowerCase()).toContain('top 14%');
+    expect(out.prompt).toContain('90%');
   });
 });
