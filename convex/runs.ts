@@ -21,6 +21,13 @@ const STEP_VALIDATOR = v.union(
 );
 
 const STATUS_VALIDATOR = v.union(v.literal('running'), v.literal('ok'), v.literal('error'));
+const ARTIFACT_KIND_VALIDATOR = v.union(
+  v.literal('image'),
+  v.literal('video'),
+  v.literal('audio'),
+  v.literal('spatial')
+);
+const SCOPE_VALIDATOR = v.union(v.literal('workspace'), v.literal('team'));
 
 interface RunDoc {
   _id: unknown;
@@ -35,12 +42,19 @@ interface RunDoc {
   aspectRatio?: string;
   imageUrl?: string;
   latencyMs?: number;
+  inputs?: unknown;
   outputs?: unknown;
   status: 'running' | 'ok' | 'error';
   startedAt: number;
   finishedAt?: number;
   error?: string;
   httpStatus?: number;
+  definitionId?: string;
+  entryRef?: unknown;
+  artifactKind?: string;
+  outputRefs?: string[];
+  scope?: string;
+  publishedVersion?: number;
 }
 
 function toRecord(doc: RunDoc) {
@@ -61,6 +75,13 @@ function toRecord(doc: RunDoc) {
     finishedAt: doc.finishedAt,
     error: doc.error,
     httpStatus: doc.httpStatus,
+    definitionId: doc.definitionId,
+    entryRef: doc.entryRef,
+    inputs: doc.inputs,
+    artifactKind: doc.artifactKind,
+    outputRefs: doc.outputRefs,
+    scope: doc.scope,
+    publishedVersion: doc.publishedVersion,
   };
 }
 
@@ -94,6 +115,9 @@ export const start = mutationGeneric({
     model: v.string(),
     prompt: v.string(),
     aspectRatio: v.optional(v.string()),
+    inputs: v.optional(v.any()),
+    artifactKind: v.optional(ARTIFACT_KIND_VALIDATOR),
+    scope: v.optional(SCOPE_VALIDATOR),
     startedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -107,8 +131,11 @@ export const start = mutationGeneric({
       model: args.model,
       prompt: args.prompt,
       aspectRatio: args.aspectRatio,
-      inputs: { prompt: args.prompt, model: args.model, aspectRatio: args.aspectRatio },
+      inputs:
+        args.inputs ?? { prompt: args.prompt, model: args.model, aspectRatio: args.aspectRatio },
       outputs: {},
+      artifactKind: args.artifactKind,
+      scope: args.scope,
       startedAt: args.startedAt,
       status: 'running',
     });
@@ -138,6 +165,10 @@ export const finish = mutationGeneric({
     latencyMs: v.optional(v.number()),
     error: v.optional(v.string()),
     httpStatus: v.optional(v.number()),
+    inputs: v.optional(v.any()),
+    artifactKind: v.optional(ARTIFACT_KIND_VALIDATOR),
+    outputRefs: v.optional(v.array(v.string())),
+    scope: v.optional(SCOPE_VALIDATOR),
     finishedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -152,11 +183,13 @@ export const finish = mutationGeneric({
       ...existingOutputs,
       imageUrl: args.imageUrl ?? doc.imageUrl,
       latencyMs: args.latencyMs ?? doc.latencyMs,
+      outputRefs: args.outputRefs ?? doc.outputRefs,
     };
     await ctx.db.patch(doc._id as any, {
       ...patch,
       status: args.status ?? 'ok',
       step: 'done',
+      inputs: args.inputs ?? doc.inputs,
       outputs: nextOutputs,
     });
   },

@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils/cn';
 export interface ComposerHandle {
   focus: () => void;
   setPrompt: (next: string) => void;
+  addReferenceDataUrl: (dataUrl: string) => void;
 }
 
 /**
@@ -117,6 +118,18 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       formats.find((format) => format.id === activeFormatId) ?? formats[0];
     const resolvedActiveFormatId = activeFormat?.id;
 
+    const appendRefs = useCallback((fresh: string[]) => {
+      if (fresh.length === 0) return;
+      setRefs((prev) => {
+        const merged = [...prev, ...fresh];
+        if (merged.length > MAX_REFS) {
+          setRefError(`keeping the first ${MAX_REFS} references`);
+          return merged.slice(0, MAX_REFS);
+        }
+        return merged;
+      });
+    }, []);
+
     useImperativeHandle(
       forwardedRef,
       () => ({
@@ -126,8 +139,16 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
           // Focus after write so the creator can immediately edit the preset.
           requestAnimationFrame(() => internalRef.current?.focus());
         },
+        addReferenceDataUrl: (dataUrl: string) => {
+          setRefError(null);
+          if (!dataUrl.startsWith('data:image/')) {
+            setRefError('capture is not an image');
+            return;
+          }
+          appendRefs([dataUrl]);
+        },
       }),
-      []
+      [appendRefs]
     );
 
     const ingestFiles = useCallback(
@@ -148,16 +169,9 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
           }
         }
         if (fresh.length === 0) return;
-        setRefs((prev) => {
-          const merged = [...prev, ...fresh];
-          if (merged.length > MAX_REFS) {
-            setRefError(`keeping the first ${MAX_REFS} references`);
-            return merged.slice(0, MAX_REFS);
-          }
-          return merged;
-        });
+        appendRefs(fresh);
       },
-      []
+      [appendRefs]
     );
 
     const submit = async (overrideScope?: PromptScope) => {

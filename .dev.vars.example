@@ -30,6 +30,12 @@ SAM3_MODAL_TOKEN=
 # Optional default provider when more than one is connected.
 SEGMENTATION_PROVIDER=sam3
 
+# Video providers
+# Remotion/HyperFrames should be the deterministic first path. Volcengine and
+# Replicate stay behind the provider registry and are selected per request.
+REMOTION_RENDER_URL=http://localhost:7777/render
+VIDEO_PROVIDER=remotion
+
 # Convex — set after `npx convex dev` creates a project
 NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
 CONVEX_DEPLOY_KEY=...

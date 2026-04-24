@@ -147,6 +147,7 @@ describe('OpenAIRealtimeClient', () => {
       'select_tool',
       'set_brush_color',
       'set_brush_size',
+      'adjust_brush_size',
       'clear_sketch',
       'confirm_sketch',
       'run_capability',

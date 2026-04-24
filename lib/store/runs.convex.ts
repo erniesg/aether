@@ -38,6 +38,9 @@ export function startRunConvex(
     model: partial.model,
     prompt: partial.prompt,
     aspectRatio: partial.aspectRatio,
+    inputs: partial.inputs,
+    artifactKind: partial.artifactKind,
+    scope: partial.scope,
     startedAt: Date.now(),
   } as never);
 }
@@ -63,6 +66,10 @@ export function finishRunConvex(id: string, patch: Partial<CapabilityRunRecord>)
     latencyMs: patch.latencyMs,
     error: patch.error,
     httpStatus: patch.httpStatus,
+    inputs: patch.inputs,
+    artifactKind: patch.artifactKind,
+    outputRefs: patch.outputRefs,
+    scope: patch.scope,
     finishedAt: Date.now(),
   } as never);
 }

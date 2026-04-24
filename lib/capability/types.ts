@@ -5,7 +5,23 @@
  * before the Convex project is provisioned. Swap-in is one file per store.
  */
 
-export type CapabilityTool = 'image-gen' | 'image-edit' | 'bg-fill' | 'cutout' | 'relight';
+import type {
+  CapabilityEntryRef,
+  CapabilityScope,
+  CapabilityStatus,
+} from './entry';
+import { resolveToolEntryRef } from '@/lib/tool/registry';
+
+export type CapabilityTool =
+  | 'image-gen'
+  | 'image-edit'
+  | 'bg-fill'
+  | 'cutout'
+  | 'removebg'
+  | 'unmask'
+  | 'relight'
+  | 'video-gen'
+  | 'audio-gen';
 
 /**
  * Minimum shape needed to re-run the same tool-chain against a new layer.
@@ -20,6 +36,11 @@ export interface CapabilityRunTemplate {
   /** Provider-routing hint; still resolved via the registry, never hardcoded. */
   providerId?: string;
   model?: string;
+  artifactKind?: 'image' | 'video' | 'audio' | 'spatial';
+  format?: 'particle-field' | 'gaussian-splat' | string;
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image' | string;
+  outputRefs?: string[];
 }
 
 export interface CapabilityParamSchema {
@@ -38,11 +59,31 @@ export interface CapabilityDefinitionInit {
   notes?: string;
   tool: string;
   provider: string;
+  /**
+   * Stable ref to the primitive, workflow, or creator-facing skill this saved
+   * capability represents. Optional for older pinned records; the store fills
+   * a tool ref from `tool`.
+   */
+  entryRef?: CapabilityEntryRef;
+  scope?: CapabilityScope;
+  status?: CapabilityStatus;
+  publishedVersion?: number;
   runTemplate: CapabilityRunTemplate;
 }
 
-export interface CapabilityDefinitionRecord extends CapabilityDefinitionInit {
+export interface CapabilityDefinitionRecord
+  extends Omit<CapabilityDefinitionInit, 'entryRef' | 'scope' | 'status'> {
+  entryRef: CapabilityEntryRef;
+  scope: CapabilityScope;
+  status: CapabilityStatus;
   id: string;
   version: number;
   createdAt: number;
+}
+
+export function resolveCapabilityDefinitionEntryRef(definition: {
+  entryRef?: CapabilityEntryRef;
+  tool: string;
+}): CapabilityEntryRef {
+  return definition.entryRef ?? resolveToolEntryRef(definition.tool);
 }

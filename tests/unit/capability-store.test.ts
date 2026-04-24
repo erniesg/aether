@@ -27,6 +27,10 @@ function seed(
     notes: partial?.notes,
     tool: partial?.tool ?? 'image-gen',
     provider: partial?.provider ?? 'auto',
+    entryRef: partial?.entryRef,
+    scope: partial?.scope,
+    status: partial?.status,
+    publishedVersion: partial?.publishedVersion,
     runTemplate: partial?.runTemplate ?? { prompt: 'recolor using palette' },
   });
 }
@@ -40,7 +44,22 @@ describe('capability/store', () => {
     expect(def.version).toBe(1);
     expect(def.createdBy).toBe('agent');
     expect(def.name).toBe('recolor to brand palette');
+    expect(def.scope).toBe('workspace');
+    expect(def.status).toBe('published');
+    expect(def.entryRef).toEqual({ kind: 'tool', id: 'image-gen', version: 1 });
     expect(def.createdAt).toBeGreaterThan(0);
+  });
+
+  it('preserves explicit entry metadata for team-published skills', () => {
+    const def = seed({
+      scope: 'team',
+      status: 'published',
+      entryRef: { kind: 'skill', id: 'hero-image-draft', version: 2 },
+    });
+
+    expect(def.scope).toBe('team');
+    expect(def.status).toBe('published');
+    expect(def.entryRef).toEqual({ kind: 'skill', id: 'hero-image-draft', version: 2 });
   });
 
   it('lists definitions most-recent first', () => {

@@ -63,7 +63,7 @@ describe('/api/voice/session', () => {
     process.env.OPENAI_API_KEY = 'sk-test';
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
-      expect(body.tools).toHaveLength(10);
+      expect(body.tools).toHaveLength(11);
       expect(body.tools.map((t: { name: string }) => t.name)).toEqual([
         'focus_format',
         'pan_zoom',
@@ -71,6 +71,7 @@ describe('/api/voice/session', () => {
         'select_tool',
         'set_brush_color',
         'set_brush_size',
+        'adjust_brush_size',
         'clear_sketch',
         'confirm_sketch',
         'run_capability',

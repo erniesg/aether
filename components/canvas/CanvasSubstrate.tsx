@@ -15,6 +15,8 @@ import { SegmentationPanel, type SegmentationPreviewPayload } from './Segmentati
 import { SegmentationPreviewOverlay } from './SegmentationPreviewOverlay';
 import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
 import { SelectedImageActions } from './SelectedImageActions';
+import { AirBrushOverlay } from './AirBrushOverlay';
+import { MotionArtifactPreview, type MotionArtifact } from './MotionArtifactPreview';
 import type {
   Scope,
   ToolbarStyleAction,
@@ -24,6 +26,7 @@ import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
 import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import {
+  adjustSketchBrushSize,
   DEFAULT_SKETCH_BRUSH_STATE,
   type PrimitiveTool,
   type SketchBrushColor,
@@ -34,6 +37,7 @@ import {
   applyPrimitiveTool,
   applySketchBrushStyles,
 } from '@/lib/canvas/sketchBrushEditor';
+import type { AirBrushPoint } from '@/lib/canvas/airBrush';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
 import type {
   SegmentationBoxPrompt,
@@ -83,6 +87,9 @@ export interface CanvasSubstrateProps {
   composerRef: React.RefObject<ComposerHandle | null>;
   safeZonesVisible?: boolean;
   onSafeZonesToggle?: (next: boolean) => void;
+  layoutGuardEnabled?: boolean;
+  onLayoutGuardToggle?: (next: boolean) => void;
+  onApplyGuardedLayout?: () => void;
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
   onVerbPress?: (verb: ToolbarVerb) => void;
@@ -100,6 +107,9 @@ export interface CanvasSubstrateProps {
   renderVoiceSlot?: (dispatchers: import('@/lib/voice/tools').VoiceDispatchers) => React.ReactNode;
   /** When true, show the voice orb inside the toolbar. Defaults to true. */
   voiceEnabled?: boolean;
+  /** Latest deterministic motion artifact generated from the composer/voice flow. */
+  motionArtifact?: MotionArtifact | null;
+  onMotionArtifactDismiss?: () => void;
 }
 
 type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
@@ -392,14 +402,20 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   composerRef,
   safeZonesVisible = false,
   onSafeZonesToggle,
+  layoutGuardEnabled = true,
+  onLayoutGuardToggle,
+  onApplyGuardedLayout,
   pinnedCapabilities = EMPTY_PINS,
   onCapabilityPress,
   onVerbPress,
   onVoiceGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
+  motionArtifact,
+  onMotionArtifactDismiss,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
+  const [airBrushActive, setAirBrushActive] = useState(false);
   const [sketchBrush, setSketchBrush] = useState<SketchBrushState>(
     DEFAULT_SKETCH_BRUSH_STATE
   );
@@ -414,6 +430,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [segmentationProvidersLoading, setSegmentationProvidersLoading] =
     useState(false);
   const trackedDrawShapeIds = useRef<Set<string>>(new Set());
+  const canvasRootRef = useRef<HTMLElement | null>(null);
   const { editor } = useEditorRef();
 
   const focusComposer = useCallback(() => {
@@ -429,12 +446,64 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     [editor]
   );
 
+  const handleAirBrushToggle = useCallback(
+    (active: boolean) => {
+      setAirBrushActive(active);
+      if (active) handlePrimitiveToolPress('draw');
+    },
+    [handlePrimitiveToolPress]
+  );
+
+  const handleAirBrushPoint = useCallback(
+    (point: AirBrushPoint) => {
+      if (!editor || point.state === 'hover') return;
+      const bounds = canvasRootRef.current?.getBoundingClientRect();
+      if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
+
+      if (point.state === 'start') {
+        handlePrimitiveToolPress('draw');
+      }
+
+      editor.dispatch({
+        type: 'pointer',
+        target: 'canvas',
+        name:
+          point.state === 'start'
+            ? 'pointer_down'
+            : point.state === 'end'
+              ? 'pointer_up'
+              : 'pointer_move',
+        point: {
+          x: bounds.left + bounds.width * point.x,
+          y: bounds.top + bounds.height * point.y,
+          z: point.pressure ?? (point.state === 'end' ? 0 : 0.55),
+        },
+        pointerId: 74701,
+        button: 0,
+        isPen: false,
+        shiftKey: false,
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        accelKey: false,
+      });
+    },
+    [editor, handlePrimitiveToolPress]
+  );
+
   const handleBrushColorChange = useCallback((color: SketchBrushColor) => {
     setSketchBrush((current) => ({ ...current, color }));
   }, []);
 
   const handleBrushSizeChange = useCallback((size: SketchBrushSize) => {
     setSketchBrush((current) => ({ ...current, size }));
+  }, []);
+
+  const handleBrushSizeAdjust = useCallback((delta: 'thicker' | 'thinner') => {
+    setSketchBrush((current) => ({
+      ...current,
+      size: adjustSketchBrushSize(current.size, delta),
+    }));
   }, []);
 
   const handleStyleAction = useCallback(
@@ -1309,6 +1378,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       set_brush_size: ({ size }) => {
         handleBrushSizeChange(size);
       },
+      adjust_brush_size: ({ delta }) => {
+        handleBrushSizeAdjust(delta);
+      },
       clear_sketch: () => {
         handleClearSketch();
       },
@@ -1325,6 +1397,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     [
       editor,
       handleBrushColorChange,
+      handleBrushSizeAdjust,
       handleBrushSizeChange,
       handleClearSketch,
       handleConfirmSketch,
@@ -1360,6 +1433,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   return (
     <section
+      ref={canvasRootRef}
       data-taxonomy="tool"
       aria-label="canvas"
       className={cn('relative flex-1 overflow-hidden bg-surface-canvas', className)}
@@ -1371,16 +1445,36 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onScopeChange={setScope}
         safeZonesVisible={safeZonesVisible}
         onSafeZonesToggle={onSafeZonesToggle}
+        layoutGuardEnabled={layoutGuardEnabled}
+        onLayoutGuardToggle={onLayoutGuardToggle}
+        onApplyGuardedLayout={onApplyGuardedLayout}
         activePrimitiveTool={sketchBrush.tool}
         brushState={sketchBrush}
         onPrimitiveToolPress={handlePrimitiveToolPress}
         onStyleAction={handleStyleAction}
+        airBrushActive={airBrushActive}
+        onAirBrushToggle={handleAirBrushToggle}
         onAIPress={focusComposer}
         onVerbPress={handleVerb}
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
         voiceSlot={voiceSlot ?? undefined}
       />
+
+      <AirBrushOverlay
+        active={airBrushActive}
+        onActiveChange={handleAirBrushToggle}
+        onPoint={handleAirBrushPoint}
+        onCapture={(dataUrl) => composerRef.current?.addReferenceDataUrl(dataUrl)}
+        showInactiveButton={false}
+      />
+
+      {motionArtifact ? (
+        <MotionArtifactPreview
+          artifact={motionArtifact}
+          onDismiss={onMotionArtifactDismiss}
+        />
+      ) : null}
 
       {imageActionsTarget ? (
         <SelectedImageActions

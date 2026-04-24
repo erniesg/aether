@@ -8,6 +8,7 @@ import { ViewSwitcher, type ViewId } from '@/components/header/ViewSwitcher';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
+import type { MotionArtifact } from '@/components/canvas/MotionArtifactPreview';
 import {
   PromptComposer,
   type ComposerHandle,
@@ -26,6 +27,11 @@ import {
   zoomToAllFrames,
 } from '@/lib/canvas/focusFrame';
 import { dropImageInFrame, pickAspectRatio } from '@/lib/canvas/fanOut';
+import type { GuardedLayoutPlan } from '@/lib/canvas/layoutGuard';
+import {
+  DEFAULT_MANAGED_LAYOUT_COPY,
+  applyGuardedCopyLayoutToCanvas,
+} from '@/lib/canvas/layoutGuardCanvas';
 import {
   readGenerateStream,
   type GenerateStreamEvent,
@@ -100,6 +106,39 @@ interface GenerateResponseJson {
   };
 }
 
+interface VideoGenerateResponseJson {
+  ok?: boolean;
+  error?: string;
+  provider?: {
+    id?: string;
+    model?: string;
+  };
+  artifact?: {
+    kind?: string;
+    mimeType?: string;
+    url?: string;
+    html?: string;
+    posterUrl?: string;
+    width?: number;
+    height?: number;
+    durationSec?: number;
+    fps?: number;
+    audioIncluded?: boolean;
+  };
+  result?: {
+    latencyMs?: number;
+    sceneSpec?: {
+      kind?: string;
+      title?: string;
+      durationSec?: number;
+      size?: {
+        w?: number;
+        h?: number;
+      };
+    };
+  };
+}
+
 export interface WorkspaceShellProps {
   wsId: string;
 }
@@ -164,6 +203,29 @@ function frameToTargetSpec(frame: FrameShapeSpec): GenerateTargetSpec {
   };
 }
 
+function shouldRoutePromptToMotion(prompt: string) {
+  return /\b(introduce me|intro|motion|video|text[- ]?mask|double[- ]?exposure)\b/i.test(
+    prompt
+  );
+}
+
+function pickMotionSceneKind(prompt: string): 'text-mask' | 'double-exposure' {
+  return /double[- ]?exposure|everest|portrait/i.test(prompt)
+    ? 'double-exposure'
+    : 'text-mask';
+}
+
+function motionTextForPrompt(prompt: string) {
+  if (/ai engineer/i.test(prompt) && /singapore/i.test(prompt)) {
+    return 'AI ENGINEER\\nSINGAPORE';
+  }
+  const compact = prompt
+    .replace(/^introduce me as\s+/i, '')
+    .replace(/[.]+$/g, '')
+    .trim();
+  return compact ? compact.toUpperCase() : 'AETHER\\nHACKATHON';
+}
+
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<ComposerHandle | null>(null);
   const { editor } = useEditorRef();
@@ -173,6 +235,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
+  const [layoutGuardEnabled, setLayoutGuardEnabled] = useState(true);
+  const [layoutPlan, setLayoutPlan] = useState<GuardedLayoutPlan | null>(null);
+  const [motionArtifact, setMotionArtifact] = useState<MotionArtifact | null>(null);
   // Focus lens cycles through frames via arrow keys; the active format state
   // mirrors this so the composer always shows the current single-format target.
   const [focusIdx, setFocusIdx] = useState(0);
@@ -637,6 +702,183 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [editor]
   );
 
+  const runMotionOnCanvas = useCallback(
+    async (
+      prompt: string,
+      options: {
+        providerOverride?: string;
+        modelOverride?: string;
+        sceneKind?: 'text-mask' | 'double-exposure';
+        refs?: string[];
+      } = {}
+    ): Promise<void> => {
+      const sceneKind = options.sceneKind ?? pickMotionSceneKind(prompt);
+      const inputRefs = options.refs ?? [];
+      const motionInputs = {
+        prompt,
+        refs: inputRefs,
+        sceneKind,
+      };
+      const runId = startRun({
+        tool: 'video-gen',
+        provider: options.providerOverride ?? 'auto',
+        model: options.modelOverride ?? '',
+        prompt,
+        inputs: motionInputs,
+        artifactKind: 'video',
+        scope: 'workspace',
+      });
+      initRunDetails(runId, {
+        providerHint: options.providerOverride ?? 'auto',
+        modelHint: options.modelOverride,
+        frames: [
+          {
+            id: 'motion-preview',
+            label: sceneKind === 'text-mask' ? 'Motion intro' : 'Double exposure',
+            aspectRatio: '16:9',
+            status: 'queued',
+            updatedAt: Date.now(),
+          },
+        ],
+      });
+      appendRunActivity(runId, {
+        title: 'motion prepared',
+        detail: `${sceneKind} · sound on`,
+      });
+
+      try {
+        stepRun(runId, 'sending');
+        const response = await fetch('/api/video/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            providerId: options.providerOverride,
+            model: options.modelOverride,
+            scene: {
+              kind: sceneKind,
+              title:
+                sceneKind === 'text-mask'
+                  ? 'AI Engineer Intro'
+                  : 'Double Exposure Intro',
+              text: motionTextForPrompt(prompt),
+              ...(sceneKind === 'text-mask' && inputRefs[0]
+                ? {
+                    media: {
+                      kind: 'image',
+                      url: inputRefs[0],
+                    },
+                  }
+                : {}),
+              ...(sceneKind === 'double-exposure' && inputRefs[0]
+                ? {
+                    subject: {
+                      kind: 'image',
+                      url: inputRefs[0],
+                      fit: 'contain',
+                    },
+                  }
+                : {}),
+              ...(sceneKind === 'double-exposure' && inputRefs[1]
+                ? {
+                    exposure: {
+                      kind: 'image',
+                      url: inputRefs[1],
+                      fit: 'cover',
+                    },
+                  }
+                : {}),
+              durationSec: sceneKind === 'text-mask' ? 4 : 6,
+              aspectRatio: '16:9',
+              footerTitle: 'AI Engineer · Singapore',
+              footerBody:
+                'Voice, finger mark, motion, and campaign formats stay inside the same canvas.',
+              overlayTitle: 'SINGAPORE',
+              body:
+                'A portrait, a place, and a hand-drawn mark become a campaign opener.',
+            },
+          }),
+        });
+        stepRun(runId, 'awaiting');
+
+        let json: VideoGenerateResponseJson;
+        try {
+          json = (await response.json()) as VideoGenerateResponseJson;
+        } catch {
+          failRun(runId, `bad JSON response (${response.status})`, response.status);
+          return;
+        }
+
+        if (!response.ok || !json.ok || !json.artifact?.html || !json.artifact.url) {
+          const message = json.error ?? response.statusText ?? 'motion generation failed';
+          appendRunActivity(runId, {
+            title: 'motion failed',
+            detail: message,
+            tone: 'error',
+          });
+          failRun(runId, message, response.status);
+          return;
+        }
+
+        stepRun(runId, 'placing');
+        const title =
+          json.result?.sceneSpec?.title ??
+          (sceneKind === 'text-mask' ? 'AI Engineer Intro' : 'Double Exposure Intro');
+        const artifact: MotionArtifact = {
+          id: `motion_${runId}`,
+          runId,
+          title,
+          sceneKind,
+          html: json.artifact.html,
+          artifactUrl: json.artifact.url,
+          posterUrl: json.artifact.posterUrl,
+          provider: json.provider?.id ?? options.providerOverride ?? 'unknown',
+          model: json.provider?.model ?? options.modelOverride ?? '',
+          durationSec: json.artifact.durationSec ?? json.result?.sceneSpec?.durationSec ?? 4,
+          width: json.artifact.width ?? json.result?.sceneSpec?.size?.w ?? 1920,
+          height: json.artifact.height ?? json.result?.sceneSpec?.size?.h ?? 1080,
+          audioIncluded: Boolean(json.artifact.audioIncluded),
+          sourceRef: inputRefs[0],
+        };
+        setMotionArtifact(artifact);
+        upsertRunFrame(runId, {
+          id: 'motion-preview',
+          label: title,
+          aspectRatio: '16:9',
+          status: 'placed',
+          updatedAt: Date.now(),
+          imageUrl: json.artifact.posterUrl,
+        });
+        finishRun(runId, {
+          provider: artifact.provider,
+          model: artifact.model,
+          rewrittenPrompt: prompt,
+          aspectRatio: '16:9',
+          imageUrl: artifact.posterUrl,
+          latencyMs: json.result?.latencyMs,
+          status: 'ok',
+          inputs: motionInputs,
+          artifactKind: 'video',
+          outputRefs: [artifact.artifactUrl],
+        });
+        appendRunActivity(runId, {
+          title: 'motion artifact ready',
+          detail: artifact.audioIncluded ? 'HTML composition · sound included' : 'HTML composition',
+          tone: 'ok',
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        appendRunActivity(runId, {
+          title: 'motion request failed',
+          detail: message,
+          tone: 'error',
+        });
+        failRun(runId, `fetch failed: ${message}`);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (!editor) {
       setFormats([]);
@@ -731,6 +973,114 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     }
   }, [exporting, formats, wsId, runs, definitions]);
 
+  const handleApplyGuardedLayout = useCallback(
+    (copy = DEFAULT_MANAGED_LAYOUT_COPY) => {
+      const runId = startRun({
+        tool: 'layout-guard',
+        provider: 'deterministic',
+        model: 'layout-guard-v1',
+        prompt: copy,
+        inputs: {
+          copy,
+          dynamicAdjustment: layoutGuardEnabled,
+        },
+        scope: 'workspace',
+      });
+      initRunDetails(runId, {
+        providerHint: 'deterministic',
+        modelHint: 'layout-guard-v1',
+        frames: formats.map((format) => ({
+          id: format.id,
+          label: format.label,
+          aspectRatio: format.aspectRatio,
+          status: 'running',
+          updatedAt: Date.now(),
+        })),
+      });
+      appendRunActivity(runId, {
+        title: 'layout guard prepared',
+        detail: layoutGuardEnabled
+          ? 'dynamic placement · avoid zones active'
+          : 'static placement · validation only',
+      });
+      stepRun(runId, 'placing');
+
+      if (!editor) {
+        const message = 'editor not ready';
+        appendRunActivity(runId, {
+          title: 'layout failed',
+          detail: message,
+          tone: 'error',
+        });
+        failRun(runId, message);
+        return;
+      }
+
+      try {
+        const startedAt = Date.now();
+        const result = applyGuardedCopyLayoutToCanvas(editor, {
+          copy,
+          dynamicAdjustment: layoutGuardEnabled,
+        });
+        setLayoutPlan(result.plan);
+
+        for (const placement of result.plan.placements) {
+          upsertRunFrame(runId, {
+            id: placement.frameId,
+            label: placement.frameLabel,
+            status:
+              result.plan.status === 'blocked' && placement.collidingRegionIds.length > 0
+                ? 'error'
+                : 'placed',
+            error:
+              placement.collidingRegionIds.length > 0
+                ? `${placement.collidingRegionIds.length} protected overlap${placement.collidingRegionIds.length === 1 ? '' : 's'}`
+                : undefined,
+            updatedAt: Date.now(),
+          });
+        }
+
+        appendRunActivity(runId, {
+          title: 'copy placed',
+          detail: `${result.shapeIds.length} text layer${result.shapeIds.length === 1 ? '' : 's'} · ${result.plan.locale}`,
+          tone: result.plan.status === 'blocked' ? 'error' : 'ok',
+        });
+        appendRunActivity(runId, {
+          title: 'validation',
+          detail:
+            result.plan.issues.length === 0
+              ? 'ready to schedule'
+              : `${result.plan.status} · ${result.plan.issues.length} issue${result.plan.issues.length === 1 ? '' : 's'}`,
+          tone: result.plan.status === 'blocked' ? 'error' : 'ok',
+        });
+        finishRun(runId, {
+          status: result.plan.status === 'blocked' ? 'error' : 'ok',
+          rewrittenPrompt: 'guarded multilingual copy layout',
+          latencyMs: Date.now() - startedAt,
+          error:
+            result.plan.status === 'blocked'
+              ? result.plan.issues.map((issue) => issue.message).join('; ')
+              : undefined,
+          inputs: {
+            copy,
+            locale: result.plan.locale,
+            dynamicAdjustment: result.plan.dynamicAdjustment,
+            avoidRegionCount: result.plan.avoidanceRegions.length,
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        appendRunActivity(runId, {
+          title: 'layout failed',
+          detail: message,
+          tone: 'error',
+        });
+        failRun(runId, message);
+      }
+    },
+    [editor, formats, layoutGuardEnabled]
+  );
+
   const handlePrompt = useCallback(
     async (
       prompt: string,
@@ -740,6 +1090,23 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       if (/^\/export\b/i.test(trimmed)) {
         log('onSubmit · /export command');
         await handleExport();
+        return;
+      }
+
+      if (/^\/layout\b/i.test(trimmed)) {
+        const copy = trimmed.replace(/^\/layout\b/i, '').trim() || DEFAULT_MANAGED_LAYOUT_COPY;
+        log('onSubmit · /layout command');
+        handleApplyGuardedLayout(copy);
+        return;
+      }
+
+      if (shouldRoutePromptToMotion(trimmed)) {
+        const urlParams = new URLSearchParams(window.location.search);
+        await runMotionOnCanvas(prompt, {
+          providerOverride: urlParams.get('videoProvider') ?? undefined,
+          modelOverride: urlParams.get('videoModel') ?? undefined,
+          refs: options.refs,
+        });
         return;
       }
 
@@ -798,7 +1165,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         targets,
       });
     },
-    [runImageOnCanvas, editor, view, focusIdx, formats, activeFormatId, handleExport]
+    [
+      runImageOnCanvas,
+      runMotionOnCanvas,
+      editor,
+      view,
+      focusIdx,
+      formats,
+      activeFormatId,
+      handleExport,
+      handleApplyGuardedLayout,
+    ]
   );
 
   const handlePin = useCallback((run: CapabilityRunRecord) => {
@@ -929,18 +1306,26 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           composerRef={composerRef}
           safeZonesVisible={safeZonesVisible}
           onSafeZonesToggle={setSafeZonesVisible}
+          layoutGuardEnabled={layoutGuardEnabled}
+          onLayoutGuardToggle={setLayoutGuardEnabled}
+          onApplyGuardedLayout={() => handleApplyGuardedLayout()}
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
           onVoiceGenerate={async (prompt, scope) => {
             await handlePrompt(prompt, { scope });
           }}
+          motionArtifact={motionArtifact}
+          onMotionArtifactDismiss={() => setMotionArtifact(null)}
         />
         <RightRail
           onPin={handlePin}
           onExport={handleExport}
           exportDisabled={exporting}
           safeZonesVisible={safeZonesVisible}
+          layoutGuardEnabled={layoutGuardEnabled}
+          layoutPlan={layoutPlan}
+          formats={composerFormats}
         />
       </div>
 

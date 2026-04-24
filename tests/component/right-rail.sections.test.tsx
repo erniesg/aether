@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RightRail } from '@/components/rail/RightRail';
 import { resetRunsForTests, startRun, finishRun } from '@/lib/store/runs';
+import type { GuardedLayoutPlan } from '@/lib/canvas/layoutGuard';
 
 afterEach(() => {
   cleanup();
@@ -97,5 +98,50 @@ describe('RightRail · creator-language rewrite', () => {
     await userEvent.click(trigger!);
 
     expect(screen.getByText(/safe zones off · one hero fans out/i)).toBeInTheDocument();
+  });
+
+  it('scheduled flyout shows validation and platform schedule readiness', async () => {
+    const runId = startRun({
+      tool: 'image-gen',
+      provider: 'mock',
+      model: 'mock-model',
+      prompt: 'a still life',
+      artifactKind: 'image',
+    });
+    finishRun(runId, {
+      provider: 'mock',
+      model: 'mock-model',
+      imageUrl: 'https://example.com/x.png',
+      status: 'ok',
+    });
+    const plan: GuardedLayoutPlan = {
+      copy: 'launch',
+      locale: 'en',
+      dynamicAdjustment: true,
+      placements: [],
+      avoidanceRegions: [],
+      issues: [],
+      status: 'ready',
+    };
+
+    const { container } = render(
+      <RightRail
+        layoutPlan={plan}
+        formats={[
+          { id: 'ig-post', label: 'IG Post' },
+          { id: 'story', label: 'Story' },
+        ]}
+      />
+    );
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="scheduled"]'
+    );
+    expect(trigger).not.toBeNull();
+    await userEvent.click(trigger!);
+
+    expect(screen.getByText(/validation/i)).toBeInTheDocument();
+    expect(screen.getByText(/Instagram Feed/i)).toBeInTheDocument();
+    expect(screen.getByText(/Instagram Story/i)).toBeInTheDocument();
   });
 });

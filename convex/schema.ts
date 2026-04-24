@@ -114,7 +114,24 @@ export default defineSchema({
     paramSchema: v.any(),
     exampleRunId: v.optional(v.id('capabilityRun')),
     createdBy: v.union(v.literal('human'), v.literal('agent')),
+    notes: v.optional(v.string()),
+    tool: v.optional(v.string()),
+    provider: v.optional(v.string()),
+    runTemplate: v.optional(v.any()),
+    entryRef: v.optional(
+      v.object({
+        kind: v.union(v.literal('tool'), v.literal('workflow'), v.literal('skill')),
+        id: v.string(),
+        version: v.number(),
+      })
+    ),
+    scope: v.optional(v.union(v.literal('workspace'), v.literal('team'))),
+    status: v.optional(
+      v.union(v.literal('draft'), v.literal('published'), v.literal('archived'))
+    ),
+    publishedVersion: v.optional(v.number()),
     version: v.number(),
+    createdAt: v.optional(v.number()),
   }).index('by_ws', ['wsId']),
 
   capabilityRun: defineTable({
@@ -123,6 +140,19 @@ export default defineSchema({
     // without blocking on that wiring.
     wsId: v.optional(v.id('workspace')),
     definitionId: v.optional(v.id('capabilityDefinition')),
+    entryRef: v.optional(
+      v.object({
+        kind: v.union(v.literal('tool'), v.literal('workflow'), v.literal('skill')),
+        id: v.string(),
+        version: v.number(),
+      })
+    ),
+    artifactKind: v.optional(
+      v.union(v.literal('image'), v.literal('video'), v.literal('audio'), v.literal('spatial'))
+    ),
+    outputRefs: v.optional(v.array(v.string())),
+    scope: v.optional(v.union(v.literal('workspace'), v.literal('team'))),
+    publishedVersion: v.optional(v.number()),
     tool: v.string(),
     provider: v.string(),
     model: v.string(),

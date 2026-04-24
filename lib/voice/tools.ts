@@ -1,10 +1,12 @@
 import {
   normalizeVoiceBrushColor,
   normalizeVoiceBrushSize,
+  normalizeVoiceBrushSizeDelta,
   normalizeVoiceSelectableTool,
   type PrimitiveTool,
   type SketchBrushColor,
   type SketchBrushSize,
+  type VoiceBrushSizeDelta,
   VOICE_BRUSH_COLORS,
   VOICE_BRUSH_SIZES,
   VOICE_SELECTABLE_TOOLS,
@@ -119,6 +121,23 @@ export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
     },
   },
   {
+    name: 'adjust_brush_size',
+    description:
+      'Make the sketch brush relatively thicker or thinner from its current preset.',
+    parameters: {
+      type: 'object',
+      properties: {
+        delta: {
+          type: 'string',
+          description: 'Relative brush thickness change.',
+          enum: ['thicker', 'thinner'],
+        },
+      },
+      required: ['delta'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'clear_sketch',
     description:
       'Delete the current sketch strokes from the active sketch session.',
@@ -198,6 +217,9 @@ export interface VoiceDispatchers {
   }) => void | Promise<void>;
   set_brush_color: (args: { color: SketchBrushColor }) => void | Promise<void>;
   set_brush_size: (args: { size: SketchBrushSize }) => void | Promise<void>;
+  adjust_brush_size: (args: {
+    delta: VoiceBrushSizeDelta;
+  }) => void | Promise<void>;
   clear_sketch: () => void | Promise<void>;
   confirm_sketch: () => void | Promise<void>;
   run_capability: (args: { definitionId: string }) => void | Promise<void>;
@@ -266,6 +288,14 @@ export async function dispatchVoiceFunctionCall(
       }
       await dispatchers.set_brush_size({ size });
       return { ok: true, detail: `brush size ${size}` };
+    }
+    case 'adjust_brush_size': {
+      const delta = normalizeVoiceBrushSizeDelta(args.delta);
+      if (!delta) {
+        return { ok: false, error: 'adjust_brush_size requires thicker or thinner' };
+      }
+      await dispatchers.adjust_brush_size({ delta });
+      return { ok: true, detail: `brush ${delta}` };
     }
     case 'clear_sketch': {
       await dispatchers.clear_sketch();

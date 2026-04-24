@@ -4,15 +4,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   ArrowRight,
+  Camera,
   Circle,
   Eraser,
   GripVertical,
   Hand,
+  Languages,
   LayoutDashboard,
   MousePointer2,
   PenLine,
   Scissors,
   ShieldAlert,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Square,
@@ -64,6 +67,9 @@ export interface FloatingToolbarProps {
   onScopeChange?: (next: Scope) => void;
   safeZonesVisible?: boolean;
   onSafeZonesToggle?: (next: boolean) => void;
+  layoutGuardEnabled?: boolean;
+  onLayoutGuardToggle?: (next: boolean) => void;
+  onApplyGuardedLayout?: () => void;
   /** Primary AI entrypoint — usually focuses the composer. */
   onAIPress?: () => void;
   /** Fires when any non-focus AI verb button is pressed. The shell is
@@ -74,6 +80,8 @@ export interface FloatingToolbarProps {
   brushState?: Pick<SketchBrushState, 'color' | 'size'>;
   onPrimitiveToolPress?: (tool: PrimitiveTool) => void;
   onStyleAction?: (action: ToolbarStyleAction) => void;
+  airBrushActive?: boolean;
+  onAirBrushToggle?: (active: boolean) => void;
   className?: string;
   /** Pinned capability chips lifted into the toolbar via pin-as-capability (Phase 5). */
   pinnedCapabilities?: Array<{ id: string; label: string }>;
@@ -106,12 +114,17 @@ export function FloatingToolbar({
   onScopeChange,
   safeZonesVisible = false,
   onSafeZonesToggle,
+  layoutGuardEnabled = true,
+  onLayoutGuardToggle,
+  onApplyGuardedLayout,
   onAIPress,
   onVerbPress,
   activePrimitiveTool = 'select',
   brushState,
   onPrimitiveToolPress,
   onStyleAction,
+  airBrushActive = false,
+  onAirBrushToggle,
   pinnedCapabilities = [],
   onCapabilityPress,
   voiceSlot,
@@ -238,6 +251,12 @@ export function FloatingToolbar({
         icon={<PenLine size={14} strokeWidth={1.75} />}
         onClick={() => dispatchPrimitive('draw')}
         active={activePrimitiveTool === 'draw'}
+      />
+      <IconButton
+        label={`air brush · ${airBrushActive ? 'on' : 'off'}`}
+        icon={<Camera size={14} strokeWidth={1.75} />}
+        onClick={() => onAirBrushToggle?.(!airBrushActive)}
+        active={airBrushActive}
       />
       <IconButton
         label="text tool"
@@ -403,6 +422,17 @@ export function FloatingToolbar({
         active={safeZonesVisible}
         icon={<ShieldAlert size={14} strokeWidth={1.75} />}
         onClick={() => onSafeZonesToggle?.(!safeZonesVisible)}
+      />
+      <IconButton
+        label={`layout guard · ${layoutGuardEnabled ? 'on' : 'off'}`}
+        active={layoutGuardEnabled}
+        icon={<ShieldCheck size={14} strokeWidth={1.75} />}
+        onClick={() => onLayoutGuardToggle?.(!layoutGuardEnabled)}
+      />
+      <IconButton
+        label="arrange guarded copy"
+        icon={<Languages size={14} strokeWidth={1.75} />}
+        onClick={onApplyGuardedLayout}
       />
 
       <button

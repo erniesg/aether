@@ -72,6 +72,7 @@ describe('VoiceOrb provider selection', () => {
           select_tool: vi.fn(),
           set_brush_color: vi.fn(),
           set_brush_size: vi.fn(),
+          adjust_brush_size: vi.fn(),
           clear_sketch: vi.fn(),
           confirm_sketch: vi.fn(),
           run_capability: vi.fn(),

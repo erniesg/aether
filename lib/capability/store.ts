@@ -5,6 +5,7 @@ import type {
   CapabilityDefinitionInit,
   CapabilityDefinitionRecord,
 } from './types';
+import { resolveCapabilityDefinitionEntryRef } from './types';
 
 export type { CapabilityDefinitionRecord, CapabilityDefinitionInit } from './types';
 
@@ -52,6 +53,9 @@ function genId(): string {
 export function addDefinition(init: CapabilityDefinitionInit): CapabilityDefinitionRecord {
   const record: CapabilityDefinitionRecord = {
     ...init,
+    entryRef: resolveCapabilityDefinitionEntryRef(init),
+    scope: init.scope ?? 'workspace',
+    status: init.status ?? 'published',
     id: genId(),
     version: 1,
     createdAt: Date.now(),

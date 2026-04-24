@@ -85,6 +85,47 @@ describe('runs store — in-memory fallback (NEXT_PUBLIC_CONVEX_URL unset)', () 
     expect(typeof only.finishedAt).toBe('number');
   });
 
+  it('records motion input refs and output refs on the run record', async () => {
+    const runs = await import('@/lib/store/runs');
+    const { result } = renderHook(() => runs.useRuns());
+    let id = '';
+    act(() => {
+      id = runs.startRun({
+        tool: 'video-gen',
+        provider: 'auto',
+        model: '',
+        prompt: 'make an intro motion',
+        inputs: {
+          prompt: 'make an intro motion',
+          refs: ['data:image/png;base64,aaa'],
+          sceneKind: 'text-mask',
+        },
+        artifactKind: 'video',
+        scope: 'workspace',
+      });
+    });
+    act(() => {
+      runs.finishRun(id, {
+        provider: 'hyperframes',
+        model: 'hyperframes-html-v1',
+        artifactKind: 'video',
+        outputRefs: ['data:text/html,fixture'],
+      });
+    });
+
+    expect(result.current[0]).toMatchObject({
+      tool: 'video-gen',
+      provider: 'hyperframes',
+      model: 'hyperframes-html-v1',
+      artifactKind: 'video',
+      inputs: {
+        refs: ['data:image/png;base64,aaa'],
+        sceneKind: 'text-mask',
+      },
+      outputRefs: ['data:text/html,fixture'],
+    });
+  });
+
   it('failRun sets status error with message and httpStatus', async () => {
     const runs = await import('@/lib/store/runs');
     const { result } = renderHook(() => runs.useRuns());

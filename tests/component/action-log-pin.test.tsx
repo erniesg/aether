@@ -52,4 +52,42 @@ describe('ActionLog pin affordance', () => {
     expect(onPin).toHaveBeenCalledTimes(1);
     expect(onPin.mock.calls[0][0].id).toBe(capturedRunId);
   });
+
+  it('keeps motion provenance visible without adding log copy', () => {
+    act(() => {
+      const id = startRun({
+        tool: 'video-gen',
+        provider: 'auto',
+        model: '',
+        prompt: 'create an intro motion',
+        inputs: {
+          prompt: 'create an intro motion',
+          refs: ['data:image/png;base64,aaa'],
+          sceneKind: 'text-mask',
+        },
+        artifactKind: 'video',
+        scope: 'workspace',
+      });
+      finishRun(id, {
+        provider: 'hyperframes',
+        model: 'hyperframes-html-v1',
+        imageUrl: 'data:image/svg+xml,<svg/>',
+        latencyMs: 100,
+        status: 'ok',
+        artifactKind: 'video',
+        outputRefs: ['data:text/html,fixture'],
+      });
+    });
+
+    const { container } = render(<ActionLog />);
+    const item = container.querySelector<HTMLLIElement>('[data-tool="video-gen"]');
+    expect(item).not.toBeNull();
+    expect(item).toHaveAttribute('data-artifact-kind', 'video');
+    expect(item).toHaveAttribute('data-input-ref-count', '1');
+    expect(item).toHaveAttribute('data-output-ref-count', '1');
+    expect(screen.getByTestId('run-source-ref')).toHaveAttribute(
+      'src',
+      'data:image/png;base64,aaa'
+    );
+  });
 });

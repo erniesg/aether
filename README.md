@@ -15,8 +15,12 @@ Built with [Claude Opus 4.7](https://www.anthropic.com/) for the _Built with Opu
 - [`CLAUDE.md`](./CLAUDE.md) — agent guardrails + hard rules
 - [`docs/PRD.md`](./docs/PRD.md) — MVP scope, non-goals, success criteria
 - [`docs/DEMO.md`](./docs/DEMO.md) — 3-min demo beat sheet
+- [`docs/DEMO-FINGER-VOICE.md`](./docs/DEMO-FINGER-VOICE.md) — embodied finger + voice demo arc
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system diagram, schema, provider contracts
 - [`docs/TESTING.md`](./docs/TESTING.md) — red/green acceptance checklist + human gates
+- [`docs/decisions/2026-04-24-capability-factory.md`](./docs/decisions/2026-04-24-capability-factory.md) — guardrails for reusable tool, workflow, and skill authoring
+- [`docs/progress/feat-finger-voice-foundation.md`](./docs/progress/feat-finger-voice-foundation.md) — current consolidation status and next slices
+- [`docs/HANDOFF-FINGER-VOICE-DEMO-2026-04-24.md`](./docs/HANDOFF-FINGER-VOICE-DEMO-2026-04-24.md) — prompt for the next autonomous demo-completion agent
 - [Issues](https://github.com/erniesg/aether/issues) — the task graph
 
 ## Dev

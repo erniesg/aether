@@ -14,6 +14,11 @@ function shortPrompt(prompt: string): string {
   return prompt.length > 50 ? prompt.slice(0, 47) + '…' : prompt;
 }
 
+function firstInputRef(run: CapabilityRunRecord): string | undefined {
+  const ref = run.inputs?.refs?.[0];
+  return typeof ref === 'string' && ref ? ref : undefined;
+}
+
 export interface ActionLogProps {
   /** Fires when the creator clicks the pin-as-skill affordance on a completed run. */
   onPin?: (run: CapabilityRunRecord) => void;
@@ -35,6 +40,10 @@ export function ActionLog({ onPin }: ActionLogProps = {}) {
       {runs.map((run) => (
         <li
           key={run.id}
+          data-tool={run.tool}
+          data-artifact-kind={run.artifactKind}
+          data-output-ref-count={run.outputRefs?.length ?? 0}
+          data-input-ref-count={run.inputs?.refs?.length ?? 0}
           className={cn(
             'group relative rounded-sm border p-2 transition-colors duration-fast',
             run.status === 'running' && 'animate-pulse border-accent/50 bg-accent/5',
@@ -43,17 +52,29 @@ export function ActionLog({ onPin }: ActionLogProps = {}) {
           )}
         >
           <div className="flex items-start gap-2">
-            {run.imageUrl ? (
-              <img
-                src={run.imageUrl}
-                alt={shortPrompt(run.prompt)}
-                className="h-12 w-12 shrink-0 rounded-xs border border-border-soft object-cover"
-              />
-            ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xs border border-border-soft bg-surface-panel-muted font-caption text-ink-faint">
-                {run.status === 'running' ? '…' : run.status === 'error' ? '!' : '—'}
-              </div>
-            )}
+            <div className="relative h-12 w-12 shrink-0">
+              {run.imageUrl ? (
+                <img
+                  src={run.imageUrl}
+                  alt={shortPrompt(run.prompt)}
+                  className="h-12 w-12 rounded-xs border border-border-soft object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-xs border border-border-soft bg-surface-panel-muted font-caption text-ink-faint">
+                  {run.status === 'running' ? '…' : run.status === 'error' ? '!' : '—'}
+                </div>
+              )}
+              {firstInputRef(run) ? (
+                <span className="absolute -bottom-1 -right-1 h-5 w-5 overflow-hidden rounded-xs border border-surface-panel bg-ink shadow-sm">
+                  <img
+                    src={firstInputRef(run)}
+                    alt=""
+                    data-testid="run-source-ref"
+                    className="h-full w-full object-cover"
+                  />
+                </span>
+              ) : null}
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-1">
                 <span className="truncate font-caption text-ink">{shortPrompt(run.rewrittenPrompt ?? run.prompt)}</span>
