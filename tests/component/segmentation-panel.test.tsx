@@ -177,6 +177,7 @@ describe('SegmentationPanel', () => {
     expect(
       screen.getByRole('button', { name: /apply background fill/i })
     ).toBeInTheDocument();
+    expect(screen.getByText(/background opacity · 60%/i)).toBeInTheDocument();
 
     await userEvent.click(
       screen.getByRole('button', { name: /apply background fill/i })

@@ -43,7 +43,7 @@ export function createModalSam3Provider(
     supportsBoxPrompt: true,
     isAvailable: () => Boolean(endpoint),
     getAvailabilityIssue: () =>
-      endpoint ? undefined : 'SAM 3 is not connected',
+      endpoint ? undefined : 'SAM3_MODAL_URL is not set',
     listModels: () => ['sam3.1', 'sam3'],
 
     async segment(

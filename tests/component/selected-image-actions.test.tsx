@@ -12,12 +12,14 @@ describe('SelectedImageActions', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onDownloadOriginal={vi.fn()}
       />
     );
 
     expect(screen.getByRole('toolbar', { name: /selected image actions/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /remove bg/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /segment/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download original/i })).toBeInTheDocument();
   });
 
   it('routes direct remove-bg clicks through the dedicated handler', async () => {
@@ -32,6 +34,21 @@ describe('SelectedImageActions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /remove bg/i }));
     expect(onRemoveBg).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes selected image downloads through the dedicated handler', async () => {
+    const onDownloadOriginal = vi.fn();
+    render(
+      <SelectedImageActions
+        rect={{ x: 80, y: 120, w: 480, h: 640 }}
+        onRemoveBg={vi.fn()}
+        onCutout={vi.fn()}
+        onDownloadOriginal={onDownloadOriginal}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /download original/i }));
+    expect(onDownloadOriginal).toHaveBeenCalledTimes(1);
   });
 
   it('shows a hide-preview toggle while a cutout preview is visible', async () => {

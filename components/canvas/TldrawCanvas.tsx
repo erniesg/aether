@@ -13,10 +13,11 @@ import { SafeZoneOverlay } from './SafeZoneOverlay';
  * creative surface, not a pipeline inspector. NavigationPanel (bottom-right
  * page/zoom/chevron stack) is the headline removal, but the native Toolbar
  * and StylePanel also have to go because they overlap the aether rails and
- * split the hierarchy into two competing apps. We keep ContextMenu so power
- * users still have a native escape hatch.
+ * split the hierarchy into two competing apps. Contextual media/text toolbars
+ * are removed too; selected-image/artboard actions live in aether chrome.
  */
 export const TLDRAW_CHROME_OVERRIDES: Partial<TLComponents> = {
+  ContextMenu: null,
   MenuPanel: null,
   MainMenu: null,
   HelpMenu: null,
@@ -24,18 +25,27 @@ export const TLDRAW_CHROME_OVERRIDES: Partial<TLComponents> = {
   KeyboardShortcutsDialog: null,
   QuickActions: null,
   ActionsMenu: null,
+  HelperButtons: null,
   NavigationPanel: null,
   ZoomMenu: null,
+  Minimap: null,
   SharePanel: null,
   DebugPanel: null,
+  DebugMenu: null,
+  TopPanel: null,
+  RichTextToolbar: null,
+  ImageToolbar: null,
+  VideoToolbar: null,
+  CursorChatBubble: null,
+  FollowingIndicator: null,
   Toolbar: null,
   StylePanel: null,
 };
 
 /**
  * Minimal tldraw wrapper. aether owns the floating canvas chrome; tldraw's
- * overlapping Toolbar + StylePanel are hidden, while the editor engine,
- * context menu, and keyboard shortcuts remain intact.
+ * overlapping Toolbar + StylePanel are hidden, while the editor engine and
+ * keyboard shortcuts remain intact.
  *
  * Editor instance is captured once in onMount. Theme changes propagate via
  * effect on the editor ref so tldraw's UI stays in sync with the Aether

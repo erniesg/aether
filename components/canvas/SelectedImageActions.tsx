@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, EyeOff, Eraser, Scissors } from 'lucide-react';
+import { Download, Eye, EyeOff, Eraser, Scissors } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 export interface SelectedImageActionsProps {
@@ -10,6 +10,7 @@ export interface SelectedImageActionsProps {
   disabled?: boolean;
   onRemoveBg: () => void;
   onCutout: () => void;
+  onDownloadOriginal?: () => void;
   onPreviewVisibilityChange?: (visible: boolean) => void;
 }
 
@@ -20,6 +21,7 @@ export function SelectedImageActions({
   disabled = false,
   onRemoveBg,
   onCutout,
+  onDownloadOriginal,
   onPreviewVisibilityChange,
 }: SelectedImageActionsProps) {
   return (
@@ -29,7 +31,7 @@ export function SelectedImageActions({
       className="pointer-events-auto absolute z-[18] flex max-w-[calc(100%-16px)] items-center gap-1 rounded-md border border-border bg-surface-panel p-1 shadow-sm"
       style={{
         left: Math.max(8, rect.x + 8),
-        top: Math.max(8, rect.y - 44),
+        top: Math.max(8, rect.y + 8),
       }}
     >
       <button
@@ -59,6 +61,23 @@ export function SelectedImageActions({
         <Scissors size={13} strokeWidth={1.75} />
         segment
       </button>
+
+      {onDownloadOriginal ? (
+        <button
+          type="button"
+          onClick={onDownloadOriginal}
+          disabled={disabled}
+          title="download original"
+          aria-label="download original"
+          className={cn(
+            'inline-flex h-7 w-7 items-center justify-center rounded-sm border transition-colors',
+            'border-border-soft bg-surface-panel text-ink-dim hover:bg-surface-panel-muted hover:text-ink',
+            'disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+        >
+          <Download size={14} strokeWidth={1.75} />
+        </button>
+      ) : null}
 
       {hasPreview ? (
         <button

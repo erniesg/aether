@@ -22,7 +22,7 @@ export function SelectedFrameActions({
       className="pointer-events-auto absolute z-[18] flex max-w-[calc(100%-16px)] items-center gap-1 rounded-md border border-border bg-surface-panel p-1 shadow-sm"
       style={{
         left: Math.max(8, rect.x + 8),
-        top: Math.max(8, rect.y - 44),
+        top: Math.max(8, rect.y + 8),
       }}
     >
       <button

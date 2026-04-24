@@ -153,7 +153,7 @@ export function SegmentationPanel({
     activeProvider?.available === false;
 
   return (
-    <aside className="pointer-events-auto absolute bottom-6 left-6 z-20 w-80 rounded-md border border-border bg-surface-panel p-3 shadow-md">
+    <aside className="pointer-events-auto absolute bottom-6 left-6 z-30 w-80 max-h-[calc(100%-48px)] overflow-y-auto rounded-md border border-border bg-surface-panel p-3 shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="font-caption text-ink-dim">segmentation</span>
@@ -539,7 +539,7 @@ export function SegmentationPanel({
 
             <label className="flex flex-col gap-1">
               <span className="font-caption text-2xs text-ink-dim">
-                opacity · {Math.round(backgroundFill.opacity * 100)}%
+                background opacity · {Math.round(backgroundFill.opacity * 100)}%
               </span>
               <input
                 type="range"

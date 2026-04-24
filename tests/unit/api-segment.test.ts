@@ -236,7 +236,7 @@ describe('/api/segment', () => {
     mocks.resolveProvider.mockImplementation(() => {
       throw new SegmentationUnavailableError(
         'sam3',
-        'SAM 3 is not connected'
+        'SAM3_MODAL_URL is not set'
       );
     });
 

@@ -8,17 +8,24 @@ describe('TldrawCanvas · operator-chrome overrides', () => {
 
   it('nulls the rest of the operator-shaped menus so the creator surface stays clean', () => {
     const mustBeNull = [
+      'ContextMenu',
       'MenuPanel',
       'MainMenu',
       'PageMenu',
       'QuickActions',
       'ActionsMenu',
+      'HelperButtons',
       'HelpMenu',
       'KeyboardShortcutsDialog',
       'NavigationPanel',
       'ZoomMenu',
+      'Minimap',
       'SharePanel',
       'DebugPanel',
+      'DebugMenu',
+      'TopPanel',
+      'CursorChatBubble',
+      'FollowingIndicator',
     ] as const;
     for (const key of mustBeNull) {
       expect(
@@ -30,5 +37,11 @@ describe('TldrawCanvas · operator-chrome overrides', () => {
   it('hides the native Toolbar and StylePanel so aether owns the canvas chrome', () => {
     expect(TLDRAW_CHROME_OVERRIDES.Toolbar).toBeNull();
     expect(TLDRAW_CHROME_OVERRIDES.StylePanel).toBeNull();
+  });
+
+  it('hides native contextual media/text toolbars so they cannot overlap aether actions', () => {
+    expect(TLDRAW_CHROME_OVERRIDES.ImageToolbar).toBeNull();
+    expect(TLDRAW_CHROME_OVERRIDES.VideoToolbar).toBeNull();
+    expect(TLDRAW_CHROME_OVERRIDES.RichTextToolbar).toBeNull();
   });
 });

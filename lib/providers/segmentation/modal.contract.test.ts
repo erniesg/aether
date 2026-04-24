@@ -6,6 +6,12 @@ describe('sam3 modal adapter · contract', () => {
     vi.restoreAllMocks();
   });
 
+  it('reports the missing modal endpoint clearly', () => {
+    const provider = createModalSam3Provider(undefined, undefined);
+    expect(provider.isAvailable()).toBe(false);
+    expect(provider.getAvailabilityIssue()).toBe('SAM3_MODAL_URL is not set');
+  });
+
   it('normalizes a modal JSON response', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')

@@ -237,6 +237,75 @@ function summarizeSegmentationRun(verb: SegmentationVerb, prompt: string) {
   return prompt ? `segment · ${prompt}` : 'segment';
 }
 
+function imageExtensionForSource(sourceUrl: string): string {
+  if (sourceUrl.startsWith('data:')) {
+    const mimeType = inferDataUrlMimeType(sourceUrl);
+    if (mimeType === 'image/jpeg') return 'jpg';
+    if (mimeType === 'image/webp') return 'webp';
+    if (mimeType === 'image/svg+xml') return 'svg';
+    return 'png';
+  }
+
+  let pathname = sourceUrl;
+  try {
+    pathname =
+      typeof window === 'undefined'
+        ? sourceUrl
+        : new URL(sourceUrl, window.location.href).pathname;
+  } catch {
+    pathname = sourceUrl;
+  }
+  const match = pathname.match(/\.([a-z0-9]+)$/i);
+  const ext = match?.[1]?.toLowerCase();
+  return ext && ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'svg'].includes(ext)
+    ? ext
+    : 'png';
+}
+
+function filenameForSelectedImage(target: SelectedImageInfo): string {
+  const frameLabel =
+    typeof target.meta.aetherFrameLabel === 'string'
+      ? target.meta.aetherFrameLabel
+      : 'image';
+  const stem = frameLabel
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40);
+  const shapeSuffix = target.shapeId.replace(/[^a-z0-9]+/gi, '').slice(-6);
+  return `aether-${stem || 'image'}-${shapeSuffix}.${imageExtensionForSource(target.sourceUrl)}`;
+}
+
+async function downloadImageSource(sourceUrl: string, filename: string) {
+  let objectUrl: string | null = null;
+  const anchor = document.createElement('a');
+
+  try {
+    if (sourceUrl.startsWith('data:')) {
+      anchor.href = sourceUrl;
+    } else {
+      const response = await fetch(sourceUrl);
+      if (!response.ok) throw new Error(`download failed: ${response.status}`);
+      const blob = await response.blob();
+      objectUrl = URL.createObjectURL(blob);
+      anchor.href = objectUrl;
+    }
+  } catch {
+    anchor.href = sourceUrl;
+  }
+
+  anchor.download = filename;
+  anchor.rel = 'noopener';
+  anchor.style.display = 'none';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+
+  if (objectUrl) {
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+}
+
 function pickAvailableSegmentationProvider(
   providers: ReadonlyArray<SegmentationProviderStatus>,
   preferredId: SegmentationProviderId = 'sam3'
@@ -1650,7 +1719,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     );
   }, [segmentation?.runId]);
 
-  const imageActionsTarget = selectedImage ?? segmentation?.target ?? null;
+  const handleDownloadSelectedImage = useCallback((target: SelectedImageInfo) => {
+    void downloadImageSource(target.sourceUrl, filenameForSelectedImage(target));
+  }, []);
+
+  const imageActionsTarget = segmentation ? null : selectedImage;
   const activeSegmentationPreview = resolveActiveSegmentationPreview(segmentation);
 
   const dispatchers = useMemo<VoiceDispatchers>(
@@ -1809,6 +1882,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           disabled={segmentation?.loading}
           onRemoveBg={() => openSegmentation('removebg')}
           onCutout={() => openSegmentation('cutout')}
+          onDownloadOriginal={() => handleDownloadSelectedImage(imageActionsTarget)}
           onPreviewVisibilityChange={handlePreviewVisibilityChange}
         />
       ) : null}
