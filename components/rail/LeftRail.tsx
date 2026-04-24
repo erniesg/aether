@@ -13,9 +13,13 @@ import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { BrandSection, brandSectionSummary } from './sections/BrandSection';
 import {
+  SignalsSection,
+  signalsSectionSummary,
+} from './sections/SignalsSection';
+import { useSignals } from '@/lib/signals/store';
+import {
   DEMO_CREATOR_CONTEXT,
   summarizeInputSet,
-  type SignalContext,
 } from '@/lib/context/model';
 import { cn } from '@/lib/utils/cn';
 
@@ -154,80 +158,59 @@ function ReferencesBody() {
   );
 }
 
-type SignalSeed = SignalContext;
-
-const SEED_SIGNALS: ReadonlyArray<SignalSeed> = CONTEXT.signals;
-
-function SignalsBody() {
-  return (
-    <ul className="flex flex-col gap-2">
-      {SEED_SIGNALS.map((signal) => (
-        <li
-          key={signal.id}
-          className="flex items-center justify-between gap-3 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
-        >
-          <div className="flex flex-col">
-            <span className="font-caption text-ink">{signal.title}</span>
-            <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
-              {signal.platform} · {signal.lift}
-            </span>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /**
  * The creator context rail separates what changes rarely from what changes
  * per campaign and per run: brand knowledge, offer facts, the active campaign,
  * pinned references, and live signals. The prompt composer remains the canvas
  * form of the current input set, so we keep that concept out of the rail.
  */
-const LEFT_SECTIONS: ReadonlyArray<SectionSpec> = [
-  {
-    id: 'brand',
-    label: 'brand',
-    icon: PaintBucket,
-    summary: brandSectionSummary(CONTEXT.brand),
-    hasContent: true,
-    body: <BrandSection />,
-  },
-  {
-    id: 'offer',
-    label: 'offer',
-    icon: Package2,
-    summary: `${CONTEXT.offer.claims.length} claims`,
-    hasContent: true,
-    body: <OfferBody />,
-  },
-  {
-    id: 'campaign',
-    label: 'campaign',
-    icon: Flag,
-    summary: `${CONTEXT.campaign.channels.length} channels`,
-    hasContent: true,
-    body: <CampaignBody />,
-  },
-  {
-    id: 'references',
-    label: 'references',
-    icon: Layers3,
-    summary: '0 pinned',
-    body: <ReferencesBody />,
-  },
-  {
-    id: 'signals',
-    label: 'signals',
-    icon: TrendingUp,
-    summary: `${SEED_SIGNALS.length} live`,
-    hasContent: true,
-    body: <SignalsBody />,
-  },
-];
-
 function LeftRailInner({ className }: { className?: string }) {
   const { railRef } = useRail();
+  const signals = useSignals();
+  const signalsSummary = signalsSectionSummary(signals);
+
+  const sections: ReadonlyArray<SectionSpec> = [
+    {
+      id: 'brand',
+      label: 'brand',
+      icon: PaintBucket,
+      summary: brandSectionSummary(CONTEXT.brand),
+      hasContent: true,
+      body: <BrandSection />,
+    },
+    {
+      id: 'offer',
+      label: 'offer',
+      icon: Package2,
+      summary: `${CONTEXT.offer.claims.length} claims`,
+      hasContent: true,
+      body: <OfferBody />,
+    },
+    {
+      id: 'campaign',
+      label: 'campaign',
+      icon: Flag,
+      summary: `${CONTEXT.campaign.channels.length} channels`,
+      hasContent: true,
+      body: <CampaignBody />,
+    },
+    {
+      id: 'references',
+      label: 'references',
+      icon: Layers3,
+      summary: '0 pinned',
+      body: <ReferencesBody />,
+    },
+    {
+      id: 'signals',
+      label: 'signals',
+      icon: TrendingUp,
+      summary: signalsSummary,
+      hasContent: signals.length > 0,
+      body: <SignalsSection />,
+    },
+  ];
+
   return (
     <nav
       ref={railRef as React.RefObject<HTMLElement>}
@@ -238,7 +221,7 @@ function LeftRailInner({ className }: { className?: string }) {
         className
       )}
     >
-      {LEFT_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <RailSection
           key={section.id}
           id={section.id}
