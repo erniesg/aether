@@ -16,26 +16,29 @@ describe('/api/voice/session', () => {
     process.env.OPENAI_API_KEY = 'sk-primary-must-not-leak';
     process.env.VOICE_PROVIDER = 'openai-realtime';
 
-    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(url)).toContain('/v1/realtime/sessions');
-      expect(init?.headers).toMatchObject({
-        Authorization: 'Bearer sk-primary-must-not-leak',
-      });
-      return new Response(
-        JSON.stringify({
-          id: 'sess_ephemeral',
-          model: 'gpt-4o-realtime-preview',
-          voice: 'alloy',
-          client_secret: {
-            value: 'ek_short_lived_abc',
-            expires_at: Math.floor(Date.now() / 1000) + 60,
-          },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(
+      async (url: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(url)).toContain('/v1/realtime/sessions');
+        expect(init?.headers).toMatchObject({
+          Authorization: 'Bearer sk-primary-must-not-leak',
+        });
+        return new Response(
+          JSON.stringify({
+            id: 'sess_ephemeral',
+            model: 'gpt-4o-realtime-preview',
+            voice: 'alloy',
+            client_secret: {
+              value: 'ek_short_lived_abc',
+              expires_at: Math.floor(Date.now() / 1000) + 60,
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      },
+    ) as unknown as typeof fetch;
 
-    const { issueVoiceSession, POST } = await import('@/app/api/voice/session/route');
+    const { issueVoiceSession, POST } =
+      await import('@/app/api/voice/session/route');
     const direct = await issueVoiceSession({ fetchImpl });
     expect(direct.clientSecret).toBe('ek_short_lived_abc');
     expect(direct.clientSecret).not.toContain('sk-primary');
@@ -59,26 +62,38 @@ describe('/api/voice/session', () => {
     }
   });
 
-  it('declares all five voice tools when minting a session', async () => {
+  it('declares the full bounded voice tool set when minting a session', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
-    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body ?? '{}'));
-      expect(body.tools).toHaveLength(5);
-      expect(body.tools.map((t: { name: string }) => t.name)).toEqual([
-        'focus_format',
-        'pan_zoom',
-        'remove_background',
-        'run_capability',
-        'run_generate',
-      ]);
-      return new Response(
-        JSON.stringify({
-          id: 'sess',
-          client_secret: { value: 'ek', expires_at: Math.floor(Date.now() / 1000) + 60 },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(
+      async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? '{}'));
+        expect(body.tools).toHaveLength(12);
+        expect(body.tools.map((t: { name: string }) => t.name)).toEqual([
+          'focus_format',
+          'pan_zoom',
+          'remove_background',
+          'select_tool',
+          'set_brush_color',
+          'set_brush_size',
+          'adjust_brush_size',
+          'clear_sketch',
+          'confirm_sketch',
+          'end_air_brush',
+          'run_capability',
+          'run_generate',
+        ]);
+        return new Response(
+          JSON.stringify({
+            id: 'sess',
+            client_secret: {
+              value: 'ek',
+              expires_at: Math.floor(Date.now() / 1000) + 60,
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      },
+    ) as unknown as typeof fetch;
 
     const { issueVoiceSession } = await import('@/app/api/voice/session/route');
     const session = await issueVoiceSession({ fetchImpl });
@@ -88,24 +103,22 @@ describe('/api/voice/session', () => {
   it('mints a Gemini Live auth token and never surfaces the primary Google key', async () => {
     process.env.GOOGLE_GEMINI_API_KEY = 'gk-primary-must-not-leak';
     process.env.VOICE_PROVIDER = 'gemini-live';
-    process.env.GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-native-audio';
+    process.env.GEMINI_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
     process.env.GEMINI_LIVE_VOICE = 'Kore';
 
-    const issueGeminiTokenImpl = vi.fn(async (params: {
-      apiKey: string;
-      model: string;
-      voice: string;
-    }) => {
-      expect(params).toEqual({
-        apiKey: 'gk-primary-must-not-leak',
-        model: 'gemini-live-2.5-flash-native-audio',
-        voice: 'Kore',
-      });
-      return {
-        name: 'tokens/ephemeral_gemini_123',
-        expireTime: new Date(Date.now() + 60_000).toISOString(),
-      };
-    });
+    const issueGeminiTokenImpl = vi.fn(
+      async (params: { apiKey: string; model: string; voice: string }) => {
+        expect(params).toEqual({
+          apiKey: 'gk-primary-must-not-leak',
+          model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+          voice: 'Kore',
+        });
+        return {
+          name: 'tokens/ephemeral_gemini_123',
+          expireTime: new Date(Date.now() + 60_000).toISOString(),
+        };
+      },
+    );
 
     const { issueVoiceSession } = await import('@/app/api/voice/session/route');
     const session = await issueVoiceSession({ issueGeminiTokenImpl });
@@ -114,12 +127,54 @@ describe('/api/voice/session', () => {
       expect.objectContaining({
         sessionId: 'tokens/ephemeral_gemini_123',
         clientSecret: 'tokens/ephemeral_gemini_123',
-        model: 'gemini-live-2.5-flash-native-audio',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         voice: 'Kore',
         provider: 'gemini-live',
-      })
+      }),
     );
     expect(JSON.stringify(session)).not.toContain('gk-primary-must-not-leak');
+  });
+
+  it('maps stale Gemini Live demo aliases to the current supported Live model', async () => {
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-test';
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-native-audio';
+
+    const issueGeminiTokenImpl = vi.fn(
+      async (params: { apiKey: string; model: string; voice: string }) => {
+        expect(params.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
+        return {
+          name: 'tokens/ephemeral_gemini_current',
+          expireTime: new Date(Date.now() + 60_000).toISOString(),
+        };
+      },
+    );
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({ issueGeminiTokenImpl });
+
+    expect(session.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
+  });
+
+  it('maps the superseded Gemini 3.1 demo alias to the current supported Live model', async () => {
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-test';
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+
+    const issueGeminiTokenImpl = vi.fn(
+      async (params: { apiKey: string; model: string; voice: string }) => {
+        expect(params.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
+        return {
+          name: 'tokens/ephemeral_gemini_current',
+          expireTime: new Date(Date.now() + 60_000).toISOString(),
+        };
+      },
+    );
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({ issueGeminiTokenImpl });
+
+    expect(session.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
   });
 
   it('returns 503 when OPENAI_API_KEY is missing', async () => {
@@ -145,7 +200,9 @@ describe('/api/voice/session', () => {
 
   it('returns 502 when OpenAI rejects the session request', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
-    const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 })) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(
+      async () => new Response('rate limited', { status: 429 }),
+    ) as unknown as typeof fetch;
     const { issueVoiceSession } = await import('@/app/api/voice/session/route');
     await expect(issueVoiceSession({ fetchImpl })).rejects.toThrow(/429/);
   });
@@ -160,7 +217,7 @@ describe('/api/voice/session', () => {
         ok: true,
         provider: 'openai-realtime',
         configured: true,
-      })
+      }),
     );
     expect(JSON.stringify(json)).not.toContain('sk-test');
   });
@@ -168,7 +225,7 @@ describe('/api/voice/session', () => {
   it('GET reports Gemini Live defaults and configuration state without exposing secrets', async () => {
     process.env.VOICE_PROVIDER = 'gemini-live';
     process.env.GOOGLE_GEMINI_API_KEY = 'gk-test';
-    process.env.GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-native-audio';
+    process.env.GEMINI_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
     process.env.GEMINI_LIVE_VOICE = 'Kore';
     const { GET } = await import('@/app/api/voice/session/route');
     const response = await GET();
@@ -177,10 +234,10 @@ describe('/api/voice/session', () => {
       expect.objectContaining({
         ok: true,
         provider: 'gemini-live',
-        model: 'gemini-live-2.5-flash-native-audio',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         voice: 'Kore',
         configured: true,
-      })
+      }),
     );
     expect(JSON.stringify(json)).not.toContain('gk-test');
   });

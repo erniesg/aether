@@ -55,7 +55,7 @@ describe('VoiceOrb provider selection', () => {
       sessionId: 'tokens/gemini-session',
       clientSecret: 'tokens/gemini-session',
       expiresAt: Date.now() + 60_000,
-      model: 'gemini-3.1-flash-live-preview',
+      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
       voice: 'Kore',
       provider: 'gemini-live',
     };
