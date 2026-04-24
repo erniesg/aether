@@ -1,0 +1,73 @@
+name: claude-review
+
+# Fresh-context reviewer agent. Fires on PRs opened against `main` whose head
+# branch matches `claude/issue-*` (author-agent PRs). Human-authored PRs are
+# intentionally NOT reviewed here — they go through Codex + Ernie.
+#
+# Independence from the author comes from TWO things:
+#   1. This is a separate Claude invocation with a fresh `/review --strict`
+#      prompt — it does not inherit the author's conversation.
+#   2. The head-branch guard + explicit prompt keep the reviewer from
+#      reviewing its own review comments.
+#
+# Output contract: the reviewer comment MUST end with one of:
+#   VERDICT: APPROVE
+#   VERDICT: REQUEST_CHANGES
+#   VERDICT: BLOCK
+#
+# The `route-verdict` job reads the latest claude[bot] comment on the PR and
+# dispatches labels + Discord notification. See `lib/review/parseVerdict.ts`
+# for the verdict parser that the shell step defers to.
+#
+# PROPOSED — Ernie to move from .github/workflows-proposed/ to .github/workflows/.
+# The GitHub App that authors agent PRs cannot modify workflow files; this
+# path keeps the YAML reviewable in the same PR while landing it requires a
+# human commit (or a `gh pr merge --admin`).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    # Only review agent-authored branches. Human PRs, and PRs opened by the
+    # reviewer agent itself (it never pushes branches, but belt-and-braces),
+    # are skipped.
+    if: startsWith(github.event.pull_request.head.ref, 'claude/issue-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run reviewer agent
+        id: reviewer
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # /review is a slash-command the agent reads from its own
+          # instructions; --strict flips the rubric in lib/review/reviewerPrompt.ts.
+          prompt: "/review --strict"
+          claude_args: |
+            --max-turns 40
+            --model claude-opus-4-7
+
+      - name: Route verdict
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: '1496938045876731955'
+        run: node .github/scripts/route-review-verdict.mjs
