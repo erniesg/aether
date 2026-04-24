@@ -25,10 +25,12 @@ import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canva
 import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import {
   DEFAULT_SKETCH_BRUSH_STATE,
+  adjustSketchBrushSize,
   type PrimitiveTool,
   type SketchBrushColor,
   type SketchBrushSize,
   type SketchBrushState,
+  type VoiceBrushSizeDelta,
 } from '@/lib/canvas/sketchBrush';
 import {
   applyPrimitiveTool,
@@ -462,6 +464,13 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   const handleBrushSizeChange = useCallback((size: SketchBrushSize) => {
     setSketchBrush((current) => ({ ...current, size }));
+  }, []);
+
+  const handleAdjustBrushSize = useCallback((delta: VoiceBrushSizeDelta) => {
+    setSketchBrush((current) => ({
+      ...current,
+      size: adjustSketchBrushSize(current.size, delta),
+    }));
   }, []);
 
   const handleStyleAction = useCallback(
@@ -1473,6 +1482,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       set_brush_size: ({ size }) => {
         handleBrushSizeChange(size);
       },
+      adjust_brush_size: ({ delta }) => {
+        handleAdjustBrushSize(delta);
+      },
       clear_sketch: () => {
         handleClearSketch();
       },
@@ -1488,6 +1500,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     }),
     [
       editor,
+      handleAdjustBrushSize,
       handleBrushColorChange,
       handleBrushSizeChange,
       handleClearSketch,

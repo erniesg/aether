@@ -17,6 +17,7 @@ function mockDispatchers(): VoiceDispatchers & {
   const select_tool = vi.fn();
   const set_brush_color = vi.fn();
   const set_brush_size = vi.fn();
+  const adjust_brush_size = vi.fn();
   const clear_sketch = vi.fn();
   const confirm_sketch = vi.fn();
   const run_capability = vi.fn();
@@ -28,6 +29,7 @@ function mockDispatchers(): VoiceDispatchers & {
     select_tool,
     set_brush_color,
     set_brush_size,
+    adjust_brush_size,
     clear_sketch,
     confirm_sketch,
     run_capability,
@@ -39,6 +41,7 @@ function mockDispatchers(): VoiceDispatchers & {
       select_tool,
       set_brush_color,
       set_brush_size,
+      adjust_brush_size,
       clear_sketch,
       confirm_sketch,
       run_capability,
@@ -56,6 +59,7 @@ describe('voice tools', () => {
       'select_tool',
       'set_brush_color',
       'set_brush_size',
+      'adjust_brush_size',
       'clear_sketch',
       'confirm_sketch',
       'run_capability',
@@ -124,6 +128,20 @@ describe('voice tools', () => {
     });
   });
 
+  it('passes relative brush thickness changes through their dedicated dispatcher', async () => {
+    const dispatchers = mockDispatchers();
+    const outcome = await dispatchVoiceFunctionCall(
+      'adjust_brush_size',
+      { delta: 'thicker' },
+      dispatchers
+    );
+
+    expect(outcome).toEqual({ ok: true, detail: 'brush thicker' });
+    expect(dispatchers._mocks.adjust_brush_size).toHaveBeenCalledWith({
+      delta: 'thicker',
+    });
+  });
+
   it('dispatches clear_sketch and confirm_sketch as nullary calls', async () => {
     const dispatchers = mockDispatchers();
     await dispatchVoiceFunctionCall('clear_sketch', {}, dispatchers);
@@ -169,6 +187,9 @@ describe('voice tools', () => {
     expect(
       await dispatchVoiceFunctionCall('set_brush_size', { size: 'huge' }, dispatchers)
     ).toEqual({ ok: false, error: expect.stringContaining('small, medium, or large') });
+    expect(
+      await dispatchVoiceFunctionCall('adjust_brush_size', { delta: 'fatter' }, dispatchers)
+    ).toEqual({ ok: false, error: expect.stringContaining('thicker or thinner') });
     expect(
       await dispatchVoiceFunctionCall('no_such_tool', { a: 1 }, dispatchers)
     ).toEqual({ ok: false, error: expect.stringContaining('no_such_tool') });

@@ -18,6 +18,8 @@ export type VoiceBrushColor =
 
 export type SketchBrushSize = 'small' | 'medium' | 'large';
 
+export type VoiceBrushSizeDelta = 'thinner' | 'thicker';
+
 export interface SketchBrushState {
   tool: PrimitiveTool;
   color: SketchBrushColor;
@@ -88,6 +90,31 @@ export function normalizeVoiceBrushSize(size: unknown): SketchBrushSize | null {
     default:
       return null;
   }
+}
+
+export function normalizeVoiceBrushSizeDelta(
+  delta: unknown
+): VoiceBrushSizeDelta | null {
+  switch (delta) {
+    case 'thinner':
+    case 'thicker':
+      return delta;
+    default:
+      return null;
+  }
+}
+
+export function adjustSketchBrushSize(
+  current: SketchBrushSize,
+  delta: VoiceBrushSizeDelta
+): SketchBrushSize {
+  const sizes: SketchBrushSize[] = ['small', 'medium', 'large'];
+  const currentIndex = sizes.indexOf(current);
+  const nextIndex =
+    delta === 'thicker'
+      ? Math.min(sizes.length - 1, currentIndex + 1)
+      : Math.max(0, currentIndex - 1);
+  return sizes[nextIndex] ?? current;
 }
 
 export function mapSketchBrushColorToTldraw(
