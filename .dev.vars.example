@@ -30,6 +30,17 @@ SAM3_MODAL_TOKEN=
 # Optional default provider when more than one is connected.
 SEGMENTATION_PROVIDER=sam3
 
+# Spatial (gaussian splat / particle field) providers.
+# `draft` is always available and renders a local SVG preview — no keys needed.
+# `replicate-splat` uses REPLICATE_API_TOKEN (model: jd7h/splatter-image by default).
+# `modal-splat` expects an external HTTP endpoint (see docs/SAM3-MODAL.md for the pattern).
+SPATIAL_REPLICATE_VERSION=
+SPATIAL_MODAL_URL=https://<workspace>--splat.modal.run
+SPATIAL_MODAL_TOKEN=
+# Optional default provider for the spatial seam. If unset, the factory
+# prefers real providers over `draft` when their keys are present.
+SPATIAL_PROVIDER=draft
+
 # Convex — set after `npx convex dev` creates a project
 NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
 CONVEX_DEPLOY_KEY=...

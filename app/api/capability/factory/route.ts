@@ -5,6 +5,8 @@ import {
 } from '@/lib/capability/factory';
 import { resolveCapabilityFactoryRegistry } from '@/lib/capability/factoryRegistry';
 import { createCapabilityAuthoringIssue } from '@/lib/capability/authoringIssue';
+import { listSpatialProviders } from '@/lib/providers/spatial/registry';
+import type { SpatialProviderStatus } from '@/lib/providers/spatial/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +24,33 @@ function resolveSpatialFormat(prompt: string): 'particle-field' | 'gaussian-spla
 
 function resolveSpatialName(prompt: string): string {
   return resolveSpatialFormat(prompt) === 'particle-field' ? 'particle field' : 'gaussian splat';
+}
+
+function pickSpatialProvider(
+  statuses: SpatialProviderStatus[]
+): { providerId: 'draft' | 'replicate-splat' | 'modal-splat'; model: string } {
+  const envDefault = process.env.SPATIAL_PROVIDER;
+  const byId = new Map(statuses.map((s) => [s.id, s]));
+
+  const tryId = (id: string | undefined) => {
+    if (!id) return null;
+    const entry = byId.get(id as SpatialProviderStatus['id']);
+    if (!entry || !entry.available) return null;
+    return {
+      providerId: entry.id as 'draft' | 'replicate-splat' | 'modal-splat',
+      model: entry.models[0] ?? entry.id,
+    };
+  };
+
+  return (
+    tryId(envDefault) ??
+    tryId('replicate-splat') ??
+    tryId('modal-splat') ??
+    tryId('draft') ?? {
+      providerId: 'draft',
+      model: 'particle-field-v1',
+    }
+  );
 }
 
 export async function POST(request: Request) {
@@ -90,10 +119,13 @@ export async function POST(request: Request) {
   if (artifactKind === 'spatial' && registry.draftTool?.id === 'spatial-gen') {
     const format = resolveSpatialFormat(prompt);
     const name = resolveSpatialName(prompt);
+    const providers = listSpatialProviders();
+    const picked = pickSpatialProvider(providers);
+
     response.draftInvocation = {
       toolId: 'spatial-gen',
-      providerId: 'draft',
-      model: 'particle-field-v1',
+      providerId: picked.providerId,
+      model: picked.model,
       format,
       quality: 'draft',
     };
@@ -104,7 +136,7 @@ export async function POST(request: Request) {
         ? `Draft capability auto-added while publication is pending in #${issue.number}.`
         : 'Draft capability auto-added while publication is pending.',
       tool: 'spatial-gen',
-      provider: 'draft',
+      provider: picked.providerId,
       entryRef: {
         kind: 'tool',
         id: 'spatial-gen',
@@ -116,10 +148,11 @@ export async function POST(request: Request) {
         format,
         quality: 'draft',
         sourceMode: 'selected-image',
-        providerId: 'draft',
-        model: 'particle-field-v1',
+        providerId: picked.providerId,
+        model: picked.model,
       },
     };
+    response.spatialProviders = providers;
   }
 
   if (issue) {

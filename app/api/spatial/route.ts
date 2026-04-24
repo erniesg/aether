@@ -127,6 +127,9 @@ export async function POST(request: Request) {
         format: result.format,
         sceneSpec: result.sceneSpec,
         latencyMs: result.latencyMs,
+        sceneUrl: result.sceneUrl,
+        sceneFormat: result.sceneFormat,
+        gaussianCount: result.gaussianCount,
       },
       raw: result.raw,
     });
