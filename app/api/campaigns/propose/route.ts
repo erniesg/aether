@@ -31,24 +31,27 @@ export async function POST(request: Request) {
   const b = body as Record<string, unknown>;
   const bypassAgent = b.bypassAgent === true;
 
+  type Signal = { title: string; platform?: string; lift?: string };
+
   const inputs: ProposeCampaignInputs = {
-    brandSnapshot:
-      isObject(b.brandSnapshot) ? (b.brandSnapshot as BrandSnapshot) : undefined,
+    brandSnapshot: isObject(b.brandSnapshot)
+      ? (b.brandSnapshot as unknown as BrandSnapshot)
+      : undefined,
     offerSnapshot: isObject(b.offerSnapshot)
       ? (b.offerSnapshot as ProposeCampaignInputs['offerSnapshot'])
       : undefined,
     signals: Array.isArray(b.signals)
       ? (b.signals as unknown[])
-          .map((entry) => {
+          .map((entry): Signal | null => {
             if (!isObject(entry)) return null;
-            const e = entry as Record<string, unknown>;
-            const title = typeof e.title === 'string' ? e.title : '';
+            const title = typeof entry.title === 'string' ? entry.title : '';
             if (!title) return null;
-            const platform = typeof e.platform === 'string' ? e.platform : undefined;
-            const lift = typeof e.lift === 'string' ? e.lift : undefined;
-            return { title, platform, lift };
+            const signal: Signal = { title };
+            if (typeof entry.platform === 'string') signal.platform = entry.platform;
+            if (typeof entry.lift === 'string') signal.lift = entry.lift;
+            return signal;
           })
-          .filter((x): x is { title: string; platform?: string; lift?: string } => x !== null)
+          .filter((x): x is Signal => x !== null)
       : undefined,
   };
 
