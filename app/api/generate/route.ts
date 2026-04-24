@@ -7,10 +7,18 @@ import { listAvailableProviders, resolveProvider } from '@/lib/providers/image/r
 import type {
   AspectRatio,
   GeneratedImage,
+  ImageGenRequest,
   ImageGenResult,
   ImageRef,
 } from '@/lib/providers/image/types';
 import { ImageGenError, ProviderUnavailableError } from '@/lib/providers/image/types';
+import { applyGuidanceToRequest } from '@/lib/providers/image/applyGuidance';
+import type {
+  CompositionGuidanceInput,
+  NegativeZoneInput,
+  NormalizedRect,
+} from '@/lib/providers/image/guidance';
+import { SAFE_ZONE_PRESETS, type SafeZonePresetId } from '@/lib/canvas/safeZones';
 import {
   recordRunFail,
   recordRunFinish,
@@ -32,6 +40,9 @@ interface GenerateTargetInput {
   aspectRatio?: string;
   width?: number;
   height?: number;
+  preset?: unknown;
+  focusArea?: unknown;
+  negativeZones?: unknown;
 }
 
 interface GenerateTarget {
@@ -39,6 +50,9 @@ interface GenerateTarget {
   label?: string;
   aspectRatio: AllowedAspectRatio;
   size?: { w: number; h: number };
+  preset?: SafeZonePresetId;
+  focusArea?: NormalizedRect;
+  negativeZones?: ReadonlyArray<NegativeZoneInput>;
 }
 
 interface StreamFrameSuccess {
@@ -65,6 +79,35 @@ function parseAspectRatio(value: unknown): AllowedAspectRatio | undefined {
   return (ALLOWED_RATIOS as readonly string[]).includes(value)
     ? (value as AllowedAspectRatio)
     : undefined;
+}
+
+function parsePresetId(value: unknown): SafeZonePresetId | undefined {
+  return typeof value === 'string' && value in SAFE_ZONE_PRESETS
+    ? (value as SafeZonePresetId)
+    : undefined;
+}
+
+function parseNormalizedRect(value: unknown): NormalizedRect | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const v = value as Record<string, unknown>;
+  const fields = ['x', 'y', 'w', 'h'] as const;
+  const nums = fields.map((k) => (typeof v[k] === 'number' ? (v[k] as number) : NaN));
+  if (nums.some((n) => !Number.isFinite(n))) return undefined;
+  const [x, y, w, h] = nums;
+  return { x, y, w, h };
+}
+
+function parseNegativeZones(value: unknown): ReadonlyArray<NegativeZoneInput> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: NegativeZoneInput[] = [];
+  for (const item of value) {
+    const rect = parseNormalizedRect(item);
+    if (!rect) continue;
+    const rec = item as Record<string, unknown>;
+    const label = typeof rec.label === 'string' ? rec.label : undefined;
+    out.push({ ...rect, label });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 function parseTargetSize(width: unknown, height: unknown): GenerateTarget['size'] {
@@ -96,6 +139,9 @@ function parseTargets(value: unknown): GenerateTarget[] | null {
       label: typeof v.label === 'string' && v.label.trim() ? v.label.trim() : undefined,
       aspectRatio,
       size: parseTargetSize(v.width, v.height),
+      preset: parsePresetId(v.preset),
+      focusArea: parseNormalizedRect(v.focusArea),
+      negativeZones: parseNegativeZones(v.negativeZones),
     });
   }
   return targets;
@@ -288,6 +334,11 @@ export async function POST(request: Request) {
   const clientRunId = typeof b.runId === 'string' ? b.runId : undefined;
   const aspectRatioOverride = parseAspectRatio(b.aspectRatio);
   const requestedTargets = parseTargets(b.targets);
+  const defaultGuidance: CompositionGuidanceInput = {
+    preset: parsePresetId(b.preset) ?? null,
+    focusArea: parseNormalizedRect(b.focusArea),
+    negativeZones: parseNegativeZones(b.negativeZones),
+  };
 
   console.log(
     `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} planOnly=${planOnly} aspect=${aspectRatioOverride ?? 'auto'} promptLen=${prompt.length}`
@@ -438,14 +489,21 @@ export async function POST(request: Request) {
                 console.log(
                   `[generate/${reqId}] frame started · ${frame.index}/${frame.total} ${frame.label ?? frame.id} aspect=${frame.aspectRatio} size=${target.size ? `${target.size.w}x${target.size.h}` : 'auto'} refs=${frameRefs?.length ?? 0}`
                 );
+                const baseRequest: ImageGenRequest = {
+                  prompt: framePrompt,
+                  refs: frameRefs,
+                  aspectRatio: target.aspectRatio,
+                  size: target.size,
+                  seed: planned.plan.seed,
+                };
+                const guidanceInput: CompositionGuidanceInput = {
+                  preset: target.preset ?? defaultGuidance.preset,
+                  focusArea: target.focusArea ?? defaultGuidance.focusArea,
+                  negativeZones: target.negativeZones ?? defaultGuidance.negativeZones,
+                };
+                const request = applyGuidanceToRequest(baseRequest, guidanceInput);
                 const result = await provider.generate(
-                  {
-                    prompt: framePrompt,
-                    refs: frameRefs,
-                    aspectRatio: target.aspectRatio,
-                    size: target.size,
-                    seed: planned.plan.seed,
-                  },
+                  request,
                   { model: planned.provider.model }
                 );
 
