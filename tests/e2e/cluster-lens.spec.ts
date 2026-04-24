@@ -127,8 +127,10 @@ test.describe('cluster lens — kanban', () => {
     const columns = await page.locator('[data-cluster-column]').all();
     expect(columns.length).toBe(4);
     const foundCol = page.locator('[data-cluster-column="Found"]');
-    await expect(foundCol.getByText('slow morning')).toBeVisible();
-    await expect(foundCol.getByText('raw desert')).toBeVisible();
+    // Label repeats in group header + per-card tag; assert presence via
+    // first-match rather than strict-unique locator.
+    await expect(foundCol.getByText('slow morning').first()).toBeVisible();
+    await expect(foundCol.getByText('raw desert').first()).toBeVisible();
 
     // 6) Drag `ref-01` onto Shortlisted and assert it landed there.
     const firstCard = page.locator(
