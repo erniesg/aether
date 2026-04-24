@@ -31,24 +31,50 @@ describe('seedArtboards · reuses tldraw native frame shapes', () => {
 
     expect(ids).toHaveLength(DEFAULT_ARTBOARDS.length);
     expect(editor.createShape).toHaveBeenCalledTimes(DEFAULT_ARTBOARDS.length);
-    for (let i = 0; i < DEFAULT_ARTBOARDS.length; i++) {
-      const call = editor.createShape.mock.calls[i]![0];
-      expect(call.type).toBe('frame');
-      expect(call.props.w).toBe(DEFAULT_ARTBOARDS[i].w);
-      expect(call.props.h).toBe(DEFAULT_ARTBOARDS[i].h);
-      expect(call.props.name).toBe(DEFAULT_ARTBOARDS[i].name);
+    // Order depends on the layout strategy, so verify by set equality:
+    // every seed must have exactly one matching createShape call.
+    const calls = editor.createShape.mock.calls.map((c) => c[0]);
+    for (const seed of DEFAULT_ARTBOARDS) {
+      const match = calls.find(
+        (c) =>
+          c.type === 'frame' &&
+          c.props.w === seed.w &&
+          c.props.h === seed.h &&
+          c.props.name === seed.name
+      );
+      expect(match).toBeDefined();
     }
   });
 
-  it('lays frames out horizontally with a gap, no overlap on x axis', () => {
+  it('lays frames out without horizontal overlap within each row', () => {
     const editor = makeEditor();
     seedArtboards(editor as never);
     const rects = editor.createShape.mock.calls.map((c) => ({
       x: c[0].x,
+      y: c[0].y,
       w: c[0].props.w,
     }));
-    for (let i = 1; i < rects.length; i++) {
-      expect(rects[i].x).toBeGreaterThanOrEqual(rects[i - 1].x + rects[i - 1].w);
+    const byRow = new Map<number, typeof rects>();
+    for (const r of rects) {
+      const row = byRow.get(r.y) ?? [];
+      row.push(r);
+      byRow.set(r.y, row);
+    }
+    for (const row of byRow.values()) {
+      row.sort((a, b) => a.x - b.x);
+      for (let i = 1; i < row.length; i++) {
+        expect(row[i].x).toBeGreaterThanOrEqual(row[i - 1].x + row[i - 1].w);
+      }
+    }
+  });
+
+  it('respects the row strategy (single-row, strict x order)', () => {
+    const editor = makeEditor();
+    seedArtboards(editor as never, undefined, 'row');
+    const shapes = editor.createShape.mock.calls.map((c) => c[0]);
+    for (const s of shapes) expect(s.y).toBe(0);
+    for (let i = 1; i < shapes.length; i++) {
+      expect(shapes[i].x).toBeGreaterThan(shapes[i - 1].x);
     }
   });
 

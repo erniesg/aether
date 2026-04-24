@@ -1,6 +1,11 @@
 import type { Editor } from 'tldraw';
 import { createShapeId } from 'tldraw';
 import type { SafeZonePresetId } from './safeZones';
+import {
+  DEFAULT_LAYOUT_STRATEGY,
+  layoutArtboards,
+  type ArtboardLayoutStrategy,
+} from './artboardLayout';
 
 export interface ArtboardSeed {
   /** Label shown in tldraw's native frame header (editable by creators). */
@@ -35,31 +40,32 @@ export const DEFAULT_ARTBOARDS: ReadonlyArray<ArtboardSeed> = [
   { name: 'XHS · 1080×1440', w: 1080, h: 1440, preset: 'xhs-post' },
 ];
 
-const GAP_PX = 160;
-
 /**
- * Seed `editor` with the given artboard frames, laid out left-to-right with
- * a small gap. Returns the created shape ids. Uses tldraw's native `frame`
- * shape — no custom shape classes, no bespoke render.
+ * Seed `editor` with the given artboard frames at positions determined by
+ * the layout strategy. Returns the created shape ids. Uses tldraw's native
+ * `frame` shape — no custom shape classes, no bespoke render.
+ *
+ * Defaults to the `orientation-groups` strategy so the seven presets don't
+ * unroll into a single 8500-px-wide strip on first load.
  */
 export function seedArtboards(
   editor: Editor,
-  seeds: ReadonlyArray<ArtboardSeed> = DEFAULT_ARTBOARDS
+  seeds: ReadonlyArray<ArtboardSeed> = DEFAULT_ARTBOARDS,
+  strategy: ArtboardLayoutStrategy = DEFAULT_LAYOUT_STRATEGY
 ): string[] {
+  const placements = layoutArtboards(seeds, strategy);
   const ids: string[] = [];
-  let cursorX = 0;
-  for (const s of seeds) {
+  for (const p of placements) {
     const id = createShapeId();
     editor.createShape({
       id,
       type: 'frame',
-      x: cursorX,
-      y: 0,
-      props: { w: s.w, h: s.h, name: s.name },
-      meta: { aetherPreset: s.preset },
+      x: p.x,
+      y: p.y,
+      props: { w: p.seed.w, h: p.seed.h, name: p.seed.name },
+      meta: { aetherPreset: p.seed.preset },
     });
     ids.push(id);
-    cursorX += s.w + GAP_PX;
   }
   return ids;
 }
