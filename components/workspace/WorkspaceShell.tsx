@@ -37,6 +37,7 @@ import {
   type GenerateStreamEvent,
 } from '@/lib/generate/stream';
 import type { AspectRatio } from '@/lib/providers/image/types';
+import type { RunDetailsRecord } from '@/lib/store/runDetails';
 import {
   finishRun,
   failRun,
@@ -164,6 +165,8 @@ interface GenerateTargetSpec {
   id: string;
   label?: string;
   aspectRatio: AspectRatio;
+  width: number;
+  height: number;
 }
 
 interface FrameShapeSpec {
@@ -185,6 +188,7 @@ interface RunCompletedEvent {
   rationale?: string;
   aspectRatio?: AspectRatio;
   firstImageUrl?: string;
+  imageUrls?: string[];
   elapsedMs: number;
   error?: string;
 }
@@ -200,7 +204,89 @@ function frameToTargetSpec(frame: FrameShapeSpec): GenerateTargetSpec {
     id: frame.id,
     label: compactFrameLabel(frame.props.name),
     aspectRatio: pickAspectRatio(frame.props.w, frame.props.h),
+    width: frame.props.w,
+    height: frame.props.h,
   };
+}
+
+type WorkspaceEditor = NonNullable<ReturnType<typeof useEditorRef>['editor']>;
+
+function getLiveTargetSpecs(editor: WorkspaceEditor): GenerateTargetSpec[] {
+  return getFrameShapes(editor).map((frame) =>
+    frameToTargetSpec(frame as unknown as FrameShapeSpec)
+  );
+}
+
+function latestImageUrlInFrame(
+  editor: WorkspaceEditor,
+  frameId: string
+): string | null {
+  const childIds = editor.getSortedChildIdsForParent(frameId as never);
+  for (let index = childIds.length - 1; index >= 0; index -= 1) {
+    const child = editor.getShape(childIds[index] as never) as
+      | {
+          type: string;
+          props?: { assetId?: unknown };
+          meta?: Record<string, unknown>;
+        }
+      | undefined;
+    if (!child || child.type !== 'image') continue;
+    const role = child.meta?.aetherRole;
+    if (role === 'background-fill') continue;
+    const assetId = child.props?.assetId;
+    if (!assetId) continue;
+    const asset = editor.getAsset(assetId as never) as
+      | { type: string; props?: { src?: string } }
+      | undefined;
+    const src = asset?.type === 'image' ? asset.props?.src : undefined;
+    if (src) return src;
+  }
+  return null;
+}
+
+function buildCanvasExportFallback(
+  editor: WorkspaceEditor,
+  formats: ReadonlyArray<GenerateTargetSpec>
+): { runs: CapabilityRunRecord[]; runDetails: RunDetailsRecord[] } {
+  const now = Date.now();
+  const frames = formats.flatMap((format) => {
+    const imageUrl = latestImageUrlInFrame(editor, format.id);
+    if (!imageUrl) return [];
+    return [
+      {
+        id: format.id,
+        label: format.label,
+        aspectRatio: format.aspectRatio,
+        status: 'placed' as const,
+        updatedAt: now,
+        imageUrl,
+      },
+    ];
+  });
+
+  if (frames.length === 0) return { runs: [], runDetails: [] };
+
+  const runId = `canvas_export_${now}`;
+  const run: CapabilityRunRecord = {
+    id: runId,
+    tool: 'image-gen',
+    provider: 'canvas',
+    model: 'current-artboard-images',
+    prompt: 'current canvas artboards',
+    status: 'ok',
+    step: 'done',
+    startedAt: now,
+    finishedAt: now,
+  };
+  const details: RunDetailsRecord = {
+    runId,
+    providerHint: run.provider,
+    modelHint: run.model,
+    activities: [],
+    frames,
+  };
+
+  return { runs: [run], runDetails: [details] };
 }
 
 function shouldRoutePromptToMotion(prompt: string) {
@@ -448,6 +534,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         let resolvedPrompt = prompt;
         let resolvedAspect: string | undefined = targets[0]?.aspectRatio;
         let firstImageUrl: string | undefined;
+        const imageUrlsByFrame: string[] = [];
         const placementErrors: string[] = [];
 
         await readGenerateStream(res, async (event) => {
@@ -530,7 +617,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                   event.provider.id,
                   event.provider.model,
                   event.frame.aspectRatio,
-                ].join(' · '),
+                  event.frame.size
+                    ? `${Math.round(event.frame.size.w)}x${Math.round(event.frame.size.h)}`
+                    : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
                 at: event.at,
               });
               return;
@@ -539,6 +631,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             case 'frame.completed': {
               stepRun(runId, 'placing');
               if (!firstImageUrl) firstImageUrl = event.image.url;
+              imageUrlsByFrame[event.frame.index - 1] = event.image.url;
               upsertRunFrame(runId, {
                 id: event.frame.id,
                 label: event.frame.label,
@@ -663,6 +756,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         const finalStatus =
           completedEvent.status === 'ok' && placementErrors.length === 0 ? 'ok' : 'error';
 
+        const orderedImageUrls = imageUrlsByFrame.filter(Boolean);
         finishRun(runId, {
           provider: completedEvent.provider?.id ?? options.providerOverride ?? 'unknown',
           model: completedEvent.provider?.model ?? options.modelOverride ?? '',
@@ -670,6 +764,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           rationale: completedEvent.rationale,
           aspectRatio: completedEvent.aspectRatio ?? resolvedAspect,
           imageUrl: firstImageUrl ?? completedEvent.firstImageUrl,
+          outputRefs: orderedImageUrls.length > 0 ? orderedImageUrls : completedEvent.imageUrls,
           latencyMs: completedEvent.elapsedMs,
           error: finalError,
           status: finalStatus,
@@ -919,13 +1014,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     if (idx >= 0 && idx !== focusIdx) setFocusIdx(idx);
   }, [view, activeFormatId, focusIdx, formats]);
 
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(async (targetFrameId?: string) => {
     if (exporting) return;
     setExporting(true);
     try {
+      const activeFormats =
+        targetFrameId && formats.some((format) => format.id === targetFrameId)
+          ? formats.filter((format) => format.id === targetFrameId)
+          : formats;
       const boards: { id: string; label: string; aspectRatio: string }[] =
-        formats.length > 0
-          ? formats.map((format) => ({
+        activeFormats.length > 0
+          ? activeFormats.map((format) => ({
               id: format.id,
               label: format.label ?? format.id,
               aspectRatio: format.aspectRatio,
@@ -936,11 +1035,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               aspectRatio: pickAspectRatio(seed.w, seed.h),
             }));
 
+      const canvasFallback =
+        editor && activeFormats.length > 0
+          ? buildCanvasExportFallback(editor, activeFormats)
+          : { runs: [], runDetails: [] };
       const { body, skipped } = await buildExportRequestBody({
         workspaceId: wsId,
         artboards: boards,
-        runs,
-        runDetails: getAllRunDetailsSnapshot(),
+        runs: [...canvasFallback.runs, ...runs],
+        runDetails: [
+          ...canvasFallback.runDetails,
+          ...getAllRunDetailsSnapshot(),
+        ],
         pinnedSkills: definitions.map((def) => ({
           definitionId: def.id,
           name: def.name,
@@ -955,7 +1061,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         if (typeof window !== 'undefined') {
           window.alert(
             skipped.length > 0
-              ? `nothing to export yet — generate on an artboard first (${skipped.length} empty)`
+              ? targetFrameId
+                ? 'nothing to export from this artboard yet'
+                : `nothing to export yet — generate on an artboard first (${skipped.length} empty)`
               : 'nothing to export yet — generate on an artboard first'
           );
         }
@@ -963,7 +1071,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
 
       await downloadExportPack(wsId, body);
-      log('export downloaded ·', resolvedCount, 'format(s) · skipped', skipped.length);
+      log(
+        'export downloaded ·',
+        resolvedCount,
+        targetFrameId ? 'selected format' : 'format(s)',
+        '· skipped',
+        skipped.length
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logError('export failed:', message);
@@ -971,7 +1085,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     } finally {
       setExporting(false);
     }
-  }, [exporting, formats, wsId, runs, definitions]);
+  }, [editor, exporting, formats, wsId, runs, definitions]);
 
   const handleApplyGuardedLayout = useCallback(
     (copy = DEFAULT_MANAGED_LAYOUT_COPY) => {
@@ -1128,10 +1242,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // out of credits, or to demo the raw provider without Claude's rewrite.
       const bypassAgent = urlParams.get('bypass') === '1';
 
-      if (options.scope === 'all' && editor) {
-        if (formats.length > 0) {
-          const targets = formats;
-          log('fan-out · frames:', targets.length);
+      const liveFormats = editor ? getLiveTargetSpecs(editor) : [];
+      const availableFormats = liveFormats.length > 0 ? liveFormats : formats;
+
+      if (options.scope === 'all') {
+        const targets = availableFormats;
+        if (targets.length > 0) {
+          log('fan-out · frames:', targets.length, 'source:', liveFormats.length > 0 ? 'canvas' : 'state');
           await runImageOnCanvas(prompt, {
             providerOverride,
             modelOverride,
@@ -1148,12 +1265,16 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // ratio. If no explicit target exists, fall back to the focus lens.
       let targets: GenerateTargetSpec[] | undefined;
       const targetId = options.targetId ?? activeFormatId;
-      const explicitTarget = targetId ? formats.find((format) => format.id === targetId) : undefined;
+      const explicitTarget = targetId
+        ? availableFormats.find((format) => format.id === targetId)
+        : undefined;
       if (explicitTarget) {
         targets = [explicitTarget];
-      } else if (view === 'focus' && formats.length > 0) {
-        const wrappedIndex = ((focusIdx % formats.length) + formats.length) % formats.length;
-        const target = formats[wrappedIndex];
+      } else if (view === 'focus' && availableFormats.length > 0) {
+        const wrappedIndex =
+          ((focusIdx % availableFormats.length) + availableFormats.length) %
+          availableFormats.length;
+        const target = availableFormats[wrappedIndex];
         if (target) targets = [target];
       }
 
@@ -1309,6 +1430,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           layoutGuardEnabled={layoutGuardEnabled}
           onLayoutGuardToggle={setLayoutGuardEnabled}
           onApplyGuardedLayout={() => handleApplyGuardedLayout()}
+          onExportFrame={(frameId) => handleExport(frameId)}
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}

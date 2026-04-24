@@ -6,6 +6,7 @@ export interface GenerateStreamFrameRef {
   index: number;
   total: number;
   aspectRatio: AspectRatio;
+  size?: { w: number; h: number };
 }
 
 export interface GenerateStreamProviderRef {
@@ -76,6 +77,7 @@ export type GenerateStreamEvent =
       rationale?: string;
       aspectRatio?: AspectRatio;
       firstImageUrl?: string;
+      imageUrls?: string[];
       elapsedMs: number;
       error?: string;
     };

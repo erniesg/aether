@@ -11,8 +11,15 @@ import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 const GENERATIONS_ENDPOINT = 'https://api.openai.com/v1/images/generations';
 const EDITS_ENDPOINT = 'https://api.openai.com/v1/images/edits';
 const DEFAULT_MODEL = 'gpt-image-1';
-const OPENAI_TIMEOUT_MS = 120_000;
-type OpenAISize = '1024x1024' | '1024x1536' | '1536x1024';
+const OPENAI_TIMEOUT_MS = 300_000;
+const IMAGE_2_MULTIPLE = 16;
+const IMAGE_2_MIN_SIDE = 256;
+const IMAGE_2_MAX_SIDE = 3840;
+const IMAGE_2_MAX_GENERATE_PIXELS = 9_437_184;
+const IMAGE_2_MAX_EDIT_PIXELS = 4_194_304;
+
+type OpenAISize = '1024x1024' | '1024x1536' | '1536x1024' | `${number}x${number}`;
+type OpenAISizePurpose = 'generate' | 'edit';
 
 function parseBase64DataUrl(value: unknown): { mime: string; payload: string } | null {
   if (typeof value !== 'string' || !value.startsWith('data:')) {
@@ -43,11 +50,168 @@ function isAbortError(error: unknown): error is { name: string } {
   );
 }
 
-function pickOpenAISize(req: ImageGenRequest): {
+function isGPTImage2(model: string) {
+  return model === 'gpt-image-2' || model.startsWith('gpt-image-2-');
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundToMultiple(value: number, multiple: number) {
+  return Math.round(value / multiple) * multiple;
+}
+
+function floorToMultiple(value: number, multiple: number) {
+  return Math.floor(value / multiple) * multiple;
+}
+
+function normalizeImage2Side(value: number) {
+  return clamp(
+    roundToMultiple(value, IMAGE_2_MULTIPLE),
+    IMAGE_2_MIN_SIDE,
+    IMAGE_2_MAX_SIDE
+  );
+}
+
+function normalizeImage2DesiredSize(req: ImageGenRequest) {
+  const fallback = dimsFromAspect(req.aspectRatio);
+  const source = req.size ?? fallback;
+  let w = Number.isFinite(source.w) && source.w > 0 ? source.w : fallback.w;
+  let h = Number.isFinite(source.h) && source.h > 0 ? source.h : fallback.h;
+
+  if (w / h > 4) {
+    h = w / 4;
+  } else if (w / h < 0.25) {
+    w = h / 4;
+  }
+
+  return {
+    w: clamp(w, IMAGE_2_MIN_SIDE, IMAGE_2_MAX_SIDE),
+    h: clamp(h, IMAGE_2_MIN_SIDE, IMAGE_2_MAX_SIDE),
+  };
+}
+
+function scaleImage2SizeToPixelCap(
+  size: { w: number; h: number },
+  maxPixels: number
+) {
+  if (size.w * size.h <= maxPixels) return size;
+
+  const scale = Math.sqrt(maxPixels / (size.w * size.h));
+  return {
+    w: Math.max(
+      IMAGE_2_MIN_SIDE,
+      floorToMultiple(size.w * scale, IMAGE_2_MULTIPLE)
+    ),
+    h: Math.max(
+      IMAGE_2_MIN_SIDE,
+      floorToMultiple(size.h * scale, IMAGE_2_MULTIPLE)
+    ),
+  };
+}
+
+function candidateImage2Sizes(w: number, h: number) {
+  const ratio = w / h;
+  const widths = new Set([
+    floorToMultiple(w, IMAGE_2_MULTIPLE),
+    normalizeImage2Side(w),
+    Math.ceil(w / IMAGE_2_MULTIPLE) * IMAGE_2_MULTIPLE,
+  ]);
+  const heights = new Set([
+    floorToMultiple(h, IMAGE_2_MULTIPLE),
+    normalizeImage2Side(h),
+    Math.ceil(h / IMAGE_2_MULTIPLE) * IMAGE_2_MULTIPLE,
+  ]);
+  const candidates: Array<{ w: number; h: number }> = [];
+
+  for (const candidateW of widths) {
+    const normalizedW = clamp(candidateW, IMAGE_2_MIN_SIDE, IMAGE_2_MAX_SIDE);
+    candidates.push({
+      w: normalizedW,
+      h: normalizeImage2Side(normalizedW / ratio),
+    });
+  }
+
+  for (const candidateH of heights) {
+    const normalizedH = clamp(candidateH, IMAGE_2_MIN_SIDE, IMAGE_2_MAX_SIDE);
+    candidates.push({
+      w: normalizeImage2Side(normalizedH * ratio),
+      h: normalizedH,
+    });
+  }
+
+  candidates.push({
+    w: normalizeImage2Side(w),
+    h: normalizeImage2Side(h),
+  });
+
+  return candidates.filter(
+    (candidate) =>
+      candidate.w >= IMAGE_2_MIN_SIDE &&
+      candidate.h >= IMAGE_2_MIN_SIDE &&
+      candidate.w <= IMAGE_2_MAX_SIDE &&
+      candidate.h <= IMAGE_2_MAX_SIDE &&
+      candidate.w % IMAGE_2_MULTIPLE === 0 &&
+      candidate.h % IMAGE_2_MULTIPLE === 0 &&
+      candidate.w / candidate.h >= 0.25 &&
+      candidate.w / candidate.h <= 4
+  );
+}
+
+function pickGPTImage2Size(
+  req: ImageGenRequest,
+  purpose: OpenAISizePurpose
+): {
   size: OpenAISize;
   width: number;
   height: number;
 } {
+  const desired = normalizeImage2DesiredSize(req);
+  const maxPixels =
+    purpose === 'edit' ? IMAGE_2_MAX_EDIT_PIXELS : IMAGE_2_MAX_GENERATE_PIXELS;
+  const scaled = scaleImage2SizeToPixelCap(desired, maxPixels);
+  const candidates = candidateImage2Sizes(scaled.w, scaled.h).filter(
+    (candidate) => candidate.w * candidate.h <= maxPixels
+  );
+  const targetRatio = desired.w / desired.h;
+  const best = candidates.reduce<{ w: number; h: number } | null>(
+    (current, candidate) => {
+      if (!current) return candidate;
+      const score = (value: { w: number; h: number }) => {
+        const aspectDelta = Math.abs(value.w / value.h - targetRatio) / targetRatio;
+        const sizeDelta =
+          Math.abs(value.w - scaled.w) / scaled.w +
+          Math.abs(value.h - scaled.h) / scaled.h;
+        const undersizePenalty =
+          (value.w < scaled.w ? 0.1 : 0) + (value.h < scaled.h ? 0.1 : 0);
+        return aspectDelta * 100 + sizeDelta + undersizePenalty;
+      };
+      return score(candidate) < score(current) ? candidate : current;
+    },
+    null
+  ) ?? { w: 1024, h: 1024 };
+
+  return {
+    size: `${best.w}x${best.h}`,
+    width: best.w,
+    height: best.h,
+  };
+}
+
+function pickOpenAISize(
+  req: ImageGenRequest,
+  model: string,
+  purpose: OpenAISizePurpose
+): {
+  size: OpenAISize;
+  width: number;
+  height: number;
+} {
+  if (isGPTImage2(model)) {
+    return pickGPTImage2Size(req, purpose);
+  }
+
   const { w, h } = req.size ?? dimsFromAspect(req.aspectRatio);
   if (!w || !h) {
     return { size: '1024x1024', width: 1024, height: 1024 };
@@ -195,7 +359,6 @@ export function createOpenAIProvider(
   async function generate(req: ImageGenRequest, opts: { model: string }): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
     const model = opts.model || DEFAULT_MODEL;
-    const { size, width, height } = pickOpenAISize(req);
 
     // OpenAI's edit endpoint only accepts uploaded image files. The composer
     // sends ad-hoc refs as base64 data URLs, so only those should route to
@@ -203,6 +366,11 @@ export function createOpenAIProvider(
     // falls back to plain text generation instead of crashing on coercion.
     const refs = (req.refs ?? []).filter(
       (r): r is ImageRef => isBase64DataUrl(r?.url)
+    );
+    const { size, width, height } = pickOpenAISize(
+      req,
+      model,
+      refs.length > 0 ? 'edit' : 'generate'
     );
     if (refs.length > 0) {
       return editWithRefs(req, refs, model, size, width, height);
@@ -308,7 +476,7 @@ export function createOpenAIProvider(
   ): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
     const model = opts.model || DEFAULT_MODEL;
-    const { size, width, height } = pickOpenAISize(req);
+    const { size, width, height } = pickOpenAISize(req, model, 'edit');
 
     const form = new FormData();
     form.append('model', model);

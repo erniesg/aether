@@ -99,7 +99,7 @@ describe('PromptComposer · format-scope chip', () => {
     expect(opts).toMatchObject({ scope: 'all' });
   });
 
-  it('onSubmit receives scope="single" when ⇧+Enter is used as a one-shot override', async () => {
+  it('keeps keyboard submit aligned with the visible all-formats chip', async () => {
     const onSubmit = vi.fn();
     render(
       <PromptComposer
@@ -111,15 +111,12 @@ describe('PromptComposer · format-scope chip', () => {
     );
 
     const textarea = screen.getByRole('textbox');
-    // Type the prompt, then fire Shift+Enter via keyDown so the modifier
-    // lands on the submit event. Using userEvent.keyboard so modifiers are
-    // accurately modelled.
     await userEvent.type(textarea, 'bright editorial mood');
     await userEvent.keyboard('{Shift>}{Enter}{/Shift}');
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     const [, opts] = onSubmit.mock.calls[0];
-    expect(opts).toMatchObject({ scope: 'single', targetId: 'frame_story' });
+    expect(opts).toMatchObject({ scope: 'all' });
   });
 
   it('onSubmit includes the selected format id when sticky single-format scope is active', async () => {
@@ -143,7 +140,7 @@ describe('PromptComposer · format-scope chip', () => {
     });
   });
 
-  it('reverts to the persistent scope setting after a ⇧-override submit (one-shot only)', async () => {
+  it('continues using the persistent all-formats scope across keyboard submits', async () => {
     const onSubmit = vi.fn();
     render(<PromptComposer formatCount={4} onSubmit={onSubmit} />);
 
@@ -155,7 +152,7 @@ describe('PromptComposer · format-scope chip', () => {
     await userEvent.type(textarea, 'second{Enter}');
 
     expect(onSubmit).toHaveBeenCalledTimes(2);
-    expect(onSubmit.mock.calls[0][1]).toMatchObject({ scope: 'single' });
+    expect(onSubmit.mock.calls[0][1]).toMatchObject({ scope: 'all' });
     expect(onSubmit.mock.calls[1][1]).toMatchObject({ scope: 'all' });
   });
 });

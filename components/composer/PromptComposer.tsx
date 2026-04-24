@@ -23,10 +23,8 @@ export interface ComposerHandle {
 
 /**
  * Format-fanout scope for a single generation. `all` dispatches the prompt
- * against every linked artboard so the key visual fans out. `single` is a
- * one-shot override (typically via ⇧+Enter) that keeps the generation
- * scoped to the currently-focused artboard without changing the sticky
- * preference.
+ * against every linked artboard so the key visual fans out. `single` keeps
+ * the generation scoped to the currently-focused artboard.
  */
 export type PromptScope = 'all' | 'single';
 
@@ -198,13 +196,8 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
 
     const handleKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.key !== 'Enter') return;
-      // ⇧+Enter is the one-shot single-format override. Plain Enter uses the
-      // sticky scope preference (click the chip to flip it persistently).
-      if (event.shiftKey) {
-        event.preventDefault();
-        void submit('single');
-        return;
-      }
+      // Enter uses the visible scope chip. Keeping keyboard submit aligned
+      // with the chip prevents accidental single-format generations.
       event.preventDefault();
       void submit();
     };
@@ -353,7 +346,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
               scope === 'all'
                 ? `apply to all · ${formatCount} format${formatCount === 1 ? '' : 's'}`
                 : 'only this format';
-            const aria = `format scope · ${scopeLabel}${activeFormat ? ` · active ${activeFormat.label}` : ''} · click to toggle (⇧+Enter for one-shot single-format)`;
+            const aria = `format scope · ${scopeLabel}${activeFormat ? ` · active ${activeFormat.label}` : ''} · click to toggle`;
             return (
               <button
                 type="button"

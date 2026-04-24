@@ -1,15 +1,28 @@
 import { NextResponse } from 'next/server';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { CLAUDE_MODEL, planGenerate } from '@/lib/agent/generate';
 import { encodeGenerateEvent } from '@/lib/generate/stream';
 import { listAvailableProviders, resolveProvider } from '@/lib/providers/image/registry';
-import type { AspectRatio, ImageGenResult, ImageRef } from '@/lib/providers/image/types';
+import type {
+  AspectRatio,
+  GeneratedImage,
+  ImageGenResult,
+  ImageRef,
+} from '@/lib/providers/image/types';
 import { ImageGenError, ProviderUnavailableError } from '@/lib/providers/image/types';
-import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
+import {
+  recordRunFail,
+  recordRunFinish,
+  recordRunStart,
+  uploadGeneratedAssetToConvexStorage,
+} from '@/lib/convex/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_RATIOS = ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'] as const;
+const INLINE_IMAGE_ARCHIVE_THRESHOLD_CHARS = 200_000;
 
 type AllowedAspectRatio = (typeof ALLOWED_RATIOS)[number];
 
@@ -17,12 +30,15 @@ interface GenerateTargetInput {
   id?: string;
   label?: string;
   aspectRatio?: string;
+  width?: number;
+  height?: number;
 }
 
 interface GenerateTarget {
   id: string;
   label?: string;
   aspectRatio: AllowedAspectRatio;
+  size?: { w: number; h: number };
 }
 
 interface StreamFrameSuccess {
@@ -32,6 +48,7 @@ interface StreamFrameSuccess {
     index: number;
     total: number;
     aspectRatio: AllowedAspectRatio;
+    size?: { w: number; h: number };
   };
   result: ImageGenResult;
   image: {
@@ -40,6 +57,7 @@ interface StreamFrameSuccess {
     height: number;
     mimeType: string;
   };
+  anchorRef?: ImageRef;
 }
 
 function parseAspectRatio(value: unknown): AllowedAspectRatio | undefined {
@@ -47,6 +65,21 @@ function parseAspectRatio(value: unknown): AllowedAspectRatio | undefined {
   return (ALLOWED_RATIOS as readonly string[]).includes(value)
     ? (value as AllowedAspectRatio)
     : undefined;
+}
+
+function parseTargetSize(width: unknown, height: unknown): GenerateTarget['size'] {
+  if (
+    typeof width !== 'number' ||
+    typeof height !== 'number' ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return undefined;
+  }
+
+  return { w: width, h: height };
 }
 
 function parseTargets(value: unknown): GenerateTarget[] | null {
@@ -62,6 +95,7 @@ function parseTargets(value: unknown): GenerateTarget[] | null {
       id,
       label: typeof v.label === 'string' && v.label.trim() ? v.label.trim() : undefined,
       aspectRatio,
+      size: parseTargetSize(v.width, v.height),
     });
   }
   return targets;
@@ -69,6 +103,148 @@ function parseTargets(value: unknown): GenerateTarget[] | null {
 
 function jsonError(status: number, error: string, code?: string) {
   return NextResponse.json(code ? { ok: false, error, code } : { ok: false, error }, { status });
+}
+
+function parseBase64DataUrl(value: string): { mimeType: string; payload: string; ext: string } | null {
+  if (!value.startsWith('data:')) return null;
+  const commaIdx = value.indexOf(',');
+  if (commaIdx <= 5 || commaIdx === value.length - 1) return null;
+  const header = value.slice(5, commaIdx);
+  if (!header.includes(';base64')) return null;
+  const mimeType = header.split(';', 1)[0] || 'image/png';
+  const ext = mimeType.split('/')[1]?.split('+')[0] || 'png';
+  return { mimeType, payload: value.slice(commaIdx + 1), ext };
+}
+
+function fileSafeId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'asset';
+}
+
+function isBase64DataUrl(value: string | undefined): value is string {
+  return Boolean(value?.startsWith('data:') && value.includes(';base64,'));
+}
+
+async function generatedImageToAnchorRef(image: GeneratedImage): Promise<ImageRef | undefined> {
+  if (isBase64DataUrl(image.dataUrl)) return { url: image.dataUrl, weight: 1 };
+  if (isBase64DataUrl(image.url)) return { url: image.url, weight: 1 };
+  if (!/^https?:\/\//i.test(image.url)) return undefined;
+
+  try {
+    const response = await fetch(image.url);
+    if (!response.ok) return undefined;
+    const contentType = response.headers.get('content-type') || image.mimeType || 'image/png';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return {
+      url: `data:${contentType};base64,${buffer.toString('base64')}`,
+      weight: 1,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function adaptationPromptForTarget(basePrompt: string, target: GenerateTarget) {
+  const format = [
+    target.label ?? target.id,
+    target.size ? `${Math.round(target.size.w)}x${Math.round(target.size.h)}` : target.aspectRatio,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return [
+    `Adapt the provided key visual into ${format}.`,
+    'Preserve the same hero subject, identity, clothing, pose, product, visual style, lighting, palette, and campaign mood.',
+    'Recompose only what is needed for this aspect ratio: extend the background, adjust crop, and preserve safe negative space.',
+    'Do not invent a new scene or replace the hero visual.',
+    `Original direction: ${basePrompt}`,
+  ].join(' ');
+}
+
+async function archiveGeneratedImage(params: {
+  image: GeneratedImage;
+  runKey: string;
+  frameId: string;
+  frameLabel?: string;
+  frameIndex: number;
+  provider?: string;
+  model?: string;
+  prompt?: string;
+}): Promise<GeneratedImage> {
+  if (params.image.url.length <= INLINE_IMAGE_ARCHIVE_THRESHOLD_CHARS) {
+    return params.image;
+  }
+
+  const parsed = parseBase64DataUrl(params.image.dataUrl ?? params.image.url);
+  if (!parsed) return params.image;
+  const bytes = Buffer.from(parsed.payload, 'base64');
+  const convexAsset = await uploadGeneratedAssetToConvexStorage({
+    bytes,
+    mimeType: parsed.mimeType,
+    kind: 'generated-image',
+    clientRunId: params.runKey,
+    frameId: params.frameId,
+    frameLabel: params.frameLabel,
+    provider: params.provider,
+    model: params.model,
+    prompt: params.prompt,
+    width: params.image.width,
+    height: params.image.height,
+  });
+  if (convexAsset) {
+    return {
+      ...params.image,
+      url: convexAsset.url,
+      dataUrl: undefined,
+      mimeType: params.image.mimeType || parsed.mimeType,
+    };
+  }
+
+  const runDir = fileSafeId(params.runKey);
+  const fileName = `${String(params.frameIndex).padStart(2, '0')}-${fileSafeId(
+    params.frameLabel ?? params.frameId
+  )}.${parsed.ext}`;
+  const publicDir = path.join(process.cwd(), 'public', 'generated', runDir);
+  await mkdir(publicDir, { recursive: true });
+  await writeFile(path.join(publicDir, fileName), bytes);
+
+  return {
+    ...params.image,
+    url: `/generated/${runDir}/${fileName}`,
+    dataUrl: undefined,
+    mimeType: params.image.mimeType || parsed.mimeType,
+  };
+}
+
+async function settleWithConcurrency<T>(
+  items: ReadonlyArray<T>,
+  limit: number,
+  worker: (item: T, index: number) => Promise<StreamFrameSuccess>
+): Promise<Array<PromiseSettledResult<StreamFrameSuccess>>> {
+  const results: Array<PromiseSettledResult<StreamFrameSuccess> | undefined> =
+    new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        results[index] = {
+          status: 'fulfilled',
+          value: await worker(items[index]!, index),
+        };
+      } catch (reason) {
+        results[index] = {
+          status: 'rejected',
+          reason,
+        };
+      }
+    }
+  });
+
+  await Promise.all(workers);
+  return results.filter((result): result is PromiseSettledResult<StreamFrameSuccess> =>
+    Boolean(result)
+  );
 }
 
 export async function GET() {
@@ -157,13 +333,25 @@ export async function POST(request: Request) {
       start(controller) {
         void (async () => {
           const startedAt = Date.now();
+          let streamClosed = false;
           const plannerAspect =
             requestedTargets && requestedTargets.length === 1
               ? requestedTargets[0].aspectRatio
               : aspectRatioOverride;
 
           const emit = (event: Parameters<typeof encodeGenerateEvent>[0]) => {
-            controller.enqueue(encodeGenerateEvent(event));
+            if (streamClosed) return false;
+            try {
+              controller.enqueue(encodeGenerateEvent(event));
+              return true;
+            } catch (error) {
+              streamClosed = true;
+              console.warn(
+                `[generate/${reqId}] stream closed before ${event.type}`,
+                error
+              );
+              return false;
+            }
           };
 
           emit({
@@ -220,75 +408,183 @@ export async function POST(request: Request) {
                     },
                   ];
 
-            const settled = await Promise.allSettled(
-              targets.map(async (target, index) => {
-                const frame = {
-                  id: target.id,
-                  label: target.label,
-                  index: index + 1,
-                  total: targets.length,
-                  aspectRatio: target.aspectRatio,
-                } as const;
+            const basePrompt = planned.plan.rewrittenPrompt;
+            const makeFrame = (target: GenerateTarget, index: number) =>
+              ({
+                id: target.id,
+                label: target.label,
+                index: index + 1,
+                total: targets.length,
+                aspectRatio: target.aspectRatio,
+                size: target.size,
+              }) as const;
+
+            const generateFrame = async (
+              target: GenerateTarget,
+              index: number,
+              framePrompt: string,
+              frameRefs?: ImageRef[]
+            ): Promise<StreamFrameSuccess> => {
+              const frame = makeFrame(target, index);
+
+              emit({
+                type: 'frame.started',
+                at: Date.now(),
+                frame,
+                provider: planned.provider,
+              });
+
+              try {
+                console.log(
+                  `[generate/${reqId}] frame started · ${frame.index}/${frame.total} ${frame.label ?? frame.id} aspect=${frame.aspectRatio} size=${target.size ? `${target.size.w}x${target.size.h}` : 'auto'} refs=${frameRefs?.length ?? 0}`
+                );
+                const result = await provider.generate(
+                  {
+                    prompt: framePrompt,
+                    refs: frameRefs,
+                    aspectRatio: target.aspectRatio,
+                    size: target.size,
+                    seed: planned.plan.seed,
+                  },
+                  { model: planned.provider.model }
+                );
+
+                const first = result.images[0];
+                if (!first) throw new Error('provider returned no images');
+                const anchorRef = await generatedImageToAnchorRef(first);
+                const archived = await archiveGeneratedImage({
+                  image: first,
+                  runKey: clientRunId ?? reqId,
+                  frameId: frame.id,
+                  frameLabel: frame.label,
+                  frameIndex: frame.index,
+                  provider: planned.provider.id,
+                  model: planned.provider.model,
+                  prompt: framePrompt,
+                });
+                console.log(
+                  `[generate/${reqId}] frame completed · ${frame.index}/${frame.total} ${frame.label ?? frame.id} ${archived.width}x${archived.height} ${(result.latencyMs / 1000).toFixed(1)}s`
+                );
 
                 emit({
-                  type: 'frame.started',
+                  type: 'frame.completed',
                   at: Date.now(),
                   frame,
                   provider: planned.provider,
+                  latencyMs: result.latencyMs,
+                  image: {
+                    url: archived.url,
+                    width: archived.width,
+                    height: archived.height,
+                    mimeType: archived.mimeType,
+                  },
                 });
 
-                try {
-                  const result = await provider.generate(
-                    {
-                      prompt: planned.plan.rewrittenPrompt,
-                      refs,
-                      aspectRatio: target.aspectRatio,
-                      seed: planned.plan.seed,
-                    },
-                    { model: planned.provider.model }
-                  );
+                return {
+                  frame,
+                  result,
+                  image: archived,
+                  anchorRef,
+                };
+              } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                console.error(
+                  `[generate/${reqId}] frame failed · ${frame.index}/${frame.total} ${frame.label ?? frame.id} · ${message}`
+                );
+                emit({
+                  type: 'frame.failed',
+                  at: Date.now(),
+                  frame,
+                  provider: planned.provider,
+                  error: message,
+                  code:
+                    err instanceof ProviderUnavailableError
+                      ? 'provider_unavailable'
+                      : err instanceof ImageGenError
+                      ? 'image_gen_failed'
+                      : 'unknown_error',
+                });
+                throw err;
+              }
+            };
 
-                  const first = result.images[0];
-                  if (!first) throw new Error('provider returned no images');
-
-                  emit({
-                    type: 'frame.completed',
-                    at: Date.now(),
-                    frame,
-                    provider: planned.provider,
-                    latencyMs: result.latencyMs,
-                    image: {
-                      url: first.url,
-                      width: first.width,
-                      height: first.height,
-                      mimeType: first.mimeType,
-                    },
-                  });
-
-                  return {
-                    frame,
-                    result,
-                    image: first,
-                  };
-                } catch (err) {
-                  const message = err instanceof Error ? err.message : String(err);
-                  emit({
-                    type: 'frame.failed',
-                    at: Date.now(),
-                    frame,
-                    provider: planned.provider,
-                    error: message,
-                    code:
-                      err instanceof ProviderUnavailableError
-                        ? 'provider_unavailable'
-                        : err instanceof ImageGenError
-                        ? 'image_gen_failed'
-                        : 'unknown_error',
-                  });
-                  throw err;
-                }
-              })
+            const anchoredFanout = targets.length > 1;
+            const fanoutConcurrency = anchoredFanout
+              ? Math.min(2, Math.max(1, targets.length - 1))
+              : planned.provider.id === 'openai' &&
+                planned.provider.model.startsWith('gpt-image-2')
+              ? Math.min(2, targets.length)
+              : targets.length;
+            console.log(
+              `[generate/${reqId}] fanout · provider=${planned.provider.id} model=${planned.provider.model} targets=${targets.length} concurrency=${fanoutConcurrency} strategy=${anchoredFanout ? 'anchored-key-visual' : 'single'}`
             );
+
+            let settled: Array<PromiseSettledResult<StreamFrameSuccess>>;
+            if (anchoredFanout) {
+              const [firstTarget, ...remainingTargets] = targets;
+              const firstSettled = await generateFrame(firstTarget!, 0, basePrompt, refs).then(
+                (value): PromiseFulfilledResult<StreamFrameSuccess> => ({
+                  status: 'fulfilled',
+                  value,
+                }),
+                (reason): PromiseRejectedResult => ({
+                  status: 'rejected',
+                  reason,
+                })
+              );
+
+              if (firstSettled.status === 'fulfilled') {
+                const anchoredRefs = firstSettled.value.anchorRef
+                  ? [firstSettled.value.anchorRef, ...(refs ?? [])]
+                  : refs;
+                if (!firstSettled.value.anchorRef) {
+                  console.warn(
+                    `[generate/${reqId}] key visual has no reusable data-url ref; provider may generate looser adaptations`
+                  );
+                }
+                const remainingSettled = await settleWithConcurrency(
+                  remainingTargets,
+                  fanoutConcurrency,
+                  (target, index) =>
+                    generateFrame(
+                      target,
+                      index + 1,
+                      adaptationPromptForTarget(basePrompt, target),
+                      anchoredRefs
+                    )
+                );
+                settled = [firstSettled, ...remainingSettled];
+              } else {
+                const message =
+                  firstSettled.reason instanceof Error
+                    ? firstSettled.reason.message
+                    : String(firstSettled.reason);
+                settled = [
+                  firstSettled,
+                  ...remainingTargets.map((target, offset) => {
+                    const frame = makeFrame(target, offset + 1);
+                    emit({
+                      type: 'frame.failed',
+                      at: Date.now(),
+                      frame,
+                      provider: planned.provider,
+                      error: `key visual failed; ${target.label ?? target.id} was not generated`,
+                      code: 'image_gen_failed',
+                    });
+                    return {
+                      status: 'rejected' as const,
+                      reason: new Error(
+                        `key visual generation failed before ${target.label ?? target.id}: ${message}`
+                      ),
+                    };
+                  }),
+                ];
+              }
+            } else {
+              settled = await settleWithConcurrency(targets, fanoutConcurrency, (target, index) =>
+                generateFrame(target, index, basePrompt, refs)
+              );
+            }
 
             const successes: StreamFrameSuccess[] = settled.flatMap((item) =>
               item.status === 'fulfilled' ? [item.value] : []
@@ -315,6 +611,7 @@ export async function POST(request: Request) {
               rationale: planned.plan.rationale,
               aspectRatio: planned.plan.aspectRatio as AspectRatio,
               firstImageUrl: firstImage?.url,
+              imageUrls: successes.map((success) => success.image.url),
               elapsedMs,
               error: summaryError,
             });
@@ -328,12 +625,16 @@ export async function POST(request: Request) {
                 rationale: planned.plan.rationale,
                 aspectRatio: planned.plan.aspectRatio,
                 imageUrl: firstImage?.url,
+                outputRefs: failed === 0 ? successes.map((success) => success.image.url) : undefined,
                 latencyMs: elapsedMs,
                 error: summaryError,
               });
             }
 
-            controller.close();
+            if (!streamClosed) {
+              streamClosed = true;
+              controller.close();
+            }
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             const code =
@@ -369,9 +670,15 @@ export async function POST(request: Request) {
             }
 
             console.error(`[generate/${reqId}] stream error · ${code} · ${message}`);
-            controller.close();
+            if (!streamClosed) {
+              streamClosed = true;
+              controller.close();
+            }
           }
         })();
+      },
+      cancel() {
+        console.log(`[generate/${reqId}] stream cancelled by client`);
       },
     });
 

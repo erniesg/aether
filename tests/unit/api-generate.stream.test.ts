@@ -161,7 +161,7 @@ describe('/api/generate streaming', () => {
     });
   });
 
-  it('streams per-frame progress when the request fans out to multiple artboards', async () => {
+  it('anchors multi-format fanout to one reusable key visual', async () => {
     mocks.planGenerate.mockResolvedValue({
       plan: {
         rewrittenPrompt: 'shared launch visual',
@@ -199,8 +199,20 @@ describe('/api/generate streaming', () => {
           prompt: 'fan this out',
           bypassAgent: true,
           targets: [
-            { id: 'frame_ig_post', label: 'IG Post', aspectRatio: '4:5' },
-            { id: 'frame_story', label: 'Story', aspectRatio: '9:16' },
+            {
+              id: 'frame_ig_post',
+              label: 'IG Post',
+              aspectRatio: '4:5',
+              width: 1080,
+              height: 1350,
+            },
+            {
+              id: 'frame_story',
+              label: 'Story',
+              aspectRatio: '9:16',
+              width: 1080,
+              height: 1920,
+            },
           ],
         }),
       })
@@ -232,10 +244,22 @@ describe('/api/generate streaming', () => {
       mocks.providerGenerate.mock.calls.map(([req]) => ({
         prompt: req.prompt,
         aspectRatio: req.aspectRatio,
+        size: req.size,
+        refs: req.refs?.map((ref: { url: string }) => ref.url),
       }))
     ).toEqual([
-      { prompt: 'shared launch visual', aspectRatio: '4:5' },
-      { prompt: 'shared launch visual', aspectRatio: '9:16' },
+      {
+        prompt: 'shared launch visual',
+        aspectRatio: '4:5',
+        size: { w: 1080, h: 1350 },
+        refs: undefined,
+      },
+      {
+        prompt: expect.stringContaining('Adapt the provided key visual into Story · 1080x1920.'),
+        aspectRatio: '9:16',
+        size: { w: 1080, h: 1920 },
+        refs: [TINY_PNG],
+      },
     ]);
   });
 });

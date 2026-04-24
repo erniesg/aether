@@ -103,6 +103,25 @@ function allRunIdsFor(
   return ids;
 }
 
+function latestOrderedOutputRefFor(
+  runs: CapabilityRunRecord[],
+  artboardIndex: number,
+  expectedCount: number
+): { run: CapabilityRunRecord; imageUrl: string } | null {
+  const sorted = [...runs].sort(
+    (a, b) => (b.finishedAt ?? b.startedAt) - (a.finishedAt ?? a.startedAt)
+  );
+  for (const run of sorted) {
+    if (run.status !== 'ok') continue;
+    if (!Array.isArray(run.outputRefs) || run.outputRefs.length !== expectedCount) {
+      continue;
+    }
+    const imageUrl = run.outputRefs[artboardIndex];
+    if (typeof imageUrl === 'string' && imageUrl) return { run, imageUrl };
+  }
+  return null;
+}
+
 /**
  * Collect the latest PNG for each artboard and shape the POST body for
  * `/api/export`. Artboards with no completed run are reported via `skipped`
@@ -117,13 +136,19 @@ export async function buildExportRequestBody(
 
   // Preserve the caller's artboard order so the manifest reads top-to-bottom
   // like the canvas: IG post, Story, Reel cover, LinkedIn.
-  for (const board of args.artboards) {
+  for (let boardIndex = 0; boardIndex < args.artboards.length; boardIndex += 1) {
+    const board = args.artboards[boardIndex]!;
     const match = latestFrameFor(args.runs, detailsIndex, board.id);
-    if (!match) {
+    const fallback = match
+      ? null
+      : latestOrderedOutputRefFor(args.runs, boardIndex, args.artboards.length);
+    const imageUrl = match?.frame.imageUrl ?? fallback?.imageUrl;
+    const run = match?.run ?? fallback?.run;
+    if (!imageUrl || !run) {
       skipped.push(board.id);
       continue;
     }
-    const pngBase64 = await fetchAsBase64(match.frame.imageUrl!);
+    const pngBase64 = await fetchAsBase64(imageUrl);
     if (!pngBase64) {
       skipped.push(board.id);
       continue;
@@ -132,10 +157,10 @@ export async function buildExportRequestBody(
       id: board.id,
       label: board.label,
       aspectRatio: board.aspectRatio,
-      prompt: match.run.rewrittenPrompt ?? match.run.prompt,
-      capabilityRunIds: allRunIdsFor(args.runs, detailsIndex, board.id),
-      provider: match.run.provider,
-      model: match.run.model,
+      prompt: run.rewrittenPrompt ?? run.prompt,
+      capabilityRunIds: match ? allRunIdsFor(args.runs, detailsIndex, board.id) : [run.id],
+      provider: run.provider,
+      model: run.model,
       pngBase64,
     });
   }

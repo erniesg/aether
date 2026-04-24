@@ -15,6 +15,7 @@ import { SegmentationPanel, type SegmentationPreviewPayload } from './Segmentati
 import { SegmentationPreviewOverlay } from './SegmentationPreviewOverlay';
 import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
 import { SelectedImageActions } from './SelectedImageActions';
+import { SelectedFrameActions } from './SelectedFrameActions';
 import { AirBrushOverlay } from './AirBrushOverlay';
 import { MotionArtifactPreview, type MotionArtifact } from './MotionArtifactPreview';
 import type {
@@ -94,6 +95,7 @@ export interface CanvasSubstrateProps {
   layoutGuardEnabled?: boolean;
   onLayoutGuardToggle?: (next: boolean) => void;
   onApplyGuardedLayout?: () => void;
+  onExportFrame?: (frameId: string) => void | Promise<void>;
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
   onVerbPress?: (verb: ToolbarVerb) => void;
@@ -131,10 +133,22 @@ interface GeneratedPlatePreview {
   height: number;
 }
 
+interface SelectedFrameInfo {
+  shapeId: string;
+  label?: string;
+  screenBounds: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+}
+
 interface SegmentationDraft {
   verb: SegmentationVerb;
   providerId: SegmentationProviderId;
   prompt: string;
+  backgroundPrompt: string;
   target: SelectedImageInfo;
   refinementMode: SegmentationRefinementMode | null;
   points: SegmentationPointPrompt[];
@@ -431,6 +445,35 @@ function resolveSegmentationFrame(
   };
 }
 
+function getSelectedFrameInfo(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>
+): SelectedFrameInfo | null {
+  const selected = editor.getOnlySelectedShape();
+  if (!selected || selected.type !== 'frame') return null;
+  const frame = selected as {
+    id: string;
+    props?: { w?: number; h?: number; name?: string };
+  };
+  const bounds = editor.getShapePageBounds(frame.id as never);
+  if (!bounds) return null;
+  const viewport = editor.getViewportScreenBounds();
+  const topLeft = editor.pageToScreen({ x: bounds.x, y: bounds.y });
+  const bottomRight = editor.pageToScreen({
+    x: bounds.x + bounds.w,
+    y: bounds.y + bounds.h,
+  });
+  return {
+    shapeId: frame.id,
+    label: frame.props?.name?.split(' · ')[0],
+    screenBounds: {
+      x: topLeft.x - viewport.x,
+      y: topLeft.y - viewport.y,
+      w: bottomRight.x - topLeft.x,
+      h: bottomRight.y - topLeft.y,
+    },
+  };
+}
+
 function resolveActiveSegmentationPreview(
   draft: SegmentationDraft | null
 ): SegmentationPreviewPayload | undefined {
@@ -472,6 +515,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   layoutGuardEnabled = true,
   onLayoutGuardToggle,
   onApplyGuardedLayout,
+  onExportFrame,
   pinnedCapabilities = EMPTY_PINS,
   onCapabilityPress,
   onVerbPress,
@@ -488,6 +532,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   );
   const [sketchSessionShapeIds, setSketchSessionShapeIds] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
+  const [selectedFrame, setSelectedFrame] = useState<SelectedFrameInfo | null>(null);
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
   const [backgroundFill, setBackgroundFill] =
     useState<BackgroundFillSpec>(DEFAULT_BACKGROUND_FILL);
@@ -709,6 +754,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       trackedDrawShapeIds.current = new Set();
       setSketchSessionShapeIds([]);
       setSelectedImage(null);
+      setSelectedFrame(null);
       setSegmentation(null);
       return;
     }
@@ -735,6 +781,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
       const next = getSelectedImageInfo(editor);
       setSelectedImage(next);
+      setSelectedFrame(next ? null : getSelectedFrameInfo(editor));
       setSegmentation((current) => {
         if (!current) return current;
         const target = getImageInfo(editor, current.targetShapeId);
@@ -785,6 +832,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         verb,
         providerId,
         prompt: defaultPromptForVerb(verb),
+        backgroundPrompt: '',
         target,
         refinementMode: null,
         points: [],
@@ -1369,6 +1417,19 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     }
   }, [editor, segmentation]);
 
+  const resolveEditOverride = useCallback(() => {
+    if (typeof window === 'undefined') return {};
+    const urlParams = new URLSearchParams(window.location.search);
+    const generationModel = urlParams.get('model') ?? undefined;
+    const editModel =
+      urlParams.get('editModel') ??
+      (generationModel?.startsWith('gpt-image-') ? generationModel : undefined);
+    return {
+      providerId: urlParams.get('editProvider') ?? 'openai',
+      model: editModel,
+    };
+  }, []);
+
   const handleGenerateBackgroundPlate = useCallback(async () => {
     if (!segmentation?.preview) return;
 
@@ -1400,10 +1461,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           providerId: 'openai',
+          ...resolveEditOverride(),
           sourceUrl: activePreview.sourceDataUrl,
           maskUrl: activePreview.maskDataUrl,
           width: activePreview.width,
           height: activePreview.height,
+          editRegion: 'selection',
         }),
       });
 
@@ -1465,7 +1528,107 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           : current
       );
     }
-  }, [segmentation]);
+  }, [resolveEditOverride, segmentation]);
+
+  const handleGenerateBackgroundChange = useCallback(async () => {
+    if (!segmentation?.preview || !segmentation.backgroundPrompt.trim()) return;
+
+    const activePreview = resolveActiveSegmentationPreview(segmentation);
+    if (!activePreview?.backgroundPlateDataUrl) return;
+
+    const regionId = segmentation.activeRegionId ?? null;
+    const prompt = segmentation.backgroundPrompt.trim();
+
+    setSegmentation((current) =>
+      current
+        ? {
+            ...current,
+            plateLoading: true,
+            error: undefined,
+          }
+        : current
+    );
+
+    if (segmentation.runId) {
+      appendRunActivity(segmentation.runId, {
+        title: 'changing background',
+        detail: prompt,
+      });
+    }
+
+    try {
+      const response = await fetch('/api/segment/plate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...resolveEditOverride(),
+          sourceUrl: activePreview.backgroundPlateDataUrl,
+          width: activePreview.width,
+          height: activePreview.height,
+          prompt,
+          editRegion: 'all',
+        }),
+      });
+
+      const json = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        plate?: {
+          dataUrl: string;
+          mimeType: string;
+          width: number;
+          height: number;
+        };
+      };
+
+      if (!response.ok || !json.ok || !json.plate) {
+        throw new Error(json.error || response.statusText);
+      }
+      const plate = json.plate;
+
+      if (segmentation.runId) {
+        appendRunActivity(segmentation.runId, {
+          title: 'background changed',
+          detail: regionId ? `selection · ${regionId}` : 'selection · all regions',
+          tone: 'ok',
+        });
+      }
+
+      setSegmentation((current) =>
+        current
+          ? {
+              ...current,
+              plateLoading: false,
+              generatedPlate: {
+                regionId,
+                dataUrl: plate.dataUrl,
+                mimeType: plate.mimeType,
+                width: plate.width,
+                height: plate.height,
+              },
+            }
+          : current
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (segmentation.runId) {
+        appendRunActivity(segmentation.runId, {
+          title: 'background change failed',
+          detail: message,
+          tone: 'error',
+        });
+      }
+      setSegmentation((current) =>
+        current
+          ? {
+              ...current,
+              plateLoading: false,
+              error: message,
+            }
+          : current
+      );
+    }
+  }, [resolveEditOverride, segmentation]);
 
   const handleRejectSegmentation = useCallback(() => {
     if (segmentation?.runId) {
@@ -1650,6 +1813,16 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         />
       ) : null}
 
+      {selectedFrame && onExportFrame ? (
+        <SelectedFrameActions
+          rect={selectedFrame.screenBounds}
+          label={selectedFrame.label}
+          onExport={() => {
+            void onExportFrame(selectedFrame.shapeId);
+          }}
+        />
+      ) : null}
+
       {segmentation &&
       activeSegmentationPreview &&
       segmentation.previewVisible &&
@@ -1694,6 +1867,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         preview={activeSegmentationPreview}
         previewVisible={segmentation?.previewVisible}
         backgroundFill={backgroundFill}
+        backgroundPrompt={segmentation?.backgroundPrompt ?? ''}
         onPromptChange={(value) =>
           setSegmentation((current) =>
             current
@@ -1740,6 +1914,17 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           )
         }
         onGenerateBackgroundPlate={handleGenerateBackgroundPlate}
+        onBackgroundPromptChange={(value) =>
+          setSegmentation((current) =>
+            current
+              ? {
+                  ...current,
+                  backgroundPrompt: value,
+                }
+              : current
+          )
+        }
+        onGenerateBackgroundChange={handleGenerateBackgroundChange}
         onElementSelect={(prompt) =>
           setSegmentation((current) =>
             current

@@ -47,6 +47,7 @@ export interface SegmentationPanelProps {
   elements?: ReadonlyArray<ImageElementSuggestion>;
   previewVisible?: boolean;
   backgroundFill: BackgroundFillSpec;
+  backgroundPrompt?: string;
   onPromptChange: (value: string) => void;
   onProviderChange: (value: SegmentationProviderId) => void;
   onRefinementModeChange: (value: SegmentationRefinementMode | null) => void;
@@ -66,6 +67,8 @@ export interface SegmentationPanelProps {
   plateGenerationLoading?: boolean;
   onActiveRegionChange?: (value: string | null) => void;
   onGenerateBackgroundPlate?: () => void;
+  onBackgroundPromptChange?: (value: string) => void;
+  onGenerateBackgroundChange?: () => void;
   onElementSelect?: (prompt: string) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -108,6 +111,7 @@ export function SegmentationPanel({
   elements = [],
   previewVisible = false,
   backgroundFill,
+  backgroundPrompt = '',
   onPromptChange,
   onProviderChange,
   onRefinementModeChange,
@@ -127,6 +131,8 @@ export function SegmentationPanel({
   plateGenerationLoading = false,
   onActiveRegionChange,
   onGenerateBackgroundPlate,
+  onBackgroundPromptChange,
+  onGenerateBackgroundChange,
   onElementSelect,
   onUndo,
   onRedo,
@@ -423,9 +429,21 @@ export function SegmentationPanel({
               </div>
             ) : null}
             {preview.backgroundPlateDataUrl ? (
-              <p className="mt-1 font-caption text-2xs text-ink-dim">
-                a generated background plate is available for the current selection.
-              </p>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="font-caption text-2xs text-ink-dim">
+                  generated background plate available.
+                </p>
+                {onGenerateBackgroundPlate ? (
+                  <button
+                    type="button"
+                    onClick={onGenerateBackgroundPlate}
+                    disabled={plateGenerationLoading}
+                    className="rounded-sm border border-border-soft px-2 py-1 font-caption text-2xs text-ink transition-colors hover:bg-surface-panel disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {plateGenerationLoading ? 'regenerating…' : 'regenerate'}
+                  </button>
+                ) : null}
+              </div>
             ) : onGenerateBackgroundPlate ? (
               <button
                 type="button"
@@ -443,13 +461,38 @@ export function SegmentationPanel({
           <div className="flex flex-col gap-2 rounded-sm border border-border-soft bg-surface-panel-muted p-2">
             <span className="font-caption text-ink-dim">background</span>
             {preview?.backgroundPlateDataUrl ? (
-              <button
-                type="button"
-                onClick={onApplyBackgroundPlate}
-                className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
-              >
-                apply generated plate
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={onApplyBackgroundPlate}
+                  className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel"
+                >
+                  apply generated plate
+                </button>
+                {onBackgroundPromptChange && onGenerateBackgroundChange ? (
+                  <div className="flex flex-col gap-1">
+                    <textarea
+                      value={backgroundPrompt}
+                      onChange={(event) =>
+                        onBackgroundPromptChange(event.target.value)
+                      }
+                      rows={2}
+                      placeholder="new background direction"
+                      className="min-h-14 resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint"
+                    />
+                    <button
+                      type="button"
+                      onClick={onGenerateBackgroundChange}
+                      disabled={
+                        plateGenerationLoading || backgroundPrompt.trim().length === 0
+                      }
+                      className="rounded-sm border border-border-soft px-3 py-1.5 font-caption text-xs text-ink transition-colors hover:bg-surface-panel disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {plateGenerationLoading ? 'changing background…' : 'change background'}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : null}
             <div className="flex items-center gap-1">
               {(['solid', 'gradient'] as const).map((mode) => {

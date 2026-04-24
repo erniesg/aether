@@ -32,6 +32,7 @@ type SectionSpec = {
 };
 
 type RailFormat = { id: string; label?: string };
+const ACTIVE_RUN_WINDOW_MS = 30 * 60 * 1000;
 
 function PlaceholderBody({ hint }: { hint: string }) {
   return (
@@ -138,7 +139,9 @@ function useGenerationsSummary(): {
       hasCompletedOutput: false,
     };
   }
-  const running = runs.some((r) => r.status === 'running');
+  const running = runs.some(
+    (r) => r.status === 'running' && Date.now() - r.startedAt < ACTIVE_RUN_WINDOW_MS
+  );
   return {
     summary: running ? 'generating' : `${runs.length} run${runs.length === 1 ? '' : 's'}`,
     hasContent: true,

@@ -14,6 +14,7 @@ playwright/.cache
 .next
 out
 next-env.d.ts
+public/generated/
 
 # opennext cloudflare
 .open-next
@@ -21,6 +22,7 @@ next-env.d.ts
 
 # convex
 .convex
+convex/_generated/
 
 # production
 build

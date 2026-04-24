@@ -9,6 +9,7 @@ import { v } from 'convex/values';
 // precision is acceptable for the log: payloads match the schema validators.
 
 const MAX_RUNS = 50;
+const MAX_PERSISTED_REF_CHARS = 200_000;
 
 const STEP_VALIDATOR = v.union(
   v.literal('prepared'),
@@ -83,6 +84,22 @@ function toRecord(doc: RunDoc) {
     scope: doc.scope,
     publishedVersion: doc.publishedVersion,
   };
+}
+
+function toPersistableRef(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value.startsWith('data:')) return undefined;
+  if (value.length > MAX_PERSISTED_REF_CHARS) return undefined;
+  return value;
+}
+
+function toPersistableRefs(values: string[] | undefined): string[] | undefined {
+  if (!values) return undefined;
+  const refs = values.flatMap((value) => {
+    const ref = toPersistableRef(value);
+    return ref ? [ref] : [];
+  });
+  return refs.length > 0 ? refs : undefined;
 }
 
 export const list = queryGeneric({
@@ -174,23 +191,41 @@ export const finish = mutationGeneric({
   handler: async (ctx, args) => {
     const doc = await findByClientId(ctx, args.clientRunId);
     if (!doc) return;
-    const { clientRunId: _ignored, ...patch } = args;
+    const {
+      clientRunId: _ignored,
+      imageUrl: _imageUrl,
+      outputRefs: _outputRefs,
+      ...patch
+    } = args;
     const existingOutputs =
       typeof doc.outputs === 'object' && doc.outputs !== null
         ? (doc.outputs as Record<string, unknown>)
         : {};
-    const nextOutputs = {
+    const nextImageUrl =
+      toPersistableRef(args.imageUrl) ?? toPersistableRef(doc.imageUrl);
+    const nextOutputRefs =
+      toPersistableRefs(args.outputRefs) ?? toPersistableRefs(doc.outputRefs);
+    const nextOutputs: Record<string, unknown> = {
       ...existingOutputs,
-      imageUrl: args.imageUrl ?? doc.imageUrl,
       latencyMs: args.latencyMs ?? doc.latencyMs,
-      outputRefs: args.outputRefs ?? doc.outputRefs,
     };
-    await ctx.db.patch(doc._id as any, {
+    if (nextImageUrl) nextOutputs.imageUrl = nextImageUrl;
+    else delete nextOutputs.imageUrl;
+    if (nextOutputRefs) nextOutputs.outputRefs = nextOutputRefs;
+    else delete nextOutputs.outputRefs;
+
+    const topLevelPatch: Record<string, unknown> = {
       ...patch,
       status: args.status ?? 'ok',
       step: 'done',
       inputs: args.inputs ?? doc.inputs,
       outputs: nextOutputs,
+    };
+    if (nextImageUrl) topLevelPatch.imageUrl = nextImageUrl;
+    if (nextOutputRefs) topLevelPatch.outputRefs = nextOutputRefs;
+
+    await ctx.db.patch(doc._id as any, {
+      ...topLevelPatch,
     });
   },
 });

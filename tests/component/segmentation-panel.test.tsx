@@ -48,6 +48,8 @@ function renderPanel(props: Partial<ComponentProps<typeof SegmentationPanel>> = 
     onApplyBackgroundPlate: vi.fn(),
     onActiveRegionChange: vi.fn(),
     onGenerateBackgroundPlate: vi.fn(),
+    onBackgroundPromptChange: vi.fn(),
+    onGenerateBackgroundChange: vi.fn(),
     onElementSelect: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
@@ -209,13 +211,19 @@ describe('SegmentationPanel', () => {
 
     expect(screen.getByText(/detected 2 separate regions from the mask/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/generated background plate is available/i)
+      screen.getByText(/generated background plate available/i)
     ).toBeInTheDocument();
 
     await userEvent.click(
       screen.getByRole('button', { name: /apply generated plate/i })
     );
     expect(handlers.onApplyBackgroundPlate).toHaveBeenCalled();
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/new background direction/i),
+      'warm studio wall'
+    );
+    expect(handlers.onBackgroundPromptChange).toHaveBeenCalled();
   });
 
   it('lets the creator target a region and generate a clean plate for it', async () => {

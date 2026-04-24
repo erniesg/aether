@@ -133,6 +133,48 @@ describe('replicate adapter · contract', () => {
     expect(result.images[0]?.url).toBe('https://cdn.replicate.delivery/a.webp');
   });
 
+  it('maps Seedream 5 Lite refs and batch options to its model schema', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        id: 'seedream1',
+        status: 'succeeded',
+        output: ['https://cdn.replicate.delivery/seedream.png'],
+      })
+    );
+    const provider = createReplicateProvider('r8_test');
+    const result = await provider.generate(
+      {
+        prompt: 'brand social set',
+        refs: [{ url: 'data:image/png;base64,cmVm' }],
+        aspectRatio: '9:16',
+        size: { w: 1080, h: 1920 },
+        n: 3,
+      },
+      { model: 'bytedance/seedream-5-lite' }
+    );
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(
+      'https://api.replicate.com/v1/models/bytedance/seedream-5-lite/predictions'
+    );
+    const body = JSON.parse(init?.body as string);
+    expect(body.input).toMatchObject({
+      prompt: 'brand social set',
+      image_input: ['data:image/png;base64,cmVm'],
+      size: '2K',
+      aspect_ratio: '9:16',
+      sequential_image_generation: 'auto',
+      max_images: 3,
+      output_format: 'png',
+    });
+    expect(result.images[0]).toMatchObject({
+      url: 'https://cdn.replicate.delivery/seedream.png',
+      mimeType: 'image/png',
+      width: 1080,
+      height: 1920,
+    });
+  });
+
   it('throws ImageGenError when create returns non-200', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response('bad input', { status: 422 })

@@ -4,6 +4,44 @@ import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const ENDPOINT = 'https://api.replicate.com/v1/predictions';
 const DEFAULT_MODEL = 'black-forest-labs/flux-1.1-pro';
+const SEEDREAM_5_LITE_MODEL = 'bytedance/seedream-5-lite';
+
+function mapSeedreamAspectRatio(aspectRatio: ImageGenRequest['aspectRatio']) {
+  switch (aspectRatio) {
+    case '1:1':
+    case '4:3':
+    case '3:4':
+    case '16:9':
+    case '9:16':
+    case '3:2':
+    case '2:3':
+      return aspectRatio;
+    default:
+      return 'match_input_image';
+  }
+}
+
+function buildSeedreamInput(req: ImageGenRequest, w: number, h: number) {
+  const imageInput = (req.refs ?? [])
+    .map((ref) => ref.url)
+    .filter((url): url is string => typeof url === 'string' && url.length > 0)
+    .slice(0, 14);
+  const maxImages = Math.min(15, Math.max(1, Math.round(req.n ?? 1)));
+  const aspectRatio = req.aspectRatio
+    ? mapSeedreamAspectRatio(req.aspectRatio)
+    : imageInput.length > 0
+    ? 'match_input_image'
+    : '1:1';
+  return {
+    prompt: req.prompt,
+    image_input: imageInput,
+    size: Math.max(w, h) > 2048 ? '3K' : '2K',
+    aspect_ratio: aspectRatio,
+    sequential_image_generation: maxImages > 1 ? 'auto' : 'disabled',
+    max_images: maxImages,
+    output_format: 'png',
+  };
+}
 
 /**
  * Replicate adapter. Accepts model identifier as <owner>/<name>[:<version>].
@@ -20,6 +58,7 @@ export function createReplicateProvider(
     listModels: () => [
       'black-forest-labs/flux-1.1-pro',
       'black-forest-labs/flux-1.1-pro-ultra',
+      SEEDREAM_5_LITE_MODEL,
       'ideogram-ai/ideogram-v3-turbo',
       'stability-ai/stable-diffusion-3.5-large',
     ],
@@ -40,14 +79,17 @@ export function createReplicateProvider(
           Prefer: 'wait=60',
         },
         body: JSON.stringify({
-          input: {
-            prompt: req.prompt,
-            aspect_ratio: req.aspectRatio ?? '1:1',
-            width: w,
-            height: h,
-            seed: req.seed,
-            negative_prompt: req.negativePrompt,
-          },
+          input:
+            model === SEEDREAM_5_LITE_MODEL
+              ? buildSeedreamInput(req, w, h)
+              : {
+                  prompt: req.prompt,
+                  aspect_ratio: req.aspectRatio ?? '1:1',
+                  width: w,
+                  height: h,
+                  seed: req.seed,
+                  negative_prompt: req.negativePrompt,
+                },
         }),
       });
 
@@ -86,7 +128,7 @@ export function createReplicateProvider(
         latencyMs: elapsed(),
         images: outputs.map((url) => ({
           url,
-          mimeType: 'image/webp',
+          mimeType: model === SEEDREAM_5_LITE_MODEL ? 'image/png' : 'image/webp',
           width: w,
           height: h,
         })),

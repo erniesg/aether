@@ -127,6 +127,22 @@ describe('openai adapter · contract', () => {
     expect(result.images[0]).toMatchObject({ width: 1536, height: 1024 });
   });
 
+  it('uses custom multiple-of-16 sizes for gpt-image-2 artboard requests', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [{ url: 'https://example.com/ig-post.png' }] })
+    );
+    const provider = createOpenAIProvider('sk-test');
+    const result = await provider.generate(
+      { prompt: 'a launch post', aspectRatio: '4:5', size: { w: 1080, h: 1350 } },
+      { model: 'gpt-image-2' }
+    );
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init?.body as string);
+    expect(body.size).toBe('1088x1360');
+    expect(result.images[0]).toMatchObject({ width: 1088, height: 1360 });
+  });
+
   it('throws ImageGenError on non-200 response with status + body text', async () => {
     fetchMock.mockResolvedValue(new Response('rate limited', { status: 429 }));
     const provider = createOpenAIProvider('sk-test');
@@ -148,7 +164,7 @@ describe('openai adapter · contract', () => {
       .catch((e) => e);
 
     expect(err).toBeInstanceOf(ImageGenError);
-    expect(String(err)).toMatch(/timed out after 120s/);
+    expect(String(err)).toMatch(/timed out after 300s/);
   });
 
   it('throws ImageGenError when response has no images', async () => {
@@ -242,6 +258,26 @@ describe('openai adapter · contract', () => {
     expect(result.images[0]?.url).toBe('data:image/png;base64,cGxhdGU=');
     expect(result.images[0]?.width).toBe(1536);
     expect(result.images[0]?.height).toBe(1024);
+  });
+
+  it('caps gpt-image-2 edit sizes to the edit pixel budget', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [{ b64_json: 'cGxhdGU=' }] })
+    );
+    const provider = createOpenAIProvider('sk-test');
+    const sourcePng = await grayscalePngDataUrl(255);
+    await provider.edit!(
+      {
+        prompt: 'repair the background',
+        sourceUrl: sourcePng,
+        size: { w: 3000, h: 3000 },
+      },
+      { model: 'gpt-image-2' }
+    );
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const form = init?.body as FormData;
+    expect(form.get('size')).toBe('2048x2048');
   });
 
   it('normalizes grayscale png masks into rgba pngs before upload', async () => {

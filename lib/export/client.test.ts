@@ -87,4 +87,37 @@ describe('buildExportRequestBody', () => {
     expect(result.skipped).toEqual(['story']);
     expect((result.body.artboardIds as string[]).sort()).toEqual(['ig-post']);
   });
+
+  it('falls back to ordered output refs when in-memory frame details are gone', async () => {
+    const result = await buildExportRequestBody({
+      workspaceId: 'demo-ws',
+      artboards: [
+        { id: 'ig-post', label: 'IG Post', aspectRatio: '4:5' },
+        { id: 'story', label: 'Story', aspectRatio: '9:16' },
+      ],
+      runs: [
+        run({
+          id: 'run_a',
+          finishedAt: 10,
+          outputRefs: [TINY_DATA_URL, TINY_DATA_URL],
+        }),
+      ],
+      runDetails: [],
+      pinnedSkills: [],
+    });
+
+    expect(result.skipped).toEqual([]);
+    expect(result.body.artboardIds).toEqual(['ig-post', 'story']);
+    const artboards = result.body.artboards as Array<{
+      id: string;
+      pngBase64: string;
+      capabilityRunIds: string[];
+    }>;
+    expect(artboards).toHaveLength(2);
+    expect(artboards[0]).toMatchObject({
+      id: 'ig-post',
+      pngBase64: TINY_B64,
+      capabilityRunIds: ['run_a'],
+    });
+  });
 });

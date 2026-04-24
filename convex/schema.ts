@@ -106,6 +106,30 @@ export default defineSchema({
     renderedUrl: v.optional(v.string()),
   }).index('by_kv', ['keyVisualId']),
 
+  generatedAsset: defineTable({
+    wsId: v.optional(v.id('workspace')),
+    storageId: v.id('_storage'),
+    url: v.string(),
+    kind: v.union(
+      v.literal('generated-image'),
+      v.literal('background-plate'),
+      v.literal('export-pack')
+    ),
+    clientRunId: v.optional(v.string()),
+    frameId: v.optional(v.string()),
+    frameLabel: v.optional(v.string()),
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+    prompt: v.optional(v.string()),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+    mimeType: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_client_run_id', ['clientRunId'])
+    .index('by_storage', ['storageId']),
+
   // ─── capability system (the hero) ──────────────────────────────────────
   capabilityDefinition: defineTable({
     wsId: v.id('workspace'),

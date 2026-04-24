@@ -4,6 +4,7 @@ import { useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
 import { getConvexClient } from '@/lib/convex/client';
 import type { CapabilityRunRecord, RunStatus, RunStep } from './runs.types';
+import { toPersistableRef, toPersistableRefs } from './persistableRefs';
 
 // anyApi lets us reference server functions by path without depending on the
 // generated api surface. Replace with `api.runs.*` from `convex/_generated/api`
@@ -42,13 +43,19 @@ export function startRunConvex(
     artifactKind: partial.artifactKind,
     scope: partial.scope,
     startedAt: Date.now(),
-  } as never);
+  } as never).catch((error) => {
+    console.error('[runs/convex] start failed', error);
+  });
 }
 
 export function stepRunConvex(id: string, step: RunStep): void {
   const client = getConvexClient();
   if (!client) return;
-  void client.mutation(runsApi.step as never, { clientRunId: id, step } as never);
+  void client
+    .mutation(runsApi.step as never, { clientRunId: id, step } as never)
+    .catch((error) => {
+      console.error('[runs/convex] step failed', error);
+    });
 }
 
 export function finishRunConvex(id: string, patch: Partial<CapabilityRunRecord>): void {
@@ -62,16 +69,18 @@ export function finishRunConvex(id: string, patch: Partial<CapabilityRunRecord>)
     rewrittenPrompt: patch.rewrittenPrompt,
     rationale: patch.rationale,
     aspectRatio: patch.aspectRatio,
-    imageUrl: patch.imageUrl,
+    imageUrl: toPersistableRef(patch.imageUrl),
     latencyMs: patch.latencyMs,
     error: patch.error,
     httpStatus: patch.httpStatus,
     inputs: patch.inputs,
     artifactKind: patch.artifactKind,
-    outputRefs: patch.outputRefs,
+    outputRefs: toPersistableRefs(patch.outputRefs),
     scope: patch.scope,
     finishedAt: Date.now(),
-  } as never);
+  } as never).catch((error) => {
+    console.error('[runs/convex] finish failed', error);
+  });
 }
 
 export function failRunConvex(id: string, error: string, httpStatus?: number): void {
@@ -82,5 +91,7 @@ export function failRunConvex(id: string, error: string, httpStatus?: number): v
     error,
     httpStatus,
     finishedAt: Date.now(),
-  } as never);
+  } as never).catch((mutationError) => {
+    console.error('[runs/convex] fail failed', mutationError);
+  });
 }

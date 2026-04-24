@@ -13,10 +13,14 @@ function inferMimeTypeFromUrl(url: string): string {
 }
 
 export function bufferToDataUrl(
-  buffer: ArrayBuffer,
+  buffer: ArrayBuffer | Uint8Array,
   mimeType: string
 ): string {
-  const base64 = Buffer.from(buffer).toString('base64');
+  const bytes =
+    buffer instanceof ArrayBuffer
+      ? Buffer.from(buffer)
+      : Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const base64 = bytes.toString('base64');
   return `data:${mimeType};base64,${base64}`;
 }
 

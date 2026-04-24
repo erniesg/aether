@@ -1,5 +1,6 @@
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
+import { toPersistableRef, toPersistableRefs } from '@/lib/store/persistableRefs';
 
 /**
  * Convex HTTP client for server-side runtimes (Next.js route handlers).
@@ -9,6 +10,7 @@ import { anyApi } from 'convex/server';
  */
 
 let httpClient: ConvexHttpClient | null = null;
+let publicHttpClient: ConvexHttpClient | null = null;
 
 function getHttpClient(): ConvexHttpClient | null {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -22,9 +24,19 @@ function getHttpClient(): ConvexHttpClient | null {
   return httpClient;
 }
 
+function getPublicHttpClient(): ConvexHttpClient | null {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) return null;
+  if (!publicHttpClient) publicHttpClient = new ConvexHttpClient(url);
+  return publicHttpClient;
+}
+
 const runsApi = (anyApi as unknown as {
   runs: { start: unknown; step: unknown; finish: unknown; fail: unknown };
 }).runs;
+const assetsApi = (anyApi as unknown as {
+  assets: { generateUploadUrl: unknown; getUrl: unknown; recordGenerated: unknown };
+}).assets;
 
 export interface ServerRunStart {
   clientRunId: string;
@@ -61,6 +73,7 @@ export async function recordRunFinish(
     latencyMs: number;
     error: string;
     httpStatus: number;
+    outputRefs: string[];
   }>
 ): Promise<void> {
   const client = getHttpClient();
@@ -69,6 +82,8 @@ export async function recordRunFinish(
     await client.mutation(runsApi.finish as never, {
       clientRunId,
       ...patch,
+      imageUrl: toPersistableRef(patch.imageUrl),
+      outputRefs: toPersistableRefs(patch.outputRefs),
       finishedAt: Date.now(),
     } as never);
   } catch (err) {
@@ -97,4 +112,79 @@ export async function recordRunFail(
 
 export function isConvexHttpEnabled(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CONVEX_DEPLOY_KEY);
+}
+
+export async function uploadGeneratedAssetToConvexStorage(input: {
+  bytes: Uint8Array;
+  mimeType: string;
+  kind?: 'generated-image' | 'background-plate' | 'export-pack';
+  clientRunId?: string;
+  frameId?: string;
+  frameLabel?: string;
+  provider?: string;
+  model?: string;
+  prompt?: string;
+  width?: number;
+  height?: number;
+}): Promise<{ assetId?: string; storageId: string; url: string } | null> {
+  const client = getPublicHttpClient();
+  if (!client) return null;
+
+  try {
+    const uploadUrl = (await client.mutation(
+      assetsApi.generateUploadUrl as never,
+      {} as never
+    )) as string;
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': input.mimeType,
+      },
+      body: new Blob([input.bytes as unknown as BlobPart], { type: input.mimeType }),
+    });
+    if (!uploadResponse.ok) {
+      const text = await uploadResponse.text().catch(() => uploadResponse.statusText);
+      throw new Error(`${uploadResponse.status} ${text}`);
+    }
+
+    const json = (await uploadResponse.json()) as { storageId?: string };
+    if (!json.storageId) throw new Error('upload response missing storageId');
+    try {
+      const registered = (await client.mutation(assetsApi.recordGenerated as never, {
+        storageId: json.storageId,
+        kind: input.kind ?? 'generated-image',
+        clientRunId: input.clientRunId,
+        frameId: input.frameId,
+        frameLabel: input.frameLabel,
+        provider: input.provider,
+        model: input.model,
+        prompt: input.prompt,
+        width: input.width,
+        height: input.height,
+        mimeType: input.mimeType,
+        createdAt: Date.now(),
+      } as never)) as { assetId?: string; storageId?: string; url?: string };
+      if (registered.url) {
+        return {
+          assetId: registered.assetId,
+          storageId: registered.storageId ?? json.storageId,
+          url: registered.url,
+        };
+      }
+    } catch (error) {
+      console.error('[convex/http] generated asset record failed', error);
+    }
+
+    const url = (await client.query(assetsApi.getUrl as never, {
+      storageId: json.storageId,
+    } as never)) as string | null;
+    if (!url) throw new Error('storage URL not available');
+    return {
+      storageId: json.storageId,
+      url,
+    };
+  } catch (error) {
+    console.error('[convex/http] uploadGeneratedAssetToConvexStorage failed', error);
+    return null;
+  }
 }
