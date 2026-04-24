@@ -554,6 +554,14 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     [editor, handlePrimitiveToolPress, captureSketchAsReference]
   );
 
+  // Single awaited end-of-session path for voice + gesture. Captures the
+  // sketch INTO the composer's ref list before toggling air brush off so any
+  // follow-up run_generate sees the reference.
+  const finishAirBrushAndCapture = useCallback(async () => {
+    await captureSketchAsReference();
+    setAirBrushActive(false);
+  }, [captureSketchAsReference]);
+
   const handleAirBrushPoint = useCallback(
     (point: AirBrushPoint) => {
       if (point.state === 'hover') return;
@@ -1544,10 +1552,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       // run_generate call fires. The chip-driven toggle uses fire-and-forget
       // because the UI doesn't need to wait, but voice tool dispatch is
       // sequential — the model will emit run_generate after this resolves.
-      end_air_brush: async () => {
-        await captureSketchAsReference();
-        setAirBrushActive(false);
-      },
+      end_air_brush: finishAirBrushAndCapture,
       run_capability: ({ definitionId }) => {
         onCapabilityPress?.(definitionId);
       },
@@ -1556,8 +1561,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       },
     }),
     [
-      captureSketchAsReference,
       editor,
+      finishAirBrushAndCapture,
       handleBrushColorChange,
       handleBrushSizeAdjust,
       handleBrushSizeChange,
@@ -1628,6 +1633,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onActiveChange={handleAirBrushToggle}
         onPoint={handleAirBrushPoint}
         onCapture={(dataUrl) => composerRef.current?.addReferenceDataUrl(dataUrl)}
+        onEndAirBrush={finishAirBrushAndCapture}
         showInactiveButton={false}
       />
 

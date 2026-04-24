@@ -10,6 +10,7 @@ import {
 import { Camera, ImagePlus, MousePointer2, X } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
 import {
+  detectOpenPalm,
   evaluateMediaPipeHandLandmarks,
   getAirBrushVideoDebug,
   messageFromUnknownError,
@@ -41,10 +42,26 @@ export interface AirBrushOverlayProps {
   onActiveChange?: (active: boolean) => void;
   onPoint?: (point: AirBrushPoint) => void;
   onCapture?: (dataUrl: string) => void;
+  /**
+   * Fires when the creator sustains an open-palm "done" gesture long enough to
+   * commit the air-brush session. Parents should await their capture flow —
+   * the overlay calls this then hands off the active-change to the parent.
+   */
+  onEndAirBrush?: () => void | Promise<void>;
   createHandLandmarker?: CreateAirBrushHandLandmarker;
   className?: string;
   showInactiveButton?: boolean;
 }
+
+// Pen-down debounce: require 2 consecutive pinch-closed frames before
+// emitting a tldraw pointer_down. The first frame's thumb-on-index jitter
+// moves the index tip landmark by a few pixels; without this, every pinch
+// leaves a tiny dot at the start of the stroke.
+const PINCH_WARMUP_FRAMES = 2;
+// Open-palm gesture: sustain for this many frames (~0.33s at 30fps) before
+// auto-capturing. Short enough to feel responsive, long enough to avoid
+// triggering while the creator is momentarily between strokes.
+const OPEN_PALM_HOLD_FRAMES = 10;
 
 type CameraState = 'idle' | 'requesting' | 'ready' | 'error';
 type TrackingState = 'idle' | 'loading' | 'ready' | 'error';
@@ -349,6 +366,7 @@ export function AirBrushOverlay({
   onActiveChange,
   onPoint,
   onCapture,
+  onEndAirBrush,
   createHandLandmarker = createMediaPipeHandLandmarker,
   className,
   showInactiveButton = true,
@@ -357,9 +375,16 @@ export function AirBrushOverlay({
   const landmarkCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const onPointRef = useRef(onPoint);
+  const onEndAirBrushRef = useRef(onEndAirBrush);
   const lastCameraPointRef = useRef<AirBrushPoint | null>(null);
   const cameraStrokeActiveRef = useRef(false);
   const activeCameraIntentRef = useRef<AirBrushPointIntent | null>(null);
+  const pinchWarmupCountRef = useRef<Record<AirBrushPointIntent, number>>({
+    draw: 0,
+    erase: 0,
+  });
+  const openPalmHoldFramesRef = useRef(0);
+  const endAirBrushFiredRef = useRef(false);
   const pointerFallbackActiveRef = useRef(false);
   const pointerFallbackIdRef = useRef<number | null>(null);
   const [cameraState, setCameraState] = useState<CameraState>('idle');
@@ -533,6 +558,10 @@ export function AirBrushOverlay({
   }, [onPoint]);
 
   useEffect(() => {
+    onEndAirBrushRef.current = onEndAirBrush;
+  }, [onEndAirBrush]);
+
+  useEffect(() => {
     stateSnapshotRef.current = {
       active,
       cameraState,
@@ -581,6 +610,9 @@ export function AirBrushOverlay({
       }
       cameraStrokeActiveRef.current = false;
       activeCameraIntentRef.current = null;
+      pinchWarmupCountRef.current = { draw: 0, erase: 0 };
+      openPalmHoldFramesRef.current = 0;
+      endAirBrushFiredRef.current = false;
       pointerFallbackActiveRef.current = false;
       pointerFallbackIdRef.current = null;
       lastCameraPointRef.current = null;
@@ -837,7 +869,64 @@ export function AirBrushOverlay({
         const drawPoint = drawEval.point;
         const eraseActive = Boolean(erasePoint && erasePoint.state !== 'end');
         const drawActive = Boolean(drawPoint && drawPoint.state !== 'end');
-        const preferredPoint = eraseActive ? erasePoint : drawActive ? drawPoint : null;
+
+        // Reset pinch warmup for any intent whose pinch dropped this frame.
+        if (!drawActive) pinchWarmupCountRef.current.draw = 0;
+        if (!eraseActive) pinchWarmupCountRef.current.erase = 0;
+
+        // Open-palm "done" gesture: either hand with five fingertips extended
+        // away from the wrist and no pinch, held for OPEN_PALM_HOLD_FRAMES.
+        const handsLandmarks = frame?.landmarks ?? [];
+        let openPalmSeen = false;
+        for (const hand of handsLandmarks) {
+          if (detectOpenPalm(hand, { minHandSpan: 0.05 }).detected) {
+            openPalmSeen = true;
+            break;
+          }
+        }
+        if (openPalmSeen) {
+          openPalmHoldFramesRef.current += 1;
+          if (
+            openPalmHoldFramesRef.current >= OPEN_PALM_HOLD_FRAMES &&
+            !endAirBrushFiredRef.current &&
+            onEndAirBrushRef.current
+          ) {
+            endAirBrushFiredRef.current = true;
+            publishDebug(
+              'stroke-ended',
+              { reason: 'open-palm-gesture' },
+              {},
+              { log: true }
+            );
+            void onEndAirBrushRef.current();
+          }
+        } else {
+          openPalmHoldFramesRef.current = 0;
+        }
+
+        // Pen-down debounce: swallow the first PINCH_WARMUP_FRAMES accepted
+        // start frames so thumb-on-index landmark jitter doesn't leave a dot
+        // at the start of the stroke.
+        const preferredPointRaw = eraseActive
+          ? erasePoint
+          : drawActive
+            ? drawPoint
+            : null;
+        let preferredPoint = preferredPointRaw;
+        if (
+          preferredPointRaw &&
+          preferredPointRaw.state === 'start' &&
+          preferredPointRaw.intent &&
+          !activeIntent
+        ) {
+          const intent = preferredPointRaw.intent;
+          pinchWarmupCountRef.current[intent] += 1;
+          if (pinchWarmupCountRef.current[intent] < PINCH_WARMUP_FRAMES) {
+            preferredPoint = null;
+          } else {
+            pinchWarmupCountRef.current[intent] = 0;
+          }
+        }
         const pointsToEmit: AirBrushPoint[] = [];
 
         if (

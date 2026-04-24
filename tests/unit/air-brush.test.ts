@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampAirBrushPoint,
+  detectOpenPalm,
   evaluateMediaPipeHandLandmarks,
   normalizeAirBrushPoint,
   resolveAirBrushInputMode,
@@ -406,6 +407,45 @@ describe('air brush input helpers', () => {
       ...previousPoint,
       state: 'end',
     });
+  });
+
+  it('detects an open-palm "done" gesture and rejects drawing/fist poses', () => {
+    const openPalm = Array.from({ length: 21 }, () => ({
+      x: 0.5,
+      y: 0.5,
+      z: 0,
+      visibility: 0.95,
+    }));
+    // Wrist at the bottom of the frame, five fingertips splayed well above it.
+    openPalm[0] = { x: 0.5, y: 0.85, z: 0, visibility: 0.95 };
+    openPalm[5] = { x: 0.44, y: 0.6, z: 0, visibility: 0.95 };
+    openPalm[17] = { x: 0.62, y: 0.62, z: 0, visibility: 0.95 };
+    openPalm[4] = { x: 0.32, y: 0.5, z: 0, visibility: 0.95 }; // thumb
+    openPalm[8] = { x: 0.42, y: 0.32, z: 0, visibility: 0.95 }; // index
+    openPalm[12] = { x: 0.52, y: 0.3, z: 0, visibility: 0.95 }; // middle
+    openPalm[16] = { x: 0.6, y: 0.32, z: 0, visibility: 0.95 }; // ring
+    openPalm[20] = { x: 0.68, y: 0.38, z: 0, visibility: 0.95 }; // pinky
+
+    const palm = detectOpenPalm(openPalm);
+    expect(palm.detected).toBe(true);
+    expect(palm.minFingerReach ?? 0).toBeGreaterThan(palm.requiredReach ?? 0);
+
+    // A drawing pose: thumb and index pinched together — must NOT be treated
+    // as the done gesture even if the other fingertips are extended.
+    const pinchedPose = openPalm.map((landmark) => ({ ...landmark }));
+    pinchedPose[4] = { x: 0.41, y: 0.33, z: 0, visibility: 0.95 };
+    pinchedPose[8] = { x: 0.42, y: 0.32, z: 0, visibility: 0.95 };
+    expect(detectOpenPalm(pinchedPose).detected).toBe(false);
+
+    // A fist: fingertips collapsed toward the palm — not an open palm.
+    const fist = openPalm.map((landmark) => ({ ...landmark }));
+    for (const idx of [4, 8, 12, 16, 20]) {
+      fist[idx] = { x: 0.5, y: 0.72, z: 0, visibility: 0.95 };
+    }
+    expect(detectOpenPalm(fist).detected).toBe(false);
+
+    expect(detectOpenPalm(undefined).detected).toBe(false);
+    expect(detectOpenPalm([]).detected).toBe(false);
   });
 
   it('returns handedness-mismatch when the preferred hand is not in the frame', () => {
