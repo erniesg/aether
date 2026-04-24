@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LeftRail } from '@/components/rail/LeftRail';
+import { resetSignalsForTests } from '@/lib/signals/store';
 
 afterEach(cleanup);
+beforeEach(() => {
+  window.localStorage.clear();
+  resetSignalsForTests();
+});
 
 describe('LeftRail · stable context first, run material last', () => {
   it('renders exactly five rail sections in brand · offer · campaign · references · signals order', () => {
@@ -78,7 +83,7 @@ describe('LeftRail · stable context first, run material last', () => {
     expect(labels).toEqual(['images', 'templates', 'elements']);
   });
 
-  it('signals section surfaces three seeded trend rows with platform + lift', async () => {
+  it('signals section exposes three CRUD groups (keywords · hashtags · accounts)', async () => {
     const { container } = render(<LeftRail />);
 
     const signalsTrigger = container.querySelector<HTMLButtonElement>(
@@ -91,16 +96,15 @@ describe('LeftRail · stable context first, run material last', () => {
       '[data-rail-flyout="signals"]'
     );
     expect(flyout).not.toBeNull();
-    const text = (flyout!.textContent ?? '').toLowerCase();
-    expect(text).toContain('clean-girl');
-    expect(text).toContain('tiktok');
-    expect(text).toContain('+341%');
-    expect(text).toContain('golden-hour');
-    expect(text).toContain('instagram');
-    expect(text).toContain('+124%');
-    expect(text).toContain('slow-morning');
-    expect(text).toContain('pinterest');
-    expect(text).toContain('+89%');
+
+    const groupKinds = Array.from(
+      flyout!.querySelectorAll<HTMLElement>('[data-signal-group]')
+    ).map((el) => el.dataset.signalGroup);
+    expect(groupKinds).toEqual(['keyword', 'hashtag', 'account']);
+
+    expect(screen.getByLabelText(/add keyword/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/add hashtag/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/add account/i)).toBeInTheDocument();
   });
 
   it('rail root carries input taxonomy contract', () => {

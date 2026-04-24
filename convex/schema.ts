@@ -83,6 +83,19 @@ export default defineSchema({
     safeZones: v.array(v.any()),
   }).index('by_ws', ['wsId']),
 
+  // Creator-controlled signal subscriptions: keywords, hashtags, and accounts
+  // the creator wants the system to listen to. `wsId` is optional for the same
+  // reason it is on `capabilityRun` — pre-Phase-5 the UI has no workspace
+  // plumbing and a single demo workspace is implicit.
+  signalSubscription: defineTable({
+    wsId: v.optional(v.id('workspace')),
+    kind: v.union(v.literal('keyword'), v.literal('hashtag'), v.literal('account')),
+    value: v.string(),
+    addedAt: v.number(),
+    lastCheckedAt: v.optional(v.number()),
+    mutedUntil: v.optional(v.number()),
+  }).index('by_ws', ['wsId']),
+
   // ─── canvas ────────────────────────────────────────────────────────────
   canvasSnapshot: defineTable({
     wsId: v.id('workspace'),
