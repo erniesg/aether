@@ -13,10 +13,10 @@ import type { ImageGenRequest } from './types';
  * tokens — callers keep their own negative prompts without having to know
  * anything about preset-derived ones.
  */
-export function applyGuidanceToRequest(
-  base: ImageGenRequest,
+export function applyGuidanceToRequest<T extends ImageGenRequest>(
+  base: T,
   guidanceInput: CompositionGuidanceInput
-): ImageGenRequest {
+): T {
   const guidance = buildCompositionGuidance(guidanceInput);
 
   const hasSuffix = guidance.promptSuffix.length > 0;
