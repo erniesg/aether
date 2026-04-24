@@ -56,9 +56,12 @@ describe('reference registry · routing', () => {
   it('falls through to generic when a specific adapter throws', async () => {
     // Pinterest with no og:image — the adapter will throw; registry falls
     // through to generic, which degrades into a link-only embed record.
+    // Use mockImplementation (not mockResolvedValue) so each fetcher call
+    // returns a FRESH Response — Response bodies are single-use, and the
+    // fall-through re-fetches via generic.
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(htmlResponse('<html><head></head></html>'));
+      .mockImplementation(async () => htmlResponse('<html><head></head></html>'));
     const outcome = await ingestReferenceUrl('https://www.pinterest.com/pin/2/', {
       fetcher,
     });
