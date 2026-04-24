@@ -16,7 +16,9 @@ import {
   SignalsSection,
   signalsSectionSummary,
 } from './sections/SignalsSection';
+import { ReferencesImagesTab } from './sections/ReferencesImagesTab';
 import { useSignals } from '@/lib/signals/store';
+import { useReferences, referenceSummary } from '@/lib/references/store';
 import {
   DEMO_CREATOR_CONTEXT,
   summarizeInputSet,
@@ -148,7 +150,7 @@ function ReferencesBody() {
         })}
       </div>
       {tab === 'images' ? (
-        <PlaceholderBody hint="drop or paste reference images to pin" />
+        <ReferencesImagesTab />
       ) : tab === 'templates' ? (
         <PlaceholderBody hint="starting layouts seed an artboard" />
       ) : (
@@ -167,6 +169,7 @@ function ReferencesBody() {
 function LeftRailInner({ className }: { className?: string }) {
   const { railRef } = useRail();
   const signals = useSignals();
+  const references = useReferences();
   const signalsSummary = signalsSectionSummary(signals);
 
   const sections: ReadonlyArray<SectionSpec> = [
@@ -198,7 +201,8 @@ function LeftRailInner({ className }: { className?: string }) {
       id: 'references',
       label: 'references',
       icon: Layers3,
-      summary: '0 pinned',
+      summary: referenceSummary(references),
+      hasContent: references.length > 0,
       body: <ReferencesBody />,
     },
     {
