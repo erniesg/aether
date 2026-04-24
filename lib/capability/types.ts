@@ -29,7 +29,7 @@ export interface CapabilityRunTemplate {
   /** Provider-routing hint; still resolved via the registry, never hardcoded. */
   providerId?: string;
   model?: string;
-  artifactKind?: 'image' | 'spatial';
+  artifactKind?: 'image' | 'spatial' | 'video' | 'audio';
   format?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
   sourceMode?: 'selected-image';

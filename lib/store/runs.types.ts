@@ -17,7 +17,7 @@ export interface CapabilityRunRecord {
   provider: string;
   model: string;
   prompt: string;
-  artifactKind?: 'image' | 'spatial';
+  artifactKind?: 'image' | 'spatial' | 'video' | 'audio';
   outputFormat?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
   sourceMode?: 'selected-image';
