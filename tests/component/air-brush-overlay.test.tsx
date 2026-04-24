@@ -333,8 +333,16 @@ describe('AirBrushOverlay', () => {
     ).toBeInTheDocument();
     await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
 
+    // Pen-down is debounced across PINCH_WARMUP_FRAMES (2) to avoid thumb-on-
+    // index jitter leaving a dot at the stroke start. First tick must not emit.
     act(() => {
       rafCallbacks.shift()?.(100);
+    });
+    expect(onPoint).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(116);
     });
 
     await waitFor(() => {
@@ -403,6 +411,12 @@ describe('AirBrushOverlay', () => {
     act(() => {
       rafCallbacks.shift()?.(100);
     });
+    expect(onPoint).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(116);
+    });
 
     await waitFor(() => {
       expect(onPoint).toHaveBeenCalledWith(
@@ -414,6 +428,86 @@ describe('AirBrushOverlay', () => {
           intent: 'erase',
         })
       );
+    });
+  });
+
+  it('fires onEndAirBrush after a sustained open-palm gesture', async () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      {
+        clearRect: vi.fn(),
+        setTransform: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+      } as unknown as CanvasRenderingContext2D
+    );
+
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+
+    const openPalm = Array.from({ length: 21 }, () => ({
+      x: 0.5,
+      y: 0.5,
+      z: 0,
+      visibility: 0.95,
+    }));
+    openPalm[0] = { x: 0.5, y: 0.85, z: 0, visibility: 0.95 };
+    openPalm[5] = { x: 0.44, y: 0.6, z: 0, visibility: 0.95 };
+    openPalm[17] = { x: 0.62, y: 0.62, z: 0, visibility: 0.95 };
+    openPalm[4] = { x: 0.32, y: 0.5, z: 0, visibility: 0.95 };
+    openPalm[8] = { x: 0.42, y: 0.32, z: 0, visibility: 0.95 };
+    openPalm[12] = { x: 0.52, y: 0.3, z: 0, visibility: 0.95 };
+    openPalm[16] = { x: 0.6, y: 0.32, z: 0, visibility: 0.95 };
+    openPalm[20] = { x: 0.68, y: 0.38, z: 0, visibility: 0.95 };
+
+    const detectForVideo = vi.fn(() => ({
+      landmarks: [openPalm],
+      handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+    }));
+    const onEndAirBrush = vi.fn();
+
+    render(
+      <AirBrushOverlay
+        active
+        onEndAirBrush={onEndAirBrush}
+        createHandLandmarker={async () => ({
+          detectForVideo,
+          close: vi.fn(),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+
+    // Tick enough frames that the overlay considers the open palm sustained
+    // (OPEN_PALM_HOLD_FRAMES = 10). The gesture must fire exactly once.
+    for (let i = 0; i < 12; i += 1) {
+      act(() => {
+        rafCallbacks.shift()?.(100 + i * 16);
+      });
+      if (rafCallbacks.length === 0) break;
+    }
+
+    await waitFor(() => {
+      expect(onEndAirBrush).toHaveBeenCalledTimes(1);
     });
   });
 });

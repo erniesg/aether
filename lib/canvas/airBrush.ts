@@ -7,10 +7,22 @@ export type AirBrushInputMode =
   | 'pointer-fallback'
   | 'unavailable';
 
+const WRIST_LANDMARK = 0;
 const THUMB_TIP_LANDMARK = 4;
 const INDEX_FINGER_TIP_LANDMARK = 8;
 const INDEX_FINGER_MCP_LANDMARK = 5;
+const MIDDLE_FINGER_TIP_LANDMARK = 12;
+const RING_FINGER_TIP_LANDMARK = 16;
+const PINKY_TIP_LANDMARK = 20;
 const PINKY_MCP_LANDMARK = 17;
+const OPEN_PALM_FINGER_EXTENSION_RATIO = 0.62;
+const OPEN_PALM_FINGER_LANDMARKS = [
+  THUMB_TIP_LANDMARK,
+  INDEX_FINGER_TIP_LANDMARK,
+  MIDDLE_FINGER_TIP_LANDMARK,
+  RING_FINGER_TIP_LANDMARK,
+  PINKY_TIP_LANDMARK,
+] as const;
 const DEFAULT_HAND_CONFIDENCE = 0.62;
 const DEFAULT_SMOOTHING = 0.38;
 const DEFAULT_DEAD_ZONE = 0.006;
@@ -487,6 +499,68 @@ export function translateMediaPipeHandLandmarksToAirBrushPoint(
   input: TranslateHandLandmarksInput
 ): AirBrushPoint | null {
   return evaluateMediaPipeHandLandmarks(input).point;
+}
+
+export interface DetectOpenPalmResult {
+  detected: boolean;
+  minFingerReach?: number;
+  requiredReach?: number;
+}
+
+/**
+ * "Done" gesture: five fingertips clearly extended away from the wrist AND no
+ * thumb+index pinch (we don't want a drawing pose to count). Callers debounce
+ * across frames — a single detection shouldn't fire end_air_brush.
+ */
+export function detectOpenPalm(
+  hand: AirBrushHandLandmark[] | undefined,
+  options: { minHandSpan?: number; extensionRatio?: number; pinchRatio?: number } = {}
+): DetectOpenPalmResult {
+  if (!hand || hand.length < 21) return { detected: false };
+  const minHandSpan = options.minHandSpan ?? DEFAULT_MIN_HAND_SPAN;
+  const extensionRatio = options.extensionRatio ?? OPEN_PALM_FINGER_EXTENSION_RATIO;
+  const pinchRatio = options.pinchRatio ?? DEFAULT_PINCH_RATIO;
+
+  const wrist = hand[WRIST_LANDMARK];
+  const indexMcp = hand[INDEX_FINGER_MCP_LANDMARK];
+  const pinkyMcp = hand[PINKY_MCP_LANDMARK];
+  const thumbTip = hand[THUMB_TIP_LANDMARK];
+  const indexTip = hand[INDEX_FINGER_TIP_LANDMARK];
+  if (
+    !hasFinitePoint(wrist) ||
+    !hasFinitePoint(indexMcp) ||
+    !hasFinitePoint(pinkyMcp) ||
+    !hasFinitePoint(thumbTip) ||
+    !hasFinitePoint(indexTip)
+  ) {
+    return { detected: false };
+  }
+
+  const palmSpan = Math.max(
+    landmarkDistance(wrist, pinkyMcp),
+    landmarkDistance(indexMcp, pinkyMcp)
+  );
+  if (palmSpan < minHandSpan) return { detected: false };
+
+  // Reject if the thumb is pinched onto the index — that's a drawing pose.
+  if (landmarkDistance(thumbTip, indexTip) < palmSpan * pinchRatio) {
+    return { detected: false };
+  }
+
+  const requiredReach = palmSpan * extensionRatio;
+  let minFingerReach = Infinity;
+  for (const landmarkIndex of OPEN_PALM_FINGER_LANDMARKS) {
+    const tip = hand[landmarkIndex];
+    if (!hasFinitePoint(tip)) return { detected: false };
+    const reach = landmarkDistance(wrist, tip);
+    if (reach < minFingerReach) minFingerReach = reach;
+  }
+
+  return {
+    detected: minFingerReach >= requiredReach,
+    minFingerReach,
+    requiredReach,
+  };
 }
 
 export type AirBrushDebugStage =
