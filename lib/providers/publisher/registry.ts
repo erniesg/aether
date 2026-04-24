@@ -1,5 +1,6 @@
 import { createPreviewPublisher } from './preview';
 import { createInMemoryScheduledPostStorage } from './memory-storage';
+import { createPostizPublisherFromEnv } from './postiz';
 import {
   PublisherUnavailableError,
   type PublisherProvider,
@@ -8,18 +9,17 @@ import {
 } from './types';
 
 /**
- * Publisher adapter selection. M1 ships `preview` only — postiz /
- * social-auto-upload are reserved ids so the agent loop's config files can
- * point at them ahead of the adapter implementations landing.
+ * Publisher adapter selection. `preview` is always available for local creator
+ * review. `postiz` becomes available when the API key and at least one
+ * platform integration id are present.
  *
  * Precedence when resolving:
  *   1. explicit `preferredId`
  *   2. env `PUBLISHER_PROVIDER`
  *   3. iteration order (preview first, since it has no credential dependency)
  *
- * If the chosen adapter isn't implemented yet, `resolvePublisher` throws
- * `PublisherUnavailableError` — callers turn that into a visible empty state,
- * not a silent fallback, so creators know why no posting happened.
+ * If the chosen adapter is unavailable, resolution falls through to preview
+ * unless the caller made an explicit provider request.
  */
 
 export const KNOWN_PUBLISHER_IDS: ReadonlyArray<PublisherProviderId> = [
@@ -33,6 +33,7 @@ export interface ResolvePublisherOptions {
   storage: ScheduledPostStorage;
   preferredId?: string;
   baseUrl?: string;
+  env?: NodeJS.ProcessEnv;
 }
 
 export function resolvePublisher(
@@ -42,11 +43,24 @@ export function resolvePublisher(
   const order = [opts.preferredId, envDefault, 'preview'].filter(
     (x): x is string => typeof x === 'string' && x.length > 0
   );
-  // Silent fall-through for unshipped stubs (postiz / social-auto-upload),
-  // matching lib/providers/image/registry.ts behaviour. If an explicit
-  // preferredId was given and nothing matched, throw so the caller can show
-  // a clear error instead of silently picking preview.
   for (const id of order) {
+    if (id === 'postiz') {
+      const publisher = createPostizPublisherFromEnv(
+        {
+          workspaceId: opts.workspaceId,
+          storage: opts.storage,
+          baseUrl: opts.baseUrl,
+        },
+        opts.env
+      );
+      if (publisher) return publisher;
+      if (opts.preferredId === 'postiz') {
+        throw new PublisherUnavailableError(
+          'postiz',
+          'POSTIZ_API_KEY and POSTIZ_INTEGRATION_<PLATFORM> are required'
+        );
+      }
+    }
     if (id === 'preview') {
       return createPreviewPublisher({
         workspaceId: opts.workspaceId,
@@ -54,7 +68,6 @@ export function resolvePublisher(
         baseUrl: opts.baseUrl,
       });
     }
-    // postiz / social-auto-upload are known ids with no adapter yet; skip.
   }
   throw new PublisherUnavailableError(
     opts.preferredId ?? 'any',
@@ -66,7 +79,16 @@ export function listAvailablePublishers(): Array<{
   id: PublisherProviderId;
   displayName: string;
 }> {
-  return [{ id: 'preview', displayName: 'preview (no posting)' }];
+  const list: Array<{ id: PublisherProviderId; displayName: string }> = [
+    { id: 'preview', displayName: 'preview' },
+  ];
+  if (createPostizPublisherFromEnv({
+    workspaceId: 'availability-check',
+    storage: createInMemoryScheduledPostStorage(),
+  })) {
+    list.push({ id: 'postiz', displayName: 'Postiz' });
+  }
+  return list;
 }
 
 /** Re-export for tests that want to build an ephemeral publisher quickly. */

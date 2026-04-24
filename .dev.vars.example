@@ -51,6 +51,20 @@ SPATIAL_PROVIDER=draft
 NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
 CONVEX_DEPLOY_KEY=...
 
+# Publisher — preview is always available. Set these to also schedule real
+# posts through Postiz from the publish rail.
+PUBLISHER_PROVIDER=postiz
+POSTIZ_API_URL=https://api.postiz.com/public/v1
+POSTIZ_API_KEY=
+POSTIZ_INTEGRATION_INSTAGRAM=
+POSTIZ_INTEGRATION_TIKTOK=
+POSTIZ_INTEGRATION_X=
+POSTIZ_INTEGRATION_LINKEDIN=
+POSTIZ_INTEGRATION_YOUTUBE_SHORTS=
+POSTIZ_INTEGRATION_PINTEREST=
+POSTIZ_PINTEREST_BOARD_ID=
+POSTIZ_PINTEREST_LINK_URL=
+
 # App
 AETHER_ENV=development
 NEXTJS_ENV=development
