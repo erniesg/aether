@@ -30,6 +30,12 @@ SAM3_MODAL_TOKEN=
 # Optional default provider when more than one is connected.
 SEGMENTATION_PROVIDER=sam3
 
+# Clustering provider — CLIP embeddings + HDBSCAN + UMAP via Modal.
+# Both vars are required. Endpoint fails closed when the token is unset.
+# See docs/CLIP-MODAL.md.
+CLIP_MODAL_URL=https://<workspace>--aether-clip-cluster.modal.run
+CLIP_MODAL_TOKEN=
+
 # Spatial (gaussian splat / particle field) providers.
 # `draft` is always available and renders a local SVG preview — no keys needed.
 # `replicate-splat` uses REPLICATE_API_TOKEN (model: jd7h/splatter-image by default).
