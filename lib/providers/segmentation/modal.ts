@@ -17,6 +17,8 @@ type ModalResponse = {
   model?: string;
 };
 
+const MODAL_SEGMENT_TIMEOUT_MS = 300_000;
+
 export function createModalSam3Provider(
   endpoint: string | undefined = process.env.SAM3_MODAL_URL,
   token: string | undefined = process.env.SAM3_MODAL_TOKEN
@@ -64,7 +66,7 @@ export function createModalSam3Provider(
             height: req.size?.h,
           }),
         },
-        120_000
+        MODAL_SEGMENT_TIMEOUT_MS
       );
 
       if (!res.ok) {

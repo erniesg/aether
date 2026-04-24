@@ -111,6 +111,10 @@ export function buildProposalMessages(
   }
   if (run.rationale) lines.push(`  rationale: ${run.rationale}`);
   if (run.aspectRatio) lines.push(`  aspectRatio: ${run.aspectRatio}`);
+  if (run.artifactKind) lines.push(`  artifactKind: ${run.artifactKind}`);
+  if (run.outputFormat) lines.push(`  outputFormat: ${run.outputFormat}`);
+  if (run.quality) lines.push(`  quality: ${run.quality}`);
+  if (run.sourceMode) lines.push(`  sourceMode: ${run.sourceMode}`);
   if (run.latencyMs) lines.push(`  latencyMs: ${run.latencyMs}`);
 
   return [
@@ -182,6 +186,22 @@ export async function proposeCapabilityFromRun(
 }
 
 function localFallback(run: CapabilityRunRecord): ProposalResult {
+  if (run.tool === 'spatial-gen') {
+    const label = run.outputFormat === 'particle-field' ? 'particle field' : 'gaussian splat';
+    return {
+      name: label,
+      trigger: `turn the selected image into a ${label}`,
+      paramSchema: {
+        type: 'object',
+        properties: {
+          layerId: { type: 'string', description: 'The tldraw image shape id to target.' },
+        },
+        required: ['layerId'],
+      },
+      notes: `distilled locally from ${run.tool} via ${run.provider}`,
+    };
+  }
+
   const firstWords = run.prompt.split(/\s+/).slice(0, 4).join(' ').toLowerCase();
   return {
     name: firstWords || `rerun ${run.tool}`,

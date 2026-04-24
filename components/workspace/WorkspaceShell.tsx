@@ -18,6 +18,7 @@ import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
+import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
 import {
   focusFrameAtIndex,
@@ -31,6 +32,7 @@ import {
   type GenerateStreamEvent,
 } from '@/lib/generate/stream';
 import type { AspectRatio } from '@/lib/providers/image/types';
+import type { SpatialFormat, SpatialQuality } from '@/lib/providers/spatial/types';
 import {
   finishRun,
   failRun,
@@ -51,7 +53,13 @@ import {
   getDefinitionById,
   useCapabilityDefinitions,
 } from '@/lib/capability/store';
-import type { CapabilityDefinitionRecord } from '@/lib/capability/types';
+import {
+  resolveCapabilityDefinitionEntryRef,
+  type CapabilityDefinitionRecord,
+} from '@/lib/capability/types';
+import { resolveCapabilityRequest } from '@/lib/capability/request';
+import { resolveToolEntryRef } from '@/lib/tool/registry';
+import { placeSpatialPreviewOnCanvas } from '@/lib/spatial/canvas';
 import {
   buildExportRequestBody,
   downloadExportPack,
@@ -97,6 +105,71 @@ interface GenerateResponseJson {
       height: number;
       mimeType: string;
     }>;
+  };
+}
+
+interface SpatialResponseJson {
+  ok?: boolean;
+  error?: string;
+  artifactKind?: 'spatial';
+  plan?: {
+    rewrittenPrompt?: string;
+    aspectRatio?: string;
+  };
+  provider?: {
+    id?: string;
+    model?: string;
+  };
+  preview?: {
+    imageDataUrl?: string;
+    width?: number;
+    height?: number;
+  };
+  result?: {
+    format?: 'particle-field' | 'gaussian-splat';
+    latencyMs?: number;
+    sceneSpec?: {
+      kind?: string;
+      pointCount?: number;
+    };
+    images?: Array<{
+      url: string;
+      width: number;
+      height: number;
+      mimeType: string;
+    }>;
+  };
+}
+
+interface FactoryResponseJson {
+  ok?: boolean;
+  error?: string;
+  creatorMessage?: string;
+  plan?: {
+    action?: string;
+    reviewRoute?: string;
+    humanReviewRequired?: boolean;
+  };
+  issue?: {
+    number?: number;
+    url?: string;
+    title?: string;
+  };
+  draftInvocation?: {
+    toolId?: 'spatial-gen';
+    providerId?: string;
+    model?: string;
+    format?: SpatialFormat;
+    quality?: SpatialQuality;
+  };
+  draftCapability?: {
+    name?: string;
+    trigger?: string;
+    notes?: string;
+    tool?: string;
+    provider?: string;
+    entryRef?: CapabilityDefinitionRecord['entryRef'];
+    runTemplate?: CapabilityDefinitionRecord['runTemplate'];
   };
 }
 
@@ -164,6 +237,21 @@ function frameToTargetSpec(frame: FrameShapeSpec): GenerateTargetSpec {
   };
 }
 
+function resolveTargetFrame(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>,
+  target: SelectedImageInfo
+) {
+  const parent = editor.getShape(target.parentId as never) as
+    | { id: string; type: string; props?: { w?: number; h?: number; name?: string } }
+    | undefined;
+  if (!parent || parent.type !== 'frame' || !parent.props?.w || !parent.props?.h) return null;
+  return {
+    id: parent.id,
+    label: parent.props.name,
+    aspectRatio: pickAspectRatio(parent.props.w, parent.props.h),
+  };
+}
+
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<ComposerHandle | null>(null);
   const { editor } = useEditorRef();
@@ -205,12 +293,15 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       } = {}
     ): Promise<void> => {
       const targets = options.targets ?? [];
+      const definition = options.definitionId ? getDefinitionById(options.definitionId) : undefined;
       const runId = startRun({
         tool: 'image-gen',
         provider: options.providerOverride ?? 'auto',
         model: options.modelOverride ?? '',
         prompt,
         definitionId: options.definitionId,
+        definitionVersion: definition?.version,
+        entryRef: definition ? resolveCapabilityDefinitionEntryRef(definition) : undefined,
       });
       initRunDetails(runId, {
         providerHint: options.providerOverride ?? 'auto',
@@ -244,7 +335,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         });
 
         if (options.definitionId) {
-          const def = getDefinitionById(options.definitionId);
+          const def = definition;
           if (!def) {
             appendRunActivity(runId, {
               title: 'capability missing',
@@ -637,6 +728,328 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [editor]
   );
 
+  const runSpatialOnCanvas = useCallback(
+    async (
+      prompt: string,
+      options: {
+        definitionId?: string;
+        providerOverride?: string;
+        modelOverride?: string;
+        formatOverride?: SpatialFormat;
+        qualityOverride?: SpatialQuality;
+      } = {}
+    ): Promise<void> => {
+      if (!editor) return;
+
+      const targetImage = getSelectedImageInfo(editor);
+      if (!targetImage) {
+        const message = 'select an image on the canvas first to build a spatial draft';
+        log(message);
+        if (typeof window !== 'undefined') window.alert(message);
+        return;
+      }
+
+      const definition = options.definitionId ? getDefinitionById(options.definitionId) : undefined;
+      const format =
+        options.formatOverride ?? definition?.runTemplate.format ?? 'gaussian-splat';
+      const quality =
+        options.qualityOverride ?? definition?.runTemplate.quality ?? 'draft';
+      const runId = startRun({
+        tool: 'spatial-gen',
+        artifactKind: 'spatial',
+        outputFormat: format,
+        quality,
+        sourceMode: 'selected-image',
+        sourceImageShapeId: targetImage.shapeId,
+        provider: options.providerOverride ?? definition?.runTemplate.providerId ?? 'draft',
+        model: options.modelOverride ?? definition?.runTemplate.model ?? 'particle-field-v1',
+        prompt,
+        definitionId: options.definitionId,
+        definitionVersion: definition?.version,
+        entryRef: definition ? resolveCapabilityDefinitionEntryRef(definition) : resolveToolEntryRef('spatial-gen'),
+      });
+      const frame = resolveTargetFrame(editor, targetImage);
+      initRunDetails(runId, {
+        providerHint: options.providerOverride ?? definition?.runTemplate.providerId ?? 'draft',
+        modelHint: options.modelOverride ?? definition?.runTemplate.model,
+        frames: frame
+          ? [
+              {
+                id: frame.id,
+                label: frame.label,
+                aspectRatio: frame.aspectRatio,
+                status: 'running',
+                updatedAt: Date.now(),
+              },
+            ]
+          : [],
+      });
+      appendRunActivity(runId, {
+        title: 'selected image',
+        detail: frame?.label ?? targetImage.shapeId,
+      });
+      appendRunActivity(runId, {
+        title: options.definitionId ? 'rerunning spatial capability' : 'building spatial draft',
+        detail: `${format} · ${quality}`,
+      });
+      stepRun(runId, 'awaiting');
+
+      try {
+        let response: Response;
+        if (options.definitionId) {
+          if (!definition) {
+            failRun(runId, `unknown capability definition: ${options.definitionId}`);
+            return;
+          }
+          response = await fetch('/api/capability/rerun', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              definition,
+              promptOverride: prompt,
+              runId,
+              targetImage: {
+                sourceUrl: targetImage.sourceUrl,
+                width: targetImage.intrinsicWidth,
+                height: targetImage.intrinsicHeight,
+                shapeId: targetImage.shapeId,
+              },
+            }),
+          });
+        } else {
+          response = await fetch('/api/spatial', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourceUrl: targetImage.sourceUrl,
+              width: targetImage.intrinsicWidth,
+              height: targetImage.intrinsicHeight,
+              prompt,
+              format,
+              quality,
+              providerId: options.providerOverride,
+              model: options.modelOverride,
+            }),
+          });
+        }
+
+        let json: SpatialResponseJson;
+        try {
+          json = await response.json();
+        } catch (err) {
+          failRun(runId, `bad JSON response (${response.status})`, response.status);
+          logError('spatial parse failed:', err);
+          return;
+        }
+
+        const image =
+          json.result?.images?.[0] ??
+          (json.preview?.imageDataUrl
+            ? {
+                url: json.preview.imageDataUrl,
+                width: json.preview.width ?? targetImage.intrinsicWidth,
+                height: json.preview.height ?? targetImage.intrinsicHeight,
+                mimeType: 'image/svg+xml',
+              }
+            : undefined);
+
+        if (!response.ok || !json.ok || !image) {
+          const message =
+            typeof json?.error === 'string' ? json.error : response.statusText || 'spatial draft failed';
+          appendRunActivity(runId, {
+            title: 'spatial preview failed',
+            detail: message,
+            tone: 'error',
+          });
+          failRun(runId, message, response.status);
+          return;
+        }
+
+        stepRun(runId, 'placing');
+        placeSpatialPreviewOnCanvas(editor, targetImage, {
+          previewImageUrl: image.url,
+          width: image.width,
+          height: image.height,
+          label: json.result?.format === 'particle-field' ? 'particle field draft' : 'gaussian splat draft',
+          providerId: json.provider?.id ?? 'draft',
+          format: json.result?.format ?? format,
+        });
+        if (frame) {
+          upsertRunFrame(runId, {
+            id: frame.id,
+            label: frame.label,
+            aspectRatio: frame.aspectRatio,
+            status: 'placed',
+            imageUrl: image.url,
+          });
+        }
+        finishRun(runId, {
+          provider: json.provider?.id ?? 'draft',
+          model: json.provider?.model ?? 'particle-field-v1',
+          rewrittenPrompt: json.plan?.rewrittenPrompt ?? prompt,
+          imageUrl: image.url,
+          latencyMs: json.result?.latencyMs,
+          outputFormat: json.result?.format ?? format,
+          quality,
+          status: 'ok',
+        });
+        appendRunActivity(runId, {
+          title: 'spatial draft placed',
+          detail:
+            json.result?.sceneSpec?.pointCount !== undefined
+              ? `${json.result.sceneSpec.pointCount} particles`
+              : json.result?.format ?? format,
+          tone: 'ok',
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logError('spatial run failed:', message);
+        failRun(runId, `fetch failed: ${message}`);
+      }
+    },
+    [editor]
+  );
+
+  const requestCapabilityFactory = useCallback(
+    async (
+      prompt: string,
+      options: {
+        artifactKind: 'spatial';
+        sourceMode: 'selected-image';
+      }
+    ): Promise<void> => {
+      const runId = startRun({
+        tool: 'capability-factory',
+        provider: 'github',
+        model: 'claude-run',
+        prompt,
+        artifactKind: options.artifactKind,
+      });
+      initRunDetails(runId, {
+        providerHint: 'github',
+        modelHint: 'claude-run',
+      });
+      appendRunActivity(runId, {
+        title: 'missing capability detected',
+        detail: `${options.artifactKind} · requesting managed-agent build`,
+      });
+      stepRun(runId, 'sending');
+
+      try {
+        const response = await fetch('/api/capability/factory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            artifactKind: options.artifactKind,
+            publishScope: 'team',
+            sourceMode: options.sourceMode,
+          }),
+        });
+
+        let json: FactoryResponseJson;
+        try {
+          json = await response.json();
+        } catch (err) {
+          failRun(runId, `bad JSON response (${response.status})`, response.status);
+          logError('factory parse failed:', err);
+          return;
+        }
+
+        if (!response.ok || !json.ok || !json.plan?.action) {
+          const message =
+            typeof json?.error === 'string'
+              ? json.error
+              : response.statusText || 'capability factory failed';
+          appendRunActivity(runId, {
+            title: 'factory request failed',
+            detail: message,
+            tone: 'error',
+          });
+          failRun(runId, message, response.status);
+          return;
+        }
+
+        if (json.issue?.number) {
+          appendRunActivity(runId, {
+            title: 'authoring issue opened',
+            detail: `#${json.issue.number} · ${json.plan.reviewRoute ?? 'claude-run'}`,
+            tone: 'ok',
+          });
+        }
+
+        let definitionId: string | undefined;
+        if (
+          typeof json.draftCapability?.name === 'string' &&
+          typeof json.draftCapability?.trigger === 'string' &&
+          typeof json.draftCapability?.tool === 'string' &&
+          typeof json.draftCapability?.provider === 'string' &&
+          json.draftCapability.entryRef &&
+          json.draftCapability.runTemplate
+        ) {
+          const existing = definitions.find(
+            (definition) =>
+              definition.name === json.draftCapability?.name ||
+              definition.trigger === json.draftCapability?.trigger
+          );
+          const definition =
+            existing ??
+            addDefinition({
+              name: json.draftCapability.name,
+              trigger: json.draftCapability.trigger,
+              paramSchema: {
+                type: 'object',
+                properties: {
+                  layerId: { type: 'string' },
+                },
+                required: ['layerId'],
+              },
+              notes: json.draftCapability.notes,
+              createdBy: 'agent',
+              tool: json.draftCapability.tool,
+              provider: json.draftCapability.provider,
+              entryRef: json.draftCapability.entryRef,
+              runTemplate: json.draftCapability.runTemplate,
+            });
+          definitionId = definition.id;
+          appendRunActivity(runId, {
+            title: existing ? 'draft capability reused' : 'draft capability added',
+            detail: definition.name,
+            tone: 'ok',
+          });
+        }
+
+        finishRun(runId, {
+          provider: 'github',
+          model: 'claude-run',
+          rewrittenPrompt: prompt,
+          rationale: json.creatorMessage,
+          status: 'ok',
+        });
+
+        if (json.draftInvocation?.toolId === 'spatial-gen') {
+          await runSpatialOnCanvas(prompt, {
+            definitionId,
+            providerOverride: json.draftInvocation.providerId,
+            modelOverride: json.draftInvocation.model,
+            formatOverride: json.draftInvocation.format,
+            qualityOverride: json.draftInvocation.quality,
+          });
+          return;
+        }
+
+        if (json.creatorMessage && typeof window !== 'undefined') {
+          window.alert(json.creatorMessage);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logError('factory run failed:', err);
+        failRun(runId, `factory failed: ${message}`);
+      }
+    },
+    [definitions, runSpatialOnCanvas]
+  );
+
   useEffect(() => {
     if (!editor) {
       setFormats([]);
@@ -761,6 +1174,55 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // out of credits, or to demo the raw provider without Claude's rewrite.
       const bypassAgent = urlParams.get('bypass') === '1';
 
+      const requestPlan = resolveCapabilityRequest({
+        prompt,
+        hasSelectedImage: Boolean(editor && getSelectedImageInfo(editor)),
+        definitions,
+      });
+
+      if (requestPlan.kind === 'needs-selected-image') {
+        log(requestPlan.reason);
+        if (typeof window !== 'undefined') window.alert(requestPlan.reason);
+        return;
+      }
+
+      if (requestPlan.kind === 'definition') {
+        const definition = getDefinitionById(requestPlan.definitionId);
+        if (!definition) return;
+        if (definition.tool === 'spatial-gen') {
+          await runSpatialOnCanvas(definition.runTemplate.prompt ?? prompt, {
+            definitionId: definition.id,
+            providerOverride,
+            modelOverride,
+            formatOverride: definition.runTemplate.format,
+            qualityOverride: definition.runTemplate.quality,
+          });
+          return;
+        }
+        await runImageOnCanvas(definition.runTemplate.prompt ?? prompt, {
+          definitionId: definition.id,
+        });
+        return;
+      }
+
+      if (requestPlan.kind === 'factory') {
+        await requestCapabilityFactory(prompt, {
+          artifactKind: requestPlan.artifactKind,
+          sourceMode: requestPlan.sourceMode,
+        });
+        return;
+      }
+
+      if (requestPlan.kind === 'tool' && requestPlan.toolId === 'spatial-gen') {
+        await runSpatialOnCanvas(prompt, {
+          providerOverride,
+          modelOverride,
+          formatOverride: requestPlan.spatialFormat,
+          qualityOverride: 'draft',
+        });
+        return;
+      }
+
       if (options.scope === 'all' && editor) {
         if (formats.length > 0) {
           const targets = formats;
@@ -798,7 +1260,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         targets,
       });
     },
-    [runImageOnCanvas, editor, view, focusIdx, formats, activeFormatId, handleExport]
+    [
+      runImageOnCanvas,
+      runSpatialOnCanvas,
+      requestCapabilityFactory,
+      editor,
+      definitions,
+      view,
+      focusIdx,
+      formats,
+      activeFormatId,
+      handleExport,
+    ]
   );
 
   const handlePin = useCallback((run: CapabilityRunRecord) => {
@@ -816,11 +1289,16 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         createdBy: 'agent',
         tool: run.tool,
         provider: run.provider,
+        entryRef: resolveToolEntryRef(run.tool),
         runTemplate: {
           prompt: run.rewrittenPrompt ?? run.prompt,
           aspectRatio: run.aspectRatio,
           providerId: run.provider === 'auto' ? undefined : run.provider,
           model: run.model || undefined,
+          artifactKind: run.artifactKind,
+          format: run.outputFormat,
+          quality: run.quality,
+          sourceMode: run.sourceMode,
         },
       });
       log('pinned capability:', def.id, '·', def.name);
@@ -835,9 +1313,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       if (!def) return;
       const prompt = def.runTemplate.prompt ?? def.trigger;
       log('rerun capability:', def.id, '·', prompt);
+      if (def.tool === 'spatial-gen') {
+        await runSpatialOnCanvas(prompt, {
+          definitionId,
+          formatOverride: def.runTemplate.format,
+          qualityOverride: def.runTemplate.quality,
+        });
+        return;
+      }
       await runImageOnCanvas(prompt, { definitionId });
     },
-    [runImageOnCanvas]
+    [runImageOnCanvas, runSpatialOnCanvas]
   );
 
   const handleVerbPress = useCallback((verb: ToolbarVerb) => {
@@ -932,6 +1418,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           pinnedCapabilities={pinnedCapabilities}
           onCapabilityPress={handleCapabilityPress}
           onVerbPress={handleVerbPress}
+          onSpatializeFromSelection={async ({ prompt, format, quality }) => {
+            await runSpatialOnCanvas(prompt, {
+              formatOverride: format,
+              qualityOverride: quality,
+            });
+          }}
           onVoiceGenerate={async (prompt, scope) => {
             await handlePrompt(prompt, { scope });
           }}

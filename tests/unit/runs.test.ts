@@ -26,7 +26,19 @@ describe('runs store — in-memory fallback (NEXT_PUBLIC_CONVEX_URL unset)', () 
 
     let id = '';
     act(() => {
-      id = runs.startRun({ tool: 'image-gen', provider: 'gemini', model: 'nano-banana', prompt: 'a cat' });
+      id = runs.startRun({
+        tool: 'image-gen',
+        provider: 'gemini',
+        model: 'nano-banana',
+        prompt: 'a cat',
+        definitionId: 'cap_hero',
+        definitionVersion: 2,
+        entryRef: {
+          kind: 'tool',
+          id: 'image-gen',
+          version: 1,
+        },
+      });
     });
 
     expect(id).toMatch(/^run_/);
@@ -39,6 +51,13 @@ describe('runs store — in-memory fallback (NEXT_PUBLIC_CONVEX_URL unset)', () 
       model: 'nano-banana',
       prompt: 'a cat',
       status: 'running',
+      definitionId: 'cap_hero',
+      definitionVersion: 2,
+      entryRef: {
+        kind: 'tool',
+        id: 'image-gen',
+        version: 1,
+      },
     });
     expect(typeof only.startedAt).toBe('number');
   });
