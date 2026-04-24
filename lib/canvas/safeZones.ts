@@ -2,7 +2,9 @@ export type SafeZonePresetId =
   | 'ig-post'
   | 'story'
   | 'reel-cover'
-  | 'linkedin-landscape';
+  | 'linkedin-landscape'
+  | 'fb-feed'
+  | 'x-post';
 
 export interface SafeZoneInsets {
   top: number;
@@ -48,6 +50,12 @@ export interface SafeZoneFrameLike {
  *   device. The inset values here are a conservative interpretation of that.
  * - IG feed 4:5: no comparable official occlusion guidance surfaced, so we
  *   don't draw a safe-zone mask there.
+ * - FB feed link / photo: Meta publishes Story safe areas (same as IG
+ *   Stories) but no published occlusion for feed posts themselves — we
+ *   mark kind 'none' and rely on the shared 'story' preset for FB Stories.
+ * - X (Twitter) 16:9 native: the service crops portrait posts to a centered
+ *   16:9 in-timeline preview but shows 16:9 native images unchanged — no
+ *   published occlusion, marked 'none'.
  */
 export const SAFE_ZONE_PRESETS: Readonly<Record<SafeZonePresetId, SafeZonePreset>> = {
   'ig-post': {
@@ -73,6 +81,16 @@ export const SAFE_ZONE_PRESETS: Readonly<Record<SafeZonePresetId, SafeZonePreset
     kind: 'inset',
     insets: { top: 0.05, right: 0.12, bottom: 0.12, left: 0.05 },
   },
+  'fb-feed': {
+    id: 'fb-feed',
+    label: 'Facebook feed',
+    kind: 'none',
+  },
+  'x-post': {
+    id: 'x-post',
+    label: 'X post',
+    kind: 'none',
+  },
 };
 
 function isPresetId(value: unknown): value is SafeZonePresetId {
@@ -93,12 +111,18 @@ export function resolveSafeZonePresetId(frame: SafeZoneFrameLike): SafeZonePrese
   if (rawName.startsWith('story')) return 'story';
   if (rawName.startsWith('reel cover')) return 'reel-cover';
   if (rawName.startsWith('linkedin')) return 'linkedin-landscape';
+  if (rawName.startsWith('fb ') || rawName.startsWith('facebook')) return 'fb-feed';
+  if (rawName.startsWith('x post') || rawName.startsWith('x ·') || rawName.startsWith('twitter')) {
+    return 'x-post';
+  }
 
   const w = frame.props?.w;
   const h = frame.props?.h;
   const ratio = w && h ? w / h : undefined;
   if (approx(ratio, 1080 / 1350)) return 'ig-post';
   if (approx(ratio, 1200 / 627)) return 'linkedin-landscape';
+  // FB 1200×630 (1.905) and X 1200×675 (1.778) only resolve by name to
+  // avoid stealing the LinkedIn / IG shapes, which share close ratios.
   return null;
 }
 

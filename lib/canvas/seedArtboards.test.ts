@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ARTBOARDS, maybeSeedArtboards, seedArtboards } from './seedArtboards';
+import {
+  SAFE_ZONE_PRESETS,
+  resolveSafeZonePresetId,
+} from './safeZones';
+import { buildCompositionGuidance } from '@/lib/providers/image/guidance';
 
 type MockEditor = {
   createShape: ReturnType<typeof vi.fn>;
@@ -65,11 +70,44 @@ describe('seedArtboards · reuses tldraw native frame shapes', () => {
     expect(editor.setSelectedShapes).toHaveBeenCalledWith([]);
   });
 
-  it('default seeds cover the four hero formats the demo ships with', () => {
+  it('default seeds cover the six hero formats the demo ships with', () => {
     const labels = DEFAULT_ARTBOARDS.map((a) => a.name.toLowerCase());
     expect(labels.join(' ')).toMatch(/ig post/);
     expect(labels.join(' ')).toMatch(/story/);
     expect(labels.join(' ')).toMatch(/reel/);
     expect(labels.join(' ')).toMatch(/linkedin/);
+    expect(labels.join(' ')).toMatch(/fb/);
+    expect(labels.join(' ')).toMatch(/x post/);
+  });
+});
+
+describe('seedArtboards · consistency with safe-zone + guidance layers', () => {
+  it('every seeded artboard points at a real SafeZonePreset', () => {
+    for (const seed of DEFAULT_ARTBOARDS) {
+      expect(SAFE_ZONE_PRESETS[seed.preset]).toBeDefined();
+      expect(SAFE_ZONE_PRESETS[seed.preset].id).toBe(seed.preset);
+    }
+  });
+
+  it('each seeded artboard name resolves back to its preset via the overlay resolver', () => {
+    for (const seed of DEFAULT_ARTBOARDS) {
+      const resolved = resolveSafeZonePresetId({
+        props: { name: seed.name, w: seed.w, h: seed.h },
+      });
+      expect(resolved).toBe(seed.preset);
+    }
+  });
+
+  it('buildCompositionGuidance tolerates every seeded preset', () => {
+    for (const seed of DEFAULT_ARTBOARDS) {
+      const g = buildCompositionGuidance({ preset: seed.preset });
+      // Kind 'none' presets return empty; others must describe something.
+      const spec = SAFE_ZONE_PRESETS[seed.preset];
+      if (spec.kind === 'none') {
+        expect(g.promptSuffix).toBe('');
+      } else {
+        expect(g.promptSuffix.length).toBeGreaterThan(0);
+      }
+    }
   });
 });

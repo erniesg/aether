@@ -11,10 +11,14 @@ export interface ArtboardSeed {
 }
 
 /**
- * The four hero formats aether seeds on an empty workspace so the multiformat
+ * The hero formats aether seeds on an empty workspace so the multiformat
  * promise is visible the moment the canvas loads. Anchored to the creator
  * platforms we optimise for; dimensions match each platform's current spec
  * sheet. Sizes drive tldraw's native frame shape directly — no custom shape.
+ *
+ * INVARIANT: every `preset` here must exist in SAFE_ZONE_PRESETS. Enforced
+ * by `seedArtboards.test.ts` so the seeded set, the overlay, and the
+ * composition-guidance layer can never drift out of sync.
  */
 export const DEFAULT_ARTBOARDS: ReadonlyArray<ArtboardSeed> = [
   { name: 'IG Post · 1080×1350', w: 1080, h: 1350, preset: 'ig-post' },
@@ -26,6 +30,8 @@ export const DEFAULT_ARTBOARDS: ReadonlyArray<ArtboardSeed> = [
     h: 627,
     preset: 'linkedin-landscape',
   },
+  { name: 'FB feed · 1200×630', w: 1200, h: 630, preset: 'fb-feed' },
+  { name: 'X post · 1200×675', w: 1200, h: 675, preset: 'x-post' },
 ];
 
 const GAP_PX = 160;
