@@ -1,5 +1,5 @@
 import { ConvexHttpClient } from 'convex/browser';
-import { anyApi } from 'convex/server';
+import { makeFunctionReference } from 'convex/server';
 import { toPersistableRef, toPersistableRefs } from '@/lib/store/persistableRefs';
 
 /**
@@ -31,12 +31,17 @@ function getPublicHttpClient(): ConvexHttpClient | null {
   return publicHttpClient;
 }
 
-const runsApi = (anyApi as unknown as {
-  runs: { start: unknown; step: unknown; finish: unknown; fail: unknown };
-}).runs;
-const assetsApi = (anyApi as unknown as {
-  assets: { generateUploadUrl: unknown; getUrl: unknown; recordGenerated: unknown };
-}).assets;
+const runsApi = {
+  start: makeFunctionReference('runs.js:start'),
+  step: makeFunctionReference('runs.js:step'),
+  finish: makeFunctionReference('runs.js:finish'),
+  fail: makeFunctionReference('runs.js:fail'),
+};
+const assetsApi = {
+  generateUploadUrl: makeFunctionReference('assets.js:generateUploadUrl'),
+  getUrl: makeFunctionReference('assets.js:getUrl'),
+  recordGenerated: makeFunctionReference('assets.js:recordGenerated'),
+};
 
 export interface ServerRunStart {
   clientRunId: string;

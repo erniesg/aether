@@ -1424,6 +1424,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       <div className="flex flex-1 overflow-hidden">
         <LeftRail />
         <CanvasSubstrate
+          workspaceKey={wsId}
           composerRef={composerRef}
           safeZonesVisible={safeZonesVisible}
           onSafeZonesToggle={setSafeZonesVisible}

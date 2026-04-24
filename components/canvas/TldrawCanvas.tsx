@@ -1,12 +1,32 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Tldraw, type Editor, type TLComponents } from 'tldraw';
+import { getSnapshot, loadSnapshot, Tldraw, type Editor, type TLComponents } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { useTheme } from '@/app/design-system/ThemeProvider';
 import { useEditorRef } from '@/lib/store/editor-ref';
-import { maybeSeedArtboards } from '@/lib/canvas/seedArtboards';
+import {
+  loadCanvasSnapshot,
+  saveCanvasSnapshot,
+} from '@/lib/store/canvasSnapshots';
+import { maybeSeedArtboards, seedArtboards } from '@/lib/canvas/seedArtboards';
 import { SafeZoneOverlay } from './SafeZoneOverlay';
+
+function ensureArtboards(editor: Editor) {
+  const shapes = editor.getCurrentPageShapes();
+  if (shapes.some((shape) => shape.type === 'frame')) return [];
+  if (shapes.length === 0) return maybeSeedArtboards(editor);
+
+  const ids = seedArtboards(editor);
+  try {
+    editor.setSelectedShapes(ids as never);
+    editor.zoomToSelection({ animation: { duration: 240 } });
+    editor.setSelectedShapes([]);
+  } catch {
+    // best-effort framing; never throw out of a mount hook
+  }
+  return ids;
+}
 
 /**
  * The tldraw operator chrome we null out so the aether workspace reads as a
@@ -52,13 +72,21 @@ export const TLDRAW_CHROME_OVERRIDES: Partial<TLComponents> = {
  * theme without re-mounting.
  */
 export interface TldrawCanvasProps {
+  workspaceKey?: string;
   safeZonesVisible?: boolean;
 }
 
-export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
+export function TldrawCanvas({
+  workspaceKey = 'default',
+  safeZonesVisible = false,
+}: TldrawCanvasProps) {
   const { theme } = useTheme();
   const { setEditor } = useEditorRef();
   const editorRef = useRef<Editor | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
+  const storeUnsubscribeRef = useRef<(() => void) | null>(null);
+  const beforeUnloadCleanupRef = useRef<(() => void) | null>(null);
+  const persistenceReadyRef = useRef(false);
   const components = useMemo<Partial<TLComponents>>(
     () => ({
       ...TLDRAW_CHROME_OVERRIDES,
@@ -76,6 +104,9 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
 
   useEffect(() => {
     return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      storeUnsubscribeRef.current?.();
+      beforeUnloadCleanupRef.current?.();
       setEditor(null);
       if (typeof window !== 'undefined') {
         (
@@ -103,9 +134,41 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
             }
           ).__AETHER_EDITOR__ = editor;
         }
-        // Seed the four hero artboards on an empty workspace so the multiformat
-        // promise is visible on first paint. No-op if the page already has shapes.
-        maybeSeedArtboards(editor);
+
+        const saveNow = () => {
+          if (!persistenceReadyRef.current) return;
+          const snapshotJson = JSON.stringify(getSnapshot(editor.store));
+          void saveCanvasSnapshot(workspaceKey, snapshotJson);
+        };
+        const scheduleSave = () => {
+          if (!persistenceReadyRef.current) return;
+          if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = window.setTimeout(saveNow, 700);
+        };
+
+        storeUnsubscribeRef.current = editor.store.listen(scheduleSave);
+        window.addEventListener('beforeunload', saveNow);
+        beforeUnloadCleanupRef.current = () => {
+          window.removeEventListener('beforeunload', saveNow);
+        };
+
+        ensureArtboards(editor);
+
+        void (async () => {
+          const persisted = await loadCanvasSnapshot(workspaceKey);
+          if (persisted?.tldrawStoreJson) {
+            try {
+              persistenceReadyRef.current = false;
+              loadSnapshot(editor.store, JSON.parse(persisted.tldrawStoreJson));
+              ensureArtboards(editor);
+            } catch (error) {
+              console.error('[canvas/snapshot] restore failed', error);
+              ensureArtboards(editor);
+            }
+          }
+          persistenceReadyRef.current = true;
+          scheduleSave();
+        })();
       }}
       components={components}
     />

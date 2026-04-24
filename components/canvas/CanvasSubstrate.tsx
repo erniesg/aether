@@ -88,6 +88,7 @@ const TldrawCanvas = dynamic(() => import('./TldrawCanvas').then((m) => m.Tldraw
 const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
 
 export interface CanvasSubstrateProps {
+  workspaceKey?: string;
   className?: string;
   composerRef: React.RefObject<ComposerHandle | null>;
   safeZonesVisible?: boolean;
@@ -277,22 +278,11 @@ function filenameForSelectedImage(target: SelectedImageInfo): string {
 }
 
 async function downloadImageSource(sourceUrl: string, filename: string) {
-  let objectUrl: string | null = null;
   const anchor = document.createElement('a');
 
-  try {
-    if (sourceUrl.startsWith('data:')) {
-      anchor.href = sourceUrl;
-    } else {
-      const response = await fetch(sourceUrl);
-      if (!response.ok) throw new Error(`download failed: ${response.status}`);
-      const blob = await response.blob();
-      objectUrl = URL.createObjectURL(blob);
-      anchor.href = objectUrl;
-    }
-  } catch {
-    anchor.href = sourceUrl;
-  }
+  anchor.href = sourceUrl.startsWith('data:')
+    ? sourceUrl
+    : `/api/download-image?url=${encodeURIComponent(sourceUrl)}&filename=${encodeURIComponent(filename)}`;
 
   anchor.download = filename;
   anchor.rel = 'noopener';
@@ -300,10 +290,7 @@ async function downloadImageSource(sourceUrl: string, filename: string) {
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-
-  if (objectUrl) {
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-  }
+  await Promise.resolve();
 }
 
 function pickAvailableSegmentationProvider(
@@ -577,6 +564,7 @@ function resolveActiveSegmentationPreview(
 }
 
 export const CanvasSubstrate = memo(function CanvasSubstrate({
+  workspaceKey = 'default',
   className,
   composerRef,
   safeZonesVisible = false,
@@ -1836,7 +1824,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       aria-label="canvas"
       className={cn('relative flex-1 overflow-hidden bg-surface-canvas', className)}
     >
-      <TldrawCanvas safeZonesVisible={safeZonesVisible} />
+      <TldrawCanvas workspaceKey={workspaceKey} safeZonesVisible={safeZonesVisible} />
 
       <FloatingToolbar
         scope={scope}

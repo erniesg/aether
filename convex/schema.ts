@@ -85,10 +85,13 @@ export default defineSchema({
 
   // ─── canvas ────────────────────────────────────────────────────────────
   canvasSnapshot: defineTable({
-    wsId: v.id('workspace'),
+    wsId: v.optional(v.id('workspace')),
+    wsKey: v.optional(v.string()),
     tldrawStoreJson: v.string(),
     snapshottedAt: v.number(),
-  }).index('by_ws', ['wsId']),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_ws_key', ['wsKey']),
 
   keyVisual: defineTable({
     wsId: v.id('workspace'),

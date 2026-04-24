@@ -1,23 +1,18 @@
 'use client';
 
 import { useQuery } from 'convex/react';
-import { anyApi } from 'convex/server';
+import { makeFunctionReference } from 'convex/server';
 import { getConvexClient } from '@/lib/convex/client';
 import type { CapabilityRunRecord, RunStatus, RunStep } from './runs.types';
 import { toPersistableRef, toPersistableRefs } from './persistableRefs';
 
-// anyApi lets us reference server functions by path without depending on the
-// generated api surface. Replace with `api.runs.*` from `convex/_generated/api`
-// once `npx convex dev` has run.
-const runsApi = (anyApi as unknown as {
-  runs: {
-    list: unknown;
-    start: unknown;
-    step: unknown;
-    finish: unknown;
-    fail: unknown;
-  };
-}).runs;
+const runsApi = {
+  list: makeFunctionReference('runs.js:list'),
+  start: makeFunctionReference('runs.js:start'),
+  step: makeFunctionReference('runs.js:step'),
+  finish: makeFunctionReference('runs.js:finish'),
+  fail: makeFunctionReference('runs.js:fail'),
+};
 
 export function useRunsConvex(): CapabilityRunRecord[] {
   const data = useQuery(runsApi.list as never, {} as never) as
