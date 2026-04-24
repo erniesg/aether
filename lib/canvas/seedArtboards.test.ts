@@ -70,7 +70,7 @@ describe('seedArtboards · reuses tldraw native frame shapes', () => {
     expect(editor.setSelectedShapes).toHaveBeenCalledWith([]);
   });
 
-  it('default seeds cover the six hero formats the demo ships with', () => {
+  it('default seeds cover the seven hero formats the demo ships with', () => {
     const labels = DEFAULT_ARTBOARDS.map((a) => a.name.toLowerCase());
     expect(labels.join(' ')).toMatch(/ig post/);
     expect(labels.join(' ')).toMatch(/story/);
@@ -78,6 +78,7 @@ describe('seedArtboards · reuses tldraw native frame shapes', () => {
     expect(labels.join(' ')).toMatch(/linkedin/);
     expect(labels.join(' ')).toMatch(/fb/);
     expect(labels.join(' ')).toMatch(/x post/);
+    expect(labels.join(' ')).toMatch(/xhs/);
   });
 });
 

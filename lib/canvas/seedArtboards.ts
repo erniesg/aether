@@ -32,6 +32,7 @@ export const DEFAULT_ARTBOARDS: ReadonlyArray<ArtboardSeed> = [
   },
   { name: 'FB feed · 1200×630', w: 1200, h: 630, preset: 'fb-feed' },
   { name: 'X post · 1200×675', w: 1200, h: 675, preset: 'x-post' },
+  { name: 'XHS · 1080×1440', w: 1080, h: 1440, preset: 'xhs-post' },
 ];
 
 const GAP_PX = 160;

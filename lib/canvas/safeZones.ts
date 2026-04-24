@@ -4,7 +4,8 @@ export type SafeZonePresetId =
   | 'reel-cover'
   | 'linkedin-landscape'
   | 'fb-feed'
-  | 'x-post';
+  | 'x-post'
+  | 'xhs-post';
 
 export interface SafeZoneInsets {
   top: number;
@@ -56,6 +57,8 @@ export interface SafeZoneFrameLike {
  * - X (Twitter) 16:9 native: the service crops portrait posts to a centered
  *   16:9 in-timeline preview but shows 16:9 native images unchanged — no
  *   published occlusion, marked 'none'.
+ * - XHS (小红书) post cover: the platform recommends 3:4 (1080×1440) for
+ *   feed visibility. No published occlusion guidance — marked 'none'.
  */
 export const SAFE_ZONE_PRESETS: Readonly<Record<SafeZonePresetId, SafeZonePreset>> = {
   'ig-post': {
@@ -91,6 +94,11 @@ export const SAFE_ZONE_PRESETS: Readonly<Record<SafeZonePresetId, SafeZonePreset
     label: 'X post',
     kind: 'none',
   },
+  'xhs-post': {
+    id: 'xhs-post',
+    label: 'XHS post',
+    kind: 'none',
+  },
 };
 
 function isPresetId(value: unknown): value is SafeZonePresetId {
@@ -114,6 +122,14 @@ export function resolveSafeZonePresetId(frame: SafeZoneFrameLike): SafeZonePrese
   if (rawName.startsWith('fb ') || rawName.startsWith('facebook')) return 'fb-feed';
   if (rawName.startsWith('x post') || rawName.startsWith('x ·') || rawName.startsWith('twitter')) {
     return 'x-post';
+  }
+  if (
+    rawName.startsWith('xhs') ||
+    rawName.startsWith('xiaohongshu') ||
+    rawName.startsWith('rednote') ||
+    rawName.startsWith('小红书')
+  ) {
+    return 'xhs-post';
   }
 
   const w = frame.props?.w;
