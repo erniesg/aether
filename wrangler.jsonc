@@ -31,7 +31,7 @@
       "vars": {
         "AETHER_ENV": "staging",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai",
-        "NEXT_PUBLIC_CONVEX_URL": "",
+        "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
         "VOICE_PROVIDER": "openai-realtime"
       }
     },

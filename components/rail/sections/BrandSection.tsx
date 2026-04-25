@@ -46,7 +46,7 @@ type IngestState =
   | { kind: 'error'; message: string }
   | { kind: 'ok'; snapshot: BrandSnapshot; review: boolean };
 
-type SaveState = 'idle' | 'saved';
+type SaveState = 'idle' | 'saved' | 'error';
 
 const HEX_RE = /^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -213,7 +213,7 @@ export function BrandSection({
   const onSave = () => {
     const normalized = normalizeDraftForSave(draft);
     if (!normalized) return;
-    saveBrandContext(normalized, workspaceId);
+    saveBrandContext(normalized, workspaceId, () => setSaveState('error'));
     setDraft(normalized);
     setDirty(false);
     setSaveState('saved');
@@ -228,7 +228,7 @@ export function BrandSection({
     const handle = setTimeout(() => {
       const normalized = normalizeDraftForSave(draft);
       if (!normalized) return;
-      saveBrandContext(normalized, workspaceId);
+      saveBrandContext(normalized, workspaceId, () => setSaveState('error'));
       setDraft(normalized);
       setDirty(false);
       setSaveState('saved');
@@ -499,10 +499,10 @@ function BrandProfileEditor({
 
       <div className="flex items-center justify-between gap-2 border-t border-border-soft pt-2">
         <span
-          role={validationMessage ? 'alert' : 'status'}
-          className="font-caption text-xs text-ink-dim"
+          role={validationMessage || saveState === 'error' ? 'alert' : 'status'}
+          className={`font-caption text-xs ${saveState === 'error' ? 'text-red-400' : 'text-ink-dim'}`}
         >
-          {validationMessage ?? (saveState === 'saved' ? 'saved' : dirty ? 'unsaved edits' : 'saved')}
+          {validationMessage ?? (saveState === 'error' ? 'save failed' : saveState === 'saved' ? 'saved' : dirty ? 'unsaved edits' : 'saved')}
         </span>
         <button
           type="button"
