@@ -361,6 +361,19 @@ export default defineSchema({
     createdAt: v.number(),
   }).index('by_ws', ['wsId']),
 
+  // ─── workspace provider preferences ──────────────────────────────────────
+  // Per-workspace overrides for the default AI providers. All fields are
+  // optional — when absent the API routes fall back to env vars and then code
+  // defaults. keyed by stable workspaceId string (same scope as brandProfile).
+  workspaceProviderPrefs: defineTable({
+    workspaceId: v.string(),
+    imageProviderId: v.optional(v.string()),
+    voiceProviderId: v.optional(v.string()),
+    voiceModel: v.optional(v.string()),
+    segmentationProviderId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
   // Publisher seam (issue #9 — Slice 1). One row per platform post; multi-
   // platform fan-out is N rows. `wsId` optional for the same reason it is on
   // `signalSubscription` — pre-Phase-5 the UI has no workspace plumbing.

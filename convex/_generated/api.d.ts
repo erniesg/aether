@@ -10,6 +10,7 @@
 
 import type * as clusters from "../clusters.js";
 import type * as creatorContext from "../creatorContext.js";
+import type * as providerPrefs from "../providerPrefs.js";
 import type * as publisher from "../publisher.js";
 import type * as runs from "../runs.js";
 import type * as signals from "../signals.js";
@@ -23,6 +24,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   clusters: typeof clusters;
   creatorContext: typeof creatorContext;
+  providerPrefs: typeof providerPrefs;
   publisher: typeof publisher;
   runs: typeof runs;
   signals: typeof signals;
