@@ -6,9 +6,14 @@ import { Chip } from '@/components/ui/Chip';
 import { cn } from '@/lib/utils/cn';
 import {
   getPreviewPublisher,
-  schedulePublisherPosts,
+  rememberScheduledPost,
   useScheduledPosts,
 } from '@/lib/publisher/store';
+import {
+  cancelViaServer,
+  isServerPublisherEnabled,
+  scheduleViaServer,
+} from '@/lib/publisher/server-client';
 import {
   PUBLISH_PLATFORMS,
   type PublishPlatform,
@@ -49,6 +54,7 @@ export function PublishSection({
     () => getPreviewPublisher(workspaceId),
     [workspaceId]
   );
+  const serverPublishing = isServerPublisherEnabled();
   const mediaUrls =
     heroMediaUrls && heroMediaUrls.length > 0
       ? heroMediaUrls
@@ -57,12 +63,12 @@ export function PublishSection({
   return (
     <div className="flex flex-col gap-3" data-testid="publish-section">
       <ScheduleForm
+        serverPublishing={serverPublishing}
         onSchedule={async (platforms, caption, hashtags) => {
           const scheduledAt = new Date(
             Date.now() + 1000 * 60 * 60 * 24
           ).toISOString();
           let lastPreviewUrl: string | null = null;
-          const scheduled: ScheduledPost[] = [];
           for (const platform of platforms) {
             const post: ScheduledPost = {
               id: '',
@@ -72,18 +78,33 @@ export function PublishSection({
               hashtags,
               scheduledAt,
             };
+            // Always write the local preview row first — canvas review
+            // must work regardless of whether a server publisher succeeds.
             const { previewUrl } = await publisher.schedule(post);
-            lastPreviewUrl = previewUrl;
-            const id = new URL(previewUrl, 'http://local').searchParams.get(
+            const localId = new URL(previewUrl, 'http://local').searchParams.get(
               'publishPreview'
             );
-            scheduled.push({ ...post, id: id ?? '' });
-          }
-          try {
-            await schedulePublisherPosts(workspaceId, scheduled);
-          } catch {
-            // The preview record is the creator-facing source of truth; a
-            // missing external publisher should not block canvas review.
+            lastPreviewUrl = previewUrl;
+            if (serverPublishing) {
+              try {
+                const response = await scheduleViaServer({
+                  workspaceId,
+                  post: { ...post, id: localId ?? '' },
+                });
+                // Use the local artifact id for the canvas overlay (Blocker 4).
+                // Provider URLs (response.result.previewUrl) are external and
+                // cannot open the in-canvas overlay; they are stored on the post
+                // as metadata only.
+                rememberScheduledPost(workspaceId, {
+                  ...response.post,
+                  id: response.post.id || localId || '',
+                });
+                lastPreviewUrl = previewUrl; // keep local url for overlay
+              } catch {
+                // The preview record is the creator-facing source of truth; a
+                // missing external publisher must not block canvas review.
+              }
+            }
           }
           if (lastPreviewUrl) {
             const id = new URL(lastPreviewUrl, 'http://local').searchParams.get(
@@ -111,7 +132,22 @@ export function PublishSection({
                 key={post.id}
                 post={post}
                 onOpen={() => onOpenPreview?.(post.id)}
-                onCancel={() => publisher.cancel(post.id)}
+                onCancel={async () => {
+                  if (serverPublishing) {
+                    await cancelViaServer({
+                      workspaceId,
+                      id: post.id,
+                      externalId: post.externalId,
+                      providerId: post.provider,
+                    });
+                    rememberScheduledPost(workspaceId, {
+                      ...post,
+                      status: 'cancelled',
+                    });
+                  } else {
+                    await publisher.cancel(post.id);
+                  }
+                }}
               />
             ))}
           </ul>
@@ -123,12 +159,14 @@ export function PublishSection({
 
 function ScheduleForm({
   onSchedule,
+  serverPublishing,
 }: {
   onSchedule: (
     platforms: PublishPlatform[],
     caption: string,
     hashtags: string[]
   ) => Promise<void>;
+  serverPublishing: boolean;
 }) {
   const [selected, setSelected] = useState<Set<PublishPlatform>>(
     () => new Set(['instagram'])
@@ -136,6 +174,7 @@ function ScheduleForm({
   const [caption, setCaption] = useState('');
   const [hashtagsRaw, setHashtagsRaw] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggle = (platform: PublishPlatform) => {
     setSelected((prev) => {
@@ -154,10 +193,13 @@ function ScheduleForm({
       .map((t) => t.trim().replace(/^#+/, ''))
       .filter(Boolean);
     setBusy(true);
+    setError(null);
     try {
       await onSchedule([...selected], caption.trim(), tags);
       setCaption('');
       setHashtagsRaw('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'publish failed');
     } finally {
       setBusy(false);
     }
@@ -227,8 +269,21 @@ function ScheduleForm({
         disabled={selected.size === 0 || busy}
         className="self-end rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink transition-colors hover:bg-surface-panel-muted disabled:opacity-50"
       >
-        {busy ? 'scheduling…' : 'schedule preview'}
+        {busy
+          ? 'scheduling…'
+          : serverPublishing
+            ? 'schedule post'
+            : 'schedule preview'}
       </button>
+      {error ? (
+        <p
+          role="status"
+          className="font-caption text-xs text-signal-error"
+          data-testid="publish-schedule-error"
+        >
+          {error}
+        </p>
+      ) : null}
     </form>
   );
 }

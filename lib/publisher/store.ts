@@ -9,6 +9,7 @@ import type {
 } from '@/lib/providers/publisher/types';
 import {
   createMemoryStorage,
+  rememberScheduledPostForClient,
   useScheduledPostsMemory,
   clearScheduledPostsForTests,
 } from './memory';
@@ -77,4 +78,12 @@ export async function schedulePublisherPosts(
 
 export function resetScheduledPostsForTests(): void {
   clearScheduledPostsForTests();
+}
+
+export function rememberScheduledPost(
+  workspaceId: string,
+  post: ScheduledPost
+): void {
+  if (isConvexEnabled()) return;
+  rememberScheduledPostForClient(workspaceId, post);
 }

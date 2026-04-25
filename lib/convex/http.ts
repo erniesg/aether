@@ -3,6 +3,10 @@ import { anyApi } from 'convex/server';
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
 import type { ArtifactKind } from '@/lib/tool/registry';
 import { sanitizeImageUrlForConvex } from './sanitize';
+import type {
+  PublisherProviderId,
+  ScheduledPost,
+} from '@/lib/providers/publisher/types';
 
 /**
  * Convex HTTP client for server-side runtimes (Next.js route handlers).
@@ -28,6 +32,14 @@ function getHttpClient(): ConvexHttpClient | null {
 const runsApi = (anyApi as unknown as {
   runs: { start: unknown; step: unknown; finish: unknown; fail: unknown };
 }).runs;
+
+const publisherApi = (anyApi as unknown as {
+  publisher: {
+    schedule: unknown;
+    cancel: unknown;
+    updateStatus: unknown;
+  };
+}).publisher;
 
 export interface ServerRunStart {
   clientRunId: string;
@@ -109,4 +121,39 @@ export async function recordRunFail(
 
 export function isConvexHttpEnabled(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CONVEX_DEPLOY_KEY);
+}
+
+export async function recordScheduledPost(input: {
+  workspaceId: string;
+  post: ScheduledPost;
+  provider: PublisherProviderId;
+  externalId?: string;
+}): Promise<string | null> {
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    return (await client.mutation(publisherApi.schedule as never, {
+      platform: input.post.platform,
+      mediaUrls: input.post.mediaUrls,
+      caption: input.post.caption,
+      hashtags: input.post.hashtags,
+      scheduledAt: input.post.scheduledAt,
+      accountId: input.post.accountId,
+      provider: input.provider,
+      externalId: input.externalId,
+    } as never)) as string;
+  } catch (err) {
+    console.error('[convex/http] recordScheduledPost failed', err);
+    return null;
+  }
+}
+
+export async function recordScheduledPostCancel(id: string): Promise<void> {
+  const client = getHttpClient();
+  if (!client) return;
+  try {
+    await client.mutation(publisherApi.cancel as never, { id } as never);
+  } catch (err) {
+    console.error('[convex/http] recordScheduledPostCancel failed', err);
+  }
 }

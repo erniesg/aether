@@ -3,6 +3,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const ORIGINAL_CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
+const ORIGINAL_PUBLISHER_MODE = process.env.NEXT_PUBLIC_PUBLISHER_MODE;
+const ORIGINAL_FETCH = global.fetch;
 
 afterEach(() => {
   cleanup();
@@ -11,6 +13,12 @@ afterEach(() => {
   } else {
     process.env.NEXT_PUBLIC_CONVEX_URL = ORIGINAL_CONVEX_URL;
   }
+  if (ORIGINAL_PUBLISHER_MODE === undefined) {
+    delete process.env.NEXT_PUBLIC_PUBLISHER_MODE;
+  } else {
+    process.env.NEXT_PUBLIC_PUBLISHER_MODE = ORIGINAL_PUBLISHER_MODE;
+  }
+  global.fetch = ORIGINAL_FETCH;
   vi.resetModules();
   window.localStorage.clear();
 });
@@ -130,5 +138,62 @@ describe('PublishSection · in-memory fallback', () => {
     await userEvent.click(screen.getByTestId('publish-platform-instagram'));
     const submit = screen.getByTestId('publish-schedule-submit');
     expect(submit).toBeDisabled();
+  });
+
+  it('server mode schedules through /api/publish and stores the returned row locally', async () => {
+    process.env.NEXT_PUBLIC_PUBLISHER_MODE = 'server';
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          provider: { id: 'postiz' },
+          post: {
+            id: 'postiz_1',
+            provider: 'postiz',
+            externalId: 'postiz_1',
+            platform: 'instagram',
+            mediaUrls: ['https://cdn.aether.test/hero.png'],
+            caption: 'real drop',
+            hashtags: ['aether'],
+            scheduledAt: '2026-05-01T12:00:00.000Z',
+            status: 'scheduled',
+          },
+          result: {
+            externalId: 'postiz_1',
+            previewUrl: 'https://postiz.test/p/postiz_1',
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { PublishSection } = await import(
+      '@/components/rail/sections/PublishSection'
+    );
+    const { resetScheduledPostsForTests } = await import(
+      '@/lib/publisher/store'
+    );
+    resetScheduledPostsForTests();
+
+    render(<PublishSection workspaceId="ws_server" />);
+
+    await userEvent.type(screen.getByTestId('publish-caption'), 'real drop');
+    await userEvent.click(screen.getByTestId('publish-schedule-submit'));
+
+    await waitFor(() => {
+      const rows = document.querySelectorAll('[data-scheduled-post-id]');
+      expect(rows.length).toBe(1);
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/publish',
+      expect.objectContaining({ method: 'POST' })
+    );
+    const row = document.querySelector('[data-scheduled-post-id]')!;
+    expect(row.getAttribute('data-scheduled-post-id')).toBe('postiz_1');
+    expect(row.textContent).toContain('real drop');
   });
 });

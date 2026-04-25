@@ -52,6 +52,9 @@ SPATIAL_PROVIDER=draft
 # self-hosted Postiz instance; `social-auto-upload` schedules CJK/browser-
 # automation channels through the Python sidecar in sidecars/social-auto-upload.
 PUBLISHER_PROVIDER=preview
+# Keep unset/preview for local preview-only UI. Set to `server` in deployments
+# where the right rail should call /api/publish and reach configured sidecars.
+NEXT_PUBLIC_PUBLISHER_MODE=preview
 POSTIZ_BASE_URL=https://postiz.example.com
 POSTIZ_API_KEY=
 POSTIZ_PINTEREST_BOARD_ID=

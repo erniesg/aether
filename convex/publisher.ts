@@ -91,6 +91,7 @@ export const schedule = mutationGeneric({
     scheduledAt: v.string(),
     accountId: v.optional(v.string()),
     provider: v.optional(v.string()),
+    externalId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (args.mediaUrls.length === 0) {
@@ -105,6 +106,7 @@ export const schedule = mutationGeneric({
       scheduledAt: args.scheduledAt,
       accountId: args.accountId,
       provider: args.provider ?? 'preview',
+      externalId: args.externalId,
       status: 'scheduled',
       createdAt: Date.now(),
     });
