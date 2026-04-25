@@ -1,0 +1,102 @@
+name: auto-queue
+
+# When a PR closing an issue merges, scan open issues that declared a
+# dependency on that PR (via the `depends-on-pr` label + a marker line
+# `Blocked-by: #<n>` in the issue body) and fire the autonomous agent
+# on each by swapping the labels.
+#
+# Marker shape (case-insensitive, anywhere in the issue body):
+#   Blocked-by: #100
+#   Blocked-by: #100, #84
+#   Blocked-by: PR #100
+#
+# When *all* of an issue's blockers are merged, the issue gets:
+#   - `depends-on-pr` removed
+#   - `claude-run` added (fires the harness)
+# Issues with at least one unmerged blocker stay blocked.
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  unblock:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Unblock dependent issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          echo "Merged PR: #${MERGED_PR}"
+
+          # All open issues currently blocked.
+          mapfile -t BLOCKED < <(gh issue list \
+            --label depends-on-pr \
+            --state open \
+            --limit 100 \
+            --json number,body \
+            -q '.[] | "\(.number)|\(.body | gsub("\r"; "") | gsub("\n"; " "))"')
+
+          if [ "${#BLOCKED[@]}" -eq 0 ]; then
+            echo "No issues with depends-on-pr label."
+            exit 0
+          fi
+
+          for entry in "${BLOCKED[@]}"; do
+            num="${entry%%|*}"
+            body="${entry#*|}"
+            # Extract every "Blocked-by: ..." marker (case-insensitive).
+            mapfile -t REFS < <(echo "$body" | grep -ioE 'blocked-by:[^.]*' || true)
+            if [ "${#REFS[@]}" -eq 0 ]; then
+              continue
+            fi
+            # Pull every #N reference out of the markers.
+            ids=$(printf '%s\n' "${REFS[@]}" \
+              | grep -oE '#[0-9]+' \
+              | tr -d '#' \
+              | sort -u)
+            if [ -z "${ids:-}" ]; then
+              continue
+            fi
+            # If MERGED_PR isn't in this issue's blocker list, skip.
+            if ! echo "$ids" | grep -qx "$MERGED_PR"; then
+              continue
+            fi
+            echo "Issue #${num} declares blockers: $(echo "$ids" | tr '\n' ' ')"
+
+            # Check each blocker. Issue stays blocked until every blocker
+            # is in CLOSED + MERGED state (PRs) or just closed (issues).
+            still_blocked=0
+            while read -r dep; do
+              [ -z "${dep:-}" ] && continue
+              if [ "$dep" = "$MERGED_PR" ]; then
+                continue
+              fi
+              dep_state=$(gh pr view "$dep" --json state,mergedAt -q '.state' 2>/dev/null || true)
+              if [ -z "$dep_state" ]; then
+                # Not a PR — try issue.
+                dep_state=$(gh issue view "$dep" --json state -q '.state' 2>/dev/null || true)
+              fi
+              if [ "$dep_state" != "MERGED" ] && [ "$dep_state" != "CLOSED" ]; then
+                echo "  blocker #${dep} still open ($dep_state); leaving #${num} blocked"
+                still_blocked=1
+                break
+              fi
+            done <<< "$ids"
+
+            if [ "$still_blocked" -eq 0 ]; then
+              echo "  → unblocking #${num}: removing depends-on-pr, adding claude-run"
+              gh issue edit "$num" \
+                --remove-label depends-on-pr \
+                --add-label claude-run \
+                || echo "  (label edit failed; skipping)"
+            fi
+          done
