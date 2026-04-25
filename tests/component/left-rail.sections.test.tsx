@@ -3,11 +3,13 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { resetSignalsForTests } from '@/lib/signals/store';
+import { resetBrandContextForTests } from '@/lib/context/brand-store';
 
 afterEach(cleanup);
 beforeEach(() => {
   window.localStorage.clear();
   resetSignalsForTests();
+  resetBrandContextForTests();
 });
 
 describe('LeftRail · stable context first, run material last', () => {
@@ -43,11 +45,10 @@ describe('LeftRail · stable context first, run material last', () => {
 
     const flyout = container.querySelector<HTMLElement>('[data-rail-flyout="brand"]');
     expect(flyout).not.toBeNull();
-    const text = (flyout!.textContent ?? '').toLowerCase();
-    expect(text).toContain('brand site');
-    expect(text).toContain('repo');
-    expect(text).toContain('uploaded docs');
-    expect(text).toContain('assets');
+    expect(screen.getByDisplayValue(/brand site/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/repo/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/uploaded docs/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/assets/i)).toBeInTheDocument();
   });
 
   it('campaign section separates the current goal from stable brand data', async () => {

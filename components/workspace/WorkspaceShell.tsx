@@ -74,6 +74,7 @@ import {
   mergeReferenceUrls,
   visualReferenceUrls,
 } from '@/lib/context/model';
+import { useBrandContext } from '@/lib/context/brand-store';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -268,6 +269,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const definitions = useCapabilityDefinitions();
   const runs = useRuns();
   const references = useReferences();
+  const brand = useBrandContext();
+  const creatorContext = useMemo(() => ({ ...DEMO_CREATOR_CONTEXT, brand }), [brand]);
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
@@ -297,8 +300,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   }, [runs]);
   const pinnedReferenceUrls = useMemo(() => visualReferenceUrls(references), [references]);
   const inputCount = useMemo(
-    () => countCreatorInputs(DEMO_CREATOR_CONTEXT, references),
-    [references]
+    () => countCreatorInputs(creatorContext, references),
+    [creatorContext, references]
   );
   // Focus lens cycles through frames via arrow keys; the active format state
   // mirrors this so the composer always shows the current single-format target.
@@ -1266,7 +1269,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         if (formats.length > 0) {
           const targets = formats;
           const contextualPrompt = buildCreatorGenerationPrompt(
-            DEMO_CREATOR_CONTEXT,
+            creatorContext,
             prompt,
             references
           );
@@ -1298,7 +1301,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
 
       const contextualPrompt = buildCreatorGenerationPrompt(
-        DEMO_CREATOR_CONTEXT,
+        creatorContext,
         prompt,
         references
       );
@@ -1325,6 +1328,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       handleExport,
       pinnedReferenceUrls,
       references,
+      creatorContext,
     ]
   );
 

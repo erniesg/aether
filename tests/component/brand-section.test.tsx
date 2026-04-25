@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrandSection } from '@/components/rail/sections/BrandSection';
+import {
+  BRAND_CONTEXT_STORAGE_KEY,
+  resetBrandContextForTests,
+} from '@/lib/context/brand-store';
 import type { BrandSnapshot } from '@/lib/brand/types';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  resetBrandContextForTests();
+});
 
 const HIGH_CONF_SNAPSHOT: BrandSnapshot = {
   palette: [
@@ -54,7 +61,7 @@ describe('BrandSection · drop zone', () => {
     await waitFor(() => {
       expect(screen.getAllByTestId('brand-palette-chip')).toHaveLength(3);
     });
-    expect(screen.getByText('“Slow, certain skincare.”')).toBeInTheDocument();
+    expect(screen.getByLabelText(/brand voice/i)).toHaveValue('Slow, certain skincare.');
     expect(screen.queryByTestId('brand-review-banner')).toBeNull();
   });
 
@@ -115,7 +122,7 @@ describe('BrandSection · drop zone', () => {
     await waitFor(() => {
       expect(screen.getByTestId('brand-review-banner')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('brand-review-banner')).toHaveTextContent(/review before applying/i);
+    expect(screen.getByTestId('brand-review-banner')).toHaveTextContent(/review before saving/i);
   });
 
   it('surfaces an error when the ingest rejects', async () => {
@@ -132,10 +139,70 @@ describe('BrandSection · drop zone', () => {
     });
   });
 
-  it('keeps the baseline brand body until an ingest lands (restraint rule)', () => {
+  it('renders the baseline brand as an editable profile before ingest', () => {
     render(<BrandSection />);
-    // Baseline brand copy from DEMO_CREATOR_CONTEXT should still render.
-    expect(screen.getByText(/brand site/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('brand-palette-chip')).toBeNull();
+    expect(screen.getByLabelText(/brand name/i)).toHaveValue('Solstice Skin');
+    expect(screen.getAllByTestId('brand-palette-chip')).toHaveLength(5);
+    expect(screen.getByLabelText(/brand voice/i)).toHaveValue(
+      'slow, certain, more gesture than grammar.'
+    );
+  });
+
+  it('saves edited brand fields to the client brand profile store', async () => {
+    render(<BrandSection />);
+
+    await userEvent.clear(screen.getByLabelText(/brand name/i));
+    await userEvent.type(screen.getByLabelText(/brand name/i), 'Tong');
+    fireEvent.change(screen.getByLabelText(/brand type/i), {
+      target: { value: 'Noto Sans CJK\nInter' },
+    });
+    await userEvent.clear(screen.getByLabelText(/brand voice/i));
+    await userEvent.type(screen.getByLabelText(/brand voice/i), 'Learn CJK by living in them.');
+    await userEvent.clear(screen.getByLabelText(/hex colour 1/i));
+    await userEvent.type(screen.getByLabelText(/hex colour 1/i), '#ef3340');
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    const saved = JSON.parse(window.localStorage.getItem(BRAND_CONTEXT_STORAGE_KEY) ?? '{}');
+    expect(saved.name).toBe('Tong');
+    expect(saved.type).toEqual(['Noto Sans CJK', 'Inter']);
+    expect(saved.voice).toBe('Learn CJK by living in them.');
+    expect(saved.palette[0]).toBe('#EF3340');
+    expect(screen.getByText(/^saved$/i)).toBeInTheDocument();
+  });
+
+  it('keeps hex input and the native colour picker in sync', async () => {
+    render(<BrandSection />);
+
+    fireEvent.change(screen.getByLabelText(/pick colour 1/i), {
+      target: { value: '#123456' },
+    });
+
+    expect(screen.getByLabelText(/hex colour 1/i)).toHaveValue('#123456');
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    const saved = JSON.parse(window.localStorage.getItem(BRAND_CONTEXT_STORAGE_KEY) ?? '{}');
+    expect(saved.palette[0]).toBe('#123456');
+  });
+
+  it('requires invalid hex colours to be fixed before saving', async () => {
+    render(<BrandSection />);
+
+    await userEvent.clear(screen.getByLabelText(/hex colour 1/i));
+    await userEvent.type(screen.getByLabelText(/hex colour 1/i), 'nope');
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/invalid colour/i);
+    expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+  });
+
+  it('accepts hex input with or without the leading hash', async () => {
+    render(<BrandSection />);
+
+    await userEvent.clear(screen.getByLabelText(/hex colour 1/i));
+    await userEvent.type(screen.getByLabelText(/hex colour 1/i), 'ef3340');
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    const saved = JSON.parse(window.localStorage.getItem(BRAND_CONTEXT_STORAGE_KEY) ?? '{}');
+    expect(saved.palette[0]).toBe('#EF3340');
   });
 });

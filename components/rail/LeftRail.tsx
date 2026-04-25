@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Flag,
   Layers3,
@@ -23,6 +23,7 @@ import {
   DEMO_CREATOR_CONTEXT,
   summarizeInputSet,
 } from '@/lib/context/model';
+import { useBrandContext } from '@/lib/context/brand-store';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -170,6 +171,8 @@ function LeftRailInner({ className }: { className?: string }) {
   const { railRef } = useRail();
   const signals = useSignals();
   const references = useReferences();
+  const brand = useBrandContext();
+  const context = useMemo(() => ({ ...CONTEXT, brand }), [brand]);
   const signalsSummary = signalsSectionSummary(signals);
 
   const sections: ReadonlyArray<SectionSpec> = [
@@ -177,15 +180,15 @@ function LeftRailInner({ className }: { className?: string }) {
       id: 'brand',
       label: 'brand',
       icon: PaintBucket,
-      summary: brandSectionSummary(CONTEXT.brand),
+      summary: brandSectionSummary(context.brand),
       hasContent: true,
-      body: <BrandSection />,
+      body: <BrandSection context={context.brand} />,
     },
     {
       id: 'offer',
       label: 'offer',
       icon: Package2,
-      summary: `${CONTEXT.offer.claims.length} claims`,
+      summary: `${context.offer.claims.length} claims`,
       hasContent: true,
       body: <OfferBody />,
     },
@@ -193,7 +196,7 @@ function LeftRailInner({ className }: { className?: string }) {
       id: 'campaign',
       label: 'campaign',
       icon: Flag,
-      summary: `${CONTEXT.campaign.channels.length} channels`,
+      summary: `${context.campaign.channels.length} channels`,
       hasContent: true,
       body: <CampaignBody />,
     },

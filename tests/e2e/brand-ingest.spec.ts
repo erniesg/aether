@@ -36,6 +36,11 @@ const LOW_CONF_FIXTURE = {
 };
 
 test.describe('D1 — brand auto-ingest', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/workspace/demo-ws');
+    await page.evaluate(() => window.localStorage.removeItem('aether.brand.v1'));
+  });
+
   test('pasting a URL renders palette chips + voice sample and updates the rail', async ({
     page,
   }) => {
@@ -51,8 +56,6 @@ test.describe('D1 — brand auto-ingest', () => {
       });
     });
 
-    await page.goto('/workspace/demo-ws');
-
     const brandTrigger = page.locator('[data-rail-section="brand"]');
     await brandTrigger.click();
 
@@ -65,9 +68,35 @@ test.describe('D1 — brand auto-ingest', () => {
 
     await expect(flyout.locator('[data-testid="brand-palette-chip"]')).toHaveCount(3);
     await expect(
-      flyout.getByText('“Slow, certain skincare for golden-hour mornings.”')
-    ).toBeVisible();
+      flyout.getByLabel('brand voice')
+    ).toHaveValue('Slow, certain skincare for golden-hour mornings.');
     await expect(flyout.locator('[data-testid="brand-review-banner"]')).toHaveCount(0);
+  });
+
+  test('saving brand edits persists across reload and exposes hex colour editing', async ({
+    page,
+  }) => {
+    await page.locator('[data-rail-section="brand"]').click();
+    let flyout = page.locator('[data-rail-flyout="brand"]');
+    await expect(flyout).toBeVisible();
+
+    await flyout.getByLabel('brand name').fill('Tong');
+    await flyout.getByLabel('hex colour 1').fill('#ef3340');
+    await flyout.getByLabel('brand type').fill('Noto Sans CJK\nInter');
+    await flyout.getByLabel('brand voice').fill('Learn CJK by living in them.');
+    await flyout.getByRole('button', { name: /save/i }).click();
+
+    await expect(flyout.getByText(/^saved$/i)).toBeVisible();
+
+    await page.reload();
+    await page.locator('[data-rail-section="brand"]').click();
+    flyout = page.locator('[data-rail-flyout="brand"]');
+    await expect(flyout.getByLabel('brand name')).toHaveValue('Tong');
+    await expect(flyout.getByLabel('hex colour 1')).toHaveValue('#EF3340');
+    await expect(flyout.getByLabel('brand type')).toHaveValue('Noto Sans CJK\nInter');
+    await expect(flyout.getByLabel('brand voice')).toHaveValue(
+      'Learn CJK by living in them.'
+    );
   });
 
   test('bare-domain brand source enables ingest and normalizes to https', async ({
@@ -92,7 +121,6 @@ test.describe('D1 — brand auto-ingest', () => {
       });
     });
 
-    await page.goto('/workspace/demo-ws');
     await page.locator('[data-rail-section="brand"]').click();
 
     const flyout = page.locator('[data-rail-flyout="brand"]');
@@ -102,8 +130,8 @@ test.describe('D1 — brand auto-ingest', () => {
     await flyout.getByRole('button', { name: /ingest/i }).click();
 
     await expect(
-      flyout.getByText('“Tong — Learn CJK by living in them”')
-    ).toBeVisible();
+      flyout.getByLabel('brand voice')
+    ).toHaveValue('Tong — Learn CJK by living in them');
   });
 
   test('low-confidence ingests surface a review banner instead of silently overwriting', async ({
@@ -117,7 +145,6 @@ test.describe('D1 — brand auto-ingest', () => {
       });
     });
 
-    await page.goto('/workspace/demo-ws');
     await page.locator('[data-rail-section="brand"]').click();
     const flyout = page.locator('[data-rail-flyout="brand"]');
 
@@ -126,7 +153,7 @@ test.describe('D1 — brand auto-ingest', () => {
 
     await expect(flyout.locator('[data-testid="brand-review-banner"]')).toBeVisible();
     await expect(flyout.locator('[data-testid="brand-review-banner"]')).toContainText(
-      /review before applying/i
+      /review before saving/i
     );
   });
 });
