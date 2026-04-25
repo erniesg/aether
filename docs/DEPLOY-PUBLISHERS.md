@@ -32,26 +32,15 @@ gcloud config set project YOUR_PROJECT_ID
 
 ### 1.2 Provision Cloud SQL Postgres
 
-The `deploy.sh` script handles this automatically. If you prefer manual steps:
+`deploy.sh` does this for you:
 
-```bash
-gcloud sql instances create postiz-pg \
-  --database-version=POSTGRES_16 \
-  --tier=db-f1-micro \
-  --region=asia-southeast1
+- creates the `postiz-pg` instance (POSTGRES_16, `db-f1-micro`)
+- creates the `postiz` database
+- creates the `postiz` SQL user with a freshly generated password
+- builds `DATABASE_URL` (Cloud SQL proxy format) from that password and pushes it to Secret Manager
+- on re-runs: rotates the password and updates the secret (idempotent)
 
-gcloud sql databases create postiz --instance=postiz-pg
-gcloud sql users create postiz --instance=postiz-pg --password=CHOOSE_A_PASSWORD
-
-# Get the connection name for the DATABASE_URL:
-gcloud sql instances describe postiz-pg --format='value(connectionName)'
-# Output: YOUR_PROJECT:asia-southeast1:postiz-pg
-```
-
-`DATABASE_URL` format for Cloud SQL proxy:
-```
-postgresql://postiz:PASSWORD@/postiz?host=/cloudsql/YOUR_PROJECT:asia-southeast1:postiz-pg
-```
+You do NOT set `DATABASE_URL` in `.env.postiz`. Just provide `GCLOUD_PROJECT` and `GCLOUD_REGION` and the script handles the rest.
 
 ### 1.3 Provision Upstash Redis
 
