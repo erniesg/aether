@@ -11,6 +11,7 @@ import { ArrowUp, ChevronDown, ImagePlus, Loader2, Sparkles, X } from 'lucide-re
 import { ingestUrlViaApi } from '@/lib/references/client';
 import { addReference } from '@/lib/references/store';
 import { cn } from '@/lib/utils/cn';
+import { MAX_REF_BYTES, formatRefSizeError } from '@/lib/refs/limits';
 
 /**
  * Imperative API the composer exposes to its parent. `focus` drives the
@@ -72,7 +73,6 @@ export interface PromptComposerProps {
 }
 
 const MAX_REFS = 6;
-const MAX_REF_BYTES = 8 * 1024 * 1024; // 8 MB per ref — stays well under request-body limits.
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -140,7 +140,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
         const fresh: string[] = [];
         for (const f of images) {
           if (f.size > MAX_REF_BYTES) {
-            setRefError(`${f.name} is over 8 MB — skipped`);
+            setRefError(formatRefSizeError(f));
             continue;
           }
           try {
