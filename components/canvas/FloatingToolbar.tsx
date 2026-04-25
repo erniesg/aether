@@ -70,6 +70,9 @@ export interface FloatingToolbarProps {
   onCapabilityPress?: (id: string) => void;
   /** Voice-mode chip (phase 1). Rendered when provided; see VoiceOrb. */
   voiceSlot?: React.ReactNode;
+  /** Eyes-closed sketch+voice handle (issue #128 / Q7). Sits next to the
+   * voice chip — same `tool`-taxonomy slot, hold-to-record affordance. */
+  eyesClosedSlot?: React.ReactNode;
   /** Toggles the cluster kanban lens. Lens-switches live on canvas chrome
    * (hard rule #3 — `tool` category) rather than the header, so the lens
    * stays attached to the canvas substrate. */
@@ -108,6 +111,7 @@ export function FloatingToolbar({
   pinnedCapabilities = [],
   onCapabilityPress,
   voiceSlot,
+  eyesClosedSlot,
   clusterLensActive,
   onClusterLensToggle,
   className,
@@ -316,12 +320,19 @@ export function FloatingToolbar({
         active={activeTool === 'collage'}
       />
 
-      {voiceSlot ? (
+      {voiceSlot || eyesClosedSlot ? (
         <>
           <span className="mx-0.5 h-5 w-px bg-border-soft" aria-hidden />
-          <div data-voice-slot className="flex items-center">
-            {voiceSlot}
-          </div>
+          {voiceSlot ? (
+            <div data-voice-slot className="flex items-center">
+              {voiceSlot}
+            </div>
+          ) : null}
+          {eyesClosedSlot ? (
+            <div data-eyes-closed-slot className="flex items-center">
+              {eyesClosedSlot}
+            </div>
+          ) : null}
         </>
       ) : null}
 
