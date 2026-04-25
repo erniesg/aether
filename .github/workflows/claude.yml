@@ -29,10 +29,86 @@ jobs:
       checks: read
       statuses: read
     steps:
+      - name: Resolve agent target branch
+        id: agent_target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || '' }}
+          ISSUE_IS_PR: ${{ github.event.issue.pull_request && 'true' || 'false' }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || '' }}
+          PULL_REQUEST_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+        run: |
+          set -euo pipefail
+
+          checkout_ref=""
+          existing_pr_branch=""
+          existing_pr_number=""
+
+          if [ -n "${PULL_REQUEST_HEAD_REF:-}" ]; then
+            checkout_ref="${PULL_REQUEST_HEAD_REF}"
+            existing_pr_branch="${PULL_REQUEST_HEAD_REF}"
+            existing_pr_number="${PULL_REQUEST_NUMBER:-}"
+          elif [ "${ISSUE_IS_PR:-false}" = "true" ] && [ -n "${ISSUE_NUMBER:-}" ]; then
+            checkout_ref="$(gh api "repos/${GH_REPO}/pulls/${ISSUE_NUMBER}" --jq '.head.ref')"
+            existing_pr_branch="${checkout_ref}"
+            existing_pr_number="${ISSUE_NUMBER}"
+          elif [ "${EVENT_NAME}" = "issues" ] && [ -n "${ISSUE_NUMBER:-}" ]; then
+            match="$(gh pr list \
+              --state open \
+              --json number,headRefName,updatedAt \
+              --jq "[.[] | select(.headRefName | startswith(\"claude/issue-${ISSUE_NUMBER}-\"))] | sort_by(.updatedAt) | reverse | .[0] // empty")"
+            if [ -n "${match}" ]; then
+              checkout_ref="$(printf '%s' "${match}" | jq -r '.headRefName')"
+              existing_pr_branch="${checkout_ref}"
+              existing_pr_number="$(printf '%s' "${match}" | jq -r '.number')"
+            fi
+          fi
+
+          base_branch="${checkout_ref:-main}"
+          {
+            echo "checkout_ref=${checkout_ref}"
+            echo "base_branch=${base_branch}"
+            echo "existing_pr_branch=${existing_pr_branch}"
+            echo "existing_pr_number=${existing_pr_number}"
+          } >> "${GITHUB_OUTPUT}"
+
+          if [ -n "${checkout_ref}" ]; then
+            echo "::notice::Claude target branch resolved to ${checkout_ref}"
+          else
+            echo "::notice::No existing PR branch found; Claude will start from the event ref."
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ steps.agent_target.outputs.checkout_ref || github.ref }}
+
+      - name: Refresh existing PR branch from main
+        if: steps.agent_target.outputs.existing_pr_branch != ''
+        env:
+          TARGET_BRANCH: ${{ steps.agent_target.outputs.existing_pr_branch }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main "${TARGET_BRANCH}" --quiet
+          git checkout -B "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}"
+          before="$(git rev-parse HEAD)"
+          if git merge --no-edit origin/main; then
+            after="$(git rev-parse HEAD)"
+            if [ "${before}" != "${after}" ]; then
+              git push origin "HEAD:${TARGET_BRANCH}"
+              echo "::notice::Merged origin/main into ${TARGET_BRANCH} before Claude continued."
+            else
+              echo "::notice::${TARGET_BRANCH} already includes origin/main."
+            fi
+          else
+            git merge --abort || true
+            echo "::warning::Could not auto-merge origin/main into ${TARGET_BRANCH}; Claude will see the existing PR branch state."
+          fi
 
       - name: Run Claude Code agent
         id: agent
@@ -44,9 +120,11 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           trigger_phrase: "@claude"
           label_trigger: "claude-run"
+          base_branch: ${{ steps.agent_target.outputs.base_branch }}
           claude_args: |
             --max-turns 250
             --model claude-opus-4-7
+            --allowedTools "Bash(npm install),Bash(npm ci),Bash(npm test:*),Bash(npm run typecheck),Bash(npm run build),Bash(npm run test:e2e:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(gh issue view:*)"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_GEMINI_API_KEY: ${{ secrets.GOOGLE_GEMINI_API_KEY }}
@@ -64,6 +142,8 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           AGENT_OUTCOME: ${{ steps.agent.outcome }}
+          EXISTING_PR_BRANCH: ${{ steps.agent_target.outputs.existing_pr_branch }}
+          EXISTING_PR_NUMBER: ${{ steps.agent_target.outputs.existing_pr_number }}
         run: |
           set -u
           git fetch origin --prune --quiet
@@ -75,6 +155,26 @@ jobs:
             echo "::notice::No claude/issue-${ISSUE_NUMBER}-* branch on origin — nothing to PR."
             exit 0
           fi
+
+          if [ -n "${EXISTING_PR_BRANCH:-}" ]; then
+            if [ "${BRANCH}" = "${EXISTING_PR_BRANCH}" ]; then
+              echo "::notice::Existing PR branch ${EXISTING_PR_BRANCH} was the latest agent branch."
+              exit 0
+            fi
+
+            git checkout -B "${EXISTING_PR_BRANCH}" "origin/${EXISTING_PR_BRANCH}"
+            if git merge --ff-only "origin/${BRANCH}"; then
+              git push origin "HEAD:${EXISTING_PR_BRANCH}"
+              if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
+                gh pr comment "${EXISTING_PR_NUMBER}" --body "Merged follow-up agent branch \`${BRANCH}\` back into existing PR branch \`${EXISTING_PR_BRANCH}\`."
+              fi
+              echo "::notice::Merged ${BRANCH} into existing PR branch ${EXISTING_PR_BRANCH}."
+            else
+              echo "::warning::Latest agent branch ${BRANCH} did not fast-forward ${EXISTING_PR_BRANCH}; leaving it for explicit follow-up."
+            fi
+            exit 0
+          fi
+
           AHEAD=$(git rev-list --count "origin/main..origin/${BRANCH}")
           if [ "${AHEAD}" -eq 0 ]; then
             echo "::notice::Branch ${BRANCH} has 0 commits ahead of main — nothing to PR."
