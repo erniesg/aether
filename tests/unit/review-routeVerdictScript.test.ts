@@ -63,6 +63,39 @@ describe('route-review-verdict harness contract', () => {
   });
 });
 
+describe('auto-merge for safe PRs', () => {
+  it('declares an auto-merge path safelist (docs/tests/configs/lockfile/generated)', () => {
+    expect(routeScript).toContain('AUTO_MERGE_SAFELIST');
+    expect(routeScript).toMatch(/\/\^docs\\\//);
+    expect(routeScript).toMatch(/\/\^tests\\\//);
+    expect(routeScript).toMatch(/\/\^\\\.github\\\//);
+    expect(routeScript).toMatch(/\/\^package-lock\\\.json\$/);
+    expect(routeScript).toMatch(/\/\^convex\\\/_generated\\\//);
+  });
+
+  it('honors the auto-merge-safe label as a fast path', () => {
+    expect(routeScript).toContain("'auto-merge-safe'");
+    expect(routeScript).toContain('isPrSafeForAutoMerge');
+  });
+
+  it('auto-merges in the APPROVE branch when safe and notifies Discord with auto-merged copy', () => {
+    const branch = routeScript.match(
+      /if \(verdict === 'APPROVE'\) \{([\s\S]*?)\n    addLabels\(prTarget, \['ready-for-ernie'\]\);/
+    )?.[1];
+    expect(branch).toBeTruthy();
+    expect(branch).toContain('isPrSafeForAutoMerge(pr.number, pr.labels)');
+    expect(branch).toContain('mergePr(pr.number)');
+    expect(branch).toContain('aether · auto-merged ·');
+    expect(branch).toContain('extractEvidenceFields');
+  });
+
+  it('embeds reviewer acceptance + validation evidence on the manual-ack APPROVE ping', () => {
+    expect(routeScript).toContain('extractEvidenceFields');
+    expect(routeScript).toMatch(/acceptance[^\n]*\\n/i);
+    expect(routeScript).toMatch(/validation[^\n]*\\n/i);
+  });
+});
+
 describe('claude-review structured output contract', () => {
   it('asks reviewer blocks to include options and artifacts for visual/product ambiguity', () => {
     expect(workflow).toContain('humanReview');
