@@ -114,12 +114,7 @@ test.describe('selected image controls · opacity · order · align', () => {
     const slider = page.getByRole('slider', { name: /opacity/i });
     await expect(slider).toBeVisible();
 
-    // Drive opacity directly — fireEvent.change equivalent on a range input.
-    await slider.evaluate((el: HTMLInputElement) => {
-      el.value = '40';
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await slider.fill('40');
 
     const opacity = await page.evaluate((id) => {
       const editor = (window as unknown as {

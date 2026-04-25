@@ -80,10 +80,16 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
         if (typeof window !== 'undefined') {
           const globalShim = window as unknown as {
             editor?: Editor;
-            tldraw?: { AssetRecordType: typeof AssetRecordType; createShapeId: typeof createShapeId };
+            tldraw?: {
+              AssetRecordType: { createId: typeof AssetRecordType.createId };
+              createShapeId: typeof createShapeId;
+            };
           };
           globalShim.editor = editor;
-          globalShim.tldraw = { AssetRecordType, createShapeId };
+          globalShim.tldraw = {
+            AssetRecordType: { createId: () => AssetRecordType.createId() },
+            createShapeId,
+          };
         }
         editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
         // Seed the four hero artboards on an empty workspace so the multiformat
