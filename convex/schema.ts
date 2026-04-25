@@ -119,6 +119,11 @@ export default defineSchema({
   // their `v.id('workspace')` contracts.
   brandProfile: defineTable({
     workspaceId: v.string(),
+    // id is the BrandContext.id — a stable client-side identifier that travels
+    // through coerceBrandContext and the BRAND validator. It must be stored so
+    // the round-trip from getBrand → useBrandContext produces the same id that
+    // was saved, not the Convex document _id.
+    id: v.string(),
     name: v.string(),
     palette: v.array(v.string()),
     type: v.array(v.string()),
@@ -232,8 +237,13 @@ export default defineSchema({
     .index('by_workspace', ['workspaceId']),
 
   // ─── canvas ────────────────────────────────────────────────────────────
+  // wsId is optional for the same reason it is on capabilityRun / clusterCard /
+  // signalSubscription: pre-Phase-5 the canvas writes snapshots without a
+  // Convex workspace document, using a plain string key (wsKey). Making wsId
+  // optional here allows existing documents to pass schema validation while the
+  // workspace plumbing is wired up in Phase 5.
   canvasSnapshot: defineTable({
-    wsId: v.id('workspace'),
+    wsId: v.optional(v.id('workspace')),
     tldrawStoreJson: v.string(),
     snapshottedAt: v.number(),
   }).index('by_ws', ['wsId']),

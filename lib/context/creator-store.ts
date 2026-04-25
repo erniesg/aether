@@ -281,14 +281,28 @@ export function useBrandContext(workspaceId?: string): BrandContext {
   /* eslint-enable react-hooks/rules-of-hooks */
 }
 
-export function saveBrandContext(context: BrandContext, workspaceId?: string): void {
+export function saveBrandContext(
+  context: BrandContext,
+  workspaceId?: string,
+  onError?: (err: unknown) => void
+): void {
   if (isConvexEnabled()) {
     const client = getConvexClient();
     if (client) {
-      void client.mutation(creatorContextApi.saveBrand as never, {
-        workspaceId: workspaceKey(workspaceId),
-        brand: coerceBrandContext(context) ?? DEMO_CREATOR_CONTEXT.brand,
-      } as never);
+      client
+        .mutation(creatorContextApi.saveBrand as never, {
+          workspaceId: workspaceKey(workspaceId),
+          brand: coerceBrandContext(context) ?? DEMO_CREATOR_CONTEXT.brand,
+        } as never)
+        .catch((err: unknown) => {
+          if (
+            typeof window !== 'undefined' &&
+            new URLSearchParams(window.location.search).get('debug') === '1'
+          ) {
+            console.error('[aether] saveBrand mutation failed:', err);
+          }
+          onError?.(err);
+        });
     }
     return;
   }
