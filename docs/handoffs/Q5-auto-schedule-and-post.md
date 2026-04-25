@@ -26,11 +26,32 @@ What's missing (the work):
 | Job | Provider |
 |---|---|
 | Routing decision (which variant → which platform) | Claude Opus 4.7 (planner) |
+| Cross-platform supervisor + per-platform subagent | **Anthropic Managed Agents** (one supervisor session, one subagent session per platform) |
 | Posting | Postiz sidecar (primary) + social-auto-upload (CJK platforms — Douyin/XHS/Bilibili) |
-| Storage | Convex `scheduledPost` table (already in schema) |
+| Storage | Convex `scheduledPost` table + `agentSession` table (new — see prereqs) |
 | Preview / fallback | `PreviewPublisher` (always available) |
 
 Postiz/SAU stay third-party but are the *only* publishers we need. No Buffer, no Hootsuite, no native API integrations.
+
+**Why Managed Agents fit here (uniquely well):**
+
+1. **Parallel isolation** — IG/X/LinkedIn/TikTok have different auth, rate limits, and failure modes. Each platform = one subagent session. An IG OAuth refresh failure does not tank the X post.
+2. **Durable schedules** — "post 7 days from now" needs the agent to be wakeable when the timer fires, with full prior context (variant, copy, cta). Managed Agent sessions are exactly this.
+3. **Audit trail** — every `scheduled → posted → succeeded | failed | rate-limited | re-queued` becomes an event on the session log; pairs with our typed-provenance hard rule.
+
+**Invocation pattern** (see Q5 design notes inline below):
+
+```ts
+// lib/agent/managed/publishOrchestrator.ts
+const supervisor = await client.beta.agents.sessions.create({
+  model: 'claude-opus-4-7',
+  system: PUBLISH_SUPERVISOR_PROMPT,             // cached
+  tools: [spawnPlatformSubagent, persistScheduleRow, notifyHumanOnFailure],
+});
+// run loop: append events, run, handle tool calls, spawn per-platform sub-sessions.
+```
+
+The exact SDK surface (e.g. `client.beta.agents.sessions.*`) may differ — verify against current `@anthropic-ai/sdk` at implementation time. Pattern: sessions own context, tools are external, multi-agent = sessions calling sub-sessions.
 
 ## Acceptance criteria
 
