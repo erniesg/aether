@@ -10,6 +10,11 @@ const reviewWorkflow = readFileSync(
 );
 
 describe('claude author workflow branch targeting', () => {
+  it('does not run author or reviewer workflows automatically when PRs open', () => {
+    expect(workflow).not.toMatch(/^  pull_request:\s*$/m);
+    expect(reviewWorkflow).not.toContain('pull_request:');
+  });
+
   it('resolves an existing PR branch before checkout for issue re-dispatches', () => {
     expect(workflow).toContain('name: Resolve agent target branch');
     expect(workflow).toContain("startswith(\\\"claude/issue-${ISSUE_NUMBER}-\\\")");
@@ -25,17 +30,12 @@ describe('claude author workflow branch targeting', () => {
     expect(workflow).toContain('git push origin "HEAD:${TARGET_BRANCH}"');
   });
 
-  it('explicitly dispatches PR checks after bot-pushed branch refreshes', () => {
+  it('explicitly dispatches CI after bot-pushed branch refreshes without auto-review', () => {
     expect(workflow).toContain('actions: write');
     expect(workflow).toContain('dispatch_pr_checks()');
     expect(workflow).toContain('gh workflow run ci.yml --ref "${TARGET_BRANCH}"');
-    expect(workflow).toContain(
-      'gh workflow run claude-review.yml --ref "${TARGET_BRANCH}" -f "pr_number=${TARGET_PR_NUMBER}"'
-    );
     expect(workflow).toContain('gh workflow run ci.yml --ref "${EXISTING_PR_BRANCH}"');
-    expect(workflow).toContain(
-      'gh workflow run claude-review.yml --ref "${EXISTING_PR_BRANCH}" -f "pr_number=${EXISTING_PR_NUMBER}"'
-    );
+    expect(workflow).not.toContain('gh workflow run claude-review.yml');
   });
 
   it('bases Claude on the resolved branch and grants validation commands', () => {
@@ -64,6 +64,7 @@ describe('manual workflow dispatch support for refreshed PR heads', () => {
 
   it('lets claude-review run for an explicit PR number on a dispatched branch', () => {
     expect(reviewWorkflow).toContain('workflow_dispatch:');
+    expect(reviewWorkflow).not.toContain('pull_request:');
     expect(reviewWorkflow).toContain('pr_number:');
     expect(reviewWorkflow).toContain('name: Resolve PR context');
     expect(reviewWorkflow).toContain('allowed_bots: "*"');

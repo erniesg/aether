@@ -1,8 +1,8 @@
 name: claude-review
 
-# Fresh-context reviewer agent. Fires on PRs opened against `main` whose head
-# branch matches `claude/issue-*` (author-agent PRs). Human-authored PRs are
-# intentionally NOT reviewed here — they go through Codex + Ernie.
+# Fresh-context reviewer agent. This workflow is manual-only: it does not run
+# automatically when a PR opens, synchronizes, or reopens. Dispatch it with an
+# explicit PR number when Ernie wants an automated second pass.
 #
 # Independence from the author comes from TWO things:
 #   1. This is a separate Claude invocation with a fresh `/review --strict`
@@ -19,13 +19,10 @@ name: claude-review
 # and dispatches labels + Discord notification. It still falls back to parsing
 # an existing bot comment for older/manual runs.
 #
-# Active reviewer workflow. The GitHub App that authors agent PRs cannot
-# safely self-modify this file; changes here should land through human/Codex
-# review rather than author-agent branches.
+# Manual reviewer workflow. Keep changes here human-owned because this file
+# controls when automated review comments can be produced.
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -35,12 +32,7 @@ on:
 
 jobs:
   review:
-    # Only review agent-authored branches. Human PRs, and PRs opened by the
-    # reviewer agent itself (it never pushes branches, but belt-and-braces),
-    # are skipped.
-    if: |
-      (github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'claude/issue-')) ||
-      github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

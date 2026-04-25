@@ -129,14 +129,14 @@ Pattern is proven for SAM3 (`aether-img-socials/modal/sam3_app.py` + `docs/SAM3-
 
 ---
 
-## Artifact capture (every PR)
+## Artifact capture (review-ready PRs)
 
-Reviewer agent + Ernie both review from Discord. Without artifacts, review is theater. Every PR triggers:
+Ernie reviews from Discord, and manual reviewer runs need the same evidence. Without artifacts, review is theater. Every review-ready PR should include:
 
 1. **CF preview deploy** — wrangler per-PR URL
 2. **Playwright artifact pass** — `tests/artifacts/issue-<n>.spec.ts` if it exists, else `tests/artifacts/generic.spec.ts`
 3. **Upload to CF R2** under `artifacts/pr-<n>/` with a manifest
-4. **PR comment** with artifact URLs — reviewer agent embeds these in the Discord notification
+4. **PR comment** with artifact URLs — Discord notifications and manual reviewer runs can point back to these
 
 **If your issue touches UI**, ship an `issue-<n>.spec.ts` that screenshots the happy path of the acceptance criteria. Generic fallback is for non-UI changes.
 
@@ -145,7 +145,7 @@ Reviewer agent + Ernie both review from Discord. Without artifacts, review is th
 ## Dependency labels
 
 - **`depends-on-pr`** — issue is blocked until a specific PR merges. Link the blocking PR in the issue body with `Blocked by #<pr-number>`. On merge, the Discord gate scans open issues for this label + body reference and auto-adds `claude-run` to the dependents.
-- **`ready-for-ernie`** — reviewer agent APPROVED; Discord ping sent; awaiting ack. Don't re-fire the agent on this.
+- **`ready-for-ernie`** — automated reviewer APPROVED after an explicit run; Discord ping sent; awaiting ack. Don't re-fire the agent on this.
 - **`queue-paused`** — global pause. Author agents skip `claude-run` issues when any issue bears this. Ernie unpauses via Discord.
 - **`auto-merge-safe`** — chore/docs/test-only PRs that bypass Discord gate on green. Author agents **never** self-apply this; it's human-authored.
 - **`blocked`** — no further automation. Human resolution only.
