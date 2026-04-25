@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -91,6 +91,8 @@ const FRAME_STATUS_LABELS = {
   error: 'error',
 } as const;
 
+const STALE_ABORT_ERROR = 'aborted: run exceeded inactivity threshold';
+
 function summarizeFrames(
   frames: Array<{ status: keyof typeof FRAME_STATUS_LABELS }> | undefined
 ): string | null {
@@ -109,7 +111,16 @@ function summarizeFrames(
  */
 export function ComposerStatus() {
   const runs = useRuns();
-  const top = runs[0];
+  const mountedAt = useRef(Date.now());
+  const top = useMemo(
+    () =>
+      runs.find((run) => {
+        if (run.status === 'running') return true;
+        if (run.error === STALE_ABORT_ERROR) return false;
+        return (run.finishedAt ?? run.startedAt) >= mountedAt.current;
+      }),
+    [runs]
+  );
   const details = useRunDetails(top?.id);
   const voice = useVoiceCaption();
   const [elapsed, setElapsed] = useState(0);
