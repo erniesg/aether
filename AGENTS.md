@@ -32,6 +32,15 @@ aether is **not** an operator workbench, admin dashboard, pipeline inspector, or
 
 Every rail, toolbar, overlay, and right-rail entry must make sense in service of this loop. If it doesn't, it probably belongs in a different surface.
 
+## Research surface contract
+
+Research is the market / competitor / taste-discovery loop. It is not brand ingest or product fact ingest.
+
+- Rails seed and steer research through keywords, hashtags, accounts, competitors, source links, and source platforms.
+- Canvas lenses review research artifacts, labelled clusters, and moodboard directions.
+- Canvas artifacts are only promoted material: selected references, selected clusters, moodboards, key visuals, and variants.
+- Do not route research into a dashboard, scrape console, wizard, or separate page. Keep it in the single synthesis shell.
+
 ## Hard rules (mirror of CLAUDE.md — keep in sync)
 
 1. Single synthesis-shell workspace; never route-split.

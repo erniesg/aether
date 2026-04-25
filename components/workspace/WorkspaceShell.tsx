@@ -1468,6 +1468,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       <div className="flex flex-1 overflow-hidden">
         <LeftRail workspaceId={wsId} />
         <CanvasSubstrate
+          workspaceId={wsId}
           composerRef={composerRef}
           safeZonesVisible={safeZonesVisible}
           onSafeZonesToggle={setSafeZonesVisible}
@@ -1482,6 +1483,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           }}
           onVoiceGenerate={async (prompt, scope) => {
             await handlePrompt(prompt, { scope });
+          }}
+          onMoodboardGenerate={async (prompt) => {
+            await handlePrompt(prompt, { scope: 'single' });
           }}
         />
         <RightRail

@@ -6,6 +6,7 @@ import {
   Layers3,
   Package2,
   PaintBucket,
+  Search,
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
@@ -18,6 +19,10 @@ import {
   SignalsSection,
   signalsSectionSummary,
 } from './sections/SignalsSection';
+import {
+  ResearchSection,
+  researchSectionSummary,
+} from './sections/ResearchSection';
 import {
   ReferencesImagesTab,
   ReferencesManualTab,
@@ -127,20 +132,28 @@ function LeftRailInner({
       body: <CampaignSection workspaceId={workspaceId} />,
     },
     {
-      id: 'references',
-      label: 'references',
-      icon: Layers3,
-      summary: referenceSummary(references),
-      hasContent: references.length > 0,
-      body: <ReferencesBody workspaceId={workspaceId} />,
-    },
-    {
       id: 'signals',
       label: 'signals',
       icon: TrendingUp,
       summary: signalsSummary,
       hasContent: signals.length > 0,
       body: <SignalsSection workspaceId={workspaceId} />,
+    },
+    {
+      id: 'research',
+      label: 'research',
+      icon: Search,
+      summary: researchSectionSummary(references.length),
+      hasContent: references.length > 0 || signals.length > 0,
+      body: <ResearchSection workspaceId={workspaceId} />,
+    },
+    {
+      id: 'references',
+      label: 'references',
+      icon: Layers3,
+      summary: referenceSummary(references),
+      hasContent: references.length > 0,
+      body: <ReferencesBody workspaceId={workspaceId} />,
     },
   ];
 

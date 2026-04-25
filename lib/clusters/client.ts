@@ -97,8 +97,19 @@ export async function runAndLabelClusters(
     });
     cards.push(card);
     const samples = byCluster.get(clusterId) ?? [];
-    if (samples.length < 3 && ref.attribution.source) {
-      samples.push(ref.attribution.source);
+    if (samples.length < 4) {
+      samples.push(
+        [
+          ref.title,
+          ref.attribution.author
+            ? `${ref.attribution.source} by ${ref.attribution.author}`
+            : ref.attribution.source,
+          ref.tags && ref.tags.length > 0 ? `tags ${ref.tags.join(', ')}` : undefined,
+          ref.notes,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      );
     }
     byCluster.set(clusterId, samples);
   }
