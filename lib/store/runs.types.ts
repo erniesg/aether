@@ -1,3 +1,5 @@
+import type { CapabilityEntryRef } from '@/lib/capability/entry';
+
 export type RunStatus = 'running' | 'ok' | 'error';
 
 export type RunStep =
@@ -15,6 +17,11 @@ export interface CapabilityRunRecord {
   provider: string;
   model: string;
   prompt: string;
+  artifactKind?: 'image' | 'spatial';
+  outputFormat?: 'particle-field' | 'gaussian-splat';
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image';
+  sourceImageShapeId?: string;
   rewrittenPrompt?: string;
   rationale?: string;
   aspectRatio?: string;
@@ -28,4 +35,6 @@ export interface CapabilityRunRecord {
   httpStatus?: number;
   /** Present when the run was spawned by a pinned capability (Phase 5 re-run). */
   definitionId?: string;
+  definitionVersion?: number;
+  entryRef?: CapabilityEntryRef;
 }

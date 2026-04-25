@@ -17,12 +17,14 @@ describe('SelectedImageActions · segmentation entrypoints', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
     expect(screen.getByRole('toolbar', { name: /selected image actions/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /remove bg/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /segment/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /particles/i })).toBeInTheDocument();
   });
 
   it('routes direct remove-bg clicks through the dedicated handler', async () => {
@@ -32,6 +34,7 @@ describe('SelectedImageActions · segmentation entrypoints', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={onRemoveBg}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
@@ -46,6 +49,7 @@ describe('SelectedImageActions · segmentation entrypoints', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
         hasPreview
         previewVisible
         onPreviewVisibilityChange={onPreviewVisibilityChange}
@@ -63,6 +67,7 @@ describe('SelectedImageActions · segmentation entrypoints', () => {
         rect={{ x: 80, y: 120, w: 480, h: 640 }}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
         hasPreview
         previewVisible={false}
         onPreviewVisibilityChange={onPreviewVisibilityChange}
@@ -73,6 +78,21 @@ describe('SelectedImageActions · segmentation entrypoints', () => {
     expect(onPreviewVisibilityChange).toHaveBeenCalledWith(true);
   });
 
+  it('routes the particles action through the spatial handler', async () => {
+    const onSpatialize = vi.fn();
+    render(
+      <SelectedImageActions
+        rect={{ x: 80, y: 120, w: 480, h: 640 }}
+        onRemoveBg={vi.fn()}
+        onCutout={vi.fn()}
+        onSpatialize={onSpatialize}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /particles/i }));
+    expect(onSpatialize).toHaveBeenCalledTimes(1);
+  });
+
   it('hides segmentation entrypoints when the selection is not a single image', () => {
     render(
       <SelectedImageActions
@@ -81,11 +101,13 @@ describe('SelectedImageActions · segmentation entrypoints', () => {
         isSingleImage={false}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
     expect(screen.queryByRole('button', { name: /remove bg/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /segment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /particles/i })).not.toBeInTheDocument();
   });
 });
 
@@ -98,6 +120,7 @@ describe('SelectedImageActions · opacity', () => {
         onOpacityChange={vi.fn()}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
@@ -116,6 +139,7 @@ describe('SelectedImageActions · opacity', () => {
         onOpacityChange={onOpacityChange}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
@@ -136,6 +160,7 @@ describe('SelectedImageActions · opacity', () => {
         onOpacityChange={vi.fn()}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
@@ -152,6 +177,7 @@ describe('SelectedImageActions · order', () => {
         onOrder={onOrder}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
@@ -179,6 +205,7 @@ describe('SelectedImageActions · align + distribute', () => {
         onDistribute={vi.fn()}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 
@@ -198,6 +225,7 @@ describe('SelectedImageActions · align + distribute', () => {
         onDistribute={onDistribute}
         onRemoveBg={vi.fn()}
         onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
       />
     );
 

@@ -59,6 +59,11 @@ export function RailProvider({ children }: { children: ReactNode }) {
       for (const node of flyoutsRef.current.values()) {
         if (node.contains(target)) return;
       }
+      // Modal dialogs live outside the rail tree but must not dismiss rail
+      // state — the creator's task-in-flow resumes once the dialog closes.
+      if (target instanceof Element && target.closest('[role="dialog"]')) {
+        return;
+      }
       close();
     };
 

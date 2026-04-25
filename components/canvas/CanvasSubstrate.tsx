@@ -12,6 +12,7 @@ import {
 } from 'tldraw';
 import { cn } from '@/lib/utils/cn';
 import { FloatingToolbar } from './FloatingToolbar';
+import { ClusterLens } from './lenses/ClusterLens';
 import { SegmentationPanel, type SegmentationPreviewPayload } from './SegmentationPanel';
 import { SegmentationPreviewOverlay } from './SegmentationPreviewOverlay';
 import { SegmentationRefinementOverlay } from './SegmentationRefinementOverlay';
@@ -41,6 +42,7 @@ import {
   type OrderAction,
 } from '@/lib/canvas/shapeControls';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
+import { placeSpatialPreviewOnCanvas } from '@/lib/spatial/canvas';
 import type {
   SegmentationBoxPrompt,
   SegmentationProviderId,
@@ -90,6 +92,9 @@ export interface CanvasSubstrateProps {
   pinnedCapabilities?: ReadonlyArray<{ id: string; label: string }>;
   onCapabilityPress?: (id: string) => void;
   onVerbPress?: (verb: ToolbarVerb) => void;
+  onSpatializeFromSelection?: (
+    request: { prompt: string; format: 'particle-field' | 'gaussian-splat'; quality: 'draft' | 'standard' | 'high' }
+  ) => void | Promise<void>;
   /**
    * Fires when the voice provider emits `run_generate`. The shell owns the
    * generate/fan-out pipeline, so we pass the request back up rather than
@@ -123,6 +128,28 @@ interface SegmentationDraft {
   error?: string;
   preview?: SegmentationPreviewPayload;
   targetShapeId: string;
+}
+
+interface SpatialResponseJson {
+  ok?: boolean;
+  error?: string;
+  provider?: {
+    id?: string;
+    model?: string;
+  };
+  preview?: {
+    imageDataUrl?: string;
+    width?: number;
+    height?: number;
+  };
+  result?: {
+    format?: string;
+    latencyMs?: number;
+    sceneSpec?: {
+      kind?: string;
+      pointCount?: number;
+    };
+  };
 }
 
 const SEGMENTATION_PROVIDER_NAMES: Record<SegmentationProviderId, string> = {
@@ -263,6 +290,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   pinnedCapabilities = EMPTY_PINS,
   onCapabilityPress,
   onVerbPress,
+  onSpatializeFromSelection,
   onVoiceGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
@@ -271,6 +299,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
   const [selectionStrip, setSelectionStrip] = useState<SelectionStripInfo | null>(null);
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
+  const [clusterLensOpen, setClusterLensOpen] = useState(false);
   const [backgroundFill, setBackgroundFill] =
     useState<BackgroundFillSpec>(DEFAULT_BACKGROUND_FILL);
   const [segmentationProviders, setSegmentationProviders] = useState<
@@ -394,6 +423,143 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     },
     [onVerbPress, openSegmentation]
   );
+
+  const handleSpatialize = useCallback(async () => {
+    if (!editor) return;
+    const target = selectedImage ?? segmentation?.target;
+    if (!target) return;
+
+    if (onSpatializeFromSelection) {
+      await onSpatializeFromSelection({
+        prompt: 'turn the selected image into a particle field',
+        format: 'particle-field',
+        quality: 'draft',
+      });
+      return;
+    }
+
+    const runId = startRun({
+      tool: 'spatial-gen',
+      artifactKind: 'spatial',
+      outputFormat: 'particle-field',
+      quality: 'draft',
+      sourceMode: 'selected-image',
+      sourceImageShapeId: target.shapeId,
+      provider: 'draft',
+      model: 'particle-field-v1',
+      prompt: 'particle field from selected image',
+    });
+
+    const frame = resolveSegmentationFrame(editor, target);
+    initRunDetails(runId, {
+      providerHint: 'draft',
+      modelHint: 'particle-field-v1',
+      frames: frame
+        ? [
+            {
+              id: frame.id,
+              label: frame.label,
+              aspectRatio: frame.aspectRatio,
+              status: 'running',
+              updatedAt: Date.now(),
+            },
+          ]
+        : [],
+    });
+    appendRunActivity(runId, {
+      title: 'selected image',
+      detail: frame?.label ?? target.shapeId,
+    });
+    appendRunActivity(runId, {
+      title: 'building spatial draft',
+      detail: 'particle field · draft',
+    });
+    stepRun(runId, 'awaiting');
+
+    try {
+      const response = await fetch('/api/spatial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceUrl: target.sourceUrl,
+          width: target.intrinsicWidth,
+          height: target.intrinsicHeight,
+          prompt: 'particle field from selected image',
+          format: 'particle-field',
+          quality: 'draft',
+        }),
+      });
+
+      let json: SpatialResponseJson;
+      try {
+        json = await response.json();
+      } catch (err) {
+        failRun(runId, `bad JSON response (${response.status})`, response.status);
+        appendRunActivity(runId, {
+          title: 'spatial preview failed',
+          detail: err instanceof Error ? err.message : String(err),
+          tone: 'error',
+        });
+        return;
+      }
+
+      if (!response.ok || !json.ok || !json.preview?.imageDataUrl) {
+        const message =
+          typeof json?.error === 'string'
+            ? json.error
+            : response.statusText || 'spatial draft failed';
+        failRun(runId, message, response.status);
+        appendRunActivity(runId, {
+          title: 'spatial preview failed',
+          detail: message,
+          tone: 'error',
+        });
+        return;
+      }
+
+      placeSpatialPreviewOnCanvas(editor, target, {
+        previewImageUrl: json.preview.imageDataUrl,
+        width: json.preview.width ?? target.intrinsicWidth,
+        height: json.preview.height ?? target.intrinsicHeight,
+        label: 'particle field draft',
+        providerId: json.provider?.id ?? 'draft',
+        format: (json.result?.format as 'particle-field' | 'gaussian-splat' | undefined) ?? 'particle-field',
+      });
+
+      appendRunActivity(runId, {
+        title: 'spatial draft placed',
+        detail:
+          json.result?.sceneSpec?.pointCount !== undefined
+            ? `${json.result.sceneSpec.pointCount} particles`
+            : 'particle field',
+        tone: 'ok',
+      });
+      if (frame) {
+        upsertRunFrame(runId, {
+          id: frame.id,
+          label: frame.label,
+          aspectRatio: frame.aspectRatio,
+          status: 'placed',
+          imageUrl: json.preview.imageDataUrl,
+        });
+      }
+      finishRun(runId, {
+        provider: json.provider?.id ?? 'draft',
+        model: json.provider?.model ?? 'particle-field-v1',
+        imageUrl: json.preview.imageDataUrl,
+        latencyMs: json.result?.latencyMs,
+        status: 'ok',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      failRun(runId, `fetch failed: ${message}`);
+      appendRunActivity(runId, {
+        title: 'spatial preview failed',
+        detail: message,
+        tone: 'error',
+      });
+    }
+  }, [editor, onSpatializeFromSelection, segmentation?.target, selectedImage]);
 
   const beginSegmentationRun = useCallback(
     (
@@ -1018,7 +1184,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
         voiceSlot={voiceSlot ?? undefined}
+        clusterLensActive={clusterLensOpen}
+        onClusterLensToggle={() => setClusterLensOpen((prev) => !prev)}
       />
+
+      {clusterLensOpen ? <ClusterLens /> : null}
 
       {showStrip && stripRect ? (
         <SelectedImageActions
@@ -1031,6 +1201,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           disabled={segmentation?.loading}
           onRemoveBg={() => openSegmentation('removebg')}
           onCutout={() => openSegmentation('cutout')}
+          onSpatialize={handleSpatialize}
           onPreviewVisibilityChange={handlePreviewVisibilityChange}
           onOpacityChange={handleOpacityChange}
           onOrder={handleOrder}

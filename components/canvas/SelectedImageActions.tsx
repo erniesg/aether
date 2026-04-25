@@ -18,6 +18,7 @@ import {
   EyeOff,
   Scissors,
   SendToBack,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -50,6 +51,7 @@ export interface SelectedImageActionsProps {
   disabled?: boolean;
   onRemoveBg: () => void;
   onCutout: () => void;
+  onSpatialize: () => void;
   onPreviewVisibilityChange?: (visible: boolean) => void;
   onOpacityChange?: (opacity: number) => void;
   onOrder?: (action: OrderAction) => void;
@@ -78,6 +80,7 @@ export function SelectedImageActions({
   disabled = false,
   onRemoveBg,
   onCutout,
+  onSpatialize,
   onPreviewVisibilityChange,
   onOpacityChange,
   onOrder,
@@ -135,6 +138,16 @@ export function SelectedImageActions({
           >
             <Scissors size={13} strokeWidth={1.75} />
             segment
+          </button>
+
+          <button
+            type="button"
+            onClick={onSpatialize}
+            disabled={disabled}
+            className={neutralChip}
+          >
+            <Sparkles size={13} strokeWidth={1.75} />
+            particles
           </button>
 
           {hasPreview ? (

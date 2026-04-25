@@ -1,0 +1,33 @@
+name: route-human-review
+
+on:
+  issues:
+    types: [opened, labeled]
+  pull_request:
+    types: [labeled]
+
+jobs:
+  notify:
+    if: |
+      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'route-human') ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'route-human')) ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'route-human')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send Discord route-human notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: '1496938045876731955'
+          CAPABILITY_LABEL: capability authoring
+          HUMAN_REVIEW_ACTION: review the capability authoring result and decide whether to merge
+          HUMAN_REVIEW_REASON: aether item was explicitly labeled route-human
+        run: node .github/scripts/notify-discord-human-review.mjs

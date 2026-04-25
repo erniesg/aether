@@ -8,16 +8,124 @@ import type {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const DEFAULT_MODEL = 'gpt-4o-realtime-preview';
-const DEFAULT_VOICE = 'alloy';
+const OPENAI_DEFAULT_MODEL = 'gpt-4o-realtime-preview';
+const OPENAI_DEFAULT_VOICE = 'alloy';
+const GEMINI_DEFAULT_MODEL = 'gemini-live-2.5-flash-native-audio';
+const GEMINI_DEFAULT_VOICE = 'Kore';
 const OPENAI_SESSIONS_URL = 'https://api.openai.com/v1/realtime/sessions';
 
 interface SessionIssuerDeps {
   apiKey?: string;
+  geminiApiKey?: string;
   provider?: VoiceProviderId;
   fetchImpl?: typeof fetch;
   model?: string;
   voice?: string;
+  issueGeminiTokenImpl?: (params: {
+    apiKey: string;
+    model: string;
+    voice: string;
+  }) => Promise<{ name?: string; expireTime?: string }>;
+}
+
+function currentProvider(
+  override?: VoiceProviderId
+): VoiceProviderId {
+  return override ?? ((process.env.VOICE_PROVIDER ??
+    'openai-realtime') as VoiceProviderId);
+}
+
+function resolveModel(
+  provider: VoiceProviderId,
+  override?: string
+): string {
+  if (override) return override;
+  if (provider === 'gemini-live') {
+    const configured =
+      process.env.GEMINI_LIVE_MODEL ?? process.env.VOICE_MODEL;
+    if (configured && !/^gpt-/i.test(configured)) return configured;
+    return GEMINI_DEFAULT_MODEL;
+  }
+
+  const configured =
+    process.env.OPENAI_REALTIME_MODEL ?? process.env.VOICE_MODEL;
+  if (configured && !/^gemini/i.test(configured)) return configured;
+  return OPENAI_DEFAULT_MODEL;
+}
+
+function resolveVoice(
+  provider: VoiceProviderId,
+  override?: string
+): string {
+  if (override) return override;
+  if (provider === 'gemini-live') {
+    return (
+      process.env.GEMINI_LIVE_VOICE ??
+      process.env.VOICE_VOICE ??
+      GEMINI_DEFAULT_VOICE
+    );
+  }
+
+  return (
+    process.env.OPENAI_REALTIME_VOICE ??
+    process.env.VOICE_VOICE ??
+    OPENAI_DEFAULT_VOICE
+  );
+}
+
+async function defaultIssueGeminiToken({
+  apiKey,
+}: {
+  apiKey: string;
+  model: string;
+  voice: string;
+}): Promise<{ name?: string; expireTime?: string }> {
+  const { GoogleGenAI } = await import('@google/genai/node');
+  const client = new GoogleGenAI({
+    apiKey,
+    apiVersion: 'v1alpha',
+  });
+  return client.authTokens.create({
+    config: {
+      uses: 1,
+      expireTime: new Date(Date.now() + 30 * 60_000).toISOString(),
+      newSessionExpireTime: new Date(Date.now() + 60_000).toISOString(),
+    },
+  });
+}
+
+async function issueGeminiLiveSession(
+  deps: SessionIssuerDeps = {}
+): Promise<VoiceSessionCredentials> {
+  const apiKey =
+    deps.geminiApiKey ?? deps.apiKey ?? process.env.GOOGLE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      'voice: GOOGLE_GEMINI_API_KEY is required to mint a Gemini Live token'
+    );
+  }
+
+  const provider: VoiceProviderId = 'gemini-live';
+  const model = resolveModel(provider, deps.model);
+  const voice = resolveVoice(provider, deps.voice);
+  const issueGeminiToken =
+    deps.issueGeminiTokenImpl ?? defaultIssueGeminiToken;
+  const token = await issueGeminiToken({ apiKey, model, voice });
+  const clientSecret = token.name;
+  if (!clientSecret) {
+    throw new Error('voice: Gemini token request returned no token name');
+  }
+
+  return {
+    sessionId: clientSecret,
+    clientSecret,
+    expiresAt: token.expireTime
+      ? Date.parse(token.expireTime)
+      : Date.now() + 30 * 60_000,
+    model,
+    voice,
+    provider,
+  };
 }
 
 /**
@@ -28,8 +136,11 @@ interface SessionIssuerDeps {
 export async function issueVoiceSession(
   deps: SessionIssuerDeps = {}
 ): Promise<VoiceSessionCredentials> {
-  const provider = deps.provider ?? ((process.env.VOICE_PROVIDER ??
-    'openai-realtime') as VoiceProviderId);
+  const provider = currentProvider(deps.provider);
+
+  if (provider === 'gemini-live') {
+    return issueGeminiLiveSession(deps);
+  }
 
   if (provider !== 'openai-realtime') {
     throw new Error(`voice: unsupported provider "${provider}"`);
@@ -42,8 +153,8 @@ export async function issueVoiceSession(
     );
   }
 
-  const model = deps.model ?? process.env.VOICE_MODEL ?? DEFAULT_MODEL;
-  const voice = deps.voice ?? process.env.VOICE_VOICE ?? DEFAULT_VOICE;
+  const model = resolveModel(provider, deps.model);
+  const voice = resolveVoice(provider, deps.voice);
   const fetchImpl = deps.fetchImpl ?? fetch;
 
   const res = await fetchImpl(OPENAI_SESSIONS_URL, {
@@ -109,7 +220,9 @@ export async function POST() {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const code =
-      message.includes('OPENAI_API_KEY') || message.includes('unsupported provider')
+      message.includes('OPENAI_API_KEY') ||
+      message.includes('GOOGLE_GEMINI_API_KEY') ||
+      message.includes('unsupported provider')
         ? 503
         : 502;
     return NextResponse.json({ ok: false, error: message }, { status: code });
@@ -117,12 +230,15 @@ export async function POST() {
 }
 
 export async function GET() {
+  const provider = currentProvider();
   return NextResponse.json({
     ok: true,
-    provider:
-      (process.env.VOICE_PROVIDER as VoiceProviderId | undefined) ??
-      'openai-realtime',
-    model: process.env.VOICE_MODEL ?? DEFAULT_MODEL,
-    configured: Boolean(process.env.OPENAI_API_KEY),
+    provider,
+    model: resolveModel(provider),
+    voice: resolveVoice(provider),
+    configured:
+      provider === 'gemini-live'
+        ? Boolean(process.env.GOOGLE_GEMINI_API_KEY)
+        : Boolean(process.env.OPENAI_API_KEY),
   });
 }

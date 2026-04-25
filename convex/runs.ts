@@ -25,6 +25,18 @@ const STATUS_VALIDATOR = v.union(v.literal('running'), v.literal('ok'), v.litera
 interface RunDoc {
   _id: unknown;
   clientRunId: string;
+  definitionId?: string;
+  definitionVersion?: number;
+  entryRef?: {
+    kind: 'tool' | 'workflow' | 'skill';
+    id: string;
+    version: number;
+  };
+  artifactKind?: 'image' | 'spatial';
+  outputFormat?: 'particle-field' | 'gaussian-splat';
+  quality?: 'draft' | 'standard' | 'high';
+  sourceMode?: 'selected-image';
+  sourceImageShapeId?: string;
   tool: string;
   provider: string;
   model: string;
@@ -61,6 +73,14 @@ function toRecord(doc: RunDoc) {
     finishedAt: doc.finishedAt,
     error: doc.error,
     httpStatus: doc.httpStatus,
+    definitionId: doc.definitionId,
+    definitionVersion: doc.definitionVersion,
+    entryRef: doc.entryRef,
+    artifactKind: doc.artifactKind,
+    outputFormat: doc.outputFormat,
+    quality: doc.quality,
+    sourceMode: doc.sourceMode,
+    sourceImageShapeId: doc.sourceImageShapeId,
   };
 }
 
@@ -89,6 +109,20 @@ export const start = mutationGeneric({
   args: {
     clientRunId: v.string(),
     wsId: v.optional(v.id('workspace')),
+    definitionId: v.optional(v.string()),
+    definitionVersion: v.optional(v.number()),
+    entryRef: v.optional(
+      v.object({
+        kind: v.union(v.literal('tool'), v.literal('workflow'), v.literal('skill')),
+        id: v.string(),
+        version: v.number(),
+      })
+    ),
+    artifactKind: v.optional(v.union(v.literal('image'), v.literal('spatial'))),
+    outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
+    quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
+    sourceMode: v.optional(v.literal('selected-image')),
+    sourceImageShapeId: v.optional(v.string()),
     tool: v.string(),
     provider: v.string(),
     model: v.string(),
@@ -102,6 +136,14 @@ export const start = mutationGeneric({
     await ctx.db.insert('capabilityRun', {
       clientRunId: args.clientRunId,
       wsId: args.wsId,
+      definitionId: args.definitionId,
+      definitionVersion: args.definitionVersion,
+      entryRef: args.entryRef,
+      artifactKind: args.artifactKind,
+      outputFormat: args.outputFormat,
+      quality: args.quality,
+      sourceMode: args.sourceMode,
+      sourceImageShapeId: args.sourceImageShapeId,
       tool: args.tool,
       provider: args.provider,
       model: args.model,
