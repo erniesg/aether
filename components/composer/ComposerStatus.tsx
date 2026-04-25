@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -111,14 +111,8 @@ function summarizeFrames(
  */
 export function ComposerStatus() {
   const runs = useRuns();
-  const mountedAt = useRef(Date.now());
   const top = useMemo(
-    () =>
-      runs.find((run) => {
-        if (run.status === 'running') return true;
-        if (run.error === STALE_ABORT_ERROR) return false;
-        return (run.finishedAt ?? run.startedAt) >= mountedAt.current;
-      }),
+    () => runs.find((run) => run.error !== STALE_ABORT_ERROR),
     [runs]
   );
   const details = useRunDetails(top?.id);
