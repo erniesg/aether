@@ -13,6 +13,8 @@ const PUBLISHER_ENV_KEYS = [
   'POSTIZ_API_KEY',
   'POSTIZ_API_URL',
   'POSTIZ_INTEGRATION_INSTAGRAM',
+  'SOCIAL_AUTO_UPLOAD_URL',
+  'SOCIAL_AUTO_UPLOAD_TOKEN',
 ] as const;
 
 function postFor(platform: ScheduledPost['platform']): ScheduledPost {
@@ -101,8 +103,9 @@ describe('publisher registry', () => {
   });
 
   it('resolvePublisherForPost routes western and CJK platforms to configured real adapters before preview', () => {
-    process.env.POSTIZ_BASE_URL = 'https://postiz.test';
+    // New contract: POSTIZ_API_KEY + POSTIZ_INTEGRATION_* (no POSTIZ_BASE_URL)
     process.env.POSTIZ_API_KEY = 'postiz_key';
+    process.env.POSTIZ_INTEGRATION_INSTAGRAM = 'ig_integration';
     process.env.SOCIAL_AUTO_UPLOAD_URL = 'https://sau.test';
     process.env.SOCIAL_AUTO_UPLOAD_TOKEN = 'sau_key';
 
@@ -123,8 +126,8 @@ describe('publisher registry', () => {
 
   it('resolvePublisherForPost falls through from an env default when that adapter cannot publish the platform', () => {
     process.env.PUBLISHER_PROVIDER = 'postiz';
-    process.env.POSTIZ_BASE_URL = 'https://postiz.test';
     process.env.POSTIZ_API_KEY = 'postiz_key';
+    process.env.POSTIZ_INTEGRATION_INSTAGRAM = 'ig_integration';
     process.env.SOCIAL_AUTO_UPLOAD_URL = 'https://sau.test';
     process.env.SOCIAL_AUTO_UPLOAD_TOKEN = 'sau_key';
 
