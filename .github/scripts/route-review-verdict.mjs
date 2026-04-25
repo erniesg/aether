@@ -320,6 +320,54 @@ function buildPrActionRows(prUrl) {
   ];
 }
 
+// Interaction buttons (style 1/3/4 with custom_id). Routed through
+// app/api/route-human/discord-interaction — see lib/route-human/interaction.ts
+// for the handlers (onMerge, onRequestChangesButton, onBlock). Rendered only
+// when the message is sent from an app-owned webhook (DISCORD_BOT_TOKEN +
+// channel id, or app-owned DISCORD_WEBHOOK_URL); plain user webhooks ignore
+// `components` with custom_ids and Ernie still has the link buttons + the
+// /Open PR markdown link as a fallback.
+//
+// Custom-id format `<prefix>_<prNumber>` is what lib/route-human/types.ts
+// `BUTTON_PREFIX` expects; keep these literals in sync with that file.
+function buildPrInteractionRows(prNumber) {
+  if (!prNumber) return [];
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3, // green / SUCCESS
+          label: '✓ merge',
+          custom_id: `merge_${prNumber}`,
+        },
+        {
+          type: 2,
+          style: 2, // grey / SECONDARY
+          label: '↻ request changes',
+          custom_id: `request_changes_${prNumber}`,
+        },
+        {
+          type: 2,
+          style: 4, // red / DANGER
+          label: '✗ block',
+          custom_id: `block_${prNumber}`,
+        },
+      ],
+    },
+  ];
+}
+
+// Combine link buttons (row 1) and interaction buttons (row 2) so Ernie can
+// either merge from Discord (one tap) or open the PR for context.
+function buildPrApproveRows(prUrl, prNumber) {
+  const links = buildPrActionRows(prUrl);
+  const actions = buildPrInteractionRows(prNumber);
+  if (!links && actions.length === 0) return undefined;
+  return [...(links ?? []), ...actions];
+}
+
 function buildHumanChoiceRows(prUrl, prNumber, humanReview) {
   const rows = buildPrActionRows(prUrl) ?? [];
   const optionButtons = humanReview.options.slice(0, 4).map((_option, index) => ({
@@ -562,9 +610,10 @@ async function main() {
       color: COLOR_APPROVE,
       title: `aether · reviewer APPROVED · ${pr.title}`,
       description:
-        'Reviewer agent passed. Click **Open PR** to merge on GitHub, or **Review diff** to eyeball the changes first. Acceptance + validation excerpts below if available.',
+        'Reviewer agent passed. Tap **✓ merge** to merge from Discord, **↻ request changes** to send feedback, or **Open PR** for the GitHub view. Acceptance + validation excerpts below if available.',
       url: pr.url,
       fields: [...commonFields, ...evidenceFields],
+      components: buildPrApproveRows(pr.url, pr.number),
     });
     return;
   }

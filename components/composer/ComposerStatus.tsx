@@ -9,7 +9,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import { useRuns } from '@/lib/store/runs';
+import { abortStuckRuns, useRuns } from '@/lib/store/runs';
 import { useRunDetails } from '@/lib/store/runDetails';
 import { useVoiceCaption } from '@/lib/voice/caption-store';
 import { cn } from '@/lib/utils/cn';
@@ -232,6 +232,16 @@ export function ComposerStatus() {
 
   if (top.status === 'running') {
     const stepLabel = top.step ?? 'starting';
+    // Abort button is opt-in only when the run is *clearly* stalled — not
+    // just slow. Two trigger paths:
+    //   1. step is 'placing' for >30s — placement should be near-instant; if
+    //      it's that slow, the canonical Convex `runs:finish` failure has
+    //      hit and the row will never close on its own.
+    //   2. any step takes >180s total — fan-out across 4 formats with one
+    //      OpenAI call each can legitimately reach 60-90s, so 180s is the
+    //      backstop, not a normal-slow ceiling.
+    const showAbort =
+      (stepLabel === 'placing' && elapsed >= 30) || elapsed >= 180;
     return (
       <div className="relative">
         {activityPanel}
@@ -247,14 +257,33 @@ export function ComposerStatus() {
               {elapsed}s
             </span>
           </div>
-          <button
-            type="button"
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-xs text-accent/80 hover:bg-accent/10 hover:text-accent"
-            aria-label={expanded ? 'hide activity' : 'show activity'}
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {showAbort ? (
+              <button
+                type="button"
+                className="inline-flex h-5 items-center rounded-xs px-2 font-caption text-[10px] uppercase tracking-wide text-accent/80 hover:bg-accent/10 hover:text-accent"
+                aria-label="abort stuck run"
+                title="abort all runs that have been stuck for >60s"
+                onClick={() => {
+                  void abortStuckRuns().catch(() => {
+                    // Swallow; the composer status is best-effort UX, the
+                    // mutation is idempotent and any error surfaces in
+                    // subsequent run states.
+                  });
+                }}
+              >
+                abort
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-xs text-accent/80 hover:bg-accent/10 hover:text-accent"
+              aria-label={expanded ? 'hide activity' : 'show activity'}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+            </button>
+          </div>
         </div>
       </div>
     );

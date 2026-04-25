@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Plus, Save, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveOfferContext,
   useOfferContext,
@@ -19,10 +19,22 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [newClaim, setNewClaim] = useState('');
 
+  // Two-phase hydration — see BrandSection for the rationale + symptoms
+  // this fixes. Phase A (no edits) follows Convex; Phase B (after first
+  // user input this session) is sticky to the local draft.
+  const hasEdited = useRef(false);
+  const lastWorkspaceId = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (dirty) return;
+    if (lastWorkspaceId.current !== workspaceId) {
+      lastWorkspaceId.current = workspaceId;
+      hasEdited.current = false;
+      setDraft(saved);
+      setDirty(false);
+      return;
+    }
+    if (hasEdited.current) return;
     setDraft(saved);
-  }, [dirty, saved]);
+  }, [workspaceId, saved]);
 
   const validationMessage = useMemo(() => {
     if (!draft.name.trim()) return 'offer name required';
@@ -31,6 +43,7 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
   }, [draft]);
 
   const updateDraft = (fn: (prev: OfferContext) => OfferContext) => {
+    hasEdited.current = true;
     setDraft(fn);
     setDirty(true);
     setSaveState('idle');
@@ -54,7 +67,9 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
       heroAssetReferenceId: draft.heroAssetReferenceId || undefined,
     };
     saveOfferContext(normalized, workspaceId);
-    setDraft(normalized);
+    // Note: do not setDraft(normalized) here — would reset focus/cursor on
+    // the live input if the user is still editing. The save is a side
+    // effect; the draft already mirrors what the user typed.
     setDirty(false);
     setSaveState('saved');
   };

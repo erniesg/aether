@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Plus, Save, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEMO_CREATOR_CONTEXT,
   describeWorkspaceMode,
@@ -385,14 +385,35 @@ export function BrandSection({
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
 
+  // Two-phase hydration:
+  //   Phase A (no user edits yet): keep the draft in lock-step with Convex.
+  //     This handles initial-mount-before-Convex-resolves, cross-tab edits,
+  //     and the autonomous brand-propose flow updating the rail underneath
+  //     the user.
+  //   Phase B (user has typed at least once this session): Convex updates
+  //     stop overriding the draft. This is the fix for "typing reverts
+  //     mid-keystroke / behaves append-only" — the user's input wins over
+  //     reactive echoes from their own auto-save round-trips.
+  // Workspace switch is treated as a fresh session (resets `hasEdited`).
+  const hasEdited = useRef(false);
+  const lastWorkspaceId = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (dirty) return;
+    if (lastWorkspaceId.current !== workspaceId) {
+      lastWorkspaceId.current = workspaceId;
+      hasEdited.current = false;
+      setDraft(savedContext);
+      setDirty(false);
+      setSaveState('idle');
+      return;
+    }
+    if (hasEdited.current) return;
     setDraft(savedContext);
-  }, [dirty, savedContext]);
+  }, [workspaceId, savedContext]);
 
   const validationMessage = useMemo(() => validateDraft(draft), [draft]);
 
   const updateDraft = (fn: (prev: BrandContext) => BrandContext) => {
+    hasEdited.current = true;
     setDraft((prev) => fn(prev));
     setDirty(true);
     setSaveState('idle');
@@ -438,6 +459,11 @@ export function BrandSection({
 
   // Debounced auto-save: persist the draft 800ms after the last edit, so
   // creators don't have to hunt for a save button. Manual save still works.
+  // Important: do NOT call `setDraft(normalized)` after persisting — that
+  // resets the controlled input mid-typing if the user is still editing
+  // (which is the canonical cause of the "append-only" feel). The draft is
+  // already what the user typed; persisting is a side effect, not a state
+  // reset.
   useEffect(() => {
     if (!dirty) return;
     if (validationMessage) return;
@@ -445,7 +471,6 @@ export function BrandSection({
       const normalized = normalizeDraftForSave(draft);
       if (!normalized) return;
       saveBrandContext(normalized, workspaceId, () => setSaveState('error'));
-      setDraft(normalized);
       setDirty(false);
       setSaveState('saved');
     }, 800);
