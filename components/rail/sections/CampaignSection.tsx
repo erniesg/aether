@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Plus, Save, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveCampaignContext,
   useCampaignContext,
@@ -19,10 +19,20 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [newChannel, setNewChannel] = useState('');
 
+  // Two-phase hydration — see BrandSection for the rationale.
+  const hasEdited = useRef(false);
+  const lastWorkspaceId = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (dirty) return;
+    if (lastWorkspaceId.current !== workspaceId) {
+      lastWorkspaceId.current = workspaceId;
+      hasEdited.current = false;
+      setDraft(saved);
+      setDirty(false);
+      return;
+    }
+    if (hasEdited.current) return;
     setDraft(saved);
-  }, [dirty, saved]);
+  }, [workspaceId, saved]);
 
   const validationMessage = useMemo(() => {
     if (!draft.name.trim()) return 'campaign name required';
@@ -37,6 +47,7 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
   }, [draft.channels]);
 
   const updateDraft = (fn: (prev: CampaignContext) => CampaignContext) => {
+    hasEdited.current = true;
     setDraft(fn);
     setDirty(true);
     setSaveState('idle');
@@ -65,7 +76,7 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
       cta: draft.cta.trim(),
     };
     saveCampaignContext(normalized, workspaceId);
-    setDraft(normalized);
+    // Don't setDraft(normalized) — would race the live input.
     setDirty(false);
     setSaveState('saved');
   };

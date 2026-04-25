@@ -223,3 +223,46 @@ export const fail = mutationGeneric({
     });
   },
 });
+
+/**
+ * Escape hatch for stuck runs. When `runs:finish` throws server-side (the
+ * canonical case: an oversized `imageUrl` data URL pre-#102 — see
+ * lib/convex/sanitize.ts), the row stays `status:'running'` forever and the
+ * composer status indicator counts up indefinitely. This mutation walks all
+ * `capabilityRun` rows whose `startedAt` is older than the supplied
+ * threshold and marks them as failed so the indicator clears.
+ *
+ * Safe to call repeatedly. Returns the count of rows it patched so the UI
+ * can show "abort N stuck runs" feedback.
+ */
+export const abortStuck = mutationGeneric({
+  args: {
+    /** Default threshold: 60 seconds. Anything older than this and still
+     *  running is considered stuck. */
+    olderThanMs: v.optional(v.number()),
+    /** Optional workspace scope. If omitted, walks every workspace. */
+    wsId: v.optional(v.id('workspace')),
+  },
+  handler: async (ctx, args) => {
+    const threshold = Date.now() - (args.olderThanMs ?? 60_000);
+    const docs: RunDoc[] = args.wsId
+      ? ((await ctx.db
+          .query('capabilityRun')
+          .withIndex('by_ws', (q: any) => q.eq('wsId', args.wsId))
+          .collect()) as RunDoc[])
+      : ((await ctx.db.query('capabilityRun').collect()) as RunDoc[]);
+    let aborted = 0;
+    for (const doc of docs) {
+      if (doc.status !== 'running') continue;
+      if (doc.startedAt > threshold) continue;
+      await ctx.db.patch(doc._id as any, {
+        status: 'error',
+        step: 'done',
+        error: 'aborted: run exceeded inactivity threshold',
+        finishedAt: Date.now(),
+      });
+      aborted += 1;
+    }
+    return { aborted };
+  },
+});
