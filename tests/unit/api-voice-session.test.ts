@@ -60,6 +60,7 @@ describe('/api/voice/session', () => {
   });
 
   it('declares all five voice tools when minting a session', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     process.env.OPENAI_API_KEY = 'sk-test';
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
@@ -122,7 +123,8 @@ describe('/api/voice/session', () => {
     expect(JSON.stringify(session)).not.toContain('gk-primary-must-not-leak');
   });
 
-  it('returns 503 when OPENAI_API_KEY is missing', async () => {
+  it('returns 503 when OPENAI_API_KEY is missing (openai-realtime path)', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     delete process.env.OPENAI_API_KEY;
     const { POST } = await import('@/app/api/voice/session/route');
     const response = await POST();
@@ -144,13 +146,15 @@ describe('/api/voice/session', () => {
   });
 
   it('returns 502 when OpenAI rejects the session request', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     process.env.OPENAI_API_KEY = 'sk-test';
     const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 })) as unknown as typeof fetch;
     const { issueVoiceSession } = await import('@/app/api/voice/session/route');
     await expect(issueVoiceSession({ fetchImpl })).rejects.toThrow(/429/);
   });
 
-  it('GET reports configuration state without exposing secrets', async () => {
+  it('GET reports openai-realtime configuration state without exposing secrets', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     process.env.OPENAI_API_KEY = 'sk-test';
     const { GET } = await import('@/app/api/voice/session/route');
     const response = await GET();
@@ -163,6 +167,22 @@ describe('/api/voice/session', () => {
       })
     );
     expect(JSON.stringify(json)).not.toContain('sk-test');
+  });
+
+  it('defaults to gemini-live when VOICE_PROVIDER is unset (per provider mandate)', async () => {
+    delete process.env.VOICE_PROVIDER;
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-test';
+    const { GET } = await import('@/app/api/voice/session/route');
+    const response = await GET();
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        ok: true,
+        provider: 'gemini-live',
+        configured: true,
+      })
+    );
+    expect(JSON.stringify(json)).not.toContain('gk-test');
   });
 
   it('GET reports Gemini Live defaults and configuration state without exposing secrets', async () => {

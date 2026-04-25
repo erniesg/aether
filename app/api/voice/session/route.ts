@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic';
 
 const OPENAI_DEFAULT_MODEL = 'gpt-4o-realtime-preview';
 const OPENAI_DEFAULT_VOICE = 'alloy';
-const GEMINI_DEFAULT_MODEL = 'gemini-live-2.5-flash-native-audio';
+// Per the provider mandate: Gemini is the voice layer for aether. Default to
+// the current Live preview model; env override via GEMINI_LIVE_MODEL.
+const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 const GEMINI_DEFAULT_VOICE = 'Kore';
 const OPENAI_SESSIONS_URL = 'https://api.openai.com/v1/realtime/sessions';
 
@@ -31,8 +33,11 @@ interface SessionIssuerDeps {
 function currentProvider(
   override?: VoiceProviderId
 ): VoiceProviderId {
+  // Per the provider mandate: Gemini is the voice layer for aether.
+  // OpenAI Realtime stays as a fallback adapter behind the same seam, but
+  // is no longer the default — it must be opted into via env override.
   return override ?? ((process.env.VOICE_PROVIDER ??
-    'openai-realtime') as VoiceProviderId);
+    'gemini-live') as VoiceProviderId);
 }
 
 function resolveModel(

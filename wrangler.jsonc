@@ -32,7 +32,9 @@
         "AETHER_ENV": "staging",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai",
         "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
-        "VOICE_PROVIDER": "openai-realtime"
+        "VOICE_PROVIDER": "gemini-live",
+        "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+        "IMAGE_GEN_PROVIDER": "openai"
       }
     },
     "production": {
@@ -50,8 +52,10 @@
       "vars": {
         "AETHER_ENV": "production",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai",
-        "NEXT_PUBLIC_CONVEX_URL": "",
-        "VOICE_PROVIDER": "openai-realtime"
+        "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
+        "VOICE_PROVIDER": "gemini-live",
+        "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+        "IMAGE_GEN_PROVIDER": "openai"
       }
     }
   }
