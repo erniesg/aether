@@ -1,19 +1,24 @@
 'use client';
 
-import { Check, Plus, Save, Trash2 } from 'lucide-react';
+import { Check, Plus, Save, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   DEMO_CREATOR_CONTEXT,
   describeWorkspaceMode,
   type BrandContext,
+  type CampaignContext,
   type KnowledgeSource,
   type KnowledgeSourceKind,
+  type OfferContext,
 } from '@/lib/context/model';
 import {
   saveBrandContext,
+  saveCampaignContext,
+  saveOfferContext,
   useBrandContext,
-} from '@/lib/context/brand-store';
+} from '@/lib/context/creator-store';
 import { normalizeHttpUrlInput } from '@/lib/url/normalize';
+import type { BrandFollowups } from '@/lib/brand/propose';
 import type {
   BrandIngestKind,
   BrandIngestRequest,
@@ -38,6 +43,8 @@ interface BrandSectionProps {
     snapshot: BrandSnapshot;
     review: boolean;
   }>;
+  /** Override the propose implementation (tests stub this). */
+  propose?: (snapshot: BrandSnapshot) => Promise<BrandFollowups>;
 }
 
 type IngestState =
@@ -46,9 +53,38 @@ type IngestState =
   | { kind: 'error'; message: string }
   | { kind: 'ok'; snapshot: BrandSnapshot; review: boolean };
 
+type ProposeState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ok'; followups: BrandFollowups };
+
 type SaveState = 'idle' | 'saved' | 'error';
 
 const HEX_RE = /^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+async function defaultPropose(snapshot: BrandSnapshot): Promise<BrandFollowups> {
+  const res = await fetch('/api/brand/propose', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snapshot }),
+  });
+  const json = (await res.json()) as {
+    ok: boolean;
+    offers?: BrandFollowups['offers'];
+    campaigns?: BrandFollowups['campaigns'];
+    coverage?: BrandFollowups['coverage'];
+    error?: string;
+  };
+  if (!res.ok || !json.ok) {
+    throw new Error(json.error ?? `propose failed: ${res.status}`);
+  }
+  return {
+    offers: json.offers ?? [],
+    campaigns: json.campaigns ?? [],
+    coverage: json.coverage ?? { ok: true, notes: [] },
+  };
+}
 
 async function defaultIngest(req: BrandIngestRequest) {
   const res = await fetch('/api/brand-ingest', {
@@ -159,6 +195,172 @@ function BrandDropZone({
   );
 }
 
+/**
+ * Compact draft cards for proposed offers and campaigns.
+ * The creator can accept each draft (saves to context) or dismiss the whole batch.
+ * Cards are NOT auto-saved — explicit acceptance required.
+ */
+function ProposeDraftCards({
+  followups,
+  workspaceId,
+  onDismiss,
+}: {
+  followups: BrandFollowups;
+  workspaceId?: string;
+  onDismiss: () => void;
+}) {
+  const [dismissedOffers, setDismissedOffers] = useState<Set<string>>(new Set());
+  const [dismissedCampaigns, setDismissedCampaigns] = useState<Set<string>>(new Set());
+  const [acceptedOffers, setAcceptedOffers] = useState<Set<string>>(new Set());
+  const [acceptedCampaigns, setAcceptedCampaigns] = useState<Set<string>>(new Set());
+
+  const visibleOffers = followups.offers.filter((o) => !dismissedOffers.has(o.id));
+  const visibleCampaigns = followups.campaigns.filter((c) => !dismissedCampaigns.has(c.id));
+
+  if (visibleOffers.length === 0 && visibleCampaigns.length === 0) return null;
+
+  const acceptOffer = (offer: OfferContext) => {
+    saveOfferContext(offer, workspaceId);
+    setAcceptedOffers((prev) => new Set([...prev, offer.id]));
+  };
+
+  const acceptCampaign = (campaign: CampaignContext) => {
+    saveCampaignContext(campaign, workspaceId);
+    setAcceptedCampaigns((prev) => new Set([...prev, campaign.id]));
+  };
+
+  return (
+    <div data-testid="propose-draft-cards" className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="font-caption text-ink-dim">proposed</span>
+        <button
+          type="button"
+          aria-label="dismiss proposals"
+          onClick={onDismiss}
+          className="grid h-5 w-5 place-items-center rounded-sm text-ink-dim transition-colors hover:text-ink"
+        >
+          <X className="h-3 w-3" aria-hidden="true" />
+        </button>
+      </div>
+
+      {visibleOffers.map((offer) => (
+        <div
+          key={offer.id}
+          data-testid={`propose-offer-${offer.id}`}
+          className="flex flex-col gap-1 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+        >
+          <div className="flex items-start justify-between gap-1">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="font-caption text-xs text-ink truncate">{offer.name}</span>
+              <span className="font-caption text-2xs text-ink-dim leading-snug">{offer.summary}</span>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              {acceptedOffers.has(offer.id) ? (
+                <span className="font-caption text-2xs text-ink-dim">accepted</span>
+              ) : (
+                <button
+                  type="button"
+                  aria-label={`accept offer ${offer.name}`}
+                  onClick={() => acceptOffer(offer)}
+                  className="inline-flex items-center gap-0.5 rounded-sm border border-border-soft px-1.5 py-0.5 font-caption text-2xs text-ink-dim transition-colors hover:text-ink"
+                >
+                  <Check className="h-2.5 w-2.5" aria-hidden="true" />
+                  accept
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={`dismiss offer ${offer.name}`}
+                onClick={() => setDismissedOffers((prev) => new Set([...prev, offer.id]))}
+                className="grid h-5 w-5 place-items-center rounded-sm text-ink-dim transition-colors hover:text-ink"
+              >
+                <X className="h-2.5 w-2.5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          {offer.claims.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {offer.claims.slice(0, 3).map((claim) => (
+                <span
+                  key={claim}
+                  className="rounded-pill border border-border-soft px-1.5 py-0.5 font-caption text-2xs text-ink-dim"
+                >
+                  {claim}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ))}
+
+      {visibleCampaigns.map((campaign) => (
+        <div
+          key={campaign.id}
+          data-testid={`propose-campaign-${campaign.id}`}
+          className="flex flex-col gap-1 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+        >
+          <div className="flex items-start justify-between gap-1">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="font-caption text-xs text-ink truncate">{campaign.name}</span>
+              <span className="font-caption text-2xs text-ink-dim leading-snug">{campaign.goal}</span>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              {acceptedCampaigns.has(campaign.id) ? (
+                <span className="font-caption text-2xs text-ink-dim">accepted</span>
+              ) : (
+                <button
+                  type="button"
+                  aria-label={`accept campaign ${campaign.name}`}
+                  onClick={() => acceptCampaign(campaign)}
+                  className="inline-flex items-center gap-0.5 rounded-sm border border-border-soft px-1.5 py-0.5 font-caption text-2xs text-ink-dim transition-colors hover:text-ink"
+                >
+                  <Check className="h-2.5 w-2.5" aria-hidden="true" />
+                  accept
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={`dismiss campaign ${campaign.name}`}
+                onClick={() => setDismissedCampaigns((prev) => new Set([...prev, campaign.id]))}
+                className="grid h-5 w-5 place-items-center rounded-sm text-ink-dim transition-colors hover:text-ink"
+              >
+                <X className="h-2.5 w-2.5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          {campaign.channels.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {campaign.channels.slice(0, 3).map((ch) => (
+                <span
+                  key={ch}
+                  className="rounded-pill border border-border-soft px-1.5 py-0.5 font-caption text-2xs text-ink-dim"
+                >
+                  {ch}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <span className="font-caption text-2xs text-ink-dim italic">{campaign.cta}</span>
+        </div>
+      ))}
+
+      {followups.coverage && !followups.coverage.ok && followups.coverage.notes.length > 0 ? (
+        <div
+          role="status"
+          data-testid="propose-coverage-notes"
+          className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+        >
+          {followups.coverage.notes.map((note) => (
+            <span key={note} className="block font-caption text-2xs text-ink-dim leading-snug">
+              {note}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -174,10 +376,12 @@ export function BrandSection({
   workspaceMode = DEMO_CREATOR_CONTEXT.workspaceMode,
   workspaceLabel = DEMO_CREATOR_CONTEXT.workspaceLabel,
   ingest = defaultIngest,
+  propose = defaultPropose,
 }: BrandSectionProps) {
   const savedContext = useBrandContext(workspaceId);
   const [draft, setDraft] = useState<BrandContext>(savedContext);
   const [state, setState] = useState<IngestState>({ kind: 'idle' });
+  const [proposeState, setProposeState] = useState<ProposeState>({ kind: 'idle' });
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
 
@@ -196,12 +400,24 @@ export function BrandSection({
 
   const onSubmit = async (req: BrandIngestRequest) => {
     setState({ kind: 'loading' });
+    setProposeState({ kind: 'idle' });
     try {
       const { snapshot, review } = await ingest(req);
       setDraft((prev) => brandContextFromSnapshot(prev, snapshot));
       setDirty(true);
       setSaveState('idle');
       setState({ kind: 'ok', snapshot, review });
+      // Kick off the autonomous proposer in the background — do not await.
+      // Errors are caught in the propose chain; the brand section stays usable.
+      setProposeState({ kind: 'loading' });
+      propose(snapshot)
+        .then((followups) => setProposeState({ kind: 'ok', followups }))
+        .catch((err: unknown) => {
+          setProposeState({
+            kind: 'error',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        });
     } catch (err) {
       setState({
         kind: 'error',
@@ -277,6 +493,36 @@ export function BrandSection({
             low-confidence read ({Math.round(state.snapshot.confidence * 100)}%) · review before saving
           </span>
         </div>
+      ) : null}
+
+      {proposeState.kind === 'loading' ? (
+        <div
+          role="status"
+          data-testid="propose-loading"
+          className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+        >
+          <span className="font-caption text-xs text-ink-dim">proposing offers + campaigns…</span>
+        </div>
+      ) : null}
+
+      {proposeState.kind === 'error' ? (
+        <div
+          role="alert"
+          data-testid="propose-error"
+          className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+        >
+          <span className="font-caption text-xs text-ink-dim">
+            propose failed · {proposeState.message}
+          </span>
+        </div>
+      ) : null}
+
+      {proposeState.kind === 'ok' ? (
+        <ProposeDraftCards
+          followups={proposeState.followups}
+          workspaceId={workspaceId}
+          onDismiss={() => setProposeState({ kind: 'idle' })}
+        />
       ) : null}
 
       <BrandProfileEditor
