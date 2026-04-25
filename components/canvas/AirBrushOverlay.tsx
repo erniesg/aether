@@ -31,6 +31,12 @@ import {
   type AirBrushRejectionReason,
   type AirBrushVideoDebug,
 } from '@/lib/canvas/airBrush';
+import {
+  airBrushStrokeOptionsFromProfile,
+  createAirBrushCalibrationProfile,
+  stabilizeAirBrushPoint,
+  type AirBrushCalibrationProfile,
+} from '@/lib/canvas/airBrushCalibration';
 import { AirBrushStrokeMachine } from '@/lib/canvas/airBrushStrokeMachine';
 import {
   createMediaPipeHandLandmarker,
@@ -65,6 +71,7 @@ export interface AirBrushOverlayProps {
 // moves the index tip landmark by a few pixels; without this, every pinch
 // leaves a tiny dot at the start of the stroke.
 const PINCH_WARMUP_FRAMES = 2;
+const BLIND_SIGNATURE_CALIBRATION_FRAMES = 12;
 // Open-palm gesture: sustain for this many frames (~0.33s at 30fps) before
 // auto-capturing. Short enough to feel responsive, long enough to avoid
 // triggering while the creator is momentarily between strokes.
@@ -72,6 +79,7 @@ const OPEN_PALM_HOLD_FRAMES = 10;
 
 type CameraState = 'idle' | 'requesting' | 'ready' | 'error';
 type TrackingState = 'idle' | 'loading' | 'ready' | 'error';
+type BlindSignaturePreflightState = 'idle' | 'calibrating' | 'ready';
 type AcceptedHandIntents = Partial<Record<AirBrushHandedness, AirBrushPointIntent>>;
 
 const HAND_LANDMARK_CONNECTIONS = [
@@ -264,6 +272,37 @@ function clearHandLandmarkOverlay(canvas: HTMLCanvasElement | null) {
   surface.ctx.clearRect(0, 0, surface.width, surface.height);
 }
 
+function clearLiveInkCanvas(canvas: HTMLCanvasElement | null) {
+  const surface = resolvePreviewCanvas(canvas);
+  if (!surface) return;
+  surface.ctx.clearRect(0, 0, surface.width, surface.height);
+}
+
+function drawLiveInkSegment({
+  canvas,
+  from,
+  to,
+}: {
+  canvas: HTMLCanvasElement | null;
+  from: AirBrushPoint | null;
+  to: AirBrushPoint;
+}) {
+  const surface = resolvePreviewCanvas(canvas);
+  if (!surface || !from || to.state === 'start' || to.state === 'end') return;
+  const { ctx, width, height } = surface;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle =
+    to.intent === 'erase' ? 'rgba(255,255,255,0.78)' : 'rgba(216,112,64,0.92)';
+  ctx.lineWidth = to.intent === 'erase' ? 18 : 5;
+  ctx.beginPath();
+  ctx.moveTo(from.x * width, from.y * height);
+  ctx.lineTo(to.x * width, to.y * height);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function mapLandmarkToPreview(
   landmark: AirBrushHandLandmark,
   video: HTMLVideoElement | null,
@@ -397,16 +436,21 @@ export function AirBrushOverlay({
   className,
   showInactiveButton = true,
 }: AirBrushOverlayProps) {
+  const liveInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const landmarkCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const onPointRef = useRef(onPoint);
   const onEndAirBrushRef = useRef(onEndAirBrush);
   const lastCameraPointRef = useRef<AirBrushPoint | null>(null);
+  const lastRawCameraPointRef = useRef<AirBrushPoint | null>(null);
+  const lastLiveInkPointRef = useRef<AirBrushPoint | null>(null);
   const cameraStrokeActiveRef = useRef(false);
   const activeCameraIntentRef = useRef<AirBrushPointIntent | null>(null);
   const cameraStrokeMachineRef = useRef(new AirBrushStrokeMachine());
   const pointerStrokeMachineRef = useRef(new AirBrushStrokeMachine());
+  const calibrationSamplesRef = useRef<AirBrushPoint[]>([]);
+  const calibrationProfileRef = useRef<AirBrushCalibrationProfile | null>(null);
   const pinchWarmupCountRef = useRef<Record<AirBrushPointIntent, number>>({
     draw: 0,
     erase: 0,
@@ -423,6 +467,9 @@ export function AirBrushOverlay({
   const [trackingState, setTrackingState] = useState<TrackingState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [detectionCount, setDetectionCountState] = useState(0);
+  const [preflightState, setPreflightState] =
+    useState<BlindSignaturePreflightState>('idle');
+  const [calibrationSampleCount, setCalibrationSampleCount] = useState(0);
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugInfo, setDebugInfo] = useState<AirBrushOverlayDebugInfo>(
     INITIAL_AIR_BRUSH_DEBUG_INFO
@@ -658,12 +705,19 @@ export function AirBrushOverlay({
       pointerFallbackActiveRef.current = false;
       pointerFallbackIdRef.current = null;
       lastCameraPointRef.current = null;
+      lastRawCameraPointRef.current = null;
+      lastLiveInkPointRef.current = null;
+      calibrationSamplesRef.current = [];
+      calibrationProfileRef.current = null;
+      setPreflightState('idle');
+      setCalibrationSampleCount(0);
       cameraStrokeMachineRef.current.reset();
       pointerStrokeMachineRef.current.reset();
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
       clearHandLandmarkOverlay(landmarkCanvasRef.current);
+      clearLiveInkCanvas(liveInkCanvasRef.current);
       return;
     }
 
@@ -672,11 +726,18 @@ export function AirBrushOverlay({
     debugInfoRef.current = resetDebugInfo;
     setDebugInfo(resetDebugInfo);
     setDetectionCountState(0);
-    cameraStrokeMachineRef.current.reset();
-    pointerStrokeMachineRef.current.reset();
+    cameraStrokeMachineRef.current = new AirBrushStrokeMachine();
+    pointerStrokeMachineRef.current = new AirBrushStrokeMachine();
     cameraStrokeActiveRef.current = false;
     activeCameraIntentRef.current = null;
     lastCameraPointRef.current = null;
+    lastRawCameraPointRef.current = null;
+    lastLiveInkPointRef.current = null;
+    calibrationSamplesRef.current = [];
+    calibrationProfileRef.current = null;
+    setPreflightState(mode === 'blind_signature' ? 'calibrating' : 'idle');
+    setCalibrationSampleCount(0);
+    clearLiveInkCanvas(liveInkCanvasRef.current);
     setCameraState('requesting');
     setError(null);
     stateSnapshotRef.current = {
@@ -785,13 +846,20 @@ export function AirBrushOverlay({
       pointerFallbackActiveRef.current = false;
       pointerFallbackIdRef.current = null;
       lastCameraPointRef.current = null;
+      lastRawCameraPointRef.current = null;
+      lastLiveInkPointRef.current = null;
+      calibrationSamplesRef.current = [];
+      calibrationProfileRef.current = null;
+      setPreflightState('idle');
+      setCalibrationSampleCount(0);
       cameraStrokeMachineRef.current.reset();
       pointerStrokeMachineRef.current.reset();
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
+      clearLiveInkCanvas(liveInkCanvasRef.current);
     };
-  }, [active, publishDebug]);
+  }, [active, mode, publishDebug]);
 
   useEffect(() => {
     if (!active || cameraState !== 'ready') {
@@ -928,7 +996,11 @@ export function AirBrushOverlay({
         const drawEval = evaluateMediaPipeHandLandmarks({
           frame,
           previousPoint:
-            activeIntent === 'draw' ? lastCameraPointRef.current : null,
+            activeIntent === 'draw'
+              ? raisedIndexInk
+                ? lastRawCameraPointRef.current
+                : lastCameraPointRef.current
+              : null,
           activeStroke: activeIntent === 'draw',
           preferredHand: drawHand,
           intent: 'draw',
@@ -936,7 +1008,54 @@ export function AirBrushOverlay({
           rejectOpenPalm: raisedIndexInk,
         });
         const erasePoint = eraseEval.point;
-        const drawPoint = drawEval.point;
+        let drawPoint = drawEval.point;
+        let rawDrawPoint = drawPoint;
+        if (raisedIndexInk && drawPoint && drawPoint.state !== 'end') {
+          const profile = calibrationProfileRef.current;
+          if (!profile) {
+            calibrationSamplesRef.current = [
+              ...calibrationSamplesRef.current,
+              drawPoint,
+            ].slice(-BLIND_SIGNATURE_CALIBRATION_FRAMES);
+            setCalibrationSampleCount(calibrationSamplesRef.current.length);
+            if (
+              calibrationSamplesRef.current.length >=
+              BLIND_SIGNATURE_CALIBRATION_FRAMES
+            ) {
+              const nextProfile = createAirBrushCalibrationProfile({
+                samples: calibrationSamplesRef.current,
+                targetText,
+              });
+              calibrationProfileRef.current = nextProfile;
+              cameraStrokeMachineRef.current.configure(
+                airBrushStrokeOptionsFromProfile(nextProfile)
+              );
+              setPreflightState('ready');
+              setCalibrationSampleCount(BLIND_SIGNATURE_CALIBRATION_FRAMES);
+              publishDebug(
+                'point-emitted',
+                {
+                  calibration: 'ready',
+                  jitter: roundDebugNumber(nextProfile.jitterRadius),
+                  minStrokeDistance: roundDebugNumber(
+                    nextProfile.minStrokeDistance
+                  ),
+                },
+                {},
+                { log: true }
+              );
+            } else {
+              setPreflightState('calibrating');
+            }
+            drawPoint = null;
+          } else {
+            drawPoint = stabilizeAirBrushPoint(profile, drawPoint);
+          }
+        } else if (raisedIndexInk && drawPoint?.state === 'end') {
+          drawPoint = lastCameraPointRef.current
+            ? { ...lastCameraPointRef.current, state: 'end' }
+            : null;
+        }
         const eraseActive = Boolean(erasePoint && erasePoint.state !== 'end');
         const drawActive = Boolean(drawPoint && drawPoint.state !== 'end');
 
@@ -988,6 +1107,7 @@ export function AirBrushOverlay({
             : null;
         let preferredPoint = preferredPointRaw;
         if (
+          !raisedIndexInk &&
           preferredPointRaw &&
           preferredPointRaw.state === 'start' &&
           preferredPointRaw.intent &&
@@ -1044,6 +1164,13 @@ export function AirBrushOverlay({
             const result = cameraStrokeMachineRef.current.accept(point, timestamp);
             for (const committedPoint of result.events) {
               emittedPointCount += 1;
+              drawLiveInkSegment({
+                canvas: liveInkCanvasRef.current,
+                from: lastLiveInkPointRef.current,
+                to: committedPoint,
+              });
+              lastLiveInkPointRef.current =
+                committedPoint.state === 'end' ? null : committedPoint;
               onPointRef.current?.(committedPoint);
               if (committedPoint.state === 'start') {
                 // First committed stroke has started; pending pinch jitter
@@ -1096,9 +1223,13 @@ export function AirBrushOverlay({
             if (point.state === 'end') {
               activeCameraIntentRef.current = null;
               lastCameraPointRef.current = null;
+              lastRawCameraPointRef.current = null;
             } else {
               activeCameraIntentRef.current = point.intent ?? 'draw';
               lastCameraPointRef.current = point;
+              if (raisedIndexInk && rawDrawPoint && rawDrawPoint.state !== 'end') {
+                lastRawCameraPointRef.current = rawDrawPoint;
+              }
             }
           }
         } else if (landmarksCount > 0) {
@@ -1231,9 +1362,10 @@ export function AirBrushOverlay({
     createHandLandmarker,
     drawHand,
     eraseHand,
-    debugVisible,
+    mode,
     openPalmEndEnabled,
     publishDebug,
+    targetText,
   ]);
 
   if (!active) {
@@ -1275,6 +1407,8 @@ export function AirBrushOverlay({
           : trackingState === 'ready'
             ? debugInfo.lastStage === 'video-wait'
               ? 'waiting for video frame'
+              : mode === 'blind_signature' && preflightState === 'calibrating'
+                ? `hold index still · ${calibrationSampleCount}/${BLIND_SIGNATURE_CALIBRATION_FRAMES}`
               : debugInfo.lastStage === 'detect-rejected'
                 ? (rejectionHint ?? 'show index fingertip')
               : detectionCount > 0
@@ -1286,13 +1420,20 @@ export function AirBrushOverlay({
   const debugVideo = debugInfo.video;
 
   return (
-    <aside
-      aria-label="air brush"
-      className={cn(
-        'pointer-events-none absolute left-4 bottom-4 z-20 flex w-56 flex-col overflow-hidden rounded-md border border-border bg-surface-panel/95 shadow-sm backdrop-blur',
-        className
-      )}
-    >
+    <>
+      <canvas
+        ref={liveInkCanvasRef}
+        aria-label="air brush live ink"
+        data-air-brush-live-ink
+        className="pointer-events-none absolute inset-0 z-[19] h-full w-full"
+      />
+      <aside
+        aria-label="air brush"
+        className={cn(
+          'pointer-events-none absolute left-4 bottom-4 z-20 flex w-56 flex-col overflow-hidden rounded-md border border-border bg-surface-panel/95 shadow-sm backdrop-blur',
+          className
+        )}
+      >
       <div
         aria-label="air brush fallback pad"
         className="pointer-events-auto relative aspect-[4/3] touch-none cursor-crosshair bg-ink"
@@ -1384,6 +1525,7 @@ export function AirBrushOverlay({
           ) : null}
         </div>
       ) : null}
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -71,6 +71,10 @@ export class AirBrushStrokeMachine {
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
+  configure(options: AirBrushStrokeMachineOptions): void {
+    this.options = { ...this.options, ...options };
+  }
+
   get state(): AirBrushStrokeMachineState {
     return this.currentState;
   }

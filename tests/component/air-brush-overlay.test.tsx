@@ -523,19 +523,38 @@ describe('AirBrushOverlay', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
     vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
     vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      {
-        clearRect: vi.fn(),
-        setTransform: vi.fn(),
-        save: vi.fn(),
-        restore: vi.fn(),
-        beginPath: vi.fn(),
-        moveTo: vi.fn(),
-        lineTo: vi.fn(),
-        stroke: vi.fn(),
-        arc: vi.fn(),
-        fill: vi.fn(),
-      } as unknown as CanvasRenderingContext2D
+    const liveInkContext = {
+      clearRect: vi.fn(),
+      setTransform: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+    };
+    const landmarkContext = {
+      clearRect: vi.fn(),
+      setTransform: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      function getContext(this: HTMLCanvasElement) {
+        return (
+          this.hasAttribute('data-air-brush-live-ink')
+            ? liveInkContext
+            : landmarkContext
+        ) as unknown as CanvasRenderingContext2D;
+      }
     );
 
     installMediaDevices(
@@ -547,11 +566,17 @@ describe('AirBrushOverlay', () => {
     let frameIndex = 0;
     const detectForVideo = vi.fn(() => {
       frameIndex += 1;
+      const indexTip =
+        frameIndex <= 12
+          ? { x: 0.25, y: 0.4 }
+          : frameIndex === 13
+            ? { x: 0.16, y: 0.35 }
+            : { x: 0.08, y: 0.3 };
       return {
         landmarks: [
           trackedHand({
             4: { x: 0.54, y: 0.74 },
-            8: frameIndex <= 2 ? { x: 0.25, y: 0.4 } : { x: 0.16, y: 0.35 },
+            8: indexTip,
           }),
         ],
         handedness: [[{ score: 0.95, categoryName: 'Right' }]],
@@ -572,33 +597,38 @@ describe('AirBrushOverlay', () => {
     );
 
     await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    for (let i = 0; i < 12; i += 1) {
+      act(() => {
+        rafCallbacks.shift()?.(100 + i * 16);
+      });
+      await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    }
+    expect(onPoint).not.toHaveBeenCalled();
+
     act(() => {
-      rafCallbacks.shift()?.(100);
+      rafCallbacks.shift()?.(300);
     });
     expect(onPoint).not.toHaveBeenCalled();
 
     await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
     act(() => {
-      rafCallbacks.shift()?.(116);
-    });
-    expect(onPoint).not.toHaveBeenCalled();
-
-    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
-    act(() => {
-      rafCallbacks.shift()?.(132);
+      rafCallbacks.shift()?.(316);
     });
 
     await waitFor(() => {
       expect(onPoint).toHaveBeenCalledWith(
         expect.objectContaining({
-          x: 0.75,
-          y: 0.4,
+          x: expect.closeTo(0.65, 2),
+          y: expect.closeTo(0.42, 2),
           state: 'start',
           source: 'camera',
           intent: 'draw',
         })
       );
     });
+    expect(screen.getByLabelText(/air brush live ink/i)).toBeInTheDocument();
+    expect(liveInkContext.lineTo).toHaveBeenCalled();
+    expect(liveInkContext.stroke).toHaveBeenCalled();
   });
 
   it('uses the left index finger as the erase stream when both hands are visible', async () => {
