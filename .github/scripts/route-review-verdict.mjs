@@ -40,6 +40,109 @@ function gh(args, { parseJson = false } = {}) {
   return parseJson ? JSON.parse(out) : out;
 }
 
+// Path patterns that are always safe to auto-merge after reviewer APPROVE.
+// Anything outside this list requires Ernie's explicit ack on Discord.
+//
+// Safelist intentionally narrow: only changes that cannot affect runtime
+// product behavior (docs, tests, lockfile, generated convex types, GH
+// configs that affect only automation, not the worker bundle).
+const AUTO_MERGE_SAFELIST = [
+  /^docs\//,
+  /^tests\//,
+  /^\.github\//,
+  /^README\.md$/,
+  /^AGENTS\.md$/,
+  /^CLAUDE\.md$/,
+  /\.test\.tsx?$/,
+  /\.test\.mjs$/,
+  /^package-lock\.json$/,
+  /^convex\/_generated\//,
+];
+
+function listPrFiles(prNumber) {
+  try {
+    const out = gh(
+      ['pr', 'view', String(prNumber), '--json', 'files', '-q', '.files[].path'],
+      { parseJson: false }
+    );
+    return out.split('\n').map((s) => s.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function isPrSafeForAutoMerge(prNumber, labels) {
+  // Fast path: explicit `auto-merge-safe` label always wins.
+  if (labels?.some((l) => (l.name || l) === 'auto-merge-safe')) return true;
+  // Otherwise: every changed file must match the safelist.
+  const files = listPrFiles(prNumber);
+  if (files.length === 0) return false;
+  return files.every((p) =>
+    AUTO_MERGE_SAFELIST.some((re) => re.test(p))
+  );
+}
+
+function mergePr(prNumber, method = 'squash') {
+  try {
+    execFileSync(
+      'gh',
+      ['pr', 'merge', String(prNumber), `--${method}`],
+      { encoding: 'utf8', stdio: 'inherit' }
+    );
+    return true;
+  } catch (err) {
+    console.warn(`Auto-merge of PR #${prNumber} failed: ${err.message ?? err}`);
+    return false;
+  }
+}
+
+// Pull a compact summary of acceptance / validation evidence from a reviewer
+// comment so the Discord embed has more than just a link. Best-effort: any
+// missing section is silently dropped.
+function extractEvidenceFields(review, prBody) {
+  const fields = [];
+  const reviewBody = review?.body || '';
+
+  // Acceptance bullets — common reviewer pattern: "### Acceptance items …"
+  // followed by ✅/❌ list. We grab the first 6 lines.
+  const acceptanceMatch = reviewBody.match(
+    /###[^\n]*acceptance[^\n]*\n([\s\S]*?)(?:\n###|\n---|$)/i
+  );
+  if (acceptanceMatch) {
+    const lines = acceptanceMatch[1]
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => /^[-*]\s|^\d+\./.test(s))
+      .slice(0, 6);
+    if (lines.length > 0) {
+      fields.push({
+        name: 'reviewer acceptance',
+        value: truncateDiscord(lines.join('\n'), 800),
+      });
+    }
+  }
+
+  // Validation block from PR body — common author pattern: "## Validation"
+  const valMatch = (prBody || '').match(
+    /##[^\n]*validation[^\n]*\n([\s\S]*?)(?:\n##|$)/i
+  );
+  if (valMatch) {
+    const lines = valMatch[1]
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    if (lines.length > 0) {
+      fields.push({
+        name: 'validation evidence',
+        value: truncateDiscord(lines.join('\n'), 800),
+      });
+    }
+  }
+
+  return fields;
+}
+
 // Mirror of lib/review/parseVerdict.ts — kept inline so the workflow shell
 // step doesn't need a compile/install. If the regex ever drifts, the unit
 // test in tests/unit/review-parseVerdict.test.ts is the source of truth.
@@ -428,16 +531,40 @@ async function main() {
   }
 
   if (verdict === 'APPROVE') {
-    addLabels(prTarget, ['ready-for-ernie']);
     removeLabel(prTarget, 'route-human');
     if (issueTarget) removeLabel(issueTarget, 'claude-run');
+
+    // Pull evidence from the reviewer's body + PR body so the Discord embed
+    // is self-contained — Ernie shouldn't have to open the PR to decide.
+    const evidenceFields = extractEvidenceFields(activeReview, pr.body);
+
+    // Auto-merge on the safelist (or explicit `auto-merge-safe` label).
+    const safe = isPrSafeForAutoMerge(pr.number, pr.labels);
+    if (safe) {
+      const merged = mergePr(pr.number);
+      if (merged) {
+        await sendDiscordEmbed({
+          color: COLOR_APPROVE,
+          title: `aether · auto-merged · ${pr.title}`,
+          description:
+            'Reviewer APPROVED + paths within the auto-merge safelist (or `auto-merge-safe` label). Merged automatically — no action needed.',
+          url: pr.url,
+          fields: [...commonFields, ...evidenceFields],
+        });
+        return;
+      }
+      // Fall through to the manual-ack path if auto-merge failed.
+      console.warn(`Auto-merge fell through for PR #${pr.number}; routing to Ernie.`);
+    }
+
+    addLabels(prTarget, ['ready-for-ernie']);
     await sendDiscordEmbed({
       color: COLOR_APPROVE,
       title: `aether · reviewer APPROVED · ${pr.title}`,
       description:
-        'Reviewer agent passed. Click **Open PR** to merge on GitHub, or **Review diff** to eyeball the changes first.',
+        'Reviewer agent passed. Click **Open PR** to merge on GitHub, or **Review diff** to eyeball the changes first. Acceptance + validation excerpts below if available.',
       url: pr.url,
-      fields: commonFields,
+      fields: [...commonFields, ...evidenceFields],
     });
     return;
   }
