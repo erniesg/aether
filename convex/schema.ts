@@ -374,6 +374,30 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_workspace', ['workspaceId']),
 
+  // Managed Agents session ledger (issue #100 — Step 1). Mirrors the live
+  // Anthropic `client.beta.sessions` surface so a workspace can fan supervisor
+  // sessions out into per-source/per-platform sub-sessions and replay them
+  // later. `status` is a stable local-view union — the SDK's status union
+  // (`rescheduling | running | idle | terminated`) is mapped onto these four
+  // values by sessionManager so callers can reason about lifecycle without
+  // tracking SDK string churn.
+  agentSession: defineTable({
+    workspaceId: v.string(),
+    sessionId: v.string(),
+    parentSessionId: v.optional(v.string()),
+    purpose: v.string(),
+    status: v.union(
+      v.literal('running'),
+      v.literal('paused'),
+      v.literal('done'),
+      v.literal('failed')
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_session', ['sessionId']),
+
   // Publisher seam (issue #9 — Slice 1). One row per platform post; multi-
   // platform fan-out is N rows. `wsId` optional for the same reason it is on
   // `signalSubscription` — pre-Phase-5 the UI has no workspace plumbing.
