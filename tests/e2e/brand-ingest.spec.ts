@@ -82,7 +82,13 @@ test.describe('D1 — brand auto-ingest', () => {
 
     await flyout.getByLabel('brand name').fill('Tong');
     await flyout.getByLabel('hex colour 1').fill('#ef3340');
-    await flyout.getByLabel('brand type').fill('Noto Sans CJK\nInter');
+    // brand type became a list of indexed entries; scope to role+name to avoid
+    // matching the adjacent "remove brand type N" buttons.
+    await flyout
+      .getByRole('textbox', { name: 'brand type 1' })
+      .fill('Noto Sans CJK');
+    const t2 = flyout.getByRole('textbox', { name: 'brand type 2' });
+    if (await t2.count()) await t2.fill('Inter');
     await flyout.getByLabel('brand voice').fill('Learn CJK by living in them.');
     await flyout.getByRole('button', { name: /save/i }).click();
 
@@ -93,7 +99,9 @@ test.describe('D1 — brand auto-ingest', () => {
     flyout = page.locator('[data-rail-flyout="brand"]');
     await expect(flyout.getByLabel('brand name')).toHaveValue('Tong');
     await expect(flyout.getByLabel('hex colour 1')).toHaveValue('#EF3340');
-    await expect(flyout.getByLabel('brand type')).toHaveValue('Noto Sans CJK\nInter');
+    await expect(
+      flyout.getByRole('textbox', { name: 'brand type 1' })
+    ).toHaveValue('Noto Sans CJK');
     await expect(flyout.getByLabel('brand voice')).toHaveValue(
       'Learn CJK by living in them.'
     );
