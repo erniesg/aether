@@ -25,8 +25,16 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * Falls back to single-pass planResearch when refs.length < MIN_REFS_FOR_MULTI_AGENT.
  *
  * The existing /api/research route (single-pass) is untouched.
+ *
+ * Query params:
+ *   ?debug=1 — include the `snapshot.debug` sub-object (worker errors, etc.)
+ *              in the response. Omitted by default so raw error strings never
+ *              surface in the primary creator UI.
  */
 export async function POST(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const debugMode = url.searchParams.get('debug') === '1';
+
   let body: unknown;
   try {
     body = await request.json();
@@ -56,6 +64,13 @@ export async function POST(request: Request): Promise<Response> {
         : undefined,
       refs: Array.isArray(refs) ? (refs as ReferenceRecord[]) : [],
     });
+
+    // Strip debug info from the public response unless ?debug=1 is set.
+    // Worker errors are always logged server-side inside orchestrateResearch.
+    if (!debugMode) {
+      const { debug: _debug, ...publicSnapshot } = snapshot;
+      return NextResponse.json({ ok: true, snapshot: publicSnapshot });
+    }
 
     return NextResponse.json({ ok: true, snapshot });
   } catch (err) {

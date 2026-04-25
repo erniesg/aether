@@ -39,10 +39,17 @@ export interface ClusterLensSnapshot {
   moodboardPrompts: string[];
   assembledAt: string;
   fallback?: boolean;
-  _workerErrors?: {
-    researcher?: string;
-    clusterer?: string;
-    aestheticAnalyzer?: string;
+  /**
+   * Debug-only field — not included in the public API response by default.
+   * Only populated when the caller opts in (e.g. `?debug=1` query param).
+   * Worker errors are always logged server-side regardless.
+   */
+  debug?: {
+    workerErrors: {
+      researcher?: string;
+      clusterer?: string;
+      aestheticAnalyzer?: string;
+    };
   };
 }
 
@@ -308,7 +315,7 @@ function assembleSnapshot(
   fetchedRefs: FetchedRef[],
   clusters: ClusterRaw[],
   aesthetics: ClusterAnalysis[],
-  workerErrors: ClusterLensSnapshot['_workerErrors']
+  workerErrors: NonNullable<ClusterLensSnapshot['debug']>['workerErrors']
 ): ClusterLensSnapshot {
   const now = Date.now();
 
@@ -377,7 +384,7 @@ function assembleSnapshot(
   };
 
   if (workerErrors && Object.keys(workerErrors).length > 0) {
-    snapshot._workerErrors = workerErrors;
+    snapshot.debug = { workerErrors };
   }
 
   return snapshot;
@@ -430,9 +437,13 @@ export async function orchestrateResearch(
 
   const seedMessage = buildSeedMessage(seedText, refs);
 
-  // Fan out all three workers concurrently via Promise.all.
-  // Each is wrapped in try/catch so one failure does not block the others.
-  const [researcherResult, clustererResult, aestheticResult] = await Promise.all([
+  // ---------------------------------------------------------------------------
+  // Phase 1: researcher + clusterer run in parallel.
+  //   - researcher fetches new reference assets for the seed.
+  //   - clusterer groups whatever refs are available (existing + seed context).
+  //   Both are independent of each other, so Promise.all is correct here.
+  // ---------------------------------------------------------------------------
+  const [researcherResult, clustererResult] = await Promise.all([
     runWorker({
       name: 'researcher',
       systemPrompt: RESEARCHER_SYSTEM,
@@ -448,27 +459,38 @@ export async function orchestrateResearch(
       name: 'clusterer',
       systemPrompt: CLUSTERER_SYSTEM,
       tool: CLUSTERER_TOOL,
-      userMessage: `Cluster these references by aesthetic.\n\n${seedMessage}`,
+      userMessage: `Cluster these references by aesthetic.\n\n${buildClusterMessage(seedText, refs, [])}`,
       client,
     }).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       return { clusters: [], _error: msg } as Record<string, unknown>;
     }),
-
-    runWorker({
-      name: 'aestheticAnalyzer',
-      systemPrompt: AESTHETIC_ANALYZER_SYSTEM,
-      tool: AESTHETIC_TOOL,
-      userMessage: `Analyse aesthetics and propose moodboard prompts.\n\n${seedMessage}`,
-      client,
-    }).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { clusterAnalyses: [], _error: msg } as Record<string, unknown>;
-    }),
   ]);
 
-  // Collect per-worker errors for the snapshot
-  const workerErrors: ClusterLensSnapshot['_workerErrors'] = {};
+  // Parse Phase 1 outputs so Phase 2 can use cluster data
+  const fetchedRefs = parseFetchedRefs(researcherResult);
+  const clusters = parseClusters(clustererResult);
+
+  // ---------------------------------------------------------------------------
+  // Phase 2: aesthetic-analyzer runs AFTER clusterer so it receives actual
+  //   cluster output rather than the seed message alone. This is the key
+  //   ordering fix — the aesthetic pass needs cluster labels + member IDs to
+  //   produce meaningful directions and moodboard prompts.
+  // ---------------------------------------------------------------------------
+  const aestheticMessage = buildAestheticMessage(clusters);
+  const aestheticResult = await runWorker({
+    name: 'aestheticAnalyzer',
+    systemPrompt: AESTHETIC_ANALYZER_SYSTEM,
+    tool: AESTHETIC_TOOL,
+    userMessage: `Analyse aesthetics and propose moodboard prompts.\n\n${aestheticMessage}`,
+    client,
+  }).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { clusterAnalyses: [], _error: msg } as Record<string, unknown>;
+  });
+
+  // Collect per-worker errors (logged server-side; surfaced in debug only)
+  const workerErrors: NonNullable<ClusterLensSnapshot['debug']>['workerErrors'] = {};
   if (typeof researcherResult._error === 'string') {
     workerErrors.researcher = researcherResult._error;
   }
@@ -479,18 +501,12 @@ export async function orchestrateResearch(
     workerErrors.aestheticAnalyzer = aestheticResult._error;
   }
 
-  // Parse each worker's output
-  const fetchedRefs = parseFetchedRefs(researcherResult);
-  const clusters = parseClusters(clustererResult);
+  // Log errors server-side regardless of whether debug is enabled
+  if (Object.keys(workerErrors).length > 0) {
+    console.error('[orchestrateResearch] worker errors:', workerErrors);
+  }
 
-  // Aesthetic analyzer gets the clusters so it can correlate; we've already awaited
-  // all three in parallel — build the message post-hoc and pass clusters to the parser
-  // (the actual call ran with seedMessage; here we just parse what it returned)
   const aesthetics = parseAesthetics(aestheticResult);
-
-  // Build the cluster message for debug purposes (not used in call since workers ran in parallel)
-  void buildClusterMessage(seedText, refs, fetchedRefs);
-  void buildAestheticMessage(clusters);
 
   return assembleSnapshot(seedText, refs, fetchedRefs, clusters, aesthetics, workerErrors);
 }

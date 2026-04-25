@@ -153,4 +153,61 @@ describe('/api/research/orchestrate', () => {
     expect(json.ok).toBe(true);
     expect(json.snapshot.fallback).toBe(true);
   });
+
+  // -----------------------------------------------------------------------
+  // Blocker 8 — _workerErrors moved to debug only
+  // -----------------------------------------------------------------------
+
+  it('strips snapshot.debug from public response by default', async () => {
+    const snapshotWithDebug: ClusterLensSnapshot = {
+      ...SNAPSHOT,
+      debug: {
+        workerErrors: { researcher: 'network timeout' },
+      },
+    };
+    mocks.orchestrateResearch.mockResolvedValueOnce(snapshotWithDebug);
+
+    const { POST } = await import('@/app/api/research/orchestrate/route');
+    const res = await POST(
+      new Request('http://localhost/api/research/orchestrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seedText: 'barrier glow shelf' }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    // debug sub-object must NOT appear in the public response
+    expect(json.snapshot.debug).toBeUndefined();
+    // Core snapshot data is still present
+    expect(Array.isArray(json.snapshot.cards)).toBe(true);
+  });
+
+  it('includes snapshot.debug when ?debug=1 query param is set', async () => {
+    const snapshotWithDebug: ClusterLensSnapshot = {
+      ...SNAPSHOT,
+      debug: {
+        workerErrors: { researcher: 'network timeout' },
+      },
+    };
+    mocks.orchestrateResearch.mockResolvedValueOnce(snapshotWithDebug);
+
+    const { POST } = await import('@/app/api/research/orchestrate/route');
+    const res = await POST(
+      new Request('http://localhost/api/research/orchestrate?debug=1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seedText: 'barrier glow shelf' }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    // debug sub-object IS present when ?debug=1
+    expect(json.snapshot.debug).toBeDefined();
+    expect(json.snapshot.debug.workerErrors.researcher).toBe('network timeout');
+  });
 });

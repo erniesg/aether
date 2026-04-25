@@ -5,10 +5,11 @@
  * All tests drive behavior through the public interface only.
  *
  * Acceptance criteria (issue #98):
- *   1. 3 parallel calls, distinct system prompts per worker
- *   2. Fail-soft: one worker error doesn't block others; returns partial snapshot with _error
- *   3. Returns assembled ClusterLensSnapshot
- *   4. Falls back to single-pass when refs.length < MIN_REFS_FOR_MULTI_AGENT
+ *   1. researcher + clusterer run in Phase 1 (parallel); aesthetic-analyzer in Phase 2 (sequential)
+ *   2. aesthetic-analyzer user message contains cluster data from Phase 1
+ *   3. Fail-soft: one worker error doesn't block others; returns partial snapshot with debug.workerErrors
+ *   4. Returns assembled ClusterLensSnapshot
+ *   5. Falls back to single-pass when refs.length < MIN_REFS_FOR_MULTI_AGENT
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReferenceRecord } from '@/lib/providers/reference/types';
@@ -118,31 +119,78 @@ describe('orchestrateResearch', () => {
     mockCreate.mockReset();
   });
 
-  it('issues exactly 3 model calls in parallel', async () => {
-    let allStartedBeforeAnyResolved = false;
-    let callCount = 0;
-
-    mockCreate.mockImplementation(() => {
-      callCount++;
-      const thisCall = callCount;
-      if (thisCall === 3) {
-        // By the time the 3rd call fires, none have resolved yet — true parallelism
-        allStartedBeforeAnyResolved = true;
-      }
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          if (thisCall === 1) resolve(makeResearcherResponse());
-          else if (thisCall === 2) resolve(makeClustererResponse());
-          else resolve(makeAestheticResponse());
-        }, 10);
-      });
-    });
+  it('issues exactly 3 model calls total', async () => {
+    mockCreate
+      .mockResolvedValueOnce(makeResearcherResponse())
+      .mockResolvedValueOnce(makeClustererResponse())
+      .mockResolvedValueOnce(makeAestheticResponse());
 
     const { orchestrateResearch } = await import('./orchestrator');
     await orchestrateResearch({ seedText: 'barrier glow shelf', refs: THREE_REFS, client: fakeClient });
 
     expect(mockCreate).toHaveBeenCalledTimes(3);
-    expect(allStartedBeforeAnyResolved).toBe(true);
+  });
+
+  it('researcher and clusterer start in parallel (Phase 1)', async () => {
+    let phase1CallCount = 0;
+    let phase1AllStartedBeforeAnyResolved = false;
+
+    let phase1ResolveFns: Array<() => void> = [];
+
+    mockCreate.mockImplementation(() => {
+      phase1CallCount++;
+      if (phase1CallCount <= 2) {
+        if (phase1CallCount === 2) {
+          // Both Phase 1 calls have started before either resolved
+          phase1AllStartedBeforeAnyResolved = true;
+        }
+        return new Promise<unknown>((resolve) => {
+          const call = phase1CallCount;
+          phase1ResolveFns.push(() => {
+            if (call === 1) resolve(makeResearcherResponse());
+            else resolve(makeClustererResponse());
+          });
+        });
+      }
+      // Phase 2 call — resolve immediately
+      return Promise.resolve(makeAestheticResponse());
+    });
+
+    // Let test progress by resolving phase 1 after both have started
+    const orchestratePromise = (async () => {
+      const { orchestrateResearch } = await import('./orchestrator');
+      // Kick off orchestration in background
+      const result = orchestrateResearch({ seedText: 'barrier glow shelf', refs: THREE_REFS, client: fakeClient });
+      // Give the event loop a tick for both phase 1 calls to register
+      await new Promise((r) => setTimeout(r, 5));
+      phase1ResolveFns.forEach((fn) => fn());
+      return result;
+    })();
+
+    await orchestratePromise;
+
+    expect(phase1AllStartedBeforeAnyResolved).toBe(true);
+  });
+
+  it('aesthetic-analyzer runs after clusterer and receives cluster data in its message', async () => {
+    mockCreate
+      .mockResolvedValueOnce(makeResearcherResponse())
+      .mockResolvedValueOnce(makeClustererResponse())
+      .mockResolvedValueOnce(makeAestheticResponse());
+
+    const { orchestrateResearch } = await import('./orchestrator');
+    await orchestrateResearch({ seedText: 'barrier glow shelf', refs: THREE_REFS, client: fakeClient });
+
+    // The 3rd call is the aesthetic-analyzer (Phase 2)
+    const aestheticCallArgs = mockCreate.mock.calls[2]![0] as { messages: Array<{ content: Array<{ text: string }> }> };
+    const userMsg = aestheticCallArgs.messages?.[0];
+    const userText = Array.isArray(userMsg?.content)
+      ? userMsg.content.map((b: { text: string }) => b.text).join(' ')
+      : String(userMsg?.content ?? '');
+
+    // The aesthetic message should contain cluster data from Phase 1 clusterer output
+    // (cluster labels like 'warm-shelf editorial' from makeClustererResponse)
+    expect(userText).toContain('warm-shelf editorial');
   });
 
   it('uses distinct system prompts for each of the three workers', async () => {
@@ -232,9 +280,9 @@ describe('orchestrateResearch', () => {
     expect(mockCreate).toHaveBeenCalledTimes(3);
     // Snapshot comes back — partial, not a thrown error
     expect(snapshot).toBeDefined();
-    // Error is surfaced in the snapshot
-    expect(snapshot._workerErrors).toBeDefined();
-    expect(typeof snapshot._workerErrors?.researcher).toBe('string');
+    // Error is surfaced in snapshot.debug (not _workerErrors — that field is gone)
+    expect(snapshot.debug?.workerErrors).toBeDefined();
+    expect(typeof snapshot.debug?.workerErrors?.researcher).toBe('string');
     // Other workers' data still present
     expect(Array.isArray(snapshot.directions)).toBe(true);
   });
@@ -248,8 +296,8 @@ describe('orchestrateResearch', () => {
     const { orchestrateResearch } = await import('./orchestrator');
     const snapshot = await orchestrateResearch({ seedText: 'barrier glow shelf', refs: THREE_REFS, client: fakeClient });
 
-    expect(snapshot._workerErrors).toBeDefined();
-    expect(typeof snapshot._workerErrors?.clusterer).toBe('string');
+    expect(snapshot.debug?.workerErrors).toBeDefined();
+    expect(typeof snapshot.debug?.workerErrors?.clusterer).toBe('string');
     expect(Array.isArray(snapshot.cards)).toBe(true);
   });
 
@@ -262,8 +310,8 @@ describe('orchestrateResearch', () => {
     const { orchestrateResearch } = await import('./orchestrator');
     const snapshot = await orchestrateResearch({ seedText: 'barrier glow shelf', refs: THREE_REFS, client: fakeClient });
 
-    expect(snapshot._workerErrors).toBeDefined();
-    expect(typeof snapshot._workerErrors?.aestheticAnalyzer).toBe('string');
+    expect(snapshot.debug?.workerErrors).toBeDefined();
+    expect(typeof snapshot.debug?.workerErrors?.aestheticAnalyzer).toBe('string');
     // Cluster data from clusterer still comes through
     expect(Array.isArray(snapshot.directions)).toBe(true);
   });
