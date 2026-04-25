@@ -34,6 +34,14 @@ import { isConvexEnabled } from '@/lib/convex/client';
 
 export type { CapabilityRunRecord, RunStatus, RunStep };
 
+/**
+ * Canonical error string written by `abortStuckRuns` (both memory and Convex
+ * paths). Components that show run histories filter these out so stale-abort
+ * noise never appears in the UI — only live runs, completions, and genuine
+ * failures do.
+ */
+export const STALE_ABORT_ERROR = 'aborted: run exceeded inactivity threshold';
+
 function genClientRunId(): string {
   return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -101,7 +109,7 @@ export async function abortStuckRuns(
   for (const run of useRunsMemory()) {
     if (run.status !== 'running') continue;
     if (run.startedAt > threshold) continue;
-    failRunMemory(run.id, 'aborted: run exceeded inactivity threshold');
+    failRunMemory(run.id, STALE_ABORT_ERROR);
     aborted += 1;
   }
   return { aborted };
