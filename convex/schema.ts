@@ -250,9 +250,12 @@ export default defineSchema({
   // workspace plumbing is wired up in Phase 5.
   canvasSnapshot: defineTable({
     wsId: v.optional(v.id('workspace')),
+    wsKey: v.optional(v.string()),
     tldrawStoreJson: v.string(),
     snapshottedAt: v.number(),
-  }).index('by_ws', ['wsId']),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_ws_key', ['wsKey']),
 
   keyVisual: defineTable({
     wsId: v.id('workspace'),
@@ -392,6 +395,23 @@ export default defineSchema({
     affectedNodes: v.array(v.string()),
     createdAt: v.number(),
   }).index('by_ws', ['wsId']),
+
+  // ─── skills (Anthropic Skills foundation) ─────────────────────────────
+  // Mirrors authored Skills as graph artifacts so the capability factory can
+  // query them and the right rail can surface them. `manifestPath` is the FS
+  // path (relative to repo root) of the SKILL.md; `referenceFilePaths` mirrors
+  // the front-matter `referenceFiles[]`. Schema is intentionally simple so
+  // authoring-loop follow-ups can evolve it without a migration.
+  skill: defineTable({
+    name: v.string(),
+    version: v.number(),
+    description: v.string(),
+    manifestPath: v.string(),
+    referenceFilePaths: v.array(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_name', ['name'])
+    .index('by_name_version', ['name', 'version']),
 
   // ─── output ────────────────────────────────────────────────────────────
   exportPack: defineTable({
