@@ -2,17 +2,23 @@
 
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type ClipboardEvent as ReactClipboardEvent,
   type DragEvent as ReactDragEvent,
   type FormEvent,
 } from 'react';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { fileToDataUrl, ingestUrlViaApi } from '@/lib/references/client';
-import { addReference, removeReference, useReferences } from '@/lib/references/store';
+import {
+  addReference,
+  removeReference,
+  updateReference,
+  useReferences,
+} from '@/lib/references/store';
 import { genReferenceId } from '@/lib/providers/reference/og';
-import type { ReferenceRecord } from '@/lib/providers/reference/types';
+import type { ReferenceKind, ReferenceRecord } from '@/lib/providers/reference/types';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -34,8 +40,11 @@ type ZoneStatus =
 const URL_RE = /^https?:\/\/\S+$/i;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
-export function ReferencesImagesTab() {
-  const records = useReferences();
+export function ReferencesImagesTab({ workspaceId }: { workspaceId?: string }) {
+  const records = useReferences(workspaceId).filter(
+    (record) =>
+      record.kind === 'image' || record.kind === 'video' || record.kind === 'embed'
+  );
   const [status, setStatus] = useState<ZoneStatus>({ kind: 'idle' });
   const [draft, setDraft] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -52,7 +61,7 @@ export function ReferencesImagesTab() {
       setStatus({ kind: 'loading' });
       try {
         const outcome = await ingestUrlViaApi(trimmed);
-        addReference(outcome.record);
+        addReference(withReferenceDefaults(outcome.record), workspaceId);
         if (outcome.fallback) {
           setStatus({
             kind: 'notice',
@@ -67,7 +76,7 @@ export function ReferencesImagesTab() {
         setStatus({ kind: 'error', message });
       }
     },
-    []
+    [workspaceId]
   );
 
   const ingestFile = useCallback(async (file: File) => {
@@ -87,8 +96,11 @@ export function ReferencesImagesTab() {
         previewUrl: dataUrl,
         attribution: { source: 'upload', url: file.name },
         capturedAt: new Date().toISOString(),
+        title: file.name.replace(/\.[^.]+$/, ''),
+        usageIntent: 'visual anchor',
+        tags: [],
       };
-      addReference(record);
+      addReference(record, workspaceId);
       setStatus({ kind: 'idle' });
     } catch (err) {
       setStatus({
@@ -96,7 +108,7 @@ export function ReferencesImagesTab() {
         message: err instanceof Error ? err.message : 'failed to read file',
       });
     }
-  }, []);
+  }, [workspaceId]);
 
   const onPaste = useCallback(
     (event: ReactClipboardEvent<HTMLInputElement>) => {
@@ -239,8 +251,22 @@ export function ReferencesImagesTab() {
           ))}
         </ul>
       )}
+      {records.length > 0 ? <ReferenceMetadataList records={records} /> : null}
     </div>
   );
+}
+
+function withReferenceDefaults(record: ReferenceRecord): ReferenceRecord {
+  return {
+    ...record,
+    title:
+      record.title ??
+      record.attribution.author ??
+      record.attribution.source ??
+      'reference',
+    usageIntent: record.usageIntent ?? (record.kind === 'embed' ? 'source note' : 'visual anchor'),
+    tags: record.tags ?? [],
+  };
 }
 
 function ReferenceChip({ record }: { record: ReferenceRecord }) {
@@ -299,5 +325,192 @@ function ReferenceChip({ record }: { record: ReferenceRecord }) {
         </button>
       </div>
     </li>
+  );
+}
+
+function ReferenceMetadataList({ records }: { records: ReferenceRecord[] }) {
+  return (
+    <ul className="flex flex-col gap-2" aria-label="reference metadata">
+      {records.map((record, index) => (
+        <ReferenceMetadataCard key={record.id} record={record} index={index} />
+      ))}
+    </ul>
+  );
+}
+
+function ReferenceMetadataCard({
+  record,
+  index,
+}: {
+  record: ReferenceRecord;
+  index: number;
+}) {
+  const label =
+    record.title ??
+    record.attribution.author ??
+    record.attribution.source ??
+    `reference ${index + 1}`;
+  const [tagDraft, setTagDraft] = useState((record.tags ?? []).join(', '));
+
+  useEffect(() => {
+    setTagDraft((record.tags ?? []).join(', '));
+  }, [record.id]);
+
+  return (
+    <li
+      className="flex flex-col gap-1 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2"
+      data-reference-meta-id={record.id}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0 truncate font-caption text-xs text-ink">{label}</span>
+        <button
+          type="button"
+          aria-label={`remove reference ${label}`}
+          onClick={() => removeReference(record.id)}
+          className="rounded-xs text-ink-dim transition-colors hover:text-ink"
+        >
+          <X size={12} />
+        </button>
+      </div>
+      <input
+        aria-label={`reference title ${index + 1}`}
+        value={record.title ?? ''}
+        placeholder="title"
+        onChange={(e) => updateReference(record.id, { title: e.target.value })}
+        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+      />
+      <div className="grid grid-cols-2 gap-1">
+        <input
+          aria-label={`source label ${index + 1}`}
+          value={record.attribution.source}
+          onChange={(e) => updateReference(record.id, { source: e.target.value })}
+          className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink outline-none focus:border-accent"
+        />
+        <input
+          aria-label={`reference attribution ${index + 1}`}
+          value={record.attribution.author ?? ''}
+          placeholder="author"
+          onChange={(e) => updateReference(record.id, { author: e.target.value })}
+          className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+        />
+      </div>
+      <select
+        aria-label={`reference usage ${index + 1}`}
+        value={record.usageIntent ?? ''}
+        onChange={(e) => updateReference(record.id, { usageIntent: e.target.value })}
+        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink outline-none focus:border-accent"
+      >
+        <option value="">usage intent</option>
+        <option value="visual anchor">visual anchor</option>
+        <option value="layout cue">layout cue</option>
+        <option value="product truth">product truth</option>
+        <option value="texture">texture</option>
+        <option value="avoid">avoid</option>
+      </select>
+      <input
+        aria-label={`reference tags ${index + 1}`}
+        value={tagDraft}
+        placeholder="tags"
+        onChange={(e) => {
+          setTagDraft(e.target.value);
+          updateReference(record.id, {
+            tags: e.target.value
+              .split(',')
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+          });
+        }}
+        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+      />
+      <textarea
+        aria-label={`reference notes ${index + 1}`}
+        value={record.notes ?? ''}
+        rows={2}
+        placeholder="notes"
+        onChange={(e) => updateReference(record.id, { notes: e.target.value })}
+        className="resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+      />
+    </li>
+  );
+}
+
+export function ReferencesManualTab({
+  kind,
+  workspaceId,
+}: {
+  kind: Extract<ReferenceKind, 'template' | 'element'>;
+  workspaceId?: string;
+}) {
+  const records = useReferences(workspaceId).filter((record) => record.kind === kind);
+  const [title, setTitle] = useState('');
+  const [source, setSource] = useState('');
+  const label = kind === 'template' ? 'template' : 'element';
+
+  const addManual = () => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    const id = genReferenceId(kind === 'template' ? 'ref_tpl' : 'ref_el');
+    const cleanSource = source.trim();
+    addReference(
+      {
+        id,
+        kind,
+        previewUrl: cleanSource || `aether:${kind}:${id}`,
+        fullUrl: cleanSource || undefined,
+        attribution: {
+          source: cleanSource ? 'link' : 'manual',
+          url: cleanSource || cleanTitle,
+        },
+        capturedAt: new Date().toISOString(),
+        title: cleanTitle,
+        usageIntent: kind === 'template' ? 'layout cue' : 'visual anchor',
+        tags: [],
+      },
+      workspaceId
+    );
+    setTitle('');
+    setSource('');
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="rounded-sm border border-dashed border-border-soft bg-surface-panel-muted px-2 py-2">
+        <span className="font-caption text-ink-dim">save a {label}</span>
+        <div className="mt-2 flex flex-col gap-1">
+          <input
+            aria-label={`${label} title`}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={`${label} title`}
+            className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+          />
+          <div className="flex gap-1">
+            <input
+              aria-label={`${label} source`}
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              placeholder="source link"
+              className="min-w-0 flex-1 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              onClick={addManual}
+              disabled={!title.trim()}
+              className="inline-flex items-center gap-1 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink transition-colors hover:bg-surface-panel-muted disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              add
+            </button>
+          </div>
+        </div>
+      </div>
+      {records.length > 0 ? (
+        <ReferenceMetadataList records={records} />
+      ) : (
+        <span className="font-caption text-xs text-ink-faint">
+          saved {label}s become reusable canvas material
+        </span>
+      )}
+    </div>
   );
 }

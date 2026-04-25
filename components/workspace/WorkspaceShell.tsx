@@ -18,6 +18,7 @@ import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
 import { PublishPreview } from '@/components/workspace/PublishPreview';
 import { useScheduledPosts, getPreviewPublisher } from '@/lib/publisher/store';
+import { useReferences } from '@/lib/references/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
@@ -66,6 +67,13 @@ import {
   buildExportRequestBody,
   downloadExportPack,
 } from '@/lib/export/client';
+import {
+  buildCreatorGenerationPrompt,
+  countCreatorInputs,
+  mergeReferenceUrls,
+  visualReferenceUrls,
+} from '@/lib/context/model';
+import { useCreatorContext } from '@/lib/context/creator-store';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -259,6 +267,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const { editor } = useEditorRef();
   const definitions = useCapabilityDefinitions();
   const runs = useRuns();
+  const references = useReferences(wsId);
+  const creatorContext = useCreatorContext(wsId);
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
@@ -274,12 +284,23 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   }, []);
   const scheduledPosts = useScheduledPosts(wsId);
   const heroMediaUrls = useMemo(() => {
-    // Latest completed run's image — good enough for an M1 preview until the
-    // export pack (issue #5) threads real per-artboard URLs through.
-    const withImage = runs.filter((r) => r.imageUrl && r.status === 'ok');
-    const latest = withImage[withImage.length - 1];
-    return latest?.imageUrl ? [latest.imageUrl] : [];
+    for (const run of runs.filter((r) => r.status === 'ok')) {
+      const details = getAllRunDetailsSnapshot().find((entry) => entry.runId === run.id);
+      const frameUrls =
+        details?.frames
+          .filter((frame) => frame.status !== 'error' && frame.imageUrl)
+          .map((frame) => frame.imageUrl!)
+          .filter((url, index, all) => all.indexOf(url) === index) ?? [];
+      if (frameUrls.length > 0) return frameUrls;
+      if (run.imageUrl) return [run.imageUrl];
+    }
+    return [];
   }, [runs]);
+  const pinnedReferenceUrls = useMemo(() => visualReferenceUrls(references), [references]);
+  const inputCount = useMemo(
+    () => countCreatorInputs(creatorContext, references),
+    [creatorContext, references]
+  );
   // Focus lens cycles through frames via arrow keys; the active format state
   // mirrors this so the composer always shows the current single-format target.
   const [focusIdx, setFocusIdx] = useState(0);
@@ -1245,12 +1266,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       if (options.scope === 'all' && editor) {
         if (formats.length > 0) {
           const targets = formats;
+          const contextualPrompt = buildCreatorGenerationPrompt(
+            creatorContext,
+            prompt,
+            references
+          );
+          const refs = mergeReferenceUrls(options.refs, pinnedReferenceUrls);
           log('fan-out · frames:', targets.length);
-          await runImageOnCanvas(prompt, {
+          await runImageOnCanvas(contextualPrompt, {
             providerOverride,
             modelOverride,
             bypassAgent,
-            refs: options.refs,
+            refs: refs.length > 0 ? refs : undefined,
             targets,
           });
           return;
@@ -1271,11 +1298,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         if (target) targets = [target];
       }
 
-      await runImageOnCanvas(prompt, {
+      const contextualPrompt = buildCreatorGenerationPrompt(
+        creatorContext,
+        prompt,
+        references
+      );
+      const refs = mergeReferenceUrls(options.refs, pinnedReferenceUrls);
+
+      await runImageOnCanvas(contextualPrompt, {
         providerOverride,
         modelOverride,
         bypassAgent,
-        refs: options.refs,
+        refs: refs.length > 0 ? refs : undefined,
         targets,
       });
     },
@@ -1290,6 +1324,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       formats,
       activeFormatId,
       handleExport,
+      pinnedReferenceUrls,
+      references,
+      creatorContext,
     ]
   );
 
@@ -1429,7 +1466,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       </Surface>
 
       <div className="flex flex-1 overflow-hidden">
-        <LeftRail />
+        <LeftRail workspaceId={wsId} />
         <CanvasSubstrate
           composerRef={composerRef}
           safeZonesVisible={safeZonesVisible}
@@ -1461,11 +1498,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       <PromptComposer
         ref={composerRef}
         onSubmit={handlePrompt}
-        inputCount={0}
+        activeInputSet={creatorContext.campaign.name}
+        inputCount={inputCount}
         formatCount={formats.length > 0 ? formats.length : DEFAULT_ARTBOARDS.length}
         formats={composerFormats}
         activeFormatId={activeFormatId ?? undefined}
         onActiveFormatChange={setActiveFormatId}
+        onOpenInputSet={() => {
+          document
+            .querySelector<HTMLButtonElement>('[data-rail-section="references"]')
+            ?.click();
+        }}
         className="h-composer"
       />
       <ComposerStatus />

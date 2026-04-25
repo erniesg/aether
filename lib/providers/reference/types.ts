@@ -11,7 +11,7 @@
  * Strictly public endpoints + OG metadata; no login-gated scraping.
  */
 
-export type ReferenceKind = 'image' | 'video' | 'embed';
+export type ReferenceKind = 'image' | 'video' | 'embed' | 'template' | 'element';
 
 export interface ReferenceAttribution {
   /** Adapter id ('pinterest' / 'instagram' / 'xhs' / 'tiktok' / 'generic' / 'upload'). */
@@ -32,6 +32,16 @@ export interface ReferenceRecord {
   attribution: ReferenceAttribution;
   /** ISO timestamp when the record was captured. */
   capturedAt: string;
+  /** Creator-editable label used in rails, clustering, and prompt context. */
+  title?: string;
+  /** How this material should influence generation. */
+  usageIntent?: string;
+  /** Creator tags for grouping and shortlisting. */
+  tags?: string[];
+  /** Creator notes that travel with the reference. */
+  notes?: string;
+  /** Optional shortlist / cluster id once references are grouped. */
+  clusterId?: string;
 }
 
 export type ReferenceFetcher = typeof fetch;

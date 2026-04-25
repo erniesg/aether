@@ -46,6 +46,35 @@ export function useScheduledPosts(workspaceId: string): ScheduledPost[] {
   /* eslint-enable react-hooks/rules-of-hooks */
 }
 
+export interface PublisherScheduleRouteResult {
+  providerId: string;
+  results: Array<{
+    platform: ScheduledPost['platform'];
+    status: 'scheduled' | 'preview-only' | 'skipped' | 'failed';
+    previewUrl?: string;
+    externalId?: string;
+    error?: string;
+  }>;
+}
+
+export async function schedulePublisherPosts(
+  workspaceId: string,
+  posts: ScheduledPost[]
+): Promise<PublisherScheduleRouteResult> {
+  const res = await fetch('/api/publish/schedule', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, posts }),
+  });
+  const body = (await res.json()) as
+    | (PublisherScheduleRouteResult & { ok?: boolean; error?: string })
+    | { ok: false; error: string };
+  if (!res.ok) {
+    throw new Error('error' in body ? body.error : 'publish scheduling failed');
+  }
+  return body as PublisherScheduleRouteResult;
+}
+
 export function resetScheduledPostsForTests(): void {
   clearScheduledPostsForTests();
 }

@@ -109,7 +109,7 @@ describe('ClusterLens · kanban', () => {
     const moved = document.querySelector<HTMLElement>(
       '[data-testid="cluster-card"][data-reference-id="ref-a"]'
     );
-    expect(moved?.getAttribute('data-cluster-column')).toBe('Shortlisted');
+    expect(moved?.getAttribute('data-card-column')).toBe('Shortlisted');
     expect(
       shortlisted.querySelector('[data-reference-id="ref-a"]')
     ).toBeTruthy();

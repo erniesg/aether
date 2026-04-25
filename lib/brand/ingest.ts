@@ -1,5 +1,6 @@
 import { extractFromFiles, extractFromHtml, extractFromRepo } from './extract';
 import { shapeBrandSnapshot } from './shape';
+import { normalizeHttpUrlInput } from '@/lib/url/normalize';
 import type {
   BrandFilesPayload,
   BrandIngestRequest,
@@ -53,15 +54,16 @@ async function ingestUrl(
   url: string,
   fetcher: typeof fetch
 ): Promise<{ extract: BrandRawExtract; source: BrandSnapshotSource }> {
-  const res = await fetcher(url, {
+  const normalizedUrl = normalizeHttpUrlInput(url);
+  const res = await fetcher(normalizedUrl, {
     headers: {
       'User-Agent': 'aether-brand-ingest/0.1 (+https://aether.berlayar.ai)',
     },
   });
   if (!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
   const html = await res.text();
-  const extract = extractFromHtml(html, url);
-  return { extract, source: { kind: 'url', url } };
+  const extract = extractFromHtml(html, normalizedUrl);
+  return { extract, source: { kind: 'url', url: normalizedUrl } };
 }
 
 const GITHUB_REPO_RE = /^https?:\/\/github\.com\/([^/\s]+)\/([^/\s?#]+)/i;
@@ -70,9 +72,10 @@ async function ingestRepo(
   repoUrl: string,
   fetcher: typeof fetch
 ): Promise<{ extract: BrandRawExtract; source: BrandSnapshotSource }> {
-  const match = GITHUB_REPO_RE.exec(repoUrl);
+  const normalizedUrl = normalizeHttpUrlInput(repoUrl);
+  const match = GITHUB_REPO_RE.exec(normalizedUrl);
   if (!match) {
-    throw new Error(`repo ingest currently expects a github.com URL, got ${repoUrl}`);
+    throw new Error(`repo ingest currently expects a github.com URL, got ${normalizedUrl}`);
   }
   const owner = match[1]!;
   const repo = match[2]!.replace(/\.git$/, '');
@@ -115,10 +118,10 @@ async function ingestRepo(
       designTokensJson: files['design-tokens.json'] ?? files['tokens.json'],
       brandJson: files['brand.json'],
     },
-    repoUrl
+    normalizedUrl
   );
 
-  return { extract, source: { kind: 'repo', url: repoUrl } };
+  return { extract, source: { kind: 'repo', url: normalizedUrl } };
 }
 
 function ingestFiles(payload: BrandFilesPayload): {

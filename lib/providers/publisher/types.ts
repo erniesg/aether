@@ -46,6 +46,8 @@ export interface ScheduledPost {
   /** ISO8601 — use strings, not epoch ms, so manifests are human-readable. */
   scheduledAt: string;
   accountId?: string;
+  provider?: PublisherProviderId | string;
+  externalId?: string;
 }
 
 export interface ScheduleResult {

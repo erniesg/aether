@@ -1,6 +1,9 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { useQuery } from 'convex/react';
+import { anyApi } from 'convex/server';
+import { getConvexClient, isConvexEnabled } from '@/lib/convex/client';
 import type { ReferenceRecord } from '@/lib/providers/reference/types';
 
 /**
@@ -11,17 +14,43 @@ import type { ReferenceRecord } from '@/lib/providers/reference/types';
  */
 
 const LS_KEY = 'aether.references.v1';
+const DEFAULT_REFERENCE_WORKSPACE_ID = 'demo-ws';
 
 type Listener = () => void;
 
 let cache: ReferenceRecord[] | null = null;
 const listeners = new Set<Listener>();
 
+const referencesApi = (anyApi as unknown as {
+  creatorContext: {
+    listReferences: unknown;
+    addReference: unknown;
+    updateReference: unknown;
+    removeReference: unknown;
+  };
+}).creatorContext;
+
+export type ReferencePatch = Partial<{
+  title: string;
+  source: string;
+  author: string;
+  usageIntent: string;
+  tags: string[];
+  notes: string;
+  clusterId: string;
+}>;
+
 function isReferenceRecord(value: unknown): value is ReferenceRecord {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
   if (typeof v.id !== 'string') return false;
-  if (v.kind !== 'image' && v.kind !== 'video' && v.kind !== 'embed') return false;
+  if (
+    v.kind !== 'image' &&
+    v.kind !== 'video' &&
+    v.kind !== 'embed' &&
+    v.kind !== 'template' &&
+    v.kind !== 'element'
+  ) return false;
   if (typeof v.previewUrl !== 'string') return false;
   if (typeof v.capturedAt !== 'string') return false;
   const a = v.attribution as Record<string, unknown> | undefined;
@@ -79,11 +108,43 @@ function getServerSnapshot(): ReferenceRecord[] {
   return SERVER_SNAPSHOT;
 }
 
-export function useReferences(): ReferenceRecord[] {
+export function useReferences(workspaceId?: string): ReferenceRecord[] {
+  /* eslint-disable react-hooks/rules-of-hooks */
+  if (isConvexEnabled()) {
+    const data = useQuery(referencesApi.listReferences as never, {
+      workspaceId: workspaceId ?? DEFAULT_REFERENCE_WORKSPACE_ID,
+    } as never) as ReferenceRecord[] | undefined;
+    return data ?? [];
+  }
   return useSyncExternalStore(subscribe, current, getServerSnapshot);
+  /* eslint-enable react-hooks/rules-of-hooks */
 }
 
-export function addReference(record: ReferenceRecord): void {
+export function useWorkspaceReferences(workspaceId?: string): ReferenceRecord[] {
+  /* eslint-disable react-hooks/rules-of-hooks */
+  if (isConvexEnabled()) {
+    const data = useQuery(referencesApi.listReferences as never, {
+      workspaceId: workspaceId ?? DEFAULT_REFERENCE_WORKSPACE_ID,
+    } as never) as ReferenceRecord[] | undefined;
+    return data ?? [];
+  }
+  return useSyncExternalStore(subscribe, current, getServerSnapshot);
+  /* eslint-enable react-hooks/rules-of-hooks */
+}
+
+export function addReference(record: ReferenceRecord, workspaceId?: string): void {
+  if (isConvexEnabled()) {
+    const client = getConvexClient();
+    if (!client) return;
+    void client.mutation(referencesApi.addReference as never, {
+      workspaceId: workspaceId ?? DEFAULT_REFERENCE_WORKSPACE_ID,
+      reference: {
+        ...record,
+        tags: record.tags ?? [],
+      },
+    } as never);
+    return;
+  }
   update((prev) => {
     // Dedupe on fullUrl (when present) or previewUrl — creators often paste
     // the same share link twice without realising.
@@ -93,7 +154,40 @@ export function addReference(record: ReferenceRecord): void {
   });
 }
 
+export function updateReference(id: string, patch: ReferencePatch): void {
+  if (isConvexEnabled()) {
+    const client = getConvexClient();
+    if (!client) return;
+    void client.mutation(referencesApi.updateReference as never, { id, patch } as never);
+    return;
+  }
+  update((prev) =>
+    prev.map((record) => {
+      if (record.id !== id) return record;
+      return {
+        ...record,
+        title: patch.title ?? record.title,
+        attribution: {
+          ...record.attribution,
+          source: patch.source ?? record.attribution.source,
+          author: patch.author ?? record.attribution.author,
+        },
+        usageIntent: patch.usageIntent ?? record.usageIntent,
+        tags: patch.tags ?? record.tags,
+        notes: patch.notes ?? record.notes,
+        clusterId: patch.clusterId ?? record.clusterId,
+      };
+    })
+  );
+}
+
 export function removeReference(id: string): void {
+  if (isConvexEnabled()) {
+    const client = getConvexClient();
+    if (!client) return;
+    void client.mutation(referencesApi.removeReference as never, { id } as never);
+    return;
+  }
   update((prev) => prev.filter((r) => r.id !== id));
 }
 

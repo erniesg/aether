@@ -187,7 +187,7 @@ test.describe('B2 — generate happy path', () => {
     const composer = page.getByPlaceholder('describe the generation…');
     await expect(composer).toBeVisible();
     await composer.fill('boom');
-    await composer.press('Enter');
+    await page.getByRole('button', { name: /^generate$/i }).click();
 
     await expect(
       page.getByRole('alert').filter({ hasText: /upstream boom/ })
