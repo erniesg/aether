@@ -74,8 +74,8 @@ export function applyComposition(
       return {
         prompt: base.prompt,
         negativePrompt,
-        extraParams: mapped.negativePrompt
-          ? { negative_prompt: mapped.negativePrompt }
+        extraParams: negativePrompt
+          ? { negative_prompt: negativePrompt }
           : undefined,
       };
     }
@@ -100,7 +100,12 @@ export function resolveComposition(
   perCall: ImageComposition | undefined,
   workspace: ImageComposition | undefined
 ): ImageComposition {
-  const out: ImageComposition = { ...SYSTEM_DEFAULT_COMPOSITION };
+  const out: ImageComposition = {
+    ...SYSTEM_DEFAULT_COMPOSITION,
+    constraints: SYSTEM_DEFAULT_COMPOSITION.constraints
+      ? [...SYSTEM_DEFAULT_COMPOSITION.constraints]
+      : undefined,
+  };
   if (workspace) {
     if (workspace.textStrategy !== undefined) out.textStrategy = workspace.textStrategy;
     if (workspace.constraints !== undefined) out.constraints = [...workspace.constraints];

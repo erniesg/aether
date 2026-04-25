@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resolveComposition } from '@/lib/providers/image/composition';
 import type { ImageComposition } from '@/lib/providers/image/types';
+import {
+  getBrandPolicyRecord,
+  setBrandPolicyDefaultComposition,
+} from '../../convex/brandPolicy';
 
 /**
  * Convex doesn't commit `_generated` in this repo, so we don't go through the
@@ -68,35 +72,6 @@ function makeFakeDb() {
   };
 }
 
-// The handler functions exported from convex/brandPolicy.ts wrap business
-// logic in Convex's mutation/query registrars, which we can't execute here
-// without the generated files. To keep this test focused on the contract,
-// we re-implement the same algorithm inline — a failing assertion here also
-// means the handler is wrong because both read from the same schema shape.
-
-async function getBrandPolicy(ctx: { db: ReturnType<typeof makeFakeDb> }, wsId: string) {
-  const doc = await ctx.db.query('brandPolicy').withIndex('by_wsId', (q) => q.eq('wsId', wsId)).unique();
-  return doc ?? null;
-}
-
-async function setDefaultComposition(
-  ctx: { db: ReturnType<typeof makeFakeDb> },
-  wsId: string,
-  composition: ImageComposition
-) {
-  const existing = await ctx.db.query('brandPolicy').withIndex('by_wsId', (q) => q.eq('wsId', wsId)).unique();
-  const now = Date.now();
-  if (existing) {
-    await ctx.db.patch(existing._id, { defaultComposition: composition, updatedAt: now });
-    return existing._id;
-  }
-  return ctx.db.insert('brandPolicy', {
-    wsId,
-    defaultComposition: composition,
-    updatedAt: now,
-  });
-}
-
 describe('convex/brandPolicy · CRUD + resolve round trip', () => {
   let ctx: { db: ReturnType<typeof makeFakeDb> };
   const wsId = 'workspace_abc';
@@ -106,7 +81,7 @@ describe('convex/brandPolicy · CRUD + resolve round trip', () => {
   });
 
   it('getBrandPolicy returns null when no policy is set', async () => {
-    expect(await getBrandPolicy(ctx, wsId)).toBeNull();
+    expect(await getBrandPolicyRecord(ctx.db, wsId)).toBeNull();
   });
 
   it('setDefaultComposition inserts a new row and getBrandPolicy returns it', async () => {
@@ -114,38 +89,39 @@ describe('convex/brandPolicy · CRUD + resolve round trip', () => {
       textStrategy: 'none',
       constraints: ['no-signatures', 'no-watermarks'],
     };
-    await setDefaultComposition(ctx, wsId, composition);
-    const got = await getBrandPolicy(ctx, wsId);
+    await setBrandPolicyDefaultComposition(ctx.db, wsId, composition, 123);
+    const got = await getBrandPolicyRecord(ctx.db, wsId);
     expect(got).not.toBeNull();
     expect(got!.defaultComposition).toEqual(composition);
-    expect(typeof got!.updatedAt).toBe('number');
+    expect(got!.updatedAt).toBe(123);
   });
 
   it('setDefaultComposition patches an existing row instead of inserting a second', async () => {
-    await setDefaultComposition(ctx, wsId, { textStrategy: 'none' });
-    await setDefaultComposition(ctx, wsId, {
+    await setBrandPolicyDefaultComposition(ctx.db, wsId, { textStrategy: 'none' }, 123);
+    await setBrandPolicyDefaultComposition(ctx.db, wsId, {
       textStrategy: 'baked',
       constraints: ['no-unknown-brand-logos'],
-    });
-    const got = await getBrandPolicy(ctx, wsId);
+    }, 456);
+    const got = await getBrandPolicyRecord(ctx.db, wsId);
     expect(got!.defaultComposition.textStrategy).toBe('baked');
     expect(got!.defaultComposition.constraints).toEqual(['no-unknown-brand-logos']);
+    expect(got!.updatedAt).toBe(456);
     expect(ctx.db.store.size).toBe(1);
   });
 
   it('policies are scoped by wsId — different workspaces do not collide', async () => {
-    await setDefaultComposition(ctx, 'ws_a', { textStrategy: 'none' });
-    await setDefaultComposition(ctx, 'ws_b', { textStrategy: 'baked' });
-    expect((await getBrandPolicy(ctx, 'ws_a'))!.defaultComposition.textStrategy).toBe('none');
-    expect((await getBrandPolicy(ctx, 'ws_b'))!.defaultComposition.textStrategy).toBe('baked');
+    await setBrandPolicyDefaultComposition(ctx.db, 'ws_a', { textStrategy: 'none' });
+    await setBrandPolicyDefaultComposition(ctx.db, 'ws_b', { textStrategy: 'baked' });
+    expect((await getBrandPolicyRecord(ctx.db, 'ws_a'))!.defaultComposition.textStrategy).toBe('none');
+    expect((await getBrandPolicyRecord(ctx.db, 'ws_b'))!.defaultComposition.textStrategy).toBe('baked');
   });
 
   it('per-call override merges correctly over a workspace default', async () => {
-    await setDefaultComposition(ctx, wsId, {
+    await setBrandPolicyDefaultComposition(ctx.db, wsId, {
       textStrategy: 'none',
       constraints: ['no-signatures', 'no-watermarks'],
     });
-    const workspace = (await getBrandPolicy(ctx, wsId))!.defaultComposition as ImageComposition;
+    const workspace = (await getBrandPolicyRecord(ctx.db, wsId))!.defaultComposition as ImageComposition;
 
     // Per-call bakes typography for this one generation; workspace constraints
     // still apply (per-call didn't supply constraints).
@@ -155,11 +131,11 @@ describe('convex/brandPolicy · CRUD + resolve round trip', () => {
   });
 
   it('per-call empty-constraints clears the inherited workspace list', async () => {
-    await setDefaultComposition(ctx, wsId, {
+    await setBrandPolicyDefaultComposition(ctx.db, wsId, {
       textStrategy: 'none',
       constraints: ['no-signatures', 'no-watermarks'],
     });
-    const workspace = (await getBrandPolicy(ctx, wsId))!.defaultComposition as ImageComposition;
+    const workspace = (await getBrandPolicyRecord(ctx.db, wsId))!.defaultComposition as ImageComposition;
     const merged = resolveComposition({ constraints: [] }, workspace);
     expect(merged.constraints).toEqual([]);
     expect(merged.textStrategy).toBe('none');

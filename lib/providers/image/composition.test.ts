@@ -123,7 +123,11 @@ describe('applyComposition · matrix', () => {
       );
       expect(out.prompt).toBe('sunset');
       expect(out.negativePrompt).toBe('blur');
-      expect(out.extraParams).toBeUndefined();
+      if (adapter === 'volcengine') {
+        expect(out.extraParams).toEqual({ negative_prompt: 'blur' });
+      } else {
+        expect(out.extraParams).toBeUndefined();
+      }
     }
   });
 

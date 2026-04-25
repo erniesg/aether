@@ -6,6 +6,12 @@ describe('resolveComposition · merge precedence', () => {
     expect(resolveComposition(undefined, undefined)).toEqual(SYSTEM_DEFAULT_COMPOSITION);
   });
 
+  it('does not return the system default constraints array by reference', () => {
+    const out = resolveComposition(undefined, undefined);
+    expect(out.constraints).toEqual(SYSTEM_DEFAULT_COMPOSITION.constraints);
+    expect(out.constraints).not.toBe(SYSTEM_DEFAULT_COMPOSITION.constraints);
+  });
+
   it('workspace default overrides system default', () => {
     const out = resolveComposition(undefined, {
       textStrategy: 'baked',

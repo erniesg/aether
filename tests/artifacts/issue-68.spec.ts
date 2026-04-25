@@ -27,12 +27,7 @@ import { expect, test } from '@playwright/test';
 const TARGET_PROMPT = 'sunset cityscape, cinematic';
 
 test.describe('T10 · artifact capture — visual-only composition', () => {
-  test('request payload includes composition.textStrategy="none"', async ({ request }) => {
-    // The local preview deploy at least exposes the providers listing; use it
-    // to confirm the endpoint is reachable before asserting request shape.
-    const probe = await request.get('/api/generate').catch(() => null);
-    test.skip(probe === null || !probe.ok(), 'preview deploy is not responding on /api/generate');
-
+  test('captures composition request and response evidence', async ({ request }, testInfo) => {
     const payload = {
       prompt: TARGET_PROMPT,
       targets: [{ id: 'canvas', label: 'Canvas', aspectRatio: '1:1' }],
@@ -40,26 +35,44 @@ test.describe('T10 · artifact capture — visual-only composition', () => {
       bypassAgent: true,
     };
 
+    await testInfo.attach('issue-68-composition-request.json', {
+      contentType: 'application/json',
+      body: JSON.stringify(payload, null, 2),
+    });
+
     const res = await request.post('/api/generate', { data: payload });
-    // We don't assert 200 here — a preview deploy without any adapter key
-    // will legitimately 503. The interesting signal is that the server does
-    // not reject the `composition` field as unknown.
+    const responseBody = await res.text();
+    await testInfo.attach('issue-68-composition-response.txt', {
+      contentType: 'text/plain',
+      body: `status=${res.status()}\n${responseBody}`,
+    });
+
+    // A preview deploy without any adapter key will legitimately 503. The
+    // important artifact signal is that the request is accepted by the
+    // generate gateway and the composition field is not rejected as unknown.
     if (res.status() === 400) {
-      const body = await res.text();
-      expect(body, 'composition should be an accepted request field').not.toMatch(/composition/i);
+      expect(responseBody, 'composition should be an accepted request field').not.toMatch(/composition/i);
     }
+    expect([200, 503]).toContain(res.status());
   });
 
-  test('composition is optional — baseline request still works', async ({ request }) => {
-    const probe = await request.get('/api/generate').catch(() => null);
-    test.skip(probe === null || !probe.ok(), 'preview deploy is not responding on /api/generate');
-
+  test('captures baseline request without composition', async ({ request }, testInfo) => {
+    const payload = {
+      prompt: TARGET_PROMPT,
+      targets: [{ id: 'canvas', label: 'Canvas', aspectRatio: '1:1' }],
+      bypassAgent: true,
+    };
+    await testInfo.attach('issue-68-baseline-request.json', {
+      contentType: 'application/json',
+      body: JSON.stringify(payload, null, 2),
+    });
     const res = await request.post('/api/generate', {
-      data: {
-        prompt: TARGET_PROMPT,
-        targets: [{ id: 'canvas', label: 'Canvas', aspectRatio: '1:1' }],
-        bypassAgent: true,
-      },
+      data: payload,
+    });
+    const responseBody = await res.text();
+    await testInfo.attach('issue-68-baseline-response.txt', {
+      contentType: 'text/plain',
+      body: `status=${res.status()}\n${responseBody}`,
     });
     expect([200, 503]).toContain(res.status());
   });

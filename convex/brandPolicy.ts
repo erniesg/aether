@@ -34,7 +34,18 @@ interface BrandPolicyDoc {
   updatedAt: number;
 }
 
-function toRecord(doc: BrandPolicyDoc) {
+type BrandPolicyDb = {
+  query(table: string): {
+    withIndex(
+      index: string,
+      fn: (q: { eq(field: string, value: unknown): unknown }) => unknown
+    ): { unique(): Promise<BrandPolicyDoc | null> };
+  };
+  insert(table: string, doc: Omit<BrandPolicyDoc, '_id'>): Promise<unknown>;
+  patch(id: unknown, patch: Partial<BrandPolicyDoc>): Promise<unknown>;
+};
+
+export function toBrandPolicyRecord(doc: BrandPolicyDoc) {
   return {
     id: String(doc._id),
     wsId: String(doc.wsId),
@@ -43,14 +54,45 @@ function toRecord(doc: BrandPolicyDoc) {
   };
 }
 
+export async function getBrandPolicyRecord(db: BrandPolicyDb, wsId: unknown) {
+  const doc = await db
+    .query('brandPolicy')
+    .withIndex('by_wsId', (q) => q.eq('wsId', wsId))
+    .unique();
+  return doc ? toBrandPolicyRecord(doc) : null;
+}
+
+export async function setBrandPolicyDefaultComposition(
+  db: BrandPolicyDb,
+  wsId: unknown,
+  composition: BrandPolicyDoc['defaultComposition'],
+  now = Date.now()
+) {
+  const existing = await db
+    .query('brandPolicy')
+    .withIndex('by_wsId', (q) => q.eq('wsId', wsId))
+    .unique();
+
+  if (existing) {
+    await db.patch(existing._id, {
+      defaultComposition: composition,
+      updatedAt: now,
+    });
+    return String(existing._id);
+  }
+
+  const id = await db.insert('brandPolicy', {
+    wsId,
+    defaultComposition: composition,
+    updatedAt: now,
+  });
+  return String(id);
+}
+
 export const getBrandPolicy = queryGeneric({
   args: { wsId: v.id('workspace') },
   handler: async (ctx, args) => {
-    const doc = (await ctx.db
-      .query('brandPolicy')
-      .withIndex('by_wsId', (q: any) => q.eq('wsId', args.wsId))
-      .unique()) as BrandPolicyDoc | null;
-    return doc ? toRecord(doc) : null;
+    return getBrandPolicyRecord(ctx.db as unknown as BrandPolicyDb, args.wsId);
   },
 });
 
@@ -60,23 +102,10 @@ export const setDefaultComposition = mutationGeneric({
     composition: COMPOSITION_VALIDATOR,
   },
   handler: async (ctx, args) => {
-    const existing = (await ctx.db
-      .query('brandPolicy')
-      .withIndex('by_wsId', (q: any) => q.eq('wsId', args.wsId))
-      .unique()) as BrandPolicyDoc | null;
-    const now = Date.now();
-    if (existing) {
-      await ctx.db.patch(existing._id as any, {
-        defaultComposition: args.composition,
-        updatedAt: now,
-      });
-      return String(existing._id);
-    }
-    const id = await ctx.db.insert('brandPolicy', {
-      wsId: args.wsId,
-      defaultComposition: args.composition,
-      updatedAt: now,
-    });
-    return String(id);
+    return setBrandPolicyDefaultComposition(
+      ctx.db as unknown as BrandPolicyDb,
+      args.wsId,
+      args.composition
+    );
   },
 });
