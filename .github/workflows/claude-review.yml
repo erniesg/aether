@@ -10,19 +10,16 @@ name: claude-review
 #   2. The head-branch guard + explicit prompt keep the reviewer from
 #      reviewing its own review comments.
 #
-# Output contract: the reviewer comment MUST end with one of:
-#   VERDICT: APPROVE
-#   VERDICT: REQUEST_CHANGES
-#   VERDICT: BLOCK
+# Output contract: the reviewer structured output MUST include a `verdict`
+# field set to one of APPROVE, REQUEST_CHANGES, or BLOCK.
 #
-# The `route-verdict` job reads the latest claude[bot] comment on the PR and
-# dispatches labels + Discord notification. See `lib/review/parseVerdict.ts`
-# for the verdict parser that the shell step defers to.
+# The `route-verdict` job reads the structured output, posts the PR comment,
+# and dispatches labels + Discord notification. It still falls back to parsing
+# an existing bot comment for older/manual runs.
 #
-# PROPOSED — Ernie to move from .github/workflows-proposed/ to .github/workflows/.
-# The GitHub App that authors agent PRs cannot modify workflow files; this
-# path keeps the YAML reviewable in the same PR while landing it requires a
-# human commit (or a `gh pr merge --admin`).
+# Active reviewer workflow. The GitHub App that authors agent PRs cannot
+# safely self-modify this file; changes here should land through human/Codex
+# review rather than author-agent branches.
 
 on:
   pull_request:
@@ -71,13 +68,13 @@ jobs:
             when it should be integration, any hardcoded provider, any UI
             mixing taxonomy categories.
 
-            Post ONE PR comment using the GitHub tools. The comment must
-            end with EXACTLY one of these lines (no markdown emphasis, no
-            trailing whitespace):
+            Return structured output only. Do not try to post a PR comment
+            yourself; the routing step will post the review comment from your
+            structured output. The `verdict` field must be exactly one of
+            `APPROVE`, `REQUEST_CHANGES`, or `BLOCK`.
 
-              VERDICT: APPROVE
-              VERDICT: REQUEST_CHANGES
-              VERDICT: BLOCK
+            Put the human-readable review in the `body` field. The router will
+            append the final VERDICT line.
 
             - APPROVE: all acceptance criteria met, tests green, no hard-rule
               violations.
@@ -88,6 +85,7 @@ jobs:
           claude_args: |
             --max-turns 120
             --model claude-opus-4-7
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","BLOCK"]},"body":{"type":"string","description":"Human-readable PR review summary and findings. Do not include the final VERDICT line."}},"required":["verdict","body"],"additionalProperties":false}'
 
       - name: Route verdict
         if: always()
@@ -95,6 +93,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          REVIEWER_STRUCTURED_OUTPUT: ${{ steps.reviewer.outputs.structured_output }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Post-review router for the reviewer agent (issue #55).
 //
-// Invoked by .github/workflows-proposed/claude-review.yml after the reviewer
-// agent posts its PR comment. Reads the latest claude[bot] comment, parses
-// the VERDICT line, and routes:
+// Invoked by .github/workflows/claude-review.yml after the reviewer agent runs.
+// Prefer the action's structured output, post the PR comment ourselves, and
+// route from that verdict. Fall back to parsing the latest bot VERDICT comment
+// for older/manual runs.
 //
 //   APPROVE         → add `ready-for-ernie` label to PR, fire Discord ping.
 //   REQUEST_CHANGES → re-add `claude-run` label to the source issue.
@@ -18,9 +19,16 @@ import { execFileSync } from 'node:child_process';
 
 const PR_NUMBER = process.env.PR_NUMBER;
 const PR_HEAD_REF = process.env.PR_HEAD_REF ?? '';
+const REPO = process.env.GITHUB_REPOSITORY;
+const REVIEWER_STRUCTURED_OUTPUT = process.env.REVIEWER_STRUCTURED_OUTPUT ?? '';
 
 if (!PR_NUMBER) {
   console.error('PR_NUMBER env var is required');
+  process.exit(1);
+}
+
+if (!REPO) {
+  console.error('GITHUB_REPOSITORY env var is required');
   process.exit(1);
 }
 
@@ -42,6 +50,43 @@ function parseVerdict(body) {
     last = m[1];
   }
   return last;
+}
+
+const REVIEW_VERDICTS = new Set(['APPROVE', 'REQUEST_CHANGES', 'BLOCK']);
+
+function parseStructuredReview(raw) {
+  if (!raw || !raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const verdict = parsed?.verdict;
+    if (!REVIEW_VERDICTS.has(verdict)) {
+      console.warn(`structured output had invalid verdict: ${String(verdict)}`);
+      return null;
+    }
+    return {
+      verdict,
+      body: typeof parsed.body === 'string' ? parsed.body : '',
+    };
+  } catch (err) {
+    console.warn(`could not parse reviewer structured output: ${err.message}`);
+    return null;
+  }
+}
+
+function stripVerdictLines(body) {
+  return (body ?? '')
+    .split('\n')
+    .filter((line) => parseVerdict(line) === null)
+    .join('\n')
+    .trim();
+}
+
+function formatReviewComment(review) {
+  const body = stripVerdictLines(review.body);
+  const summary =
+    body ||
+    'Reviewer agent returned a structured verdict without a written summary.';
+  return `${summary}\n\nVERDICT: ${review.verdict}`;
 }
 
 function extractIssueNumberFromBranch(ref) {
@@ -69,26 +114,38 @@ function findLatestReviewerComment(comments) {
 }
 
 function addLabels(target, labels) {
-  // target: { type: 'pr' | 'issue', number }
-  const kind = target.type === 'pr' ? 'pr' : 'issue';
+  // Pull requests use the Issues labels REST API too. Avoid `gh pr edit`
+  // here; it currently touches deprecated Projects classic GraphQL fields.
   for (const label of labels) {
     try {
-      gh([kind, 'edit', String(target.number), '--add-label', label]);
-      console.log(`added label \`${label}\` to ${kind} #${target.number}`);
+      gh([
+        'api',
+        `repos/${REPO}/issues/${target.number}/labels`,
+        '-X',
+        'POST',
+        '-f',
+        `labels[]=${label}`,
+      ]);
+      console.log(`added label \`${label}\` to ${target.type} #${target.number}`);
     } catch (err) {
-      console.error(`failed to add label ${label} to ${kind} #${target.number}: ${err.message}`);
+      console.error(`failed to add label ${label} to ${target.type} #${target.number}: ${err.message}`);
     }
   }
 }
 
 function removeLabel(target, label) {
-  const kind = target.type === 'pr' ? 'pr' : 'issue';
   try {
-    gh([kind, 'edit', String(target.number), '--remove-label', label]);
-    console.log(`removed label \`${label}\` from ${kind} #${target.number}`);
+    gh([
+      'api',
+      `repos/${REPO}/issues/${target.number}/labels/${encodeURIComponent(label)}`,
+      '-X',
+      'DELETE',
+      '--silent',
+    ]);
+    console.log(`removed label \`${label}\` from ${target.type} #${target.number}`);
   } catch (err) {
     // Label may not have been present; non-fatal.
-    console.warn(`could not remove label ${label} from ${kind} #${target.number}: ${err.message}`);
+    console.warn(`could not remove label ${label} from ${target.type} #${target.number}: ${err.message}`);
   }
 }
 
@@ -175,8 +232,16 @@ async function main() {
     { parseJson: true }
   );
 
+  const structuredReview = parseStructuredReview(REVIEWER_STRUCTURED_OUTPUT);
   const reviewerComment = findLatestReviewerComment(comments);
-  const verdict = reviewerComment ? parseVerdict(reviewerComment.body) : null;
+  let verdict = reviewerComment ? parseVerdict(reviewerComment.body) : null;
+
+  if (structuredReview) {
+    const body = formatReviewComment(structuredReview);
+    gh(['pr', 'comment', PR_NUMBER, '--body', body]);
+    console.log('posted reviewer comment from structured output');
+    verdict = structuredReview.verdict;
+  }
 
   const issueNumber =
     extractIssueNumberFromBranch(PR_HEAD_REF || pr.headRefName) ??
@@ -202,6 +267,7 @@ async function main() {
 
   if (verdict === 'APPROVE') {
     addLabels(prTarget, ['ready-for-ernie']);
+    removeLabel(prTarget, 'route-human');
     await sendDiscordEmbed({
       color: COLOR_APPROVE,
       title: `aether · reviewer APPROVED · ${pr.title}`,
