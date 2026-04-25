@@ -1,5 +1,6 @@
 import { mutationGeneric, queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
+import type { ArtifactKind } from '@/lib/tool/registry';
 
 // Capability-run persistence. Shape mirrors lib/store/runs CapabilityRunRecord
 // so the client wrapper can pass Convex documents through untouched.
@@ -22,6 +23,14 @@ const STEP_VALIDATOR = v.union(
 
 const STATUS_VALIDATOR = v.union(v.literal('running'), v.literal('ok'), v.literal('error'));
 
+const ARTIFACT_KIND_VALIDATOR = v.union(
+  v.literal('image'),
+  v.literal('video'),
+  v.literal('audio'),
+  v.literal('spatial'),
+  v.literal('text-overlay')
+);
+
 interface RunDoc {
   _id: unknown;
   clientRunId: string;
@@ -32,7 +41,7 @@ interface RunDoc {
     id: string;
     version: number;
   };
-  artifactKind?: 'image' | 'spatial';
+  artifactKind?: ArtifactKind;
   outputFormat?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
   sourceMode?: 'selected-image';
@@ -118,7 +127,7 @@ export const start = mutationGeneric({
         version: v.number(),
       })
     ),
-    artifactKind: v.optional(v.union(v.literal('image'), v.literal('spatial'))),
+    artifactKind: v.optional(ARTIFACT_KIND_VALIDATOR),
     outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
     quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
     sourceMode: v.optional(v.literal('selected-image')),
