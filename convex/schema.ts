@@ -288,7 +288,9 @@ export default defineSchema({
         version: v.number(),
       })
     ),
-    artifactKind: v.optional(v.union(v.literal('image'), v.literal('spatial'))),
+    artifactKind: v.optional(
+      v.union(v.literal('image'), v.literal('spatial'), v.literal('video'))
+    ),
     outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
     quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
     sourceMode: v.optional(v.literal('selected-image')),
@@ -320,6 +322,8 @@ export default defineSchema({
     httpStatus: v.optional(v.number()),
     inputs: v.any(),
     outputs: v.any(),
+    outputRefs: v.optional(v.array(v.string())),
+    scope: v.optional(v.string()),
     beforeSnapshotRef: v.optional(v.string()),
     afterSnapshotRef: v.optional(v.string()),
     startedAt: v.number(),
