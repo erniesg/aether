@@ -20,6 +20,7 @@ import {
 import { genReferenceId } from '@/lib/providers/reference/og';
 import type { ReferenceKind, ReferenceRecord } from '@/lib/providers/reference/types';
 import { cn } from '@/lib/utils/cn';
+import { MAX_REF_BYTES, formatRefSizeError } from '@/lib/refs/limits';
 
 /**
  * Images sub-tab of the References rail section. Drop zone that accepts:
@@ -38,7 +39,6 @@ type ZoneStatus =
   | { kind: 'notice'; message: string };
 
 const URL_RE = /^https?:\/\/\S+$/i;
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 export function ReferencesImagesTab({ workspaceId }: { workspaceId?: string }) {
   const records = useReferences(workspaceId).filter(
@@ -84,8 +84,8 @@ export function ReferencesImagesTab({ workspaceId }: { workspaceId?: string }) {
       setStatus({ kind: 'error', message: `${file.name} is not an image` });
       return;
     }
-    if (file.size > MAX_FILE_BYTES) {
-      setStatus({ kind: 'error', message: `${file.name} exceeds 8 MB` });
+    if (file.size > MAX_REF_BYTES) {
+      setStatus({ kind: 'error', message: formatRefSizeError(file) });
       return;
     }
     try {
