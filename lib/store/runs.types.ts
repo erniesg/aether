@@ -1,7 +1,7 @@
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
 import type { ArtifactKind } from '@/lib/tool/registry';
 
-export type RunStatus = 'running' | 'ok' | 'error';
+export type RunStatus = 'running' | 'ok' | 'error' | 'draft-executor';
 
 export type RunStep =
   | 'prepared'

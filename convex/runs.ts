@@ -57,7 +57,7 @@ interface RunDoc {
   imageUrl?: string;
   latencyMs?: number;
   outputs?: unknown;
-  status: 'running' | 'ok' | 'error';
+  status: 'running' | 'ok' | 'error' | 'draft-executor';
   startedAt: number;
   finishedAt?: number;
   error?: string;
