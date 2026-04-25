@@ -204,4 +204,78 @@ describe('/api/voice/session', () => {
     );
     expect(JSON.stringify(json)).not.toContain('gk-test');
   });
+
+  // ── workspace-pref override tests ──────────────────────────────────────────
+
+  it('workspace pref overrides env: gemini-live pref wins over openai-realtime env', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-pref-test';
+
+    const issueGeminiTokenImpl = vi.fn(async () => ({
+      name: 'tokens/pref_override_123',
+      expireTime: new Date(Date.now() + 60_000).toISOString(),
+    }));
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({
+      provider: 'gemini-live',
+      issueGeminiTokenImpl,
+    });
+
+    expect(session.provider).toBe('gemini-live');
+    expect(session.clientSecret).toBe('tokens/pref_override_123');
+  });
+
+  it('workspace pref overrides env: openai-realtime pref wins over gemini-live env', async () => {
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.OPENAI_API_KEY = 'sk-pref-override';
+
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          id: 'sess_pref',
+          client_secret: { value: 'ek_pref_override', expires_at: Math.floor(Date.now() / 1000) + 60 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    ) as unknown as typeof fetch;
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({
+      provider: 'openai-realtime',
+      fetchImpl,
+    });
+
+    expect(session.provider).toBe('openai-realtime');
+    expect(session.clientSecret).toBe('ek_pref_override');
+  });
+
+  it('workspace pref model flows through to gemini token request', async () => {
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-model-pref';
+    // env model is different from what pref specifies
+    process.env.GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+
+    const issueGeminiTokenImpl = vi.fn(async (params: {
+      apiKey: string;
+      model: string;
+      voice: string;
+    }) => {
+      // pref-specified model wins over env model
+      expect(params.model).toBe('gemini-live-2.5-flash-native-audio');
+      return {
+        name: 'tokens/model_pref_token',
+        expireTime: new Date(Date.now() + 60_000).toISOString(),
+      };
+    });
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({
+      provider: 'gemini-live',
+      model: 'gemini-live-2.5-flash-native-audio',
+      issueGeminiTokenImpl,
+    });
+
+    expect(session.model).toBe('gemini-live-2.5-flash-native-audio');
+  });
 });

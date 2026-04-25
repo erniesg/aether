@@ -17,6 +17,12 @@ import type { ToolbarVerb } from '@/components/canvas/FloatingToolbar';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
 import { PublishPreview } from '@/components/workspace/PublishPreview';
+import { SettingsPopover } from '@/components/workspace/SettingsPopover';
+import {
+  useWorkspaceProviderPrefs,
+  useSaveWorkspaceProviderPrefs,
+} from '@/lib/providers/prefs-store';
+import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
 import { useScheduledPosts, getPreviewPublisher } from '@/lib/publisher/store';
 import { useReferences } from '@/lib/references/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
@@ -269,6 +275,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const runs = useRuns();
   const references = useReferences(wsId);
   const creatorContext = useCreatorContext(wsId);
+  const providerPrefs = useWorkspaceProviderPrefs(wsId);
+  const saveProviderPrefs = useSaveWorkspaceProviderPrefs();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
@@ -1453,8 +1461,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         </div>
         <div
           className="flex items-center justify-end gap-2"
-          data-taxonomy="metadata"
+          data-taxonomy="navigation"
         >
+          <SettingsPopover
+            prefs={providerPrefs ?? ({} as WorkspaceProviderPrefs)}
+            onSave={(next) => saveProviderPrefs(wsId, next)}
+          />
           <Chip tone="neutral" size="sm">
             scaffold
           </Chip>
