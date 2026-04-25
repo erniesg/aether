@@ -6,6 +6,7 @@ import {
   describeWorkspaceMode,
   type BrandContext,
 } from '@/lib/context/model';
+import { normalizeHttpUrlInput } from '@/lib/url/normalize';
 import type {
   BrandIngestKind,
   BrandIngestRequest,
@@ -66,7 +67,7 @@ async function defaultIngest(req: BrandIngestRequest) {
 }
 
 function classifyInput(raw: string): BrandIngestKind | null {
-  const trimmed = raw.trim();
+  const trimmed = normalizeHttpUrlInput(raw);
   if (!trimmed) return null;
   if (/^https?:\/\/github\.com\//i.test(trimmed)) return 'repo';
   if (/^https?:\/\//i.test(trimmed)) return 'url';
@@ -86,7 +87,7 @@ function BrandDropZone({
   const submit = () => {
     const kind = classifyInput(value);
     if (!kind) return;
-    onSubmit({ kind, source: value.trim() });
+    onSubmit({ kind, source: normalizeHttpUrlInput(value) });
   };
 
   const onFiles = async (files: FileList | null) => {

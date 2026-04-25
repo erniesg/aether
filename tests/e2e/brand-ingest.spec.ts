@@ -70,6 +70,42 @@ test.describe('D1 — brand auto-ingest', () => {
     await expect(flyout.locator('[data-testid="brand-review-banner"]')).toHaveCount(0);
   });
 
+  test('bare-domain brand source enables ingest and normalizes to https', async ({
+    page,
+  }) => {
+    await page.route('**/api/brand-ingest', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      expect(body.kind).toBe('url');
+      expect(body.source).toBe('https://tong.berlayar.ai');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...SNAPSHOT_FIXTURE,
+          snapshot: {
+            ...SNAPSHOT_FIXTURE.snapshot,
+            voice: { samples: ['Tong — Learn CJK by living in them'] },
+            source: { kind: 'url', url: 'https://tong.berlayar.ai' },
+          },
+        }),
+      });
+    });
+
+    await page.goto('/workspace/demo-ws');
+    await page.locator('[data-rail-section="brand"]').click();
+
+    const flyout = page.locator('[data-rail-flyout="brand"]');
+    await expect(flyout).toBeVisible();
+    await flyout.getByLabel('brand source').fill('tong.berlayar.ai');
+    await expect(flyout.getByRole('button', { name: /ingest/i })).toBeEnabled();
+    await flyout.getByRole('button', { name: /ingest/i }).click();
+
+    await expect(
+      flyout.getByText('“Tong — Learn CJK by living in them”')
+    ).toBeVisible();
+  });
+
   test('low-confidence ingests surface a review banner instead of silently overwriting', async ({
     page,
   }) => {

@@ -72,6 +72,39 @@ describe('BrandSection · drop zone', () => {
     });
   });
 
+  it('accepts bare domains in the creator-facing source field', async () => {
+    const ingest = vi.fn(async () => ({ snapshot: HIGH_CONF_SNAPSHOT, review: false }));
+    render(<BrandSection ingest={ingest} />);
+
+    const input = screen.getByLabelText(/brand source/i);
+    const submit = screen.getByRole('button', { name: /ingest/i });
+
+    await userEvent.type(input, 'tong.berlayar.ai');
+    expect(submit).not.toBeDisabled();
+    await userEvent.click(submit);
+
+    expect(ingest).toHaveBeenCalledWith({
+      kind: 'url',
+      source: 'https://tong.berlayar.ai',
+    });
+  });
+
+  it('accepts bare github.com URLs as repo ingest', async () => {
+    const ingest = vi.fn(async () => ({ snapshot: HIGH_CONF_SNAPSHOT, review: false }));
+    render(<BrandSection ingest={ingest} />);
+
+    await userEvent.type(
+      screen.getByLabelText(/brand source/i),
+      'github.com/solstice/solstice-launch-kit'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /ingest/i }));
+
+    expect(ingest).toHaveBeenCalledWith({
+      kind: 'repo',
+      source: 'https://github.com/solstice/solstice-launch-kit',
+    });
+  });
+
   it('surfaces a review banner when the ingest returns review=true', async () => {
     const ingest = vi.fn(async () => ({ snapshot: LOW_CONF_SNAPSHOT, review: true }));
     render(<BrandSection ingest={ingest} />);
