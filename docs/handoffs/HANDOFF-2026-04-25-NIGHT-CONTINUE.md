@@ -2,7 +2,7 @@
 
 **Stg:** `https://aether-stg.berlayar.ai/workspace/demo-ws` — live as of `Current Version ID: 77491879-3df3-409a-be01-630bbceb3dbb`. Reflects every commit on `fix/convex-imageurl-sanitize` through `bc49d53`.
 
-**You are picking up cold.** Read this entire doc + `AGENTS.md` + `CLAUDE.md` + `docs/handoffs/HANDOFF-2026-04-25-CONTINUE.md` (the original baton) before touching anything. The user is **Ernie** (she/her, hello@ernie.sg). She is mid-test, frustrated, and has minimal patience for "API-responds, UX unverified" claims. **Always show evidence before claiming done — screenshots, curl output, test runs. Never declare a fix landed without re-loading stg in a real browser.**
+**You are picking up cold.** Read this entire doc + `AGENTS.md` + `CLAUDE.md` + `docs/handoffs/HANDOFF-2026-04-25-CONTINUE.md` (the original baton) before touching anything. The user is **Ernie** (she/her). She is mid-test, frustrated, and has minimal patience for "API-responds, UX unverified" claims. **Always show evidence before claiming done — screenshots, curl output, test runs. Never declare a fix landed without re-loading stg in a real browser.**
 
 ---
 

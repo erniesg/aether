@@ -4,7 +4,7 @@ The previous agent (me) has been patching symptoms instead of finding root cause
 
 ## The user
 
-**Ernie** (hello@ernie.sg). Hackathon-mode, exhausted, minimal patience for "API responds, UX unverified" claims. Specifically called out:
+**Ernie**. Hackathon-mode, exhausted, minimal patience for "API responds, UX unverified" claims. Specifically called out:
 
 - "test locally first then the staging site"
 - "validate your own work before calling it done"
