@@ -512,6 +512,95 @@ describe('AirBrushOverlay', () => {
     expect(landmarkContext.arc).toHaveBeenCalled();
   });
 
+  it('lets blind signature mode draw with a raised index without requiring pinch', async () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      {
+        clearRect: vi.fn(),
+        setTransform: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+      } as unknown as CanvasRenderingContext2D
+    );
+
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+    const onPoint = vi.fn();
+    let frameIndex = 0;
+    const detectForVideo = vi.fn(() => {
+      frameIndex += 1;
+      return {
+        landmarks: [
+          trackedHand({
+            4: { x: 0.54, y: 0.74 },
+            8: frameIndex <= 2 ? { x: 0.25, y: 0.4 } : { x: 0.16, y: 0.35 },
+          }),
+        ],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      };
+    });
+
+    render(
+      <AirBrushOverlay
+        active
+        mode="blind_signature"
+        targetText="陈恩娇"
+        onPoint={onPoint}
+        createHandLandmarker={async () => ({
+          detectForVideo,
+          close: vi.fn(),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(100);
+    });
+    expect(onPoint).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(116);
+    });
+    expect(onPoint).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(132);
+    });
+
+    await waitFor(() => {
+      expect(onPoint).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x: 0.75,
+          y: 0.4,
+          state: 'start',
+          source: 'camera',
+          intent: 'draw',
+        })
+      );
+    });
+  });
+
   it('uses the left index finger as the erase stream when both hands are visible', async () => {
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

@@ -104,6 +104,7 @@ export interface TranslateHandLandmarksInput {
   smoothing?: number;
   deadZone?: number;
   requirePinch?: boolean;
+  rejectOpenPalm?: boolean;
   pinchRatio?: number;
 }
 
@@ -184,6 +185,7 @@ export type AirBrushRejectionReason =
   | 'tip-missing'
   | 'palm-too-small'
   | 'index-too-close'
+  | 'open-palm-reset'
   | 'pinch-open';
 
 export interface AirBrushLandmarkMetrics {
@@ -330,6 +332,7 @@ export function evaluateMediaPipeHandLandmarks({
   smoothing = DEFAULT_SMOOTHING,
   deadZone = DEFAULT_DEAD_ZONE,
   requirePinch = false,
+  rejectOpenPalm = false,
   pinchRatio = DEFAULT_PINCH_RATIO,
 }: TranslateHandLandmarksInput): AirBrushLandmarkEvaluation {
   const endPoint = activeStroke ? endCameraStroke(previousPoint) : null;
@@ -389,6 +392,17 @@ export function evaluateMediaPipeHandLandmarks({
         requiredReach: gate.requiredReach,
       });
     }
+  }
+
+  if (rejectOpenPalm && detectOpenPalm(hand, { minHandSpan }).detected) {
+    return reject('open-palm-reset', {
+      handIndex,
+      handedness,
+      score,
+      palmSpan: gatePalmSpan,
+      indexReach: gateIndexReach,
+      requiredReach: gateRequiredReach,
+    });
   }
 
   if (requirePinch) {

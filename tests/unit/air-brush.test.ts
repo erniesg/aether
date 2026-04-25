@@ -381,6 +381,66 @@ describe('air brush input helpers', () => {
     });
   });
 
+  it('can treat open palm as a reset while still accepting a raised index', () => {
+    const raisedIndex = evaluateMediaPipeHandLandmarks({
+      frame: {
+        landmarks: [pointingHand()],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      },
+      activeStroke: false,
+      preferredHand: 'Right',
+      intent: 'draw',
+      requirePinch: false,
+      rejectOpenPalm: true,
+    });
+    expect(raisedIndex.accepted).toBe(true);
+    expect(raisedIndex.point).toMatchObject({
+      state: 'start',
+      source: 'camera',
+      intent: 'draw',
+    });
+
+    const openPalm = Array.from({ length: 21 }, () => ({
+      x: 0.5,
+      y: 0.5,
+      z: 0,
+      visibility: 0.95,
+    }));
+    openPalm[0] = { x: 0.5, y: 0.85, z: 0, visibility: 0.95 };
+    openPalm[5] = { x: 0.44, y: 0.6, z: 0, visibility: 0.95 };
+    openPalm[17] = { x: 0.62, y: 0.62, z: 0, visibility: 0.95 };
+    openPalm[4] = { x: 0.32, y: 0.5, z: 0, visibility: 0.95 };
+    openPalm[8] = { x: 0.42, y: 0.32, z: 0, visibility: 0.95 };
+    openPalm[12] = { x: 0.52, y: 0.3, z: 0, visibility: 0.95 };
+    openPalm[16] = { x: 0.6, y: 0.32, z: 0, visibility: 0.95 };
+    openPalm[20] = { x: 0.68, y: 0.38, z: 0, visibility: 0.95 };
+
+    const previousPoint = {
+      x: 0.58,
+      y: 0.44,
+      pressure: 0.7,
+      state: 'move' as const,
+      source: 'camera' as const,
+      intent: 'draw' as const,
+    };
+    const reset = evaluateMediaPipeHandLandmarks({
+      frame: {
+        landmarks: [openPalm],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      },
+      previousPoint,
+      activeStroke: true,
+      preferredHand: 'Right',
+      intent: 'draw',
+      requirePinch: false,
+      rejectOpenPalm: true,
+    });
+
+    expect(reset.accepted).toBe(false);
+    expect(reset.reason).toBe('open-palm-reset');
+    expect(reset.point).toEqual({ ...previousPoint, state: 'end' });
+  });
+
   it('ends the active stroke when the pinch opens mid-stroke', () => {
     const previousPoint = {
       x: 0.75,

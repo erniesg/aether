@@ -134,6 +134,7 @@ const REJECTION_REASON_PRIORITY: Record<AirBrushRejectionReason, number> = {
   'palm-too-small': 4,
   'tip-missing': 3,
   'handedness-low': 2,
+  'open-palm-reset': 1,
   'pinch-open': 1,
   'no-hand': 0,
   'handedness-mismatch': -1,
@@ -168,6 +169,8 @@ function formatRejectionReason(reason: AirBrushRejectionReason): string {
       return 'move closer';
     case 'index-too-close':
       return 'extend index';
+    case 'open-palm-reset':
+      return 'raise index';
     case 'pinch-open':
       return 'pinch thumb + index';
   }
@@ -909,13 +912,15 @@ export function AirBrushOverlay({
 
         const landmarksCount = frame?.landmarks?.length ?? 0;
         const activeIntent = activeCameraIntentRef.current;
-        const eraseEval = eraseHand
+        const raisedIndexInk = mode === 'blind_signature';
+        const activeEraseHand = raisedIndexInk ? null : eraseHand;
+        const eraseEval = activeEraseHand
           ? evaluateMediaPipeHandLandmarks({
               frame,
               previousPoint:
                 activeIntent === 'erase' ? lastCameraPointRef.current : null,
               activeStroke: activeIntent === 'erase',
-              preferredHand: eraseHand,
+              preferredHand: activeEraseHand,
               intent: 'erase',
               requirePinch: true,
             })
@@ -927,7 +932,8 @@ export function AirBrushOverlay({
           activeStroke: activeIntent === 'draw',
           preferredHand: drawHand,
           intent: 'draw',
-          requirePinch: true,
+          requirePinch: !raisedIndexInk,
+          rejectOpenPalm: raisedIndexInk,
         });
         const erasePoint = eraseEval.point;
         const drawPoint = drawEval.point;
