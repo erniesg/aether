@@ -26,6 +26,15 @@ export type VoiceBrushColor =
 
 export type SketchBrushSize = 'small' | 'medium' | 'large';
 export type VoiceBrushSizeDelta = 'thinner' | 'thicker';
+export type VoiceBrushStyleSize =
+  | SketchBrushSize
+  | 'thin'
+  | 'thick'
+  | 'thinner'
+  | 'thicker'
+  | 'smaller'
+  | 'bigger'
+  | 'larger';
 
 export interface SketchBrushState {
   tool: PrimitiveTool;
@@ -62,6 +71,19 @@ export const VOICE_BRUSH_SIZES: ReadonlyArray<SketchBrushSize> = [
   'small',
   'medium',
   'large',
+];
+
+export const VOICE_BRUSH_STYLE_SIZES: ReadonlyArray<VoiceBrushStyleSize> = [
+  'small',
+  'medium',
+  'large',
+  'thin',
+  'thick',
+  'thinner',
+  'thicker',
+  'smaller',
+  'bigger',
+  'larger',
 ];
 
 export function normalizeVoiceSelectableTool(tool: unknown): PrimitiveTool | null {
@@ -114,6 +136,30 @@ export function normalizeVoiceBrushSizeDelta(
     case 'thinner':
     case 'thicker':
       return delta;
+    default:
+      return null;
+  }
+}
+
+export function normalizeVoiceBrushStyleSize(
+  size: unknown
+): { size?: SketchBrushSize; delta?: VoiceBrushSizeDelta } | null {
+  switch (size) {
+    case 'small':
+    case 'medium':
+    case 'large':
+      return { size };
+    case 'thin':
+      return { size: 'small' };
+    case 'thick':
+      return { size: 'large' };
+    case 'thinner':
+    case 'smaller':
+      return { delta: 'thinner' };
+    case 'thicker':
+    case 'bigger':
+    case 'larger':
+      return { delta: 'thicker' };
     default:
       return null;
   }
@@ -176,5 +222,41 @@ export function mapSketchBrushSizeToTldraw(
       return 'm';
     case 'large':
       return 'l';
+  }
+}
+
+export function mapSketchBrushColorToCss(color: SketchBrushColor): string {
+  switch (color) {
+    case 'black':
+      return 'rgba(15, 23, 42, 0.94)';
+    case 'white':
+      return 'rgba(255, 255, 255, 0.94)';
+    case 'blue':
+      return 'rgba(37, 99, 235, 0.94)';
+    case 'red':
+      return 'rgba(220, 38, 38, 0.94)';
+    case 'yellow':
+      return 'rgba(234, 179, 8, 0.94)';
+    case 'green':
+      return 'rgba(22, 163, 74, 0.94)';
+    case 'orange':
+      return 'rgba(234, 88, 12, 0.94)';
+    case 'brand-primary':
+      return 'rgba(56, 189, 248, 0.94)';
+    case 'brand-accent':
+      return 'rgba(139, 92, 246, 0.94)';
+  }
+}
+
+export function mapSketchBrushSizeToLiveInkWidth(
+  size: SketchBrushSize
+): number {
+  switch (size) {
+    case 'small':
+      return 3;
+    case 'medium':
+      return 5;
+    case 'large':
+      return 8;
   }
 }

@@ -15,10 +15,12 @@ function mockDispatchers(): VoiceDispatchers & {
   const pan_zoom = vi.fn();
   const remove_background = vi.fn();
   const select_tool = vi.fn();
+  const set_brush_style = vi.fn();
   const set_brush_color = vi.fn();
   const set_brush_size = vi.fn();
   const adjust_brush_size = vi.fn();
   const clear_sketch = vi.fn();
+  const clear_canvas = vi.fn();
   const confirm_sketch = vi.fn();
   const start_air_brush = vi.fn();
   const end_air_brush = vi.fn();
@@ -29,10 +31,12 @@ function mockDispatchers(): VoiceDispatchers & {
     pan_zoom,
     remove_background,
     select_tool,
+    set_brush_style,
     set_brush_color,
     set_brush_size,
     adjust_brush_size,
     clear_sketch,
+    clear_canvas,
     confirm_sketch,
     start_air_brush,
     end_air_brush,
@@ -43,10 +47,12 @@ function mockDispatchers(): VoiceDispatchers & {
       pan_zoom,
       remove_background,
       select_tool,
+      set_brush_style,
       set_brush_color,
       set_brush_size,
       adjust_brush_size,
       clear_sketch,
+      clear_canvas,
       confirm_sketch,
       start_air_brush,
       end_air_brush,
@@ -63,10 +69,12 @@ describe('voice tools', () => {
       'pan_zoom',
       'remove_background',
       'select_tool',
+      'set_brush_style',
       'set_brush_color',
       'set_brush_size',
       'adjust_brush_size',
       'clear_sketch',
+      'clear_canvas',
       'confirm_sketch',
       'start_air_brush',
       'end_air_brush',
@@ -115,6 +123,36 @@ describe('voice tools', () => {
     });
   });
 
+  it('passes bounded brush style changes through the consolidated dispatcher', async () => {
+    const dispatchers = mockDispatchers();
+    await dispatchVoiceFunctionCall(
+      'set_brush_style',
+      { color: 'blue' },
+      dispatchers
+    );
+    await dispatchVoiceFunctionCall(
+      'set_brush_style',
+      { size: 'thinner' },
+      dispatchers
+    );
+    await dispatchVoiceFunctionCall(
+      'set_brush_style',
+      { color: 'black', size: 'thick' },
+      dispatchers
+    );
+
+    expect(dispatchers._mocks.set_brush_style).toHaveBeenNthCalledWith(1, {
+      color: 'blue',
+    });
+    expect(dispatchers._mocks.set_brush_style).toHaveBeenNthCalledWith(2, {
+      delta: 'thinner',
+    });
+    expect(dispatchers._mocks.set_brush_style).toHaveBeenNthCalledWith(3, {
+      color: 'black',
+      size: 'large',
+    });
+  });
+
   it('passes bounded brush color and size presets through their dedicated dispatchers', async () => {
     const dispatchers = mockDispatchers();
     await dispatchVoiceFunctionCall(
@@ -150,12 +188,14 @@ describe('voice tools', () => {
     });
   });
 
-  it('dispatches clear_sketch and confirm_sketch as nullary calls', async () => {
+  it('dispatches clear_sketch, clear_canvas, and confirm_sketch as nullary calls', async () => {
     const dispatchers = mockDispatchers();
     await dispatchVoiceFunctionCall('clear_sketch', {}, dispatchers);
+    await dispatchVoiceFunctionCall('clear_canvas', {}, dispatchers);
     await dispatchVoiceFunctionCall('confirm_sketch', {}, dispatchers);
 
     expect(dispatchers._mocks.clear_sketch).toHaveBeenCalledWith();
+    expect(dispatchers._mocks.clear_canvas).toHaveBeenCalledWith();
     expect(dispatchers._mocks.confirm_sketch).toHaveBeenCalledWith();
   });
 
@@ -247,6 +287,12 @@ describe('voice tools', () => {
     expect(
       await dispatchVoiceFunctionCall('run_generate', {}, dispatchers)
     ).toEqual({ ok: false, error: expect.stringContaining('prompt') });
+    expect(
+      await dispatchVoiceFunctionCall('set_brush_style', { color: 'pink' }, dispatchers)
+    ).toEqual({ ok: false, error: expect.stringContaining('bounded palette') });
+    expect(
+      await dispatchVoiceFunctionCall('set_brush_style', { size: 'huge' }, dispatchers)
+    ).toEqual({ ok: false, error: expect.stringContaining('thin, medium, thick') });
     expect(
       await dispatchVoiceFunctionCall('set_brush_color', { color: 'pink' }, dispatchers)
     ).toEqual({ ok: false, error: expect.stringContaining('palette color') });

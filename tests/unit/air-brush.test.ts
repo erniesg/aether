@@ -379,6 +379,26 @@ describe('air brush input helpers', () => {
       source: 'camera',
       intent: 'draw',
     });
+
+    const collapsedHand = Array.from({ length: 21 }, () => ({
+      x: 0.5,
+      y: 0.5,
+      z: 0,
+      visibility: 0.95,
+    }));
+    const tinyPalm = evaluateMediaPipeHandLandmarks({
+      frame: {
+        landmarks: [collapsedHand],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      },
+      activeStroke: false,
+      preferredHand: 'Right',
+      intent: 'draw',
+      requirePinch: true,
+      requireExtendedIndexFinger: false,
+    });
+    expect(tinyPalm.accepted).toBe(false);
+    expect(tinyPalm.reason).toBe('palm-too-small');
   });
 
   it('can treat open palm as a reset while still accepting a raised index', () => {

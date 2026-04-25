@@ -40,7 +40,7 @@ export function createAirBrushCalibrationProfile({
   samples,
   targetText,
   minJitterRadius = 0.006,
-  gain = targetText ? 1.65 : 1.35,
+  gain,
 }: CreateAirBrushCalibrationProfileInput): AirBrushCalibrationProfile {
   const usable = samples.filter(
     (point) => Number.isFinite(point.x) && Number.isFinite(point.y)
@@ -58,6 +58,11 @@ export function createAirBrushCalibrationProfile({
   const jitterRadius = Math.max(minJitterRadius, percentile(distances, 0.95));
   const deadZone = clamp(jitterRadius * 0.9, 0.005, 0.02);
   const minStrokeDistance = clamp(jitterRadius * 2.8, 0.018, 0.08);
+  const resolvedGain = clamp(
+    gain ?? (targetText ? 1.25 : 1.2),
+    0.75,
+    targetText ? 1.25 : 1.35
+  );
 
   return {
     targetText,
@@ -66,7 +71,7 @@ export function createAirBrushCalibrationProfile({
     deadZone,
     minStrokeDistance,
     minStrokeDurationMs: 90,
-    gain,
+    gain: resolvedGain,
     bounds: {
       minX: 0.08,
       maxX: 0.92,

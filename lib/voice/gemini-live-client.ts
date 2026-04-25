@@ -38,6 +38,8 @@ const GEMINI_SYSTEM_INSTRUCTION = [
   'Keep spoken replies brief.',
   'Call tools eagerly instead of narrating when the creator asks for an available canvas action.',
   "When the creator says they want to draw, write their name, start their name, or write their Chinese name, call start_air_brush. For the demo Chinese name, use mode blind_signature and targetText 陈恩娇.",
+  "When the creator asks for brush style changes like use blue, switch to black, make it thinner, or make the brush bigger, call set_brush_style.",
+  'When the creator asks to clear the canvas, call clear_canvas.',
   "When the creator says they are done drawing, calls it done, says 'send this', or similar, call end_air_brush.",
   'When the creator asks to generate or introduce something, call run_generate with the creator prompt exactly as spoken and scope single unless they explicitly ask for all formats.',
 ].join(' ');

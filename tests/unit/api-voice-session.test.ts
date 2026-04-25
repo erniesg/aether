@@ -67,16 +67,18 @@ describe('/api/voice/session', () => {
     const fetchImpl = vi.fn(
       async (_url: RequestInfo | URL, init?: RequestInit) => {
         const body = JSON.parse(String(init?.body ?? '{}'));
-        expect(body.tools).toHaveLength(13);
+        expect(body.tools).toHaveLength(15);
         expect(body.tools.map((t: { name: string }) => t.name)).toEqual([
           'focus_format',
           'pan_zoom',
           'remove_background',
           'select_tool',
+          'set_brush_style',
           'set_brush_color',
           'set_brush_size',
           'adjust_brush_size',
           'clear_sketch',
+          'clear_canvas',
           'confirm_sketch',
           'start_air_brush',
           'end_air_brush',

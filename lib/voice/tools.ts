@@ -2,12 +2,14 @@ import {
   normalizeVoiceBrushColor,
   normalizeVoiceBrushSize,
   normalizeVoiceBrushSizeDelta,
+  normalizeVoiceBrushStyleSize,
   normalizeVoiceSelectableTool,
   type PrimitiveTool,
   type SketchBrushColor,
   type SketchBrushSize,
   type VoiceBrushSizeDelta,
   VOICE_BRUSH_COLORS,
+  VOICE_BRUSH_STYLE_SIZES,
   VOICE_BRUSH_SIZES,
   VOICE_SELECTABLE_TOOLS,
 } from '@/lib/canvas/sketchBrush';
@@ -88,6 +90,28 @@ export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
     },
   },
   {
+    name: 'set_brush_style',
+    description:
+      "Set or adjust the sketch brush style from bounded options. Use for requests like 'make it thinner', 'make the brush bigger', 'use blue', or 'switch to black'.",
+    parameters: {
+      type: 'object',
+      properties: {
+        color: {
+          type: 'string',
+          description: 'Optional named brush color from the mapped palette.',
+          enum: [...VOICE_BRUSH_COLORS],
+        },
+        size: {
+          type: 'string',
+          description:
+            'Optional brush size preset or relative change. thin/small, medium, thick/large, thinner/smaller, or thicker/bigger/larger.',
+          enum: [...VOICE_BRUSH_STYLE_SIZES],
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'set_brush_color',
     description:
       'Set the sketch brush color from the bounded creator palette.',
@@ -149,6 +173,16 @@ export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
     },
   },
   {
+    name: 'clear_canvas',
+    description:
+      'Clear all sketch ink from the current/default artboard without deleting artboards or placed references.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'confirm_sketch',
     description:
       'Finish the current sketch session and switch back to the select tool.',
@@ -161,7 +195,7 @@ export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
   {
     name: 'start_air_brush',
     description:
-      "Start air-brush capture on the canvas. Use mode=blind_signature when the creator says phrases like 'aether draw', 'start my name', 'let me write my name', or 'I'm going to write my Chinese name'. For the demo name intent, pass targetText='陈恩娇'.",
+      "Start air-brush capture on the canvas. Drawing is gated by thumb+index pinch; releasing the pinch ends the stroke. Use mode=blind_signature when the creator says phrases like 'aether draw', 'start my name', 'let me write my name', or 'I'm going to write my Chinese name'. For the demo name intent, pass targetText='陈恩娇'.",
     parameters: {
       type: 'object',
       properties: {
@@ -247,12 +281,18 @@ export interface VoiceDispatchers {
   select_tool: (args: {
     tool: Extract<PrimitiveTool, 'select' | 'hand' | 'draw'>;
   }) => void | Promise<void>;
+  set_brush_style: (args: {
+    color?: SketchBrushColor;
+    size?: SketchBrushSize;
+    delta?: VoiceBrushSizeDelta;
+  }) => void | Promise<void>;
   set_brush_color: (args: { color: SketchBrushColor }) => void | Promise<void>;
   set_brush_size: (args: { size: SketchBrushSize }) => void | Promise<void>;
   adjust_brush_size: (args: {
     delta: VoiceBrushSizeDelta;
   }) => void | Promise<void>;
   clear_sketch: () => void | Promise<void>;
+  clear_canvas: () => void | Promise<void>;
   confirm_sketch: () => void | Promise<void>;
   start_air_brush: (args: {
     mode?: AirBrushCaptureMode;
@@ -310,6 +350,34 @@ export async function dispatchVoiceFunctionCall(
       await dispatchers.select_tool({ tool });
       return { ok: true, detail: `selected ${tool}` };
     }
+    case 'set_brush_style': {
+      const hasColor = Object.prototype.hasOwnProperty.call(args, 'color');
+      const hasSize = Object.prototype.hasOwnProperty.call(args, 'size');
+      const color = hasColor ? normalizeVoiceBrushColor(args.color) : undefined;
+      if (hasColor && !color) {
+        return { ok: false, error: 'set_brush_style color must be from the bounded palette' };
+      }
+      const sizeChange = hasSize
+        ? normalizeVoiceBrushStyleSize(args.size)
+        : undefined;
+      if (hasSize && !sizeChange) {
+        return { ok: false, error: 'set_brush_style size must be thin, medium, thick, smaller, or bigger' };
+      }
+      if (!color && !sizeChange) {
+        return { ok: false, error: 'set_brush_style requires color or size' };
+      }
+      await dispatchers.set_brush_style({
+        ...(color ? { color } : {}),
+        ...(sizeChange?.size ? { size: sizeChange.size } : {}),
+        ...(sizeChange?.delta ? { delta: sizeChange.delta } : {}),
+      });
+      const details = [
+        color ? `color ${color}` : null,
+        sizeChange?.size ? `size ${sizeChange.size}` : null,
+        sizeChange?.delta ? sizeChange.delta : null,
+      ].filter(Boolean);
+      return { ok: true, detail: `brush ${details.join(' · ')}` };
+    }
     case 'set_brush_color': {
       const color = normalizeVoiceBrushColor(args.color);
       if (!color) {
@@ -337,6 +405,10 @@ export async function dispatchVoiceFunctionCall(
     case 'clear_sketch': {
       await dispatchers.clear_sketch();
       return { ok: true, detail: 'cleared sketch' };
+    }
+    case 'clear_canvas': {
+      await dispatchers.clear_canvas();
+      return { ok: true, detail: 'cleared canvas ink' };
     }
     case 'confirm_sketch': {
       await dispatchers.confirm_sketch();

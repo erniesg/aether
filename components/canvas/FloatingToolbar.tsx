@@ -21,6 +21,7 @@ import {
   Square,
   SquareDashed,
   Type,
+  Trash2,
   Wand2,
 } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
@@ -80,6 +81,7 @@ export interface FloatingToolbarProps {
   brushState?: Pick<SketchBrushState, 'color' | 'size'>;
   onPrimitiveToolPress?: (tool: PrimitiveTool) => void;
   onStyleAction?: (action: ToolbarStyleAction) => void;
+  onClearCanvas?: () => void;
   airBrushActive?: boolean;
   onAirBrushToggle?: (active: boolean) => void;
   className?: string;
@@ -123,6 +125,7 @@ export function FloatingToolbar({
   brushState,
   onPrimitiveToolPress,
   onStyleAction,
+  onClearCanvas,
   airBrushActive = false,
   onAirBrushToggle,
   pinnedCapabilities = [],
@@ -257,6 +260,11 @@ export function FloatingToolbar({
         icon={<Camera size={14} strokeWidth={1.75} />}
         onClick={() => onAirBrushToggle?.(!airBrushActive)}
         active={airBrushActive}
+      />
+      <IconButton
+        label="clear canvas"
+        icon={<Trash2 size={14} strokeWidth={1.75} />}
+        onClick={onClearCanvas}
       />
       <IconButton
         label="text tool"

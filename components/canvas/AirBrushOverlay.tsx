@@ -19,6 +19,7 @@ import {
   resolveAirBrushInputMode,
   translateMediaPipeHandLandmarksToAirBrushPoint,
   type AirBrushDebugStage,
+  type AirBrushBounds,
   type AirBrushCaptureMode,
   type AirBrushHandedness,
   type AirBrushHandLandmark,
@@ -45,10 +46,19 @@ import {
 } from '@/lib/canvas/mediaPipeHandLandmarker';
 import { cn } from '@/lib/utils/cn';
 
+export interface AirBrushLiveInkBrushStyle {
+  color: string;
+  width: number;
+  eraseColor?: string;
+  eraseWidth?: number;
+}
+
 export interface AirBrushOverlayProps {
   active: boolean;
   mode?: AirBrushCaptureMode;
   targetText?: string;
+  liveInkTargetRect?: AirBrushBounds | null;
+  liveInkBrush?: AirBrushLiveInkBrushStyle;
   onActiveChange?: (active: boolean) => void;
   onPoint?: (point: AirBrushPoint) => void;
   onCapture?: (dataUrl: string) => void;
@@ -76,6 +86,12 @@ const BLIND_SIGNATURE_CALIBRATION_FRAMES = 12;
 // auto-capturing. Short enough to feel responsive, long enough to avoid
 // triggering while the creator is momentarily between strokes.
 const OPEN_PALM_HOLD_FRAMES = 10;
+const DEFAULT_LIVE_INK_BRUSH: AirBrushLiveInkBrushStyle = {
+  color: 'rgba(15, 23, 42, 0.94)',
+  width: 5,
+  eraseColor: 'rgba(255,255,255,0.78)',
+  eraseWidth: 18,
+};
 
 type CameraState = 'idle' | 'requesting' | 'ready' | 'error';
 type TrackingState = 'idle' | 'loading' | 'ready' | 'error';
@@ -278,27 +294,74 @@ function clearLiveInkCanvas(canvas: HTMLCanvasElement | null) {
   surface.ctx.clearRect(0, 0, surface.width, surface.height);
 }
 
+function resolveLiveInkTargetRect({
+  targetRect,
+  width,
+  height,
+}: {
+  targetRect?: AirBrushBounds | null;
+  width: number;
+  height: number;
+}): AirBrushBounds {
+  if (
+    targetRect &&
+    Number.isFinite(targetRect.left) &&
+    Number.isFinite(targetRect.top) &&
+    Number.isFinite(targetRect.width) &&
+    Number.isFinite(targetRect.height) &&
+    targetRect.width > 0 &&
+    targetRect.height > 0
+  ) {
+    return targetRect;
+  }
+  return { left: 0, top: 0, width, height };
+}
+
+function mapLiveInkPoint(point: AirBrushPoint, rect: AirBrushBounds) {
+  return {
+    x: rect.left + point.x * rect.width,
+    y: rect.top + point.y * rect.height,
+  };
+}
+
 function drawLiveInkSegment({
   canvas,
   from,
   to,
+  targetRect,
+  brush,
 }: {
   canvas: HTMLCanvasElement | null;
   from: AirBrushPoint | null;
   to: AirBrushPoint;
+  targetRect?: AirBrushBounds | null;
+  brush: AirBrushLiveInkBrushStyle;
 }) {
   const surface = resolvePreviewCanvas(canvas);
   if (!surface || !from || to.state === 'start' || to.state === 'end') return;
   const { ctx, width, height } = surface;
+  const drawRect = resolveLiveInkTargetRect({ targetRect, width, height });
+  const start = mapLiveInkPoint(from, drawRect);
+  const end = mapLiveInkPoint(to, drawRect);
+  const isErase = to.intent === 'erase';
+  const strokeWidth = isErase
+    ? Math.max(brush.eraseWidth ?? brush.width * 3.6, brush.width)
+    : Math.max(1, brush.width);
   ctx.save();
+  if (typeof ctx.rect === 'function' && typeof ctx.clip === 'function') {
+    ctx.beginPath();
+    ctx.rect(drawRect.left, drawRect.top, drawRect.width, drawRect.height);
+    ctx.clip();
+  }
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.strokeStyle =
-    to.intent === 'erase' ? 'rgba(255,255,255,0.78)' : 'rgba(216,112,64,0.92)';
-  ctx.lineWidth = to.intent === 'erase' ? 18 : 5;
+  ctx.strokeStyle = isErase
+    ? (brush.eraseColor ?? DEFAULT_LIVE_INK_BRUSH.eraseColor!)
+    : brush.color;
+  ctx.lineWidth = strokeWidth;
   ctx.beginPath();
-  ctx.moveTo(from.x * width, from.y * height);
-  ctx.lineTo(to.x * width, to.y * height);
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
   ctx.stroke();
   ctx.restore();
 }
@@ -421,10 +484,24 @@ function labelForMode(
   return `${prefix} · unavailable`;
 }
 
+function previewModeLabel(
+  captureMode: AirBrushCaptureMode,
+  preflightState: BlindSignaturePreflightState
+) {
+  if (captureMode === 'blind_signature') {
+    return preflightState === 'calibrating'
+      ? 'blind signature · calibrating'
+      : 'blind signature · pinch';
+  }
+  return 'air brush · pinch';
+}
+
 export function AirBrushOverlay({
   active,
   mode = 'standard',
   targetText,
+  liveInkTargetRect,
+  liveInkBrush = DEFAULT_LIVE_INK_BRUSH,
   onActiveChange,
   onPoint,
   onCapture,
@@ -437,6 +514,10 @@ export function AirBrushOverlay({
   showInactiveButton = true,
 }: AirBrushOverlayProps) {
   const liveInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const liveInkTargetRectRef = useRef<AirBrushBounds | null>(
+    liveInkTargetRect ?? null
+  );
+  const liveInkBrushRef = useRef<AirBrushLiveInkBrushStyle>(liveInkBrush);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const landmarkCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -644,6 +725,14 @@ export function AirBrushOverlay({
   useEffect(() => {
     onPointRef.current = onPoint;
   }, [onPoint]);
+
+  useEffect(() => {
+    liveInkTargetRectRef.current = liveInkTargetRect ?? null;
+  }, [liveInkTargetRect]);
+
+  useEffect(() => {
+    liveInkBrushRef.current = liveInkBrush;
+  }, [liveInkBrush]);
 
   useEffect(() => {
     onEndAirBrushRef.current = onEndAirBrush;
@@ -980,8 +1069,13 @@ export function AirBrushOverlay({
 
         const landmarksCount = frame?.landmarks?.length ?? 0;
         const activeIntent = activeCameraIntentRef.current;
-        const raisedIndexInk = mode === 'blind_signature';
-        const activeEraseHand = raisedIndexInk ? null : eraseHand;
+        const blindSignatureInk = mode === 'blind_signature';
+        // Keep the left-hand eraser available in blind signature, but require
+        // the same pinch guard as standard mode so a resting left hand does
+        // not erase the active writing stream. During blind-signature
+        // preflight, ignore erase until calibration is ready.
+        const activeEraseHand =
+          blindSignatureInk && !calibrationProfileRef.current ? null : eraseHand;
         const eraseEval = activeEraseHand
           ? evaluateMediaPipeHandLandmarks({
               frame,
@@ -991,26 +1085,28 @@ export function AirBrushOverlay({
               preferredHand: activeEraseHand,
               intent: 'erase',
               requirePinch: true,
+              requireExtendedIndexFinger: false,
             })
           : ({ point: null, accepted: false } satisfies AirBrushLandmarkEvaluation);
         const drawEval = evaluateMediaPipeHandLandmarks({
           frame,
           previousPoint:
             activeIntent === 'draw'
-              ? raisedIndexInk
+              ? blindSignatureInk
                 ? lastRawCameraPointRef.current
                 : lastCameraPointRef.current
               : null,
           activeStroke: activeIntent === 'draw',
           preferredHand: drawHand,
           intent: 'draw',
-          requirePinch: !raisedIndexInk,
-          rejectOpenPalm: raisedIndexInk,
+          requirePinch: true,
+          requireExtendedIndexFinger: false,
+          rejectOpenPalm: blindSignatureInk,
         });
         const erasePoint = eraseEval.point;
         let drawPoint = drawEval.point;
         let rawDrawPoint = drawPoint;
-        if (raisedIndexInk && drawPoint && drawPoint.state !== 'end') {
+        if (blindSignatureInk && drawPoint && drawPoint.state !== 'end') {
           const profile = calibrationProfileRef.current;
           if (!profile) {
             calibrationSamplesRef.current = [
@@ -1051,7 +1147,7 @@ export function AirBrushOverlay({
           } else {
             drawPoint = stabilizeAirBrushPoint(profile, drawPoint);
           }
-        } else if (raisedIndexInk && drawPoint?.state === 'end') {
+        } else if (blindSignatureInk && drawPoint?.state === 'end') {
           drawPoint = lastCameraPointRef.current
             ? { ...lastCameraPointRef.current, state: 'end' }
             : null;
@@ -1107,7 +1203,6 @@ export function AirBrushOverlay({
             : null;
         let preferredPoint = preferredPointRaw;
         if (
-          !raisedIndexInk &&
           preferredPointRaw &&
           preferredPointRaw.state === 'start' &&
           preferredPointRaw.intent &&
@@ -1168,6 +1263,8 @@ export function AirBrushOverlay({
                 canvas: liveInkCanvasRef.current,
                 from: lastLiveInkPointRef.current,
                 to: committedPoint,
+                targetRect: liveInkTargetRectRef.current,
+                brush: liveInkBrushRef.current,
               });
               lastLiveInkPointRef.current =
                 committedPoint.state === 'end' ? null : committedPoint;
@@ -1227,7 +1324,7 @@ export function AirBrushOverlay({
             } else {
               activeCameraIntentRef.current = point.intent ?? 'draw';
               lastCameraPointRef.current = point;
-              if (raisedIndexInk && rawDrawPoint && rawDrawPoint.state !== 'end') {
+              if (blindSignatureInk && rawDrawPoint && rawDrawPoint.state !== 'end') {
                 lastRawCameraPointRef.current = rawDrawPoint;
               }
             }
@@ -1408,7 +1505,7 @@ export function AirBrushOverlay({
             ? debugInfo.lastStage === 'video-wait'
               ? 'waiting for video frame'
               : mode === 'blind_signature' && preflightState === 'calibrating'
-                ? `hold index still · ${calibrationSampleCount}/${BLIND_SIGNATURE_CALIBRATION_FRAMES}`
+                ? `hold pinch still · ${calibrationSampleCount}/${BLIND_SIGNATURE_CALIBRATION_FRAMES}`
               : debugInfo.lastStage === 'detect-rejected'
                 ? (rejectionHint ?? 'show index fingertip')
               : detectionCount > 0
@@ -1463,6 +1560,12 @@ export function AirBrushOverlay({
         <div className="absolute left-2 top-2 inline-flex h-6 items-center gap-1 rounded-sm border border-white/15 bg-black/45 px-2 font-mono text-[9px] uppercase tracking-wide text-white/85">
           <Camera size={11} strokeWidth={1.7} />
           live
+        </div>
+        <div
+          aria-label="air brush mode indicator"
+          className="absolute right-2 top-2 max-w-[8.25rem] truncate rounded-sm border border-white/15 bg-black/45 px-2 py-1 font-mono text-[9px] uppercase tracking-wide text-white/85"
+        >
+          {previewModeLabel(mode, preflightState)}
         </div>
       </div>
 

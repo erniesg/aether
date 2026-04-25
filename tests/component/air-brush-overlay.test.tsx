@@ -512,7 +512,7 @@ describe('AirBrushOverlay', () => {
     expect(landmarkContext.arc).toHaveBeenCalled();
   });
 
-  it('lets blind signature mode draw with a raised index without requiring pinch', async () => {
+  it('lets blind signature mode draw only while thumb and index are pinched', async () => {
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       rafCallbacks.push(callback);
@@ -566,16 +566,23 @@ describe('AirBrushOverlay', () => {
     let frameIndex = 0;
     const detectForVideo = vi.fn(() => {
       frameIndex += 1;
+      const postCalibrationPath = [
+        { x: 0.16, y: 0.35 },
+        { x: 0.08, y: 0.3 },
+        { x: 0.02, y: 0.42 },
+      ];
       const indexTip =
         frameIndex <= 12
           ? { x: 0.25, y: 0.4 }
-          : frameIndex === 13
-            ? { x: 0.16, y: 0.35 }
-            : { x: 0.08, y: 0.3 };
+          : (postCalibrationPath[frameIndex - 13] ??
+            postCalibrationPath.at(-1)!);
+      const pinched = frameIndex <= 16;
       return {
         landmarks: [
           trackedHand({
-            4: { x: 0.54, y: 0.74 },
+            4: pinched
+              ? { x: indexTip.x + 0.01, y: indexTip.y + 0.01 }
+              : { x: 0.54, y: 0.74 },
             8: indexTip,
           }),
         ],
@@ -614,21 +621,176 @@ describe('AirBrushOverlay', () => {
     act(() => {
       rafCallbacks.shift()?.(316);
     });
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(332);
+    });
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(348);
+    });
 
     await waitFor(() => {
       expect(onPoint).toHaveBeenCalledWith(
         expect.objectContaining({
-          x: expect.closeTo(0.65, 2),
-          y: expect.closeTo(0.42, 2),
+          x: expect.closeTo(0.7125, 3),
+          y: expect.closeTo(0.375, 3),
           state: 'start',
           source: 'camera',
           intent: 'draw',
         })
       );
     });
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(364);
+    });
+    await waitFor(() => {
+      expect(onPoint).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: 'end',
+          source: 'camera',
+          intent: 'draw',
+        })
+      );
+    });
+    const callsAfterRelease = onPoint.mock.calls.length;
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(380);
+    });
+    expect(onPoint).toHaveBeenCalledTimes(callsAfterRelease);
     expect(screen.getByLabelText(/air brush live ink/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/air brush mode indicator/i)).toHaveTextContent(
+      /blind signature · pinch/i
+    );
     expect(liveInkContext.lineTo).toHaveBeenCalled();
     expect(liveInkContext.stroke).toHaveBeenCalled();
+  });
+
+  it('maps blind signature live ink into the artboard rect with the selected brush style', async () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+    const liveInkContext = {
+      clearRect: vi.fn(),
+      setTransform: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      strokeStyleValue: '',
+      lineWidthValue: 0,
+    };
+    Object.defineProperty(liveInkContext, 'strokeStyle', {
+      configurable: true,
+      set(value) {
+        liveInkContext.strokeStyleValue = String(value);
+      },
+    });
+    Object.defineProperty(liveInkContext, 'lineWidth', {
+      configurable: true,
+      set(value) {
+        liveInkContext.lineWidthValue = Number(value);
+      },
+    });
+    const landmarkContext = {
+      clearRect: vi.fn(),
+      setTransform: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      function getContext(this: HTMLCanvasElement) {
+        return (
+          this.hasAttribute('data-air-brush-live-ink')
+            ? liveInkContext
+            : landmarkContext
+        ) as unknown as CanvasRenderingContext2D;
+      }
+    );
+
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+    let frameIndex = 0;
+    const detectForVideo = vi.fn(() => {
+      frameIndex += 1;
+      const postCalibrationPath = [
+        { x: 0.16, y: 0.35 },
+        { x: 0.08, y: 0.3 },
+        { x: 0.02, y: 0.42 },
+      ];
+      const indexTip =
+        frameIndex <= 12
+          ? { x: 0.25, y: 0.4 }
+          : (postCalibrationPath[frameIndex - 13] ??
+            postCalibrationPath.at(-1)!);
+      return {
+        landmarks: [
+          trackedHand({
+            4: { x: indexTip.x + 0.01, y: indexTip.y + 0.01 },
+            8: indexTip,
+          }),
+        ],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      };
+    });
+
+    render(
+      <AirBrushOverlay
+        active
+        mode="blind_signature"
+        targetText="陈恩娇"
+        liveInkTargetRect={{ left: 30, top: 20, width: 120, height: 80 }}
+        liveInkBrush={{ color: 'rgba(37, 99, 235, 0.94)', width: 8 }}
+        onPoint={vi.fn()}
+        createHandLandmarker={async () => ({
+          detectForVideo,
+          close: vi.fn(),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    for (let i = 0; i < 16; i += 1) {
+      act(() => {
+        rafCallbacks.shift()?.(100 + i * 16);
+      });
+      await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    }
+
+    await waitFor(() => expect(liveInkContext.lineTo).toHaveBeenCalled());
+    const lastLineTo = liveInkContext.lineTo.mock.calls.at(-1) ?? [];
+    expect(lastLineTo[0]).toBeGreaterThanOrEqual(30);
+    expect(lastLineTo[0]).toBeLessThanOrEqual(150);
+    expect(lastLineTo[1]).toBeGreaterThanOrEqual(20);
+    expect(lastLineTo[1]).toBeLessThanOrEqual(100);
+    expect(liveInkContext.rect).toHaveBeenCalledWith(30, 20, 120, 80);
+    expect(liveInkContext.clip).toHaveBeenCalled();
+    expect(liveInkContext.strokeStyleValue).toBe('rgba(37, 99, 235, 0.94)');
+    expect(liveInkContext.lineWidthValue).toBe(8);
   });
 
   it('uses the left index finger as the erase stream when both hands are visible', async () => {
@@ -707,6 +869,107 @@ describe('AirBrushOverlay', () => {
         expect.objectContaining({
           x: 0.28,
           y: 0.42,
+          state: 'start',
+          source: 'camera',
+          intent: 'erase',
+        })
+      );
+    });
+  });
+
+  it('keeps left-hand erase available during blind signature capture', async () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      {
+        clearRect: vi.fn(),
+        setTransform: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        rect: vi.fn(),
+        clip: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+      } as unknown as CanvasRenderingContext2D
+    );
+
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+    const onPoint = vi.fn();
+    let frameIndex = 0;
+    const detectForVideo = vi.fn(() => {
+      frameIndex += 1;
+      const leftErasePath = [
+        { x: 0.72, y: 0.42 },
+        { x: 0.48, y: 0.56 },
+        { x: 0.34, y: 0.5 },
+        { x: 0.42, y: 0.36 },
+      ];
+      const leftIndexTip =
+        frameIndex <= 13
+          ? { x: 0.72, y: 0.42 }
+          : (leftErasePath[frameIndex - 14] ?? leftErasePath.at(-1)!);
+      return {
+        landmarks: [
+          trackedHand({
+            4: { x: 0.26, y: 0.41 },
+            8: { x: 0.25, y: 0.4 },
+          }),
+          trackedHand({
+            0: { x: 0.58, y: 0.82 },
+            5: { x: 0.64, y: 0.62 },
+            6: { x: 0.66, y: 0.54 },
+            7: { x: 0.69, y: 0.48 },
+            8: leftIndexTip,
+            17: { x: 0.46, y: 0.68 },
+          }),
+        ],
+        handedness: [
+          [{ score: 0.95, categoryName: 'Right' }],
+          [{ score: 0.96, categoryName: 'Left' }],
+        ],
+      };
+    });
+
+    render(
+      <AirBrushOverlay
+        active
+        mode="blind_signature"
+        targetText="陈恩娇"
+        onPoint={onPoint}
+        createHandLandmarker={async () => ({
+          detectForVideo,
+          close: vi.fn(),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    for (let i = 0; i < 18; i += 1) {
+      act(() => {
+        rafCallbacks.shift()?.(100 + i * 16);
+      });
+      await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    }
+
+    await waitFor(() => {
+      expect(onPoint).toHaveBeenCalledWith(
+        expect.objectContaining({
           state: 'start',
           source: 'camera',
           intent: 'erase',

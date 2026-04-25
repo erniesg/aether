@@ -19,6 +19,7 @@ describe('FloatingToolbar · creator-owned primitives', () => {
     expect(screen.getByRole('button', { name: /text tool/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /shape tool/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /arrow tool/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /clear canvas/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ink black/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ink white/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ink blue/i })).toBeInTheDocument();
@@ -34,11 +35,13 @@ describe('FloatingToolbar · creator-owned primitives', () => {
   it('dispatches primitive tool and style actions through dedicated callbacks', async () => {
     const onPrimitiveToolPress = vi.fn<(tool: PrimitiveTool) => void>();
     const onStyleAction = vi.fn<(action: ToolbarStyleAction) => void>();
+    const onClearCanvas = vi.fn();
 
     render(
       <FloatingToolbar
         onPrimitiveToolPress={onPrimitiveToolPress}
         onStyleAction={onStyleAction}
+        onClearCanvas={onClearCanvas}
       />
     );
 
@@ -46,6 +49,7 @@ describe('FloatingToolbar · creator-owned primitives', () => {
     await userEvent.click(screen.getByRole('button', { name: /sketch tool/i }));
     await userEvent.click(screen.getByRole('button', { name: /text tool/i }));
     await userEvent.click(screen.getByRole('button', { name: /arrow tool/i }));
+    await userEvent.click(screen.getByRole('button', { name: /clear canvas/i }));
     await userEvent.click(screen.getByRole('button', { name: /fill solid/i }));
     await userEvent.click(screen.getByRole('button', { name: /brand accent/i }));
     await userEvent.click(screen.getByRole('button', { name: /brush size large/i }));
@@ -61,6 +65,7 @@ describe('FloatingToolbar · creator-owned primitives', () => {
       'color-brand-accent',
       'size-large',
     ]);
+    expect(onClearCanvas).toHaveBeenCalledTimes(1);
   });
 
   it('reflects shared brush state in the active sketch controls', () => {

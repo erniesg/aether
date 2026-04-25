@@ -28,6 +28,8 @@ import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/li
 import {
   adjustSketchBrushSize,
   DEFAULT_SKETCH_BRUSH_STATE,
+  mapSketchBrushColorToCss,
+  mapSketchBrushSizeToLiveInkWidth,
   type PrimitiveTool,
   type SketchBrushColor,
   type SketchBrushSize,
@@ -40,6 +42,7 @@ import {
 import {
   messageFromUnknownError,
   recordAirBrushDebugEvent,
+  type AirBrushBounds,
   type AirBrushCaptureMode,
   type AirBrushPoint,
 } from '@/lib/canvas/airBrush';
@@ -56,7 +59,16 @@ import { inferDataUrlMimeType } from '@/lib/segment/dataUrl';
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { failRun, finishRun, startRun, stepRun } from '@/lib/store/runs';
 import { appendRunActivity, initRunDetails, upsertRunFrame } from '@/lib/store/runDetails';
-import { focusFrameAtIndex, getFrameShapes, zoomToAllFrames } from '@/lib/canvas/focusFrame';
+import {
+  resolveAirBrushLassoEraseShapeIds,
+  type AirBrushLassoPoint,
+} from '@/lib/canvas/airBrushLassoErase';
+import {
+  focusFrameAtIndex,
+  getActiveFrameShape,
+  getFrameShapes,
+  zoomToAllFrames,
+} from '@/lib/canvas/focusFrame';
 import { VoiceOrb, type VoiceCaptionEvent } from './VoiceOrb';
 import type { VoiceDispatchers } from '@/lib/voice/tools';
 import {
@@ -200,6 +212,7 @@ const DEFAULT_BACKGROUND_FILL: BackgroundFillSpec = {
   opacity: 0.85,
   angle: 135,
 };
+const MAX_ERASE_LASSO_POINTS = 240;
 
 function defaultPromptForVerb(verb: SegmentationVerb): string {
   switch (verb) {
@@ -279,9 +292,113 @@ function resolveClearableSketchShapeIds(
 function resolveAirBrushTargetFrame(
   editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>
 ): FrameShapeWithBounds | null {
-  const selectedFrame = editor.getOnlySelectedShape();
-  if (selectedFrame?.type === 'frame') return selectedFrame as FrameShapeWithBounds;
+  const activeFrame = getActiveFrameShape(editor);
+  if (activeFrame?.type === 'frame') return activeFrame as FrameShapeWithBounds;
   return (getFrameShapes(editor)[0] as FrameShapeWithBounds | undefined) ?? null;
+}
+
+function resolveAirBrushTargetScreenRect(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>
+): (AirBrushBounds & { frameId: string; frameLabel?: string }) | null {
+  const targetFrame = resolveAirBrushTargetFrame(editor);
+  if (!targetFrame) return null;
+  const frameBounds = editor.getShapePageBounds(targetFrame.id as never);
+  if (!frameBounds || frameBounds.w <= 0 || frameBounds.h <= 0) return null;
+
+  const topLeft = editor.pageToScreen({
+    x: frameBounds.x,
+    y: frameBounds.y,
+  });
+  const bottomRight = editor.pageToScreen({
+    x: frameBounds.x + frameBounds.w,
+    y: frameBounds.y + frameBounds.h,
+  });
+  const left = Math.min(topLeft.x, bottomRight.x);
+  const top = Math.min(topLeft.y, bottomRight.y);
+  const width = Math.abs(bottomRight.x - topLeft.x);
+  const height = Math.abs(bottomRight.y - topLeft.y);
+  if (width <= 0 || height <= 0) return null;
+
+  return {
+    left,
+    top,
+    width,
+    height,
+    frameId: targetFrame.id,
+    frameLabel: targetFrame.props.name,
+  };
+}
+
+function sameAirBrushBounds(
+  a: AirBrushBounds | null,
+  b: AirBrushBounds | null
+) {
+  if (!a || !b) return a === b;
+  return (
+    Math.abs(a.left - b.left) < 0.5 &&
+    Math.abs(a.top - b.top) < 0.5 &&
+    Math.abs(a.width - b.width) < 0.5 &&
+    Math.abs(a.height - b.height) < 0.5
+  );
+}
+
+function boundsContainsPagePoint(
+  bounds: AirBrushBounds,
+  point: AirBrushLassoPoint
+) {
+  return (
+    point.x >= bounds.left &&
+    point.x <= bounds.left + bounds.width &&
+    point.y >= bounds.top &&
+    point.y <= bounds.top + bounds.height
+  );
+}
+
+function shapeBoundsIntersectsAirBrushBounds(
+  shapeBounds: { x: number; y: number; w: number; h: number } | null | undefined,
+  targetBounds: AirBrushBounds
+) {
+  if (!shapeBounds || shapeBounds.w <= 0 || shapeBounds.h <= 0) return false;
+  return !(
+    shapeBounds.x + shapeBounds.w < targetBounds.left ||
+    shapeBounds.x > targetBounds.left + targetBounds.width ||
+    shapeBounds.y + shapeBounds.h < targetBounds.top ||
+    shapeBounds.y > targetBounds.top + targetBounds.height
+  );
+}
+
+function resolveActiveFramePageBounds(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>
+): (AirBrushBounds & { frameId: string }) | null {
+  const targetFrame = resolveAirBrushTargetFrame(editor);
+  if (!targetFrame) return null;
+  const frameBounds = editor.getShapePageBounds(targetFrame.id as never);
+  if (!frameBounds || frameBounds.w <= 0 || frameBounds.h <= 0) return null;
+  return {
+    left: frameBounds.x,
+    top: frameBounds.y,
+    width: frameBounds.w,
+    height: frameBounds.h,
+    frameId: targetFrame.id,
+  };
+}
+
+function resolveCurrentArtboardDrawShapeIds(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>
+) {
+  const targetBounds = resolveActiveFramePageBounds(editor);
+  return editor
+    .getCurrentPageShapes()
+    .filter((shape) => shape.type === 'draw')
+    .filter((shape) => {
+      if (!targetBounds) return true;
+      if (String(shape.parentId) === targetBounds.frameId) return true;
+      return shapeBoundsIntersectsAirBrushBounds(
+        editor.getShapePageBounds(shape.id as never),
+        targetBounds
+      );
+    })
+    .map((shape) => String(shape.id));
 }
 
 function resolveAirBrushClientPoint({
@@ -293,34 +410,17 @@ function resolveAirBrushClientPoint({
   fallbackBounds: DOMRect;
   point: AirBrushPoint;
 }) {
-  const targetFrame = resolveAirBrushTargetFrame(editor);
-  if (targetFrame) {
-    const frameBounds = editor.getShapePageBounds(targetFrame.id as never);
-    if (frameBounds && frameBounds.w > 0 && frameBounds.h > 0) {
-      const topLeft = editor.pageToScreen({
-        x: frameBounds.x,
-        y: frameBounds.y,
-      });
-      const bottomRight = editor.pageToScreen({
-        x: frameBounds.x + frameBounds.w,
-        y: frameBounds.y + frameBounds.h,
-      });
-      const left = Math.min(topLeft.x, bottomRight.x);
-      const top = Math.min(topLeft.y, bottomRight.y);
-      const width = Math.abs(bottomRight.x - topLeft.x);
-      const height = Math.abs(bottomRight.y - topLeft.y);
-      if (width > 0 && height > 0) {
-        return {
-          point: {
-            x: left + width * point.x,
-            y: top + height * point.y,
-            z: point.pressure ?? (point.state === 'end' ? 0 : 0.55),
-          },
-          frameId: targetFrame.id,
-          frameLabel: targetFrame.props.name,
-        };
-      }
-    }
+  const targetRect = resolveAirBrushTargetScreenRect(editor);
+  if (targetRect) {
+    return {
+      point: {
+        x: targetRect.left + targetRect.width * point.x,
+        y: targetRect.top + targetRect.height * point.y,
+        z: point.pressure ?? (point.state === 'end' ? 0 : 0.55),
+      },
+      frameId: targetRect.frameId,
+      frameLabel: targetRect.frameLabel,
+    };
   }
 
   return {
@@ -492,6 +592,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [airBrushSession, setAirBrushSession] = useState<AirBrushSession>({
     mode: 'standard',
   });
+  const [airBrushTargetRect, setAirBrushTargetRect] =
+    useState<AirBrushBounds | null>(null);
   const [sketchBrush, setSketchBrush] = useState<SketchBrushState>(
     DEFAULT_SKETCH_BRUSH_STATE
   );
@@ -506,12 +608,69 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [segmentationProvidersLoading, setSegmentationProvidersLoading] =
     useState(false);
   const trackedDrawShapeIds = useRef<Set<string>>(new Set());
+  const eraseLassoPointsRef = useRef<AirBrushLassoPoint[]>([]);
   const canvasRootRef = useRef<HTMLElement | null>(null);
   const { editor } = useEditorRef();
+  const liveInkBrush = useMemo(
+    () => ({
+      color: mapSketchBrushColorToCss(sketchBrush.color),
+      width: mapSketchBrushSizeToLiveInkWidth(sketchBrush.size),
+    }),
+    [sketchBrush.color, sketchBrush.size]
+  );
+
+  const syncAirBrushTargetRect = useCallback(() => {
+    const root = canvasRootRef.current;
+    if (!root) {
+      setAirBrushTargetRect((current) => (current === null ? current : null));
+      return;
+    }
+    const rootBounds = root.getBoundingClientRect();
+    if (rootBounds.width <= 0 || rootBounds.height <= 0) {
+      setAirBrushTargetRect((current) => (current === null ? current : null));
+      return;
+    }
+
+    const screenTarget = editor ? resolveAirBrushTargetScreenRect(editor) : null;
+    const next = screenTarget
+      ? {
+          left: screenTarget.left - rootBounds.left,
+          top: screenTarget.top - rootBounds.top,
+          width: screenTarget.width,
+          height: screenTarget.height,
+        }
+      : {
+          left: 0,
+          top: 0,
+          width: rootBounds.width,
+          height: rootBounds.height,
+        };
+
+    setAirBrushTargetRect((current) =>
+      sameAirBrushBounds(current, next) ? current : next
+    );
+  }, [editor]);
 
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
   }, [composerRef]);
+
+  useEffect(() => {
+    syncAirBrushTargetRect();
+    const dispose = editor?.store.listen(syncAirBrushTargetRect);
+    window.addEventListener('resize', syncAirBrushTargetRect);
+    const observedRoot = canvasRootRef.current;
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' || !observedRoot
+        ? null
+        : new ResizeObserver(syncAirBrushTargetRect);
+    if (resizeObserver && observedRoot) resizeObserver.observe(observedRoot);
+    return () => {
+      dispose?.();
+      window.removeEventListener('resize', syncAirBrushTargetRect);
+      resizeObserver?.disconnect();
+    };
+  }, [editor, syncAirBrushTargetRect]);
 
   const handlePrimitiveToolPress = useCallback(
     (tool: PrimitiveTool) => {
@@ -595,6 +754,62 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     setAirBrushActive(false);
   }, [captureSketchAsReference]);
 
+  const pushEraseLassoPoint = useCallback(
+    (
+      state: AirBrushPoint['state'],
+      point: AirBrushLassoPoint
+    ) => {
+      if (state === 'start') {
+        eraseLassoPointsRef.current = [point];
+        return;
+      }
+      if (state === 'move' || state === 'end') {
+        eraseLassoPointsRef.current.push(point);
+        if (eraseLassoPointsRef.current.length > MAX_ERASE_LASSO_POINTS) {
+          eraseLassoPointsRef.current = eraseLassoPointsRef.current.slice(
+            -MAX_ERASE_LASSO_POINTS
+          );
+        }
+      }
+    },
+    []
+  );
+
+  const applyEraseLasso = useCallback(() => {
+    if (!editor) return;
+    const points = eraseLassoPointsRef.current;
+    eraseLassoPointsRef.current = [];
+    const targetBounds = resolveActiveFramePageBounds(editor);
+    const shapes = editor
+      .getCurrentPageShapes()
+      .filter((shape) => {
+        if (!targetBounds) return true;
+        if (String(shape.parentId) === targetBounds.frameId) return true;
+        return shapeBoundsIntersectsAirBrushBounds(
+          editor.getShapePageBounds(shape.id as never),
+          targetBounds
+        );
+      })
+      .map((shape) => ({
+        id: String(shape.id),
+        type: shape.type,
+        bounds: editor.getShapePageBounds(shape.id as never),
+      }));
+    const shapeIds = resolveAirBrushLassoEraseShapeIds({ points, shapes });
+    if (shapeIds.length === 0) return;
+    editor.markHistoryStoppingPoint('air brush lasso erase');
+    editor.deleteShapes(shapeIds as never);
+    recordAirBrushDebugEvent(
+      'dispatch',
+      {
+        name: 'lasso_erase',
+        count: shapeIds.length,
+      },
+      {},
+      { log: true }
+    );
+  }, [editor]);
+
   const handleAirBrushPoint = useCallback(
     (point: AirBrushPoint) => {
       if (point.state === 'hover') return;
@@ -638,6 +853,16 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         fallbackBounds: bounds,
         point,
       });
+      const isErase = (point.intent ?? 'draw') === 'erase';
+      if (isErase) {
+        const pagePoint = editor.screenToPage({
+          x: target.point.x,
+          y: target.point.y,
+        });
+        pushEraseLassoPoint(point.state, pagePoint);
+      } else if (point.state === 'start') {
+        eraseLassoPointsRef.current = [];
+      }
 
       try {
         editor.dispatch({
@@ -672,6 +897,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           { dispatchedPointCount },
           { log: name !== 'pointer_move' }
         );
+        if (isErase && point.state === 'end') {
+          applyEraseLasso();
+        }
       } catch (err) {
         recordAirBrushDebugEvent('dispatch-error', {
           error: messageFromUnknownError(err, 'air brush pointer dispatch failed'),
@@ -681,7 +909,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         });
       }
     },
-    [editor, handlePrimitiveToolPress]
+    [applyEraseLasso, editor, handlePrimitiveToolPress, pushEraseLassoPoint]
   );
 
   const handleBrushColorChange = useCallback((color: SketchBrushColor) => {
@@ -798,6 +1026,17 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     editor.deleteShapes(shapeIds as never);
     setSketchSessionShapeIds([]);
   }, [editor, sketchSessionShapeIds]);
+
+  const handleClearCanvas = useCallback(() => {
+    if (!editor) return;
+    const shapeIds = resolveCurrentArtboardDrawShapeIds(editor);
+    if (shapeIds.length === 0) return;
+    editor.markHistoryStoppingPoint('clear canvas ink');
+    editor.deleteShapes(shapeIds as never);
+    setSketchSessionShapeIds((current) =>
+      current.filter((id) => !shapeIds.includes(id))
+    );
+  }, [editor]);
 
   const handleConfirmSketch = useCallback(() => {
     if (!editor) return;
@@ -1565,6 +1804,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       select_tool: ({ tool }) => {
         handlePrimitiveToolPress(tool);
       },
+      set_brush_style: ({ color, size, delta }) => {
+        if (color) handleBrushColorChange(color);
+        if (size) handleBrushSizeChange(size);
+        if (delta) handleBrushSizeAdjust(delta);
+      },
       set_brush_color: ({ color }) => {
         handleBrushColorChange(color);
       },
@@ -1576,6 +1820,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       },
       clear_sketch: () => {
         handleClearSketch();
+      },
+      clear_canvas: () => {
+        handleClearCanvas();
       },
       confirm_sketch: () => {
         handleConfirmSketch();
@@ -1600,6 +1847,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       handleBrushColorChange,
       handleBrushSizeAdjust,
       handleBrushSizeChange,
+      handleClearCanvas,
       handleClearSketch,
       handleConfirmSketch,
       handlePrimitiveToolPress,
@@ -1654,6 +1902,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         brushState={sketchBrush}
         onPrimitiveToolPress={handlePrimitiveToolPress}
         onStyleAction={handleStyleAction}
+        onClearCanvas={handleClearCanvas}
         airBrushActive={airBrushActive}
         onAirBrushToggle={handleAirBrushToggle}
         onAIPress={focusComposer}
@@ -1671,6 +1920,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onEndAirBrush={finishAirBrushAndCapture}
         mode={airBrushSession.mode}
         targetText={airBrushSession.targetText}
+        liveInkTargetRect={airBrushTargetRect}
+        liveInkBrush={liveInkBrush}
         showInactiveButton={false}
       />
 

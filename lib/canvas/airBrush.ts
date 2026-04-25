@@ -427,6 +427,16 @@ export function evaluateMediaPipeHandLandmarks({
           ? landmarkDistance(hand[INDEX_FINGER_MCP_LANDMARK], hand[PINKY_MCP_LANDMARK])
           : 0
       );
+    if (palmSpan < minHandSpan) {
+      return reject('palm-too-small', {
+        handIndex,
+        handedness,
+        score,
+        palmSpan,
+        indexReach: gateIndexReach,
+        requiredReach: gateRequiredReach,
+      });
+    }
     const pinchDistance = landmarkDistance(thumb, tip);
     const closeThreshold = palmSpan * pinchRatio;
     const openThreshold = closeThreshold * PINCH_HYSTERESIS;
