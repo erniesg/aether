@@ -2,11 +2,10 @@ import { NextResponse } from 'next/server';
 import { ingestReferenceUrl } from '@/lib/providers/reference/registry';
 import { genReferenceId } from '@/lib/providers/reference/og';
 import type { ReferenceRecord } from '@/lib/providers/reference/types';
+import { MAX_REF_BYTES } from '@/lib/refs/limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 function jsonError(status: number, error: string, code?: string) {
   return NextResponse.json(
@@ -87,8 +86,8 @@ async function handleFile(request: Request): Promise<Response> {
   if (!file.type.startsWith('image/')) {
     return jsonError(400, 'file must be an image');
   }
-  if (file.size > MAX_FILE_BYTES) {
-    return jsonError(400, 'file exceeds 8 MB limit');
+  if (file.size > MAX_REF_BYTES) {
+    return jsonError(400, 'file exceeds 20 MB limit');
   }
   const buf = Buffer.from(await file.arrayBuffer());
   const dataUrl = `data:${file.type};base64,${buf.toString('base64')}`;

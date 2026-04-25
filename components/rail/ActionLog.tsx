@@ -1,7 +1,8 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Pin } from 'lucide-react';
-import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
+import { useRuns, STALE_ABORT_ERROR, type CapabilityRunRecord } from '@/lib/store/runs';
 import { cn } from '@/lib/utils/cn';
 
 function formatLatency(ms?: number): string {
@@ -24,7 +25,11 @@ function canPinRun(run: CapabilityRunRecord): boolean {
 }
 
 export function ActionLog({ onPin }: ActionLogProps = {}) {
-  const runs = useRuns();
+  const allRuns = useRuns();
+  const runs = useMemo(
+    () => allRuns.filter((r) => r.error !== STALE_ABORT_ERROR),
+    [allRuns]
+  );
 
   if (runs.length === 0) {
     return (
