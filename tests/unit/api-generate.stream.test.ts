@@ -161,7 +161,7 @@ describe('/api/generate streaming', () => {
     });
   });
 
-  it('streams per-frame progress when the request fans out to multiple artboards', async () => {
+  it('streams per-frame progress when the request fans out to multiple artboards (mode=fanout explicit)', async () => {
     mocks.planGenerate.mockResolvedValue({
       plan: {
         rewrittenPrompt: 'shared launch visual',
@@ -198,6 +198,7 @@ describe('/api/generate streaming', () => {
         body: JSON.stringify({
           prompt: 'fan this out',
           bypassAgent: true,
+          mode: 'fanout',
           targets: [
             { id: 'frame_ig_post', label: 'IG Post', aspectRatio: '4:5' },
             { id: 'frame_story', label: 'Story', aspectRatio: '9:16' },
