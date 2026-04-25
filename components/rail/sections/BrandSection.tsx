@@ -220,6 +220,22 @@ export function BrandSection({
     setState({ kind: 'idle' });
   };
 
+  // Debounced auto-save: persist the draft 800ms after the last edit, so
+  // creators don't have to hunt for a save button. Manual save still works.
+  useEffect(() => {
+    if (!dirty) return;
+    if (validationMessage) return;
+    const handle = setTimeout(() => {
+      const normalized = normalizeDraftForSave(draft);
+      if (!normalized) return;
+      saveBrandContext(normalized, workspaceId);
+      setDraft(normalized);
+      setDirty(false);
+      setSaveState('saved');
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [draft, dirty, validationMessage, workspaceId]);
+
   const modeLabel = workspaceMode === 'venture' ? 'venture' : 'studio';
 
   return (
@@ -294,7 +310,7 @@ function BrandProfileEditor({
   fallback: BrandContext;
 }) {
   const palette = draft.palette.length > 0 ? draft.palette : fallback.palette;
-  const typeText = draft.type.join('\n');
+  const typeLines = draft.type.length > 0 ? draft.type : [''];
 
   return (
     <div data-testid="brand-profile-editor" className="flex flex-col gap-3">
@@ -421,15 +437,53 @@ function BrandProfileEditor({
 
       <div className="flex flex-col gap-1">
         <span className="font-caption text-ink-dim">type</span>
-        <textarea
-          aria-label="brand type"
-          rows={Math.max(2, Math.min(4, draft.type.length || 2))}
-          value={typeText}
-          onChange={(e) =>
-            onChange((prev) => ({ ...prev, type: splitLines(e.target.value) }))
+        <ul className="flex flex-col gap-1">
+          {typeLines.map((line, index) => (
+            <li
+              key={`type-${index}`}
+              className="grid grid-cols-[1fr_auto] items-center gap-1 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+            >
+              <input
+                aria-label={`brand type ${index + 1}`}
+                value={line}
+                placeholder="e.g. Fraunces, editorial serif"
+                onChange={(e) =>
+                  onChange((prev) => {
+                    const next = [...(prev.type.length > 0 ? prev.type : [''])];
+                    next[index] = e.target.value;
+                    return { ...prev, type: next };
+                  })
+                }
+                style={{ fontFamily: cssFontFamilyForBrandType(line) }}
+                className="rounded-xs border border-transparent bg-transparent text-sm text-ink outline-none focus:border-accent focus:bg-surface-panel focus:px-1"
+              />
+              {typeLines.length > 1 ? (
+                <button
+                  type="button"
+                  aria-label={`remove brand type ${index + 1}`}
+                  onClick={() =>
+                    onChange((prev) => ({
+                      ...prev,
+                      type: prev.type.filter((_, i) => i !== index),
+                    }))
+                  }
+                  className="text-ink-dim hover:text-ink"
+                >
+                  <Trash2 className="h-3 w-3" aria-hidden="true" />
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          onClick={() =>
+            onChange((prev) => ({ ...prev, type: [...prev.type, ''] }))
           }
-          className="resize-none rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
-        />
+          className="self-start font-caption text-2xs text-ink-dim hover:text-ink"
+        >
+          + type
+        </button>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -510,6 +564,32 @@ function splitLines(value: string): string[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+/**
+ * Map a brand-type descriptor (e.g. "Fraunces · display", "editorial serif",
+ * "mono caption") to a CSS font-family stack so the input renders in something
+ * resembling the family it names. Best-effort — falls back to a generic family
+ * when no concrete face is named. Renders the brand-type input *as itself* so
+ * the field doubles as a live preview.
+ */
+function cssFontFamilyForBrandType(line: string): string {
+  const lower = line.toLowerCase();
+  const concrete = line.split(/[·,/-]/)[0]?.trim();
+  const stack: string[] = [];
+  if (concrete && /[A-Za-z]/.test(concrete) && !/^(editorial|mono|caption|display|serif|sans|sans-serif|grotesk|grotesque)$/i.test(concrete)) {
+    stack.push(`'${concrete}'`);
+  }
+  if (/(mono|monospace|caption|code)/.test(lower)) {
+    stack.push("'JetBrains Mono'", "'IBM Plex Mono'", 'ui-monospace', 'monospace');
+  } else if (/(serif|editorial|display|fraunces|garamond|playfair)/.test(lower)) {
+    stack.push("'Fraunces'", 'Georgia', 'serif');
+  } else if (/(grotesk|grotesque|inter|sans|sans-serif|geist|helvetica)/.test(lower)) {
+    stack.push("'Inter'", "'Geist'", 'system-ui', 'sans-serif');
+  } else {
+    stack.push('inherit');
+  }
+  return stack.join(', ');
 }
 
 function normalizeDraftForSave(context: BrandContext): BrandContext | null {

@@ -58,13 +58,19 @@ export function seedArtboards(
 }
 
 /**
- * Seed only if the current page has no shapes. Frames the creator on the
+ * Seed if the current page has no frame shapes. Frames the creator on the
  * seeded content so the workspace opens with all four artboards visible,
  * then releases the selection so the creator doesn't inherit a group select.
+ *
+ * We seed when *frames* are missing rather than when the page is empty so a
+ * creator who deleted them recovers the multiformat surface on next mount.
+ * Other shapes (refs, generated images, sketches) are preserved.
  */
 export function maybeSeedArtboards(editor: Editor): string[] {
-  const existing = editor.getCurrentPageShapes();
-  if (existing.length > 0) return [];
+  const existingFrames = editor
+    .getCurrentPageShapes()
+    .filter((shape) => shape.type === 'frame');
+  if (existingFrames.length > 0) return [];
 
   const ids = seedArtboards(editor);
   if (ids.length === 0) return ids;

@@ -153,9 +153,15 @@ describe('BrandSection · drop zone', () => {
 
     await userEvent.clear(screen.getByLabelText(/brand name/i));
     await userEvent.type(screen.getByLabelText(/brand name/i), 'Tong');
-    fireEvent.change(screen.getByLabelText(/brand type/i), {
-      target: { value: 'Noto Sans CJK\nInter' },
-    });
+    // Type rows are per-line inputs now: clear the first, set CJK; add a row
+    // for Inter.
+    const firstType = screen.getByLabelText('brand type 1');
+    await userEvent.clear(firstType);
+    await userEvent.type(firstType, 'Noto Sans CJK');
+    await userEvent.click(screen.getByRole('button', { name: /^\+ type$/i }));
+    const secondType = screen.getByLabelText('brand type 2');
+    await userEvent.clear(secondType);
+    await userEvent.type(secondType, 'Inter');
     await userEvent.clear(screen.getByLabelText(/brand voice/i));
     await userEvent.type(screen.getByLabelText(/brand voice/i), 'Learn CJK by living in them.');
     await userEvent.clear(screen.getByLabelText(/hex colour 1/i));

@@ -9,10 +9,12 @@ type MockEditor = {
   setSelectedShapes: ReturnType<typeof vi.fn>;
 };
 
-function makeEditor(shapeCount = 0): MockEditor {
+function makeEditor(shapeCount = 0, shapeType: string = 'frame'): MockEditor {
   return {
     createShape: vi.fn(),
-    getCurrentPageShapes: vi.fn(() => new Array(shapeCount)),
+    getCurrentPageShapes: vi.fn(() =>
+      new Array(shapeCount).fill(null).map(() => ({ type: shapeType }))
+    ),
     selectAll: vi.fn(),
     zoomToSelection: vi.fn(),
     setSelectedShapes: vi.fn(),
@@ -47,11 +49,20 @@ describe('seedArtboards · reuses tldraw native frame shapes', () => {
     }
   });
 
-  it('maybeSeedArtboards skips seeding when the page already has shapes', () => {
-    const editor = makeEditor(3);
+  it('maybeSeedArtboards skips seeding when the page already has frame shapes', () => {
+    const editor = makeEditor(3, 'frame');
     const ids = maybeSeedArtboards(editor as never);
     expect(ids).toEqual([]);
     expect(editor.createShape).not.toHaveBeenCalled();
+  });
+
+  it('maybeSeedArtboards re-seeds frames when the page has only non-frame shapes', () => {
+    // Creator deleted the seed artboards but kept refs/sketches: re-seed
+    // frames so the multiformat surface returns on next mount.
+    const editor = makeEditor(2, 'image');
+    const ids = maybeSeedArtboards(editor as never);
+    expect(ids.length).toBe(DEFAULT_ARTBOARDS.length);
+    expect(editor.createShape).toHaveBeenCalledTimes(DEFAULT_ARTBOARDS.length);
   });
 
   it('maybeSeedArtboards seeds + zooms when the page is empty', () => {
