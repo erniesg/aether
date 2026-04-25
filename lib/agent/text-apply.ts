@@ -25,7 +25,7 @@ import type {
   SafeZonePurpose,
   SemanticCreativeComponent,
 } from '@/lib/types/semantic-component';
-import type { BCP47LocaleCode } from '@/lib/text-overlay/types';
+import type { BCP47LocaleCode, ForbiddenRegion } from '@/lib/text-overlay/types';
 
 export const CLAUDE_MODEL = 'claude-opus-4-7';
 
@@ -157,6 +157,12 @@ export interface ApplyTextOverlayInput {
   brand?: BrandContextLite;
   /** Optional creator-supplied intent ("tonight only, slow editorial drop"). */
   creatorIntent?: string;
+  /**
+   * Regions the planner must avoid placing copy over — faces, products, logos.
+   * Produced by `segmentationToForbiddenRegions` from a SAM3 response.
+   * Defaults to `[]` if omitted, preserving backward compatibility.
+   */
+  forbiddenRegions?: ReadonlyArray<ForbiddenRegion>;
   /** Provenance — surfaces in the output for downstream wiring. */
   wsId?: string;
   artboardId?: string;
@@ -171,6 +177,12 @@ export interface ApplyTextOverlayOutput {
   plannerModel?: string;
   plannerError?: string;
   rationale?: string;
+  /**
+   * Non-fatal advisory strings. Currently emits `'no-safe-zone-found'` when
+   * every text-bearing zone overlaps a forbidden region so the planner falls
+   * back to brand-aware placeholders.
+   */
+  warnings?: string[];
   provenance: {
     sourceLocale: BCP47LocaleCode;
     targetLocales: ReadonlyArray<BCP47LocaleCode>;
@@ -207,6 +219,9 @@ export async function applyTextOverlay(
     TEXT_BEARING_PURPOSES.has(z.purpose)
   );
 
+  const forbiddenRegions: ReadonlyArray<ForbiddenRegion> =
+    input.forbiddenRegions ?? [];
+
   const provenance: ApplyTextOverlayOutput['provenance'] = {
     sourceLocale: input.sourceLocale,
     targetLocales,
@@ -220,6 +235,23 @@ export async function applyTextOverlay(
     return {
       layers: [],
       plannerMode: 'noop',
+      provenance,
+    };
+  }
+
+  // Segment-aware guard: if every text zone is fully covered by a forbidden
+  // region, calling the planner would produce unusable placements. Fall back
+  // immediately with a warning so the creator gets placeholder copy rather
+  // than blank artboards.
+  if (
+    forbiddenRegions.length > 0 &&
+    textZones.every((zone) => zoneOverlapsForbidden(zone, forbiddenRegions))
+  ) {
+    return {
+      layers: fallbackLayers(textZones, localeOrder, input),
+      plannerMode: 'fallback',
+      plannerError: 'All text zones overlap forbidden regions',
+      warnings: ['no-safe-zone-found'],
       provenance,
     };
   }
@@ -247,7 +279,7 @@ export async function applyTextOverlay(
       messages: [
         {
           role: 'user',
-          content: [{ type: 'text', text: buildBriefText(input, textZones, localeOrder) }],
+          content: [{ type: 'text', text: buildBriefText(input, textZones, localeOrder, forbiddenRegions) }],
         },
       ],
     });
@@ -318,10 +350,34 @@ function shouldFallback(err: unknown): boolean {
   );
 }
 
+/**
+ * Returns true when the zone's bbox overlaps with any forbidden region bbox.
+ * Uses axis-aligned rectangle intersection (no partial-overlap threshold —
+ * any overlap disqualifies the zone).
+ */
+function zoneOverlapsForbidden(
+  zone: SafeZone,
+  forbiddenRegions: ReadonlyArray<ForbiddenRegion>
+): boolean {
+  const z = zone.bbox;
+  for (const region of forbiddenRegions) {
+    const r = region.bbox;
+    // AABB overlap: two rectangles overlap unless one is to the right/below/left/above the other
+    const noOverlap =
+      z.x + z.w <= r.x ||
+      r.x + r.w <= z.x ||
+      z.y + z.h <= r.y ||
+      r.y + r.h <= z.y;
+    if (!noOverlap) return true;
+  }
+  return false;
+}
+
 function buildBriefText(
   input: ApplyTextOverlayInput,
   textZones: ReadonlyArray<SafeZone>,
-  localeOrder: ReadonlyArray<BCP47LocaleCode>
+  localeOrder: ReadonlyArray<BCP47LocaleCode>,
+  forbiddenRegions: ReadonlyArray<ForbiddenRegion> = []
 ): string {
   const lines: string[] = [];
   lines.push(`Source locale: ${input.sourceLocale}.`);
@@ -367,6 +423,17 @@ function buildBriefText(
       `  ${i + 1}. purpose=${zone.purpose}, bbox=(${formatBBox(zone.bbox)}), maxWords=${budget?.maxWords ?? 12}.`
     );
   });
+
+  if (forbiddenRegions.length > 0) {
+    lines.push('');
+    lines.push(`Forbidden regions — do NOT place copy over these bboxes (${forbiddenRegions.length}):`);
+    forbiddenRegions.forEach((region, i) => {
+      lines.push(
+        `  ${i + 1}. kind=${region.kind}, bbox=(${formatBBox(region.bbox)}), confidence=${region.confidence.toFixed(2)}.`
+      );
+    });
+    lines.push('Place copy in safeZones that do not overlap any forbidden region bbox.');
+  }
 
   lines.push('');
   lines.push(

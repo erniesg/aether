@@ -16,7 +16,7 @@
  */
 import { NextResponse } from 'next/server';
 import { applyTextOverlay, type ApplyTextOverlayInput } from '@/lib/agent/text-apply';
-import { asBCP47LocaleCode, type BCP47LocaleCode } from '@/lib/text-overlay/types';
+import { asBCP47LocaleCode, type BCP47LocaleCode, type ForbiddenRegion } from '@/lib/text-overlay/types';
 import type {
   NormalizedBBox,
   SafeZone,
@@ -96,6 +96,38 @@ function parseSafeZone(raw: unknown): SafeZone | null {
     mustSurviveAllCrops:
       typeof raw.mustSurviveAllCrops === 'boolean' ? raw.mustSurviveAllCrops : undefined,
   };
+}
+
+const VALID_FORBIDDEN_KINDS: ReadonlySet<string> = new Set([
+  'face',
+  'product',
+  'logo',
+  'other',
+]);
+
+function parseForbiddenRegion(raw: unknown): ForbiddenRegion | null {
+  if (!isObject(raw)) return null;
+  const kind = raw.kind;
+  if (typeof kind !== 'string' || !VALID_FORBIDDEN_KINDS.has(kind)) return null;
+  const bbox = parseBBox(raw.bbox);
+  if (!bbox) return null;
+  const confidence = raw.confidence;
+  if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return null;
+  return {
+    kind: kind as ForbiddenRegion['kind'],
+    bbox,
+    confidence,
+  };
+}
+
+function parseForbiddenRegions(raw: unknown): ForbiddenRegion[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ForbiddenRegion[] = [];
+  for (const item of raw) {
+    const region = parseForbiddenRegion(item);
+    if (region) out.push(region);
+  }
+  return out;
 }
 
 function parseComponent(raw: unknown): SemanticCreativeComponent | null {
@@ -179,11 +211,14 @@ export async function POST(request: Request) {
 
   const brand = isObject(body.brand) ? (body.brand as ApplyTextOverlayInput['brand']) : undefined;
 
+  const forbiddenRegions = parseForbiddenRegions(body.forbiddenRegions);
+
   const input: ApplyTextOverlayInput = {
     component,
     sourceLocale,
     targetLocales,
     brand,
+    forbiddenRegions,
     creatorIntent: typeof body.creatorIntent === 'string' ? body.creatorIntent : undefined,
     wsId: typeof body.wsId === 'string' ? body.wsId : undefined,
     artboardId: typeof body.artboardId === 'string' ? body.artboardId : undefined,
