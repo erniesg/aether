@@ -66,6 +66,7 @@ describe('manual workflow dispatch support for refreshed PR heads', () => {
     expect(reviewWorkflow).toContain('workflow_dispatch:');
     expect(reviewWorkflow).toContain('pr_number:');
     expect(reviewWorkflow).toContain('name: Resolve PR context');
+    expect(reviewWorkflow).toContain('allowed_bots: "*"');
     expect(reviewWorkflow).toContain('gh pr view "${PR_NUMBER}"');
     expect(reviewWorkflow).toContain('ref: ${{ steps.pr_context.outputs.head_sha }}');
     expect(reviewWorkflow).toContain('PR_NUMBER: ${{ steps.pr_context.outputs.number }}');

@@ -75,6 +75,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # workflow_dispatch runs are initiated by github-actions[bot] from
+          # claude.yml after it refreshes an existing PR branch with GITHUB_TOKEN.
+          allowed_bots: "*"
           # Plain-text review prompt. We previously used "/review --strict"
           # but claude-code-action@v1 doesn't recognize that as a built-in
           # slash command, so the agent no-opped and never produced a
