@@ -356,7 +356,7 @@ describe('AirBrushOverlay', () => {
     expect(onPoint).not.toHaveBeenCalled();
   });
 
-  it('keeps MediaPipe landmark skeletons out of the public preview by default', async () => {
+  it('renders MediaPipe landmark trackers in the public preview by default', async () => {
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       rafCallbacks.push(callback);
@@ -410,8 +410,8 @@ describe('AirBrushOverlay', () => {
     });
 
     expect(landmarkContext.clearRect).toHaveBeenCalled();
-    expect(landmarkContext.stroke).not.toHaveBeenCalled();
-    expect(landmarkContext.arc).not.toHaveBeenCalled();
+    expect(landmarkContext.stroke).toHaveBeenCalled();
+    expect(landmarkContext.arc).toHaveBeenCalled();
   });
 
   it('emits MediaPipe index-finger points when landmark tracking is ready', async () => {

@@ -1026,19 +1026,17 @@ export function AirBrushOverlay({
           if (preferredPoint) pointsToEmit.push(preferredPoint);
         }
 
-        if (debugVisible) {
-          drawHandLandmarkOverlay({
-            canvas: landmarkCanvasRef.current,
-            video,
-            frame,
-            acceptedIntents: {
-              Left: eraseActive ? 'erase' : undefined,
-              Right: drawActive ? 'draw' : undefined,
-            },
-          });
-        } else {
-          clearHandLandmarkOverlay(landmarkCanvasRef.current);
+        const acceptedIntents: AcceptedHandIntents = {};
+        if (drawActive) acceptedIntents[drawHand] = 'draw';
+        if (activeEraseHand && eraseActive) {
+          acceptedIntents[activeEraseHand] = 'erase';
         }
+        drawHandLandmarkOverlay({
+          canvas: landmarkCanvasRef.current,
+          video,
+          frame,
+          acceptedIntents,
+        });
         consecutiveErrors = 0;
 
         if (pointsToEmit.length > 0) {

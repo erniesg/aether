@@ -199,6 +199,24 @@ describe('voice tools', () => {
     });
   });
 
+  it('defaults a bare air-brush start call to the demo blind signature path', async () => {
+    const dispatchers = mockDispatchers();
+    const outcome = await dispatchVoiceFunctionCall(
+      'start_air_brush',
+      {},
+      dispatchers
+    );
+
+    expect(outcome).toEqual({
+      ok: true,
+      detail: 'blind signature ready · 陈恩娇',
+    });
+    expect(dispatchers._mocks.start_air_brush).toHaveBeenCalledWith({
+      mode: 'blind_signature',
+      targetText: '陈恩娇',
+    });
+  });
+
   it('passes the prompt + scope through run_generate', async () => {
     const dispatchers = mockDispatchers();
     await dispatchVoiceFunctionCall(

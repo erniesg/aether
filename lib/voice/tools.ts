@@ -343,14 +343,17 @@ export async function dispatchVoiceFunctionCall(
       return { ok: true, detail: 'confirmed sketch' };
     }
     case 'start_air_brush': {
-      const mode =
+      const requestedMode =
         args.mode === 'blind_signature' || args.mode === 'standard'
           ? args.mode
           : undefined;
-      const targetText =
+      const mode: AirBrushCaptureMode = requestedMode ?? 'blind_signature';
+      const targetTextArg =
         typeof args.targetText === 'string' && args.targetText.trim()
           ? args.targetText.trim()
           : undefined;
+      const targetText =
+        targetTextArg ?? (mode === 'blind_signature' ? '陈恩娇' : undefined);
       await dispatchers.start_air_brush({ mode, targetText });
       if (mode === 'blind_signature') {
         return {
