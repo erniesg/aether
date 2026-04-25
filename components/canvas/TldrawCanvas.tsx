@@ -64,30 +64,6 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
     editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
   }, [theme]);
 
-  // Belt-and-braces re-seed: if frame shapes ever drop to zero (snapshot
-  // race, accidental delete, persisted empty state), restore the hero
-  // artboards. tldraw's store listener fires synchronously on every commit,
-  // so we debounce to a microtask + minimum frame count check.
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    let cleanup: (() => void) | undefined;
-    const reseedIfEmpty = () => {
-      const frames = editor.getCurrentPageShapes().filter((s) => s.type === 'frame');
-      if (frames.length === 0) maybeSeedArtboards(editor);
-    };
-    // First check 500ms after mount — covers any post-mount snapshot replay
-    // that wipes frames out from under the initial seed.
-    const t = window.setTimeout(reseedIfEmpty, 500);
-    // Also subscribe to store commits — if a user deletes the last frame by
-    // accident, recover on next commit.
-    cleanup = editor.store.listen(reseedIfEmpty, { source: 'user', scope: 'document' });
-    return () => {
-      window.clearTimeout(t);
-      cleanup?.();
-    };
-  }, []);
-
   return (
     <Tldraw
       className="absolute inset-0"
@@ -99,7 +75,35 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
         editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
         // Seed the four hero artboards on an empty workspace so the multiformat
         // promise is visible on first paint. No-op if the page already has shapes.
+        const initialFrames = editor.getCurrentPageShapes().filter((s) => s.type === 'frame');
+        console.log('[aether/canvas] onMount · initial frames:', initialFrames.length);
         maybeSeedArtboards(editor);
+
+        // Listener registers HERE inside onMount so we know the editor is
+        // ready (a useEffect with [] would race onMount and register against
+        // a null ref). Logs every commit + re-seeds if frames disappear.
+        editor.store.listen(
+          () => {
+            const frames = editor.getCurrentPageShapes().filter((s) => s.type === 'frame');
+            console.log('[aether/canvas] commit · frame count:', frames.length);
+            if (frames.length === 0) {
+              console.log('[aether/canvas] re-seeding artboards');
+              maybeSeedArtboards(editor);
+            }
+          },
+          { scope: 'document' } // catch BOTH user and remote sources (sync wipes count too)
+        );
+
+        // Also a one-shot 1s post-mount check to catch any async snapshot
+        // replay that lands after the initial seed has already run.
+        window.setTimeout(() => {
+          const f = editor.getCurrentPageShapes().filter((s) => s.type === 'frame');
+          console.log('[aether/canvas] +1s check · frame count:', f.length);
+          if (f.length === 0) {
+            console.log('[aether/canvas] re-seeding (delayed)');
+            maybeSeedArtboards(editor);
+          }
+        }, 1000);
       }}
       components={components}
     />
