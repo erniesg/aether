@@ -17,8 +17,8 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf-build": "opennextjs-cloudflare build",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "deploy:stg": "convex deploy --yes --typecheck disable --codegen disable --cmd 'opennextjs-cloudflare build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL && wrangler deploy --env staging",
-    "deploy:prod": "convex deploy --yes --typecheck disable --codegen disable --cmd 'opennextjs-cloudflare build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL && wrangler deploy --env production",
+    "deploy:stg": "node scripts/require-tldraw-license.mjs && convex deploy --yes --typecheck disable --codegen disable --cmd 'opennextjs-cloudflare build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL && wrangler deploy --env staging",
+    "deploy:prod": "node scripts/require-tldraw-license.mjs && convex deploy --yes --typecheck disable --codegen disable --cmd 'opennextjs-cloudflare build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL && wrangler deploy --env production",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy"
   },

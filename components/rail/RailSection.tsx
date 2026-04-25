@@ -84,7 +84,7 @@ export function RailSection({
           aria-label={label}
           data-rail-flyout={id}
           className={cn(
-            'absolute top-0 z-20 w-80 rounded-md border border-border bg-surface-panel shadow-md',
+            'absolute top-0 z-[20100] w-80 rounded-md border border-border bg-[rgb(var(--surface-panel))] shadow-md',
             'transition-opacity duration-fast ease-quick',
             side === 'right' ? 'left-[calc(100%+8px)]' : 'right-[calc(100%+8px)]'
           )}

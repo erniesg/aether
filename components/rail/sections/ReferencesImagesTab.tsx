@@ -19,6 +19,7 @@ import {
 } from '@/lib/references/store';
 import { genReferenceId } from '@/lib/providers/reference/og';
 import type { ReferenceKind, ReferenceRecord } from '@/lib/providers/reference/types';
+import { AETHER_REFERENCE_MIME, referenceDragPayload } from '@/lib/references/drag';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -274,12 +275,24 @@ function ReferenceChip({ record }: { record: ReferenceRecord }) {
   const label = author
     ? `${record.attribution.source} · ${author}`
     : record.attribution.source;
+  const writeDragPayload = (dataTransfer: DataTransfer) => {
+    const payload = referenceDragPayload(record);
+    dataTransfer.effectAllowed = 'copy';
+    dataTransfer.setData(AETHER_REFERENCE_MIME, JSON.stringify(payload));
+    dataTransfer.setData('text/plain', record.fullUrl ?? record.previewUrl);
+    dataTransfer.setData('text/uri-list', record.fullUrl ?? record.previewUrl);
+  };
   return (
     <li
       role="listitem"
+      draggable
       data-testid="reference-chip"
+      data-reference-id={record.id}
       data-reference-source={record.attribution.source}
       data-reference-kind={record.kind}
+      data-reference-preview-url={record.previewUrl}
+      onDragStartCapture={(event) => writeDragPayload(event.dataTransfer)}
+      onDragStart={(event) => writeDragPayload(event.dataTransfer)}
       className="group relative flex flex-col overflow-hidden rounded-xs border border-border-soft bg-surface-panel-muted"
     >
       {record.kind === 'embed' ? (
@@ -287,6 +300,7 @@ function ReferenceChip({ record }: { record: ReferenceRecord }) {
           href={record.fullUrl ?? record.previewUrl}
           target="_blank"
           rel="noreferrer noopener"
+          draggable={false}
           className="flex h-16 items-center justify-center px-1 font-mono text-2xs uppercase tracking-wide text-ink-dim"
           title={record.fullUrl ?? record.previewUrl}
         >
@@ -297,6 +311,7 @@ function ReferenceChip({ record }: { record: ReferenceRecord }) {
           href={record.fullUrl ?? record.previewUrl}
           target="_blank"
           rel="noreferrer noopener"
+          draggable={false}
           className="block"
           title={label}
         >
@@ -304,6 +319,7 @@ function ReferenceChip({ record }: { record: ReferenceRecord }) {
           <img
             src={record.previewUrl}
             alt={label}
+            draggable={false}
             className="h-16 w-full object-cover"
           />
         </a>

@@ -271,7 +271,10 @@ export function useBrandContext(workspaceId?: string): BrandContext {
     const data = useQuery(creatorContextApi.getBrand as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as BrandContext | null | undefined;
-    return coerceBrandContext(data) ?? DEMO_CREATOR_CONTEXT.brand;
+    return useMemo(
+      () => coerceBrandContext(data) ?? DEMO_CREATOR_CONTEXT.brand,
+      [data]
+    );
   }
   return useSyncExternalStore(
     subscribe,
@@ -323,7 +326,10 @@ export function useOfferContext(workspaceId?: string): OfferContext {
     const data = useQuery(creatorContextApi.getOffer as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as OfferContext | null | undefined;
-    return coerceOfferContext(data) ?? DEMO_CREATOR_CONTEXT.offer;
+    return useMemo(
+      () => coerceOfferContext(data) ?? DEMO_CREATOR_CONTEXT.offer,
+      [data]
+    );
   }
   return useSyncExternalStore(
     subscribe,
@@ -375,7 +381,10 @@ export function useCampaignContext(workspaceId?: string): CampaignContext {
     const data = useQuery(creatorContextApi.getCampaign as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as CampaignContext | null | undefined;
-    return coerceCampaignContext(data) ?? DEMO_CREATOR_CONTEXT.campaign;
+    return useMemo(
+      () => coerceCampaignContext(data) ?? DEMO_CREATOR_CONTEXT.campaign,
+      [data]
+    );
   }
   return useSyncExternalStore(
     subscribe,
@@ -427,7 +436,10 @@ export function useWorkspaceInputSet(workspaceId?: string): InputSetDraft {
     const data = useQuery(creatorContextApi.getInputSet as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as InputSetDraft | null | undefined;
-    return coerceInputSet(data) ?? DEMO_CREATOR_CONTEXT.inputSet;
+    return useMemo(
+      () => coerceInputSet(data) ?? DEMO_CREATOR_CONTEXT.inputSet,
+      [data]
+    );
   }
   return useSyncExternalStore(
     subscribe,

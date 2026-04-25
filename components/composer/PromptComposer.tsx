@@ -10,6 +10,7 @@ import type {
 import { ArrowUp, ChevronDown, ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
 import { ingestUrlViaApi } from '@/lib/references/client';
 import { addReference } from '@/lib/references/store';
+import { AETHER_REFERENCE_MIME, readReferenceDragPayload } from '@/lib/references/drag';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -73,14 +74,66 @@ export interface PromptComposerProps {
 
 const MAX_REFS = 6;
 const MAX_REF_BYTES = 8 * 1024 * 1024; // 8 MB per ref — stays well under request-body limits.
+const IMAGE_FILE_EXTENSIONS = new Map([
+  ['avif', 'image/avif'],
+  ['gif', 'image/gif'],
+  ['heic', 'image/heic'],
+  ['heif', 'image/heif'],
+  ['jpg', 'image/jpeg'],
+  ['jpeg', 'image/jpeg'],
+  ['png', 'image/png'],
+  ['webp', 'image/webp'],
+]);
+
+function imageMimeFromName(name: string): string | null {
+  const ext = name.split('.').pop()?.toLowerCase();
+  return ext ? IMAGE_FILE_EXTENSIONS.get(ext) ?? null : null;
+}
+
+function isImageLikeFile(file: File): boolean {
+  return file.type.startsWith('image/') || Boolean(imageMimeFromName(file.name));
+}
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const mime = file.type.startsWith('image/') ? file.type : imageMimeFromName(file.name);
+      if (mime) {
+        resolve(dataUrl.replace(/^data:(?:application\/octet-stream)?;base64,/, `data:${mime};base64,`));
+        return;
+      }
+      resolve(dataUrl);
+    };
     reader.onerror = () => reject(reader.error ?? new Error('read failed'));
     reader.readAsDataURL(file);
   });
+}
+
+function hasDraggedFiles(event: DragEvent | ReactDragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+}
+
+function hasDraggedReference(event: DragEvent | ReactDragEvent<HTMLElement>) {
+  const types = Array.from(event.dataTransfer?.types ?? []);
+  return (
+    types.includes(AETHER_REFERENCE_MIME) ||
+    types.includes('text/uri-list')
+  );
+}
+
+function readDraggedReferenceUrl(dataTransfer: DataTransfer): string | null {
+  const payload = readReferenceDragPayload(dataTransfer);
+  if (payload?.previewUrl) return payload.previewUrl;
+
+  const uri = dataTransfer.getData('text/uri-list').trim();
+  if (/^(?:https?:|data:image\/)/i.test(uri)) return uri;
+
+  const text = dataTransfer.getData('text/plain').trim();
+  if (/^(?:https?:|data:image\/)/i.test(text)) return text;
+
+  return null;
 }
 
 /**
@@ -135,8 +188,11 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     const ingestFiles = useCallback(
       async (files: FileList | File[]) => {
         setRefError(null);
-        const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
-        if (images.length === 0) return;
+        const images = Array.from(files).filter(isImageLikeFile);
+        if (images.length === 0) {
+          setRefError('drop an image file');
+          return;
+        }
         const fresh: string[] = [];
         for (const f of images) {
           if (f.size > MAX_REF_BYTES) {
@@ -162,6 +218,22 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       []
     );
 
+    const ingestDraggedReference = useCallback((dataTransfer: DataTransfer) => {
+      setRefError(null);
+      const url = readDraggedReferenceUrl(dataTransfer);
+      if (!url) return false;
+      setRefs((prev) => {
+        if (prev.includes(url)) return prev;
+        const merged = [...prev, url];
+        if (merged.length > MAX_REFS) {
+          setRefError(`keeping the first ${MAX_REFS} references`);
+          return merged.slice(0, MAX_REFS);
+        }
+        return merged;
+      });
+      return true;
+    }, []);
+
     // Window-level drag-drop capture — the composer is only h-composer (56px)
     // tall, so a creator dragging a file from desktop usually drops over the
     // canvas instead. tldraw's own drop handler then intercepts and inserts
@@ -171,32 +243,35 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     // on the page into `ingestFiles` — matching creator intent ("attach this
     // image as a reference").
     useEffect(() => {
-      const hasFiles = (e: DragEvent) =>
-        Array.from(e.dataTransfer?.types ?? []).includes('Files');
+      const claimComposerDrag = (e: DragEvent) => {
+        if (!hasDraggedFiles(e) && !hasDraggedReference(e)) return false;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return true;
+      };
 
       const onWindowDragEnter = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
+        if (!claimComposerDrag(e)) return;
         dragDepth.current += 1;
         setDragging(true);
       };
       const onWindowDragOver = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
+        if (!claimComposerDrag(e)) return;
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
       };
       const onWindowDragLeave = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
+        if (!claimComposerDrag(e)) return;
         dragDepth.current = Math.max(0, dragDepth.current - 1);
         if (dragDepth.current === 0) setDragging(false);
       };
       const onWindowDrop = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
+        if (!claimComposerDrag(e)) return;
         dragDepth.current = 0;
         setDragging(false);
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) void ingestFiles(files);
+        else if (e.dataTransfer) ingestDraggedReference(e.dataTransfer);
       };
 
       window.addEventListener('dragenter', onWindowDragEnter, { capture: true });
@@ -209,14 +284,16 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
         window.removeEventListener('dragleave', onWindowDragLeave, { capture: true });
         window.removeEventListener('drop', onWindowDrop, { capture: true });
       };
-    }, [ingestFiles]);
+    }, [ingestDraggedReference, ingestFiles]);
 
     const submit = async (overrideScope?: PromptScope) => {
       const prompt = value.trim();
-      if (!prompt || pending || disabled) return;
+      if ((!prompt && refs.length === 0) || pending || disabled) return;
       setPending(true);
       try {
-        await onSubmit?.(prompt, {
+        const effectivePrompt =
+          prompt || 'Create a canvas-ready visual from the attached reference image.';
+        await onSubmit?.(effectivePrompt, {
           refs: refs.length > 0 ? refs : undefined,
           scope: overrideScope ?? scope,
           targetId: (overrideScope ?? scope) === 'single' ? resolvedActiveFormatId : undefined,
@@ -290,35 +367,55 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     };
 
     const handleDragEnter = (event: ReactDragEvent<HTMLFormElement>) => {
-      if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
+      if (!hasDraggedFiles(event) && !hasDraggedReference(event)) return;
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       dragDepth.current += 1;
       setDragging(true);
     };
 
     const handleDragOver = (event: ReactDragEvent<HTMLFormElement>) => {
-      if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
+      if (!hasDraggedFiles(event) && !hasDraggedReference(event)) return;
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       event.dataTransfer.dropEffect = 'copy';
     };
 
     const handleDragLeave = (event: ReactDragEvent<HTMLFormElement>) => {
+      if (!hasDraggedFiles(event) && !hasDraggedReference(event)) return;
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       dragDepth.current = Math.max(0, dragDepth.current - 1);
       if (dragDepth.current === 0) setDragging(false);
     };
 
     const handleDrop = (event: ReactDragEvent<HTMLFormElement>) => {
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       dragDepth.current = 0;
       setDragging(false);
       const files = event.dataTransfer?.files;
       if (files && files.length > 0) void ingestFiles(files);
+      else ingestDraggedReference(event.dataTransfer);
     };
 
     const removeRef = (idx: number) => {
       setRefs((prev) => prev.filter((_, i) => i !== idx));
     };
+
+    const hasPrompt = value.trim().length > 0;
+    const canGenerate = hasPrompt || refs.length > 0;
+    const generateLabel = pending
+      ? 'generating'
+      : hasPrompt
+        ? 'generate'
+        : refs.length > 0
+          ? 'generate from reference'
+          : 'generate';
 
     return (
       <form
@@ -333,7 +430,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
           className
         )}
       >
-        {refs.length > 0 ? (
+        {refs.length > 0 || refError ? (
           // Float the ref-thumb tray above the composer so the fixed
           // h-composer footprint stays stable and refs don't bleed into the
           // canvas area. Reads as an extension of the composer upward —
@@ -344,8 +441,12 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
             aria-hidden={false}
           >
             <div
-              role="list"
-              aria-label={`${refs.length} reference image${refs.length === 1 ? '' : 's'}`}
+              role={refs.length > 0 ? 'list' : 'status'}
+              aria-label={
+                refs.length > 0
+                  ? `${refs.length} reference image${refs.length === 1 ? '' : 's'}`
+                  : 'reference status'
+              }
               className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-t-md border border-b-0 border-border-soft bg-surface-panel px-2 py-1.5"
             >
               {refs.map((dataUrl, i) => (
@@ -382,14 +483,14 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
             const hasSet = Boolean(activeInputSet) && inputCount > 0;
             const hasRefs = refs.length > 0;
             const label = hasRefs
-              ? `${refs.length} ref${refs.length === 1 ? '' : 's'}${hasSet ? ` · ${inputCount} pinned` : ''}`
+              ? `${refs.length} ref${refs.length === 1 ? '' : 's'}${hasSet ? ` · ${inputCount} inputs` : ''}`
               : hasSet
-              ? `${activeInputSet} · ${inputCount} pinned`
+              ? `${activeInputSet} · ${inputCount} inputs`
               : 'no inputs pinned';
             const aria = hasRefs
               ? `input set · ${refs.length} ad-hoc reference image${refs.length === 1 ? '' : 's'} attached`
               : hasSet
-              ? `input set · ${activeInputSet} · ${inputCount} pinned · click to view`
+              ? `input set · ${activeInputSet} · ${inputCount} inputs · click to view`
               : 'input set · no inputs pinned · click to open';
             return (
               <button
@@ -502,8 +603,8 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
 
           <button
             type="submit"
-            disabled={!value.trim() || disabled || pending}
-            aria-label={pending ? 'generating' : 'generate'}
+            disabled={!canGenerate || disabled || pending}
+            aria-label={generateLabel}
             className={cn(
               'inline-flex h-8 w-8 items-center justify-center rounded-sm border border-accent bg-accent text-ink-on-accent',
               'transition-colors duration-fast ease-quick hover:bg-accent-strong',
@@ -523,7 +624,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
             className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-sm border border-dashed border-accent bg-accent/5 font-caption text-accent"
             aria-hidden
           >
-            drop images to attach as references
+            drop images or references to attach
           </div>
         ) : null}
       </form>

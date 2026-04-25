@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
 import { getConvexClient, isConvexEnabled } from '@/lib/convex/client';
@@ -96,6 +96,31 @@ function update(fn: (prev: ReferenceRecord[]) => ReferenceRecord[]): void {
   notify();
 }
 
+function referenceKey(record: ReferenceRecord): string {
+  return record.fullUrl ?? record.previewUrl;
+}
+
+function appendDedupe(prev: ReferenceRecord[], record: ReferenceRecord): ReferenceRecord[] {
+  const key = referenceKey(record);
+  if (prev.some((r) => referenceKey(r) === key)) return prev;
+  return [...prev, record];
+}
+
+function mergeReferences(
+  serverRecords: ReadonlyArray<ReferenceRecord>,
+  optimisticRecords: ReadonlyArray<ReferenceRecord>
+): ReferenceRecord[] {
+  const seen = new Set<string>();
+  const merged: ReferenceRecord[] = [];
+  for (const record of [...serverRecords, ...optimisticRecords]) {
+    const key = referenceKey(record);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(record);
+  }
+  return merged;
+}
+
 function subscribe(l: Listener): () => void {
   listeners.add(l);
   return () => {
@@ -114,7 +139,8 @@ export function useReferences(workspaceId?: string): ReferenceRecord[] {
     const data = useQuery(referencesApi.listReferences as never, {
       workspaceId: workspaceId ?? DEFAULT_REFERENCE_WORKSPACE_ID,
     } as never) as ReferenceRecord[] | undefined;
-    return data ?? [];
+    const optimistic = useSyncExternalStore(subscribe, current, getServerSnapshot);
+    return useMemo(() => mergeReferences(data ?? [], optimistic), [data, optimistic]);
   }
   return useSyncExternalStore(subscribe, current, getServerSnapshot);
   /* eslint-enable react-hooks/rules-of-hooks */
@@ -126,7 +152,8 @@ export function useWorkspaceReferences(workspaceId?: string): ReferenceRecord[] 
     const data = useQuery(referencesApi.listReferences as never, {
       workspaceId: workspaceId ?? DEFAULT_REFERENCE_WORKSPACE_ID,
     } as never) as ReferenceRecord[] | undefined;
-    return data ?? [];
+    const optimistic = useSyncExternalStore(subscribe, current, getServerSnapshot);
+    return useMemo(() => mergeReferences(data ?? [], optimistic), [data, optimistic]);
   }
   return useSyncExternalStore(subscribe, current, getServerSnapshot);
   /* eslint-enable react-hooks/rules-of-hooks */
@@ -134,24 +161,23 @@ export function useWorkspaceReferences(workspaceId?: string): ReferenceRecord[] 
 
 export function addReference(record: ReferenceRecord, workspaceId?: string): void {
   if (isConvexEnabled()) {
+    update((prev) => appendDedupe(prev, record));
     const client = getConvexClient();
     if (!client) return;
-    void client.mutation(referencesApi.addReference as never, {
-      workspaceId: workspaceId ?? DEFAULT_REFERENCE_WORKSPACE_ID,
-      reference: {
-        ...record,
-        tags: record.tags ?? [],
-      },
-    } as never);
+    void client
+      .mutation(referencesApi.addReference as never, {
+        workspaceId: workspaceId ?? DEFAULT_REFERENCE_WORKSPACE_ID,
+        reference: {
+          ...record,
+          tags: record.tags ?? [],
+        },
+      } as never)
+      .catch(() => {
+        update((prev) => prev.filter((r) => referenceKey(r) !== referenceKey(record)));
+      });
     return;
   }
-  update((prev) => {
-    // Dedupe on fullUrl (when present) or previewUrl — creators often paste
-    // the same share link twice without realising.
-    const key = record.fullUrl ?? record.previewUrl;
-    if (prev.some((r) => (r.fullUrl ?? r.previewUrl) === key)) return prev;
-    return [...prev, record];
-  });
+  update((prev) => appendDedupe(prev, record));
 }
 
 export function updateReference(id: string, patch: ReferencePatch): void {

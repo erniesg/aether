@@ -224,7 +224,7 @@ test.describe('creator loop', () => {
     }
     await expect(refsFlyout.locator('[data-testid="reference-chip"]')).toHaveCount(2);
     await expect(
-      page.getByRole('button', { name: /input set .*slow morning drop.*7 pinned/i })
+      page.getByRole('button', { name: /input set .*slow morning drop.*7 inputs/i })
     ).toBeVisible();
 
     await page.keyboard.press('Escape');
