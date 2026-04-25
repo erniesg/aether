@@ -1,5 +1,6 @@
 import { mutationGeneric, queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
+import type { ArtifactKind } from '@/lib/tool/registry';
 
 // Capability-run persistence. Shape mirrors lib/store/runs CapabilityRunRecord
 // so the client wrapper can pass Convex documents through untouched.
@@ -20,7 +21,28 @@ const STEP_VALIDATOR = v.union(
   v.literal('done')
 );
 
-const STATUS_VALIDATOR = v.union(v.literal('running'), v.literal('ok'), v.literal('error'));
+const RUN_STATUS_VALIDATOR = v.union(
+  v.literal('running'),
+  v.literal('ok'),
+  v.literal('error'),
+  v.literal('draft-executor')
+);
+
+// Finishing a live run is narrower than storing a run record: draft-executor
+// rows are intent records created by stub executors, not completion results.
+const FINISH_STATUS_VALIDATOR = v.union(
+  v.literal('running'),
+  v.literal('ok'),
+  v.literal('error')
+);
+
+const ARTIFACT_KIND_VALIDATOR = v.union(
+  v.literal('image'),
+  v.literal('video'),
+  v.literal('audio'),
+  v.literal('spatial'),
+  v.literal('text-overlay')
+);
 
 interface RunDoc {
   _id: unknown;
@@ -32,7 +54,7 @@ interface RunDoc {
     id: string;
     version: number;
   };
-  artifactKind?: 'image' | 'spatial';
+  artifactKind?: ArtifactKind;
   outputFormat?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
   sourceMode?: 'selected-image';
@@ -48,7 +70,7 @@ interface RunDoc {
   imageUrl?: string;
   latencyMs?: number;
   outputs?: unknown;
-  status: 'running' | 'ok' | 'error';
+  status: 'running' | 'ok' | 'error' | 'draft-executor';
   startedAt: number;
   finishedAt?: number;
   error?: string;
@@ -118,7 +140,7 @@ export const start = mutationGeneric({
         version: v.number(),
       })
     ),
-    artifactKind: v.optional(v.union(v.literal('image'), v.literal('spatial'))),
+    artifactKind: v.optional(ARTIFACT_KIND_VALIDATOR),
     outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
     quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
     sourceMode: v.optional(v.literal('selected-image')),
@@ -128,6 +150,7 @@ export const start = mutationGeneric({
     model: v.string(),
     prompt: v.string(),
     aspectRatio: v.optional(v.string()),
+    status: v.optional(RUN_STATUS_VALIDATOR),
     startedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -152,7 +175,7 @@ export const start = mutationGeneric({
       inputs: { prompt: args.prompt, model: args.model, aspectRatio: args.aspectRatio },
       outputs: {},
       startedAt: args.startedAt,
-      status: 'running',
+      status: args.status ?? 'running',
     });
     return args.clientRunId;
   },
@@ -170,7 +193,7 @@ export const step = mutationGeneric({
 export const finish = mutationGeneric({
   args: {
     clientRunId: v.string(),
-    status: v.optional(STATUS_VALIDATOR),
+    status: v.optional(FINISH_STATUS_VALIDATOR),
     provider: v.optional(v.string()),
     model: v.optional(v.string()),
     rewrittenPrompt: v.optional(v.string()),

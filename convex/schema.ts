@@ -264,6 +264,28 @@ export default defineSchema({
     renderedUrl: v.optional(v.string()),
   }).index('by_kv', ['keyVisualId']),
 
+  // Multilingual text-overlay layers pinned to an artboard. Canonical store
+  // for the text-apply capability (umbrella #66). `content` is a serialized
+  // `Record<BCP47LocaleCode, string>`; `style` and `placement` are the
+  // full TextOverlayStyle / AetherTextPlacement records from
+  // lib/text-overlay/types.ts. Stored as `v.any()` so T4–T9 can evolve the
+  // inner shape without a schema migration.
+  textOverlay: defineTable({
+    wsId: v.id('workspace'),
+    artboardId: v.string(),
+    content: v.any(),
+    activeLanguage: v.string(),
+    style: v.any(),
+    placement: v.any(),
+    smartPlacement: v.boolean(),
+    protectedElementIds: v.array(v.string()),
+    provenance: v.object({ capabilityRunId: v.string() }),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_wsId', ['wsId'])
+    .index('by_artboardId', ['artboardId']),
+
   // ─── capability system (the hero) ──────────────────────────────────────
   capabilityDefinition: defineTable({
     wsId: v.id('workspace'),
@@ -299,7 +321,13 @@ export default defineSchema({
       })
     ),
     artifactKind: v.optional(
-      v.union(v.literal('image'), v.literal('spatial'), v.literal('video'))
+      v.union(
+        v.literal('image'),
+        v.literal('spatial'),
+        v.literal('text-overlay'),
+        v.literal('video'),
+        v.literal('audio')
+      )
     ),
     outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
     quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
@@ -338,7 +366,14 @@ export default defineSchema({
     afterSnapshotRef: v.optional(v.string()),
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
-    status: v.union(v.literal('running'), v.literal('ok'), v.literal('error')),
+    status: v.union(
+      v.literal('running'),
+      v.literal('ok'),
+      v.literal('error'),
+      // Recorded by stub executors that only persist the intent of a run —
+      // the real executor lands later in the track and promotes to 'ok'.
+      v.literal('draft-executor')
+    ),
   })
     .index('by_ws', ['wsId'])
     .index('by_client_run_id', ['clientRunId']),
