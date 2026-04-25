@@ -30,6 +30,10 @@ loadLocalDevVars();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // This repo is often checked out beside other aether worktrees under a
+  // parent directory that also has a lockfile. Pin the project root so Next
+  // serves dev chunks from this app instead of inferring the parent workspace.
+  outputFileTracingRoot: process.cwd(),
   // Hide the Next.js floating `N` dev indicator — it occludes the composer's
   // reference-image thumbs and adds noise on a creative surface.
   devIndicators: false,

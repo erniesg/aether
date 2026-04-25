@@ -6,6 +6,7 @@ import { Chip } from '@/components/ui/Chip';
 import { cn } from '@/lib/utils/cn';
 import {
   getPreviewPublisher,
+  schedulePublisherPosts,
   useScheduledPosts,
 } from '@/lib/publisher/store';
 import {
@@ -34,8 +35,9 @@ export interface PublishSectionProps {
 
 /**
  * Right-rail `publish` lens body. Hosts the per-workspace scheduled-post
- * list + a schedule form that picks platforms and a caption. Non-posting —
- * backed by `PreviewPublisher` (issue #9 Slice 1).
+ * list + a schedule form that picks platforms and a caption. The preview
+ * record is always created locally; the server route also hands it to a real
+ * publisher when one is configured.
  */
 export function PublishSection({
   workspaceId,
@@ -60,16 +62,28 @@ export function PublishSection({
             Date.now() + 1000 * 60 * 60 * 24
           ).toISOString();
           let lastPreviewUrl: string | null = null;
+          const scheduled: ScheduledPost[] = [];
           for (const platform of platforms) {
-            const { previewUrl } = await publisher.schedule({
+            const post: ScheduledPost = {
               id: '',
               platform,
               mediaUrls,
               caption,
               hashtags,
               scheduledAt,
-            });
+            };
+            const { previewUrl } = await publisher.schedule(post);
             lastPreviewUrl = previewUrl;
+            const id = new URL(previewUrl, 'http://local').searchParams.get(
+              'publishPreview'
+            );
+            scheduled.push({ ...post, id: id ?? '' });
+          }
+          try {
+            await schedulePublisherPosts(workspaceId, scheduled);
+          } catch {
+            // The preview record is the creator-facing source of truth; a
+            // missing external publisher should not block canvas review.
           }
           if (lastPreviewUrl) {
             const id = new URL(lastPreviewUrl, 'http://local').searchParams.get(

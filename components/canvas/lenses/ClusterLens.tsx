@@ -345,7 +345,7 @@ function CardTile({
       }}
       data-testid="cluster-card"
       data-reference-id={card.referenceId}
-      data-cluster-column={card.column}
+      data-card-column={card.column}
       className={cn(
         'group flex cursor-grab items-center gap-2 rounded-xs border border-border-soft bg-surface-panel p-1.5',
         'transition-colors hover:border-accent/50 active:cursor-grabbing',

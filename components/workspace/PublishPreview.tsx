@@ -37,6 +37,28 @@ function formatScheduled(iso: string): string {
   }
 }
 
+function mediaIndexForPlatform(platform: PublishPlatform): number {
+  switch (platform) {
+    case 'tiktok':
+    case 'youtube-shorts':
+    case 'douyin':
+      return 1;
+    case 'x':
+    case 'linkedin':
+      return 3;
+    case 'instagram':
+    case 'xhs':
+    case 'pinterest':
+    default:
+      return 0;
+  }
+}
+
+function selectHeroMedia(post: ScheduledPost): string | undefined {
+  const preferred = mediaIndexForPlatform(post.platform);
+  return post.mediaUrls[preferred] ?? post.mediaUrls[0];
+}
+
 export interface PublishPreviewProps {
   posts: ScheduledPost[];
   onCancel?: (postId: string) => void;
@@ -88,7 +110,7 @@ interface PublishPreviewCardProps {
 
 function PublishPreviewCard({ post, onCancel }: PublishPreviewCardProps) {
   const meta = PLATFORM_META[post.platform];
-  const hero = post.mediaUrls[0];
+  const hero = selectHeroMedia(post);
 
   return (
     <article
