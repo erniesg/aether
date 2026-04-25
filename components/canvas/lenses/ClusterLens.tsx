@@ -429,6 +429,7 @@ function MoodboardPanel({
   return (
     <aside
       data-testid="moodboard-panel"
+      data-taxonomy="tool"
       aria-label="moodboard"
       className="flex w-[320px] shrink-0 flex-col gap-3 border-l border-border-soft bg-surface-panel/92 px-3 py-3"
     >

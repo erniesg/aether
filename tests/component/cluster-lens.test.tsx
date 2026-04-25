@@ -192,6 +192,7 @@ describe('ClusterLens · kanban', () => {
       screen.getByRole('button', { name: /make moodboard slow morning/i })
     );
     const panel = screen.getByTestId('moodboard-panel');
+    expect(panel).toHaveAttribute('data-taxonomy', 'tool');
     expect(within(panel).getByText('slow morning')).toBeInTheDocument();
 
     await userEvent.click(within(panel).getByRole('button', { name: /warmer/i }));
