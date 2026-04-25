@@ -27,9 +27,11 @@ describe('brand-ingest SkillRef loader', () => {
     expect(ref.manifest.tools).toContain('read_files');
   });
 
-  it('manifest lists referenceFiles', async () => {
+  it('manifest lists referenceFiles using skill-relative path', async () => {
     const ref = await loadBrandIngestSkillRef();
-    expect(ref.manifest.referenceFiles).toContain('lib/brand/types.ts');
+    // Path convention: skill-relative (no repo-absolute paths).
+    // The BrandSnapshot type definitions live in types.snippet.ts inside the skill dir.
+    expect(ref.manifest.referenceFiles).toContain('types.snippet.ts');
   });
 
   it('manifestPath points to SKILL.md on disk', async () => {

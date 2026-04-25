@@ -19,14 +19,27 @@ export interface SkillManifest {
   /** One-line human description shown in the capability rail. */
   description: string;
   /**
-   * Anthropic tool names the skill may call during execution.
-   * Passed to the inner `messages.create` call so the model knows what's
-   * available.
+   * Declarative list of Anthropic tool names the skill may call during
+   * execution. These are tool NAMES only — the caller is responsible for
+   * supplying the corresponding `Anthropic.Tool` definitions via
+   * `CallSkillParams.toolRegistry`. `callSkill` will throw a descriptive
+   * error if any declared name is absent from the registry.
    */
   tools: string[];
   /**
-   * Paths relative to `lib/agent/skills/<skill-name>/` that are prepended to
-   * the system prompt as additional context (prompt-cached).
+   * Paths relative to the skill directory (the directory containing its
+   * `SKILL.md`) that are prepended to the system prompt as additional
+   * context before the instruction block. Each file's content is wrapped
+   * in a `## Reference: <filename>` header.
+   *
+   * Convention:
+   *   - Files shipped WITH the skill (notes, examples, snippets) → skill-relative,
+   *     e.g. `notes.md`, `examples/foo.json`.
+   *   - External repo types that the skill depends on → copy the relevant
+   *     portion into a `.snippet.ts` file in the skill dir rather than
+   *     referencing repo-absolute paths.
+   *
+   * Missing files emit a warning and are skipped; they do not abort the call.
    */
   referenceFiles: string[];
   /**
@@ -41,9 +54,20 @@ export interface SkillManifest {
  * table and emitted by the capability factory when `action === 'author-skill'`.
  */
 export interface SkillRef extends CapabilityEntryRef<'skill'> {
-  /** Absolute FS path to the `SKILL.md` manifest. */
+  /**
+   * Absolute FS path to the `SKILL.md` manifest.
+   *
+   * When present, `callSkill` loads the manifest fresh from disk at call time
+   * so edits to the file take effect without rebuilding the SkillRef. The
+   * `manifest` snapshot below is used as a fallback if the path is unreadable
+   * (e.g. in tests that only supply an in-memory manifest).
+   */
   manifestPath: string;
-  /** Snapshot of the manifest at time of reference creation. */
+  /**
+   * Snapshot of the manifest captured at SkillRef creation time.
+   * Used as the fallback when `manifestPath` cannot be read, and as the sole
+   * manifest source in tests that do not touch the filesystem.
+   */
   manifest: SkillManifest;
 }
 

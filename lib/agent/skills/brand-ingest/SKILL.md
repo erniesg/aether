@@ -6,7 +6,7 @@ tools:
   - read_url
   - read_files
 referenceFiles:
-  - lib/brand/types.ts
+  - types.snippet.ts
 ---
 
 # Brand Ingest Skill
