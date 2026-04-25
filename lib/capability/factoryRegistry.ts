@@ -1,6 +1,10 @@
 import type { CapabilityRegistrySnapshot } from './factory';
 import { listPublishedSkillRegistryEntries } from '@/lib/skill/registry';
-import { listPublishedToolRegistryEntries, listToolRegistryEntries } from '@/lib/tool/registry';
+import {
+  listPublishedToolRegistryEntries,
+  listToolRegistryEntries,
+  type ArtifactKind,
+} from '@/lib/tool/registry';
 import { listPublishedWorkflowRegistryEntries } from '@/lib/workflow/registry';
 
 export interface CapabilityFactoryRegistryResolution {
@@ -10,9 +14,9 @@ export interface CapabilityFactoryRegistryResolution {
         kind: 'tool';
         id: string;
         version: number;
-        artifactKind: string;
+        artifactKind: ArtifactKind;
         label: string;
-        outputKind: 'image';
+        outputKind: ArtifactKind;
         status: 'draft';
       }
     | null;

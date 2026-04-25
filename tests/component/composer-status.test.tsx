@@ -62,6 +62,22 @@ describe('ComposerStatus', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows draft executor runs as neutral bookkeeping instead of errors', () => {
+    startRun({
+      tool: 'text-apply',
+      provider: 'stub',
+      model: 'stub',
+      prompt: 'record text overlay intent',
+      status: 'draft-executor',
+    });
+
+    render(<ComposerStatus />);
+
+    expect(screen.getByText(/text edit recorded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/stub/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows per-format progress in the expanded panel during fan-out', async () => {
     const runId = startRun({
       tool: 'image-gen',

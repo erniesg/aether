@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
+import type { ArtifactKind } from '@/lib/tool/registry';
 import { sanitizeImageUrlForConvex } from './sanitize';
 
 /**
@@ -30,7 +31,7 @@ const runsApi = (anyApi as unknown as {
 
 export interface ServerRunStart {
   clientRunId: string;
-  artifactKind?: 'image' | 'spatial';
+  artifactKind?: ArtifactKind;
   outputFormat?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
   sourceMode?: 'selected-image';

@@ -315,6 +315,32 @@ export function ComposerStatus() {
     );
   }
 
+  if (top.status === 'draft-executor') {
+    const draftSummary = summaryTarget && summaryTarget !== 'stub · stub' ? ` · ${summaryTarget}` : '';
+    const draftLabel = top.tool === 'text-apply' ? 'text edit recorded' : 'capability recorded';
+    return (
+      <div className="relative">
+        {activityPanel}
+        <div className="flex h-6 items-center justify-between border-t border-border-soft bg-surface-bg-muted px-4 font-caption text-ink-dim">
+          <div className="flex min-w-0 items-center gap-2 truncate">
+            <Sparkles size={10} strokeWidth={2} className="shrink-0 text-ink-faint" />
+            <span className="truncate">{draftLabel}{draftSummary}</span>
+          </div>
+          {details && (details.activities.length > 0 || details.frames.length > 0) ? (
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-xs text-ink-dim hover:bg-surface-panel-muted hover:text-ink"
+              aria-label={expanded ? 'hide activity' : 'show activity'}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
       {activityPanel}
