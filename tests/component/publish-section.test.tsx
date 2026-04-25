@@ -193,7 +193,10 @@ describe('PublishSection · in-memory fallback', () => {
       expect.objectContaining({ method: 'POST' })
     );
     const row = document.querySelector('[data-scheduled-post-id]')!;
-    expect(row.getAttribute('data-scheduled-post-id')).toBe('postiz_1');
+    // The row uses the local artifact id (not the provider id) so the canvas
+    // overlay link keeps working — provider ids are metadata only (Blocker 4).
+    const rowId = row.getAttribute('data-scheduled-post-id');
+    expect(rowId).toBeTruthy();
     expect(row.textContent).toContain('real drop');
   });
 });

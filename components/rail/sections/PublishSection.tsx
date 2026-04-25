@@ -17,6 +17,7 @@ import {
 import {
   PUBLISH_PLATFORMS,
   type PublishPlatform,
+  type PublisherProviderId,
   type ScheduledPost,
 } from '@/lib/providers/publisher/types';
 
@@ -85,21 +86,20 @@ export function PublishSection({
               'publishPreview'
             );
             lastPreviewUrl = previewUrl;
-            if (serverPublishing) {
+            if (serverPublishing && localId) {
               try {
                 const response = await scheduleViaServer({
                   workspaceId,
-                  post: { ...post, id: localId ?? '' },
+                  post: { ...post, id: localId },
                 });
-                // Use the local artifact id for the canvas overlay (Blocker 4).
-                // Provider URLs (response.result.previewUrl) are external and
-                // cannot open the in-canvas overlay; they are stored on the post
-                // as metadata only.
+                // Update the already-inserted local row with server metadata.
+                // Use localId as the canonical id so the canvas overlay keeps
+                // working — provider URLs are external and cannot open it.
+                // (Blocker 4: post.id for auto-open, not response.result.previewUrl)
                 rememberScheduledPost(workspaceId, {
                   ...response.post,
-                  id: response.post.id || localId || '',
+                  id: localId,
                 });
-                lastPreviewUrl = previewUrl; // keep local url for overlay
               } catch {
                 // The preview record is the creator-facing source of truth; a
                 // missing external publisher must not block canvas review.
@@ -138,7 +138,7 @@ export function PublishSection({
                       workspaceId,
                       id: post.id,
                       externalId: post.externalId,
-                      providerId: post.provider,
+                      providerId: post.provider as PublisherProviderId | undefined,
                     });
                     rememberScheduledPost(workspaceId, {
                       ...post,
