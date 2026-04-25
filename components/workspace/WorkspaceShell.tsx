@@ -43,6 +43,7 @@ import {
 import type { AspectRatio } from '@/lib/providers/image/types';
 import type { SpatialFormat, SpatialQuality } from '@/lib/providers/spatial/types';
 import {
+  abortStuckRuns,
   finishRun,
   failRun,
   startRun,
@@ -1458,6 +1459,19 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Auto-abort orphan runs on workspace mount. Threshold of 120s is well past
+  // any legit fan-out's `awaiting` step (≤120s for 4-format OpenAI calls)
+  // and well past any early-pipeline step that should be sub-second. Anything
+  // older that's still `running` is a tab-closed-mid-stream zombie; killing
+  // it on mount keeps the composer status from showing a perpetual
+  // `generating · prepared · NNNs` to anyone landing on the page.
+  useEffect(() => {
+    void abortStuckRuns(120_000).catch(() => {
+      // Best-effort UX hygiene; mutation is idempotent and any error
+      // surfaces in subsequent run states.
+    });
   }, []);
 
   // Arrow keys cycle through frames while the focus lens is active. No-op

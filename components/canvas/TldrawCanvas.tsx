@@ -64,6 +64,30 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
     editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
   }, [theme]);
 
+  // Belt-and-braces re-seed: if frame shapes ever drop to zero (snapshot
+  // race, accidental delete, persisted empty state), restore the hero
+  // artboards. tldraw's store listener fires synchronously on every commit,
+  // so we debounce to a microtask + minimum frame count check.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    let cleanup: (() => void) | undefined;
+    const reseedIfEmpty = () => {
+      const frames = editor.getCurrentPageShapes().filter((s) => s.type === 'frame');
+      if (frames.length === 0) maybeSeedArtboards(editor);
+    };
+    // First check 500ms after mount — covers any post-mount snapshot replay
+    // that wipes frames out from under the initial seed.
+    const t = window.setTimeout(reseedIfEmpty, 500);
+    // Also subscribe to store commits — if a user deletes the last frame by
+    // accident, recover on next commit.
+    cleanup = editor.store.listen(reseedIfEmpty, { source: 'user', scope: 'document' });
+    return () => {
+      window.clearTimeout(t);
+      cleanup?.();
+    };
+  }, []);
+
   return (
     <Tldraw
       className="absolute inset-0"
