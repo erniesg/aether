@@ -65,6 +65,12 @@ POSTIZ_INTEGRATION_PINTEREST=
 POSTIZ_PINTEREST_BOARD_ID=
 POSTIZ_PINTEREST_LINK_URL=
 
+# social-auto-upload sidecar (Modal) — CJK platforms: TikTok/Douyin/XHS/Bilibili/Kuaishou.
+# Deploy with: modal deploy infra/social-auto-upload/modal_app.py
+# See docs/DEPLOY-PUBLISHERS.md for cookie-capture instructions.
+SOCIAL_AUTO_UPLOAD_URL=https://<workspace>--aether-sau-aether-sau.modal.run
+SOCIAL_AUTO_UPLOAD_TOKEN=
+
 # App
 AETHER_ENV=development
 NEXTJS_ENV=development
