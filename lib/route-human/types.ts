@@ -96,6 +96,7 @@ export const BUTTON_PREFIX = {
   REQUEST_CHANGES: 'request_changes',
   PAUSE: 'pause',
   BLOCK: 'block',
+  HUMAN_CHOICE: 'human_choice',
 } as const;
 
 export const MODAL_PREFIX = {

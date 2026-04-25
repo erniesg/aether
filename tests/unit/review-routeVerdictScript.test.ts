@@ -54,6 +54,13 @@ describe('route-review-verdict harness contract', () => {
     expect(routeScript).toContain('BLOCK lacked a complete human decision packet');
     expect(routeScript).toContain('buildHumanDecisionFields(commonFields, activeReview.humanReview)');
   });
+
+  it('adds clickable human-choice buttons to complete BLOCK decision packets', () => {
+    expect(routeScript).toContain("const HUMAN_CHOICE_PREFIX = 'human_choice'");
+    expect(routeScript).toContain('function buildHumanChoiceRows');
+    expect(routeScript).toContain('custom_id: `${HUMAN_CHOICE_PREFIX}_${prNumber}_${index + 1}`');
+    expect(routeScript).toContain('components: buildHumanChoiceRows(pr.url, pr.number, activeReview.humanReview)');
+  });
 });
 
 describe('claude-review structured output contract', () => {

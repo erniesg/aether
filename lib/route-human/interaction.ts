@@ -41,7 +41,18 @@ export type InteractionResult =
   | { ok: true; status: 200; json: InteractionResponseJson }
   | { ok: false; status: number; error: string };
 
-function parseCustomId(id: string): { action: string; prNumber: number } | null {
+function parseCustomId(
+  id: string
+): { action: string; prNumber: number; optionIndex?: number } | null {
+  const choiceMatch = /^human_choice_(\d+)_(\d+)$/.exec(id);
+  if (choiceMatch) {
+    return {
+      action: BUTTON_PREFIX.HUMAN_CHOICE,
+      prNumber: Number(choiceMatch[1]),
+      optionIndex: Number(choiceMatch[2]),
+    };
+  }
+
   // Custom IDs use `<action>_<number>` where action may itself contain
   // underscores (e.g. `request_changes_57`). Split off the trailing number.
   const match = /^(.*)_(\d+)$/.exec(id);
@@ -119,8 +130,18 @@ async function onRequestChangesModal(
   await deps.github.addComment(prNumber, body);
   // PR number == issue number on GitHub — re-adding `claude-run` to the PR
   // (which is also an issue) is enough to re-trigger the agent.
-  await deps.github.addLabel(prNumber, LABELS.CLAUDE_RUN);
+  await refreshClaudeRun(prNumber, deps);
   return ephemeral(`↻ Feedback posted on PR #${prNumber}; \`claude-run\` re-added.`);
+}
+
+async function refreshClaudeRun(issueNumber: number, deps: InteractionDeps): Promise<void> {
+  try {
+    await deps.github.removeLabel(issueNumber, LABELS.CLAUDE_RUN);
+  } catch {
+    // The label may not be present. Removing first makes a new labeled event
+    // deterministic when the label was already set.
+  }
+  await deps.github.addLabel(issueNumber, LABELS.CLAUDE_RUN);
 }
 
 async function onPause(prNumber: number, deps: InteractionDeps): Promise<InteractionResponseJson> {
@@ -147,6 +168,43 @@ async function onBlock(prNumber: number, deps: InteractionDeps): Promise<Interac
   return ephemeral(`✗ PR #${prNumber} blocked and closed.`);
 }
 
+function extractOptionLine(
+  payload: DiscordInteractionPayload,
+  optionIndex: number
+): string | null {
+  const optionsField = payload.message?.embeds
+    ?.flatMap((embed) => embed.fields ?? [])
+    .find((field) => field.name.toLowerCase() === 'options');
+  const line = optionsField?.value
+    ?.split('\n')
+    .find((candidate) => candidate.includes(`**${optionIndex}.`));
+  return line?.trim() || null;
+}
+
+async function onHumanChoice(
+  prNumber: number,
+  optionIndex: number,
+  payload: DiscordInteractionPayload,
+  deps: InteractionDeps
+): Promise<InteractionResponseJson> {
+  const optionLine = extractOptionLine(payload, optionIndex);
+  const body = [
+    '**Human decision from Ernie (via Discord):**',
+    '',
+    optionLine
+      ? `Selected option ${optionIndex}: ${optionLine}`
+      : `Selected option ${optionIndex}.`,
+    '',
+    '_Re-dispatching `claude-run` — the author agent will continue from this decision._',
+  ].join('\n');
+
+  await deps.github.addComment(prNumber, body);
+  await refreshClaudeRun(prNumber, deps);
+  return ephemeral(
+    `Option ${optionIndex} posted on PR #${prNumber}; \`claude-run\` refreshed.`
+  );
+}
+
 type DiscordInteractionPayload = {
   type: number;
   data?: {
@@ -157,6 +215,14 @@ type DiscordInteractionPayload = {
         type: number;
         custom_id?: string;
         value?: string;
+      }>;
+    }>;
+  };
+  message?: {
+    embeds?: Array<{
+      fields?: Array<{
+        name: string;
+        value: string;
       }>;
     }>;
   };
@@ -201,7 +267,7 @@ export async function handleInteraction(
     if (!parsed) {
       return { ok: false, status: 400, error: `unknown custom_id: ${customId}` };
     }
-    const { action, prNumber } = parsed;
+    const { action, prNumber, optionIndex } = parsed;
     switch (action) {
       case BUTTON_PREFIX.MERGE:
         return { ok: true, status: 200, json: await onMerge(prNumber, deps) };
@@ -211,6 +277,15 @@ export async function handleInteraction(
         return { ok: true, status: 200, json: await onPause(prNumber, deps) };
       case BUTTON_PREFIX.BLOCK:
         return { ok: true, status: 200, json: await onBlock(prNumber, deps) };
+      case BUTTON_PREFIX.HUMAN_CHOICE:
+        if (!optionIndex) {
+          return { ok: false, status: 400, error: `missing human choice index: ${customId}` };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: await onHumanChoice(prNumber, optionIndex, payload, deps),
+        };
       default:
         return { ok: false, status: 400, error: `unknown action: ${action}` };
     }

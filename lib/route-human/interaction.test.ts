@@ -194,6 +194,61 @@ describe('handleInteraction', () => {
     );
     expect(labelCall).toBeDefined();
     expect((labelCall!.body as { labels: string[] }).labels).toEqual([LABELS.CLAUDE_RUN]);
+    expect(
+      calls.some(
+        (c) => c.method === 'DELETE' && c.path === '/repos/erniesg/aether/issues/57/labels/claude-run'
+      )
+    ).toBe(true);
+  });
+
+  it('human_choice_<prNumber>_<option> → posts selected option and refreshes claude-run', async () => {
+    const { client, calls, setResponse } = makeStubClient();
+    setResponse('POST /repos/erniesg/aether/issues/72/comments', { id: 1 });
+    setResponse('POST /repos/erniesg/aether/issues/72/labels', {});
+
+    const body = JSON.stringify({
+      type: INTERACTION_TYPE.MESSAGE_COMPONENT,
+      data: { custom_id: 'human_choice_72_2' },
+      message: {
+        embeds: [
+          {
+            fields: [
+              { name: 'reason', value: 'Which visual direction should ship?' },
+              {
+                name: 'options',
+                value:
+                  '**1. Keep tight crop** — Stronger subject focus.\\n**2. Use wider crop** — Better product context.',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const { signature, timestamp } = signed(keypair.privateKey, body);
+    const result = await handleInteraction(
+      { rawBody: body, signature, timestamp, publicKey: keypair.publicHex },
+      { github: client }
+    );
+
+    expect(result.ok).toBe(true);
+    const commentCall = calls.find(
+      (c) => c.method === 'POST' && c.path === '/repos/erniesg/aether/issues/72/comments'
+    );
+    expect(commentCall).toBeDefined();
+    expect((commentCall!.body as { body: string }).body).toContain(
+      'Selected option 2'
+    );
+    expect((commentCall!.body as { body: string }).body).toContain('Use wider crop');
+    expect(
+      calls.some(
+        (c) => c.method === 'DELETE' && c.path === '/repos/erniesg/aether/issues/72/labels/claude-run'
+      )
+    ).toBe(true);
+    const labelCall = calls.find(
+      (c) => c.method === 'POST' && c.path === '/repos/erniesg/aether/issues/72/labels'
+    );
+    expect(labelCall).toBeDefined();
+    expect((labelCall!.body as { labels: string[] }).labels).toEqual([LABELS.CLAUDE_RUN]);
   });
 
   it('pause_<prNumber> → strips claude-run from all open issues and adds queue-paused', async () => {

@@ -23,6 +23,7 @@ const PR_NUMBER = process.env.PR_NUMBER;
 const PR_HEAD_REF = process.env.PR_HEAD_REF ?? '';
 const REPO = process.env.GITHUB_REPOSITORY;
 const REVIEWER_STRUCTURED_OUTPUT = process.env.REVIEWER_STRUCTURED_OUTPUT ?? '';
+const HUMAN_CHOICE_PREFIX = 'human_choice';
 
 if (!PR_NUMBER) {
   console.error('PR_NUMBER env var is required');
@@ -202,7 +203,7 @@ const COLOR_ROUTE_HUMAN = 0xe88d67;
 // Link buttons (style 5) + markdown-link fallback in content. On app-owned
 // webhooks Discord renders the buttons; on non-app webhooks it ignores the
 // `components` field and the content links remain clickable.
-function buildPrActionRow(prUrl) {
+function buildPrActionRows(prUrl) {
   if (!prUrl) return undefined;
   return [
     {
@@ -216,7 +217,21 @@ function buildPrActionRow(prUrl) {
   ];
 }
 
-async function sendDiscordEmbed({ color, title, description, url, fields }) {
+function buildHumanChoiceRows(prUrl, prNumber, humanReview) {
+  const rows = buildPrActionRows(prUrl) ?? [];
+  const optionButtons = humanReview.options.slice(0, 4).map((_option, index) => ({
+    type: 2,
+    style: 1,
+    label: `Choose ${index + 1}`,
+    custom_id: `${HUMAN_CHOICE_PREFIX}_${prNumber}_${index + 1}`,
+  }));
+  if (optionButtons.length > 0) {
+    rows.push({ type: 1, components: optionButtons });
+  }
+  return rows.length > 0 ? rows : undefined;
+}
+
+async function sendDiscordEmbed({ color, title, description, url, fields, components }) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK;
   const botToken = process.env.DISCORD_BOT_TOKEN;
   const channelId = process.env.DISCORD_CHANNEL_ID;
@@ -235,7 +250,7 @@ async function sendDiscordEmbed({ color, title, description, url, fields }) {
   const body = {
     content: url,
     embeds: [embed],
-    components: buildPrActionRow(url),
+    components: components ?? buildPrActionRows(url),
     allowed_mentions: { parse: [] },
   };
 
@@ -496,9 +511,10 @@ async function main() {
       color: COLOR_BLOCK,
       title: `aether · reviewer BLOCKED · ${pr.title}`,
       description:
-        'Reviewer needs a human decision. Pick an option using the linked artifacts/context, then comment on the PR or issue so the agent loop can continue.',
+        'Reviewer needs a human decision. Pick an option using the linked artifacts/context; the selected choice will be posted back to the PR and the agent loop will continue.',
       url: pr.url,
       fields: buildHumanDecisionFields(commonFields, activeReview.humanReview),
+      components: buildHumanChoiceRows(pr.url, pr.number, activeReview.humanReview),
     });
     return;
   }
