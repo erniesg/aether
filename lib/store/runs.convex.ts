@@ -3,6 +3,7 @@
 import { useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
 import { getConvexClient } from '@/lib/convex/client';
+import { sanitizeImageUrlForConvex } from '@/lib/convex/sanitize';
 import type { CapabilityRunRecord, RunStatus, RunStep } from './runs.types';
 
 // anyApi lets us reference server functions by path without depending on the
@@ -67,7 +68,7 @@ export function finishRunConvex(id: string, patch: Partial<CapabilityRunRecord>)
     rewrittenPrompt: patch.rewrittenPrompt,
     rationale: patch.rationale,
     aspectRatio: patch.aspectRatio,
-    imageUrl: patch.imageUrl,
+    imageUrl: sanitizeImageUrlForConvex(patch.imageUrl),
     latencyMs: patch.latencyMs,
     error: patch.error,
     httpStatus: patch.httpStatus,

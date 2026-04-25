@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
+import { sanitizeImageUrlForConvex } from './sanitize';
 
 /**
  * Convex HTTP client for server-side runtimes (Next.js route handlers).
@@ -78,6 +79,7 @@ export async function recordRunFinish(
     await client.mutation(runsApi.finish as never, {
       clientRunId,
       ...patch,
+      imageUrl: sanitizeImageUrlForConvex(patch.imageUrl),
       finishedAt: Date.now(),
     } as never);
   } catch (err) {

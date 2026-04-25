@@ -35,7 +35,7 @@ const LOW_CONF_FIXTURE = {
   review: true,
 };
 
-test.describe('D1 — brand auto-ingest', () => {
+test.describe('Q1 — brand auto-ingest', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/workspace/demo-ws');
     await page.evaluate(() => window.localStorage.removeItem('aether.brand.v1'));
