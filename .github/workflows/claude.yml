@@ -25,7 +25,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-      actions: read
+      actions: write
       checks: read
       statuses: read
     steps:
@@ -89,9 +89,21 @@ jobs:
       - name: Refresh existing PR branch from main
         if: steps.agent_target.outputs.existing_pr_branch != ''
         env:
+          GH_TOKEN: ${{ github.token }}
           TARGET_BRANCH: ${{ steps.agent_target.outputs.existing_pr_branch }}
+          TARGET_PR_NUMBER: ${{ steps.agent_target.outputs.existing_pr_number }}
         run: |
           set -euo pipefail
+          dispatch_pr_checks() {
+            if [ -z "${TARGET_PR_NUMBER:-}" ]; then
+              echo "::notice::No PR number resolved; skipping explicit check dispatch."
+              return
+            fi
+            gh workflow run ci.yml --ref "${TARGET_BRANCH}"
+            gh workflow run claude-review.yml --ref "${TARGET_BRANCH}" -f "pr_number=${TARGET_PR_NUMBER}"
+            echo "::notice::Dispatched CI and reviewer workflows for PR #${TARGET_PR_NUMBER} on ${TARGET_BRANCH}."
+          }
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main "${TARGET_BRANCH}" --quiet
@@ -105,6 +117,7 @@ jobs:
             else
               echo "::notice::${TARGET_BRANCH} already includes origin/main."
             fi
+            dispatch_pr_checks
           else
             git merge --abort || true
             echo "::warning::Could not auto-merge origin/main into ${TARGET_BRANCH}; Claude will see the existing PR branch state."
@@ -167,6 +180,8 @@ jobs:
               git push origin "HEAD:${EXISTING_PR_BRANCH}"
               if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
                 gh pr comment "${EXISTING_PR_NUMBER}" --body "Merged follow-up agent branch \`${BRANCH}\` back into existing PR branch \`${EXISTING_PR_BRANCH}\`."
+                gh workflow run ci.yml --ref "${EXISTING_PR_BRANCH}"
+                gh workflow run claude-review.yml --ref "${EXISTING_PR_BRANCH}" -f "pr_number=${EXISTING_PR_NUMBER}"
               fi
               echo "::notice::Merged ${BRANCH} into existing PR branch ${EXISTING_PR_BRANCH}."
             else

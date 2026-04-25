@@ -26,13 +26,21 @@ name: claude-review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to review
+        required: true
+        type: string
 
 jobs:
   review:
     # Only review agent-authored branches. Human PRs, and PRs opened by the
     # reviewer agent itself (it never pushes branches, but belt-and-braces),
     # are skipped.
-    if: startsWith(github.event.pull_request.head.ref, 'claude/issue-')
+    if: |
+      (github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'claude/issue-')) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -41,11 +49,26 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - name: Resolve PR context
+        id: pr_context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr view "${PR_NUMBER}" --json number,headRefName,headRefOid --jq '{number, headRefName, headRefOid}')"
+          {
+            echo "number=$(printf '%s' "${pr}" | jq -r '.number')"
+            echo "head_ref=$(printf '%s' "${pr}" | jq -r '.headRefName')"
+            echo "head_sha=$(printf '%s' "${pr}" | jq -r '.headRefOid')"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ steps.pr_context.outputs.head_sha }}
 
       - name: Run reviewer agent
         id: reviewer
@@ -62,6 +85,9 @@ jobs:
             criteria (look for "Closes #N" in the PR body), the test output,
             and any artifact URLs posted as PR comments. Do NOT attempt to
             modify code; you only comment.
+
+            PR number: #${{ steps.pr_context.outputs.number }}
+            PR head branch: ${{ steps.pr_context.outputs.head_ref }}
 
             Apply STRICT review: red/green TDD compliance, hard rules from
             docs/AGENT-BRIEFING.md (provider seam, typed provenance, UI
@@ -104,8 +130,8 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ steps.pr_context.outputs.number }}
+          PR_HEAD_REF: ${{ steps.pr_context.outputs.head_ref }}
           REVIEWER_STRUCTURED_OUTPUT: ${{ steps.reviewer.outputs.structured_output }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
