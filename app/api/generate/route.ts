@@ -5,6 +5,9 @@ import { listAvailableProviders, resolveProvider } from '@/lib/providers/image/r
 import type { AspectRatio, ImageGenResult, ImageRef } from '@/lib/providers/image/types';
 import { ImageGenError, ProviderUnavailableError } from '@/lib/providers/image/types';
 import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
+import { cropHeroToFormats } from '@/lib/canvas/cropToFormat';
+import { pickRenderMode } from '@/lib/canvas/render-mode';
+import type { RenderModeChoice } from '@/lib/canvas/render-mode';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,6 +70,27 @@ function parseTargets(value: unknown): GenerateTarget[] | null {
   return targets;
 }
 
+/**
+ * Canonical pixel dimensions for each allowed aspect ratio.
+ * Used to compute pixel area for hero selection (largest target = hero).
+ */
+const RATIO_PIXELS: Record<AllowedAspectRatio, { w: number; h: number }> = {
+  '1:1':  { w: 1024, h: 1024 },
+  '9:16': { w: 1080, h: 1920 },
+  '16:9': { w: 1920, h: 1080 },
+  '4:3':  { w: 1440, h: 1080 },
+  '3:4':  { w: 1080, h: 1440 },
+  '4:5':  { w: 1024, h: 1280 },
+  '2:3':  { w: 1024, h: 1536 },
+  '3:2':  { w: 1536, h: 1024 },
+};
+
+function parseRenderMode(value: unknown): RenderModeChoice {
+  if (value === 'crop' || value === 'fanout' || value === 'auto') return value;
+  // Default: crop (demo thesis — one render, many crops).
+  return 'crop';
+}
+
 function jsonError(status: number, error: string, code?: string) {
   return NextResponse.json(code ? { ok: false, error, code } : { ok: false, error }, { status });
 }
@@ -112,6 +136,7 @@ export async function POST(request: Request) {
   const clientRunId = typeof b.runId === 'string' ? b.runId : undefined;
   const aspectRatioOverride = parseAspectRatio(b.aspectRatio);
   const requestedTargets = parseTargets(b.targets);
+  const modeChoice = parseRenderMode(b.mode);
 
   console.log(
     `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} planOnly=${planOnly} aspect=${aspectRatioOverride ?? 'auto'} promptLen=${prompt.length}`
@@ -170,7 +195,9 @@ export async function POST(request: Request) {
             type: 'run.started',
             at: Date.now(),
             mode:
-              requestedTargets && requestedTargets.length > 1 ? 'fanout' : 'single',
+              requestedTargets && requestedTargets.length > 1
+                ? (modeChoice === 'fanout' ? 'fanout' : 'crop')
+                : 'single',
             frames: {
               total: requestedTargets?.length ?? 1,
             },
@@ -220,6 +247,131 @@ export async function POST(request: Request) {
                     },
                   ];
 
+            // ── Resolve render mode ───────────────────────────────────────────
+            const formatAspects = targets.map((t) => {
+              const px = RATIO_PIXELS[t.aspectRatio];
+              return { w: px.w, h: px.h };
+            });
+            const resolvedMode = pickRenderMode(formatAspects, modeChoice);
+
+            // ── Select hero: largest target by canonical pixel area ───────────
+            const heroTarget = targets.reduce((best, t) => {
+              const bestPx = RATIO_PIXELS[best.aspectRatio];
+              const tPx = RATIO_PIXELS[t.aspectRatio];
+              return tPx.w * tPx.h > bestPx.w * bestPx.h ? t : best;
+            });
+            const nonHeroTargets = targets.filter((t) => t !== heroTarget);
+
+            // ── Crop path: one render → N crops ──────────────────────────────
+            if (resolvedMode === 'crop' && targets.length > 1) {
+              // Step 1: generate the hero.
+              const heroFrame = {
+                id: heroTarget.id,
+                label: heroTarget.label,
+                index: 1,
+                total: targets.length,
+                aspectRatio: heroTarget.aspectRatio,
+              } as const;
+
+              emit({ type: 'frame.started', at: Date.now(), frame: heroFrame, provider: planned.provider });
+
+              let heroImage: { url: string; width: number; height: number; mimeType: string };
+              try {
+                const heroResult = await provider.generate(
+                  { prompt: planned.plan.rewrittenPrompt, refs, aspectRatio: heroTarget.aspectRatio, seed: planned.plan.seed },
+                  { model: planned.provider.model }
+                );
+                const heroFirst = heroResult.images[0];
+                if (!heroFirst) throw new Error('provider returned no images for hero');
+                heroImage = heroFirst;
+
+                emit({
+                  type: 'frame.completed',
+                  at: Date.now(),
+                  frame: heroFrame,
+                  provider: planned.provider,
+                  latencyMs: heroResult.latencyMs,
+                  image: { url: heroFirst.url, width: heroFirst.width, height: heroFirst.height, mimeType: heroFirst.mimeType },
+                });
+              } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                emit({
+                  type: 'frame.failed',
+                  at: Date.now(),
+                  frame: heroFrame,
+                  provider: planned.provider,
+                  error: message,
+                  code: err instanceof ProviderUnavailableError ? 'provider_unavailable' : err instanceof ImageGenError ? 'image_gen_failed' : 'unknown_error',
+                });
+                throw err;
+              }
+
+              // Step 2: compute crops for non-hero targets.
+              const heroPx = RATIO_PIXELS[heroTarget.aspectRatio];
+              const cropInputFormats = nonHeroTargets.map((t) => {
+                const px = RATIO_PIXELS[t.aspectRatio];
+                return { id: t.id, w: px.w, h: px.h, label: t.label };
+              });
+              const croppedFormats = cropHeroToFormats({
+                heroAsset: { width: heroPx.w, height: heroPx.h, url: heroImage.url },
+                formats: cropInputFormats,
+              });
+
+              // Emit frame events for each cropped variant.
+              for (let i = 0; i < nonHeroTargets.length; i++) {
+                const target = nonHeroTargets[i]!;
+                const cropped = croppedFormats[i]!;
+                const frame = {
+                  id: target.id,
+                  label: target.label,
+                  index: i + 2,
+                  total: targets.length,
+                  aspectRatio: target.aspectRatio,
+                } as const;
+
+                emit({ type: 'frame.started', at: Date.now(), frame, provider: planned.provider });
+                emit({
+                  type: 'frame.completed',
+                  at: Date.now(),
+                  frame,
+                  provider: planned.provider,
+                  latencyMs: 0,
+                  image: { url: heroImage.url, width: cropped.w, height: cropped.h, mimeType: heroImage.mimeType },
+                });
+              }
+
+              emit({
+                type: 'run.completed',
+                at: Date.now(),
+                status: 'ok',
+                mode: 'crop',
+                frames: { total: targets.length, completed: targets.length, failed: 0 },
+                provider: planned.provider,
+                rewrittenPrompt: planned.plan.rewrittenPrompt,
+                rationale: planned.plan.rationale,
+                aspectRatio: planned.plan.aspectRatio as AspectRatio,
+                firstImageUrl: heroImage.url,
+                elapsedMs: Date.now() - startedAt,
+              });
+
+              if (clientRunId) {
+                await recordRunFinish(clientRunId, {
+                  status: 'ok',
+                  provider: planned.provider.id,
+                  model: planned.provider.model,
+                  rewrittenPrompt: planned.plan.rewrittenPrompt,
+                  rationale: planned.plan.rationale,
+                  aspectRatio: planned.plan.aspectRatio,
+                  imageUrl: heroImage.url,
+                  latencyMs: Date.now() - startedAt,
+                });
+              }
+
+              controller.close();
+              return;
+            }
+
+            // ── Fanout path: N separate generates (original behaviour) ────────
             const settled = await Promise.allSettled(
               targets.map(async (target, index) => {
                 const frame = {
@@ -305,6 +457,7 @@ export async function POST(request: Request) {
               type: 'run.completed',
               at: Date.now(),
               status: runStatus,
+              mode: targets.length > 1 ? 'fanout' : undefined,
               frames: {
                 total: targets.length,
                 completed: successes.length,

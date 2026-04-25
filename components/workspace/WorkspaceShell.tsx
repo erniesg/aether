@@ -339,6 +339,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         bypassAgent?: boolean;
         refs?: string[];
         targets?: GenerateTargetSpec[];
+        /** Render mode to pass to /api/generate. Defaults to 'crop' (responsive). */
+        mode?: 'crop' | 'fanout';
       } = {}
     ): Promise<void> => {
       const targets = options.targets ?? [];
@@ -517,6 +519,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             refs: options.refs?.map((url) => ({ url })),
             targets,
             runId,
+            mode: options.mode ?? 'crop',
           }),
         });
 
@@ -1233,7 +1236,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const handlePrompt = useCallback(
     async (
       prompt: string,
-      options: { refs?: string[]; scope: 'all' | 'single'; targetId?: string }
+      options: { refs?: string[]; scope: 'all' | 'single'; targetId?: string; renderMode?: 'crop' | 'fanout' }
     ) => {
       const trimmed = prompt.trim();
       if (/^\/export\b/i.test(trimmed)) {
@@ -1318,13 +1321,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             references
           );
           const refs = mergeReferenceUrls(options.refs, pinnedReferenceUrls);
-          log('fan-out · frames:', targets.length);
+          log('fan-out · frames:', targets.length, '· mode:', options.renderMode ?? 'crop');
           await runImageOnCanvas(contextualPrompt, {
             providerOverride,
             modelOverride,
             bypassAgent,
             refs: refs.length > 0 ? refs : undefined,
             targets,
+            mode: options.renderMode ?? 'crop',
           });
           return;
         }
