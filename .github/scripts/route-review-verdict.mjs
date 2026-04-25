@@ -6,9 +6,9 @@
 // route from that verdict. Fall back to parsing the latest bot VERDICT comment
 // for older/manual runs.
 //
-//   APPROVE         → add `ready-for-ernie` label to PR, fire Discord ping.
-//   REQUEST_CHANGES → re-add `claude-run` label to the source issue.
-//   BLOCK           → add `blocked` label to PR + source issue; no more automation.
+//   APPROVE         → add `ready-for-ernie`, clear stale rerun/human labels, fire Discord ping.
+//   REQUEST_CHANGES → re-add `claude-run` to the source issue, clear stale human/ready labels.
+//   BLOCK           → add `blocked` to PR + source issue, clear stale automation labels.
 //
 // No verdict found → add `route-human` label so Ernie notices. Fail closed.
 //
@@ -268,6 +268,7 @@ async function main() {
   if (verdict === 'APPROVE') {
     addLabels(prTarget, ['ready-for-ernie']);
     removeLabel(prTarget, 'route-human');
+    if (issueTarget) removeLabel(issueTarget, 'claude-run');
     await sendDiscordEmbed({
       color: COLOR_APPROVE,
       title: `aether · reviewer APPROVED · ${pr.title}`,
@@ -280,6 +281,8 @@ async function main() {
   }
 
   if (verdict === 'REQUEST_CHANGES') {
+    removeLabel(prTarget, 'route-human');
+    removeLabel(prTarget, 'ready-for-ernie');
     if (issueTarget) {
       addLabels(issueTarget, ['claude-run']);
     } else {
@@ -299,8 +302,13 @@ async function main() {
   }
 
   if (verdict === 'BLOCK') {
+    removeLabel(prTarget, 'route-human');
+    removeLabel(prTarget, 'ready-for-ernie');
     addLabels(prTarget, ['blocked']);
-    if (issueTarget) addLabels(issueTarget, ['blocked']);
+    if (issueTarget) {
+      removeLabel(issueTarget, 'claude-run');
+      addLabels(issueTarget, ['blocked']);
+    }
     await sendDiscordEmbed({
       color: COLOR_BLOCK,
       title: `aether · reviewer BLOCKED · ${pr.title}`,
