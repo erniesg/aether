@@ -12,15 +12,22 @@ beforeEach(() => {
   resetBrandContextForTests();
 });
 
-describe('LeftRail · stable context first, run material last', () => {
-  it('renders exactly five rail sections in brand · offer · campaign · references · signals order', () => {
+describe('LeftRail · stable context first, research feeds references', () => {
+  it('renders rail sections in creator-loop order', () => {
     const { container } = render(<LeftRail />);
 
     const sections = Array.from(
       container.querySelectorAll<HTMLElement>('[data-rail-section]')
     );
     const ids = sections.map((s) => s.dataset.railSection);
-    expect(ids).toEqual(['brand', 'offer', 'campaign', 'references', 'signals']);
+    expect(ids).toEqual([
+      'brand',
+      'offer',
+      'campaign',
+      'signals',
+      'research',
+      'references',
+    ]);
   });
 
   it('drops the deprecated operator-shaped sections (sources, clusters, input-set, product, brief, targets)', () => {
@@ -82,6 +89,21 @@ describe('LeftRail · stable context first, run material last', () => {
     const tabs = screen.getAllByRole('tab');
     const labels = tabs.map((t) => (t.textContent ?? '').trim().toLowerCase());
     expect(labels).toEqual(['images', 'templates', 'elements']);
+  });
+
+  it('research section exposes seed, source, target, and scout controls', async () => {
+    const { container } = render(<LeftRail />);
+
+    const researchTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="research"]'
+    );
+    expect(researchTrigger).not.toBeNull();
+    await userEvent.click(researchTrigger!);
+
+    expect(screen.getByLabelText(/research seeds/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /research sources/i })).toBeInTheDocument();
+    expect(screen.getByText('targets')).toBeInTheDocument();
+    expect(screen.getByTestId('research-run')).toBeInTheDocument();
   });
 
   it('signals section exposes three CRUD groups (keywords · hashtags · accounts)', async () => {

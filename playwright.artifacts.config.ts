@@ -14,6 +14,7 @@ import { defineConfig, devices } from '@playwright/test';
 // Outputs land in PLAYWRIGHT_ARTIFACT_DIR (default `artifacts/`).
 
 const BASE_URL = process.env.AETHER_BASE_URL;
+const PORT = process.env.PORT ?? '3000';
 
 export default defineConfig({
   testDir: './tests/artifacts',
@@ -23,7 +24,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: BASE_URL ?? 'http://localhost:3000',
+    baseURL: BASE_URL ?? `http://localhost:${PORT}`,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
@@ -39,7 +40,7 @@ export default defineConfig({
     ? undefined
     : {
         command: 'npm run dev',
-        url: 'http://localhost:3000',
+        url: `http://localhost:${PORT}`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
       },

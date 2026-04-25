@@ -11,7 +11,7 @@ The left rail previously flattened brief, references, signals, and brand into a 
 ## Shipped
 
 - added a typed creator-context scaffold in `lib/context/model.ts`
-- replaced the left rail with `brand -> offer -> campaign -> references -> signals`
+- replaced the left rail with stable creator context plus run material sections
 - kept the `input set` attached to the composer instead of turning it into another persistent rail section
 
 ## Acceptance met
@@ -26,5 +26,6 @@ The left rail previously flattened brief, references, signals, and brand into a 
 - migrate persistence and queries to the new model
 - let creators switch brands/offers/campaigns in the same shell
 - assemble a typed input set from real pinned refs and signals instead of demo seed data
+- keep research separate from brand / offer ingest; research is the market / competitor / taste loop that feeds references, clusters, and moodboards
 
 See [2026-04-23-creator-context-model.md](/Users/erniesg/code/erniesg/aether-integration/docs/decisions/2026-04-23-creator-context-model.md).

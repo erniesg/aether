@@ -13,7 +13,7 @@ For product identity and UI philosophy, read `AGENTS.md` first.
 1. **Single synthesis-shell workspace.** Never split into per-step wizard routes. The workspace is one route with lens switches.
 2. **Canvas is the substrate.** Other views are camera modes or overlays over the same underlying project, not separate products. References, generations, variants, and provenance all belong on the canvas where they participate in making.
 3. **Strict UI taxonomy — no mixing inside one panel.**
-   - Left rail = `input` (sources, references, clusters, input sets, brand, product, brief, targets)
+   - Left rail = `input` (brand, offer, campaign, signals, research, references)
    - Right rail = `output` + `metadata` (active focus artifact, versions, observations, sync/provenance)
    - Canvas chrome = `tool` (floating draggable toolbar; one primary palette)
    - Header = `navigation`
