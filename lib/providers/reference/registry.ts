@@ -3,6 +3,7 @@ import { createInstagramProvider } from './instagram';
 import { createPinterestProvider } from './pinterest';
 import { createTikTokProvider } from './tiktok';
 import { createXhsProvider } from './xhs';
+import { normalizeHttpUrlInput } from '@/lib/url/normalize';
 import type {
   ReferenceFetchOptions,
   ReferenceProvider,
@@ -52,7 +53,7 @@ export async function ingestReferenceUrl(
   url: string,
   opts: ReferenceFetchOptions = {}
 ): Promise<IngestOutcome> {
-  const trimmed = url.trim();
+  const trimmed = normalizeHttpUrlInput(url);
   if (!trimmed) {
     throw new Error('url required');
   }
