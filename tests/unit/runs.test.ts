@@ -201,6 +201,42 @@ describe('runs store — Convex backend (NEXT_PUBLIC_CONVEX_URL set, useQuery mo
     vi.resetModules();
   });
 
+  it('startRun forwards explicit draft status to the Convex start mutation', async () => {
+    const mutationFn = vi.fn(async () => undefined);
+    vi.doMock('convex/react', () => ({
+      useQuery: vi.fn(() => []),
+      useMutation: vi.fn(() => mutationFn),
+      ConvexReactClient: class {
+        constructor(_url: string) {}
+        mutation = mutationFn;
+      },
+      ConvexProvider: ({ children }: { children: React.ReactNode }) => children,
+    }));
+
+    const runs = await import('@/lib/store/runs');
+    let id = '';
+    act(() => {
+      id = runs.startRun({
+        tool: 'text-apply',
+        provider: 'stub',
+        model: 'stub',
+        prompt: 'record text overlay intent',
+        artifactKind: 'text-overlay',
+        status: 'draft-executor',
+      });
+    });
+
+    expect(mutationFn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        clientRunId: id,
+        artifactKind: 'text-overlay',
+        tool: 'text-apply',
+        status: 'draft-executor',
+      })
+    );
+  });
+
   it('useRuns returns the CapabilityRunRecord[] emitted by useQuery', async () => {
     const now = Date.now();
     const sample = [

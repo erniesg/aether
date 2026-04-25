@@ -21,7 +21,20 @@ const STEP_VALIDATOR = v.union(
   v.literal('done')
 );
 
-const STATUS_VALIDATOR = v.union(v.literal('running'), v.literal('ok'), v.literal('error'));
+const RUN_STATUS_VALIDATOR = v.union(
+  v.literal('running'),
+  v.literal('ok'),
+  v.literal('error'),
+  v.literal('draft-executor')
+);
+
+// Finishing a live run is narrower than storing a run record: draft-executor
+// rows are intent records created by stub executors, not completion results.
+const FINISH_STATUS_VALIDATOR = v.union(
+  v.literal('running'),
+  v.literal('ok'),
+  v.literal('error')
+);
 
 const ARTIFACT_KIND_VALIDATOR = v.union(
   v.literal('image'),
@@ -137,6 +150,7 @@ export const start = mutationGeneric({
     model: v.string(),
     prompt: v.string(),
     aspectRatio: v.optional(v.string()),
+    status: v.optional(RUN_STATUS_VALIDATOR),
     startedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -161,7 +175,7 @@ export const start = mutationGeneric({
       inputs: { prompt: args.prompt, model: args.model, aspectRatio: args.aspectRatio },
       outputs: {},
       startedAt: args.startedAt,
-      status: 'running',
+      status: args.status ?? 'running',
     });
     return args.clientRunId;
   },
@@ -179,7 +193,7 @@ export const step = mutationGeneric({
 export const finish = mutationGeneric({
   args: {
     clientRunId: v.string(),
-    status: v.optional(STATUS_VALIDATOR),
+    status: v.optional(FINISH_STATUS_VALIDATOR),
     provider: v.optional(v.string()),
     model: v.optional(v.string()),
     rewrittenPrompt: v.optional(v.string()),

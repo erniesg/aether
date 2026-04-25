@@ -45,6 +45,7 @@ export function startRunConvex(
     model: partial.model,
     prompt: partial.prompt,
     aspectRatio: partial.aspectRatio,
+    status: partial.status,
     definitionId: partial.definitionId,
     definitionVersion: partial.definitionVersion,
     entryRef: partial.entryRef,

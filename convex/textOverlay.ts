@@ -60,6 +60,7 @@ interface DeleteArgs {
 async function recordCapabilityRun(
   ctx: TextOverlayCtx,
   action: 'create' | 'update' | 'delete',
+  wsId: string | undefined,
   inputs: Record<string, unknown>,
   outputs: Record<string, unknown>,
   beforeSnapshotRef: string | null
@@ -68,6 +69,7 @@ async function recordCapabilityRun(
   const clientRunId = `text-apply_${action}_${now}_${Math.random().toString(36).slice(2, 8)}`;
   await ctx.db.insert('capabilityRun', {
     clientRunId,
+    ...(wsId ? { wsId } : {}),
     entryRef: TEXT_APPLY_ENTRY_REF,
     artifactKind: 'text-overlay',
     tool: 'text-apply',
@@ -93,6 +95,7 @@ export async function createTextOverlayHandler(
   const clientRunId = await recordCapabilityRun(
     ctx,
     'create',
+    args.wsId,
     { ...args },
     { artboardId: args.artboardId },
     null
@@ -119,6 +122,7 @@ export async function updateTextOverlayHandler(
 ): Promise<void> {
   const existing = await ctx.db.get(args.id);
   if (!existing) return;
+  const wsId = typeof existing.wsId === 'string' ? existing.wsId : undefined;
   const patch: Record<string, unknown> = { updatedAt: Date.now() };
   if (args.content !== undefined) patch.content = args.content;
   if (args.activeLanguage !== undefined) patch.activeLanguage = args.activeLanguage;
@@ -126,12 +130,16 @@ export async function updateTextOverlayHandler(
   if (args.placement !== undefined) patch.placement = args.placement;
   if (args.smartPlacement !== undefined) patch.smartPlacement = args.smartPlacement;
   if (args.protectedElementIds !== undefined) patch.protectedElementIds = args.protectedElementIds;
+  // T1 stores the previous overlay row id as a placeholder until the real
+  // executor records canvas snapshots in T4/T5/T9.
+  const beforeSnapshotRef = args.id;
   await recordCapabilityRun(
     ctx,
     'update',
+    wsId,
     { ...args },
     { id: args.id },
-    args.id
+    beforeSnapshotRef
   );
   await ctx.db.patch(args.id, patch);
 }
@@ -142,7 +150,11 @@ export async function deleteTextOverlayHandler(
 ): Promise<void> {
   const existing = await ctx.db.get(args.id);
   if (!existing) return;
-  await recordCapabilityRun(ctx, 'delete', { id: args.id }, {}, args.id);
+  const wsId = typeof existing.wsId === 'string' ? existing.wsId : undefined;
+  // T1 stores the previous overlay row id as a placeholder until the real
+  // executor records canvas snapshots in T4/T5/T9.
+  const beforeSnapshotRef = args.id;
+  await recordCapabilityRun(ctx, 'delete', wsId, { id: args.id }, {}, beforeSnapshotRef);
   await ctx.db.delete(args.id);
 }
 

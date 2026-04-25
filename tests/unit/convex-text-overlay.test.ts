@@ -98,6 +98,7 @@ describe('convex/textOverlay — create → update → delete round-trip (#67 / 
     const runs = Object.values(harness.rows.capabilityRun);
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({
+      wsId: 'ws_1',
       entryRef: TEXT_APPLY_ENTRY_REF,
       artifactKind: 'text-overlay',
       tool: 'text-apply',
@@ -130,6 +131,8 @@ describe('convex/textOverlay — create → update → delete round-trip (#67 / 
     const runs = Object.values(harness.rows.capabilityRun);
     expect(runs).toHaveLength(2);
     expect(runs.every((r) => (r.entryRef as any).id === 'text-apply')).toBe(true);
+    expect(runs.every((r) => r.wsId === 'ws_1')).toBe(true);
+    expect(runs[1].beforeSnapshotRef).toBe(id);
   });
 
   it('delete removes the overlay and logs a final capabilityRun row', async () => {
@@ -140,5 +143,7 @@ describe('convex/textOverlay — create → update → delete round-trip (#67 / 
     expect(runs).toHaveLength(2);
     const kinds = runs.map((r) => (r.entryRef as any).id);
     expect(kinds).toEqual(['text-apply', 'text-apply']);
+    expect(runs.every((r) => r.wsId === 'ws_1')).toBe(true);
+    expect(runs[1].beforeSnapshotRef).toBe(id);
   });
 });
