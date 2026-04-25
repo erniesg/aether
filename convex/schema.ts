@@ -146,6 +146,10 @@ export default defineSchema({
 
   offerProfile: defineTable({
     workspaceId: v.string(),
+    // id is the OfferContext.id — same round-trip rationale as brandProfile.id.
+    // Without this, saveOffer's strict-mode validation throws on the unknown
+    // `id` field and the fire-and-forget mutation swallows the error.
+    id: v.string(),
     name: v.string(),
     summary: v.string(),
     claims: v.array(v.string()),
@@ -156,6 +160,8 @@ export default defineSchema({
 
   campaignProfile: defineTable({
     workspaceId: v.string(),
+    // id is the CampaignContext.id — same rationale as offerProfile.id above.
+    id: v.string(),
     name: v.string(),
     goal: v.string(),
     audience: v.string(),

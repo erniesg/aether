@@ -333,14 +333,28 @@ export function useOfferContext(workspaceId?: string): OfferContext {
   /* eslint-enable react-hooks/rules-of-hooks */
 }
 
-export function saveOfferContext(context: OfferContext, workspaceId?: string): void {
+export function saveOfferContext(
+  context: OfferContext,
+  workspaceId?: string,
+  onError?: (err: unknown) => void
+): void {
   if (isConvexEnabled()) {
     const client = getConvexClient();
     if (client) {
-      void client.mutation(creatorContextApi.saveOffer as never, {
-        workspaceId: workspaceKey(workspaceId),
-        offer: coerceOfferContext(context) ?? DEMO_CREATOR_CONTEXT.offer,
-      } as never);
+      client
+        .mutation(creatorContextApi.saveOffer as never, {
+          workspaceId: workspaceKey(workspaceId),
+          offer: coerceOfferContext(context) ?? DEMO_CREATOR_CONTEXT.offer,
+        } as never)
+        .catch((err: unknown) => {
+          if (
+            typeof window !== 'undefined' &&
+            new URLSearchParams(window.location.search).get('debug') === '1'
+          ) {
+            console.error('[aether] saveOffer mutation failed:', err);
+          }
+          onError?.(err);
+        });
     }
     return;
   }
@@ -371,14 +385,28 @@ export function useCampaignContext(workspaceId?: string): CampaignContext {
   /* eslint-enable react-hooks/rules-of-hooks */
 }
 
-export function saveCampaignContext(context: CampaignContext, workspaceId?: string): void {
+export function saveCampaignContext(
+  context: CampaignContext,
+  workspaceId?: string,
+  onError?: (err: unknown) => void
+): void {
   if (isConvexEnabled()) {
     const client = getConvexClient();
     if (client) {
-      void client.mutation(creatorContextApi.saveCampaign as never, {
-        workspaceId: workspaceKey(workspaceId),
-        campaign: coerceCampaignContext(context) ?? DEMO_CREATOR_CONTEXT.campaign,
-      } as never);
+      client
+        .mutation(creatorContextApi.saveCampaign as never, {
+          workspaceId: workspaceKey(workspaceId),
+          campaign: coerceCampaignContext(context) ?? DEMO_CREATOR_CONTEXT.campaign,
+        } as never)
+        .catch((err: unknown) => {
+          if (
+            typeof window !== 'undefined' &&
+            new URLSearchParams(window.location.search).get('debug') === '1'
+          ) {
+            console.error('[aether] saveCampaign mutation failed:', err);
+          }
+          onError?.(err);
+        });
     }
     return;
   }
