@@ -233,15 +233,26 @@ export function ComposerStatus() {
   if (top.status === 'running') {
     const stepLabel = top.step ?? 'starting';
     // Abort button is opt-in only when the run is *clearly* stalled — not
-    // just slow. Two trigger paths:
-    //   1. step is 'placing' for >30s — placement should be near-instant; if
-    //      it's that slow, the canonical Convex `runs:finish` failure has
-    //      hit and the row will never close on its own.
-    //   2. any step takes >180s total — fan-out across 4 formats with one
-    //      OpenAI call each can legitimately reach 60-90s, so 180s is the
-    //      backstop, not a normal-slow ceiling.
+    // just slow. Three trigger paths, in increasing tolerance:
+    //   1. early-pipeline steps stuck > 15s — `prepared` / `sending` /
+    //      `received` / `parsing` should each be sub-second. >15s means the
+    //      SSE stream never started or got interrupted (tab closed mid-run,
+    //      deploy reset the worker, etc.); the row will sit `running`
+    //      forever.
+    //   2. step is 'placing' > 30s — placement to the canvas should be
+    //      near-instant; if it's that slow, the canonical Convex `runs:finish`
+    //      failure has hit.
+    //   3. universal backstop > 180s — fan-out across 4 formats with one
+    //      OpenAI call each can legitimately reach 60-120s in `awaiting`,
+    //      so 180s is the only safe ceiling for the long step.
+    const EARLY_STEPS = ['prepared', 'sending', 'received', 'parsing'] as const;
+    const isEarlyStuck =
+      EARLY_STEPS.includes(stepLabel as (typeof EARLY_STEPS)[number]) &&
+      elapsed >= 15;
     const showAbort =
-      (stepLabel === 'placing' && elapsed >= 30) || elapsed >= 180;
+      isEarlyStuck ||
+      (stepLabel === 'placing' && elapsed >= 30) ||
+      elapsed >= 180;
     return (
       <div className="relative">
         {activityPanel}
