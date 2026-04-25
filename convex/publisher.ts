@@ -14,6 +14,8 @@ const PLATFORM_VALIDATOR = v.union(
   v.literal('youtube-shorts'),
   v.literal('xhs'),
   v.literal('douyin'),
+  v.literal('bilibili'),
+  v.literal('kuaishou'),
   v.literal('pinterest')
 );
 
@@ -35,6 +37,8 @@ interface ScheduledPostDoc {
     | 'youtube-shorts'
     | 'xhs'
     | 'douyin'
+    | 'bilibili'
+    | 'kuaishou'
     | 'pinterest';
   mediaUrls: string[];
   caption: string;

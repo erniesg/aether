@@ -47,6 +47,17 @@ SPATIAL_MODAL_TOKEN=
 # prefers real providers over `draft` when their keys are present.
 SPATIAL_PROVIDER=draft
 
+# Publisher providers.
+# `preview` is always available. `postiz` schedules Western channels through a
+# self-hosted Postiz instance; `social-auto-upload` schedules CJK/browser-
+# automation channels through the Python sidecar in sidecars/social-auto-upload.
+PUBLISHER_PROVIDER=preview
+POSTIZ_BASE_URL=https://postiz.example.com
+POSTIZ_API_KEY=
+POSTIZ_PINTEREST_BOARD_ID=
+SOCIAL_AUTO_UPLOAD_URL=http://127.0.0.1:8891
+SOCIAL_AUTO_UPLOAD_TOKEN=
+
 # Convex — set after `npx convex dev` creates a project
 NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
 CONVEX_DEPLOY_KEY=...

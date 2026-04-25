@@ -16,6 +16,8 @@ export type PublishPlatform =
   | 'youtube-shorts'
   | 'xhs'
   | 'douyin'
+  | 'bilibili'
+  | 'kuaishou'
   | 'pinterest';
 
 export const PUBLISH_PLATFORMS: ReadonlyArray<PublishPlatform> = [
@@ -26,6 +28,8 @@ export const PUBLISH_PLATFORMS: ReadonlyArray<PublishPlatform> = [
   'youtube-shorts',
   'xhs',
   'douyin',
+  'bilibili',
+  'kuaishou',
   'pinterest',
 ];
 
