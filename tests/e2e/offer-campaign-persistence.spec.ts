@@ -44,9 +44,10 @@ test.describe('offer + campaign rails — input persistence', () => {
 
     let flyout = await expandRail(page, 'offer');
     const offerName = flyout.getByLabel('offer name');
-    await offerName.click();
-    await offerName.press('Control+a');
-    await offerName.press('Delete');
+    // .fill('') clears reliably across platforms (Ctrl+A doesn't select-all
+    // on macOS Chromium — it's "go to start of line"). Then pressSequentially
+    // exercises the auto-save / hydration race that the bug was about.
+    await offerName.fill('');
     await offerName.pressSequentially(stamp, { delay: 60 });
 
     // OfferSection requires explicit save click — same pattern as BrandSection.
@@ -78,9 +79,7 @@ test.describe('offer + campaign rails — input persistence', () => {
 
     const flyout = await expandRail(page, 'offer');
     const offerName = flyout.getByLabel('offer name');
-    await offerName.click();
-    await offerName.press('Control+a');
-    await offerName.press('Delete');
+    await offerName.fill(''); // cross-platform clear
     // Type slowly with pauses — gives auto-save + Convex push time to land
     // back as a hydration on every keystroke. The bug appeared exactly here.
     for (const ch of stamp) {
@@ -106,19 +105,13 @@ test.describe('offer + campaign rails — input persistence', () => {
     const campaignGoal = flyout.getByLabel('campaign goal');
     const campaignAudience = flyout.getByLabel('campaign audience');
 
-    await campaignName.click();
-    await campaignName.press('Control+a');
-    await campaignName.press('Delete');
+    await campaignName.fill('');
     await campaignName.pressSequentially(name, { delay: 50 });
 
-    await campaignGoal.click();
-    await campaignGoal.press('Control+a');
-    await campaignGoal.press('Delete');
+    await campaignGoal.fill('');
     await campaignGoal.pressSequentially(goal, { delay: 50 });
 
-    await campaignAudience.click();
-    await campaignAudience.press('Control+a');
-    await campaignAudience.press('Delete');
+    await campaignAudience.fill('');
     await campaignAudience.pressSequentially(audience, { delay: 50 });
 
     await flyout.getByRole('button', { name: /save/i }).click();
