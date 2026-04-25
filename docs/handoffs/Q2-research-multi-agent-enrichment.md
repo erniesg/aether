@@ -30,7 +30,9 @@ What's missing (this slice):
 
 ## Architecture
 
-Same pattern as Q1 (Stream B reference):
+Two valid implementations, pick based on time:
+
+### A. Direct-SDK supervisor + 3 workers (fast path; same as Stream B)
 
 ```ts
 // lib/research/orchestrator.ts
@@ -44,7 +46,31 @@ export async function orchestrateResearch({ seedText, creatorContext, refs }) {
 }
 ```
 
-Per provider mandate: planner = Claude Opus 4.7. Image gen for the moodboard outputs = OpenAI. Voice = Gemini (not used here). Segmentation = SAM3 backend (used downstream when text overlays land on the moodboard image).
+Same shape as `lib/brand/propose.ts`. Ships in ~half day. Worker seam is portable to Managed Agents.
+
+### B. Managed Agents (recommended once issue #100 lands)
+
+Research is a strong fit for Managed Agents — same reasoning as publishing:
+
+- **Per-source isolation**: one subagent per platform / hashtag / account / web-search target. A Pinterest rate-limit doesn't kill the IG scrape.
+- **Durable**: long-running scouts (hashtag walks, account history, related-tag expansion) can fire-and-forget. Creator opens the workspace tomorrow and the cluster lens is full.
+- **Audit**: each "scouted N refs from #barrierglow on Pinterest" lands as a session event.
+- **Composable**: aesthetic-analyzer can spawn child sub-sessions per cluster as it discovers them.
+
+```ts
+// lib/agent/managed/researchOrchestrator.ts
+const supervisor = await client.beta.agents.sessions.create({
+  model: 'claude-opus-4-7',
+  system: RESEARCH_SUPERVISOR_PROMPT,         // cached
+  tools: [spawnSourceSubagent, persistClusterCard, labelCluster, ...],
+});
+// supervisor decides which sources/seeds need their own subagent;
+// fans out per-source sessions; reduces results into ClusterLensSnapshot.
+```
+
+Pick **A** if the demo is in ≤2 days and the prerequisite Convex `agentSession` table from issue #100 isn't merged yet. Pick **B** if you want the durability + replay story for the demo recording.
+
+Per provider mandate: planner = Claude Opus 4.7 (supervisor + every subagent). Image gen for moodboard outputs = OpenAI. Voice = Gemini (not used here). Segmentation = SAM3 backend (used downstream when text overlays land on the moodboard image).
 
 ## Acceptance criteria
 
