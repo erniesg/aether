@@ -38,7 +38,7 @@
         // Publisher — Postiz (Western platforms: IG/X/LinkedIn/TikTok/Pinterest/YT).
         // Real values are wrangler secrets, NOT vars. These empty placeholders
         // document what to set; see docs/DEPLOY-PUBLISHERS.md + infra/postiz/.
-        "POSTIZ_BASE_URL": "",
+        "POSTIZ_API_URL": "",
         "POSTIZ_API_KEY": "",
         "POSTIZ_INTEGRATION_INSTAGRAM": "",
         "POSTIZ_INTEGRATION_TIKTOK": "",
@@ -46,6 +46,8 @@
         "POSTIZ_INTEGRATION_LINKEDIN": "",
         "POSTIZ_INTEGRATION_YOUTUBE_SHORTS": "",
         "POSTIZ_INTEGRATION_PINTEREST": "",
+        "POSTIZ_PINTEREST_BOARD_ID": "",
+        "POSTIZ_PINTEREST_LINK_URL": "",
         // Publisher — social-auto-upload (CJK: TikTok CN / Douyin / XHS / Bilibili / Kuaishou).
         // Modal ASGI endpoint. Cookie capture via modal run infra/social-auto-upload/modal_app.py.
         // See docs/DEPLOY-PUBLISHERS.md + infra/social-auto-upload/.
