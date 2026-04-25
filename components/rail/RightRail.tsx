@@ -25,7 +25,19 @@ import {
   useClusters,
   type ClusterCard,
 } from '@/lib/clusters/store';
+import {
+  DEMO_LOCALES,
+  setActiveLocale,
+  useActiveLocale,
+} from '@/lib/text-overlay/active-locale';
+import type { BCP47LocaleCode } from '@/lib/text-overlay/types';
 import { cn } from '@/lib/utils/cn';
+
+const LOCALE_LABELS: Record<string, string> = {
+  en: 'EN',
+  'zh-Hans': '中文',
+  'ja-JP': '日本語',
+};
 
 type SectionSpec = {
   id: string;
@@ -53,6 +65,41 @@ function PlaceholderBody({ hint }: { hint: string }) {
  * contract holds from first paint. Script is the caption / voiceover / copy
  * per format — the script beat of "idea → picture → script" lives here.
  */
+function LocaleSwitcher() {
+  const active = useActiveLocale();
+  return (
+    <section
+      className="flex flex-col gap-1.5"
+      aria-label="locale"
+      data-testid="focus-locale-switcher"
+    >
+      <span className="font-caption text-ink-dim">locale</span>
+      <div className="flex flex-wrap gap-1">
+        {DEMO_LOCALES.map((locale) => {
+          const isActive = locale === active;
+          return (
+            <button
+              key={locale}
+              type="button"
+              data-testid={`locale-switch-${locale}`}
+              data-active={isActive ? 'true' : 'false'}
+              onClick={() => setActiveLocale(locale as BCP47LocaleCode)}
+              className={cn(
+                'inline-flex h-7 items-center gap-1 rounded-sm border px-2 font-mono text-2xs uppercase tracking-wide transition-colors',
+                isActive
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel text-ink hover:border-border'
+              )}
+            >
+              {LOCALE_LABELS[locale] ?? locale}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function FocusBody() {
   return (
     <div className="flex flex-col gap-4">
@@ -67,6 +114,8 @@ function FocusBody() {
           </li>
         </ol>
       </section>
+
+      <LocaleSwitcher />
 
       <section className="flex flex-col gap-1.5" aria-label="script">
         <span className="font-caption text-ink-dim">script</span>

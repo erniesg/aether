@@ -37,6 +37,10 @@ import {
 } from '@/lib/canvas/focusFrame';
 import { dropImageInFrame, pickAspectRatio } from '@/lib/canvas/fanOut';
 import {
+  AETHER_IMAGE_LANDED_EVENT,
+  type AetherImageLandedDetail,
+} from '@/components/canvas/text-overlay-bridge';
+import {
   readGenerateStream,
   type GenerateStreamEvent,
 } from '@/lib/generate/stream';
@@ -686,6 +690,26 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                       label: resolvedPrompt,
                     });
                     if (!placed) throw new Error('target frame missing');
+                    // Notify the canvas text-overlay bridge so it can ask
+                    // the multilingual planner for editable copy and drop
+                    // AetherTextShape instances onto this artboard. The
+                    // bridge filters by wsId, so other workspaces stay quiet.
+                    if (typeof window !== 'undefined') {
+                      const detail: AetherImageLandedDetail = {
+                        wsId,
+                        artboardId: event.frame.id,
+                        w: event.image.width,
+                        h: event.image.height,
+                        aspectRatio: event.frame.aspectRatio,
+                        capabilityRunId: runId,
+                      };
+                      window.dispatchEvent(
+                        new CustomEvent<AetherImageLandedDetail>(
+                          AETHER_IMAGE_LANDED_EVENT,
+                          { detail }
+                        )
+                      );
+                    }
                   }
                 } catch (err) {
                   placementError =
