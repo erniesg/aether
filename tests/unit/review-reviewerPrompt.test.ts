@@ -86,6 +86,27 @@ describe('buildReviewerPrompt', () => {
     expect(prompt).toContain('no artifacts captured');
   });
 
+  it('requires artifact-backed options before blocking for visual/product ambiguity', () => {
+    const prompt = buildReviewerPrompt({
+      prNumber: 1,
+      prTitle: 't',
+      prDescription: '',
+      prDiff: '',
+      issueNumber: 1,
+      issueTitle: 't',
+      issueBody: '',
+      testSummary: '',
+      artifactUrls: ['https://r2.example.com/artifacts/pr-1/canvas.png'],
+    });
+
+    expect(prompt).toContain('decision packet');
+    expect(prompt).toContain('Reason:');
+    expect(prompt).toContain('Options: at least two concrete choices');
+    expect(prompt).toContain('Artifacts: screenshots');
+    expect(prompt).toContain('If the artifacts needed for a product/visual call are missing');
+    expect(prompt).toContain('REQUEST_CHANGES instead');
+  });
+
   it('defaults to strict rubric; opts in to lenient only when strict === false', () => {
     const strict = buildReviewerPrompt({
       prNumber: 1,
