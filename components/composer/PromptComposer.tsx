@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type {
   ClipboardEvent as ReactClipboardEvent,
   DragEvent as ReactDragEvent,
@@ -161,6 +161,55 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       },
       []
     );
+
+    // Window-level drag-drop capture — the composer is only h-composer (56px)
+    // tall, so a creator dragging a file from desktop usually drops over the
+    // canvas instead. tldraw's own drop handler then intercepts and inserts
+    // the file as a canvas asset, which is the OPPOSITE of what we want. By
+    // capturing dragenter/dragover/drop at the window with `capture:true` and
+    // calling preventDefault on file drags, we route ALL file drops anywhere
+    // on the page into `ingestFiles` — matching creator intent ("attach this
+    // image as a reference").
+    useEffect(() => {
+      const hasFiles = (e: DragEvent) =>
+        Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
+      const onWindowDragEnter = (e: DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current += 1;
+        setDragging(true);
+      };
+      const onWindowDragOver = (e: DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      };
+      const onWindowDragLeave = (e: DragEvent) => {
+        if (!hasFiles(e)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragging(false);
+      };
+      const onWindowDrop = (e: DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) void ingestFiles(files);
+      };
+
+      window.addEventListener('dragenter', onWindowDragEnter, { capture: true });
+      window.addEventListener('dragover', onWindowDragOver, { capture: true });
+      window.addEventListener('dragleave', onWindowDragLeave, { capture: true });
+      window.addEventListener('drop', onWindowDrop, { capture: true });
+      return () => {
+        window.removeEventListener('dragenter', onWindowDragEnter, { capture: true });
+        window.removeEventListener('dragover', onWindowDragOver, { capture: true });
+        window.removeEventListener('dragleave', onWindowDragLeave, { capture: true });
+        window.removeEventListener('drop', onWindowDrop, { capture: true });
+      };
+    }, [ingestFiles]);
 
     const submit = async (overrideScope?: PromptScope) => {
       const prompt = value.trim();
