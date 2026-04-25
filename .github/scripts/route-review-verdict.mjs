@@ -7,10 +7,12 @@
 // for older/manual runs.
 //
 //   APPROVE         → add `ready-for-ernie`, clear stale rerun/human labels, fire Discord ping.
-//   REQUEST_CHANGES → re-add `claude-run` to the source issue, clear stale human/ready labels.
-//   BLOCK           → add `blocked` to PR + source issue, clear stale automation labels.
+//   REQUEST_CHANGES → refresh `claude-run` on the source issue, clear stale human/ready labels.
+//   BLOCK           → send a human decision packet only when the reviewer supplied
+//                     reason + options, and visual/product blocks include artifacts.
 //
-// No verdict found → add `route-human` label so Ernie notices. Fail closed.
+// No verdict found → refresh `claude-run` on the source issue when possible. Only
+// route to human if automation cannot identify a source issue to continue from.
 //
 // This script is intentionally dependency-free Node (uses the GH_TOKEN via
 // `gh` CLI + native fetch for Discord) so it runs without an npm install.
@@ -66,11 +68,44 @@ function parseStructuredReview(raw) {
     return {
       verdict,
       body: typeof parsed.body === 'string' ? parsed.body : '',
+      humanReview: normalizeHumanReview(parsed.humanReview),
     };
   } catch (err) {
     console.warn(`could not parse reviewer structured output: ${err.message}`);
     return null;
   }
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
+}
+
+function normalizeHumanOptions(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      if (typeof item === 'string' && item.trim()) {
+        return { label: `Option ${index + 1}`, description: item.trim() };
+      }
+      if (!item || typeof item !== 'object') return null;
+      const label = typeof item.label === 'string' ? item.label.trim() : '';
+      const description = typeof item.description === 'string' ? item.description.trim() : '';
+      if (!label || !description) return null;
+      return { label, description };
+    })
+    .filter(Boolean);
+}
+
+function normalizeHumanReview(value) {
+  if (!value || typeof value !== 'object') return null;
+  const kind = ['visual', 'product', 'architecture', 'other'].includes(value.kind)
+    ? value.kind
+    : 'other';
+  const reason = typeof value.reason === 'string' ? value.reason.trim() : '';
+  const artifactUrls = normalizeStringArray(value.artifactUrls);
+  const options = normalizeHumanOptions(value.options);
+  return { kind, reason, artifactUrls, options };
 }
 
 function stripVerdictLines(body) {
@@ -149,9 +184,18 @@ function removeLabel(target, label) {
   }
 }
 
+function refreshLabel(target, label) {
+  removeLabel(target, label);
+  addLabels(target, [label]);
+}
+
+function addIssueComment(issueTarget, body) {
+  gh(['issue', 'comment', String(issueTarget.number), '--body', body]);
+  console.log(`posted handoff comment on issue #${issueTarget.number}`);
+}
+
 // Colors on Discord's dark theme.
 const COLOR_APPROVE = 0x0e8a16;
-const COLOR_REQUEST = 0xfbca04;
 const COLOR_BLOCK = 0xb60205;
 const COLOR_ROUTE_HUMAN = 0xe88d67;
 
@@ -221,6 +265,105 @@ async function sendDiscordEmbed({ color, title, description, url, fields }) {
   }
 }
 
+function truncateDiscord(value, max = 1024) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
+function truncateGithub(value, max = 6000) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 32)}\n\n[truncated by router]`;
+}
+
+function formatHumanOptions(options) {
+  return options
+    .map((option, index) => `**${index + 1}. ${option.label}** — ${option.description}`)
+    .join('\n');
+}
+
+function formatHumanArtifacts(urls) {
+  return urls.map((url, index) => `[artifact ${index + 1}](${url})`).join('\n');
+}
+
+function needsArtifactBackedChoice(humanReview) {
+  return humanReview?.kind === 'visual' || humanReview?.kind === 'product';
+}
+
+function hasHumanDecisionPacket(review) {
+  const humanReview = review?.humanReview;
+  if (!humanReview?.reason || humanReview.options.length < 2) return false;
+  if (needsArtifactBackedChoice(humanReview) && humanReview.artifactUrls.length === 0) {
+    return false;
+  }
+  return true;
+}
+
+function buildHumanDecisionFields(commonFields, humanReview) {
+  const fields = [...commonFields];
+  fields.push({
+    name: 'reason',
+    value: truncateDiscord(humanReview.reason),
+    inline: false,
+  });
+  fields.push({
+    name: 'options',
+    value: truncateDiscord(formatHumanOptions(humanReview.options)),
+    inline: false,
+  });
+  if (humanReview.artifactUrls.length > 0) {
+    fields.push({
+      name: 'artifacts',
+      value: truncateDiscord(formatHumanArtifacts(humanReview.artifactUrls)),
+      inline: false,
+    });
+  }
+  return fields;
+}
+
+function quoteMarkdown(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return '> (no reviewer body captured)';
+  return trimmed
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+}
+
+function buildRedispatchHandoff({ pr, verdict, reason, reviewBody }) {
+  const lines = [
+    '### Automated reviewer handoff',
+    '',
+    `PR: #${pr.number} ${pr.url}`,
+    `Reviewer verdict: ${verdict ?? 'none'}`,
+    `Repair instruction: ${reason}`,
+    '',
+    'The router is refreshing `claude-run` so the next agent can continue without a human relay.',
+  ];
+
+  if (reviewBody) {
+    lines.push('', 'Reviewer context:', '', quoteMarkdown(truncateGithub(stripVerdictLines(reviewBody))));
+  }
+
+  return lines.join('\n');
+}
+
+function redispatchIssue(issueTarget, reason, handoffBody) {
+  console.log(`${reason} — refreshing \`claude-run\` on issue #${issueTarget.number}`);
+  if (handoffBody) addIssueComment(issueTarget, handoffBody);
+  refreshLabel(issueTarget, 'claude-run');
+}
+
+async function routeUnrecoverableHuman({ prTarget, pr, commonFields, description }) {
+  addLabels(prTarget, ['route-human']);
+  await sendDiscordEmbed({
+    color: COLOR_ROUTE_HUMAN,
+    title: `aether · route-human · ${pr.title}`,
+    description,
+    url: pr.url,
+    fields: commonFields,
+  });
+}
+
 async function main() {
   const pr = gh(
     ['pr', 'view', PR_NUMBER, '--json', 'number,title,url,body,headRefName,author'],
@@ -235,12 +378,16 @@ async function main() {
   const structuredReview = parseStructuredReview(REVIEWER_STRUCTURED_OUTPUT);
   const reviewerComment = findLatestReviewerComment(comments);
   let verdict = reviewerComment ? parseVerdict(reviewerComment.body) : null;
+  let activeReview = reviewerComment
+    ? { verdict, body: reviewerComment.body, humanReview: null }
+    : null;
 
   if (structuredReview) {
     const body = formatReviewComment(structuredReview);
     gh(['pr', 'comment', PR_NUMBER, '--body', body]);
     console.log('posted reviewer comment from structured output');
     verdict = structuredReview.verdict;
+    activeReview = structuredReview;
   }
 
   const issueNumber =
@@ -284,24 +431,60 @@ async function main() {
     removeLabel(prTarget, 'route-human');
     removeLabel(prTarget, 'ready-for-ernie');
     if (issueTarget) {
-      addLabels(issueTarget, ['claude-run']);
+      redispatchIssue(
+        issueTarget,
+        'Reviewer requested fixable changes; continue from the PR review context.',
+        buildRedispatchHandoff({
+          pr,
+          verdict,
+          reason: 'Reviewer requested fixable changes; update the PR and keep this in the automated loop.',
+          reviewBody: activeReview?.body,
+        })
+      );
+      console.log('REQUEST_CHANGES re-dispatched without Discord notification');
     } else {
-      console.warn('REQUEST_CHANGES but no linked issue — add `route-human` to PR instead.');
-      addLabels(prTarget, ['route-human']);
+      console.warn('REQUEST_CHANGES but no linked issue — routing to human because automation cannot continue.');
+      await routeUnrecoverableHuman({
+        prTarget,
+        pr,
+        commonFields,
+        description:
+          'Reviewer requested changes, but the router could not find a linked source issue to re-dispatch. Add a `Closes #N` issue link or dispatch the author agent manually.',
+      });
     }
-    // Ping so Ernie knows changes are being iterated on.
-    await sendDiscordEmbed({
-      color: COLOR_REQUEST,
-      title: `aether · reviewer REQUESTED_CHANGES · ${pr.title}`,
-      description:
-        'Reviewer flagged issues. Author agent has been re-dispatched. No action needed unless the loop stalls.',
-      url: pr.url,
-      fields: commonFields,
-    });
     return;
   }
 
   if (verdict === 'BLOCK') {
+    if (!hasHumanDecisionPacket(activeReview)) {
+      removeLabel(prTarget, 'route-human');
+      removeLabel(prTarget, 'ready-for-ernie');
+      if (issueTarget) {
+        redispatchIssue(
+          issueTarget,
+          'BLOCK lacked a complete human decision packet; asking the agent loop to produce reason/options/artifacts',
+          buildRedispatchHandoff({
+            pr,
+            verdict,
+            reason:
+              'Reviewer returned BLOCK without a complete human decision packet. Do not ping Ernie yet; either fix the issue or produce reason/options/artifacts for any true visual/product ambiguity.',
+            reviewBody: activeReview?.body,
+          })
+        );
+        console.log('BLOCK without decision packet re-dispatched without Discord notification');
+      } else {
+        console.warn('BLOCK lacked a human decision packet and no linked issue exists — routing to human.');
+        await routeUnrecoverableHuman({
+          prTarget,
+          pr,
+          commonFields,
+          description:
+            'Reviewer blocked the PR but did not provide a complete decision packet, and the router could not find a linked source issue to re-dispatch.',
+        });
+      }
+      return;
+    }
+
     removeLabel(prTarget, 'route-human');
     removeLabel(prTarget, 'ready-for-ernie');
     addLabels(prTarget, ['blocked']);
@@ -313,23 +496,39 @@ async function main() {
       color: COLOR_BLOCK,
       title: `aether · reviewer BLOCKED · ${pr.title}`,
       description:
-        'Reviewer rejected architectural/scope reasons. Human resolution required.',
+        'Reviewer needs a human decision. Pick an option using the linked artifacts/context, then comment on the PR or issue so the agent loop can continue.',
       url: pr.url,
-      fields: commonFields,
+      fields: buildHumanDecisionFields(commonFields, activeReview.humanReview),
     });
     return;
   }
 
-  // No verdict: fail-closed route to human review.
-  console.warn('no parseable VERDICT in reviewer comment — routing to human.');
-  addLabels(prTarget, ['route-human']);
-  await sendDiscordEmbed({
-    color: COLOR_ROUTE_HUMAN,
-    title: `aether · route-human · ${pr.title}`,
+  // No verdict: this is a harness/reviewer failure, not a product decision.
+  console.warn('no parseable VERDICT in reviewer comment.');
+  removeLabel(prTarget, 'ready-for-ernie');
+  if (issueTarget) {
+    removeLabel(prTarget, 'route-human');
+    redispatchIssue(
+      issueTarget,
+      'No parseable reviewer verdict',
+      buildRedispatchHandoff({
+        pr,
+        verdict: null,
+        reason:
+          'Reviewer did not produce a parseable verdict. Repair the review output or rerun review; do not involve Ernie unless a concrete product/visual decision packet is needed.',
+        reviewBody: activeReview?.body,
+      })
+    );
+    console.log('missing verdict re-dispatched without Discord notification');
+    return;
+  }
+
+  await routeUnrecoverableHuman({
+    prTarget,
+    pr,
+    commonFields,
     description:
-      'Reviewer agent did not produce a parseable VERDICT. Manual review required.',
-    url: pr.url,
-    fields: commonFields,
+      'Reviewer did not produce a parseable verdict, and the router could not find a linked source issue to re-dispatch. This needs harness triage.',
   });
 }
 
