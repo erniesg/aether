@@ -375,6 +375,23 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       });
       stepRun(runId, 'prepared');
 
+      // Lifted out of the try-block so the catch handler can clear them after
+      // an AbortError. Block-scoped lets aren't visible across catch in TS.
+      const STREAM_STALE_MS = 120_000;
+      const abortCtrl = new AbortController();
+      let staleTimer: ReturnType<typeof setTimeout> | null = null;
+      const resetStaleTimer = () => {
+        if (staleTimer) clearTimeout(staleTimer);
+        staleTimer = setTimeout(() => {
+          appendRunActivity(runId, {
+            title: 'generation timed out',
+            detail: `no events for ${STREAM_STALE_MS / 1000}s — aborting`,
+            tone: 'error',
+          });
+          abortCtrl.abort();
+        }, STREAM_STALE_MS);
+      };
+
       try {
         stepRun(runId, 'sending');
         appendRunActivity(runId, {
@@ -480,9 +497,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           return;
         }
 
+        // Stream generation can hang silently if the SSE connection drops
+        // mid-stream (Cloudflare edge keepalive flake, upstream provider stall
+        // after frame.completed, etc.). Two safety nets in place:
+        //   1. AbortController so the fetch is cancellable.
+        //   2. A stale-event timer that aborts if no event has arrived in
+        //      STREAM_STALE_MS. The server-side per-provider timeout is 60s,
+        //      so 120s here gives the slowest provider (chained edits) headroom.
         const res = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: abortCtrl.signal,
           body: JSON.stringify({
             prompt,
             providerId: options.providerOverride,
@@ -495,6 +520,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         });
 
         if (!res.ok || !res.headers.get('content-type')?.includes('text/event-stream')) {
+          if (staleTimer) clearTimeout(staleTimer);
           let json: GenerateResponseJson | null = null;
           try {
             json = (await res.json()) as GenerateResponseJson;
@@ -517,6 +543,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           title: 'stream connected',
           detail: targets.length > 1 ? `${targets.length} formats` : 'single format',
         });
+        resetStaleTimer();
 
         let finalEvent: RunCompletedEvent | null = null;
         let resolvedPrompt = prompt;
@@ -525,6 +552,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         const placementErrors: string[] = [];
 
         await readGenerateStream(res, async (event) => {
+          resetStaleTimer();
           switch (event.type) {
             case 'run.started': {
               if (targets.length === 0 && event.frames.total === 1) {
@@ -724,6 +752,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           }
         });
 
+        if (staleTimer) clearTimeout(staleTimer);
+
         const completedEvent = finalEvent as RunCompletedEvent | null;
         if (!completedEvent) {
           failRun(runId, 'stream ended before completion');
@@ -763,14 +793,21 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           at: completedEvent.at,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logError('fetch threw:', err);
+        if (staleTimer) clearTimeout(staleTimer);
+        const aborted =
+          err instanceof DOMException && err.name === 'AbortError';
+        const message = aborted
+          ? 'aborted (stale stream or user cancel)'
+          : err instanceof Error
+            ? err.message
+            : String(err);
+        if (!aborted) logError('fetch threw:', err);
         appendRunActivity(runId, {
-          title: 'request failed',
+          title: aborted ? 'generation aborted' : 'request failed',
           detail: message,
           tone: 'error',
         });
-        failRun(runId, `fetch failed: ${message}`);
+        failRun(runId, aborted ? message : `fetch failed: ${message}`);
       }
     },
     [editor]
