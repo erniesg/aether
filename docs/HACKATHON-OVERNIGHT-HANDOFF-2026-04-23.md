@@ -72,7 +72,7 @@ Every problem below was a sub-20-minute fix in review but cost a CI cycle. Pre-e
 
 6. **"Skeleton + one smoke test" scope drift.** PR #30 declared `'gemini-live'` in a type union but didn't create `lib/voice/gemini-live.ts`. If the issue asks for a skeleton, the file must exist — even if it's a stub that throws `not implemented yet`. Forward-declared types without backing files are scope gaps.
 
-7. **"codex" / bot mentions.** No commits or PR bodies this round referenced other tools by name; keep it that way. `Co-Authored-By: Claude Opus 4.7` is the only acceptable attribution line.
+7. **Tool / bot attribution mentions.** No commits or PR bodies this round referenced other tools by name; keep it that way. `Co-Authored-By: Claude Opus 4.7` is the only acceptable attribution line.
 
 8. **Stale handoff doc trap.** The 2026-04-22 handoff listed P0s that had already shipped. Agents that read it verbatim wasted turns re-planning already-done work. **Base every slice off `git log --oneline -20` on `main`**, not off a handoff's static list.
 

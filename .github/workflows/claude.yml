@@ -206,7 +206,7 @@ jobs:
 
           Review checklist:
           - CI must pass (typecheck · unit tests · e2e).
-          - Codex review surfaces in the timeline.
+          - Automated reviewer comment surfaces in the timeline.
           - Read the agent's sticky comment on issue #${ISSUE_NUMBER} for its TDD log.
 
           🤖 Generated with [Claude Code](https://claude.com/claude-code)
