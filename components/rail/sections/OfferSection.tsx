@@ -19,16 +19,21 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [newClaim, setNewClaim] = useState('');
 
-  // Hydrate the draft from Convex *only* when the workspace itself changes.
-  // Keying on `saved` instead would let our own write round-trip reset the
-  // input mid-typing — the canonical "append-only" / "can't overwrite"
-  // symptom on the offer panel. See BrandSection for the matching pattern.
-  const hydratedFor = useRef<string | undefined>(workspaceId);
+  // Two-phase hydration — see BrandSection for the rationale + symptoms
+  // this fixes. Phase A (no edits) follows Convex; Phase B (after first
+  // user input this session) is sticky to the local draft.
+  const hasEdited = useRef(false);
+  const lastWorkspaceId = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (hydratedFor.current === workspaceId) return;
-    hydratedFor.current = workspaceId;
+    if (lastWorkspaceId.current !== workspaceId) {
+      lastWorkspaceId.current = workspaceId;
+      hasEdited.current = false;
+      setDraft(saved);
+      setDirty(false);
+      return;
+    }
+    if (hasEdited.current) return;
     setDraft(saved);
-    setDirty(false);
   }, [workspaceId, saved]);
 
   const validationMessage = useMemo(() => {
@@ -38,6 +43,7 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
   }, [draft]);
 
   const updateDraft = (fn: (prev: OfferContext) => OfferContext) => {
+    hasEdited.current = true;
     setDraft(fn);
     setDirty(true);
     setSaveState('idle');

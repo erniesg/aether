@@ -232,12 +232,16 @@ export function ComposerStatus() {
 
   if (top.status === 'running') {
     const stepLabel = top.step ?? 'starting';
-    // After 60s, the run has clearly stalled — surface an "abort" button so
-    // the creator can reclaim the composer without reloading the workspace.
-    // Backend root cause for the canonical stuck case is fixed in PR #102
-    // (oversized data URLs blowing up Convex `runs:finish`); this is the
-    // cleanup path for stale rows already in Convex + a defense in depth.
-    const showAbort = elapsed >= 60;
+    // Abort button is opt-in only when the run is *clearly* stalled — not
+    // just slow. Two trigger paths:
+    //   1. step is 'placing' for >30s — placement should be near-instant; if
+    //      it's that slow, the canonical Convex `runs:finish` failure has
+    //      hit and the row will never close on its own.
+    //   2. any step takes >180s total — fan-out across 4 formats with one
+    //      OpenAI call each can legitimately reach 60-90s, so 180s is the
+    //      backstop, not a normal-slow ceiling.
+    const showAbort =
+      (stepLabel === 'placing' && elapsed >= 30) || elapsed >= 180;
     return (
       <div className="relative">
         {activityPanel}

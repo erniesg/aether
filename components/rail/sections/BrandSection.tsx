@@ -385,26 +385,35 @@ export function BrandSection({
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
 
-  // Hydrate the local draft from Convex *only* when the workspace itself
-  // changes. Subscribing to `savedContext` here causes a feedback loop: after
-  // the auto-save round-trips (setDirty(false) → Convex echoes back), this
-  // effect fires and stomps on the live input. Reported symptom: typing into
-  // the brand-name field reverts mid-keystroke / behaves "append-only".
-  // Keying on workspaceId means switching workspaces still pulls a fresh
-  // draft, but in-session reactive updates from your own writes don't
-  // race what you're typing.
-  const hydratedFor = useRef<string | undefined>(workspaceId);
+  // Two-phase hydration:
+  //   Phase A (no user edits yet): keep the draft in lock-step with Convex.
+  //     This handles initial-mount-before-Convex-resolves, cross-tab edits,
+  //     and the autonomous brand-propose flow updating the rail underneath
+  //     the user.
+  //   Phase B (user has typed at least once this session): Convex updates
+  //     stop overriding the draft. This is the fix for "typing reverts
+  //     mid-keystroke / behaves append-only" — the user's input wins over
+  //     reactive echoes from their own auto-save round-trips.
+  // Workspace switch is treated as a fresh session (resets `hasEdited`).
+  const hasEdited = useRef(false);
+  const lastWorkspaceId = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (hydratedFor.current === workspaceId) return;
-    hydratedFor.current = workspaceId;
+    if (lastWorkspaceId.current !== workspaceId) {
+      lastWorkspaceId.current = workspaceId;
+      hasEdited.current = false;
+      setDraft(savedContext);
+      setDirty(false);
+      setSaveState('idle');
+      return;
+    }
+    if (hasEdited.current) return;
     setDraft(savedContext);
-    setDirty(false);
-    setSaveState('idle');
   }, [workspaceId, savedContext]);
 
   const validationMessage = useMemo(() => validateDraft(draft), [draft]);
 
   const updateDraft = (fn: (prev: BrandContext) => BrandContext) => {
+    hasEdited.current = true;
     setDraft((prev) => fn(prev));
     setDirty(true);
     setSaveState('idle');

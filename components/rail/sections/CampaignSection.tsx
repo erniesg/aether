@@ -19,15 +19,19 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [newChannel, setNewChannel] = useState('');
 
-  // Hydrate the draft from Convex *only* when the workspace itself changes.
-  // See BrandSection / OfferSection for the matching pattern + the symptom
-  // that motivated removing the on-every-saved-change sync.
-  const hydratedFor = useRef<string | undefined>(workspaceId);
+  // Two-phase hydration — see BrandSection for the rationale.
+  const hasEdited = useRef(false);
+  const lastWorkspaceId = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (hydratedFor.current === workspaceId) return;
-    hydratedFor.current = workspaceId;
+    if (lastWorkspaceId.current !== workspaceId) {
+      lastWorkspaceId.current = workspaceId;
+      hasEdited.current = false;
+      setDraft(saved);
+      setDirty(false);
+      return;
+    }
+    if (hasEdited.current) return;
     setDraft(saved);
-    setDirty(false);
   }, [workspaceId, saved]);
 
   const validationMessage = useMemo(() => {
@@ -43,6 +47,7 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
   }, [draft.channels]);
 
   const updateDraft = (fn: (prev: CampaignContext) => CampaignContext) => {
+    hasEdited.current = true;
     setDraft(fn);
     setDirty(true);
     setSaveState('idle');
