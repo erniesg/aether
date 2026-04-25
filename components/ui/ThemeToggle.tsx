@@ -8,14 +8,14 @@ import { cn } from '@/lib/utils/cn';
 const MODE_ICON: Record<ThemeMode, React.ReactNode> = {
   light: <Sun size={14} strokeWidth={1.75} />,
   dark: <Moon size={14} strokeWidth={1.75} />,
-  synth: <Palette size={14} strokeWidth={1.75} />,
+  custom: <Palette size={14} strokeWidth={1.75} />,
   system: <Monitor size={14} strokeWidth={1.75} />,
 };
 
 const MODE_LABEL: Record<ThemeMode, string> = {
   light: 'light',
   dark: 'dark',
-  synth: 'synth',
+  custom: 'custom',
   system: 'system',
 };
 

@@ -55,6 +55,31 @@ describe('RightRail · creator-language rewrite', () => {
     expect(text).toMatch(/v1|version/);
   });
 
+  it('opens flyouts as an opaque rail overlay above canvas chrome', async () => {
+    const { container } = render(<RightRail />);
+
+    const focusTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="focus"]'
+    );
+    expect(focusTrigger).not.toBeNull();
+    await userEvent.click(focusTrigger!);
+
+    const rail = screen.getByRole('navigation', { name: /outputs/i });
+    const flyout = container.querySelector<HTMLElement>(
+      '[data-rail-flyout="focus"]'
+    );
+    const body = container.querySelector<HTMLElement>('[data-rail-flyout-body]');
+    expect(flyout).not.toBeNull();
+    expect(body).not.toBeNull();
+
+    expect(rail.className).toContain('z-30');
+    expect(flyout!.className).toContain('z-50');
+    expect(flyout!.className).toContain('isolate');
+    expect(flyout!.className).toContain('overflow-hidden');
+    expect(flyout!.className).toContain('bg-surface-panel');
+    expect(body!.className).toContain('bg-surface-panel');
+  });
+
   it('all-generations section still hosts the ActionLog with the pin affordance', async () => {
     const onPin = vi.fn();
     const runId = startRun({

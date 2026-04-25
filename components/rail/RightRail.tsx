@@ -304,7 +304,7 @@ function RightRailInner({
       aria-label="outputs"
       data-taxonomy="output"
       className={cn(
-        'relative flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-l border-border-soft bg-surface-panel-muted py-2',
+        'relative z-30 flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-l border-border-soft bg-surface-panel-muted py-2',
         className
       )}
     >

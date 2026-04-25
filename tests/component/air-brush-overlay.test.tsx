@@ -9,6 +9,7 @@ import type { CreateAirBrushHandLandmarker } from '@/lib/canvas/mediaPipeHandLan
 afterEach(() => {
   cleanup();
   delete window.__AETHER_AIR_BRUSH_DEBUG__;
+  window.history.replaceState({}, '', '/');
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -28,6 +29,26 @@ function installMediaDevices(getUserMedia: () => Promise<MediaStream>) {
       getUserMedia,
     },
   });
+}
+
+function dispatchPointer(
+  element: Element,
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  init: {
+    clientX: number;
+    clientY: number;
+    pointerId: number;
+    pressure?: number;
+  }
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    clientX: { value: init.clientX },
+    clientY: { value: init.clientY },
+    pointerId: { value: init.pointerId },
+    pressure: { value: init.pressure ?? 0.5 },
+  });
+  fireEvent(element, event);
 }
 
 const noFingerTracking: CreateAirBrushHandLandmarker = async () => {
@@ -225,19 +246,19 @@ describe('AirBrushOverlay', () => {
       value: vi.fn(),
     });
 
-    fireEvent.pointerDown(pad, {
+    dispatchPointer(pad, 'pointerdown', {
       clientX: 200,
       clientY: 260,
       pointerId: 9,
       pressure: 0.5,
     });
-    fireEvent.pointerMove(pad, {
+    dispatchPointer(pad, 'pointermove', {
       clientX: 300,
       clientY: 320,
       pointerId: 9,
       pressure: 0.5,
     });
-    fireEvent.pointerUp(pad, {
+    dispatchPointer(pad, 'pointerup', {
       clientX: 300,
       clientY: 320,
       pointerId: 9,
@@ -277,7 +298,124 @@ describe('AirBrushOverlay', () => {
     });
   });
 
+  it('drops tiny pointer fallback taps through the same pending-stroke gate', async () => {
+    installMediaDevices(vi.fn(async () => {
+      throw new Error('no camera');
+    }) as unknown as () => Promise<MediaStream>);
+    const onPoint = vi.fn();
+
+    render(
+      <AirBrushOverlay
+        active
+        onPoint={onPoint}
+        createHandLandmarker={noFingerTracking}
+      />
+    );
+
+    await screen.findByText(/camera unavailable/i);
+    const pad = screen.getByLabelText(/air brush fallback pad/i);
+    vi.spyOn(pad, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      top: 200,
+      width: 400,
+      height: 300,
+      right: 500,
+      bottom: 500,
+      x: 100,
+      y: 200,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(pad, 'setPointerCapture', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(pad, 'releasePointerCapture', {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(pad, 'pointerdown', {
+      clientX: 200,
+      clientY: 260,
+      pointerId: 9,
+      pressure: 0.5,
+    });
+    dispatchPointer(pad, 'pointermove', {
+      clientX: 202,
+      clientY: 261,
+      pointerId: 9,
+      pressure: 0.5,
+    });
+    dispatchPointer(pad, 'pointerup', {
+      clientX: 202,
+      clientY: 261,
+      pointerId: 9,
+      pressure: 0.5,
+    });
+
+    expect(onPoint).not.toHaveBeenCalled();
+  });
+
+  it('keeps MediaPipe landmark skeletons out of the public preview by default', async () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(2);
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockReturnValue(0.1);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+    vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+    const landmarkContext = {
+      clearRect: vi.fn(),
+      setTransform: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      landmarkContext as unknown as CanvasRenderingContext2D
+    );
+
+    installMediaDevices(
+      vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })) as unknown as () => Promise<MediaStream>
+    );
+    const detectForVideo = vi.fn(() => ({
+      landmarks: [trackedHand()],
+      handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+    }));
+
+    render(
+      <AirBrushOverlay
+        active
+        onPoint={vi.fn()}
+        createHandLandmarker={async () => ({
+          detectForVideo,
+          close: vi.fn(),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(100);
+    });
+
+    expect(landmarkContext.clearRect).toHaveBeenCalled();
+    expect(landmarkContext.stroke).not.toHaveBeenCalled();
+    expect(landmarkContext.arc).not.toHaveBeenCalled();
+  });
+
   it('emits MediaPipe index-finger points when landmark tracking is ready', async () => {
+    window.history.replaceState({}, '', '/workspace/demo-ws?debug=1');
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       rafCallbacks.push(callback);
@@ -311,10 +449,18 @@ describe('AirBrushOverlay', () => {
       })) as unknown as () => Promise<MediaStream>
     );
     const onPoint = vi.fn();
-    const detectForVideo = vi.fn(() => ({
-      landmarks: [trackedHand()],
-      handedness: [[{ score: 0.95, categoryName: 'Right' }]],
-    }));
+    let frameIndex = 0;
+    const detectForVideo = vi.fn(() => {
+      frameIndex += 1;
+      return {
+        landmarks: [
+          frameIndex <= 2
+            ? trackedHand()
+            : trackedHand({ 8: { x: 0.18, y: 0.36 } }),
+        ],
+        handedness: [[{ score: 0.95, categoryName: 'Right' }]],
+      };
+    });
 
     render(
       <AirBrushOverlay
@@ -343,6 +489,12 @@ describe('AirBrushOverlay', () => {
     await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
     act(() => {
       rafCallbacks.shift()?.(116);
+    });
+    expect(onPoint).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(132);
     });
 
     await waitFor(() => {
@@ -378,23 +530,30 @@ describe('AirBrushOverlay', () => {
       })) as unknown as () => Promise<MediaStream>
     );
     const onPoint = vi.fn();
-    const detectForVideo = vi.fn(() => ({
-      landmarks: [
-        trackedHand({ 8: { x: 0.25, y: 0.4 } }),
-        trackedHand({
-          0: { x: 0.58, y: 0.82 },
-          5: { x: 0.64, y: 0.62 },
-          6: { x: 0.66, y: 0.54 },
-          7: { x: 0.69, y: 0.48 },
-          8: { x: 0.72, y: 0.42 },
-          17: { x: 0.46, y: 0.68 },
-        }),
-      ],
-      handedness: [
-        [{ score: 0.95, categoryName: 'Right' }],
-        [{ score: 0.96, categoryName: 'Left' }],
-      ],
-    }));
+    let frameIndex = 0;
+    const detectForVideo = vi.fn(() => {
+      frameIndex += 1;
+      return {
+        landmarks: [
+          trackedHand({ 8: { x: 0.25, y: 0.4 } }),
+          trackedHand({
+            0: { x: 0.58, y: 0.82 },
+            5: { x: 0.64, y: 0.62 },
+            6: { x: 0.66, y: 0.54 },
+            7: { x: 0.69, y: 0.48 },
+            8:
+              frameIndex <= 2
+                ? { x: 0.72, y: 0.42 }
+                : { x: 0.66, y: 0.46 },
+            17: { x: 0.46, y: 0.68 },
+          }),
+        ],
+        handedness: [
+          [{ score: 0.95, categoryName: 'Right' }],
+          [{ score: 0.96, categoryName: 'Left' }],
+        ],
+      };
+    });
 
     render(
       <AirBrushOverlay
@@ -416,6 +575,12 @@ describe('AirBrushOverlay', () => {
     await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
     act(() => {
       rafCallbacks.shift()?.(116);
+    });
+    expect(onPoint).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(rafCallbacks.length).toBeGreaterThan(0));
+    act(() => {
+      rafCallbacks.shift()?.(132);
     });
 
     await waitFor(() => {
@@ -495,7 +660,7 @@ describe('AirBrushOverlay', () => {
     expect(onEndAirBrush).not.toHaveBeenCalled();
   });
 
-  it('fires onEndAirBrush after a stroke has started and an open palm is sustained', async () => {
+  it('keeps open-palm completion disabled by default after a stroke has started', async () => {
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       rafCallbacks.push(callback);
@@ -566,9 +731,7 @@ describe('AirBrushOverlay', () => {
       if (rafCallbacks.length === 0) break;
     }
 
-    await waitFor(() => {
-      expect(onEndAirBrush).toHaveBeenCalledTimes(1);
-    });
+    expect(onEndAirBrush).not.toHaveBeenCalled();
   });
 });
 

@@ -40,6 +40,7 @@ import {
 import {
   messageFromUnknownError,
   recordAirBrushDebugEvent,
+  type AirBrushCaptureMode,
   type AirBrushPoint,
 } from '@/lib/canvas/airBrush';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
@@ -129,6 +130,11 @@ interface GeneratedPlatePreview {
   mimeType: string;
   width: number;
   height: number;
+}
+
+interface AirBrushSession {
+  mode: AirBrushCaptureMode;
+  targetText?: string;
 }
 
 interface SegmentationDraft {
@@ -483,6 +489,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
   const [airBrushActive, setAirBrushActive] = useState(false);
+  const [airBrushSession, setAirBrushSession] = useState<AirBrushSession>({
+    mode: 'standard',
+  });
   const [sketchBrush, setSketchBrush] = useState<SketchBrushState>(
     DEFAULT_SKETCH_BRUSH_STATE
   );
@@ -538,6 +547,9 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
 
   const handleAirBrushToggle = useCallback(
     (active: boolean) => {
+      if (active) {
+        setAirBrushSession({ mode: 'standard' });
+      }
       setAirBrushActive(active);
       if (active) {
         if (editor && getFrameShapes(editor).length > 0) {
@@ -552,6 +564,27 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       }
     },
     [editor, handlePrimitiveToolPress, captureSketchAsReference]
+  );
+
+  const startAirBrushCapture = useCallback(
+    ({
+      mode = 'standard',
+      targetText,
+    }: {
+      mode?: AirBrushCaptureMode;
+      targetText?: string;
+    }) => {
+      setAirBrushSession({
+        mode,
+        ...(targetText ? { targetText } : {}),
+      });
+      setAirBrushActive(true);
+      if (editor && getFrameShapes(editor).length > 0) {
+        focusFrameAtIndex(editor, 0);
+      }
+      handlePrimitiveToolPress('draw');
+    },
+    [editor, handlePrimitiveToolPress]
   );
 
   // Single awaited end-of-session path for voice + gesture. Captures the
@@ -1547,6 +1580,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       confirm_sketch: () => {
         handleConfirmSketch();
       },
+      start_air_brush: startAirBrushCapture,
       // Voice-driven "I'm done drawing": stop air brush AND await the capture
       // so the sketch is in the composer's ref list before any subsequent
       // run_generate call fires. The chip-driven toggle uses fire-and-forget
@@ -1572,6 +1606,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       onCapabilityPress,
       onVoiceGenerate,
       openSegmentation,
+      startAirBrushCapture,
     ]
   );
 
@@ -1634,6 +1669,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onPoint={handleAirBrushPoint}
         onCapture={(dataUrl) => composerRef.current?.addReferenceDataUrl(dataUrl)}
         onEndAirBrush={finishAirBrushAndCapture}
+        mode={airBrushSession.mode}
+        targetText={airBrushSession.targetText}
         showInactiveButton={false}
       />
 

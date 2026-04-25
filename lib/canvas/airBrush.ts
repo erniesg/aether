@@ -2,6 +2,7 @@ export type AirBrushPointState = 'start' | 'move' | 'end' | 'hover';
 export type AirBrushPointSource = 'camera' | 'pointer';
 export type AirBrushPointIntent = 'draw' | 'erase';
 export type AirBrushHandedness = 'Left' | 'Right';
+export type AirBrushCaptureMode = 'standard' | 'blind_signature';
 export type AirBrushInputMode =
   | 'camera-landmarks'
   | 'pointer-fallback'

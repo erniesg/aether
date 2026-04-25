@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { VadSignalType, VoiceActivityType } from '@google/genai/web';
 import {
   buildGeminiLiveConfig,
   GEMINI_GREETING_TEXT,
@@ -126,6 +127,9 @@ describe('GeminiLiveClient', () => {
     expect(
       tools[0]?.functionDeclarations?.map((tool) => tool.name),
     ).toContain('end_air_brush');
+    expect(
+      tools[0]?.functionDeclarations?.map((tool) => tool.name),
+    ).toContain('start_air_brush');
   });
 
   it('fetches a Gemini session, opens the live transport, and streams mic audio', async () => {
@@ -247,6 +251,37 @@ describe('GeminiLiveClient', () => {
           }),
         }),
       ]),
+    );
+  });
+
+  it('records Live activity diagnostics in debug mode', async () => {
+    window.history.replaceState({}, '', '/workspace/demo-ws?voice-debug=1');
+    const harness = createHarness();
+    const client = new GeminiLiveClient({
+      deps: {
+        fetchSession: harness.fetchSession,
+        connectLiveSession: harness.connectLiveSession,
+        createRecorder: harness.createRecorder,
+        createPlayer: harness.createPlayer,
+      },
+    });
+
+    await client.connect({ credentials: harness.credentials });
+    client.__injectMessageForTests({
+      voiceActivity: { voiceActivityType: VoiceActivityType.ACTIVITY_START },
+      voiceActivityDetectionSignal: { vadSignalType: VadSignalType.VAD_SIGNAL_TYPE_SOS },
+    });
+
+    expect(window.__AETHER_VOICE_DEBUG__?.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'activity',
+          detail: expect.objectContaining({
+            voiceActivityType: 'ACTIVITY_START',
+            vadSignalType: 'VAD_SIGNAL_TYPE_SOS',
+          }),
+        }),
+      ])
     );
   });
 
@@ -375,6 +410,54 @@ describe('GeminiLiveClient', () => {
     expect(harness.player.enqueuePcm16).toHaveBeenCalledTimes(1);
     expect(harness.player.complete).toHaveBeenCalledTimes(1);
     expect(states).toEqual(['idle', 'thinking', 'speaking', 'idle']);
+  });
+
+  it('handles multiple server content parts in a single Live message', async () => {
+    const harness = createHarness();
+    const client = new GeminiLiveClient({
+      deps: {
+        fetchSession: harness.fetchSession,
+        connectLiveSession: harness.connectLiveSession,
+        createRecorder: harness.createRecorder,
+        createPlayer: harness.createPlayer,
+      },
+    });
+    const transcripts: VoiceTranscriptEvent[] = [];
+    client.onTranscript((event) => transcripts.push(event));
+
+    await client.connect({ credentials: harness.credentials });
+    client.__injectMessageForTests({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { text: 'Ready.' },
+            {
+              inlineData: {
+                mimeType: 'audio/pcm;rate=24000',
+                data: 'AAA=',
+              },
+            },
+            {
+              inlineData: {
+                mimeType: 'audio/pcm;rate=24000',
+                data: 'AAA=',
+              },
+            },
+          ],
+        },
+        turnComplete: true,
+      },
+    });
+
+    expect(transcripts).toEqual([
+      expect.objectContaining({
+        speaker: 'assistant',
+        kind: 'final',
+        text: 'Ready.',
+      }),
+    ]);
+    expect(harness.player.enqueuePcm16).toHaveBeenCalledTimes(2);
+    expect(harness.player.complete).toHaveBeenCalledTimes(1);
   });
 
   it('surfaces unexpected Live socket drops as errors and returns to idle', async () => {

@@ -15,7 +15,6 @@ const GEMINI_DEFAULT_VOICE = 'Kore';
 const OPENAI_SESSIONS_URL = 'https://api.openai.com/v1/realtime/sessions';
 const STALE_GEMINI_LIVE_MODEL_ALIASES = new Map([
   ['gemini-live-2.5-flash-native-audio', GEMINI_DEFAULT_MODEL],
-  ['gemini-3.1-flash-live-preview', GEMINI_DEFAULT_MODEL],
 ]);
 
 interface SessionIssuerDeps {
@@ -178,7 +177,7 @@ export async function issueVoiceSession(
       })),
       tool_choice: 'auto',
       instructions:
-        "You are aether's voice companion. Keep replies brief. Call the provided tools eagerly rather than narrating.",
+        "You are aether's voice companion. Keep replies brief. Call the provided tools eagerly rather than narrating. If the creator asks to draw, start their name, or write their Chinese name, call start_air_brush; for the demo Chinese name use mode blind_signature and targetText 陈恩娇.",
     }),
   });
 

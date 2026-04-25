@@ -8,6 +8,7 @@ import {
   type AirBrushHandLandmark,
   translateMediaPipeHandLandmarksToAirBrushPoint,
 } from '@/lib/canvas/airBrush';
+import { AirBrushStrokeMachine } from '@/lib/canvas/airBrushStrokeMachine';
 
 function pointingHand(
   overrides: Partial<Record<number, Partial<AirBrushHandLandmark>>> = {}
@@ -462,5 +463,60 @@ describe('air brush input helpers', () => {
     expect(evaluation.accepted).toBe(false);
     expect(evaluation.reason).toBe('handedness-mismatch');
     expect(evaluation.point).toBeNull();
+  });
+});
+
+describe('AirBrushStrokeMachine', () => {
+  it('does not commit a micro-pinch below calibrated duration and distance', () => {
+    const machine = new AirBrushStrokeMachine({
+      minStrokeDistance: 0.04,
+      minStrokeDurationMs: 120,
+    });
+
+    const first = machine.accept(
+      { x: 0.4, y: 0.4, state: 'start', source: 'camera', intent: 'draw' },
+      0
+    );
+    const second = machine.accept(
+      { x: 0.405, y: 0.404, state: 'move', source: 'camera', intent: 'draw' },
+      48
+    );
+    const ended = machine.accept(
+      { x: 0.405, y: 0.404, state: 'end', source: 'camera', intent: 'draw' },
+      64
+    );
+
+    expect(first.events).toEqual([]);
+    expect(second.events).toEqual([]);
+    expect(ended.events).toEqual([]);
+    expect(ended.state).toBe('betweenStrokes');
+  });
+
+  it('promotes real movement into exactly one committed stroke start', () => {
+    const machine = new AirBrushStrokeMachine({
+      minStrokeDistance: 0.03,
+      minStrokeDurationMs: 120,
+    });
+
+    machine.accept(
+      { x: 0.4, y: 0.4, state: 'start', source: 'camera', intent: 'draw' },
+      0
+    );
+    const promoted = machine.accept(
+      { x: 0.47, y: 0.43, state: 'move', source: 'camera', intent: 'draw' },
+      80
+    );
+    const moving = machine.accept(
+      { x: 0.52, y: 0.47, state: 'move', source: 'camera', intent: 'draw' },
+      128
+    );
+
+    expect([...promoted.events, ...moving.events].filter((p) => p.state === 'start')).toHaveLength(1);
+    expect(promoted.events[0]).toMatchObject({
+      x: 0.4,
+      y: 0.4,
+      state: 'start',
+    });
+    expect(machine.pointerDown).toBe(true);
   });
 });

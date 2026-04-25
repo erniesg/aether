@@ -67,7 +67,7 @@ describe('/api/voice/session', () => {
     const fetchImpl = vi.fn(
       async (_url: RequestInfo | URL, init?: RequestInit) => {
         const body = JSON.parse(String(init?.body ?? '{}'));
-        expect(body.tools).toHaveLength(12);
+        expect(body.tools).toHaveLength(13);
         expect(body.tools.map((t: { name: string }) => t.name)).toEqual([
           'focus_format',
           'pan_zoom',
@@ -78,6 +78,7 @@ describe('/api/voice/session', () => {
           'adjust_brush_size',
           'clear_sketch',
           'confirm_sketch',
+          'start_air_brush',
           'end_air_brush',
           'run_capability',
           'run_generate',
@@ -156,16 +157,16 @@ describe('/api/voice/session', () => {
     expect(session.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
   });
 
-  it('maps the superseded Gemini 3.1 demo alias to the current supported Live model', async () => {
+  it('preserves the current Gemini 3.1 Flash Live Preview model', async () => {
     process.env.GOOGLE_GEMINI_API_KEY = 'gk-test';
     process.env.VOICE_PROVIDER = 'gemini-live';
     process.env.GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
 
     const issueGeminiTokenImpl = vi.fn(
       async (params: { apiKey: string; model: string; voice: string }) => {
-        expect(params.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
+        expect(params.model).toBe('gemini-3.1-flash-live-preview');
         return {
-          name: 'tokens/ephemeral_gemini_current',
+          name: 'tokens/ephemeral_gemini_31',
           expireTime: new Date(Date.now() + 60_000).toISOString(),
         };
       },
@@ -174,7 +175,7 @@ describe('/api/voice/session', () => {
     const { issueVoiceSession } = await import('@/app/api/voice/session/route');
     const session = await issueVoiceSession({ issueGeminiTokenImpl });
 
-    expect(session.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
+    expect(session.model).toBe('gemini-3.1-flash-live-preview');
   });
 
   it('returns 503 when OPENAI_API_KEY is missing', async () => {

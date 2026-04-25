@@ -234,7 +234,7 @@ function LeftRailInner({ className }: { className?: string }) {
       aria-label="inputs"
       data-taxonomy="input"
       className={cn(
-        'relative flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-r border-border-soft bg-surface-panel-muted py-2',
+        'relative z-30 flex w-rail-compact shrink-0 flex-col items-center gap-0.5 border-r border-border-soft bg-surface-panel-muted py-2',
         className
       )}
     >

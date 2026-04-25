@@ -45,6 +45,29 @@ describe('LeftRail · stable context first, run material last', () => {
     expect(text).toContain('assets');
   });
 
+  it('opens flyouts as an opaque rail overlay above canvas chrome', async () => {
+    const { container } = render(<LeftRail />);
+
+    const brandTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="brand"]'
+    );
+    expect(brandTrigger).not.toBeNull();
+    await userEvent.click(brandTrigger!);
+
+    const rail = screen.getByRole('navigation', { name: /inputs/i });
+    const flyout = container.querySelector<HTMLElement>('[data-rail-flyout="brand"]');
+    const body = container.querySelector<HTMLElement>('[data-rail-flyout-body]');
+    expect(flyout).not.toBeNull();
+    expect(body).not.toBeNull();
+
+    expect(rail.className).toContain('z-30');
+    expect(flyout!.className).toContain('z-50');
+    expect(flyout!.className).toContain('isolate');
+    expect(flyout!.className).toContain('overflow-hidden');
+    expect(flyout!.className).toContain('bg-surface-panel');
+    expect(body!.className).toContain('bg-surface-panel');
+  });
+
   it('campaign section separates the current goal from stable brand data', async () => {
     const { container } = render(<LeftRail />);
 

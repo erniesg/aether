@@ -19,6 +19,7 @@ import {
   resolveAirBrushInputMode,
   translateMediaPipeHandLandmarksToAirBrushPoint,
   type AirBrushDebugStage,
+  type AirBrushCaptureMode,
   type AirBrushHandedness,
   type AirBrushHandLandmark,
   type AirBrushHandLandmarkFrame,
@@ -30,6 +31,7 @@ import {
   type AirBrushRejectionReason,
   type AirBrushVideoDebug,
 } from '@/lib/canvas/airBrush';
+import { AirBrushStrokeMachine } from '@/lib/canvas/airBrushStrokeMachine';
 import {
   createMediaPipeHandLandmarker,
   type AirBrushHandLandmarker,
@@ -39,6 +41,8 @@ import { cn } from '@/lib/utils/cn';
 
 export interface AirBrushOverlayProps {
   active: boolean;
+  mode?: AirBrushCaptureMode;
+  targetText?: string;
   onActiveChange?: (active: boolean) => void;
   onPoint?: (point: AirBrushPoint) => void;
   onCapture?: (dataUrl: string) => void;
@@ -48,6 +52,9 @@ export interface AirBrushOverlayProps {
    * the overlay calls this then hands off the active-change to the parent.
    */
   onEndAirBrush?: () => void | Promise<void>;
+  openPalmEndEnabled?: boolean;
+  drawHand?: AirBrushHandedness;
+  eraseHand?: AirBrushHandedness | null;
   createHandLandmarker?: CreateAirBrushHandLandmarker;
   className?: string;
   showInactiveButton?: boolean;
@@ -354,19 +361,35 @@ function drawHandLandmarkOverlay({
   ctx.restore();
 }
 
-function labelForMode(mode: AirBrushInputMode, state: CameraState) {
-  if (state === 'requesting') return 'air brush · camera';
-  if (mode === 'camera-landmarks') return 'air brush · camera';
-  if (mode === 'pointer-fallback') return 'air brush · pointer fallback';
-  return 'air brush · unavailable';
+function labelForMode(
+  inputMode: AirBrushInputMode,
+  state: CameraState,
+  captureMode: AirBrushCaptureMode,
+  targetText?: string
+) {
+  const prefix =
+    captureMode === 'blind_signature'
+      ? targetText
+        ? `blind signature · ${targetText}`
+        : 'blind signature'
+      : 'air brush';
+  if (state === 'requesting') return `${prefix} · camera`;
+  if (inputMode === 'camera-landmarks') return `${prefix} · camera`;
+  if (inputMode === 'pointer-fallback') return `${prefix} · pointer fallback`;
+  return `${prefix} · unavailable`;
 }
 
 export function AirBrushOverlay({
   active,
+  mode = 'standard',
+  targetText,
   onActiveChange,
   onPoint,
   onCapture,
   onEndAirBrush,
+  openPalmEndEnabled = false,
+  drawHand = 'Right',
+  eraseHand = 'Left',
   createHandLandmarker = createMediaPipeHandLandmarker,
   className,
   showInactiveButton = true,
@@ -379,6 +402,8 @@ export function AirBrushOverlay({
   const lastCameraPointRef = useRef<AirBrushPoint | null>(null);
   const cameraStrokeActiveRef = useRef(false);
   const activeCameraIntentRef = useRef<AirBrushPointIntent | null>(null);
+  const cameraStrokeMachineRef = useRef(new AirBrushStrokeMachine());
+  const pointerStrokeMachineRef = useRef(new AirBrushStrokeMachine());
   const pinchWarmupCountRef = useRef<Record<AirBrushPointIntent, number>>({
     draw: 0,
     erase: 0,
@@ -494,20 +519,28 @@ export function AirBrushOverlay({
       });
       if (!point) return;
       const nextPoint = { ...point, intent: 'draw' as const };
-      onPointRef.current?.(nextPoint);
-      publishDebug(
-        'pointer-fallback',
-        {
-          state,
-          intent: nextPoint.intent,
-          x: roundDebugNumber(nextPoint.x),
-          y: roundDebugNumber(nextPoint.y),
-        },
-        {
-          emittedPointCount: debugInfoRef.current.emittedPointCount + 1,
-        },
-        { log: state !== 'move' }
+      const result = pointerStrokeMachineRef.current.accept(
+        nextPoint,
+        event.timeStamp || performance.now()
       );
+      let emittedPointCount = debugInfoRef.current.emittedPointCount;
+      for (const committedPoint of result.events) {
+        emittedPointCount += 1;
+        onPointRef.current?.(committedPoint);
+        publishDebug(
+          'pointer-fallback',
+          {
+            state: committedPoint.state,
+            intent: committedPoint.intent ?? 'draw',
+            x: roundDebugNumber(committedPoint.x),
+            y: roundDebugNumber(committedPoint.y),
+          },
+          {
+            emittedPointCount,
+          },
+          { log: committedPoint.state !== 'move' }
+        );
+      }
     },
     [publishDebug]
   );
@@ -518,6 +551,7 @@ export function AirBrushOverlay({
       event.stopPropagation();
       pointerFallbackActiveRef.current = true;
       pointerFallbackIdRef.current = event.pointerId;
+      pointerStrokeMachineRef.current.reset();
       event.currentTarget.setPointerCapture?.(event.pointerId);
       emitPointerFallbackPoint(event, 'start');
     },
@@ -621,6 +655,8 @@ export function AirBrushOverlay({
       pointerFallbackActiveRef.current = false;
       pointerFallbackIdRef.current = null;
       lastCameraPointRef.current = null;
+      cameraStrokeMachineRef.current.reset();
+      pointerStrokeMachineRef.current.reset();
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
@@ -633,6 +669,11 @@ export function AirBrushOverlay({
     debugInfoRef.current = resetDebugInfo;
     setDebugInfo(resetDebugInfo);
     setDetectionCountState(0);
+    cameraStrokeMachineRef.current.reset();
+    pointerStrokeMachineRef.current.reset();
+    cameraStrokeActiveRef.current = false;
+    activeCameraIntentRef.current = null;
+    lastCameraPointRef.current = null;
     setCameraState('requesting');
     setError(null);
     stateSnapshotRef.current = {
@@ -741,6 +782,8 @@ export function AirBrushOverlay({
       pointerFallbackActiveRef.current = false;
       pointerFallbackIdRef.current = null;
       lastCameraPointRef.current = null;
+      cameraStrokeMachineRef.current.reset();
+      pointerStrokeMachineRef.current.reset();
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
@@ -758,22 +801,36 @@ export function AirBrushOverlay({
     let frameId = 0;
     let landmarker: AirBrushHandLandmarker | null = null;
 
-    const endActiveStroke = (reason = 'hand-lost') => {
-      if (!cameraStrokeActiveRef.current) return;
+    const endActiveStroke = (reason = 'hand-lost', timestamp = performance.now()) => {
+      if (
+        !cameraStrokeMachineRef.current.pointerDown &&
+        !cameraStrokeMachineRef.current.hasPendingStroke &&
+        !activeCameraIntentRef.current
+      ) {
+        return;
+      }
       const endPoint = translateMediaPipeHandLandmarksToAirBrushPoint({
         frame: null,
         previousPoint: lastCameraPointRef.current,
         activeStroke: true,
       });
       if (endPoint) {
-        const emittedPointCount = debugInfoRef.current.emittedPointCount + 1;
-        onPointRef.current?.(endPoint);
-        publishDebug(
-          'stroke-ended',
-          { reason },
-          { emittedPointCount },
-          { log: reason !== 'cleanup' }
-        );
+        const result = cameraStrokeMachineRef.current.accept(endPoint, timestamp);
+        let emittedPointCount = debugInfoRef.current.emittedPointCount;
+        for (const committedPoint of result.events) {
+          emittedPointCount += 1;
+          onPointRef.current?.(committedPoint);
+          publishDebug(
+            'stroke-ended',
+            {
+              reason,
+              state: committedPoint.state,
+              intent: committedPoint.intent ?? 'draw',
+            },
+            { emittedPointCount },
+            { log: reason !== 'cleanup' }
+          );
+        }
       }
       cameraStrokeActiveRef.current = false;
       activeCameraIntentRef.current = null;
@@ -852,21 +909,23 @@ export function AirBrushOverlay({
 
         const landmarksCount = frame?.landmarks?.length ?? 0;
         const activeIntent = activeCameraIntentRef.current;
-        const eraseEval = evaluateMediaPipeHandLandmarks({
-          frame,
-          previousPoint:
-            activeIntent === 'erase' ? lastCameraPointRef.current : null,
-          activeStroke: activeIntent === 'erase',
-          preferredHand: 'Left',
-          intent: 'erase',
-          requirePinch: true,
-        });
+        const eraseEval = eraseHand
+          ? evaluateMediaPipeHandLandmarks({
+              frame,
+              previousPoint:
+                activeIntent === 'erase' ? lastCameraPointRef.current : null,
+              activeStroke: activeIntent === 'erase',
+              preferredHand: eraseHand,
+              intent: 'erase',
+              requirePinch: true,
+            })
+          : ({ point: null, accepted: false } satisfies AirBrushLandmarkEvaluation);
         const drawEval = evaluateMediaPipeHandLandmarks({
           frame,
           previousPoint:
             activeIntent === 'draw' ? lastCameraPointRef.current : null,
           activeStroke: activeIntent === 'draw',
-          preferredHand: 'Right',
+          preferredHand: drawHand,
           intent: 'draw',
           requirePinch: true,
         });
@@ -881,29 +940,33 @@ export function AirBrushOverlay({
 
         // Open-palm "done" gesture: either hand with five fingertips extended
         // away from the wrist and no pinch, held for OPEN_PALM_HOLD_FRAMES.
-        const handsLandmarks = frame?.landmarks ?? [];
-        let openPalmSeen = false;
-        for (const hand of handsLandmarks) {
-          if (detectOpenPalm(hand, { minHandSpan: 0.05 }).detected) {
-            openPalmSeen = true;
-            break;
+        if (openPalmEndEnabled) {
+          const handsLandmarks = frame?.landmarks ?? [];
+          let openPalmSeen = false;
+          for (const hand of handsLandmarks) {
+            if (detectOpenPalm(hand, { minHandSpan: 0.05 }).detected) {
+              openPalmSeen = true;
+              break;
+            }
           }
-        }
-        if (openPalmSeen && hasStartedCameraStrokeRef.current) {
-          openPalmHoldFramesRef.current += 1;
-          if (
-            openPalmHoldFramesRef.current >= OPEN_PALM_HOLD_FRAMES &&
-            !endAirBrushFiredRef.current &&
-            onEndAirBrushRef.current
-          ) {
-            endAirBrushFiredRef.current = true;
-            publishDebug(
-              'stroke-ended',
-              { reason: 'open-palm-gesture' },
-              {},
-              { log: true }
-            );
-            void onEndAirBrushRef.current();
+          if (openPalmSeen && hasStartedCameraStrokeRef.current) {
+            openPalmHoldFramesRef.current += 1;
+            if (
+              openPalmHoldFramesRef.current >= OPEN_PALM_HOLD_FRAMES &&
+              !endAirBrushFiredRef.current &&
+              onEndAirBrushRef.current
+            ) {
+              endAirBrushFiredRef.current = true;
+              publishDebug(
+                'stroke-ended',
+                { reason: 'open-palm-gesture' },
+                {},
+                { log: true }
+              );
+              void onEndAirBrushRef.current();
+            }
+          } else {
+            openPalmHoldFramesRef.current = 0;
           }
         } else {
           openPalmHoldFramesRef.current = 0;
@@ -957,67 +1020,79 @@ export function AirBrushOverlay({
           if (preferredPoint) pointsToEmit.push(preferredPoint);
         }
 
-        drawHandLandmarkOverlay({
-          canvas: landmarkCanvasRef.current,
-          video,
-          frame,
-          acceptedIntents: {
-            Left: eraseActive ? 'erase' : undefined,
-            Right: drawActive ? 'draw' : undefined,
-          },
-        });
+        if (debugVisible) {
+          drawHandLandmarkOverlay({
+            canvas: landmarkCanvasRef.current,
+            video,
+            frame,
+            acceptedIntents: {
+              Left: eraseActive ? 'erase' : undefined,
+              Right: drawActive ? 'draw' : undefined,
+            },
+          });
+        } else {
+          clearHandLandmarkOverlay(landmarkCanvasRef.current);
+        }
         consecutiveErrors = 0;
 
         if (pointsToEmit.length > 0) {
           for (const point of pointsToEmit) {
-            emittedPointCount += 1;
-            onPointRef.current?.(point);
-            if (point.state === 'start') {
-              // First real stroke has started — arm the open-palm gesture.
-              // Until this happens, an open hand is just the resting pose.
-              hasStartedCameraStrokeRef.current = true;
-            }
-            if (point.state !== 'end') {
-              setDetectionCountState((current) => current + 1);
-              stateSnapshotRef.current = {
-                ...stateSnapshotRef.current,
-                detectionCount: stateSnapshotRef.current.detectionCount + 1,
-              };
-              if (!hasLoggedFirstDetection) {
-                hasLoggedFirstDetection = true;
-                publishDebug(
-                  'hand-detected',
-                  { landmarks: landmarksCount, video: videoDebug },
-                  {
-                    frameCount,
-                    video: videoDebug,
-                  }
-                );
+            const result = cameraStrokeMachineRef.current.accept(point, timestamp);
+            for (const committedPoint of result.events) {
+              emittedPointCount += 1;
+              onPointRef.current?.(committedPoint);
+              if (committedPoint.state === 'start') {
+                // First committed stroke has started; pending pinch jitter
+                // should not arm completion or create a canvas dot.
+                hasStartedCameraStrokeRef.current = true;
               }
+              if (committedPoint.state !== 'end') {
+                setDetectionCountState((current) => current + 1);
+                stateSnapshotRef.current = {
+                  ...stateSnapshotRef.current,
+                  detectionCount: stateSnapshotRef.current.detectionCount + 1,
+                };
+                if (!hasLoggedFirstDetection) {
+                  hasLoggedFirstDetection = true;
+                  publishDebug(
+                    'hand-detected',
+                    { landmarks: landmarksCount, video: videoDebug },
+                    {
+                      frameCount,
+                      video: videoDebug,
+                    }
+                  );
+                }
+              }
+              publishDebug(
+                committedPoint.state === 'end' ? 'stroke-ended' : 'point-emitted',
+                {
+                  state: committedPoint.state,
+                  source: committedPoint.source,
+                  intent: committedPoint.intent ?? 'draw',
+                  x: roundDebugNumber(committedPoint.x),
+                  y: roundDebugNumber(committedPoint.y),
+                },
+                {
+                  emittedPointCount,
+                  frameCount,
+                  video: videoDebug,
+                  lastRejection: null,
+                },
+                {
+                  log:
+                    committedPoint.state !== 'move' ||
+                    emittedPointCount % 30 === 0,
+                }
+              );
             }
-            publishDebug(
-              point.state === 'end' ? 'stroke-ended' : 'point-emitted',
-              {
-                state: point.state,
-                source: point.source,
-                intent: point.intent ?? 'draw',
-                x: roundDebugNumber(point.x),
-                y: roundDebugNumber(point.y),
-              },
-              {
-                emittedPointCount,
-                frameCount,
-                video: videoDebug,
-                lastRejection: null,
-              },
-              { log: point.state !== 'move' || emittedPointCount % 30 === 0 }
-            );
+
+            cameraStrokeActiveRef.current =
+              cameraStrokeMachineRef.current.pointerDown;
             if (point.state === 'end') {
-              cameraStrokeActiveRef.current = false;
               activeCameraIntentRef.current = null;
               lastCameraPointRef.current = null;
             } else {
-              cameraStrokeActiveRef.current = true;
               activeCameraIntentRef.current = point.intent ?? 'draw';
               lastCameraPointRef.current = point;
             }
@@ -1146,7 +1221,16 @@ export function AirBrushOverlay({
       landmarker?.close?.();
       clearHandLandmarkOverlay(landmarkCanvasRef.current);
     };
-  }, [active, cameraState, createHandLandmarker, publishDebug]);
+  }, [
+    active,
+    cameraState,
+    createHandLandmarker,
+    drawHand,
+    eraseHand,
+    debugVisible,
+    openPalmEndEnabled,
+    publishDebug,
+  ]);
 
   if (!active) {
     if (!showInactiveButton) return null;
@@ -1166,7 +1250,7 @@ export function AirBrushOverlay({
     );
   }
 
-  const mode = resolveAirBrushInputMode({
+  const inputMode = resolveAirBrushInputMode({
     cameraReady: cameraState === 'ready',
     landmarksReady: trackingState === 'ready',
     pointerFallbackReady: true,
@@ -1241,7 +1325,7 @@ export function AirBrushOverlay({
         <MousePointer2 size={12} strokeWidth={1.8} className="shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-2xs uppercase tracking-wide text-ink">
-            {labelForMode(mode, cameraState)}
+            {labelForMode(inputMode, cameraState, mode, targetText)}
           </div>
           <div className="truncate font-caption text-ink-dim">{hint}</div>
         </div>

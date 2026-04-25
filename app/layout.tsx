@@ -16,9 +16,10 @@ export const viewport: Viewport = {
 const NO_FLASH = `(() => {
   try {
     const m = localStorage.getItem('aether.theme') || 'system';
+    const mode = m === 'synth' ? 'custom' : m;
     const resolved = m === 'system'
       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : m;
+      : mode;
     document.documentElement.setAttribute('data-theme', resolved);
   } catch (_) {
     document.documentElement.setAttribute('data-theme', 'light');

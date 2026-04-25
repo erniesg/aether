@@ -84,12 +84,12 @@ export function RailSection({
           aria-label={label}
           data-rail-flyout={id}
           className={cn(
-            'absolute top-0 z-20 w-80 rounded-md border border-border bg-surface-panel shadow-md',
+            'absolute top-0 z-50 isolate w-80 overflow-hidden rounded-md border border-border bg-surface-panel shadow-lg',
             'transition-opacity duration-fast ease-quick',
             side === 'right' ? 'left-[calc(100%+8px)]' : 'right-[calc(100%+8px)]'
           )}
         >
-          <header className="flex items-center justify-between gap-2 border-b border-border-soft px-3 py-2">
+          <header className="flex items-center justify-between gap-2 border-b border-border-soft bg-surface-panel px-3 py-2">
             <div className="flex items-center gap-2">
               <Icon size={14} strokeWidth={1.75} className="text-ink-dim" />
               <span className="font-caption text-ink">{label}</span>
@@ -101,8 +101,13 @@ export function RailSection({
               {headerAction}
             </div>
           </header>
-          <div className="max-h-[60vh] overflow-y-auto p-3">{children}</div>
-          <footer className="flex justify-end border-t border-border-soft px-3 py-1.5">
+          <div
+            data-rail-flyout-body
+            className="max-h-[60vh] overflow-y-auto bg-surface-panel p-3"
+          >
+            {children}
+          </div>
+          <footer className="flex justify-end border-t border-border-soft bg-surface-panel px-3 py-1.5">
             <button
               type="button"
               onClick={close}

@@ -12,7 +12,7 @@ export default {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './lib/**/*.{js,ts,jsx,tsx,mdx}',
   ],
-  darkMode: ['selector', '[data-theme="dark"], [data-theme="synth"]'],
+  darkMode: ['selector', '[data-theme="dark"], [data-theme="custom"]'],
   theme: {
     extend: {
       colors: {

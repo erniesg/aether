@@ -51,7 +51,7 @@ describe('ThemeProvider', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
   });
 
-  it('cycles system → light → dark → synth → system', () => {
+  it('cycles system → light → dark → custom → system', () => {
     render(
       <ThemeProvider>
         <Probe />
@@ -72,13 +72,28 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('mode').textContent).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
-    act(() => cycle.click()); // → synth
-    expect(screen.getByTestId('mode').textContent).toBe('synth');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('synth');
+    act(() => cycle.click()); // → custom
+    expect(screen.getByTestId('mode').textContent).toBe('custom');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('custom');
 
     act(() => cycle.click()); // → system (resolves to light)
     expect(screen.getByTestId('mode').textContent).toBe('system');
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+  });
+
+  it('migrates the old synth preference to custom', () => {
+    window.localStorage.setItem('aether.theme', 'synth');
+
+    render(
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>
+    );
+
+    expect(screen.getByTestId('mode').textContent).toBe('custom');
+    expect(screen.getByTestId('theme').textContent).toBe('custom');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('custom');
+    expect(window.localStorage.getItem('aether.theme')).toBe('custom');
   });
 
   it('persists the chosen mode to localStorage', () => {

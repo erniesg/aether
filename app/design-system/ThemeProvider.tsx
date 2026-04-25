@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-export const AETHER_THEMES = ['light', 'dark', 'synth'] as const;
+export const AETHER_THEMES = ['light', 'dark', 'custom'] as const;
 export type Theme = (typeof AETHER_THEMES)[number];
 
 export type ThemeMode = Theme | 'system';
@@ -31,7 +31,11 @@ function readStoredMode(): ThemeMode {
   if (typeof window === 'undefined') return 'system';
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark' || stored === 'synth' || stored === 'system') {
+    if (stored === 'synth') {
+      window.localStorage.setItem(STORAGE_KEY, 'custom');
+      return 'custom';
+    }
+    if (stored === 'light' || stored === 'dark' || stored === 'custom' || stored === 'system') {
       return stored;
     }
   } catch {
@@ -79,7 +83,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const cycle = useCallback(() => {
-    const order: ThemeMode[] = ['light', 'dark', 'synth', 'system'];
+    const order: ThemeMode[] = ['light', 'dark', 'custom', 'system'];
     const idx = order.indexOf(mode);
     const next = order[(idx + 1) % order.length];
     setMode(next);

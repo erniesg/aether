@@ -37,6 +37,7 @@ const GEMINI_SYSTEM_INSTRUCTION = [
   "You are aether's voice companion for a creator-first canvas tool.",
   'Keep spoken replies brief.',
   'Call tools eagerly instead of narrating when the creator asks for an available canvas action.',
+  "When the creator says they want to draw, write their name, start their name, or write their Chinese name, call start_air_brush. For the demo Chinese name, use mode blind_signature and targetText 陈恩娇.",
   "When the creator says they are done drawing, calls it done, says 'send this', or similar, call end_air_brush.",
   'When the creator asks to generate or introduce something, call run_generate with the creator prompt exactly as spoken and scope single unless they explicitly ask for all formats.',
 ].join(' ');
@@ -52,6 +53,7 @@ type VoiceDebugStage =
   | 'incoming-message'
   | 'outgoing-audio'
   | 'outgoing-text'
+  | 'activity'
   | 'tool-response'
   | 'error'
   | 'close'
@@ -889,6 +891,12 @@ export class GeminiLiveClient implements VoiceProvider {
 
     const voiceActivityType = message.voiceActivity?.voiceActivityType;
     const vadSignalType = message.voiceActivityDetectionSignal?.vadSignalType;
+    if (voiceActivityType || vadSignalType) {
+      recordVoiceDebugEvent('activity', {
+        voiceActivityType,
+        vadSignalType,
+      });
+    }
     if (
       voiceActivityType === 'ACTIVITY_START' ||
       vadSignalType === 'VAD_SIGNAL_TYPE_SOS'

@@ -20,6 +20,7 @@ function mockDispatchers(): VoiceDispatchers & {
   const adjust_brush_size = vi.fn();
   const clear_sketch = vi.fn();
   const confirm_sketch = vi.fn();
+  const start_air_brush = vi.fn();
   const end_air_brush = vi.fn();
   const run_capability = vi.fn();
   const run_generate = vi.fn();
@@ -33,6 +34,7 @@ function mockDispatchers(): VoiceDispatchers & {
     adjust_brush_size,
     clear_sketch,
     confirm_sketch,
+    start_air_brush,
     end_air_brush,
     run_capability,
     run_generate,
@@ -46,6 +48,7 @@ function mockDispatchers(): VoiceDispatchers & {
       adjust_brush_size,
       clear_sketch,
       confirm_sketch,
+      start_air_brush,
       end_air_brush,
       run_capability,
       run_generate,
@@ -65,6 +68,7 @@ describe('voice tools', () => {
       'adjust_brush_size',
       'clear_sketch',
       'confirm_sketch',
+      'start_air_brush',
       'end_air_brush',
       'run_capability',
       'run_generate',
@@ -175,6 +179,24 @@ describe('voice tools', () => {
     await pending;
     expect(outcome).toEqual({ ok: true, detail: 'captured sketch as reference' });
     expect(dispatchers._mocks.end_air_brush).toHaveBeenCalledWith();
+  });
+
+  it('dispatches natural name-start intent through a bounded air-brush start tool', async () => {
+    const dispatchers = mockDispatchers();
+    const outcome = await dispatchVoiceFunctionCall(
+      'start_air_brush',
+      { mode: 'blind_signature', targetText: '陈恩娇' },
+      dispatchers
+    );
+
+    expect(outcome).toEqual({
+      ok: true,
+      detail: 'blind signature ready · 陈恩娇',
+    });
+    expect(dispatchers._mocks.start_air_brush).toHaveBeenCalledWith({
+      mode: 'blind_signature',
+      targetText: '陈恩娇',
+    });
   });
 
   it('passes the prompt + scope through run_generate', async () => {

@@ -228,7 +228,7 @@ export class OpenAIRealtimeClient implements VoiceProvider {
       session: {
         modalities: ['audio', 'text'],
         instructions:
-          "You are aether's voice companion. Keep replies brief and call tools eagerly rather than narrating.",
+          "You are aether's voice companion. Keep replies brief and call tools eagerly rather than narrating. If the creator asks to draw, start their name, or write their Chinese name, call start_air_brush; for the demo Chinese name use mode blind_signature and targetText 陈恩娇.",
         turn_detection: { type: 'server_vad' },
         input_audio_transcription: { model: 'whisper-1' },
         tools: VOICE_TOOL_DEFINITIONS.map((t) => ({

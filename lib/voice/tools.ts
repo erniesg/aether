@@ -11,6 +11,7 @@ import {
   VOICE_BRUSH_SIZES,
   VOICE_SELECTABLE_TOOLS,
 } from '@/lib/canvas/sketchBrush';
+import type { AirBrushCaptureMode } from '@/lib/canvas/airBrush';
 import type { VoiceToolDefinition } from './types';
 
 /**
@@ -158,6 +159,27 @@ export const VOICE_TOOL_DEFINITIONS: ReadonlyArray<VoiceToolDefinition> = [
     },
   },
   {
+    name: 'start_air_brush',
+    description:
+      "Start air-brush capture on the canvas. Use mode=blind_signature when the creator says phrases like 'aether draw', 'start my name', 'let me write my name', or 'I'm going to write my Chinese name'. For the demo name intent, pass targetText='陈恩娇'.",
+    parameters: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          description: 'Capture mode. Defaults to standard.',
+          enum: ['standard', 'blind_signature'],
+        },
+        targetText: {
+          type: 'string',
+          description:
+            'Optional text the creator intends to write; for the demo Chinese name use 陈恩娇.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'end_air_brush',
     description:
       "Stop the air-brush (finger drawing) session and commit the strokes into the bottom composer as a reference the creator can immediately use in run_generate. Call this when the creator signals they're done drawing (e.g. 'I'm done', 'aether done', 'send this').",
@@ -232,6 +254,10 @@ export interface VoiceDispatchers {
   }) => void | Promise<void>;
   clear_sketch: () => void | Promise<void>;
   confirm_sketch: () => void | Promise<void>;
+  start_air_brush: (args: {
+    mode?: AirBrushCaptureMode;
+    targetText?: string;
+  }) => void | Promise<void>;
   end_air_brush: () => void | Promise<void>;
   run_capability: (args: { definitionId: string }) => void | Promise<void>;
   run_generate: (args: {
@@ -315,6 +341,26 @@ export async function dispatchVoiceFunctionCall(
     case 'confirm_sketch': {
       await dispatchers.confirm_sketch();
       return { ok: true, detail: 'confirmed sketch' };
+    }
+    case 'start_air_brush': {
+      const mode =
+        args.mode === 'blind_signature' || args.mode === 'standard'
+          ? args.mode
+          : undefined;
+      const targetText =
+        typeof args.targetText === 'string' && args.targetText.trim()
+          ? args.targetText.trim()
+          : undefined;
+      await dispatchers.start_air_brush({ mode, targetText });
+      if (mode === 'blind_signature') {
+        return {
+          ok: true,
+          detail: targetText
+            ? `blind signature ready · ${targetText}`
+            : 'blind signature ready',
+        };
+      }
+      return { ok: true, detail: 'air brush ready' };
     }
     case 'end_air_brush': {
       await dispatchers.end_air_brush();
