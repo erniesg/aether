@@ -113,6 +113,85 @@ export default defineSchema({
     voice: v.optional(v.string()),
   }).index('by_ws', ['wsId']),
 
+  // Creator-context profiles keyed by the route workspace id. The app does
+  // not yet map `/workspace/:wsId` to a Convex workspace document, so these
+  // tables scope by stable workspace string while the older graph tables keep
+  // their `v.id('workspace')` contracts.
+  brandProfile: defineTable({
+    workspaceId: v.string(),
+    name: v.string(),
+    palette: v.array(v.string()),
+    type: v.array(v.string()),
+    voice: v.string(),
+    knowledgeSources: v.array(
+      v.object({
+        id: v.string(),
+        kind: v.union(
+          v.literal('url'),
+          v.literal('repo'),
+          v.literal('upload'),
+          v.literal('asset')
+        ),
+        label: v.string(),
+        note: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  offerProfile: defineTable({
+    workspaceId: v.string(),
+    name: v.string(),
+    summary: v.string(),
+    claims: v.array(v.string()),
+    heroAsset: v.string(),
+    heroAssetReferenceId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  campaignProfile: defineTable({
+    workspaceId: v.string(),
+    name: v.string(),
+    goal: v.string(),
+    audience: v.string(),
+    channels: v.array(v.string()),
+    cta: v.string(),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  workspaceContext: defineTable({
+    workspaceId: v.string(),
+    activeReferenceIds: v.array(v.string()),
+    activeSignalIds: v.array(v.string()),
+    constraints: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  creatorReference: defineTable({
+    workspaceId: v.string(),
+    kind: v.union(
+      v.literal('image'),
+      v.literal('video'),
+      v.literal('embed'),
+      v.literal('template'),
+      v.literal('element')
+    ),
+    previewUrl: v.string(),
+    fullUrl: v.optional(v.string()),
+    attribution: v.object({
+      source: v.string(),
+      author: v.optional(v.string()),
+      url: v.string(),
+    }),
+    capturedAt: v.string(),
+    title: v.optional(v.string()),
+    usageIntent: v.optional(v.string()),
+    tags: v.array(v.string()),
+    notes: v.optional(v.string()),
+    clusterId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
   productFact: defineTable({
     wsId: v.id('workspace'),
     name: v.string(),
@@ -142,12 +221,15 @@ export default defineSchema({
   // plumbing and a single demo workspace is implicit.
   signalSubscription: defineTable({
     wsId: v.optional(v.id('workspace')),
+    workspaceId: v.optional(v.string()),
     kind: v.union(v.literal('keyword'), v.literal('hashtag'), v.literal('account')),
     value: v.string(),
     addedAt: v.number(),
     lastCheckedAt: v.optional(v.number()),
     mutedUntil: v.optional(v.number()),
-  }).index('by_ws', ['wsId']),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_workspace', ['workspaceId']),
 
   // ─── canvas ────────────────────────────────────────────────────────────
   canvasSnapshot: defineTable({

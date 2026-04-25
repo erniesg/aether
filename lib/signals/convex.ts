@@ -12,23 +12,33 @@ const signalsApi = (anyApi as unknown as {
   signals: {
     list: unknown;
     add: unknown;
+    update: unknown;
     remove: unknown;
     mute: unknown;
     unmute: unknown;
   };
 }).signals;
 
-export function useSignalsConvex(): SignalRecord[] {
-  const data = useQuery(signalsApi.list as never, {} as never) as
+export function useSignalsConvex(workspaceId?: string): SignalRecord[] {
+  const data = useQuery(
+    signalsApi.list as never,
+    (workspaceId ? { workspaceId } : {}) as never
+  ) as
     | SignalRecord[]
     | undefined;
   return data ?? [];
 }
 
-export function addSignalConvex(kind: SignalKind, value: string): void {
+export function addSignalConvex(kind: SignalKind, value: string, workspaceId?: string): void {
   const client = getConvexClient();
   if (!client) return;
-  void client.mutation(signalsApi.add as never, { kind, value } as never);
+  void client.mutation(signalsApi.add as never, { kind, value, workspaceId } as never);
+}
+
+export function updateSignalConvex(id: string, kind: SignalKind, value: string): void {
+  const client = getConvexClient();
+  if (!client) return;
+  void client.mutation(signalsApi.update as never, { id, kind, value } as never);
 }
 
 export function removeSignalConvex(id: string): void {

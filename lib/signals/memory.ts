@@ -93,6 +93,14 @@ export function addSignalMemory(kind: SignalKind, value: string): string | null 
   return id;
 }
 
+export function updateSignalMemory(id: string, kind: SignalKind, value: string): void {
+  const normalized = normalizeSignalValue(kind, value);
+  if (!normalized) return;
+  update((rs) =>
+    rs.map((r) => (r.id === id ? { ...r, kind, value: normalized } : r))
+  );
+}
+
 export function removeSignalMemory(id: string): void {
   update((rs) => rs.filter((r) => r.id !== id));
 }

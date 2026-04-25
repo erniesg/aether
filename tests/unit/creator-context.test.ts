@@ -17,6 +17,10 @@ const REFS: ReferenceRecord[] = [
     previewUrl: 'data:image/png;base64,one',
     attribution: { source: 'pinterest', author: 'Solstice Studio', url: 'https://pin.test/1' },
     capturedAt: '2026-04-24T12:00:00.000Z',
+    title: 'Golden counter crop',
+    usageIntent: 'visual anchor',
+    tags: ['golden-hour'],
+    notes: 'keep the warm counter shadow',
   },
   {
     id: 'ref_2',
@@ -69,6 +73,8 @@ describe('creator context model', () => {
     expect(prompt).toContain('Brand: Solstice Skin');
     expect(prompt).toContain('Offer: Spring Reset Duo');
     expect(prompt).toContain('Campaign: Slow Morning Drop');
-    expect(prompt).toContain('Pinned references: 2 sources; pinterest by Solstice Studio');
+    expect(prompt).toContain('Golden counter crop; pinterest by Solstice Studio');
+    expect(prompt).toContain('intent visual anchor');
+    expect(prompt).toContain('tags golden-hour');
   });
 });

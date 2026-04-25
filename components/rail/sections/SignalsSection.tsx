@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { BellOff, Bell, X } from 'lucide-react';
 import {
   addSignal,
+  updateSignal,
   muteSignal,
   removeSignal,
   unmuteSignal,
@@ -11,9 +12,20 @@ import {
   summarizeSignals,
   isMuted,
   displaySignalValue,
+  normalizeSignalValue,
   type SignalKind,
   type SignalRecord,
 } from '@/lib/signals/store';
+import {
+  displaySignalSuggestion,
+  suggestSignalsFromContext,
+} from '@/lib/signals/suggestions';
+import {
+  useBrandContext,
+  useCampaignContext,
+  useOfferContext,
+} from '@/lib/context/creator-store';
+import { useReferences } from '@/lib/references/store';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -51,8 +63,19 @@ const GROUPS: ReadonlyArray<GroupSpec> = [
   },
 ];
 
-export function SignalsSection() {
-  const signals = useSignals();
+export function SignalsSection({ workspaceId }: { workspaceId?: string }) {
+  const signals = useSignals(workspaceId);
+  const brand = useBrandContext(workspaceId);
+  const offer = useOfferContext(workspaceId);
+  const campaign = useCampaignContext(workspaceId);
+  const references = useReferences(workspaceId);
+  const suggestions = suggestSignalsFromContext({
+    brand,
+    offer,
+    campaign,
+    references,
+    existing: signals,
+  });
   const grouped: Record<SignalKind, SignalRecord[]> = {
     keyword: [],
     hashtag: [],
@@ -62,11 +85,32 @@ export function SignalsSection() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="signals-section">
+      {suggestions.length > 0 ? (
+        <section aria-label="suggested signals" className="flex flex-col gap-1.5">
+          <span className="font-caption text-ink-dim">suggested</span>
+          <div className="flex flex-wrap gap-1">
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion.id}
+                type="button"
+                onClick={() =>
+                  addSignal(suggestion.kind, suggestion.value, workspaceId)
+                }
+                className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 text-left font-caption text-xs text-ink transition-colors hover:border-accent hover:text-accent"
+                title={suggestion.reason}
+              >
+                {displaySignalSuggestion(suggestion)}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {GROUPS.map((group) => (
         <SignalGroup
           key={group.kind}
           spec={group}
           records={grouped[group.kind]}
+          workspaceId={workspaceId}
         />
       ))}
     </div>
@@ -76,16 +120,18 @@ export function SignalsSection() {
 function SignalGroup({
   spec,
   records,
+  workspaceId,
 }: {
   spec: GroupSpec;
   records: SignalRecord[];
+  workspaceId?: string;
 }) {
   const [value, setValue] = useState('');
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!value.trim()) return;
-    addSignal(spec.kind, value);
+    addSignal(spec.kind, value, workspaceId);
     setValue('');
   };
 
@@ -128,6 +174,16 @@ function SignalGroup({
 
 function SignalRow({ record }: { record: SignalRecord }) {
   const muted = isMuted(record);
+  const [draft, setDraft] = useState(displaySignalValue(record));
+  const commit = () => {
+    const normalized = normalizeSignalValue(record.kind, draft);
+    if (!normalized) {
+      setDraft(displaySignalValue(record));
+      return;
+    }
+    if (normalized !== record.value) updateSignal(record.id, record.kind, normalized);
+    setDraft(displaySignalValue({ kind: record.kind, value: normalized }));
+  };
   return (
     <li
       data-signal-id={record.id}
@@ -137,14 +193,22 @@ function SignalRow({ record }: { record: SignalRecord }) {
         muted && 'opacity-60'
       )}
     >
-      <span
+      <input
+        aria-label={`edit signal ${record.value}`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          }
+        }}
         className={cn(
-          'truncate font-caption text-xs text-ink',
+          'min-w-0 flex-1 truncate rounded-xs border border-transparent bg-transparent px-1 py-0 font-caption text-xs text-ink outline-none focus:border-accent focus:bg-surface-panel',
           muted && 'line-through decoration-ink-faint'
         )}
-      >
-        {displaySignalValue(record)}
-      </span>
+      />
+      <span className="sr-only">{displaySignalValue(record)}</span>
       <span className="flex items-center gap-0.5">
         <button
           type="button"

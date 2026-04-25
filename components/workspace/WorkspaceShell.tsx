@@ -68,13 +68,12 @@ import {
   downloadExportPack,
 } from '@/lib/export/client';
 import {
-  DEMO_CREATOR_CONTEXT,
   buildCreatorGenerationPrompt,
   countCreatorInputs,
   mergeReferenceUrls,
   visualReferenceUrls,
 } from '@/lib/context/model';
-import { useBrandContext } from '@/lib/context/brand-store';
+import { useCreatorContext } from '@/lib/context/creator-store';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -268,9 +267,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const { editor } = useEditorRef();
   const definitions = useCapabilityDefinitions();
   const runs = useRuns();
-  const references = useReferences();
-  const brand = useBrandContext();
-  const creatorContext = useMemo(() => ({ ...DEMO_CREATOR_CONTEXT, brand }), [brand]);
+  const references = useReferences(wsId);
+  const creatorContext = useCreatorContext(wsId);
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
@@ -1468,7 +1466,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       </Surface>
 
       <div className="flex flex-1 overflow-hidden">
-        <LeftRail />
+        <LeftRail workspaceId={wsId} />
         <CanvasSubstrate
           composerRef={composerRef}
           safeZonesVisible={safeZonesVisible}
@@ -1500,7 +1498,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       <PromptComposer
         ref={composerRef}
         onSubmit={handlePrompt}
-        activeInputSet={DEMO_CREATOR_CONTEXT.campaign.name}
+        activeInputSet={creatorContext.campaign.name}
         inputCount={inputCount}
         formatCount={formats.length > 0 ? formats.length : DEFAULT_ARTBOARDS.length}
         formats={composerFormats}

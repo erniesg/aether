@@ -30,6 +30,7 @@ import type {
 
 interface BrandSectionProps {
   context?: BrandContext;
+  workspaceId?: string;
   workspaceMode?: 'venture' | 'studio';
   workspaceLabel?: string;
   /** Override the ingest implementation (tests stub this). */
@@ -169,11 +170,12 @@ async function fileToDataUrl(file: File): Promise<string> {
 
 export function BrandSection({
   context = DEMO_CREATOR_CONTEXT.brand,
+  workspaceId,
   workspaceMode = DEMO_CREATOR_CONTEXT.workspaceMode,
   workspaceLabel = DEMO_CREATOR_CONTEXT.workspaceLabel,
   ingest = defaultIngest,
 }: BrandSectionProps) {
-  const savedContext = useBrandContext();
+  const savedContext = useBrandContext(workspaceId);
   const [draft, setDraft] = useState<BrandContext>(savedContext);
   const [state, setState] = useState<IngestState>({ kind: 'idle' });
   const [dirty, setDirty] = useState(false);
@@ -211,7 +213,7 @@ export function BrandSection({
   const onSave = () => {
     const normalized = normalizeDraftForSave(draft);
     if (!normalized) return;
-    saveBrandContext(normalized);
+    saveBrandContext(normalized, workspaceId);
     setDraft(normalized);
     setDirty(false);
     setSaveState('saved');

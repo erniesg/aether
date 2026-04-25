@@ -10,6 +10,7 @@ import { isConvexEnabled } from '@/lib/convex/client';
 import {
   useSignalsMemory,
   addSignalMemory,
+  updateSignalMemory,
   removeSignalMemory,
   muteSignalMemory,
   unmuteSignalMemory,
@@ -18,6 +19,7 @@ import {
 import {
   useSignalsConvex,
   addSignalConvex,
+  updateSignalConvex,
   removeSignalConvex,
   muteSignalConvex,
   unmuteSignalConvex,
@@ -31,19 +33,27 @@ export {
   normalizeSignalValue,
 } from './types';
 
-export function useSignals(): SignalRecord[] {
+export function useSignals(workspaceId?: string): SignalRecord[] {
   /* eslint-disable react-hooks/rules-of-hooks */
-  if (isConvexEnabled()) return useSignalsConvex();
+  if (isConvexEnabled()) return useSignalsConvex(workspaceId);
   return useSignalsMemory();
   /* eslint-enable react-hooks/rules-of-hooks */
 }
 
-export function addSignal(kind: SignalKind, value: string): string | null {
+export function addSignal(kind: SignalKind, value: string, workspaceId?: string): string | null {
   if (isConvexEnabled()) {
-    addSignalConvex(kind, value);
+    addSignalConvex(kind, value, workspaceId);
     return null;
   }
   return addSignalMemory(kind, value);
+}
+
+export function updateSignal(id: string, kind: SignalKind, value: string): void {
+  if (isConvexEnabled()) {
+    updateSignalConvex(id, kind, value);
+    return;
+  }
+  updateSignalMemory(id, kind, value);
 }
 
 export function removeSignal(id: string): void {

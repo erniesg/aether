@@ -26,6 +26,7 @@ export interface OfferContext {
   summary: string;
   claims: string[];
   heroAsset: string;
+  heroAssetReferenceId?: string;
 }
 
 export interface CampaignContext {
@@ -48,6 +49,7 @@ export interface InputSetDraft {
   id: string;
   referenceCount: number;
   signalIds: string[];
+  referenceIds?: string[];
   constraints: string[];
 }
 
@@ -90,7 +92,7 @@ export function visualReferenceUrls(
   const urls: string[] = [];
   const seen = new Set<string>();
   for (const ref of references) {
-    if (ref.kind === 'embed') continue;
+    if (ref.kind !== 'image' && ref.kind !== 'video') continue;
     const url = ref.previewUrl.trim();
     if (!url || seen.has(url)) continue;
     seen.add(url);
@@ -126,7 +128,11 @@ export function buildCreatorGenerationPrompt(
     .map((ref) => {
       const author = ref.attribution.author ? ` by ${ref.attribution.author}` : '';
       const kind = ref.kind === 'embed' ? 'link' : ref.kind;
-      return `${ref.attribution.source}${author} (${kind})`;
+      const title = ref.title ? `${ref.title}; ` : '';
+      const intent = ref.usageIntent ? `; intent ${ref.usageIntent}` : '';
+      const tags = ref.tags && ref.tags.length > 0 ? `; tags ${ref.tags.join(', ')}` : '';
+      const notes = ref.notes ? `; notes ${ref.notes}` : '';
+      return `${title}${ref.attribution.source}${author} (${kind}${intent}${tags}${notes})`;
     })
     .join(', ');
 
