@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Plus, Save, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEMO_CREATOR_CONTEXT,
   describeWorkspaceMode,
@@ -385,10 +385,22 @@ export function BrandSection({
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
 
+  // Hydrate the local draft from Convex *only* when the workspace itself
+  // changes. Subscribing to `savedContext` here causes a feedback loop: after
+  // the auto-save round-trips (setDirty(false) → Convex echoes back), this
+  // effect fires and stomps on the live input. Reported symptom: typing into
+  // the brand-name field reverts mid-keystroke / behaves "append-only".
+  // Keying on workspaceId means switching workspaces still pulls a fresh
+  // draft, but in-session reactive updates from your own writes don't
+  // race what you're typing.
+  const hydratedFor = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (dirty) return;
+    if (hydratedFor.current === workspaceId) return;
+    hydratedFor.current = workspaceId;
     setDraft(savedContext);
-  }, [dirty, savedContext]);
+    setDirty(false);
+    setSaveState('idle');
+  }, [workspaceId, savedContext]);
 
   const validationMessage = useMemo(() => validateDraft(draft), [draft]);
 
@@ -438,6 +450,11 @@ export function BrandSection({
 
   // Debounced auto-save: persist the draft 800ms after the last edit, so
   // creators don't have to hunt for a save button. Manual save still works.
+  // Important: do NOT call `setDraft(normalized)` after persisting — that
+  // resets the controlled input mid-typing if the user is still editing
+  // (which is the canonical cause of the "append-only" feel). The draft is
+  // already what the user typed; persisting is a side effect, not a state
+  // reset.
   useEffect(() => {
     if (!dirty) return;
     if (validationMessage) return;
@@ -445,7 +462,6 @@ export function BrandSection({
       const normalized = normalizeDraftForSave(draft);
       if (!normalized) return;
       saveBrandContext(normalized, workspaceId, () => setSaveState('error'));
-      setDraft(normalized);
       setDirty(false);
       setSaveState('saved');
     }, 800);

@@ -9,7 +9,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import { useRuns } from '@/lib/store/runs';
+import { abortStuckRuns, useRuns } from '@/lib/store/runs';
 import { useRunDetails } from '@/lib/store/runDetails';
 import { useVoiceCaption } from '@/lib/voice/caption-store';
 import { cn } from '@/lib/utils/cn';
@@ -232,6 +232,12 @@ export function ComposerStatus() {
 
   if (top.status === 'running') {
     const stepLabel = top.step ?? 'starting';
+    // After 60s, the run has clearly stalled — surface an "abort" button so
+    // the creator can reclaim the composer without reloading the workspace.
+    // Backend root cause for the canonical stuck case is fixed in PR #102
+    // (oversized data URLs blowing up Convex `runs:finish`); this is the
+    // cleanup path for stale rows already in Convex + a defense in depth.
+    const showAbort = elapsed >= 60;
     return (
       <div className="relative">
         {activityPanel}
@@ -247,14 +253,33 @@ export function ComposerStatus() {
               {elapsed}s
             </span>
           </div>
-          <button
-            type="button"
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-xs text-accent/80 hover:bg-accent/10 hover:text-accent"
-            aria-label={expanded ? 'hide activity' : 'show activity'}
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {showAbort ? (
+              <button
+                type="button"
+                className="inline-flex h-5 items-center rounded-xs px-2 font-caption text-[10px] uppercase tracking-wide text-accent/80 hover:bg-accent/10 hover:text-accent"
+                aria-label="abort stuck run"
+                title="abort all runs that have been stuck for >60s"
+                onClick={() => {
+                  void abortStuckRuns().catch(() => {
+                    // Swallow; the composer status is best-effort UX, the
+                    // mutation is idempotent and any error surfaces in
+                    // subsequent run states.
+                  });
+                }}
+              >
+                abort
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-xs text-accent/80 hover:bg-accent/10 hover:text-accent"
+              aria-label={expanded ? 'hide activity' : 'show activity'}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+            </button>
+          </div>
         </div>
       </div>
     );

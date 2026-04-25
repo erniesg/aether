@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Plus, Save, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveCampaignContext,
   useCampaignContext,
@@ -19,10 +19,16 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [newChannel, setNewChannel] = useState('');
 
+  // Hydrate the draft from Convex *only* when the workspace itself changes.
+  // See BrandSection / OfferSection for the matching pattern + the symptom
+  // that motivated removing the on-every-saved-change sync.
+  const hydratedFor = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (dirty) return;
+    if (hydratedFor.current === workspaceId) return;
+    hydratedFor.current = workspaceId;
     setDraft(saved);
-  }, [dirty, saved]);
+    setDirty(false);
+  }, [workspaceId, saved]);
 
   const validationMessage = useMemo(() => {
     if (!draft.name.trim()) return 'campaign name required';
@@ -65,7 +71,7 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
       cta: draft.cta.trim(),
     };
     saveCampaignContext(normalized, workspaceId);
-    setDraft(normalized);
+    // Don't setDraft(normalized) — would race the live input.
     setDirty(false);
     setSaveState('saved');
   };

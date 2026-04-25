@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Plus, Save, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveOfferContext,
   useOfferContext,
@@ -19,10 +19,17 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [newClaim, setNewClaim] = useState('');
 
+  // Hydrate the draft from Convex *only* when the workspace itself changes.
+  // Keying on `saved` instead would let our own write round-trip reset the
+  // input mid-typing — the canonical "append-only" / "can't overwrite"
+  // symptom on the offer panel. See BrandSection for the matching pattern.
+  const hydratedFor = useRef<string | undefined>(workspaceId);
   useEffect(() => {
-    if (dirty) return;
+    if (hydratedFor.current === workspaceId) return;
+    hydratedFor.current = workspaceId;
     setDraft(saved);
-  }, [dirty, saved]);
+    setDirty(false);
+  }, [workspaceId, saved]);
 
   const validationMessage = useMemo(() => {
     if (!draft.name.trim()) return 'offer name required';
@@ -54,7 +61,9 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
       heroAssetReferenceId: draft.heroAssetReferenceId || undefined,
     };
     saveOfferContext(normalized, workspaceId);
-    setDraft(normalized);
+    // Note: do not setDraft(normalized) here — would reset focus/cursor on
+    // the live input if the user is still editing. The save is a side
+    // effect; the draft already mirrors what the user typed.
     setDirty(false);
     setSaveState('saved');
   };

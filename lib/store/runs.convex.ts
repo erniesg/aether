@@ -16,6 +16,7 @@ const runsApi = (anyApi as unknown as {
     step: unknown;
     finish: unknown;
     fail: unknown;
+    abortStuck: unknown;
   };
 }).runs;
 
@@ -85,4 +86,21 @@ export function failRunConvex(id: string, error: string, httpStatus?: number): v
     httpStatus,
     finishedAt: Date.now(),
   } as never);
+}
+
+/**
+ * Force-abort every Convex run row whose `startedAt` is older than the
+ * supplied threshold (default 60s). UI escape hatch for the
+ * `placing on canvas · NNNNs` indicator that gets stuck when `runs:finish`
+ * throws server-side. Returns the server-reported count of aborted rows.
+ */
+export async function abortStuckRunsConvex(
+  olderThanMs = 60_000
+): Promise<{ aborted: number }> {
+  const client = getConvexClient();
+  if (!client) return { aborted: 0 };
+  const result = (await client.mutation(runsApi.abortStuck as never, {
+    olderThanMs,
+  } as never)) as { aborted: number } | null | undefined;
+  return result ?? { aborted: 0 };
 }
