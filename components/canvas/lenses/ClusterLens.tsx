@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, WandSparkles } from 'lucide-react';
 import {
   moveClusterCard,
   useClusters,
@@ -17,11 +17,19 @@ import {
   clusterHue,
   groupFoundByCluster,
 } from '@/lib/clusters/types';
+import {
+  buildMoodboardPrompt,
+  buildMoodboardSpec,
+  MOODBOARD_TWEAKS,
+  type MoodboardSpec,
+  type MoodboardTweak,
+} from '@/lib/moodboard/model';
 import { useReferences } from '@/lib/references/store';
 import { cn } from '@/lib/utils/cn';
 
 export interface ClusterLensProps {
   className?: string;
+  workspaceId?: string;
   /**
    * Fires when the creator clicks a card. The workspace shell uses this to
    * open the right-rail focus panel for that card (hard rule #3 — output +
@@ -30,6 +38,10 @@ export interface ClusterLensProps {
   onCardFocus?: (card: ClusterCard) => void;
   /** Fires when the creator drops any card into the Hero column. */
   onHeroCommit?: (card: ClusterCard) => void;
+  /** Sends a selected moodboard direction back to the bottom composer. */
+  onMoodboardPrompt?: (prompt: string) => void;
+  /** Runs generation from the selected moodboard direction. */
+  onMoodboardGenerate?: (prompt: string) => void | Promise<void>;
 }
 
 type DragState = { cardId: string; from: ClusterColumn } | null;
@@ -51,9 +63,16 @@ const EMPTY_HINTS: Record<ClusterColumn, string> = {
  * between columns persists through `moveClusterCard`, which emits typed
  * `ClusterStateChange` provenance records (hard rule #8).
  */
-export function ClusterLens({ className, onCardFocus, onHeroCommit }: ClusterLensProps) {
+export function ClusterLens({
+  className,
+  workspaceId,
+  onCardFocus,
+  onHeroCommit,
+  onMoodboardPrompt,
+  onMoodboardGenerate,
+}: ClusterLensProps) {
   const cards = useClusters();
-  const references = useReferences();
+  const references = useReferences(workspaceId);
   const handleCardFocus = useCallback(
     (card: ClusterCard) => {
       setFocusedClusterCard(card);
@@ -69,6 +88,10 @@ export function ClusterLens({ className, onCardFocus, onHeroCommit }: ClusterLen
     | { kind: 'fallback'; reason: string }
   >({ kind: 'idle' });
   const [dropTarget, setDropTarget] = useState<ClusterColumn | null>(null);
+  const [moodboard, setMoodboard] = useState<{
+    clusterId: string;
+    tweaks: MoodboardTweak[];
+  } | null>(null);
 
   const groupsByColumn = useMemo(() => {
     const out: Record<ClusterColumn, ClusterCard[]> = {
@@ -81,6 +104,37 @@ export function ClusterLens({ className, onCardFocus, onHeroCommit }: ClusterLen
   }, [cards]);
 
   const foundGroups = useMemo(() => groupFoundByCluster(cards), [cards]);
+  const moodboardSpec = useMemo<MoodboardSpec | null>(() => {
+    if (!moodboard) return null;
+    const clusterCards = cards.filter((card) => card.clusterId === moodboard.clusterId);
+    if (clusterCards.length === 0) return null;
+    return buildMoodboardSpec({
+      clusterId: moodboard.clusterId,
+      label: clusterCards[0]?.clusterLabel ?? `cluster ${moodboard.clusterId}`,
+      cards: clusterCards,
+      references,
+      tweaks: moodboard.tweaks,
+    });
+  }, [cards, moodboard, references]);
+
+  const setMoodboardCluster = useCallback((clusterId: string) => {
+    setMoodboard((current) => ({
+      clusterId,
+      tweaks: current?.clusterId === clusterId ? current.tweaks : [],
+    }));
+  }, []);
+
+  const toggleMoodboardTweak = useCallback((tweak: MoodboardTweak) => {
+    setMoodboard((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        tweaks: current.tweaks.includes(tweak)
+          ? current.tweaks.filter((entry) => entry !== tweak)
+          : [...current.tweaks, tweak],
+      };
+    });
+  }, []);
 
   const onRunClustering = useCallback(async () => {
     if (references.length === 0) return;
@@ -208,56 +262,73 @@ export function ClusterLens({ className, onCardFocus, onHeroCommit }: ClusterLen
       </header>
 
       <div
-        role="list"
-        aria-label="cluster kanban"
-        className="flex h-full flex-1 gap-3 overflow-x-auto px-3 py-3"
+        className="flex min-h-0 flex-1 overflow-hidden"
       >
-        {COLUMN_ORDER.map((column) => (
-          <section
-            key={column}
-            role="listitem"
-            data-cluster-column={column}
-            data-drop-target={dropTarget === column ? 'true' : undefined}
-            onDragOver={(e) => onDragOver(e, column)}
-            onDragLeave={onDragLeave}
-            onDrop={(e) => onDrop(e, column)}
-            aria-label={`${column} column`}
-            className={cn(
-              'flex min-w-[248px] shrink-0 flex-col gap-2 rounded-md border border-border-soft bg-surface-panel-muted/80 p-2',
-              dropTarget === column && 'border-accent bg-accent/5'
-            )}
-          >
-            <header className="flex items-center justify-between px-1">
-              <span className="font-mono text-2xs uppercase tracking-wide text-ink">
-                {column}
-              </span>
-              <span className="font-caption text-2xs text-ink-dim">
-                {groupsByColumn[column].length}
-              </span>
-            </header>
+        <div
+          role="list"
+          aria-label="cluster kanban"
+          className="flex h-full flex-1 gap-3 overflow-x-auto px-3 py-3"
+        >
+          {COLUMN_ORDER.map((column) => (
+            <section
+              key={column}
+              role="listitem"
+              data-cluster-column={column}
+              data-drop-target={dropTarget === column ? 'true' : undefined}
+              onDragOver={(e) => onDragOver(e, column)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, column)}
+              aria-label={`${column} column`}
+              className={cn(
+                'flex min-w-[248px] shrink-0 flex-col gap-2 rounded-md border border-border-soft bg-surface-panel-muted/80 p-2',
+                dropTarget === column && 'border-accent bg-accent/5'
+              )}
+            >
+              <header className="flex items-center justify-between px-1">
+                <span className="font-mono text-2xs uppercase tracking-wide text-ink">
+                  {column}
+                </span>
+                <span className="font-caption text-2xs text-ink-dim">
+                  {groupsByColumn[column].length}
+                </span>
+              </header>
 
-            {column === 'Found' ? (
-              <FoundBody
-                groups={foundGroups}
-                onDragStart={onDragStart}
-                onCardFocus={handleCardFocus}
-              />
-            ) : groupsByColumn[column].length === 0 ? (
-              <EmptyHint hint={EMPTY_HINTS[column]} />
-            ) : (
-              <ul className="flex flex-col gap-1.5" data-testid={`cluster-column-${column}`}>
-                {groupsByColumn[column].map((card) => (
-                  <CardTile
-                    key={card.referenceId}
-                    card={card}
-                    onDragStart={onDragStart}
-                    onCardFocus={handleCardFocus}
-                  />
-                ))}
-              </ul>
-            )}
-          </section>
-        ))}
+              {column === 'Found' ? (
+                <FoundBody
+                  groups={foundGroups}
+                  activeMoodboardClusterId={moodboard?.clusterId}
+                  onMoodboardOpen={setMoodboardCluster}
+                  onDragStart={onDragStart}
+                  onCardFocus={handleCardFocus}
+                />
+              ) : groupsByColumn[column].length === 0 ? (
+                <EmptyHint hint={EMPTY_HINTS[column]} />
+              ) : (
+                <ul className="flex flex-col gap-1.5" data-testid={`cluster-column-${column}`}>
+                  {groupsByColumn[column].map((card) => (
+                    <CardTile
+                      key={card.referenceId}
+                      card={card}
+                      onDragStart={onDragStart}
+                      onCardFocus={handleCardFocus}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+        </div>
+
+        {moodboardSpec ? (
+          <MoodboardPanel
+            spec={moodboardSpec}
+            onTweakToggle={toggleMoodboardTweak}
+            onUsePrompt={() => onMoodboardPrompt?.(buildMoodboardPrompt(moodboardSpec))}
+            onGenerate={() =>
+              void onMoodboardGenerate?.(buildMoodboardPrompt(moodboardSpec))
+            }
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -265,10 +336,14 @@ export function ClusterLens({ className, onCardFocus, onHeroCommit }: ClusterLen
 
 function FoundBody({
   groups,
+  activeMoodboardClusterId,
+  onMoodboardOpen,
   onDragStart,
   onCardFocus,
 }: {
   groups: ReturnType<typeof groupFoundByCluster>;
+  activeMoodboardClusterId?: string;
+  onMoodboardOpen: (clusterId: string) => void;
   onDragStart: (event: ReactDragEvent<HTMLElement>, card: ClusterCard) => void;
   onCardFocus?: (card: ClusterCard) => void;
 }) {
@@ -296,8 +371,30 @@ function FoundBody({
               >
                 {direction.label}
               </span>
-              <span className="font-caption text-2xs text-ink-dim">
-                {direction.memberCount}
+              <span className="flex items-center gap-1">
+                <button
+                  type="button"
+                  data-testid="cluster-moodboard-open"
+                  aria-label={`make moodboard ${direction.label}`}
+                  aria-pressed={activeMoodboardClusterId === direction.clusterId}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onPointerUp={(event) => {
+                    event.stopPropagation();
+                    onMoodboardOpen(direction.clusterId);
+                  }}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onFocus={() => onMoodboardOpen(direction.clusterId)}
+                  onClick={() => onMoodboardOpen(direction.clusterId)}
+                  className={cn(
+                    'inline-flex h-5 w-5 items-center justify-center rounded-xs border border-transparent text-ink-dim transition-colors hover:border-border-soft hover:text-accent',
+                    activeMoodboardClusterId === direction.clusterId && 'text-accent'
+                  )}
+                >
+                  <WandSparkles size={12} strokeWidth={1.75} />
+                </button>
+                <span className="font-caption text-2xs text-ink-dim">
+                  {direction.memberCount}
+                </span>
               </span>
             </div>
             <ul className="flex flex-col gap-1">
@@ -314,6 +411,100 @@ function FoundBody({
         );
       })}
     </div>
+  );
+}
+
+function MoodboardPanel({
+  spec,
+  onTweakToggle,
+  onUsePrompt,
+  onGenerate,
+}: {
+  spec: MoodboardSpec;
+  onTweakToggle: (tweak: MoodboardTweak) => void;
+  onUsePrompt: () => void;
+  onGenerate: () => void;
+}) {
+  const prompt = buildMoodboardPrompt(spec);
+  return (
+    <aside
+      data-testid="moodboard-panel"
+      data-taxonomy="tool"
+      aria-label="moodboard"
+      className="flex w-[320px] shrink-0 flex-col gap-3 border-l border-border-soft bg-surface-panel/92 px-3 py-3"
+    >
+      <header className="flex items-center justify-between gap-2">
+        <span className="truncate font-display text-sm text-ink">{spec.label}</span>
+        <span className="font-caption text-2xs text-ink-dim">
+          {spec.sources.length} refs
+        </span>
+      </header>
+
+      <div className="grid grid-cols-3 gap-1" aria-label="moodboard sources">
+        {spec.sources.slice(0, 6).map((source) => (
+          <figure
+            key={source.id}
+            className="aspect-[4/5] overflow-hidden rounded-xs border border-border-soft bg-surface-panel-muted"
+            title={source.title}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={source.thumbnailUrl}
+              alt={source.title}
+              className="h-full w-full object-cover"
+            />
+          </figure>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-1" aria-label="moodboard tweaks">
+        {MOODBOARD_TWEAKS.map((tweak) => {
+          const active = spec.tweaks.includes(tweak);
+          return (
+            <button
+              key={tweak}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onTweakToggle(tweak)}
+              className={cn(
+                'rounded-pill border px-2 py-0.5 font-caption text-xs transition-colors',
+                active
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+              )}
+            >
+              {tweak}
+            </button>
+          );
+        })}
+      </div>
+
+      <p
+        data-testid="moodboard-prompt"
+        className="line-clamp-5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2 font-caption text-xs text-ink-dim"
+      >
+        {prompt}
+      </p>
+
+      <div className="grid grid-cols-2 gap-1">
+        <button
+          type="button"
+          data-testid="moodboard-use-prompt"
+          onClick={onUsePrompt}
+          className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-mono text-2xs uppercase tracking-wide text-ink transition-colors hover:border-accent hover:text-accent"
+        >
+          use prompt
+        </button>
+        <button
+          type="button"
+          data-testid="moodboard-generate"
+          onClick={onGenerate}
+          className="rounded-sm border border-accent bg-accent/10 px-2 py-1 font-mono text-2xs uppercase tracking-wide text-accent transition-colors hover:bg-accent/15"
+        >
+          generate
+        </button>
+      </div>
+    </aside>
   );
 }
 

@@ -46,14 +46,19 @@ The compact rail now scaffolds:
 - `brand`
 - `offer`
 - `campaign`
-- `references`
 - `signals`
+- `research`
+- `references`
 
 This is intentional:
 
 - `brand` and `offer` are the stable base
 - `campaign` is the current brief layer
-- `references` and `signals` are the run materials
+- `signals` describe what to watch or analyze
+- `research` is the market / competitor / taste discovery loop
+- `references` are pinned material that can feed the canvas and composer
+
+Research is separate from brand / offer ingest. It reads creator context and signals, decomposes keywords / hashtags / accounts / source URLs, scouts public material, and promotes useful artifacts into references. The active review surface for research is a canvas lens, not a dashboard or separate route.
 
 ### Composer
 
@@ -70,8 +75,11 @@ The composer remains the canvas-form of the active `input set`. That is the righ
 1. Ingest long-lived brand knowledge from URL, repo, uploaded docs, and reusable assets.
 2. Distill offer facts from that knowledge into a reusable offer record.
 3. Frame the current campaign with goal, audience, channels, and CTA.
-4. Pin references and signals for the specific run.
-5. Assemble the input set at generation time in the composer.
+4. Add or accept signals that define what to watch or analyze.
+5. Run research to scout market / competitor / taste material.
+6. Cluster and label research artifacts in the canvas lens.
+7. Promote a cluster into a moodboard direction.
+8. Assemble the input set at generation time in the composer.
 
 ## Multi-brand support
 

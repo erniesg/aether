@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createInMemoryStorageForTests, resolvePublisher } from '@/lib/providers/publisher/registry';
+import { resolvePublisher } from '@/lib/providers/publisher/registry';
 import type {
   PublishPlatform,
   ScheduledPost,
@@ -91,7 +91,6 @@ export async function POST(request: Request): Promise<Response> {
   try {
     publisher = resolvePublisher({
       workspaceId,
-      storage: createInMemoryStorageForTests(),
       baseUrl: new URL(request.url).origin,
       preferredId: typeof b.providerId === 'string' ? b.providerId : undefined,
     });

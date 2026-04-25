@@ -80,7 +80,7 @@ Last updated: 2026-04-24. Changes require a PR + Ernie ack.
 1. **Single synthesis-shell workspace.** One route under `app/workspace/[wsId]/`. No per-step wizard routes.
 2. **Canvas is the substrate.** New lenses over the same canvas, not separate products.
 3. **UI taxonomy — strict.**
-   - Left rail → `input` (sources, references, clusters, input sets, brand, product, brief, targets)
+   - Left rail → `input` (brand, offer, campaign, signals, research, references)
    - Right rail → `output` + `metadata` (active artifact, versions, provenance)
    - Canvas chrome → `tool` (floating draggable toolbar)
    - Header → `navigation`

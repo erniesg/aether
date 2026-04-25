@@ -71,6 +71,7 @@ const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
 
 export interface CanvasSubstrateProps {
   className?: string;
+  workspaceId?: string;
   composerRef: React.RefObject<ComposerHandle | null>;
   safeZonesVisible?: boolean;
   onSafeZonesToggle?: (next: boolean) => void;
@@ -86,6 +87,8 @@ export interface CanvasSubstrateProps {
    * duplicating the stream logic here.
    */
   onVoiceGenerate?: (prompt: string, scope: 'single' | 'all') => void | Promise<void>;
+  /** Runs generation from a canvas lens-authored prompt, using the shell pipeline. */
+  onMoodboardGenerate?: (prompt: string) => void | Promise<void>;
   /**
    * Exposes the voice chip as a render prop so tests can inject a stub
    * VoiceProvider. When omitted, the default `VoiceOrb` is rendered with the
@@ -269,6 +272,7 @@ function resolveSegmentationFrame(
 
 export const CanvasSubstrate = memo(function CanvasSubstrate({
   className,
+  workspaceId,
   composerRef,
   safeZonesVisible = false,
   onSafeZonesToggle,
@@ -277,6 +281,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   onVerbPress,
   onSpatializeFromSelection,
   onVoiceGenerate,
+  onMoodboardGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
 }: CanvasSubstrateProps) {
@@ -296,6 +301,13 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
   }, [composerRef]);
+
+  const usePromptInComposer = useCallback(
+    (prompt: string) => {
+      composerRef.current?.setPrompt(prompt);
+    },
+    [composerRef]
+  );
 
   const handlePrimitiveToolPress = useCallback(
     (tool: PrimitiveTool) => {
@@ -352,6 +364,15 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     sync();
     return editor.store.listen(sync);
   }, [editor]);
+
+  useEffect(() => {
+    const onClusterLensEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ open?: boolean }>).detail;
+      setClusterLensOpen(detail?.open ?? true);
+    };
+    window.addEventListener('aether:cluster-lens', onClusterLensEvent);
+    return () => window.removeEventListener('aether:cluster-lens', onClusterLensEvent);
+  }, []);
 
   const openSegmentation = useCallback(
     (verb: SegmentationVerb) => {
@@ -1121,7 +1142,13 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onClusterLensToggle={() => setClusterLensOpen((prev) => !prev)}
       />
 
-      {clusterLensOpen ? <ClusterLens /> : null}
+      {clusterLensOpen ? (
+        <ClusterLens
+          workspaceId={workspaceId}
+          onMoodboardPrompt={usePromptInComposer}
+          onMoodboardGenerate={onMoodboardGenerate}
+        />
+      ) : null}
 
       {imageActionsTarget ? (
         <SelectedImageActions

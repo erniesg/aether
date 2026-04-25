@@ -30,7 +30,7 @@ export const KNOWN_PUBLISHER_IDS: ReadonlyArray<PublisherProviderId> = [
 
 export interface ResolvePublisherOptions {
   workspaceId: string;
-  storage: ScheduledPostStorage;
+  storage?: ScheduledPostStorage;
   preferredId?: string;
   baseUrl?: string;
   env?: NodeJS.ProcessEnv;
