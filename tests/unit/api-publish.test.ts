@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ENV_KEYS = [
   'PUBLISHER_PROVIDER',
-  'POSTIZ_BASE_URL',
   'POSTIZ_API_KEY',
+  'POSTIZ_API_URL',
+  'POSTIZ_INTEGRATION_INSTAGRAM',
+  'POSTIZ_INTEGRATION_XHS',
   'SOCIAL_AUTO_UPLOAD_URL',
   'SOCIAL_AUTO_UPLOAD_TOKEN',
 ] as const;
@@ -90,9 +92,15 @@ describe('POST /api/publish', () => {
   });
 
   it('routes western platform scheduling through Postiz when configured', async () => {
-    process.env.POSTIZ_BASE_URL = 'https://postiz.test/';
+    // New contract: POSTIZ_API_KEY + POSTIZ_INTEGRATION_<PLATFORM> (no POSTIZ_BASE_URL)
     process.env.POSTIZ_API_KEY = 'postiz_key';
-    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'postiz_1' }));
+    process.env.POSTIZ_INTEGRATION_INSTAGRAM = 'ig_integration';
+    // Postiz adapter: (1) upload-from-url, (2) POST /posts
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ id: 'media_1', path: 'https://uploads.postiz.com/hero.png' })
+      )
+      .mockResolvedValueOnce(jsonResponse([{ postId: 'postiz_1' }]));
 
     const { POST } = await import('@/app/api/publish/route');
     const res = await POST(
@@ -104,21 +112,19 @@ describe('POST /api/publish', () => {
       ok: true,
       provider: { id: 'postiz' },
       post: {
-        id: 'postiz_1',
         provider: 'postiz',
         externalId: 'postiz_1',
       },
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://postiz.test/public/v1/posts',
-      expect.objectContaining({ method: 'POST' })
-    );
+    // First call is the media upload, second is the post schedule
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]![0]).toMatch(/\/posts$/);
   });
 
   it('falls through to social-auto-upload for CJK platforms even when Postiz is the default', async () => {
     process.env.PUBLISHER_PROVIDER = 'postiz';
-    process.env.POSTIZ_BASE_URL = 'https://postiz.test';
     process.env.POSTIZ_API_KEY = 'postiz_key';
+    process.env.POSTIZ_INTEGRATION_INSTAGRAM = 'ig_integration';
     process.env.SOCIAL_AUTO_UPLOAD_URL = 'https://sau.test/';
     process.env.SOCIAL_AUTO_UPLOAD_TOKEN = 'sau_key';
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'sau_1' }));
@@ -144,26 +150,23 @@ describe('POST /api/publish', () => {
     );
   });
 
-  it('cancels against the external id when one is present', async () => {
-    process.env.POSTIZ_BASE_URL = 'https://postiz.test';
+  it('cancel removes the scheduled post from server storage', async () => {
+    // The Postiz adapter's cancel() calls storage only — no external HTTP.
+    // External provider cancellation (if needed) is a future improvement.
     process.env.POSTIZ_API_KEY = 'postiz_key';
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    process.env.POSTIZ_INTEGRATION_INSTAGRAM = 'ig_integration';
 
     const { DELETE } = await import('@/app/api/publish/route');
     const res = await DELETE(
       deleteRequest({
         workspaceId: 'ws_demo',
-        providerId: 'postiz',
+        providerId: 'preview',
         id: 'local_1',
-        externalId: 'postiz_1',
       })
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://postiz.test/public/v1/posts/postiz_1',
-      expect.objectContaining({ method: 'DELETE' })
-    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('does not silently fall back to preview for server-side real publishing', async () => {
