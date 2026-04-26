@@ -210,6 +210,66 @@ describe('runMultiAgent · runs ledger provenance', () => {
     expect(mocks.recordRunFinish).not.toHaveBeenCalled();
   });
 
+  it('attaches referenceImage as refs[0] in the generate_image body', async () => {
+    mocks.messagesCreate
+      .mockResolvedValueOnce(
+        fakeMessage(
+          [toolUseBlock('generate_image', { prompt: 'rain', aspectRatio: '1:1' })],
+          'tool_use'
+        )
+      )
+      .mockResolvedValueOnce(
+        fakeMessage([textBlock('done')], 'end_turn')
+      );
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, result: { images: [] } }), {
+        status: 200,
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await runMultiAgent({
+      prompt: 'render with reference',
+      baseUrl: 'http://localhost:3000',
+      referenceImage: { url: 'https://cdn/ref.png' },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(sentBody.refs).toEqual([{ url: 'https://cdn/ref.png' }]);
+    expect(sentBody.prompt).toBe('rain');
+  });
+
+  it('does not attach refs to non-generate_image tools', async () => {
+    mocks.messagesCreate
+      .mockResolvedValueOnce(
+        fakeMessage(
+          [toolUseBlock('search_signals', { seedText: 'x' })],
+          'tool_use'
+        )
+      )
+      .mockResolvedValueOnce(
+        fakeMessage([textBlock('done')], 'end_turn')
+      );
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, signalCount: 0, records: [] }), {
+        status: 200,
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await runMultiAgent({
+      prompt: 'search',
+      baseUrl: 'http://localhost:3000',
+      referenceImage: { url: 'https://cdn/ref.png' },
+    });
+
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(sentBody.refs).toBeUndefined();
+  });
+
   it('does not write to the ledger when no tool is called (Claude answered directly)', async () => {
     mocks.messagesCreate.mockResolvedValueOnce(
       fakeMessage([textBlock('I can answer that without tools.')], 'end_turn')

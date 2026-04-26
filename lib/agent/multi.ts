@@ -130,6 +130,12 @@ export interface MultiAgentParams {
   /** Convex workspace document id. When supplied, every tool step is scoped
    *  to that workspace in the runs ledger so the right rail shows them. */
   wsId?: string;
+  /** Optional reference image for hero renders. When set, every
+   *  generate_image tool dispatch attaches this as `refs[0]` so the
+   *  underlying provider does an image-to-image render instead of
+   *  text-only. Adapters that don't support refs degrade gracefully —
+   *  the prompt should still mention the reference. */
+  referenceImage?: { url?: string; dataUrl?: string };
 }
 
 export interface MultiAgentToolStep {
@@ -232,11 +238,28 @@ function genClientRunId(name: string): string {
   return `agent_${name}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * Inject `refs[0]` into a generate_image body. /api/generate's request
+ * shape already accepts `refs: ImageRef[] = [{ url, weight? }]`. Both
+ * remote URLs and `data:` base64 URIs are valid here — the adapters that
+ * support image-to-image fetch the URL string verbatim.
+ */
+function attachReferenceImage(
+  baseBody: unknown,
+  ref: { url?: string; dataUrl?: string }
+): unknown {
+  const refUrl = ref.url ?? ref.dataUrl;
+  if (!refUrl) return baseBody;
+  if (typeof baseBody !== 'object' || baseBody === null) return baseBody;
+  return { ...(baseBody as Record<string, unknown>), refs: [{ url: refUrl }] };
+}
+
 async function dispatchTool(
   name: string,
   input: unknown,
   baseUrl: string,
-  wsId: string | undefined
+  wsId: string | undefined,
+  referenceImage?: { url?: string; dataUrl?: string }
 ): Promise<
   | { ok: true; output: unknown; clientRunId?: string }
   | { ok: false; errorMessage: string; clientRunId?: string }
@@ -259,12 +282,22 @@ async function dispatchTool(
     entryRef: resolveToolEntryRef(spec.registryId),
   });
 
+  // Build the request body. For generate_image, transparently attach a
+  // reference image (when supplied at the loop level) — the agent's tool
+  // schema doesn't expose this so Claude doesn't need to manage the
+  // reference URL/dataUrl lifecycle.
+  const baseBody = spec.toBody(input);
+  const body =
+    name === 'generate_image' && referenceImage
+      ? attachReferenceImage(baseBody, referenceImage)
+      : baseBody;
+
   const startedAt = Date.now();
   try {
     const r = await fetch(`${baseUrl}${spec.path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(spec.toBody(input)),
+      body: JSON.stringify(body),
     });
     const json = await r.json();
     const latencyMs = Date.now() - startedAt;
@@ -379,7 +412,13 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
     const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
     for (const block of toolUses) {
       const t0 = Date.now();
-      const dispatch = await dispatchTool(block.name, block.input, params.baseUrl, params.wsId);
+      const dispatch = await dispatchTool(
+        block.name,
+        block.input,
+        params.baseUrl,
+        params.wsId,
+        params.referenceImage
+      );
       const ms = Date.now() - t0;
       if (dispatch.ok) {
         steps.push({

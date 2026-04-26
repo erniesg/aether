@@ -325,4 +325,90 @@ describe('runAutoMode · orchestration', () => {
     expect(mocks.insertCampaignVariation).not.toHaveBeenCalled();
     expect(mocks.setCampaignStatus).not.toHaveBeenCalled();
   });
+
+  it('parallel concurrency runs all variations concurrently with up-front mood seeds', async () => {
+    // Both variations resolve, but with overlap — order of insertion in
+    // Convex follows the result array order, not start order.
+    const orderOfStarts: number[] = [];
+    mocks.runMultiAgent.mockImplementation(async (params: { prompt: string }) => {
+      // Stamp the variation index based on the prompt's "variation N of M" line
+      const m = /variation (\d+) of/.exec(params.prompt);
+      const idx = m ? Number(m[1]) : 0;
+      orderOfStarts.push(idx);
+      // Stagger so variation 1 finishes AFTER variation 2 — proves parallelism.
+      const delay = idx === 1 ? 20 : 5;
+      await new Promise((r) => setTimeout(r, delay));
+      return {
+        finalText: JSON.stringify({ moodNote: `parallel-${idx}` }),
+        steps: [],
+        iterations: 1,
+        stopReason: 'end_turn',
+      };
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 2,
+      notifyMode: 'review',
+      concurrency: 'parallel',
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.variations).toHaveLength(2);
+    // Both starts happened before either finished — parallel.
+    expect(orderOfStarts.length).toBe(2);
+    // Each variation got a parallel mood seed in its prompt — assert the
+    // first variation's prompt mentions the seed pool's first entry.
+    const firstPrompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    expect(firstPrompt).toContain('warm dawn');
+  });
+
+  it('parallel concurrency persists a failed variation when one rejects', async () => {
+    mocks.runMultiAgent
+      .mockResolvedValueOnce({
+        finalText: '{}',
+        steps: [],
+        iterations: 1,
+        stopReason: 'end_turn',
+      })
+      .mockRejectedValueOnce(new Error('boom'));
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 2,
+      notifyMode: 'review',
+      concurrency: 'parallel',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.variations[1]).toMatchObject({ status: 'failed' });
+    expect(mocks.setCampaignStatus).toHaveBeenCalledWith('camp_1', 'failed');
+  });
+
+  it('forwards referenceImage to runMultiAgent and into the variation prompt', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'review',
+      referenceImage: { url: 'https://cdn/ref.png', hint: 'rainy idol scene' },
+    });
+
+    const call = mocks.runMultiAgent.mock.calls[0][0];
+    expect(call.referenceImage).toEqual({
+      url: 'https://cdn/ref.png',
+      dataUrl: undefined,
+    });
+    expect(call.prompt).toContain('https://cdn/ref.png');
+    expect(call.prompt).toContain('rainy idol scene');
+  });
 });
