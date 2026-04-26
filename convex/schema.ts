@@ -499,6 +499,57 @@ export default defineSchema({
     .index('by_workspace', ['workspaceId'])
     .index('by_session', ['sessionId']),
 
+  // ─── Auto Mode (handoff §9) ──────────────────────────────────────────
+  // One Auto-Mode lap = one `campaign` row plus N `campaignVariation`
+  // children. The agent loop's per-tool ledger rows in `capabilityRun`
+  // already cross-link via `entryRef`; the campaign stores the lap-level
+  // outcome and the schedule suggestions the user decides on.
+  campaign: defineTable({
+    workspaceId: v.optional(v.string()),
+    triggerKind: v.union(v.literal('url'), v.literal('file'), v.literal('text')),
+    triggerPayload: v.string(),
+    variationCount: v.number(),
+    notifyMode: v.union(
+      v.literal('notify'),
+      v.literal('review'),
+      v.literal('auto-post')
+    ),
+    status: v.union(
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed')
+    ),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+  }).index('by_workspace', ['workspaceId']),
+
+  campaignVariation: defineTable({
+    campaignId: v.id('campaign'),
+    workspaceId: v.optional(v.string()),
+    index: v.number(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('ready'),
+      v.literal('failed')
+    ),
+    heroImageUrl: v.optional(v.string()),
+    caption: v.optional(v.string()),
+    hashtags: v.optional(v.array(v.string())),
+    moodNote: v.optional(v.string()),
+    schedulePlatform: v.optional(v.string()),
+    scheduleWhenLocal: v.optional(v.string()),
+    /** clientRunIds in `capabilityRun` produced by this variation's agent
+     *  loop. UI can resolve them back to the per-tool ledger rows. */
+    agentRunIds: v.array(v.string()),
+    error: v.optional(v.string()),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  })
+    .index('by_campaign', ['campaignId'])
+    .index('by_workspace', ['workspaceId']),
+
   // Publisher seam (issue #9 — Slice 1). One row per platform post; multi-
   // platform fan-out is N rows. `wsId` optional for the same reason it is on
   // `signalSubscription` — pre-Phase-5 the UI has no workspace plumbing.
