@@ -10,6 +10,9 @@ test-results
 playwright-report
 playwright/.cache
 
+# screen recordings (large binaries; keep the .mjs scripts in scripts/recordings/)
+scripts/recordings/out/
+
 # next.js
 .next
 out

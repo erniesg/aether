@@ -396,10 +396,13 @@ export default defineSchema({
   }).index('by_ws', ['wsId']),
 
   capabilityRun: defineTable({
-    // Workspace is optional because pre-Phase-5 the UI has no wsId plumbing; a
-    // single demo workspace is implicit. Slice-A keeps the run log working
-    // without blocking on that wiring.
-    wsId: v.optional(v.id('workspace')),
+    // Workspace is a free-form string here, not v.id('workspace'). The URL
+    // route uses string ids like 'demo-ws' that aren't backed by a workspace
+    // doc yet; relaxing to v.string() lets the run log persist without
+    // requiring a real workspace insert first. Older callers that DO pass
+    // a Convex Id<'workspace'> are still fine — the runtime accepts that
+    // shape unchanged because the brand is structural at write time.
+    wsId: v.optional(v.string()),
     definitionId: v.optional(v.string()),
     definitionVersion: v.optional(v.number()),
     entryRef: v.optional(
@@ -562,6 +565,20 @@ export default defineSchema({
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    /** B2 research bundle (competitors, localeInsights, sources, summary).
+     *  Stored as v.any to keep the schema flexible — the canonical shape
+     *  lives in lib/agent/managed/research.ts ResearchBundle. Persisted so
+     *  /inspect and right-rail show research signals on page reload, and
+     *  so creators can audit the lap's research context after the fact. */
+    researchBundle: v.optional(v.any()),
+    /** B2 schedule plan from the signoff Managed Agent (per-variation
+     *  decision + rationale, overall recommendation). Persisted so /inspect
+     *  surfaces signoff reasoning. Canonical shape: SchedulePlan. */
+    schedulePlan: v.optional(v.any()),
+    /** Cluster Managed Agent bundle (visual similarity grouping of the
+     *  lap's reference images). Canonical shape: ClusterBundle from
+     *  lib/agent/managed/cluster.ts. */
+    clusterBundle: v.optional(v.any()),
   }).index('by_workspace', ['workspaceId']),
 
   campaignVariation: defineTable({
@@ -597,6 +614,26 @@ export default defineSchema({
      *  segment_subjects). Per-image specificity at the cost of one vision
      *  call. Stored alongside one-shot for A/B inspection. */
     masksVisionGuided: v.optional(v.any()),
+    /** Per-format public URLs after Convex upload. `'1x1'` is always the
+     *  heroImageUrl. 4x5 / 9x16 / 16x9 entries appear when AUTO_MODE_NATIVE
+     *  _PER_FORMAT renders succeeded and the bytes uploaded. Missing keys
+     *  → fall back to atlas → hero in the UI / canvas drop. */
+    nativePerFormatUrls: v.optional(v.any()),
+    /** 4-locale × 4-format atlas (Convex storage public URL). Surfaced in
+     *  Discord embeds and fallbacks for canvas frames lacking a per-format
+     *  native render. Skipped when AUTO_MODE_DISABLE_ATLAS=1 or compose fails. */
+    atlasUrl: v.optional(v.string()),
+    /** Convex asset id of the atlas — used by /inspect for re-fetch. */
+    atlasAssetId: v.optional(v.id('asset')),
+    /** ProposedTextOverlay[] from lib/agent/text-apply: one per text-bearing
+     *  safe zone × locale. The canvas drops these as editable geo shapes
+     *  with global/local scope; persisting them is what survives a refresh. */
+    textOverlays: v.optional(v.any()),
+    /** Aspect ids that produced bytes via the per-format render (e.g.
+     *  ['4x5', '9x16']). Empty / absent when the flag was off. */
+    nativePerFormatRendered: v.optional(v.array(v.string())),
+    /** Non-fatal warnings from text-overlay planning ('no-safe-zone-found'). */
+    textOverlayWarnings: v.optional(v.array(v.string())),
     /** clientRunIds in `capabilityRun` produced by this variation's agent
      *  loop. UI can resolve them back to the per-tool ledger rows. */
     agentRunIds: v.array(v.string()),
@@ -639,4 +676,50 @@ export default defineSchema({
     provider: v.optional(v.string()),
     externalId: v.optional(v.string()),
   }).index('by_ws', ['wsId']),
+
+  // ─── inbound webhook replies ───────────────────────────────────────────
+  // Persisted by the X webhook receiver when a valid tweet_create_events
+  // payload arrives. The reply-agent / approval flow reads from this table;
+  // the webhook route only writes. `postExternalId` is the id_str of the
+  // post that was replied to (in_reply_to_status_id_str).
+  inboundReply: defineTable({
+    platform: v.literal('x'),
+    externalId: v.string(),
+    postExternalId: v.string(),
+    replyText: v.string(),
+    replyAuthor: v.string(),
+    receivedAt: v.number(),
+  })
+    .index('by_platform', ['platform'])
+    .index('by_post', ['postExternalId']),
+
+  // ─── lap event log ────────────────────────────────────────────────────
+  // Structured events emitted from runAutoMode and its subroutines so
+  // creators can debug a lap end-to-end (and so the workspace right rail
+  // can show a live tail). Replaces ad-hoc console.logs which only land
+  // in serverless stdout. `tag` is hierarchical (e.g. "ingest.url.ok",
+  // "research.start", "sam3.one-shot.matched") so the UI can group/filter.
+  // `data` carries structured fields per event (counts, ids, latencies).
+  lapEvent: defineTable({
+    campaignId: v.id('campaign'),
+    /** Optional — set when the event scopes to one variation. */
+    variationIndex: v.optional(v.number()),
+    /** Hierarchical tag — drives UI grouping/filtering. */
+    tag: v.string(),
+    /** Severity. */
+    level: v.union(
+      v.literal('debug'),
+      v.literal('info'),
+      v.literal('warn'),
+      v.literal('error')
+    ),
+    /** Short human-readable line. */
+    message: v.string(),
+    /** Structured fields (counts, ids, latencies). v.any keeps the
+     *  schema flexible while we iterate on the event vocabulary. */
+    data: v.optional(v.any()),
+    ts: v.number(),
+  })
+    .index('by_campaign', ['campaignId'])
+    .index('by_campaign_ts', ['campaignId', 'ts']),
 });
