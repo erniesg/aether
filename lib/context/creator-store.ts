@@ -474,6 +474,31 @@ function signalToContext(record: SignalRecord): SignalContext {
   };
 }
 
+/**
+ * Workspace scoping — how data isolation works per workspaceId
+ *
+ * Convex-enabled (NEXT_PUBLIC_CONVEX_URL set):
+ *   Every slice — brand, offer, campaign, inputSet, signals, references — issues
+ *   a Convex query keyed on `workspaceId`. A fresh workspace returns `null` for
+ *   all slices; the coerce helpers fall back to DEMO_CREATOR_CONTEXT defaults
+ *   while the query is still resolving (`undefined`) or if no row exists yet.
+ *   "5 PINNED / CAMPAIGN-TTT" on a clean workspace is a brief LOADING FLASH
+ *   (≤1 render cycle) while Convex resolves — NOT a data leak between workspaces.
+ *   Once resolved, a genuinely-empty workspace shows "3 pinned" (brand+offer+campaign)
+ *   and "Slow Morning Drop" (DEMO fallback) until the creator saves their own context.
+ *
+ * localStorage fallback (no Convex):
+ *   brandCache / offerCache / campaignCache / inputSetCache are keyed by
+ *   `workspaceKey(workspaceId)`, writing to keys like `aether.brand.v1:my-ws`.
+ *   References use a SINGLE global key `aether.references.v1` — they are NOT
+ *   workspace-scoped in localStorage mode. This is a known limitation of the
+ *   local fallback path; it is not a bug in the Convex path.
+ *
+ * Diagnosis (2026-04-26): the "5 PINNED / CAMPAIGN-TTT on clean-demo" report
+ *   is Case (a) — the hooks are correctly scoped. Any new wsId will show DEMO
+ *   defaults during the initial Convex fetch, then switch to empty state once
+ *   the query resolves. No data leaks between genuinely distinct workspace IDs.
+ */
 export function useCreatorContext(workspaceId?: string): CreatorContextModel {
   const brand = useBrandContext(workspaceId);
   const offer = useOfferContext(workspaceId);
