@@ -1,0 +1,40 @@
+
+> aether@0.1.0-hackathon test
+> vitest run tests/unit/auto-mode-canvas.test.ts tests/unit/auto-mode-canvas-frames.test.ts --reporter=verbose
+
+
+ RUN  v4.1.5 /Users/erniesg/code/erniesg/aether
+
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > returns null when the variation has no image URL 1ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > creates format frames + image shapes when heroImageUrl is provided 1ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > prefers atlasUrl over heroImageUrl when both are present 0ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > creates a geo overlay shape for each text overlay that has a bbox 0ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > skips text overlays without a bbox 0ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > assigns global scope to headline and cta zones 0ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > falls back to en-SG content then first available locale 0ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > dropVariationOnCanvas > calls zoomToSelection after dropping variation assets 1ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > getAutoModeFrameIds > returns ids of shapes with meta.autoModeVariationId set 0ms
+ ✓ tests/unit/auto-mode-canvas.test.ts > getAutoModeFrameIds > returns empty array when no auto-mode frames exist 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > ensureFormatFrames > creates exactly 4 standard format frames when canvas is empty 1ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > ensureFormatFrames > tags created frames with meta.aetherFormatFrame and meta.aspect 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > ensureFormatFrames > does NOT create new frames when all 4 format frames already exist 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > ensureFormatFrames > creates only missing format frames when some are present 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > ensureFormatFrames > FORMAT_FRAME_SPECS has 4 entries covering 1:1, 4:5, 9:16, 16:9 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > dropVariationOnCanvas — places images inside existing format frames > places the hero image inside a matching format frame (1:1) 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > dropVariationOnCanvas — places images inside existing format frames > does NOT create new floating frames when format frames already exist 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > dropVariationOnCanvas — places images inside existing format frames > creates format frames if none exist, then drops image inside 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > dropVariationOnCanvas — text overlay meta enrichment > sets meta.variationId on text overlay shapes 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > dropVariationOnCanvas — text overlay meta enrichment > sets meta.locale on text overlay shapes 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > dropVariationOnCanvas — text overlay meta enrichment > sets meta.role to the zone purpose 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > dropVariationOnCanvas — text overlay meta enrichment > sets meta.format to the parent frame formatId 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > buildGlobalTextPropagator > exports a function that takes an editor and returns an unsubscribe fn 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > buildGlobalTextPropagator > does NOT fan out changes for local-scoped text shapes 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > buildGlobalTextPropagator > fans out changes for global-scoped text shapes to all siblings of same variation+role 0ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > buildGlobalTextPropagator > calls the Convex mutation on global text change 1ms
+ ✓ tests/unit/auto-mode-canvas-frames.test.ts > buildGlobalTextPropagator > does not propagate when the changed shape is not a text overlay 0ms
+
+ Test Files  2 passed (2)
+      Tests  27 passed (27)
+   Start at  00:52:12
+   Duration  303ms (transform 82ms, setup 66ms, import 70ms, tests 11ms, environment 316ms)
+
