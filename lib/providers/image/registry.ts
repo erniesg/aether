@@ -20,8 +20,8 @@ type Registry = Record<string, () => ImageGenProvider>;
 
 // Order matters: this is the fallback iteration when no `?provider=` or
 // IMAGE_GEN_PROVIDER is set. OpenAI is first because it's the most common
-// demo target and its model names (gpt-image-1/2, dall-e-*) are distinctive
-// enough that a URL like `?model=gpt-image-2` is only meaningful for openai.
+// demo target and its model name (`gpt-image-2`) is distinctive enough
+// that a URL like `?model=gpt-image-2` is only meaningful for openai.
 const REGISTRY: Registry = {
   openai: () => createOpenAIProvider(),
   gemini: () => createGeminiProvider(),
