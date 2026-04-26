@@ -1,6 +1,6 @@
 import { mutationGeneric, queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
-import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
+import type { WorkspaceProviderPrefs } from '../lib/providers/prefs';
 
 /**
  * Convex queries and mutations for per-workspace provider preferences.
@@ -19,7 +19,7 @@ export const getProviderPrefs = queryGeneric({
     if (!doc) return null;
     const prefs: WorkspaceProviderPrefs = {};
     if (doc.imageProviderId) prefs.imageProviderId = doc.imageProviderId;
-    if (doc.voiceProviderId) prefs.voiceProviderId = doc.voiceProviderId as import('@/lib/voice/types').VoiceProviderId;
+    if (doc.voiceProviderId) prefs.voiceProviderId = doc.voiceProviderId as import('../lib/voice/types').VoiceProviderId;
     if (doc.voiceModel) prefs.voiceModel = doc.voiceModel;
     if (doc.segmentationProviderId) prefs.segmentationProviderId = doc.segmentationProviderId;
     return prefs;

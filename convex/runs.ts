@@ -1,7 +1,7 @@
 import { mutationGeneric, queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
-import { STALE_ABORT_ERROR } from '@/lib/store/runs.types';
-import type { ArtifactKind } from '@/lib/tool/registry';
+import { STALE_ABORT_ERROR } from '../lib/store/runs.types';
+import type { ArtifactKind } from '../lib/tool/registry';
 
 // Capability-run persistence. Shape mirrors lib/store/runs CapabilityRunRecord
 // so the client wrapper can pass Convex documents through untouched.
@@ -108,7 +108,7 @@ function toRecord(doc: RunDoc) {
 }
 
 export const list = queryGeneric({
-  args: { wsId: v.optional(v.id('workspace')) },
+  args: { wsId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const docs: RunDoc[] = args.wsId
       ? ((await ctx.db
@@ -146,7 +146,7 @@ async function findByClientId(ctx: any, clientRunId: string): Promise<RunDoc | n
 export const start = mutationGeneric({
   args: {
     clientRunId: v.string(),
-    wsId: v.optional(v.id('workspace')),
+    wsId: v.optional(v.string()),
     definitionId: v.optional(v.string()),
     definitionVersion: v.optional(v.number()),
     entryRef: v.optional(
@@ -280,7 +280,7 @@ export const abortStuck = mutationGeneric({
      *  running is considered stuck. */
     olderThanMs: v.optional(v.number()),
     /** Optional workspace scope. If omitted, walks every workspace. */
-    wsId: v.optional(v.id('workspace')),
+    wsId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const threshold = Date.now() - (args.olderThanMs ?? 60_000);
