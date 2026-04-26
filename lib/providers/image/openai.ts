@@ -6,7 +6,18 @@ import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 const GENERATIONS_ENDPOINT = 'https://api.openai.com/v1/images/generations';
 const EDITS_ENDPOINT = 'https://api.openai.com/v1/images/edits';
 const DEFAULT_MODEL = 'gpt-image-2';
-const OPENAI_TIMEOUT_MS = 120_000;
+// gpt-image-2 hero renders typically take 100-150s for 1024² with the
+// layout-aware prompt; the prior 120s ceiling clipped renders that landed
+// at 121-126s. Default 240s gives headroom; override per-deployment via
+// OPENAI_IMAGE_TIMEOUT_MS env (positive integer ms).
+const OPENAI_TIMEOUT_MS = (() => {
+  const raw = process.env.OPENAI_IMAGE_TIMEOUT_MS;
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return 240_000;
+})();
 type OpenAISize = '1024x1024' | '1024x1536' | '1536x1024';
 
 function parseBase64DataUrl(value: unknown): { mime: string; payload: string } | null {

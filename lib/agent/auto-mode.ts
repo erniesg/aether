@@ -655,20 +655,36 @@ async function runOneVariation(
   const envelope = parseAgentEnvelope(agentFinalText);
   const heroImageUrl = pickHeroImageUrl(agentStepsForVariation);
 
-  // Post-hero: format crops + segmentation-aware multilingual text overlays.
-  const postHero = variationError
-    ? { formatCrops: [] as AutoModeFormatCrop[] }
-    : await runPostHeroPipeline({
-        heroUrl: heroImageUrl,
-        caption: envelope.caption,
-        moodNote: envelope.moodNote,
-        baseUrl: input.baseUrl,
-        workspaceId: input.workspaceId,
-      });
+  // A variation without a hero image is NOT ready — even if the agent loop
+  // returned cleanly, a failed generate_image (timeout / provider error)
+  // leaves us with no asset to publish. Surface the underlying step error
+  // so the UI can show why the variation failed.
+  const failedGenerateStep = agentStepsForVariation.find(
+    (s) => s.name === 'generate_image' && !s.ok
+  );
+  const effectiveError =
+    variationError ??
+    (heroImageUrl
+      ? undefined
+      : failedGenerateStep?.errorMessage ??
+        'no hero image produced (generate_image did not succeed)');
+
+  // Post-hero pipeline only when we actually have a hero — otherwise the
+  // segmentation calls would 4xx (no source URL) and crops are meaningless.
+  const postHero =
+    effectiveError || !heroImageUrl
+      ? { formatCrops: [] as AutoModeFormatCrop[] }
+      : await runPostHeroPipeline({
+          heroUrl: heroImageUrl,
+          caption: envelope.caption,
+          moodNote: envelope.moodNote,
+          baseUrl: input.baseUrl,
+          workspaceId: input.workspaceId,
+        });
 
   return {
     index: input.promptInput.index,
-    status: variationError ? 'failed' : 'ready',
+    status: effectiveError ? 'failed' : 'ready',
     heroImageUrl,
     caption: envelope.caption,
     captionsByLocale: envelope.captionsByLocale,
@@ -683,7 +699,7 @@ async function runOneVariation(
     masksVisionGuided: postHero.masksVisionGuided,
     agentSteps: agentStepsForVariation,
     agentFinalText,
-    error: variationError,
+    error: effectiveError,
   };
 }
 
