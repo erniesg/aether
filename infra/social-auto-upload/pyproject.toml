@@ -1,0 +1,22 @@
+[project]
+name = "aether-social-auto-upload"
+version = "0.1.0"
+description = "Modal app: social-auto-upload sidecar for aether CJK distribution"
+requires-python = ">=3.12"
+
+dependencies = [
+    # Web framework — kept in sync with the sidecar server.py.
+    "fastapi>=0.115,<1",
+    "pydantic>=2.9,<3",
+    # Modal SDK.
+    "modal>=0.73,<1",
+    # Playwright Python bindings (browsers installed separately via run_commands).
+    "playwright>=1.49,<2",
+    # dreammis/social-auto-upload — pinned to a stable commit.
+    # Install from the GitHub archive so the wheel doesn't need PyPI availability.
+    "social-auto-upload @ git+https://github.com/dreammis/social-auto-upload.git@34a3b3b47e5d2d3fa7f96ac180c7d9a351421f30",
+]
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
