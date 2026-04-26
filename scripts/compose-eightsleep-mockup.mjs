@@ -73,6 +73,14 @@ function wrap(text, widthChars) {
   return lines;
 }
 
+/**
+ * No band, no rect — just legible text. The canvas-native text overlay
+ * tool (slice #5, lib/text-overlay) handles contrast-awareness + per-shape
+ * editability properly via tldraw text shapes. This compositor uses a
+ * crisp white fill + thin black stroke + drop shadow filter so the text
+ * reads against either dark or bright backgrounds without slapping a
+ * blanket bg behind every band.
+ */
 function buildOverlaySvg({ width, height, layers, locale }) {
   const fontStack = FONT_FALLBACKS[locale] ?? FONT_FALLBACKS['en-SG'];
   const els = [];
@@ -85,25 +93,19 @@ function buildOverlaySvg({ width, height, layers, locale }) {
     const h = layer.zone.bbox.h * height;
 
     const purpose = layer.zone.purpose;
-    // Headline = bigger; caption = smaller. Tunable.
-    const fontSize = purpose === 'headline' ? 56 : 32;
-    const lineHeight = fontSize * 1.18;
-    const widthChars =
-      purpose === 'headline'
-        ? Math.max(12, Math.floor(w / (fontSize * 0.36)))
-        : Math.max(20, Math.floor(w / (fontSize * 0.45)));
-    const lines = wrap(text, widthChars);
-    // Center vertically inside the band.
+    // CJK glyphs render about 1.0 em wide each. Latin/Tamil are narrower
+    // (~0.55 em average). Use locale-aware width budgets so wrapping fits
+    // the safe zone without overflow.
+    const isCjk = locale === 'zh-Hans-SG';
+    const fontSize = purpose === 'headline' ? 52 : 28;
+    const emW = isCjk ? 1.0 : 0.55;
+    const lineHeight = fontSize * (isCjk ? 1.35 : 1.22);
+    const widthChars = Math.max(8, Math.floor(w / (fontSize * emW)) - 1);
+    const lines = isCjk ? wrapCjk(text, widthChars) : wrap(text, widthChars);
+    // Center vertically inside the safe zone.
     const totalH = lines.length * lineHeight;
-    const startY = y + (h - totalH) / 2 + fontSize;
+    const startY = y + (h - totalH) / 2 + fontSize * 0.95;
     const cx = x + w / 2;
-
-    // Soft shadow rectangle behind the text band for readability.
-    els.push(
-      `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(
-        1
-      )}" height="${h.toFixed(1)}" fill="black" opacity="0.28" rx="6"/>`
-    );
 
     lines.forEach((line, i) => {
       const ly = startY + i * lineHeight;
@@ -111,20 +113,65 @@ function buildOverlaySvg({ width, height, layers, locale }) {
         `<text x="${cx.toFixed(1)}" y="${ly.toFixed(1)}" ` +
           `font-family="${fontStack}" ` +
           `font-size="${fontSize}" font-weight="700" ` +
-          `fill="${TEXT_FILL}" stroke="${TEXT_STROKE}" stroke-width="2" paint-order="stroke" ` +
-          `text-anchor="middle" filter="url(#blur)">${escapeXml(line)}</text>`
+          `fill="${TEXT_FILL}" stroke="${TEXT_STROKE}" stroke-width="2.5" ` +
+          `paint-order="stroke fill" stroke-linejoin="round" ` +
+          `text-anchor="middle" filter="url(#textshadow)">${escapeXml(line)}</text>`
       );
     });
   }
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <defs>
-    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="0"/>
+    <filter id="textshadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.55"/>
     </filter>
   </defs>
   ${els.join('\n  ')}
 </svg>`.trim();
+}
+
+/** Word-boundary wrap for languages with whitespace. */
+function wrapWord(text, widthChars) {
+  return wrap(text, widthChars);
+}
+
+/**
+ * CJK wrap: glyph-by-glyph with a respect for ASCII tokens (e.g. "Pod 4
+ * Ultra") so we don't break mid-word. Empirical heuristic — the canvas
+ * tool will replace this with a real text-measurer + line-breaker.
+ */
+function wrapCjk(text, widthChars) {
+  const tokens = [];
+  let buf = '';
+  for (const ch of text) {
+    const isLatin = /[A-Za-z0-9.,'"’\-–—:;()/]/.test(ch);
+    if (isLatin) {
+      buf += ch;
+    } else {
+      if (buf) {
+        tokens.push(buf);
+        buf = '';
+      }
+      tokens.push(ch);
+    }
+  }
+  if (buf) tokens.push(buf);
+  const lines = [];
+  let current = '';
+  let currentWidth = 0;
+  for (const tok of tokens) {
+    const isLatinTok = /^[A-Za-z0-9]/.test(tok);
+    const tokWidth = isLatinTok ? tok.length * 0.55 : tok.length * 1.0;
+    if (currentWidth + tokWidth > widthChars && current) {
+      lines.push(current.trim());
+      current = '';
+      currentWidth = 0;
+    }
+    current += isLatinTok && current && !current.endsWith(' ') ? ' ' + tok : tok;
+    currentWidth += tokWidth + (isLatinTok ? 0.55 : 0);
+  }
+  if (current) lines.push(current.trim());
+  return lines;
 }
 
 async function main() {
