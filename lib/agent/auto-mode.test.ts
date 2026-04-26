@@ -1318,6 +1318,85 @@ describe('runAutoMode · orchestration', () => {
     expect(result.status).toBe('completed');
   });
 
+  it('routes an image-file trigger as an auto-derived reference image', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: {
+        kind: 'file',
+        payload: 'https://eightsleep.com/products/pod-4-ultra.jpg',
+      },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // No PDF ingestion called (it's an image, not a PDF).
+    expect(mocks.fetchPdfIngestion).not.toHaveBeenCalled();
+    expect(mocks.fetchUrlIngestion).not.toHaveBeenCalled();
+
+    // The image payload became the default reference image.
+    const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
+    expect(refs).toHaveLength(1);
+    expect(refs[0]).toEqual({
+      url: 'https://eightsleep.com/products/pod-4-ultra.jpg',
+      dataUrl: undefined,
+    });
+  });
+
+  it('routes a data:image trigger as a dataUrl-shaped reference image', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    // Build a fake long base64 payload to also exercise the redaction path.
+    const dataUrl = 'data:image/png;base64,' + 'A'.repeat(2048);
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'file', payload: dataUrl },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
+    expect(refs[0]).toEqual({
+      url: undefined,
+      dataUrl,
+    });
+    // The variation prompt redacts the huge data URL so we don't waste
+    // tokens dumping 2KB of base64 into the system note.
+    const prompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain('<inline image/png');
+    expect(prompt).not.toContain('A'.repeat(100));
+  });
+
   it('skips URL ingestion entirely for text triggers', async () => {
     mocks.runMultiAgent.mockResolvedValueOnce({
       finalText: '{}',

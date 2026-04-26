@@ -248,6 +248,12 @@ function buildPreHeroLayoutAwarePrompt(input: {
   pdfIngestion?: PdfIngestion;
   referenceImageCount?: number;
 }): string {
+  // For image-file triggers (data URLs), the raw payload is megabytes of
+  // base64 — useless to the layout planner. Replace with a friendly tag
+  // when no richer context (URL or PDF ingestion) is available.
+  const safeTriggerPayload = input.trigger.payload.startsWith('data:')
+    ? '<creator-uploaded reference image>'
+    : input.trigger.payload;
   // Compose the hero description from whatever signal is most specific:
   // - URL trigger: ingested page title + description + first product.
   // - PDF trigger: ingested title + first lines of the document (the raw
@@ -286,8 +292,8 @@ function buildPreHeroLayoutAwarePrompt(input: {
       }
     }
     return input.referenceHint
-      ? `${input.trigger.payload} (reference vibe: ${input.referenceHint})`
-      : input.trigger.payload;
+      ? `${safeTriggerPayload} (reference vibe: ${input.referenceHint})`
+      : safeTriggerPayload;
   })();
   // Creator-prompt lead reflects the ingested brief when available — a
   // URL or data: URL string is uninformative to the image generator.
@@ -300,7 +306,7 @@ function buildPreHeroLayoutAwarePrompt(input: {
     if (input.pdfIngestion?.title) {
       return input.pdfIngestion.title;
     }
-    return input.trigger.payload;
+    return safeTriggerPayload;
   })();
   const component = buildAutoModeComponent({
     rewrittenPromptOrCaption: heroDescription,
@@ -327,10 +333,22 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     referenceImageCount: refs.length,
   });
 
+  // For image / pdf data URLs the payload can be megabytes of base64 — replace
+  // it with a friendly summary so the variation prompt stays small.
+  const triggerDisplay = (() => {
+    const p = input.trigger.payload;
+    if (p.startsWith('data:')) {
+      const head = p.slice(5, p.indexOf(','));
+      const mime = head.split(';', 1)[0] || 'unknown';
+      return `<inline ${mime} (${Math.round(p.length / 1024)} KB)>`;
+    }
+    return p;
+  })();
+
   const lines = [
     `Auto-Mode lap. You are running variation ${input.index} of ${input.total}.`,
     '',
-    `Trigger (${input.trigger.kind}): ${input.trigger.payload}`,
+    `Trigger (${input.trigger.kind}): ${triggerDisplay}`,
   ];
 
   // URL ingestion enrichment — when the trigger was a URL we already
@@ -618,6 +636,17 @@ function isPdfPayload(payload: string): boolean {
     return true;
   }
   return /\.pdf(\?|#|$)/i.test(payload);
+}
+
+/**
+ * Quick image sniff: data URL with image/*, or path/URL ending in a common
+ * raster image extension. Used to route file triggers whose payload IS the
+ * image bytes (drag-drop / upload) into the reference-image plumbing.
+ */
+function isImagePayload(payload: string): boolean {
+  if (!payload) return false;
+  if (payload.startsWith('data:image/')) return true;
+  return /\.(png|jpe?g|webp|gif|avif|heic|heif)(\?|#|$)/i.test(payload);
 }
 
 /**
@@ -1037,6 +1066,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
   //   1. req.referenceImages (plural, explicit) wins
   //   2. req.referenceImage (legacy singular) wraps to a 1-item array
   //   3. URL ingestion's images: primary first, then top 2 body images
+  //   4. Image-file trigger: the payload itself becomes the reference
   const effectiveReferenceImages: AutoModeReferenceImage[] = (() => {
     if (req.referenceImages && req.referenceImages.length > 0) {
       return req.referenceImages;
@@ -1051,6 +1081,20 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
         url: img.url,
         hint: ingestedHint,
       }));
+    }
+    if (
+      req.trigger.kind === 'file' &&
+      isImagePayload(req.trigger.payload)
+    ) {
+      const isData = req.trigger.payload.startsWith('data:');
+      return [
+        {
+          ...(isData
+            ? { dataUrl: req.trigger.payload }
+            : { url: req.trigger.payload }),
+          hint: 'creator-uploaded reference image',
+        },
+      ];
     }
     return [];
   })();
