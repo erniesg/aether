@@ -85,6 +85,9 @@ import {
   visualReferenceUrls,
 } from '@/lib/context/model';
 import { useCreatorContext } from '@/lib/context/creator-store';
+import { setEyesClosedCapture } from '@/lib/voice/eyes-closed-store';
+import type { EyesClosedCaptureRequest } from '@/components/canvas/EyesClosedHandle';
+import type { SemanticCreativeComponent } from '@/lib/types/semantic-component';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -214,6 +217,59 @@ const VERB_PROMPT_PRESETS: Record<ToolbarVerb, string> = {
   tone: 'deepen the shadows, sharpen the midtones, keep the highlights calm',
   collage: 'compose a collage from the pinned reference images',
 };
+
+/**
+ * Canonical pixel dimensions per aspect ratio — mirrors `RATIO_PIXELS` in the
+ * generate route so the eyes-closed planner sees the same grid the renderer
+ * will actually use.
+ */
+const ARTBOARD_DIMS: Record<string, { w: number; h: number }> = {
+  '1:1':  { w: 1024, h: 1024 },
+  '9:16': { w: 1080, h: 1920 },
+  '16:9': { w: 1920, h: 1080 },
+  '4:3':  { w: 1440, h: 1080 },
+  '3:4':  { w: 1080, h: 1440 },
+  '4:5':  { w: 1024, h: 1280 },
+  '2:3':  { w: 1024, h: 1536 },
+  '3:2':  { w: 1536, h: 1024 },
+};
+
+/**
+ * 1×1 transparent PNG. Sent as the sketch payload only when the creator held
+ * the eyes-closed key without sketching anything — Anthropic's vision tool
+ * rejects empty bodies, so a no-op pixel keeps the planner round-trip valid
+ * and the planner can still extract intent from the spoken prompt.
+ */
+const PLACEHOLDER_SKETCH =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZwkmBYAAAAASUVORK5CYII=';
+
+/**
+ * Stitch a SemanticCreativeComponent into a single dispatchable prompt for
+ * the existing generate pipeline. The component carries hero / mood / safe
+ * zones; we surface them as natural-language hints so any image provider
+ * (not just Claude) can act on them.
+ */
+function buildEyesClosedPrompt(component: SemanticCreativeComponent): string {
+  const parts: string[] = [component.hero.description];
+  if (component.product?.description) {
+    parts.push(`Product: ${component.product.description}.`);
+  }
+  if (component.mood.keywords.length > 0) {
+    parts.push(`Mood: ${component.mood.keywords.slice(0, 6).join(', ')}.`);
+  }
+  if (component.offer?.weight) {
+    parts.push(`Offer tone: ${component.offer.weight}.`);
+  }
+  const headline = component.safeZones.find((z) => z.purpose === 'headline');
+  const cta = component.safeZones.find((z) => z.purpose === 'cta');
+  const reservations: string[] = [];
+  if (headline) reservations.push('top strip for headline');
+  if (cta) reservations.push('bottom strip for CTA');
+  if (reservations.length > 0) {
+    parts.push(`Reserve negative space: ${reservations.join(' and ')}.`);
+  }
+  return parts.join(' ');
+}
 
 interface GenerateTargetSpec {
   id: string;
@@ -1462,6 +1518,104 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     composerRef.current?.setPrompt(VERB_PROMPT_PRESETS[verb]);
   }, []);
 
+  // Eyes-closed sketch + voice capture (issue #128 / Q7). The handle hands
+  // us a creator transcript + sketch snapshot; we ask the sketch-to-component
+  // planner for the typed component, store it as right-rail provenance, and
+  // hand the synthesized prompt to the existing generate pipeline.
+  const handleEyesClosedCapture = useCallback(
+    async (capture: EyesClosedCaptureRequest) => {
+      const captureId = `ec-${Date.now().toString(36)}`;
+      const transcript = capture.transcript.trim();
+      const sketchImageUrl = capture.sketchImageUrl;
+
+      // Seed the right-rail with what we have so the creator sees the
+      // capture immediately, before the planner round-trip lands.
+      setEyesClosedCapture({
+        id: captureId,
+        transcript,
+        sketchImageUrl,
+        component: null,
+        plannerMode: 'pending',
+        capturedAt: Date.now(),
+      });
+
+      // Build format targets from the live artboards so the planner anchors
+      // the primary subject inside the narrowest aspect.
+      const planFormats = (formats.length > 0 ? formats : DEFAULT_ARTBOARDS.map((seed, idx) => ({
+            id: seed.preset ?? `artboard-${idx}`,
+            label: seed.name.split(' · ')[0] ?? seed.preset ?? `artboard-${idx}`,
+            aspectRatio: pickAspectRatio(seed.w, seed.h),
+          }))).map((f, idx) => {
+        // Reverse-derive w/h from canonical pixel sizes so the planner gets
+        // proper coordinates. Falls back to 1024² when ambiguous.
+        const dims = ARTBOARD_DIMS[f.aspectRatio] ?? { w: 1024, h: 1024 };
+        return { id: f.id, w: dims.w, h: dims.h, label: f.label ?? `format-${idx + 1}` };
+      });
+
+      let component: SemanticCreativeComponent | null = null;
+      let plannerMode: 'anthropic' | 'fallback' | 'error' = 'fallback';
+      let plannerError: string | undefined;
+
+      try {
+        const res = await fetch('/api/sketch-to-component', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sketchImageUrl: sketchImageUrl || PLACEHOLDER_SKETCH,
+            formats: planFormats,
+            creatorIntent: transcript || undefined,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          component?: SemanticCreativeComponent;
+          plannerMode?: 'anthropic' | 'fallback';
+          plannerError?: string;
+        };
+        if (!res.ok || !json.ok || !json.component) {
+          plannerError = json.error ?? `planner failed (${res.status})`;
+          plannerMode = 'error';
+        } else {
+          component = json.component;
+          plannerMode = json.plannerMode ?? 'fallback';
+          plannerError = json.plannerError;
+        }
+      } catch (err) {
+        plannerError = err instanceof Error ? err.message : String(err);
+        plannerMode = 'error';
+      }
+
+      setEyesClosedCapture({
+        id: captureId,
+        transcript,
+        sketchImageUrl,
+        component,
+        plannerMode,
+        plannerError,
+        capturedAt: Date.now(),
+      });
+
+      // Synthesize the generation prompt from the planner output (or fall
+      // back to the raw transcript if the planner didn't return). `mode='crop'`
+      // is the default per merged PR #125 — one render fans out via crops.
+      const synthesizedPrompt = component
+        ? buildEyesClosedPrompt(component)
+        : transcript || 'a hero composition rendered in editorial light';
+
+      log('eyes-closed dispatch · prompt:', synthesizedPrompt, '· planner:', plannerMode);
+      await handlePrompt(synthesizedPrompt, {
+        scope: 'all',
+        renderMode: 'crop',
+      });
+    },
+    // handlePrompt is declared below; keep this dep list minimal so React
+    // doesn't whine. The closure picks up the latest handlePrompt via the
+    // function reference from `handlePrompt` below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [formats]
+  );
+
   // Focus lens is a camera/selection change, not a chrome toggle. When view
   // flips to 'focus' we zoom to a single artboard; arrow keys cycle through
   // frames in document order. Switching back to 'canvas' zooms to fit every
@@ -1578,6 +1732,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           onMoodboardGenerate={async (prompt) => {
             await handlePrompt(prompt, { scope: 'single' });
           }}
+          onEyesClosedCapture={handleEyesClosedCapture}
         />
         <RightRail
           onPin={handlePin}
