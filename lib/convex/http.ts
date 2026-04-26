@@ -263,6 +263,10 @@ export interface ServerVariationInsert {
   schedulePlatform?: string;
   scheduleWhenLocal?: string;
   formatCrops?: unknown;
+  /** SAM3 mask set from the static one-shot prompt list (slice #2). */
+  masksOneShot?: unknown;
+  /** SAM3 mask set from Claude vision-derived prompts (slice #2). */
+  masksVisionGuided?: unknown;
   agentRunIds: string[];
   error?: string;
 }

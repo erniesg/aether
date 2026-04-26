@@ -547,6 +547,13 @@ export default defineSchema({
      *  normalized [0,1] coords (lib/canvas/cropToFormat). The hero (1:1)
      *  is included as a no-op crop so consumers don't special-case. */
     formatCrops: v.optional(v.any()),
+    /** SAM3 masks from the static one-shot prompt list (lib/agent/segment-
+     *  subjects ONE_SHOT_PROMPTS). No LLM cost; broad coverage. */
+    masksOneShot: v.optional(v.any()),
+    /** SAM3 masks from Claude vision-derived prompts (describe_image →
+     *  segment_subjects). Per-image specificity at the cost of one vision
+     *  call. Stored alongside one-shot for A/B inspection. */
+    masksVisionGuided: v.optional(v.any()),
     /** clientRunIds in `capabilityRun` produced by this variation's agent
      *  loop. UI can resolve them back to the per-tool ledger rows. */
     agentRunIds: v.array(v.string()),

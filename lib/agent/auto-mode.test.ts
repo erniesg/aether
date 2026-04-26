@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => {
   const notifyDiscord = vi.fn();
   const publisherSchedule = vi.fn();
   const resolvePublisher = vi.fn();
+  const segmentSubjects = vi.fn();
+  const describeImage = vi.fn();
   return {
     runMultiAgent,
     startCampaign,
@@ -32,6 +34,8 @@ const mocks = vi.hoisted(() => {
     notifyDiscord,
     publisherSchedule,
     resolvePublisher,
+    segmentSubjects,
+    describeImage,
   };
 });
 
@@ -53,6 +57,28 @@ vi.mock('@/lib/notify/discord', () => ({
 vi.mock('@/lib/providers/publisher/registry', () => ({
   resolvePublisher: mocks.resolvePublisher,
 }));
+
+vi.mock('./segment-subjects', async () => {
+  // Keep ONE_SHOT_PROMPTS + segmentSubjectsToForbiddenRegions real — they are
+  // pure helpers; only segmentSubjects is mocked since it does network I/O.
+  const actual = await vi.importActual<typeof import('./segment-subjects')>(
+    './segment-subjects'
+  );
+  return {
+    ...actual,
+    segmentSubjects: mocks.segmentSubjects,
+  };
+});
+
+vi.mock('./describe-image', async () => {
+  const actual = await vi.importActual<typeof import('./describe-image')>(
+    './describe-image'
+  );
+  return {
+    ...actual,
+    describeImage: mocks.describeImage,
+  };
+});
 
 import {
   parseAgentEnvelope,
@@ -757,6 +783,146 @@ describe('runAutoMode · orchestration', () => {
     // Variation 3 is the only schedulable one.
     expect(result.scheduledPostIds).toEqual(['sched-ok']);
     expect(mocks.publisherSchedule).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs both one-shot AND vision-guided segmentation in parallel and persists both mask sets', async () => {
+    // Force the vision-guided path to engage by giving it an API key.
+    const previousKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        caption: 'wet idol energy',
+        platform: 'instagram',
+        whenLocal: '2026-04-27T20:30:00+08:00',
+      }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 12,
+          output: { result: { images: [{ url: 'https://cdn/idol.png' }] } },
+          clientRunId: 'run-1',
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    // Vision-guided emits a richer prompt list per-image.
+    mocks.describeImage.mockResolvedValueOnce({
+      faces: [{ description: 'wet face under jacket' }],
+      products: [{ name: 'leather jacket', description: 'black' }],
+      brands: [],
+      otherComponents: [],
+      smallObjectGroups: [],
+      background: { description: 'rain' },
+    });
+
+    // segmentSubjects is called twice — once with ONE_SHOT_PROMPTS (12 entries),
+    // once with the vision-derived prompt list. We can tell which is which
+    // by inspecting the input.prompts shape.
+    mocks.segmentSubjects.mockImplementation(async (input: any) => {
+      const isVisionGuided = input.prompts.some((p: any) =>
+        p.prompt.toLowerCase().includes('wet face')
+      );
+      return {
+        width: input.width,
+        height: input.height,
+        masks: isVisionGuided
+          ? [
+              {
+                label: 'wet face under jacket',
+                componentKind: 'face',
+                bbox: { x: 100, y: 100, w: 200, h: 200 },
+                confidence: 0.95,
+              },
+            ]
+          : [
+              {
+                label: 'face',
+                componentKind: 'face',
+                bbox: { x: 90, y: 90, w: 220, h: 220 },
+                confidence: 0.85,
+              },
+            ],
+        matched: 1,
+        prompted: input.prompts.length,
+      };
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_x',
+      trigger: { kind: 'text', payload: 'idol drama' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // Both segmentation paths ran for this single variation.
+    expect(mocks.segmentSubjects).toHaveBeenCalledTimes(2);
+    expect(mocks.describeImage).toHaveBeenCalledTimes(1);
+
+    // Both mask sets persisted on the variation row so the right rail
+    // can show A/B without re-fetching.
+    const persistCall = mocks.insertCampaignVariation.mock.calls[0][0];
+    expect(persistCall.masksOneShot).toBeDefined();
+    expect(persistCall.masksOneShot.matched).toBe(1);
+    expect(persistCall.masksOneShot.masks[0].label).toBe('face');
+    expect(persistCall.masksVisionGuided).toBeDefined();
+    expect(persistCall.masksVisionGuided.matched).toBe(1);
+    expect(persistCall.masksVisionGuided.masks[0].label).toBe(
+      'wet face under jacket'
+    );
+
+    if (previousKey) process.env.ANTHROPIC_API_KEY = previousKey;
+    else delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  it('skips vision-guided path when ANTHROPIC_API_KEY is absent — one-shot still runs', async () => {
+    const previousKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    mocks.segmentSubjects.mockResolvedValue({
+      width: 1024,
+      height: 1024,
+      masks: [],
+      matched: 0,
+      prompted: 12,
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // describeImage never called — vision-guided path noticed the missing
+    // env var and short-circuited before the LLM call.
+    expect(mocks.describeImage).not.toHaveBeenCalled();
+    // One-shot still ran (one segmentSubjects call).
+    expect(mocks.segmentSubjects).toHaveBeenCalledTimes(1);
+
+    if (previousKey) process.env.ANTHROPIC_API_KEY = previousKey;
   });
 
   it('feeds parallel mood seed into the layout-aware prompt mood keywords', async () => {
