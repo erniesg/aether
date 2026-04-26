@@ -58,6 +58,10 @@ export interface ClusterAgentInput {
   /** Override for tests. */
   client?: Anthropic;
   workspaceId?: string;
+  /** When false, skip the Managed Agents API path even if AGENT_ID +
+   *  ENVIRONMENT_ID are configured. Forces fallback to messages.create
+   *  with vision. Default: true. */
+  useManagedAgents?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -350,7 +354,8 @@ export async function runClusterAgent(
     prompt: JSON.stringify({ refCount: input.refs.length }),
   });
 
-  const agentConfig = resolveAgentConfig();
+  const agentConfig =
+    input.useManagedAgents === false ? null : resolveAgentConfig();
 
   try {
     if (agentConfig) {

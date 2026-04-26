@@ -39,6 +39,9 @@ interface CampaignDoc {
   startedAt: number;
   finishedAt?: number;
   error?: string;
+  researchBundle?: unknown;
+  schedulePlan?: unknown;
+  clusterBundle?: unknown;
 }
 
 interface CampaignVariationDoc {
@@ -58,8 +61,13 @@ interface CampaignVariationDoc {
   formatCrops?: unknown;
   agentRunIds: string[];
   atlasUrl?: string;
+  atlasAssetId?: unknown;
   textOverlays?: unknown;
+  textOverlayWarnings?: string[];
   nativePerFormatRendered?: string[];
+  nativePerFormatUrls?: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+  >;
   error?: string;
   startedAt: number;
   finishedAt?: number;
@@ -77,6 +85,9 @@ function toCampaign(doc: CampaignDoc) {
     startedAt: doc.startedAt,
     finishedAt: doc.finishedAt,
     error: doc.error,
+    researchBundle: doc.researchBundle,
+    schedulePlan: doc.schedulePlan,
+    clusterBundle: doc.clusterBundle,
   };
 }
 
@@ -97,8 +108,11 @@ function toVariation(doc: CampaignVariationDoc) {
     scheduleWhenLocal: doc.scheduleWhenLocal,
     formatCrops: doc.formatCrops,
     atlasUrl: doc.atlasUrl,
+    atlasAssetId: doc.atlasAssetId ? String(doc.atlasAssetId) : undefined,
     textOverlays: doc.textOverlays,
+    textOverlayWarnings: doc.textOverlayWarnings,
     nativePerFormatRendered: doc.nativePerFormatRendered,
+    nativePerFormatUrls: doc.nativePerFormatUrls,
     agentRunIds: doc.agentRunIds,
     error: doc.error,
     startedAt: doc.startedAt,
@@ -160,6 +174,12 @@ export const insertVariation = mutationGeneric({
     formatCrops: v.optional(v.any()),
     masksOneShot: v.optional(v.any()),
     masksVisionGuided: v.optional(v.any()),
+    nativePerFormatUrls: v.optional(v.any()),
+    atlasUrl: v.optional(v.string()),
+    atlasAssetId: v.optional(v.id('asset')),
+    textOverlays: v.optional(v.any()),
+    nativePerFormatRendered: v.optional(v.array(v.string())),
+    textOverlayWarnings: v.optional(v.array(v.string())),
     agentRunIds: v.array(v.string()),
     error: v.optional(v.string()),
   },
@@ -181,6 +201,12 @@ export const insertVariation = mutationGeneric({
       formatCrops: args.formatCrops,
       masksOneShot: args.masksOneShot,
       masksVisionGuided: args.masksVisionGuided,
+      nativePerFormatUrls: args.nativePerFormatUrls,
+      atlasUrl: args.atlasUrl,
+      atlasAssetId: args.atlasAssetId,
+      textOverlays: args.textOverlays,
+      nativePerFormatRendered: args.nativePerFormatRendered,
+      textOverlayWarnings: args.textOverlayWarnings,
       agentRunIds: args.agentRunIds,
       error: args.error,
       startedAt: now,
@@ -237,6 +263,61 @@ export const rejectVariation = mutationGeneric({
     await ctx.db.patch(args.variationId as any, {
       status: 'rejected',
       finishedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
+ * Persist the B2 research bundle on the campaign row. Called from
+ * runAutoMode after the research Managed Agent completes, before the
+ * variation fan-out. Stored on the campaign so /inspect and the right
+ * rail show research signals on page reload.
+ */
+export const setCampaignResearchBundle = mutationGeneric({
+  args: {
+    campaignId: v.id('campaign'),
+    researchBundle: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.campaignId as any, {
+      researchBundle: args.researchBundle,
+    });
+    return null;
+  },
+});
+
+/**
+ * Persist the signoff Managed Agent's schedule plan on the campaign row.
+ * Called from runAutoMode after the signoff agent completes, before
+ * scheduleVariationPosts. Surfaces in /inspect so creators can audit
+ * which variations were auto-posted vs held vs rejected and why.
+ */
+export const setCampaignSchedulePlan = mutationGeneric({
+  args: {
+    campaignId: v.id('campaign'),
+    schedulePlan: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.campaignId as any, {
+      schedulePlan: args.schedulePlan,
+    });
+    return null;
+  },
+});
+
+/**
+ * Persist the cluster Managed Agent bundle on the campaign row. Mirrors
+ * setCampaignResearchBundle / setCampaignSchedulePlan.
+ */
+export const setCampaignClusterBundle = mutationGeneric({
+  args: {
+    campaignId: v.id('campaign'),
+    clusterBundle: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.campaignId as any, {
+      clusterBundle: args.clusterBundle,
     });
     return null;
   },

@@ -157,6 +157,61 @@ describe('dropVariationOnCanvas', () => {
     expect(editor._assets[0].props.name).toMatch(/atlas/);
   });
 
+  it('uses nativePerFormatUrls per format when supplied (LANE-B)', () => {
+    const editor = makeMockEditor();
+    dropVariationOnCanvas({
+      editor: editor as unknown as import('tldraw').Editor,
+      variation: makeVariation({
+        heroImageUrl: 'https://cdn.test/hero.png',
+        atlasUrl: 'https://cdn.test/atlas.png',
+        nativePerFormatUrls: {
+          '1x1': 'https://cdn.test/native_1x1.png',
+          '4x5': 'https://cdn.test/native_4x5.png',
+          '9x16': 'https://cdn.test/native_9x16.png',
+          '16x9': 'https://cdn.test/native_16x9.png',
+        },
+      }),
+    });
+
+    // Each format frame should pull from its native URL, not the atlas.
+    const srcByFormat = new Map<string, string>();
+    for (const img of editor._shapes.filter((s) => s.type === 'image')) {
+      const fid = img.meta.formatId as string;
+      const assetId = img.props.assetId as string;
+      const asset = editor._assets.find((a) => a.id === assetId);
+      if (fid && asset) srcByFormat.set(fid, asset.props.src as string);
+    }
+    expect(srcByFormat.get('1x1')).toBe('https://cdn.test/native_1x1.png');
+    expect(srcByFormat.get('4x5')).toBe('https://cdn.test/native_4x5.png');
+    expect(srcByFormat.get('9x16')).toBe('https://cdn.test/native_9x16.png');
+    expect(srcByFormat.get('16x9')).toBe('https://cdn.test/native_16x9.png');
+  });
+
+  it('falls back to atlasUrl for formats missing from nativePerFormatUrls', () => {
+    const editor = makeMockEditor();
+    dropVariationOnCanvas({
+      editor: editor as unknown as import('tldraw').Editor,
+      variation: makeVariation({
+        heroImageUrl: 'https://cdn.test/hero.png',
+        atlasUrl: 'https://cdn.test/atlas.png',
+        // Only 1:1 native render available (e.g. AUTO_MODE_NATIVE_PER_FORMAT off)
+        nativePerFormatUrls: { '1x1': 'https://cdn.test/native_1x1.png' },
+      }),
+    });
+
+    const srcByFormat = new Map<string, string>();
+    for (const img of editor._shapes.filter((s) => s.type === 'image')) {
+      const fid = img.meta.formatId as string;
+      const assetId = img.props.assetId as string;
+      const asset = editor._assets.find((a) => a.id === assetId);
+      if (fid && asset) srcByFormat.set(fid, asset.props.src as string);
+    }
+    expect(srcByFormat.get('1x1')).toBe('https://cdn.test/native_1x1.png');
+    expect(srcByFormat.get('4x5')).toBe('https://cdn.test/atlas.png');
+    expect(srcByFormat.get('9x16')).toBe('https://cdn.test/atlas.png');
+    expect(srcByFormat.get('16x9')).toBe('https://cdn.test/atlas.png');
+  });
+
   it('creates a geo overlay shape for each text overlay that has a bbox', () => {
     const editor = makeMockEditor();
     dropVariationOnCanvas({

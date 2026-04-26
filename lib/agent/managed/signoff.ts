@@ -82,6 +82,10 @@ export interface SignoffAgentInput {
   /** Override for tests. */
   client?: Anthropic;
   workspaceId?: string;
+  /** When false, skip the Managed Agents API path even if AGENT_ID +
+   *  ENVIRONMENT_ID are configured. Forces fallback to messages.create.
+   *  Default: true. */
+  useManagedAgents?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +388,8 @@ export async function runSignoffAgent(
     prompt: JSON.stringify({ variationCount: input.variations.length }),
   });
 
-  const agentConfig = resolveAgentConfig();
+  const agentConfig =
+    input.useManagedAgents === false ? null : resolveAgentConfig();
 
   try {
     if (agentConfig) {

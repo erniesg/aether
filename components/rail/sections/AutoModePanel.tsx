@@ -21,12 +21,11 @@ import { Button } from '@/components/ui/Button';
  * is responsible for subscribing to `api.campaigns.get` (Convex) and
  * passing the result down. No fetching here.
  *
- * LANE-C TODO: surface `researchBundle` (competitors, localeInsights,
- * recentCampaigns, sources) in a collapsible "Research signals" section
- * below the lap status line. The bundle is returned by runAutoMode and
- * should be threaded through WorkspaceShell → RightRail → AutoModePanel
- * as an optional prop `researchBundle?: ResearchBundle`. One chip per
- * competitor, one chip per locale insight — progressive disclosure only.
+ * LANE-C: the optional `researchBundle` prop surfaces the B2 research-agent
+ * payload as a collapsible "Research signals" row below the lap metadata.
+ * Default state is a single chip with counts (`n comps · m locales · k srcs`);
+ * clicking reveals competitor chips, locale insights, and source URLs.
+ * Progressive disclosure only — no ambient text walls.
  */
 
 export interface AutoModeFormatCropView {
@@ -53,6 +52,14 @@ export interface AutoModeVariationView {
     textAlign?: 'start' | 'center' | 'end';
   }>;
   nativePerFormatRendered?: string[];
+  /**
+   * Per-format hero URLs (1:1, 4:5, 9:16, 16:9). When populated, the canvas
+   * drop uses each entry for the matching format frame instead of repeating
+   * the atlas. 1:1 always equals heroImageUrl; 4:5/9:16/16:9 are present
+   * when AUTO_MODE_NATIVE_PER_FORMAT renders succeeded and uploaded. Missing
+   * formats fall back to atlas → hero in dropVariationOnCanvas.
+   */
+  nativePerFormatUrls?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
   caption?: string;
   captionsByLocale?: Partial<
     Record<'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG', string>
@@ -84,6 +91,40 @@ export interface LapStepView {
   finishedAt?: number;
 }
 
+/**
+ * Lightweight view shape for the cluster Managed Agent's grouping output.
+ * Source of truth: lib/agent/managed/cluster.ts ClusterBundle.
+ */
+export interface ClusterBundleView {
+  sessionId?: string;
+  latencyMs: number;
+  usedManagedAgentsApi: boolean;
+  clusters: Array<{
+    label: string;
+    rationale: string;
+    tags: string[];
+    memberIndexes: number[];
+  }>;
+  unclustered: number[];
+}
+
+/**
+ * Lightweight view shape for the signoff Managed Agent's per-variation
+ * decision. Source of truth: lib/agent/managed/signoff.ts SchedulePlan.
+ */
+export interface SchedulePlanView {
+  sessionId?: string;
+  latencyMs: number;
+  usedManagedAgentsApi: boolean;
+  overallRecommendation: string;
+  variations: Array<{
+    variationIndex: number;
+    decision: 'auto-post' | 'hold-for-review' | 'reject';
+    rationale: string;
+    suggestedSchedule?: { platform: string; whenLocal: string };
+  }>;
+}
+
 export interface AutoModeCampaignView {
   id: string;
   triggerKind: 'url' | 'file' | 'text';
@@ -96,6 +137,46 @@ export interface AutoModeCampaignView {
   error?: string;
   /** Inferred step timeline for the lap (C4). Populated by useCampaignLap. */
   lapSteps?: LapStepView[];
+  /** B2 research bundle persisted on the campaign row (Convex). Survives a
+   *  page refresh — replaces ephemeral component-state holding. */
+  researchBundle?: ResearchBundleView;
+  /** Signoff Managed Agent's plan persisted on the campaign row. */
+  schedulePlan?: SchedulePlanView;
+  /** Cluster Managed Agent's bundle persisted on the campaign row. */
+  clusterBundle?: ClusterBundleView;
+}
+
+/**
+ * View-layer subset of the B2 ResearchBundle. Mirrors the shape produced by
+ * `lib/agent/managed/research.ts` but kept inline so this UI module doesn't
+ * pull in agent-side dependencies. The orchestrator is the source of truth;
+ * field semantics: see `ResearchBundle` in lib/agent/managed/research.ts.
+ */
+export interface ResearchBundleView {
+  summary: string;
+  competitors: string[];
+  recentCampaigns: string[];
+  localeInsights: Array<{
+    locale: 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+    insight: string;
+  }>;
+  sources: Array<{ url: string; snippet: string; retrievedAt: string }>;
+  latencyMs: number;
+  usedManagedAgentsApi: boolean;
+}
+
+/**
+ * One entry in the lap event log — produced by lib/agent/lap-logger.ts and
+ * persisted to Convex `lapEvent`. The right-rail Live Log shows the latest
+ * events as they arrive; /inspect renders the full timeline.
+ */
+export interface LapEventView {
+  id: string;
+  ts: number;
+  variationIndex?: number;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  tag: string;
+  message: string;
 }
 
 export interface AutoModePanelProps {
@@ -105,6 +186,16 @@ export interface AutoModePanelProps {
   onApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
   /** Called when the user rejects a variation. */
   onReject?: (variationIndex: number) => Promise<void>;
+  /** B2 research bundle from runAutoMode. When present, a collapsible
+   *  "Research signals" row appears below the lap metadata. */
+  researchBundle?: ResearchBundleView;
+  /** Cluster Managed Agent bundle. When present, a "Visual clusters" row
+   *  appears below research showing the agent's grouping of refs. */
+  clusterBundle?: ClusterBundleView;
+  /** Live event tail for the in-flight lap. Surfaced as a collapsible
+   *  "lap log" section so creators can debug pipeline progress without
+   *  leaving the workspace. Empty array hides the section. */
+  events?: LapEventView[];
 }
 
 const LOCALE_LABEL: Record<string, string> = {
@@ -173,7 +264,246 @@ function LapStepTimeline({ steps }: { steps: LapStepView[] }) {
   );
 }
 
-export function AutoModePanel({ campaign, variations, onApprove, onReject }: AutoModePanelProps) {
+function ResearchSignalsSection({ bundle }: { bundle: ResearchBundleView }) {
+  const [open, setOpen] = useState(false);
+  const compCount = bundle.competitors.length;
+  const localeCount = bundle.localeInsights.length;
+  const sourceCount = bundle.sources.length;
+
+  return (
+    <div className="mb-3 flex flex-col gap-1.5">
+      <button
+        type="button"
+        data-testid="auto-mode-research-toggle"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-1.5 text-left font-mono text-[10px] uppercase tracking-wide text-ink-muted hover:text-ink"
+      >
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span>research</span>
+        <Chip tone="info" size="sm" variant="ghost">
+          {compCount} comp{compCount === 1 ? '' : 's'}
+        </Chip>
+        <Chip tone="secondary" size="sm" variant="ghost">
+          {localeCount} locale{localeCount === 1 ? '' : 's'}
+        </Chip>
+        <Chip tone="neutral" size="sm" variant="ghost">
+          {sourceCount} source{sourceCount === 1 ? '' : 's'}
+        </Chip>
+      </button>
+      {open ? (
+        <div
+          data-testid="auto-mode-research-body"
+          className="flex flex-col gap-1.5 pl-3"
+        >
+          {compCount > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {bundle.competitors.map((c) => (
+                <Chip key={c} tone="info" size="sm" variant="ghost">
+                  {c}
+                </Chip>
+              ))}
+            </div>
+          ) : null}
+          {localeCount > 0 ? (
+            <div className="flex flex-col gap-0.5">
+              {bundle.localeInsights.map((li) => (
+                <div
+                  key={`${li.locale}:${li.insight}`}
+                  className="font-mono text-[10px] text-ink-muted"
+                >
+                  <span className="text-ink-faint">
+                    {LOCALE_LABEL[li.locale] ?? li.locale}
+                  </span>{' '}
+                  {li.insight}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {sourceCount > 0 ? (
+            <div className="flex flex-col gap-0.5">
+              {bundle.sources.slice(0, 5).map((s) => (
+                <a
+                  key={s.url}
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="truncate font-mono text-[10px] text-ink-muted hover:text-ink"
+                >
+                  {s.url}
+                </a>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ClusterSection({ bundle }: { bundle: ClusterBundleView }) {
+  const [open, setOpen] = useState(false);
+  const clusterCount = bundle.clusters.length;
+  const memberCount = bundle.clusters.reduce(
+    (acc, c) => acc + c.memberIndexes.length,
+    0
+  );
+  return (
+    <div className="mb-3 flex flex-col gap-1.5">
+      <button
+        type="button"
+        data-testid="auto-mode-cluster-toggle"
+        onClick={() => setOpen((p) => !p)}
+        className="flex items-center gap-1.5 text-left font-mono text-[10px] uppercase tracking-wide text-ink-muted hover:text-ink"
+      >
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span>clusters</span>
+        <Chip tone="info" size="sm" variant="ghost">
+          {clusterCount} group{clusterCount === 1 ? '' : 's'}
+        </Chip>
+        <Chip tone="neutral" size="sm" variant="ghost">
+          {memberCount} ref{memberCount === 1 ? '' : 's'}
+        </Chip>
+        {bundle.usedManagedAgentsApi ? (
+          <Chip tone="secondary" size="sm" variant="ghost">
+            managed
+          </Chip>
+        ) : null}
+      </button>
+      {open ? (
+        <div
+          data-testid="auto-mode-cluster-body"
+          className="flex flex-col gap-1.5 pl-3"
+        >
+          {bundle.clusters.map((c, i) => (
+            <div key={`${c.label}-${i}`} className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <Chip tone="info" size="sm" variant="solid">
+                  {c.label}
+                </Chip>
+                <span className="font-mono text-[10px] text-ink-faint">
+                  {c.memberIndexes.length} ref{c.memberIndexes.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="font-mono text-[10px] text-ink-muted">
+                {c.rationale}
+              </div>
+              {c.tags.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {c.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="font-mono text-[10px] text-ink-faint"
+                    >
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
+          {bundle.unclustered.length > 0 ? (
+            <div className="font-mono text-[10px] text-ink-faint">
+              {bundle.unclustered.length} unclustered
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LapEventLog({ events }: { events: LapEventView[] }) {
+  const [open, setOpen] = useState(false);
+  const sorted = useMemo(
+    () => [...events].sort((a, b) => a.ts - b.ts),
+    [events]
+  );
+  const tail = sorted.slice(-30);
+
+  if (events.length === 0) return null;
+
+  const errorCount = events.filter((e) => e.level === 'error').length;
+  const warnCount = events.filter((e) => e.level === 'warn').length;
+
+  const levelTone: Record<LapEventView['level'], 'neutral' | 'info' | 'warn' | 'error'> = {
+    debug: 'neutral',
+    info: 'info',
+    warn: 'warn',
+    error: 'error',
+  };
+  const levelGlyph: Record<LapEventView['level'], string> = {
+    debug: '·',
+    info: '✓',
+    warn: '⚠',
+    error: '✗',
+  };
+
+  return (
+    <div className="mb-3 flex flex-col gap-1.5">
+      <button
+        type="button"
+        data-testid="auto-mode-lap-log-toggle"
+        onClick={() => setOpen((p) => !p)}
+        className="flex items-center gap-1.5 text-left font-mono text-[10px] uppercase tracking-wide text-ink-muted hover:text-ink"
+      >
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span>lap log</span>
+        <Chip tone="neutral" size="sm" variant="ghost">
+          {events.length} events
+        </Chip>
+        {errorCount > 0 ? (
+          <Chip tone="error" size="sm" variant="ghost">
+            {errorCount} err
+          </Chip>
+        ) : null}
+        {warnCount > 0 ? (
+          <Chip tone="warn" size="sm" variant="ghost">
+            {warnCount} warn
+          </Chip>
+        ) : null}
+      </button>
+      {open ? (
+        <div
+          data-testid="auto-mode-lap-log-body"
+          className="flex flex-col gap-0.5 max-h-72 overflow-y-auto pl-3 pr-1"
+        >
+          {tail.map((e) => (
+            <div
+              key={e.id}
+              data-event-level={e.level}
+              data-event-tag={e.tag}
+              className="flex items-start gap-1.5 font-mono text-[10px]"
+            >
+              <Chip tone={levelTone[e.level]} size="sm" variant="ghost">
+                {levelGlyph[e.level]}
+              </Chip>
+              <span className="text-ink-faint shrink-0">
+                {e.tag}
+                {e.variationIndex != null ? `@v${e.variationIndex}` : ''}
+              </span>
+              <span className="text-ink-muted truncate">{e.message}</span>
+            </div>
+          ))}
+          {events.length > tail.length ? (
+            <div className="font-mono text-[10px] text-ink-faint pt-1">
+              showing latest {tail.length} of {events.length} — full log on /inspect
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function AutoModePanel({
+  campaign,
+  variations,
+  onApprove,
+  onReject,
+  researchBundle,
+  clusterBundle,
+  events,
+}: AutoModePanelProps) {
   const sorted = useMemo(
     () => [...variations].sort((a, b) => a.index - b.index),
     [variations]
@@ -200,9 +530,21 @@ export function AutoModePanel({ campaign, variations, onApprove, onReject }: Aut
         <div className="font-mono text-[10px] uppercase tracking-wide text-ink-muted">
           Auto Mode · {campaign.triggerKind}
         </div>
-        <Chip tone={STATUS_TONE[campaign.status]} size="sm" variant="solid">
-          {campaign.status}
-        </Chip>
+        <div className="flex items-center gap-1.5">
+          <a
+            href={`/inspect/${campaign.id}`}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="auto-mode-inspect-link"
+            title="Open full lap inspector"
+            className="font-mono text-[10px] text-ink-muted hover:text-ink"
+          >
+            ↗ inspect
+          </a>
+          <Chip tone={STATUS_TONE[campaign.status]} size="sm" variant="solid">
+            {campaign.status}
+          </Chip>
+        </div>
       </div>
 
       <div className="text-xs text-ink-muted mb-3">
@@ -217,6 +559,16 @@ export function AutoModePanel({ campaign, variations, onApprove, onReject }: Aut
       {campaign.lapSteps && campaign.lapSteps.length > 0 ? (
         <LapStepTimeline steps={campaign.lapSteps} />
       ) : null}
+
+      {/* LANE-C: B2 research signals — collapsed by default. */}
+      {researchBundle ? <ResearchSignalsSection bundle={researchBundle} /> : null}
+
+      {/* Cluster Managed Agent grouping — collapsed by default. */}
+      {clusterBundle ? <ClusterSection bundle={clusterBundle} /> : null}
+
+      {/* Live lap log — collapsed by default. Surfaces structured events so
+          creators can debug pipeline progress without leaving the workspace. */}
+      {events && events.length > 0 ? <LapEventLog events={events} /> : null}
 
       <div className="flex flex-col gap-2">
         {sorted.map((v) => (

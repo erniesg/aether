@@ -356,3 +356,75 @@ describe('AutoModePanel · locale and format chips', () => {
     expect(screen.queryByText('#d')).toBeNull();
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// LANE-C — Research signals (B2 bundle surfaced in the right rail)
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('AutoModePanel · research signals', () => {
+  it('omits the research signals row when researchBundle is undefined', () => {
+    render(<AutoModePanel campaign={makeCampaign()} variations={[makeVariation()]} />);
+    expect(screen.queryByTestId('auto-mode-research-toggle')).toBeNull();
+  });
+
+  it('renders a collapsed summary chip with counts when researchBundle is provided', () => {
+    render(
+      <AutoModePanel
+        campaign={makeCampaign()}
+        variations={[makeVariation()]}
+        researchBundle={{
+          summary: 'Sleep tech market — premium wellness segment',
+          competitors: ['Casper', 'Saatva', 'Tempur'],
+          recentCampaigns: ['Casper Spring Sale'],
+          localeInsights: [
+            { locale: 'en-SG', insight: 'Wellness angle resonates' },
+            { locale: 'zh-Hans-SG', insight: '健康睡眠诉求' },
+          ],
+          sources: [
+            { url: 'https://casper.com', snippet: 'Casper home', retrievedAt: '2026-04-27T00:00:00Z' },
+          ],
+          latencyMs: 12_000,
+          usedManagedAgentsApi: true,
+        }}
+      />
+    );
+
+    const toggle = screen.getByTestId('auto-mode-research-toggle');
+    expect(toggle).toBeInTheDocument();
+    // Collapsed by default: counts visible, body hidden.
+    expect(toggle.textContent).toMatch(/3 comps?/i);
+    expect(toggle.textContent).toMatch(/2 locales?/i);
+    expect(toggle.textContent).toMatch(/1 sources?/i);
+    expect(screen.queryByTestId('auto-mode-research-body')).toBeNull();
+  });
+
+  it('expands to show competitor chips and locale insights on click', async () => {
+    const user = userEvent.setup();
+    render(
+      <AutoModePanel
+        campaign={makeCampaign()}
+        variations={[makeVariation()]}
+        researchBundle={{
+          summary: 'sample',
+          competitors: ['Casper', 'Saatva'],
+          recentCampaigns: [],
+          localeInsights: [
+            { locale: 'en-SG', insight: 'Wellness angle resonates' },
+            { locale: 'ms-SG', insight: 'Family-focused messaging' },
+          ],
+          sources: [],
+          latencyMs: 0,
+          usedManagedAgentsApi: false,
+        }}
+      />
+    );
+
+    await user.click(screen.getByTestId('auto-mode-research-toggle'));
+
+    expect(screen.getByTestId('auto-mode-research-body')).toBeInTheDocument();
+    expect(screen.getByText('Casper')).toBeInTheDocument();
+    expect(screen.getByText('Saatva')).toBeInTheDocument();
+    expect(screen.getByText(/Wellness angle resonates/i)).toBeInTheDocument();
+    expect(screen.getByText(/Family-focused messaging/i)).toBeInTheDocument();
+  });
+});

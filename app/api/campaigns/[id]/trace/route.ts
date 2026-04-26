@@ -23,10 +23,12 @@ import {
   getCapabilityRunByClientId,
   getAsset,
   listScheduledPosts,
+  listLapEvents,
   type VariationRow,
   type CapabilityRunRow,
   type AssetRow,
   type ScheduledPostRow,
+  type LapEventRow,
 } from '@/lib/convex/trace-helpers';
 
 export const runtime = 'nodejs';
@@ -68,6 +70,11 @@ interface VariationTrace {
   textOverlayWarnings?: unknown;
   masksOneShot?: MaskSummary;
   masksVisionGuided?: MaskSummary;
+  atlasUrl?: string;
+  nativePerFormatRendered?: string[];
+  nativePerFormatUrls?: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+  >;
   agentSteps: AgentStepTrace[];
   startedAt: number;
   finishedAt?: number;
@@ -169,6 +176,10 @@ async function buildVariationTrace(variation: VariationRow): Promise<VariationTr
     formatCrops: variation.formatCrops,
     masksOneShot: summarizeMasks(variation.masksOneShot),
     masksVisionGuided: summarizeMasks(variation.masksVisionGuided),
+    atlasUrl: variation.atlasUrl,
+    textOverlays: variation.textOverlays,
+    nativePerFormatRendered: variation.nativePerFormatRendered,
+    nativePerFormatUrls: variation.nativePerFormatUrls,
     agentSteps,
     startedAt: variation.startedAt,
     finishedAt: variation.finishedAt,
@@ -241,6 +252,14 @@ export async function GET(
     // fail-soft — scheduledPosts stays empty
   }
 
+  // Structured lap events — full timeline for /inspect.
+  let events: LapEventRow[] = [];
+  try {
+    events = await listLapEvents(campaignId, 500);
+  } catch {
+    // fail-soft — events stays empty
+  }
+
   // urlIngestion / pdfIngestion / referenceDescriptions are NOT persisted to
   // Convex today (they are in-memory per AutoModeResult). Signal this to
   // callers so they know the absence is expected, not a bug.
@@ -258,9 +277,13 @@ export async function GET(
       status: campaign.status,
       startedAt: campaign.startedAt,
       finishedAt: campaign.finishedAt,
+      researchBundle: campaign.researchBundle,
+      schedulePlan: campaign.schedulePlan,
+      clusterBundle: campaign.clusterBundle,
     },
     variations: variationTraces,
     scheduledPosts,
+    events,
     lapDataUnavailable,
   });
 }

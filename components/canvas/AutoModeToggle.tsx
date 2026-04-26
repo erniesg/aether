@@ -27,6 +27,11 @@ export interface AutoModeConfig {
   variationCount: 1 | 2 | 3 | 4;
   concurrency: AutoModeConcurrency;
   notifyMode: AutoModeNotifyMode;
+  /** When true, research / cluster / signoff use the Anthropic Managed
+   *  Agents API (when AGENT_ID + ENVIRONMENT_ID are configured). When
+   *  false, all three force the messages.create fallback path even with
+   *  IDs set. Default true. */
+  useManagedAgents: boolean;
 }
 
 export const DEFAULT_AUTO_MODE_CONFIG: AutoModeConfig = {
@@ -34,6 +39,7 @@ export const DEFAULT_AUTO_MODE_CONFIG: AutoModeConfig = {
   variationCount: 2,
   concurrency: 'sequential',
   notifyMode: 'review',
+  useManagedAgents: true,
 };
 
 export interface AutoModeToggleProps {
@@ -106,6 +112,10 @@ export function AutoModeToggle({
     },
     [config, onChange]
   );
+
+  const handleToggleManagedAgents = useCallback(() => {
+    onChange({ ...config, useManagedAgents: !config.useManagedAgents });
+  }, [config, onChange]);
 
   const tone = busy ? 'info' : config.enabled ? 'accent' : 'neutral';
   const label = busy
@@ -217,6 +227,27 @@ export function AutoModeToggle({
                     </Chip>
                   </button>
                 ))}
+              </Row>
+            </Section>
+
+            <Section label="Agent path">
+              <Row>
+                <button
+                  type="button"
+                  onClick={handleToggleManagedAgents}
+                  aria-pressed={config.useManagedAgents}
+                  data-testid="auto-mode-managed-agents-toggle"
+                  className="cursor-pointer focus:outline-none"
+                  title="When on, research / cluster / signoff use the Anthropic Managed Agents API (when IDs configured). When off, all three force the messages.create fallback."
+                >
+                  <Chip
+                    tone={config.useManagedAgents ? 'accent' : 'neutral'}
+                    size="sm"
+                    variant={config.useManagedAgents ? 'solid' : 'outline'}
+                  >
+                    {config.useManagedAgents ? 'Managed Agents' : 'Standard (messages.create)'}
+                  </Chip>
+                </button>
               </Row>
             </Section>
           </Surface>

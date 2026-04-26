@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => {
   const renderPerFormatHeroes = vi.fn();
   // B2: research agent mock — fail-soft by default (resolves to undefined → no bundle).
   const runResearchAgent = vi.fn().mockResolvedValue(undefined);
+  // Signoff Managed Agent mock — by default not invoked (gated by env flag).
+  const runSignoffAgent = vi.fn();
   return {
     runMultiAgent,
     startCampaign,
@@ -49,6 +51,7 @@ const mocks = vi.hoisted(() => {
     uploadAssetToConvex,
     renderPerFormatHeroes,
     runResearchAgent,
+    runSignoffAgent,
   };
 });
 
@@ -61,6 +64,15 @@ vi.mock('@/lib/convex/http', () => ({
   setCampaignStatus: mocks.setCampaignStatus,
   insertCampaignVariation: mocks.insertCampaignVariation,
   recordScheduledPost: mocks.recordScheduledPost,
+  // Persistence helpers added when researchBundle / schedulePlan / clusterBundle
+  // moved onto the campaign row. Mocked as no-ops so tests don't crash on the
+  // import-side check; not asserted on by default.
+  setCampaignResearchBundle: vi.fn().mockResolvedValue(undefined),
+  setCampaignSchedulePlan: vi.fn().mockResolvedValue(undefined),
+  setCampaignClusterBundle: vi.fn().mockResolvedValue(undefined),
+  // Structured per-lap event log (lib/agent/lap-logger.ts → recordLapEvent).
+  // No-op mock so the lap-event sprinkles don't blow up tests.
+  recordLapEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/notify/discord', () => ({
@@ -137,6 +149,18 @@ vi.mock('./per-format-render', async () => {
 // B2: mock the research agent so runAutoMode can be tested without LLM calls.
 vi.mock('./managed/research', () => ({
   runResearchAgent: mocks.runResearchAgent,
+}));
+
+// Signoff Managed Agent — mocked so runAutoMode tests exercise the gate
+// without burning Anthropic credits.
+vi.mock('./managed/signoff', () => ({
+  runSignoffAgent: mocks.runSignoffAgent,
+}));
+
+// Cluster Managed Agent — mocked as undefined-resolver so cluster wiring
+// doesn't fire in tests that don't explicitly expect it.
+vi.mock('./managed/cluster', () => ({
+  runClusterAgent: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
@@ -2305,5 +2329,388 @@ describe('runAutoMode · orchestration', () => {
     else delete process.env.ANTHROPIC_API_KEY;
     if (prevSkip !== undefined) process.env.AUTO_MODE_SKIP_RESEARCH = prevSkip;
     else delete process.env.AUTO_MODE_SKIP_RESEARCH;
+  });
+
+  /**
+   * Signoff Managed Agent — gates the auto-post lap.
+   *
+   * When AUTO_MODE_USE_SIGNOFF=1 + notifyMode='auto-post', runSignoffAgent
+   * runs after variations finish. Its per-variation decision filters which
+   * variations actually go through scheduleVariationPosts:
+   *   - 'auto-post'        → scheduled normally
+   *   - 'hold-for-review'  → NOT scheduled; Discord ping fires with rationale
+   *   - 'reject'           → NOT scheduled; rationale logged
+   * Signoff failure is fail-soft — falls through to the legacy behaviour
+   * (all ready variations scheduled) so a flaky agent never blocks a lap.
+   */
+  it('signoff: AUTO_MODE_USE_SIGNOFF=1 only schedules variations with decision auto-post', async () => {
+    const prevFlag = process.env.AUTO_MODE_USE_SIGNOFF;
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.AUTO_MODE_USE_SIGNOFF = '1';
+    process.env.ANTHROPIC_API_KEY = 'test-key-signoff';
+
+    // Two variations finish ready.
+    mocks.runMultiAgent
+      .mockResolvedValueOnce({
+        finalText: JSON.stringify({
+          caption: 'on-brand calm copy',
+          platform: 'instagram',
+          whenLocal: '2026-04-27T20:30:00+08:00',
+        }),
+        steps: [
+          {
+            index: 0,
+            name: 'generate_image',
+            input: {},
+            ok: true,
+            ms: 12,
+            output: { result: { images: [{ url: 'https://cdn/safe.png' }] } },
+          },
+        ],
+        iterations: 1,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        finalText: JSON.stringify({
+          caption: 'spicy hot take',
+          platform: 'instagram',
+          whenLocal: '2026-04-28T19:00:00+08:00',
+        }),
+        steps: [
+          {
+            index: 0,
+            name: 'generate_image',
+            input: {},
+            ok: true,
+            ms: 11,
+            output: { result: { images: [{ url: 'https://cdn/risky.png' }] } },
+          },
+        ],
+        iterations: 1,
+        stopReason: 'end_turn',
+      });
+
+    // Signoff: variation 1 = auto-post, variation 2 = hold-for-review.
+    mocks.runSignoffAgent.mockResolvedValueOnce({
+      latencyMs: 100,
+      usedManagedAgentsApi: true,
+      sessionId: 'sess_signoff_1',
+      overallRecommendation: 'one safe, one risky',
+      variations: [
+        { variationIndex: 1, decision: 'auto-post', rationale: 'on-brand and within length' },
+        { variationIndex: 2, decision: 'hold-for-review', rationale: 'tone risk: "spicy hot take"' },
+      ],
+    });
+
+    mocks.publisherSchedule.mockResolvedValueOnce({
+      previewUrl: '/workspace/ws_signoff?publishPreview=preview-A',
+    });
+    mocks.resolvePublisherForPost.mockReturnValue({
+      id: 'preview',
+      canPublish: () => true,
+      schedule: mocks.publisherSchedule,
+      list: async () => [],
+      cancel: async () => {},
+    });
+    mocks.recordScheduledPost.mockResolvedValueOnce('sched-A');
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_signoff',
+      trigger: { kind: 'text', payload: 'launch copy' },
+      variationCount: 2,
+      notifyMode: 'auto-post',
+    });
+
+    // Signoff was called with both variations.
+    expect(mocks.runSignoffAgent).toHaveBeenCalledTimes(1);
+    const sig = mocks.runSignoffAgent.mock.calls[0][0];
+    expect(sig.variations).toHaveLength(2);
+
+    // Only the auto-post variation got scheduled.
+    expect(result.scheduledPostIds).toEqual(['sched-A']);
+    expect(mocks.publisherSchedule).toHaveBeenCalledTimes(1);
+
+    // Hold-for-review variation got a Discord ping with rationale.
+    const holdCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => typeof c[0]?.tag === 'string' && c[0].tag.startsWith('signoff-hold-')
+    );
+    if (!holdCall) throw new Error('expected signoff-hold-* Discord call');
+    expect(holdCall[0].content).toContain('tone risk');
+    expect(holdCall[0].content).toContain('v2');
+
+    // Schedule plan surfaces in the result.
+    expect(result.schedulePlan).toBeTruthy();
+    expect(result.schedulePlan?.variations).toHaveLength(2);
+    expect(result.schedulePlan?.usedManagedAgentsApi).toBe(true);
+
+    if (prevFlag !== undefined) process.env.AUTO_MODE_USE_SIGNOFF = prevFlag;
+    else delete process.env.AUTO_MODE_USE_SIGNOFF;
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    else delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  it('signoff: flag unset → runSignoffAgent is NOT called (current behaviour preserved)', async () => {
+    const prevFlag = process.env.AUTO_MODE_USE_SIGNOFF;
+    delete process.env.AUTO_MODE_USE_SIGNOFF;
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        caption: 'baseline',
+        platform: 'instagram',
+        whenLocal: '2026-04-27T19:00:00+08:00',
+      }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 5,
+          output: { result: { images: [{ url: 'https://cdn/baseline.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+    mocks.publisherSchedule.mockResolvedValueOnce({
+      previewUrl: '/workspace/ws_x?publishPreview=p-1',
+    });
+    mocks.resolvePublisherForPost.mockReturnValue({
+      id: 'preview',
+      canPublish: () => true,
+      schedule: mocks.publisherSchedule,
+      list: async () => [],
+      cancel: async () => {},
+    });
+    mocks.recordScheduledPost.mockResolvedValueOnce('sched-1');
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_x',
+      trigger: { kind: 'text', payload: 'baseline' },
+      variationCount: 1,
+      notifyMode: 'auto-post',
+    });
+
+    expect(mocks.runSignoffAgent).not.toHaveBeenCalled();
+    expect(mocks.publisherSchedule).toHaveBeenCalledTimes(1);
+
+    if (prevFlag !== undefined) process.env.AUTO_MODE_USE_SIGNOFF = prevFlag;
+  });
+
+  it('signoff: agent failure is fail-soft — all ready variations still scheduled', async () => {
+    const prevFlag = process.env.AUTO_MODE_USE_SIGNOFF;
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.AUTO_MODE_USE_SIGNOFF = '1';
+    process.env.ANTHROPIC_API_KEY = 'test-key-signoff-fail';
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        caption: 'safe copy',
+        platform: 'instagram',
+        whenLocal: '2026-04-27T19:00:00+08:00',
+      }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 5,
+          output: { result: { images: [{ url: 'https://cdn/safe.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    mocks.runSignoffAgent.mockRejectedValueOnce(new Error('signoff timed out'));
+
+    mocks.publisherSchedule.mockResolvedValueOnce({
+      previewUrl: '/workspace/ws_x?publishPreview=p-1',
+    });
+    mocks.resolvePublisherForPost.mockReturnValue({
+      id: 'preview',
+      canPublish: () => true,
+      schedule: mocks.publisherSchedule,
+      list: async () => [],
+      cancel: async () => {},
+    });
+    mocks.recordScheduledPost.mockResolvedValueOnce('sched-fb');
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_x',
+      trigger: { kind: 'text', payload: 'fallback' },
+      variationCount: 1,
+      notifyMode: 'auto-post',
+    });
+
+    // Agent threw → fall through to legacy behaviour: schedule the ready variation.
+    expect(result.scheduledPostIds).toEqual(['sched-fb']);
+    expect(result.schedulePlan).toBeUndefined();
+
+    if (prevFlag !== undefined) process.env.AUTO_MODE_USE_SIGNOFF = prevFlag;
+    else delete process.env.AUTO_MODE_USE_SIGNOFF;
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    else delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  /**
+   * useManagedAgents toggle — per-lap override that forces all three
+   * managed agents (research / cluster / signoff) to skip the Managed
+   * Agents API path and run on messages.create even when AGENT_ID env
+   * vars are configured. The UI surfaces this in AutoModeToggle and the
+   * /api/auto-mode/run route forwards it to runAutoMode.
+   */
+  it('useManagedAgents=false propagates into runResearchAgent and runSignoffAgent input', async () => {
+    const prevFlag = process.env.AUTO_MODE_USE_SIGNOFF;
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.AUTO_MODE_USE_SIGNOFF = '1';
+    process.env.ANTHROPIC_API_KEY = 'test-key-toggle';
+
+    mocks.runResearchAgent.mockResolvedValueOnce({
+      latencyMs: 10,
+      competitors: [],
+      recentCampaigns: [],
+      localeInsights: [],
+      sources: [],
+      summary: 'mock',
+      usedManagedAgentsApi: false,
+    });
+    mocks.runSignoffAgent.mockResolvedValueOnce({
+      latencyMs: 10,
+      usedManagedAgentsApi: false,
+      overallRecommendation: 'ok',
+      variations: [
+        { variationIndex: 1, decision: 'auto-post', rationale: 'fine' },
+      ],
+    });
+
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://example.com/',
+      finalUrl: 'https://example.com/',
+      title: 'Example',
+      description: 'sample',
+      primaryImage: null,
+      images: [{ url: 'https://example.com/og.jpg', source: 'og-image' as const }],
+      products: [{ name: 'thing', brand: 'Example' }],
+      bodyExcerpt: '',
+      fetchedAt: '2026-04-28T00:00:00Z',
+      rawHtmlBytes: 1_000,
+    });
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        caption: 'on-brand copy',
+        platform: 'instagram',
+        whenLocal: '2026-04-28T19:00:00+08:00',
+      }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 5,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+    mocks.publisherSchedule.mockResolvedValueOnce({
+      previewUrl: '/workspace/ws_x?publishPreview=p-1',
+    });
+    mocks.resolvePublisherForPost.mockReturnValue({
+      id: 'preview',
+      canPublish: () => true,
+      schedule: mocks.publisherSchedule,
+      list: async () => [],
+      cancel: async () => {},
+    });
+    mocks.recordScheduledPost.mockResolvedValueOnce('sched-toggle');
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_toggle',
+      trigger: { kind: 'url', payload: 'https://example.com/' },
+      variationCount: 1,
+      notifyMode: 'auto-post',
+      useManagedAgents: false,
+    });
+
+    // Research agent received the toggle = false.
+    expect(mocks.runResearchAgent).toHaveBeenCalledOnce();
+    expect(mocks.runResearchAgent.mock.calls[0]![0]).toMatchObject({
+      useManagedAgents: false,
+    });
+
+    // Signoff agent received the toggle = false.
+    expect(mocks.runSignoffAgent).toHaveBeenCalledOnce();
+    expect(mocks.runSignoffAgent.mock.calls[0]![0]).toMatchObject({
+      useManagedAgents: false,
+    });
+
+    if (prevFlag !== undefined) process.env.AUTO_MODE_USE_SIGNOFF = prevFlag;
+    else delete process.env.AUTO_MODE_USE_SIGNOFF;
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    else delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  it('useManagedAgents defaults to undefined (= managed-agents path on when IDs present)', async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key-default';
+
+    mocks.runResearchAgent.mockResolvedValueOnce({
+      latencyMs: 10,
+      competitors: [],
+      recentCampaigns: [],
+      localeInsights: [],
+      sources: [],
+      summary: 'mock',
+      usedManagedAgentsApi: true,
+    });
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://example.com/',
+      finalUrl: 'https://example.com/',
+      title: 'Example',
+      description: 'sample',
+      primaryImage: null,
+      images: [],
+      products: [{ name: 'thing', brand: 'Example' }],
+      bodyExcerpt: '',
+      fetchedAt: '2026-04-28T00:00:00Z',
+      rawHtmlBytes: 1_000,
+    });
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 5,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'url', payload: 'https://example.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+      // No useManagedAgents field — default behaviour.
+    });
+
+    // Research agent saw `useManagedAgents: undefined` (= default on).
+    expect(mocks.runResearchAgent.mock.calls[0]![0].useManagedAgents).toBeUndefined();
+
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    else delete process.env.ANTHROPIC_API_KEY;
   });
 });

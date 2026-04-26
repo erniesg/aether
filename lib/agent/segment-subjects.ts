@@ -74,18 +74,28 @@ export interface SegmentSubjectsResult {
  * SAM3 returns no mask when a prompt isn't found, so empty results are fine.
  */
 export const ONE_SHOT_PROMPTS: ReadonlyArray<SegmentSubjectsPrompt> = [
-  { prompt: 'face',                componentKind: 'face' },
-  { prompt: 'person',              componentKind: 'subject' },
-  { prompt: 'jacket',              componentKind: 'apparel' },
-  { prompt: 'shirt',               componentKind: 'apparel' },
-  { prompt: 'pants',               componentKind: 'apparel' },
-  { prompt: 'shoes',               componentKind: 'apparel' },
-  { prompt: 'jewelry',             componentKind: 'accessory' },
-  { prompt: 'bag, accessory',      componentKind: 'accessory' },
-  { prompt: 'product',             componentKind: 'product' },
-  { prompt: 'brand logo, mark',    componentKind: 'logo' },
-  { prompt: 'text, typography',    componentKind: 'logo' },
-  { prompt: 'background',          componentKind: 'background' },
+  { prompt: 'face',                                componentKind: 'face' },
+  { prompt: 'person',                              componentKind: 'subject' },
+  { prompt: 'jacket',                              componentKind: 'apparel' },
+  { prompt: 'shirt',                               componentKind: 'apparel' },
+  { prompt: 'pants',                               componentKind: 'apparel' },
+  { prompt: 'shoes',                               componentKind: 'apparel' },
+  { prompt: 'jewelry',                             componentKind: 'accessory' },
+  { prompt: 'bag, accessory',                      componentKind: 'accessory' },
+  { prompt: 'glasses, sunglasses, eyewear',        componentKind: 'accessory' },
+  { prompt: 'hat, cap, headwear',                  componentKind: 'accessory' },
+  { prompt: 'phone, smartphone, mobile device',    componentKind: 'product' },
+  { prompt: 'cup, bottle, beverage',               componentKind: 'product' },
+  { prompt: 'product',                             componentKind: 'product' },
+  { prompt: 'brand logo, mark',                    componentKind: 'logo' },
+  { prompt: 'text, typography',                    componentKind: 'logo' },
+  // Catch-all: any salient foreground region the per-class prompts above
+  // missed. SAM3 returns no mask when nothing matches, so this is cheap
+  // and prevents text overlays from landing on unnamed product elements
+  // (Pod sensors, Hub housings, headboards, etc.) that the planner
+  // otherwise treats as empty space.
+  { prompt: 'visible foreground object, item, element', componentKind: 'other' },
+  { prompt: 'background',                          componentKind: 'background' },
 ] as const;
 
 /** Map the wider component kind down to the 4-kind ForbiddenRegion taxonomy. */

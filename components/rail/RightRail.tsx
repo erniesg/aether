@@ -22,6 +22,8 @@ import {
   AutoModePanel,
   type AutoModeCampaignView,
   type AutoModeVariationView,
+  type LapEventView,
+  type ResearchBundleView,
 } from './sections/AutoModePanel';
 import { useScheduledPosts } from '@/lib/publisher/store';
 import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
@@ -383,6 +385,8 @@ function RightRailInner({
   onOpenPublishPreview,
   autoModeCampaign,
   autoModeVariations,
+  autoModeResearchBundle,
+  autoModeEvents,
   onAutoModeApprove,
   onAutoModeReject,
 }: {
@@ -396,6 +400,8 @@ function RightRailInner({
   onOpenPublishPreview?: (postId: string) => void;
   autoModeCampaign?: AutoModeCampaignView | null;
   autoModeVariations?: AutoModeVariationView[];
+  autoModeResearchBundle?: ResearchBundleView;
+  autoModeEvents?: LapEventView[];
   onAutoModeApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
   onAutoModeReject?: (variationIndex: number) => Promise<void>;
 }) {
@@ -486,6 +492,9 @@ function RightRailInner({
         <AutoModePanel
           campaign={autoModeCampaign ?? null}
           variations={autoModeVariations ?? []}
+          researchBundle={autoModeResearchBundle}
+          clusterBundle={autoModeCampaign?.clusterBundle}
+          events={autoModeEvents}
           onApprove={onAutoModeApprove}
           onReject={onAutoModeReject}
         />
@@ -585,6 +594,10 @@ export interface RightRailProps {
   /** Auto-Mode lap that is currently in-flight or most recently completed. */
   autoModeCampaign?: AutoModeCampaignView | null;
   autoModeVariations?: AutoModeVariationView[];
+  /** B2 research bundle from the most recent lap response. */
+  autoModeResearchBundle?: ResearchBundleView;
+  /** Live event tail for the in-flight lap (lib/agent/lap-logger.ts events). */
+  autoModeEvents?: LapEventView[];
   onAutoModeApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
   onAutoModeReject?: (variationIndex: number) => Promise<void>;
 }
@@ -600,6 +613,8 @@ export function RightRail({
   onOpenPublishPreview,
   autoModeCampaign,
   autoModeVariations,
+  autoModeResearchBundle,
+  autoModeEvents,
   onAutoModeApprove,
   onAutoModeReject,
 }: RightRailProps) {
@@ -624,6 +639,8 @@ export function RightRail({
         onOpenPublishPreview={onOpenPublishPreview}
         autoModeCampaign={effectiveCampaign}
         autoModeVariations={effectiveVariations}
+        autoModeResearchBundle={autoModeResearchBundle}
+        autoModeEvents={autoModeEvents}
         // In demo mode, suppress mutating callbacks so the canvas stays read-only.
         onAutoModeApprove={demo.active ? undefined : onAutoModeApprove}
         onAutoModeReject={demo.active ? undefined : onAutoModeReject}
