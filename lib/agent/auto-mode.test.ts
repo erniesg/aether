@@ -1586,4 +1586,169 @@ describe('runAutoMode · orchestration', () => {
     // The seed's keywords should be present in the layout-aware Mood line.
     expect(firstPrompt).toMatch(/Mood:.*(warm|dawn|golden|hopeful)/);
   });
+
+  // ─── Discord embed enrichment ────────────────────────────────────────────
+
+  it('lap-end ping includes embeds array with one embed per variation', async () => {
+    // Variation with a public hero URL and full envelope.
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        caption: 'slow glow key visual',
+        captionsByLocale: {
+          'en-SG': 'slow glow key visual',
+          'zh-Hans-SG': '慢光关键视觉',
+          'ms-SG': 'visual utama cahaya perlahan',
+          'ta-SG': 'மெல்லிய ஒளி முக்கிய காட்சி',
+        },
+        hashtags: ['#aether', '#launch'],
+        platform: 'instagram',
+        whenLocal: '2026-04-27T19:00:00+08:00',
+        moodNote: 'warm dawn — soft golden palette',
+      }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 12,
+          output: { result: { images: [{ url: 'https://cdn.aether.test/hero_v1.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_demo',
+      trigger: { kind: 'text', payload: 'aether launch day' },
+      variationCount: 1,
+      notifyMode: 'notify',
+    });
+
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-notify'
+    );
+    if (!endCall) throw new Error('expected lap-end-notify Discord call');
+
+    // The lap-end call must carry an embeds array.
+    expect(endCall[0].embeds).toBeDefined();
+    expect(Array.isArray(endCall[0].embeds)).toBe(true);
+    expect(endCall[0].embeds).toHaveLength(1);
+
+    const embed = endCall[0].embeds[0];
+    // Title: first 60 chars of the en-SG caption.
+    expect(embed.title).toContain('slow glow');
+    // Description: full caption.
+    expect(embed.description).toBe('slow glow key visual');
+    // Image: public CDN URL passed through.
+    expect(embed.image?.url).toBe('https://cdn.aether.test/hero_v1.png');
+    // Footer: campaign + variation index.
+    expect(embed.footer?.text).toContain('camp_1');
+    expect(embed.footer?.text).toContain('v1');
+    // Fields: Platform and Scheduled are present.
+    const fieldNames = embed.fields?.map((f: { name: string }) => f.name) ?? [];
+    expect(fieldNames).toContain('Platform');
+    expect(fieldNames).toContain('Scheduled');
+    expect(fieldNames).toContain('Locales');
+    // All 4 SG locales present.
+    const localeField = embed.fields?.find((f: { name: string }) => f.name === 'Locales');
+    expect(localeField?.value).toContain('EN ✓');
+    expect(localeField?.value).toContain('ZH ✓');
+    expect(localeField?.value).toContain('MS ✓');
+    expect(localeField?.value).toContain('TA ✓');
+    // Color: green for ready in notify mode.
+    expect(embed.color).toBe(0x57f287);
+  });
+
+  it('lap-end embed is yellow for review mode (awaiting approval)', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        caption: 'pending review',
+        platform: 'instagram',
+        whenLocal: '2026-04-27T19:00:00+08:00',
+        moodNote: 'soft pastel',
+      }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 10,
+          output: { result: { images: [{ url: 'https://cdn.aether.test/hero_review.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-review'
+    );
+    if (!endCall) throw new Error('expected lap-end-review Discord call');
+    expect(endCall[0].embeds).toHaveLength(1);
+    // Yellow for review mode.
+    expect(endCall[0].embeds[0].color).toBe(0xfee75c);
+  });
+
+  it('lap-end embed is red for a failed variation', async () => {
+    // Agent throws → variation status = 'failed'.
+    mocks.runMultiAgent.mockRejectedValueOnce(new Error('provider error'));
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'notify',
+    });
+
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-notify'
+    );
+    if (!endCall) throw new Error('expected lap-end-notify Discord call');
+    expect(endCall[0].embeds).toHaveLength(1);
+    expect(endCall[0].embeds[0].color).toBe(0xed4245);
+  });
+
+  it('lap-end embed skips image.url when heroImageUrl is a data: URL', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      // Agent returns a data URL hero (before Convex upload failed/skipped).
+      finalText: JSON.stringify({ caption: 'inline hero' }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 8,
+          output: { imageUrl: 'data:image/png;base64,ABC123' },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'notify',
+    });
+
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-notify'
+    );
+    if (!endCall) throw new Error('expected lap-end-notify Discord call');
+    // image should be absent — Discord cannot fetch data: URLs.
+    expect(endCall[0].embeds[0].image).toBeUndefined();
+  });
 });

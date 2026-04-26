@@ -79,7 +79,7 @@ describe('POST /api/publish', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
-      knownProviders: ['preview', 'postiz', 'social-auto-upload'],
+      knownProviders: ['preview', 'postiz', 'social-auto-upload', 'x', 'instagram'],
     });
   });
 

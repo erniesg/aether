@@ -65,7 +65,12 @@ export interface ScheduleResult {
   externalId?: string;
 }
 
-export type PublisherProviderId = 'preview' | 'postiz' | 'social-auto-upload';
+export type PublisherProviderId =
+  | 'preview'
+  | 'postiz'
+  | 'social-auto-upload'
+  | 'x'
+  | 'instagram';
 
 export interface PublisherProvider {
   id: PublisherProviderId;

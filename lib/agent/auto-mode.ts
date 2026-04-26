@@ -5,7 +5,7 @@ import {
   setCampaignStatus,
   startCampaign,
 } from '@/lib/convex/http';
-import { notifyDiscord } from '@/lib/notify/discord';
+import { notifyDiscord, type DiscordEmbed } from '@/lib/notify/discord';
 import { resolvePublisher } from '@/lib/providers/publisher/registry';
 import {
   PUBLISH_PLATFORMS,
@@ -1139,6 +1139,130 @@ async function persistVariation(
   });
 }
 
+/** Discord embed accent colours (decimal). */
+const EMBED_COLOR_GREEN = 0x57f287; // ready
+const EMBED_COLOR_YELLOW = 0xfee75c; // review / pending
+const EMBED_COLOR_RED = 0xed4245; // failed
+
+/**
+ * Build a single Discord embed for one variation at lap-end. Includes:
+ *   - Inline hero image (skipped for data: URLs — Discord can't fetch them)
+ *   - Title: en-SG caption (truncated to 60 chars) or moodNote fallback
+ *   - Description: full caption
+ *   - Fields: Platform, Scheduled, Locales populated, Provider, Asset id
+ *   - Footer: campaign + variation index
+ *   - Deep-link URL when baseUrl is provided (page doesn't exist yet —
+ *     the URL is a handoff for the scheduled-post detail page)
+ *   - Color: green=ready, yellow=review/pending, red=failed
+ *
+ * @param variation   The variation result from runOneVariation.
+ * @param campaignId  Convex campaign id (may be null in local-only mode).
+ * @param baseUrl     App origin — used for the deep-link URL.
+ * @param scheduledPostId  The scheduled post row id when auto-post mode ran.
+ * @param notifyMode  'notify' | 'review' | 'auto-post' — controls color.
+ */
+function buildVariationEmbed(input: {
+  variation: AutoModeVariationResult;
+  campaignId: string | null;
+  baseUrl: string;
+  scheduledPostId?: string;
+  notifyMode: AutoModeNotifyMode;
+}): DiscordEmbed {
+  const { variation, campaignId, baseUrl, scheduledPostId, notifyMode } = input;
+
+  const isReady = variation.status === 'ready';
+  const color = isReady
+    ? notifyMode === 'review'
+      ? EMBED_COLOR_YELLOW
+      : EMBED_COLOR_GREEN
+    : EMBED_COLOR_RED;
+
+  // Title: en-SG caption first 60 chars, else moodNote, else fallback.
+  const enCaption =
+    variation.captionsByLocale?.['en-SG'] ?? variation.caption;
+  const title = enCaption
+    ? enCaption.slice(0, 60)
+    : variation.moodNote
+      ? variation.moodNote.slice(0, 60)
+      : `Variation ${variation.index}`;
+
+  // Hero image — skip data URLs (Discord can't display them inline).
+  const heroUrl = variation.heroImageUrl;
+  const hasPublicHero = heroUrl && !heroUrl.startsWith('data:');
+
+  // Locale presence pill string.
+  const locales: string[] = [];
+  if (variation.captionsByLocale?.['en-SG']) locales.push('🇸🇬 EN ✓');
+  if (variation.captionsByLocale?.['zh-Hans-SG']) locales.push('🇨🇳 ZH ✓');
+  if (variation.captionsByLocale?.['ms-SG']) locales.push('🇲🇾 MS ✓');
+  if (variation.captionsByLocale?.['ta-SG']) locales.push('🇮🇳 TA ✓');
+  const localeStr = locales.length > 0 ? locales.join('  ') : '—';
+
+  // Platform & schedule.
+  const platform = variation.schedulePlatform ?? '—';
+  const schedTime = variation.scheduleWhenLocal
+    ? formatSgTime(variation.scheduleWhenLocal)
+    : '—';
+
+  // Asset id.
+  const assetId = variation.heroAssetId ?? (heroUrl ? 'inline data URL' : '—');
+
+  // Build fields.
+  const fields: DiscordEmbed['fields'] = [
+    { name: 'Platform', value: platform, inline: true },
+    { name: 'Scheduled', value: schedTime, inline: true },
+    { name: 'Locales', value: localeStr, inline: false },
+  ];
+  if (scheduledPostId) {
+    fields.push({ name: 'Provider', value: 'preview', inline: true });
+  }
+  fields.push({ name: 'Asset', value: assetId, inline: true });
+
+  // Deep link — the scheduled post detail page (handoff: doesn't exist yet).
+  const deepLink = scheduledPostId
+    ? `${baseUrl.replace(/\/+$/, '')}/scheduled/${scheduledPostId}`
+    : undefined;
+
+  const embed: DiscordEmbed = {
+    title,
+    description: enCaption ?? variation.moodNote ?? undefined,
+    color,
+    fields,
+    footer: {
+      text: `campaign ${campaignId ?? 'local-only'} · variation v${variation.index}`,
+    },
+    timestamp: new Date().toISOString(),
+  };
+  if (deepLink) embed.url = deepLink;
+  if (hasPublicHero) embed.image = { url: heroUrl };
+
+  return embed;
+}
+
+/**
+ * Format an ISO-8601 timestamp as a human-readable SG (UTC+8) string.
+ * e.g. "2026-04-27T19:00:00+08:00" → "Mon 27 Apr 2026, 7:00 PM SGT"
+ * Fails gracefully to the raw string when parsing fails.
+ */
+function formatSgTime(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return isoString;
+    return d.toLocaleString('en-SG', {
+      timeZone: 'Asia/Singapore',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }) + ' SGT';
+  } catch {
+    return isoString;
+  }
+}
+
 export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult> {
   const concurrency: AutoModeConcurrency = req.concurrency ?? 'sequential';
 
@@ -1399,9 +1523,24 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
   ].join('\n');
 
+  // Build per-variation embeds for the lap-end ping. Each variation gets
+  // one embed card with its hero image inline, caption, locale status, and
+  // a deep-link. The lap-start ping stays plain text — only the END ping
+  // carries the rich embed array since that's when there's something to show.
+  const lapEndEmbeds: DiscordEmbed[] = variations.map((v, idx) =>
+    buildVariationEmbed({
+      variation: v,
+      campaignId,
+      baseUrl: req.baseUrl,
+      scheduledPostId: scheduledPostIds[idx],
+      notifyMode: req.notifyMode,
+    })
+  );
+
   const notified = await notifyDiscord({
     tag: `lap-end-${req.notifyMode}`,
     content: endContent,
+    embeds: lapEndEmbeds.length > 0 ? lapEndEmbeds : undefined,
   });
 
   return {
