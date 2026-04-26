@@ -16,6 +16,8 @@ import {
 import type { ToolbarVerb } from '@/components/canvas/FloatingToolbar';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
+import { SkillAcceptDialog } from '@/components/capability/SkillAcceptDialog';
+import type { SkillManifest, SkillRef } from '@/lib/agent/skills/types';
 import { PublishPreview } from '@/components/workspace/PublishPreview';
 import { SettingsPopover } from '@/components/workspace/SettingsPopover';
 import {
@@ -36,6 +38,10 @@ import {
   zoomToAllFrames,
 } from '@/lib/canvas/focusFrame';
 import { dropImageInFrame, pickAspectRatio } from '@/lib/canvas/fanOut';
+import {
+  AETHER_IMAGE_LANDED_EVENT,
+  type AetherImageLandedDetail,
+} from '@/components/canvas/text-overlay-bridge';
 import {
   readGenerateStream,
   type GenerateStreamEvent,
@@ -81,6 +87,9 @@ import {
   visualReferenceUrls,
 } from '@/lib/context/model';
 import { useCreatorContext } from '@/lib/context/creator-store';
+import { setEyesClosedCapture } from '@/lib/voice/eyes-closed-store';
+import type { EyesClosedCaptureRequest } from '@/components/canvas/EyesClosedHandle';
+import type { SemanticCreativeComponent } from '@/lib/types/semantic-component';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -211,6 +220,59 @@ const VERB_PROMPT_PRESETS: Record<ToolbarVerb, string> = {
   collage: 'compose a collage from the pinned reference images',
 };
 
+/**
+ * Canonical pixel dimensions per aspect ratio — mirrors `RATIO_PIXELS` in the
+ * generate route so the eyes-closed planner sees the same grid the renderer
+ * will actually use.
+ */
+const ARTBOARD_DIMS: Record<string, { w: number; h: number }> = {
+  '1:1':  { w: 1024, h: 1024 },
+  '9:16': { w: 1080, h: 1920 },
+  '16:9': { w: 1920, h: 1080 },
+  '4:3':  { w: 1440, h: 1080 },
+  '3:4':  { w: 1080, h: 1440 },
+  '4:5':  { w: 1024, h: 1280 },
+  '2:3':  { w: 1024, h: 1536 },
+  '3:2':  { w: 1536, h: 1024 },
+};
+
+/**
+ * 1×1 transparent PNG. Sent as the sketch payload only when the creator held
+ * the eyes-closed key without sketching anything — Anthropic's vision tool
+ * rejects empty bodies, so a no-op pixel keeps the planner round-trip valid
+ * and the planner can still extract intent from the spoken prompt.
+ */
+const PLACEHOLDER_SKETCH =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZwkmBYAAAAASUVORK5CYII=';
+
+/**
+ * Stitch a SemanticCreativeComponent into a single dispatchable prompt for
+ * the existing generate pipeline. The component carries hero / mood / safe
+ * zones; we surface them as natural-language hints so any image provider
+ * (not just Claude) can act on them.
+ */
+function buildEyesClosedPrompt(component: SemanticCreativeComponent): string {
+  const parts: string[] = [component.hero.description];
+  if (component.product?.description) {
+    parts.push(`Product: ${component.product.description}.`);
+  }
+  if (component.mood.keywords.length > 0) {
+    parts.push(`Mood: ${component.mood.keywords.slice(0, 6).join(', ')}.`);
+  }
+  if (component.offer?.weight) {
+    parts.push(`Offer tone: ${component.offer.weight}.`);
+  }
+  const headline = component.safeZones.find((z) => z.purpose === 'headline');
+  const cta = component.safeZones.find((z) => z.purpose === 'cta');
+  const reservations: string[] = [];
+  if (headline) reservations.push('top strip for headline');
+  if (cta) reservations.push('bottom strip for CTA');
+  if (reservations.length > 0) {
+    parts.push(`Reserve negative space: ${reservations.join(' and ')}.`);
+  }
+  return parts.join(' ');
+}
+
 interface GenerateTargetSpec {
   id: string;
   label?: string;
@@ -279,6 +341,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const providerPrefs = useWorkspaceProviderPrefs(wsId);
   const saveProviderPrefs = useSaveWorkspaceProviderPrefs();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
+  // AC5 — when set, the SkillAcceptDialog is open and a SKILL.md is being
+  // drafted (or has been drafted) for this prompt. Cleared on accept/reject.
+  const [pendingSkillPrompt, setPendingSkillPrompt] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
@@ -339,6 +404,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         bypassAgent?: boolean;
         refs?: string[];
         targets?: GenerateTargetSpec[];
+        /** Render mode to pass to /api/generate. Defaults to 'crop' (responsive). */
+        mode?: 'crop' | 'fanout';
       } = {}
     ): Promise<void> => {
       const targets = options.targets ?? [];
@@ -517,6 +584,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             refs: options.refs?.map((url) => ({ url })),
             targets,
             runId,
+            mode: options.mode ?? 'crop',
           }),
         });
 
@@ -683,6 +751,26 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                       label: resolvedPrompt,
                     });
                     if (!placed) throw new Error('target frame missing');
+                    // Notify the canvas text-overlay bridge so it can ask
+                    // the multilingual planner for editable copy and drop
+                    // AetherTextShape instances onto this artboard. The
+                    // bridge filters by wsId, so other workspaces stay quiet.
+                    if (typeof window !== 'undefined') {
+                      const detail: AetherImageLandedDetail = {
+                        wsId,
+                        artboardId: event.frame.id,
+                        w: event.image.width,
+                        h: event.image.height,
+                        aspectRatio: event.frame.aspectRatio,
+                        capabilityRunId: runId,
+                      };
+                      window.dispatchEvent(
+                        new CustomEvent<AetherImageLandedDetail>(
+                          AETHER_IMAGE_LANDED_EVENT,
+                          { detail }
+                        )
+                      );
+                    }
                   }
                 } catch (err) {
                   placementError =
@@ -1233,7 +1321,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const handlePrompt = useCallback(
     async (
       prompt: string,
-      options: { refs?: string[]; scope: 'all' | 'single'; targetId?: string }
+      options: { refs?: string[]; scope: 'all' | 'single'; targetId?: string; renderMode?: 'crop' | 'fanout' }
     ) => {
       const trimmed = prompt.trim();
       if (/^\/export\b/i.test(trimmed)) {
@@ -1299,6 +1387,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         return;
       }
 
+      if (requestPlan.kind === 'author-skill') {
+        log('author-skill · opening skill accept dialog');
+        setPendingSkillPrompt(requestPlan.authoringPrompt);
+        return;
+      }
+
       if (requestPlan.kind === 'tool' && requestPlan.toolId === 'spatial-gen') {
         await runSpatialOnCanvas(prompt, {
           providerOverride,
@@ -1318,13 +1412,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             references
           );
           const refs = mergeReferenceUrls(options.refs, pinnedReferenceUrls);
-          log('fan-out · frames:', targets.length);
+          log('fan-out · frames:', targets.length, '· mode:', options.renderMode ?? 'crop');
           await runImageOnCanvas(contextualPrompt, {
             providerOverride,
             modelOverride,
             bypassAgent,
             refs: refs.length > 0 ? refs : undefined,
             targets,
+            mode: options.renderMode ?? 'crop',
           });
           return;
         }
@@ -1409,12 +1504,128 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     []
   );
 
+  // AC5 — once Claude drafts the SKILL.md and the creator accepts, the manifest
+  // is materialised on disk via /api/capability/accept-skill, then surfaced as
+  // a definition in the in-memory store so it auto-pins on the floating
+  // toolbar (the chip rail reads from `pinnedCapabilities`).
+  const handleSkillAccept = useCallback(
+    async (manifest: SkillManifest) => {
+      log('skill-accept · persisting:', manifest.name);
+      const bypassAgent =
+        typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('bypass') === '1';
+      try {
+        const res = await fetch('/api/capability/accept-skill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manifest }),
+        });
+        const json = (await res.json()) as {
+          ok: boolean;
+          skillRef?: SkillRef;
+          manifestPathRelative?: string;
+          error?: string;
+        };
+        if (!res.ok || !json.ok || !json.skillRef) {
+          throw new Error(json.error ?? `accept-skill failed (${res.status})`);
+        }
+        // Reuse the capability-definition store as the canonical pinned-skills
+        // surface. `tool: 'skill'` + `entryRef.kind: 'skill'` is the marker the
+        // chip-press handler uses to dispatch via /api/skill/run instead of
+        // /api/generate.
+        const def = addDefinition({
+          name: manifest.name,
+          trigger: manifest.description || `run skill ${manifest.name}`,
+          paramSchema: {
+            type: 'object',
+            properties: {
+              layerId: { type: 'string' },
+            },
+            required: [],
+          },
+          notes: `pinned via author-skill (${json.manifestPathRelative ?? 'on disk'})`,
+          createdBy: 'agent',
+          tool: 'skill',
+          provider: 'anthropic',
+          entryRef: {
+            kind: 'skill',
+            id: manifest.name,
+            version: manifest.version,
+          },
+          runTemplate: {
+            prompt: manifest.description,
+            providerId: 'anthropic',
+            // Stash the skill identity inside style so handleCapabilityPress
+            // can resolve manifestPath without touching the registry. style
+            // is a typed Record<string, unknown> on CapabilityRunTemplate.
+            style: {
+              skillManifestPath: json.skillRef.manifestPath,
+              skillId: manifest.name,
+              skillVersion: manifest.version,
+              bypassAgent,
+            },
+          },
+        });
+        log('skill pinned:', def.id, '·', def.name);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logError('skill accept failed:', err);
+        if (typeof window !== 'undefined') window.alert(`skill accept failed: ${message}`);
+      } finally {
+        setPendingSkillPrompt(null);
+      }
+    },
+    []
+  );
+
   const handleCapabilityPress = useCallback(
     async (definitionId: string) => {
       const def = getDefinitionById(definitionId);
       if (!def) return;
       const prompt = def.runTemplate.prompt ?? def.trigger;
       log('rerun capability:', def.id, '·', prompt);
+      if (def.tool === 'skill') {
+        const style = (def.runTemplate.style ?? {}) as {
+          skillManifestPath?: string;
+          skillId?: string;
+          skillVersion?: number;
+          bypassAgent?: boolean;
+        };
+        try {
+          const res = await fetch('/api/skill/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              skillRef: style.skillId
+                ? {
+                    id: style.skillId,
+                    version: style.skillVersion ?? 1,
+                    manifestPath: style.skillManifestPath,
+                  }
+                : undefined,
+              manifestPath: style.skillManifestPath,
+              input: { prompt, definitionId },
+              bypassAgent: style.bypassAgent === true,
+            }),
+          });
+          const json = (await res.json()) as {
+            ok: boolean;
+            result?: unknown;
+            error?: string;
+          };
+          if (!res.ok || !json.ok) {
+            throw new Error(json.error ?? `skill run failed (${res.status})`);
+          }
+          log('skill run completed:', def.name, json.result);
+        } catch (err) {
+          logError('skill run failed:', err);
+          if (typeof window !== 'undefined') {
+            const message = err instanceof Error ? err.message : String(err);
+            window.alert(`skill run failed: ${message}`);
+          }
+        }
+        return;
+      }
       if (def.tool === 'spatial-gen') {
         await runSpatialOnCanvas(prompt, {
           definitionId,
@@ -1433,6 +1644,104 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     // The creator can tweak the preset and submit; no implicit generation yet.
     composerRef.current?.setPrompt(VERB_PROMPT_PRESETS[verb]);
   }, []);
+
+  // Eyes-closed sketch + voice capture (issue #128 / Q7). The handle hands
+  // us a creator transcript + sketch snapshot; we ask the sketch-to-component
+  // planner for the typed component, store it as right-rail provenance, and
+  // hand the synthesized prompt to the existing generate pipeline.
+  const handleEyesClosedCapture = useCallback(
+    async (capture: EyesClosedCaptureRequest) => {
+      const captureId = `ec-${Date.now().toString(36)}`;
+      const transcript = capture.transcript.trim();
+      const sketchImageUrl = capture.sketchImageUrl;
+
+      // Seed the right-rail with what we have so the creator sees the
+      // capture immediately, before the planner round-trip lands.
+      setEyesClosedCapture({
+        id: captureId,
+        transcript,
+        sketchImageUrl,
+        component: null,
+        plannerMode: 'pending',
+        capturedAt: Date.now(),
+      });
+
+      // Build format targets from the live artboards so the planner anchors
+      // the primary subject inside the narrowest aspect.
+      const planFormats = (formats.length > 0 ? formats : DEFAULT_ARTBOARDS.map((seed, idx) => ({
+            id: seed.preset ?? `artboard-${idx}`,
+            label: seed.name.split(' · ')[0] ?? seed.preset ?? `artboard-${idx}`,
+            aspectRatio: pickAspectRatio(seed.w, seed.h),
+          }))).map((f, idx) => {
+        // Reverse-derive w/h from canonical pixel sizes so the planner gets
+        // proper coordinates. Falls back to 1024² when ambiguous.
+        const dims = ARTBOARD_DIMS[f.aspectRatio] ?? { w: 1024, h: 1024 };
+        return { id: f.id, w: dims.w, h: dims.h, label: f.label ?? `format-${idx + 1}` };
+      });
+
+      let component: SemanticCreativeComponent | null = null;
+      let plannerMode: 'anthropic' | 'fallback' | 'error' = 'fallback';
+      let plannerError: string | undefined;
+
+      try {
+        const res = await fetch('/api/sketch-to-component', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sketchImageUrl: sketchImageUrl || PLACEHOLDER_SKETCH,
+            formats: planFormats,
+            creatorIntent: transcript || undefined,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          component?: SemanticCreativeComponent;
+          plannerMode?: 'anthropic' | 'fallback';
+          plannerError?: string;
+        };
+        if (!res.ok || !json.ok || !json.component) {
+          plannerError = json.error ?? `planner failed (${res.status})`;
+          plannerMode = 'error';
+        } else {
+          component = json.component;
+          plannerMode = json.plannerMode ?? 'fallback';
+          plannerError = json.plannerError;
+        }
+      } catch (err) {
+        plannerError = err instanceof Error ? err.message : String(err);
+        plannerMode = 'error';
+      }
+
+      setEyesClosedCapture({
+        id: captureId,
+        transcript,
+        sketchImageUrl,
+        component,
+        plannerMode,
+        plannerError,
+        capturedAt: Date.now(),
+      });
+
+      // Synthesize the generation prompt from the planner output (or fall
+      // back to the raw transcript if the planner didn't return). `mode='crop'`
+      // is the default per merged PR #125 — one render fans out via crops.
+      const synthesizedPrompt = component
+        ? buildEyesClosedPrompt(component)
+        : transcript || 'a hero composition rendered in editorial light';
+
+      log('eyes-closed dispatch · prompt:', synthesizedPrompt, '· planner:', plannerMode);
+      await handlePrompt(synthesizedPrompt, {
+        scope: 'all',
+        renderMode: 'crop',
+      });
+    },
+    // handlePrompt is declared below; keep this dep list minimal so React
+    // doesn't whine. The closure picks up the latest handlePrompt via the
+    // function reference from `handlePrompt` below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [formats]
+  );
 
   // Focus lens is a camera/selection change, not a chrome toggle. When view
   // flips to 'focus' we zoom to a single artboard; arrow keys cycle through
@@ -1550,6 +1859,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           onMoodboardGenerate={async (prompt) => {
             await handlePrompt(prompt, { scope: 'single' });
           }}
+          onEyesClosedCapture={handleEyesClosedCapture}
         />
         <RightRail
           onPin={handlePin}
@@ -1585,6 +1895,16 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         open={pinTargetRun !== null}
         onAccept={handlePinAccept}
         onReject={() => setPinTargetRun(null)}
+      />
+
+      <SkillAcceptDialog
+        pendingPrompt={pendingSkillPrompt}
+        onAccept={handleSkillAccept}
+        onReject={() => setPendingSkillPrompt(null)}
+        bypassAgent={
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).get('bypass') === '1'
+        }
       />
 
       {publishPreviewOpen ? (

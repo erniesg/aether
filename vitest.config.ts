@@ -11,6 +11,7 @@ export default defineConfig({
     include: [
       'tests/unit/**/*.test.{ts,tsx}',
       'tests/component/**/*.test.{ts,tsx}',
+      'tests/integration/**/*.test.{ts,tsx}',
       'lib/**/*.test.{ts,tsx}',
     ],
     exclude: ['tests/e2e/**', 'node_modules', '.next', '.open-next'],

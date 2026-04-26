@@ -85,9 +85,8 @@ sau_image = (
         "fastapi>=0.115,<1",
         "pydantic>=2.9,<3",
         "playwright>=1.49,<2",
-        # social-auto-upload from GitHub main — change to a pinned commit for
-        # production stability.
-        "social-auto-upload @ git+https://github.com/dreammis/social-auto-upload.git@main",
+        # social-auto-upload pinned for reproducible Modal image builds.
+        "social-auto-upload @ git+https://github.com/dreammis/social-auto-upload.git@34a3b3b47e5d2d3fa7f96ac180c7d9a351421f30",
     )
     .run_commands(
         # Install only Chromium — smallest footprint.

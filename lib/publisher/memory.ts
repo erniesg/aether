@@ -124,6 +124,37 @@ export function createMemoryStorage(): ScheduledPostStorage {
   };
 }
 
+export function rememberScheduledPostForClient(
+  workspaceId: string,
+  post: ScheduledPost
+): void {
+  update((rows) => {
+    const existing = rows.find((r) => r.id === post.id);
+    if (existing) {
+      return rows.map((r) =>
+        r.id === post.id
+          ? {
+              ...r,
+              workspaceId,
+              post,
+              status: post.status === 'cancelled' ? 'cancelled' : 'scheduled',
+            }
+          : r
+      );
+    }
+    return [
+      ...rows,
+      {
+        id: post.id,
+        workspaceId,
+        post,
+        status: post.status === 'cancelled' ? 'cancelled' : 'scheduled',
+        createdAt: Date.now(),
+      },
+    ];
+  });
+}
+
 export function clearScheduledPostsForTests(): void {
   cache = [];
   saveToStorage(cache);

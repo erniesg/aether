@@ -1,8 +1,41 @@
 # Publisher Hosting — Ops Checklist
 
+The publisher seam ships with three adapters:
+
+| id | what it does | when it runs |
+|---|---|---|
+| `preview` | persists scheduled posts locally and deep-links to a preview overlay | always — fallback when no real publisher is configured |
+| `postiz` | uploads media + creates scheduled posts via the Postiz public API | when `POSTIZ_API_KEY` and at least one `POSTIZ_INTEGRATION_<PLATFORM>` are present |
+| `social-auto-upload` | schedules CJK/browser-automation publish jobs through the Modal sidecar | when `SOCIAL_AUTO_UPLOAD_URL` and `SOCIAL_AUTO_UPLOAD_TOKEN` are present |
+
 Adapter code ships in PR #84 (`codex/finish-expansion-wave`). This document covers the manual hosting steps needed to make those adapters reach real platforms.
 
 **Time estimate: 3–4 hours for a first-time setup. Each platform OAuth app adds ~15 min.**
+
+---
+
+## Validation gate (no real Postiz required)
+
+The fan-out / cancellation seam is validated end-to-end against an in-process
+mock so the demo claim "schedule + post to social" stays defensible even when
+no real Postiz instance is hosted.
+
+| layer | test | what it proves |
+|---|---|---|
+| HTTP surface | `tests/fixtures/postiz-mock-server.ts` | the Postiz endpoints `lib/providers/publisher/postiz.ts` calls (`POST /upload-from-url`, `POST /upload`, `POST /posts`, `GET /posts`, `DELETE /posts/:id`) round-trip with realistic shapes |
+| schedule fan-out + DELETE | `tests/integration/postiz-sidecar.test.ts` | a 4-platform pack hits the route, the mock records 4 schedule POSTs, and a DELETE on one cancels it |
+| UI fan-out | `tests/e2e/schedule-pack.spec.ts` | the publish lens turns 4 selected platforms into 4 scheduled rows, each with a `scheduled` status pill |
+
+Run the validation locally:
+
+```bash
+npm run typecheck
+npm test
+npx playwright test tests/e2e/schedule-pack.spec.ts
+```
+
+When a real Postiz instance comes online, point `POSTIZ_API_URL` at it and the
+same integration path will exercise the live service.
 
 ---
 
@@ -237,7 +270,7 @@ All of these should be set as `wrangler secret put --env staging` and `--env pro
 | `SOCIAL_AUTO_UPLOAD_URL` | Modal ASGI endpoint URL |
 | `SOCIAL_AUTO_UPLOAD_TOKEN` | Token from `modal secret create` |
 
-`.dev.vars` additions for local development: add `MODAL_APP_URL` and `MODAL_APP_TOKEN` if you want to test against Modal from a local Next.js dev server.
+`.dev.vars` additions for local development: add `SOCIAL_AUTO_UPLOAD_URL` and `SOCIAL_AUTO_UPLOAD_TOKEN` if you want to test against Modal from a local Next.js dev server.
 
 ---
 
