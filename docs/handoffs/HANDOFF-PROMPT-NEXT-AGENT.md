@@ -72,25 +72,75 @@ User wants to A/B compare:
 - **Two-stage**: Claude 4.7 vision describes the hero first → SAM3 with the
   vision-derived prompts → richer per-subject masks. Adds ~$0.005 + 1s.
 
+**Granularity rule (per Ernie 2026-04-26):**
+- Each foreground component gets its OWN mask — not one bulk "foreground"
+  blob. e.g. for a person hero: `face`, `hair`, `wet white shirt`,
+  `leather jacket overhead`, `hand` are 5 separate masks, each independently
+  movable/scalable later.
+- Small co-located objects that share a semantic class get GROUPED into a
+  single mask. e.g. earrings + necklace + rings → one `jewelry` mask;
+  raindrops on the body → one `water-droplets` mask. Don't fragment into
+  100 tiny masks the user has to manage.
+- The grouping rule is the cleanest case for the two-stage path: Claude
+  vision proposes the component LIST + the GROUPING DECISIONS up-front,
+  then SAM3 finds one mask per named entry in that list. The one-shot path
+  can't do semantic grouping; expect coarser results.
+
+**Mandatory tags — face / product / logo (brand) MUST be surfaced
+specifically.** `lib/text-overlay/types.ts:121` already defines
+`ForbiddenRegion.kind: 'face' | 'product' | 'logo' | 'other'` and the
+text-overlay planner consumes these to avoid placing text across faces,
+products, or brand marks. The vision step must classify each component
+into one of these four kinds (use 'other' for anything that doesn't fit)
+so the existing planner pipeline gets the right signals. Faces and brand
+logos are the highest-priority safety zones — never let a caption render
+across a face, never let a hashtag overlap a brand mark.
+
 **Acceptance:**
-- New tools in `lib/agent/multi.ts`: `describe_image(imageUrl)` (Claude 4.7
-  vision via Anthropic SDK with image content blocks; local-handler tool,
-  no HTTP route) and `segment_subjects(imageUrl, prompts[])` (HTTP wrapper
-  around `/api/segment` — note: passes prompts as comma-joined string since
-  the route's `prompt` param is a single string, not an array).
+- New tools in `lib/agent/multi.ts`:
+  - `describe_image(imageUrl)` — Claude 4.7 vision (Anthropic SDK with
+    image content blocks; local-handler tool, no HTTP route). Returns
+    structured JSON:
+    ```ts
+    {
+      faces: Array<{ name?: string; description: string }>;       // every detected face
+      products: Array<{ name: string; description: string }>;     // every product
+      brands: Array<{ name: string; description: string }>;       // every logo / brand mark
+      otherComponents: Array<{ name; kind: 'apparel'|'accessory'|'pose'|'environment-prop' }>;
+      smallObjectGroups: Array<{ groupName; members: string[] }>; // e.g. {jewelry: [necklace,earrings]}
+      background: { description: string };
+    }
+    ```
+    Faces / products / brands are first-class because they map to the
+    existing `ForbiddenRegion.kind` taxonomy ('face' | 'product' | 'logo'
+    | 'other'). Empty arrays are fine when the hero has no face/no brand.
+  - `segment_subjects(imageUrl, prompts[])` — HTTP wrapper around
+    `/api/segment`. The `prompts` array is the FLATTENED list of every
+    component name + every group name (groups become single mask prompts).
+    `/api/segment` currently takes a single `prompt: string`; either
+    submit one request per name (parallel) and merge results, or extend
+    the route to accept `prompts[]`.
 - `runPostHeroPipeline` in `lib/agent/auto-mode.ts` runs BOTH paths in
   parallel via Promise.allSettled and stores both mask sets on the
   variation:
     - `formatCrops` (existing)
-    - `masksOneShot` (SAM3 with generic prompt)
-    - `masksVisionGuided` (vision → SAM3 with derived tokens)
+    - `masksOneShot` — SAM3 with a fixed generic prompt
+      ("person, jacket, accessory, product, brand, background").
+      Coarse but cheap.
+    - `masksVisionGuided` — array of `{ label, kind: 'face'|'product'|'logo'|'other',
+      bbox, conf, isGroup, groupMembers? }`, one entry per Claude-proposed
+      component or grouped small-object cluster. The `kind` field maps
+      directly into ForbiddenRegion so the existing
+      `segmentationToForbiddenRegions` adapter consumes it without changes.
 - Each mask set gets converted to ForbiddenRegions and run through
   `applyTextOverlay` separately so we can compare layer placements.
 - Document the comparison in `docs/handoffs/auto-mode-evidence/SAM3-AB.md`
-  with side-by-side mask thumbnails (overlaid red rectangles on the hero).
+  with side-by-side mask thumbnails (overlaid coloured rectangles on the
+  hero — different colour per component, label rendered).
 
 **Files to add:** `lib/agent/multi.ts` (2 new tool specs),
-`convex/schema.ts` (extend campaignVariation with the two mask fields),
+`convex/schema.ts` (extend campaignVariation with the two mask fields —
+`v.any()` for now since the per-component shape is iterating),
 `docs/handoffs/auto-mode-evidence/SAM3-AB.md`.
 
 ### 3. Layer extraction + inpainted bg + editable shapes per format (~3-4 hr)
@@ -111,20 +161,48 @@ Skip Replicate.
 - New `/api/inpaint` route accepting `{ sourceImage, mask, prompt }` →
   PNG bytes. Adapter selection mirrors `/api/generate`: env-driven default,
   per-request override.
-- New `lib/canvas/extractLayers.ts` pure module: takes the SAM3 masks and
-  the source PNG, applies each mask to the source to get a cutout PNG.
+- New `lib/canvas/extractLayers.ts` pure module: takes the SAM3 masks
+  (one per component, per the granularity rule in slice #2) and the
+  source PNG, applies each mask to the source to get a cutout PNG.
   Server-side image op via `sharp` (add to deps if not present) OR
   client-side via canvas drawImage + globalCompositeOperation='destination-in'.
-- `runPostHeroPipeline` now also writes a `layers: array(any)` field on
-  campaignVariation: `[{ id, kind, bbox, transform, zIndex, src }]`.
+- One LAYER per mask. Each layer carries its component label + kind tag:
+  ```ts
+  interface ExtractedLayer {
+    id: string;                       // 'leather-jacket', 'face-1', 'logo-bg'
+    label: string;                    // human-readable from vision step
+    kind: 'face' | 'product' | 'logo' | 'subject' | 'apparel'
+        | 'accessory' | 'background' | 'other';
+    bbox: NormalizedBBox;             // [0,1] in source coords
+    src: string;                      // cutout PNG url (or data url)
+    zIndex: number;                   // higher = nearer the viewer
+    transform?: { x: number; y: number; scale: number; rotation: number };
+    isGroup?: boolean;                // true when this is a grouped small-object cluster
+    groupMembers?: string[];
+    safety?: { faceProtect?: boolean; brandProtect?: boolean };
+  }
+  ```
+  `safety.faceProtect = (kind === 'face')`; `safety.brandProtect =
+  (kind === 'logo')`. The text-overlay planner reads these and refuses
+  any text that would render across them.
+- `runPostHeroPipeline` writes a `layers: ExtractedLayer[]` field on
+  campaignVariation. Plus a separate `bgInpainted: { src }` for the
+  inpainted background plate.
 - Per-format anchor reproject: `lib/canvas/cropToFormat.ts` already gives
   normalized crop coords; layer reposition is
   `(layerBbox - cropTopLeft) / cropDims`. Add a helper `projectLayerToCrop`.
+  When a layer's `kind === 'face'` AND the reproject would clip it,
+  prefer to PUSH THE CROP off-axis to keep the face whole rather than
+  cutting half a face — i.e. faces (and brands) influence the crop choice,
+  not just survive it.
 - Drop helper in the canvas: `lib/canvas/dropLayersOnArtboard.ts` — given
   a list of layers + an artboard format, drops one tldraw image shape per
-  layer. Probably extend `dropImageOnCanvas`.
+  layer with `props.crop` (when needed) and the layer's `transform`. The
+  z-index ordering follows `zIndex`. Probably extend `dropImageOnCanvas`.
 - Smoke evidence: a 4:5 + a 9:16 export each showing the same hero
-  composed from the same layers, just re-projected.
+  composed from the same layers, just re-projected. Include a brand-aware
+  case: a hero with a visible logo, where the caption clearly avoids it
+  in every format.
 
 **This is the big one.** Document the architecture exhaustively before
 coding. Aim for a small first slice that proves the pipeline (e.g., 1
