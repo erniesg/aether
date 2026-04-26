@@ -67,7 +67,7 @@ export interface ImageDescription {
   background: { description: string };
 }
 
-const SYSTEM_PROMPT = [
+const SYSTEM_PROMPT_BASE = [
   'You are a hero-image analyst. Given an image, list every component you can see for downstream segmentation.',
   '',
   'Return ONLY a JSON object with this shape, no other prose:',
@@ -87,6 +87,35 @@ const SYSTEM_PROMPT = [
   '- "background" should describe the setting briefly (e.g. "rainy urban street, neon signage").',
 ].join('\n');
 
+/**
+ * Compose the per-call system prompt with optional brand context. When the
+ * caller knows what brand / product line the image came from (e.g. URL
+ * ingestion captured "Eight Sleep | Now in Singapore — The Pod tunes each
+ * side of your bed"), we MUST tell the model. Without it, vision-describe
+ * runs blind and pattern-matches by shape — that's the bug that named the
+ * Eight Sleep Pod Hub "air purifier" because the silhouette resembles one.
+ *
+ * Brand context is appended (not prepended) so the structural JSON rules
+ * stay first-class. The model is instructed to prefer the canonical
+ * product/brand names when matchable.
+ */
+export function buildSystemPrompt(brandContext?: string): string {
+  if (!brandContext || brandContext.trim().length === 0) {
+    return SYSTEM_PROMPT_BASE;
+  }
+  return [
+    SYSTEM_PROMPT_BASE,
+    '',
+    'BRAND CONTEXT — the image is sourced from this site. Use it to label products and brands by their CANONICAL names rather than guessing from silhouette alone:',
+    brandContext.trim(),
+    '',
+    'When a product on screen plausibly matches a product mentioned in the brand context, use the brand context name (e.g. "Pod 4 Ultra"), NOT a generic visual guess (e.g. "air purifier").',
+  ].join('\n');
+}
+
+// Back-compat: SYSTEM_PROMPT remains the no-context default.
+const SYSTEM_PROMPT = SYSTEM_PROMPT_BASE;
+
 export interface DescribeImageInput {
   imageUrl: string;
   /** Inject for tests. Defaults to a fresh Anthropic client built from env. */
@@ -96,6 +125,14 @@ export interface DescribeImageInput {
   model?: string;
   /** Override max_tokens (defaults to 1024 — JSON inventory is small). */
   maxTokens?: number;
+  /**
+   * Optional brand / product hints (e.g. URL ingestion's title +
+   * description). When supplied, the model uses canonical product names
+   * instead of guessing from silhouette. See `buildSystemPrompt` for the
+   * exact wording. Highly recommended whenever the caller has source-page
+   * context — closes the "Pod Hub mis-labelled as air purifier" loophole.
+   */
+  brandContext?: string;
 }
 
 export async function describeImage(
@@ -112,7 +149,7 @@ export async function describeImage(
   const msg = await client.messages.create({
     model,
     max_tokens: input.maxTokens ?? 1024,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(input.brandContext),
     messages: [
       {
         role: 'user',
