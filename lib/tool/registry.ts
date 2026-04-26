@@ -78,6 +78,33 @@ const TOOL_REGISTRY = {
     outputKind: 'text-overlay',
     status: 'draft',
   },
+  'signals-search': {
+    kind: 'tool',
+    id: 'signals-search',
+    version: 1,
+    artifactKind: 'image',
+    label: 'Signals search',
+    outputKind: 'image',
+    status: 'draft',
+  },
+  'clusters-run': {
+    kind: 'tool',
+    id: 'clusters-run',
+    version: 1,
+    artifactKind: 'image',
+    label: 'Cluster references',
+    outputKind: 'image',
+    status: 'draft',
+  },
+  'video-understand': {
+    kind: 'tool',
+    id: 'video-understand',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Video understanding',
+    outputKind: 'video',
+    status: 'draft',
+  },
 } as const satisfies Record<string, ToolRegistryEntry>;
 
 export type ToolRegistryId = keyof typeof TOOL_REGISTRY;

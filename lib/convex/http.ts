@@ -47,6 +47,7 @@ const skillsApi = (anyApi as unknown as {
 
 export interface ServerRunStart {
   clientRunId: string;
+  wsId?: string;
   artifactKind?: ArtifactKind;
   outputFormat?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
