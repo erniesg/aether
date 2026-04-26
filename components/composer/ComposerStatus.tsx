@@ -9,7 +9,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import { abortStuckRuns, useRuns } from '@/lib/store/runs';
+import { STALE_ABORT_ERROR, abortStuckRuns, useRuns } from '@/lib/store/runs';
 import { useRunDetails } from '@/lib/store/runDetails';
 import { useVoiceCaption } from '@/lib/voice/caption-store';
 import { cn } from '@/lib/utils/cn';
@@ -90,8 +90,6 @@ const FRAME_STATUS_LABELS = {
   placed: 'placed',
   error: 'error',
 } as const;
-
-const STALE_ABORT_ERROR = 'aborted: run exceeded inactivity threshold';
 
 function summarizeFrames(
   frames: Array<{ status: keyof typeof FRAME_STATUS_LABELS }> | undefined
