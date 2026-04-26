@@ -40,10 +40,30 @@ import { notifyDiscord } from '@/lib/notify/discord';
 
 export type AutoModeNotifyMode = 'notify' | 'review' | 'auto-post';
 export type AutoModeTriggerKind = 'url' | 'file' | 'text';
+export type AutoModeConcurrency = 'sequential' | 'parallel';
 
 export interface AutoModeTrigger {
   kind: AutoModeTriggerKind;
   payload: string;
+}
+
+/**
+ * Optional reference image for the hero render. When supplied, the
+ * orchestrator passes it through to the agent's generate_image tool so
+ * compatible image providers do an image-to-image render instead of
+ * text-only. When the provider does not support reference images the
+ * adapter degrades to text-only and notes the reference in the prompt.
+ *
+ * Pass exactly one of `url` (publicly fetchable) or `dataUrl` (base64).
+ */
+export interface AutoModeReferenceImage {
+  url?: string;
+  dataUrl?: string;
+  /** Optional human-readable hint about what's in the reference. The
+   *  orchestrator includes this in the per-variation system prompt so
+   *  Claude's hero prompt for generate_image is informed by it even when
+   *  the image bytes are not visible to the LLM (text-only adapters). */
+  hint?: string;
 }
 
 export interface AutoModeRequest {
@@ -52,9 +72,28 @@ export interface AutoModeRequest {
   trigger: AutoModeTrigger;
   variationCount: 1 | 2 | 3 | 4;
   notifyMode: AutoModeNotifyMode;
+  /** sequential = one variation at a time, with priorMoodNotes feeding the
+   *  next variation's prompt for distinctness. parallel = Promise.allSettled
+   *  fan-out with up-front variation seeds. Default: 'sequential'. */
+  concurrency?: AutoModeConcurrency;
+  /** Optional reference image for the hero render. */
+  referenceImage?: AutoModeReferenceImage;
   /** Optional bound on per-variation iterations (passed to runMultiAgent). */
   maxIterationsPerVariation?: number;
 }
+
+/**
+ * Up-front mood seeds used in parallel concurrency mode. Each variation
+ * picks the seed at its index so all N variations are guaranteed
+ * distinct without inter-variation feedback. Index = variation number - 1
+ * mod seeds.length.
+ */
+const PARALLEL_MOOD_SEEDS = [
+  'warm dawn — soft golden palette, low contrast, hopeful',
+  'cool dusk — deep blues, high film grain, melancholic',
+  'punchy editorial — high contrast, saturated, kinetic energy',
+  'soft pastel — chalk tones, dreamy diffusion, intimate scale',
+] as const;
 
 export interface AutoModeVariationResult {
   index: number;
@@ -78,23 +117,55 @@ export interface AutoModeResult {
   notified: boolean;
 }
 
-const VARIATION_SYSTEM_NOTE = (
-  index: number,
-  total: number,
-  trigger: AutoModeTrigger,
-  priorMoodNotes: string[]
-) =>
-  [
-    `Auto-Mode lap. You are running variation ${index} of ${total}.`,
+interface VariationPromptInput {
+  index: number;
+  total: number;
+  trigger: AutoModeTrigger;
+  /** sequential mode: prior variations' moodNote text — feed forward. */
+  priorMoodNotes: string[];
+  /** parallel mode: up-front mood seed assigned to this variation. */
+  parallelMoodSeed?: string;
+  referenceImage?: AutoModeReferenceImage;
+}
+
+const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
+  const lines = [
+    `Auto-Mode lap. You are running variation ${input.index} of ${input.total}.`,
     '',
-    `Trigger (${trigger.kind}): ${trigger.payload}`,
+    `Trigger (${input.trigger.kind}): ${input.trigger.payload}`,
+  ];
+
+  if (input.referenceImage) {
+    const refUrl = input.referenceImage.url ?? '<inline base64>';
+    const hint = input.referenceImage.hint
+      ? ` Reference notes: ${input.referenceImage.hint}.`
+      : '';
+    lines.push(
+      '',
+      `A reference image is attached for this hero render: ${refUrl}.${hint} Honour its composition and feel; do not copy it literally.`
+    );
+  }
+
+  lines.push(
     '',
     'Steps:',
     '1) Call search_signals once with the trigger as seedText, platform=instagram, limit=8.',
-    "2) Call generate_image once. The aspectRatio MUST be 1:1. Write a visually specific hero prompt that is DISTINCT from prior variations.",
-    priorMoodNotes.length > 0
-      ? `Prior variations chose these moods (do not repeat): ${priorMoodNotes.join(' | ')}`
-      : 'This is the first variation — pick any cohesive mood.',
+    "2) Call generate_image once. The aspectRatio MUST be 1:1. Write a visually specific hero prompt."
+  );
+
+  if (input.parallelMoodSeed) {
+    lines.push(
+      `   This variation MUST lean toward this mood: ${input.parallelMoodSeed}. Other variations are running in parallel with different seeds.`
+    );
+  } else if (input.priorMoodNotes.length > 0) {
+    lines.push(
+      `   Prior variations chose these moods (do NOT repeat): ${input.priorMoodNotes.join(' | ')}.`
+    );
+  } else {
+    lines.push('   This is the first variation — pick any cohesive mood.');
+  }
+
+  lines.push(
     '3) Output ONLY a JSON object with this shape, no other prose:',
     '{',
     '  "caption": "<60-180 char IG caption tied to the trigger>",',
@@ -102,8 +173,11 @@ const VARIATION_SYSTEM_NOTE = (
     '  "platform": "instagram",',
     '  "whenLocal": "<ISO8601 timestamp during a Singapore prime-time IG window in the next 36 hours>",',
     '  "moodNote": "<10-word mood label distinguishing this variation>"',
-    '}',
-  ].join('\n');
+    '}'
+  );
+
+  return lines.join('\n');
+};
 
 export interface ParsedAgentEnvelope {
   caption?: string;
@@ -176,7 +250,87 @@ export function pickHeroImageUrl(steps: MultiAgentToolStep[]): string | undefine
   return undefined;
 }
 
+interface RunOneVariationInput {
+  promptInput: VariationPromptInput;
+  baseUrl: string;
+  workspaceId?: string;
+  maxIterationsPerVariation?: number;
+  referenceImage?: AutoModeReferenceImage;
+}
+
+async function runOneVariation(
+  input: RunOneVariationInput
+): Promise<AutoModeVariationResult> {
+  const prompt = VARIATION_SYSTEM_NOTE(input.promptInput);
+  let agentStepsForVariation: MultiAgentToolStep[] = [];
+  let agentFinalText = '';
+  let variationError: string | undefined;
+
+  try {
+    const agentRun = await runMultiAgent({
+      prompt,
+      baseUrl: input.baseUrl,
+      wsId: input.workspaceId,
+      maxIterations: input.maxIterationsPerVariation,
+      referenceImage: input.referenceImage
+        ? {
+            url: input.referenceImage.url,
+            dataUrl: input.referenceImage.dataUrl,
+          }
+        : undefined,
+    });
+    agentStepsForVariation = agentRun.steps;
+    agentFinalText = agentRun.finalText;
+  } catch (err) {
+    variationError = err instanceof Error ? err.message : String(err);
+  }
+
+  const envelope = parseAgentEnvelope(agentFinalText);
+  const heroImageUrl = pickHeroImageUrl(agentStepsForVariation);
+
+  return {
+    index: input.promptInput.index,
+    status: variationError ? 'failed' : 'ready',
+    heroImageUrl,
+    caption: envelope.caption,
+    hashtags: envelope.hashtags,
+    moodNote: envelope.moodNote,
+    schedulePlatform: envelope.platform,
+    scheduleWhenLocal: envelope.whenLocal,
+    agentSteps: agentStepsForVariation,
+    agentFinalText,
+    error: variationError,
+  };
+}
+
+async function persistVariation(
+  campaignId: string,
+  workspaceId: string | undefined,
+  variation: AutoModeVariationResult
+): Promise<void> {
+  const agentRunIds = variation.agentSteps
+    .map((step) => step.clientRunId)
+    .filter((id): id is string => typeof id === 'string');
+
+  await insertCampaignVariation({
+    campaignId,
+    workspaceId,
+    index: variation.index,
+    status: variation.status,
+    heroImageUrl: variation.heroImageUrl,
+    caption: variation.caption,
+    hashtags: variation.hashtags,
+    moodNote: variation.moodNote,
+    schedulePlatform: variation.schedulePlatform,
+    scheduleWhenLocal: variation.scheduleWhenLocal,
+    agentRunIds,
+    error: variation.error,
+  });
+}
+
 export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult> {
+  const concurrency: AutoModeConcurrency = req.concurrency ?? 'sequential';
+
   const campaignId = await startCampaign({
     workspaceId: req.workspaceId,
     triggerKind: req.trigger.kind,
@@ -185,87 +339,84 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     notifyMode: req.notifyMode,
   });
 
-  const variations: AutoModeVariationResult[] = [];
-  const priorMoodNotes: string[] = [];
-  let lapStatus: 'completed' | 'failed' = 'completed';
+  let variations: AutoModeVariationResult[];
 
-  for (let i = 1; i <= req.variationCount; i += 1) {
-    const prompt = VARIATION_SYSTEM_NOTE(
-      i,
-      req.variationCount,
-      req.trigger,
-      priorMoodNotes
-    );
-
-    let agentStepsForVariation: MultiAgentToolStep[] = [];
-    let agentFinalText = '';
-    let variationError: string | undefined;
-
-    try {
-      const agentRun = await runMultiAgent({
-        prompt,
+  if (concurrency === 'parallel') {
+    // Up-front seeds → no inter-variation feedback needed; run all at once.
+    const tasks = Array.from({ length: req.variationCount }, (_unused, idx) => {
+      const i = idx + 1;
+      const moodSeed =
+        PARALLEL_MOOD_SEEDS[idx % PARALLEL_MOOD_SEEDS.length];
+      return runOneVariation({
+        promptInput: {
+          index: i,
+          total: req.variationCount,
+          trigger: req.trigger,
+          priorMoodNotes: [],
+          parallelMoodSeed: moodSeed,
+          referenceImage: req.referenceImage,
+        },
         baseUrl: req.baseUrl,
-        wsId: req.workspaceId,
-        maxIterations: req.maxIterationsPerVariation,
-      });
-      agentStepsForVariation = agentRun.steps;
-      agentFinalText = agentRun.finalText;
-    } catch (err) {
-      variationError = err instanceof Error ? err.message : String(err);
-    }
-
-    const envelope = parseAgentEnvelope(agentFinalText);
-    const heroImageUrl = pickHeroImageUrl(agentStepsForVariation);
-    if (envelope.moodNote) priorMoodNotes.push(envelope.moodNote);
-
-    const variationStatus: AutoModeVariationResult['status'] = variationError
-      ? 'failed'
-      : 'ready';
-    if (variationStatus === 'failed') lapStatus = 'failed';
-
-    const agentRunIds = agentStepsForVariation
-      .map((step) => step.clientRunId)
-      .filter((id): id is string => typeof id === 'string');
-
-    if (campaignId) {
-      await insertCampaignVariation({
-        campaignId,
         workspaceId: req.workspaceId,
-        index: i,
-        status: variationStatus,
-        heroImageUrl,
-        caption: envelope.caption,
-        hashtags: envelope.hashtags,
-        moodNote: envelope.moodNote,
-        schedulePlatform: envelope.platform,
-        scheduleWhenLocal: envelope.whenLocal,
-        agentRunIds,
-        error: variationError,
+        maxIterationsPerVariation: req.maxIterationsPerVariation,
+        referenceImage: req.referenceImage,
       });
-    }
-
-    variations.push({
-      index: i,
-      status: variationStatus,
-      heroImageUrl,
-      caption: envelope.caption,
-      hashtags: envelope.hashtags,
-      moodNote: envelope.moodNote,
-      schedulePlatform: envelope.platform,
-      scheduleWhenLocal: envelope.whenLocal,
-      agentSteps: agentStepsForVariation,
-      agentFinalText,
-      error: variationError,
     });
+    const settled = await Promise.allSettled(tasks);
+    variations = settled.map((res, idx) => {
+      if (res.status === 'fulfilled') return res.value;
+      const i = idx + 1;
+      return {
+        index: i,
+        status: 'failed',
+        agentSteps: [],
+        agentFinalText: '',
+        error: res.reason instanceof Error ? res.reason.message : String(res.reason),
+      };
+    });
+  } else {
+    // Sequential: priorMoodNotes feed forward for distinctness.
+    variations = [];
+    const priorMoodNotes: string[] = [];
+    for (let i = 1; i <= req.variationCount; i += 1) {
+      const variation = await runOneVariation({
+        promptInput: {
+          index: i,
+          total: req.variationCount,
+          trigger: req.trigger,
+          priorMoodNotes: [...priorMoodNotes],
+          referenceImage: req.referenceImage,
+        },
+        baseUrl: req.baseUrl,
+        workspaceId: req.workspaceId,
+        maxIterationsPerVariation: req.maxIterationsPerVariation,
+        referenceImage: req.referenceImage,
+      });
+      if (variation.moodNote) priorMoodNotes.push(variation.moodNote);
+      variations.push(variation);
+    }
   }
 
+  // Persist each variation. Sequential mode could write each row inline
+  // above, but doing it after the run keeps both modes symmetric.
+  if (campaignId) {
+    for (const variation of variations) {
+      await persistVariation(campaignId, req.workspaceId, variation);
+    }
+  }
+
+  const lapStatus: 'completed' | 'failed' = variations.some(
+    (v) => v.status === 'failed'
+  )
+    ? 'failed'
+    : 'completed';
   if (campaignId) await setCampaignStatus(campaignId, lapStatus);
 
   let notified = false;
   if (req.notifyMode === 'notify') {
     const okCount = variations.filter((v) => v.status === 'ready').length;
     const summary = [
-      `Auto Mode lap ${lapStatus} — ${okCount}/${req.variationCount} variations ready.`,
+      `Auto Mode lap ${lapStatus} — ${okCount}/${req.variationCount} variations ready (${concurrency}).`,
       `Trigger: ${req.trigger.kind} · ${req.trigger.payload.slice(0, 80)}`,
       campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
     ].join('\n');
