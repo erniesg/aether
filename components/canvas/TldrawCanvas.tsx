@@ -1,12 +1,27 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Tldraw, type Editor, type TLComponents } from 'tldraw';
+import {
+  Tldraw,
+  type Editor,
+  type TLComponents,
+  type TLAnyShapeUtilConstructor,
+} from 'tldraw';
 import 'tldraw/tldraw.css';
 import { useTheme } from '@/app/design-system/ThemeProvider';
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { maybeSeedArtboards } from '@/lib/canvas/seedArtboards';
 import { SafeZoneOverlay } from './SafeZoneOverlay';
+import { AetherTextShapeUtil } from './shapes/AetherTextShape';
+
+/**
+ * Custom tldraw shape utils registered alongside the defaults. Today the only
+ * entry is the multilingual text overlay; future canvas-native primitives
+ * (sketch-to-component, voice notes, etc.) join here.
+ */
+export const AETHER_SHAPE_UTILS: ReadonlyArray<TLAnyShapeUtilConstructor> = [
+  AetherTextShapeUtil,
+];
 
 /**
  * The tldraw operator chrome we null out so the aether workspace reads as a
@@ -69,6 +84,7 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
       className="absolute inset-0"
       inferDarkMode={false}
       options={{ maxPages: 1 }}
+      shapeUtils={AETHER_SHAPE_UTILS}
       onMount={(editor: Editor) => {
         editorRef.current = editor;
         setEditor(editor);

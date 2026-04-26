@@ -47,6 +47,8 @@ import {
   setVoiceToolCall,
   setVoiceTranscript,
 } from '@/lib/voice/caption-store';
+import { useTextOverlayBridge } from './text-overlay-bridge';
+import { useCreatorContext } from '@/lib/context/creator-store';
 import { EyesClosedHandle, type EyesClosedCaptureRequest } from './EyesClosedHandle';
 import { createSketchSnapshotTracker } from '@/lib/canvas/sketchSnapshot';
 
@@ -316,6 +318,19 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [segmentationProvidersLoading, setSegmentationProvidersLoading] =
     useState(false);
   const { editor } = useEditorRef();
+
+  const creatorContext = useCreatorContext(workspaceId);
+  // Wire the multilingual text-overlay bridge: listens for image-landed
+  // events, calls /api/text-overlay/apply, materialises AetherTextShapes,
+  // and persists each overlay to Convex. No-ops when there's no editor.
+  useTextOverlayBridge({
+    workspaceId,
+    creatorContext: {
+      brand: creatorContext.brand,
+      offer: creatorContext.offer,
+      campaign: creatorContext.campaign,
+    },
+  });
 
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
