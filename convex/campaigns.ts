@@ -241,3 +241,80 @@ export const rejectVariation = mutationGeneric({
     return null;
   },
 });
+
+/**
+ * Persist a text overlay edit from the canvas (Lane A).
+ *
+ * Called by `buildGlobalTextPropagator` when a global-scoped text shape is
+ * edited on the canvas. The mutation records the new copy so that:
+ *   1. The change survives page refreshes (canvas hydrates from Convex).
+ *   2. Collaborative cursors see the update immediately.
+ *   3. The right-rail provenance log can show "user edited headline on 2026-04-28".
+ *
+ * We store the overlay on the campaignVariation's `textOverlays` field as an
+ * updated entry. The variation is identified by its string id so this works
+ * even when the Convex document id is a branded type at runtime.
+ */
+export const updateVariationOverlay = mutationGeneric({
+  args: {
+    /** The variation's Convex document id (string representation). */
+    variationId: v.string(),
+    /** BCP-47 locale code of the cell that was edited (e.g. 'en-SG'). */
+    locale: v.string(),
+    /** Format id of the frame that was edited (e.g. '1x1'). */
+    format: v.string(),
+    /** Scope of the change: 'global' fans out, 'local' stays per-cell. */
+    scope: v.union(v.literal('global'), v.literal('local')),
+    /** Role/zone of the overlay (e.g. 'headline', 'cta', 'body'). */
+    role: v.string(),
+    /** New text content after the edit. */
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Best-effort patch: locate the variation row and update its textOverlays.
+    // We use a raw query since we hold a string id, not the typed v.id().
+    const variation = (await ctx.db.get(args.variationId as any)) as CampaignVariationDoc | null;
+    if (!variation) return null;
+
+    // Merge the new text into the existing textOverlays structure (any[]).
+    const existingOverlays = (variation.textOverlays ?? []) as Array<{
+      zone: { purpose: string; bbox?: unknown };
+      content: Record<string, string>;
+      textAlign?: string;
+      scope?: string;
+    }>;
+
+    const updated = existingOverlays.map((ov) => {
+      if (ov.zone.purpose !== args.role) return ov;
+      return {
+        ...ov,
+        content: {
+          ...(ov.content ?? {}),
+          // When global: update all locale entries to the new text.
+          // When local: update only the specific locale.
+          ...(args.scope === 'global'
+            ? Object.fromEntries(
+                Object.keys(ov.content ?? { [args.locale]: '' }).map((loc) => [loc, args.text])
+              )
+            : { [args.locale]: args.text }),
+        },
+      };
+    });
+
+    // If no matching overlay was found (e.g. first edit), append a new entry.
+    const hasMatch = existingOverlays.some((ov) => ov.zone.purpose === args.role);
+    if (!hasMatch) {
+      updated.push({
+        zone: { purpose: args.role },
+        content: { [args.locale]: args.text },
+        scope: args.scope,
+      });
+    }
+
+    await ctx.db.patch(args.variationId as any, {
+      textOverlays: updated,
+    });
+
+    return null;
+  },
+});

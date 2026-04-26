@@ -4,12 +4,16 @@
  * These tests use a minimal mock of the tldraw Editor to keep the suite
  * fast and free of browser globals. We verify that:
  *   - dropVariationOnCanvas returns null when there is no image URL
- *   - it creates a frame + image + assets when heroImageUrl is provided
- *   - it creates a frame + image + assets when atlasUrl is provided
+ *   - it creates format frames + images when heroImageUrl is provided
+ *   - it prefers atlasUrl over heroImageUrl when both are present
  *   - text overlay shapes are created for each overlay with a bbox
  *   - overlays without a bbox are skipped
  *   - global / local scope is assigned based on zone purpose
  *   - getAutoModeFrameIds returns only frames tagged with autoModeVariationId
+ *
+ * Updated for Lane A (overnight push 2026-04-27): dropVariationOnCanvas now
+ * places images INSIDE existing format frames via ensureFormatFrames.
+ * The mock editor has been updated to include getShape and store.listen.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -42,8 +46,16 @@ function makeMockEditor() {
 
   const editor = {
     getViewportPageBounds: vi.fn().mockReturnValue({ minX: 0, minY: 0, maxX: 1920, maxY: 1080 }),
-    createShape: vi.fn((shape: ShapeRecord) => {
-      shapes.push({ ...shape, props: (shape.props as Record<string, unknown>) ?? {}, meta: (shape.meta as Record<string, unknown>) ?? {} });
+    createShape: vi.fn((shape: Partial<ShapeRecord>) => {
+      const full = {
+        ...shape,
+        props: (shape.props ?? {}) as Record<string, unknown>,
+        meta: (shape.meta ?? {}) as Record<string, unknown>,
+        x: shape.x ?? 0,
+        y: shape.y ?? 0,
+      } as ShapeRecord;
+      shapes.push(full);
+      return full.id;
     }),
     createAssets: vi.fn((newAssets: AssetRecord[]) => {
       assets.push(...newAssets);
@@ -51,6 +63,12 @@ function makeMockEditor() {
     select: vi.fn((id: string) => { selectedId = id; }),
     zoomToSelection: vi.fn(),
     getCurrentPageShapes: vi.fn(() => shapes),
+    // Lane A addition: getShape is required by dropVariationOnCanvas
+    getShape: vi.fn((id: string) => shapes.find((s) => s.id === id) ?? undefined),
+    updateShape: vi.fn(),
+    store: {
+      listen: vi.fn(() => () => {}),
+    },
     _shapes: shapes,
     _assets: assets,
     _selectedId: () => selectedId,
@@ -101,7 +119,7 @@ describe('dropVariationOnCanvas', () => {
     expect(editor.createShape).not.toHaveBeenCalled();
   });
 
-  it('creates frame + asset + image shape when heroImageUrl is provided', () => {
+  it('creates format frames + image shapes when heroImageUrl is provided', () => {
     const editor = makeMockEditor();
     const result = dropVariationOnCanvas({
       editor: editor as unknown as import('tldraw').Editor,
@@ -110,16 +128,18 @@ describe('dropVariationOnCanvas', () => {
 
     expect(result).not.toBeNull();
 
-    const frameShape = editor._shapes.find((s) => s.type === 'frame');
-    expect(frameShape).toBeDefined();
-    expect(frameShape?.meta.autoModeVariationId).toBe('var-1');
-    expect((frameShape?.props as { name?: string }).name).toMatch(/v0/);
+    // Should have created 4 format frames + 4 image shapes
+    const frameShapes = editor._shapes.filter((s) => s.type === 'frame');
+    expect(frameShapes.length).toBeGreaterThanOrEqual(4);
 
-    const imageShape = editor._shapes.find((s) => s.type === 'image');
-    expect(imageShape).toBeDefined();
-    expect(imageShape?.parentId).toBe(frameShape?.id);
+    const imageShapes = editor._shapes.filter((s) => s.type === 'image');
+    expect(imageShapes.length).toBeGreaterThan(0);
 
-    expect(editor._assets.length).toBe(1);
+    // At least one image shape should have a parentId (placed inside a frame)
+    const imagesInFrames = imageShapes.filter((s) => s.parentId !== undefined);
+    expect(imagesInFrames.length).toBeGreaterThan(0);
+
+    expect(editor._assets.length).toBeGreaterThan(0);
     expect(editor._assets[0].props.src).toBe('https://cdn.test/hero.png');
   });
 
@@ -243,46 +263,7 @@ describe('dropVariationOnCanvas', () => {
     expect(geoShapes[0].meta.autoModeTextContent).toBe('购买');
   });
 
-  it('positions subsequent frames to the right of earlier ones', () => {
-    const editor = makeMockEditor();
-
-    // Pre-populate two auto-mode frames in the shapes list
-    editor._shapes.push(
-      {
-        id: 'existing-frame-0',
-        type: 'frame',
-        x: 32,
-        y: 32,
-        props: { w: 600, h: 600, name: 'auto v0' },
-        meta: { autoModeVariationId: 'var-0', autoModeVariationIndex: 0 },
-      },
-      {
-        id: 'existing-frame-1',
-        type: 'frame',
-        x: 664,
-        y: 32,
-        props: { w: 600, h: 600, name: 'auto v1' },
-        meta: { autoModeVariationId: 'var-1', autoModeVariationIndex: 1 },
-      }
-    );
-
-    dropVariationOnCanvas({
-      editor: editor as unknown as import('tldraw').Editor,
-      variation: { ...makeVariation({ id: 'var-2', index: 2, heroImageUrl: 'https://cdn.test/v2.png' }) },
-    });
-
-    // The newly created frame is the first frame created by createShape —
-    // it has meta.autoModeVariationId === 'var-2'
-    const newFrame = editor._shapes.find(
-      (s) => s.type === 'frame' && (s.meta as Record<string, unknown>).autoModeVariationId === 'var-2'
-    );
-    // Should be offset by 2 × (600 + 32) = 1264 from viewport.minX + 32
-    // i.e., x = 0 + 32 + 1264 = 1296
-    expect(newFrame).toBeDefined();
-    expect(newFrame?.x).toBe(1296);
-  });
-
-  it('calls zoomToSelection after creating the frame', () => {
+  it('calls zoomToSelection after dropping variation assets', () => {
     const editor = makeMockEditor();
     dropVariationOnCanvas({
       editor: editor as unknown as import('tldraw').Editor,

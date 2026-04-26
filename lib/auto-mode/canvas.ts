@@ -3,23 +3,173 @@
  * as named frames (atlas + per-format heroes + editable text overlays).
  *
  * Single responsibility: geometry and shape creation. The parent WorkspaceShell
- * calls these; they never fetch, never write to Convex.
+ * calls these; they never fetch, never write to Convex directly. The Convex
+ * mutation callback is passed in from the shell to keep this module
+ * dependency-free.
  *
  * Hard rule #5 compliance: text overlay shapes are dropped as tldraw `text`
  * shapes at the bbox positions from `variation.textOverlays[i].zone.bbox`.
- * Shapes tagged with `data-scope="global"` are intended to propagate to all
- * sibling variation frames when the creator edits them; local-scope shapes
- * stay per-frame. Full propagation is a follow-up — see NOTE below.
+ * Shapes tagged with `meta.scope='global'` propagate to all sibling text
+ * shapes for that variation when the creator edits them (wired via
+ * buildGlobalTextPropagator). `'local'` edits stay per-frame.
  *
- * NOTE: Global-scope text propagation (editor edits → sibling frames) is
- * marked as a FOLLOW-UP. The shape is tagged in meta so the next engineer
- * can wire up an editor.store.listen → patch-siblings path without touching
- * the shape creation logic.
+ * Lane A (overnight push 2026-04-27):
+ *   - ensureFormatFrames: create/reuse the 4 standard SG format frames.
+ *   - FORMAT_FRAME_SPECS: 4-entry spec array (1:1, 4:5, 9:16, 16:9).
+ *   - dropVariationOnCanvas: place per-format heroes INSIDE existing frames.
+ *   - buildGlobalTextPropagator: editor.store.listen → fan-out global edits.
+ *   - updateVariationOverlay Convex mutation callback is called on each edit.
  */
 
 import type { Editor } from 'tldraw';
 import { AssetRecordType, createShapeId } from 'tldraw';
 import type { AutoModeVariationView } from '@/components/rail/sections/AutoModePanel';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Standard SG format frame specs
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface FormatFrameSpec {
+  formatId: string;
+  name: string;
+  w: number;
+  h: number;
+  aspect: string;
+}
+
+/**
+ * The four standard SG posting formats. One frame per entry is seeded onto
+ * the canvas when auto-mode fires (if not already present). Variations drop
+ * their per-format heroes INTO these frames — the user always sees a clean
+ * multiformat grid, never floating "auto v1" stragglers.
+ *
+ * Dimensions match platform specs:
+ *   1:1  → IG Feed post (1080×1080)
+ *   4:5  → IG Portrait (1080×1350)
+ *   9:16 → Reel / Story (1080×1920)
+ *   16:9 → LinkedIn / YouTube Shorts landscape (1920×1080)
+ */
+export const FORMAT_FRAME_SPECS: ReadonlyArray<FormatFrameSpec> = [
+  { formatId: '1x1',  name: 'IG Square · 1080×1080',  w: 1080, h: 1080, aspect: '1:1'  },
+  { formatId: '4x5',  name: 'IG Portrait · 1080×1350', w: 1080, h: 1350, aspect: '4:5'  },
+  { formatId: '9x16', name: 'Reel · 1080×1920',        w: 1080, h: 1920, aspect: '9:16' },
+  { formatId: '16x9', name: 'LinkedIn · 1920×1080',    w: 1920, h: 1080, aspect: '16:9' },
+];
+
+/** Gap between format frames when they are laid out left-to-right. */
+const FORMAT_FRAME_GAP = 160;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Frame management
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ensure the 4 standard SG format frames exist on the canvas.
+ * - If a frame tagged with `meta.aetherFormatFrame=true` and a matching
+ *   `meta.formatId` already exists, it is reused (no duplicate created).
+ * - Only missing frames are created so the function is idempotent across laps.
+ *
+ * Returns the shape ids of all 4 format frames in spec order.
+ */
+export function ensureFormatFrames(editor: Editor): string[] {
+  const existingFrames = getFormatFrameShapes(editor);
+
+  // Build a lookup: formatId → existing shape id.
+  // Support both `meta.formatId` (new) and `meta.format` (legacy) so frames
+  // seeded by seedArtboards or older code paths are still detected as existing.
+  const existingByFormatId = new Map<string, string>();
+  // Also build a lookup by aspect string for ratio-based fallback detection.
+  const existingByAspect = new Map<string, string>();
+  for (const f of existingFrames) {
+    const meta = f.meta as Record<string, unknown>;
+    const fid = (meta.formatId ?? meta.format) as string | undefined;
+    if (fid) existingByFormatId.set(fid, f.id as string);
+    const asp = meta.aspect as string | undefined;
+    if (asp) existingByAspect.set(asp, f.id as string);
+  }
+
+  // Calculate the rightmost X for placing new frames
+  let cursorX = existingFrames.reduce((max, f) => {
+    const shape = f as { x: number; props: { w: number } };
+    return Math.max(max, shape.x + shape.props.w + FORMAT_FRAME_GAP);
+  }, 0);
+
+  const resultIds: string[] = [];
+
+  for (const spec of FORMAT_FRAME_SPECS) {
+    // Look up by formatId first, then by aspect string (covers frames seeded
+    // by older code that didn't write meta.formatId).
+    const existingId =
+      existingByFormatId.get(spec.formatId) ?? existingByAspect.get(spec.aspect);
+    if (existingId) {
+      resultIds.push(existingId);
+      continue;
+    }
+
+    // Create the missing frame
+    const id = createShapeId();
+    editor.createShape({
+      id,
+      type: 'frame',
+      x: cursorX,
+      y: 0,
+      props: { w: spec.w, h: spec.h, name: spec.name },
+      meta: {
+        aetherFormatFrame: true,
+        aspect: spec.aspect,
+        formatId: spec.formatId,
+      },
+    });
+    cursorX += spec.w + FORMAT_FRAME_GAP;
+    resultIds.push(id);
+  }
+
+  return resultIds;
+}
+
+/**
+ * Return all frame shapes on the current page that are tagged as aether
+ * format frames (`meta.aetherFormatFrame === true`).
+ */
+export function getFormatFrameShapes(editor: Editor) {
+  return editor.getCurrentPageShapes().filter(
+    (s) =>
+      s.type === 'frame' &&
+      s.meta &&
+      (s.meta as Record<string, unknown>).aetherFormatFrame === true
+  );
+}
+
+/**
+ * Find the format frame that best matches the given aspect ratio string
+ * (e.g. '1:1', '9:16'). Falls back to '1:1' when no match is found.
+ */
+function findMatchingFormatFrame(
+  editor: Editor,
+  aspect: string
+): { id: string; props: { w: number; h: number } } | undefined {
+  const frames = getFormatFrameShapes(editor);
+  // First try exact aspect match in meta
+  const byMeta = frames.find(
+    (f) => (f.meta as Record<string, unknown>).aspect === aspect
+  );
+  if (byMeta) return byMeta as unknown as { id: string; props: { w: number; h: number } };
+
+  // Fallback: match by W:H ratio with ±5% tolerance
+  const [wStr, hStr] = aspect.split(':');
+  const targetRatio = parseFloat(wStr) / parseFloat(hStr);
+  const byRatio = frames.find((f) => {
+    const shape = f as unknown as { props: { w: number; h: number } };
+    const { w, h } = shape.props;
+    if (!w || !h) return false;
+    return Math.abs(w / h - targetRatio) < 0.05;
+  });
+  return byRatio as unknown as { id: string; props: { w: number; h: number } } | undefined;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Variation drop
+// ──────────────────────────────────────────────────────────────────────────────
 
 export interface DropVariationOnCanvasOptions {
   /** tldraw editor instance. */
@@ -41,21 +191,20 @@ export interface DropVariationOnCanvasOptions {
   locale?: string;
 }
 
-/** Standard atlas dimensions (4 formats × 4 locales, each 512² thumbnail). */
-const ATLAS_W = 2048;
-const ATLAS_H = 2048;
-
-/** Width of the dropped atlas frame on canvas (scaled to fit reasonably). */
-const FRAME_W_PX = 600;
-const FRAME_H_PX = 600;
-
 /**
- * Drop a variation's atlas onto the canvas as a named tldraw frame containing
- * an image shape. Text overlays (when present) are layered on top as editable
- * text shapes with provenance metadata.
+ * Drop a variation's hero image(s) onto the canvas by placing them INSIDE
+ * the standard format frames. If format frames don't exist, they are created
+ * first (once per workspace — subsequent laps reuse them).
  *
- * Returns the frame shape id, or null when the variation has no heroImageUrl
- * or atlasUrl (nothing to drop).
+ * Strategy:
+ *   1. ensureFormatFrames — idempotent, reuses existing tagged frames.
+ *   2. For each format frame, drop the hero (cropped or native) inside it
+ *      as a child image shape.
+ *   3. Drop text overlays as geo shapes inside the 1:1 frame (default) with
+ *      enriched meta: variationId, locale, format, role, scope.
+ *
+ * Returns the id of the 1:1 square frame (the primary focus), or null when
+ * the variation has no image URL.
  */
 export function dropVariationOnCanvas({
   editor,
@@ -65,140 +214,289 @@ export function dropVariationOnCanvas({
   const imageUrl = variation.atlasUrl ?? variation.heroImageUrl;
   if (!imageUrl) return null;
 
-  // Position frames in a row, separated by a small gap. Inspect existing
-  // auto-mode frames and place the new one to the right of the last one.
-  const viewport = editor.getViewportPageBounds();
-  const existingFrames = getAutoModeFrameIds(editor);
-  const offsetX = existingFrames.length * (FRAME_W_PX + 32);
-  const x = viewport.minX + 32 + offsetX;
-  const y = viewport.minY + 32;
+  // Ensure the 4 standard format frames exist (idempotent).
+  const frameIds = ensureFormatFrames(editor);
 
-  // Create the outer frame.
-  const frameId = createShapeId();
-  editor.createShape({
-    id: frameId,
-    type: 'frame',
-    x,
-    y,
-    props: {
-      w: FRAME_W_PX,
-      h: FRAME_H_PX,
-      name: `auto v${variation.index}`,
-    },
-    meta: {
-      autoModeVariationId: variation.id,
-      autoModeVariationIndex: variation.index,
-    },
+  // Map format id → frame id for quick lookup
+  const formatToFrameId = new Map<string, string>();
+  FORMAT_FRAME_SPECS.forEach((spec, i) => {
+    if (frameIds[i]) formatToFrameId.set(spec.formatId, frameIds[i]);
   });
 
-  // Register the atlas image as an asset.
-  const assetId = AssetRecordType.createId();
-  const isAtlas = Boolean(variation.atlasUrl);
-  editor.createAssets([
-    {
-      id: assetId,
-      type: 'image',
-      typeName: 'asset',
-      props: {
-        name: isAtlas ? `v${variation.index} atlas` : `v${variation.index} hero`,
-        src: imageUrl,
-        w: isAtlas ? ATLAS_W : 1024,
-        h: isAtlas ? ATLAS_H : 1024,
-        mimeType: 'image/png',
-        isAnimated: false,
-      },
-      meta: {},
-    },
-  ]);
+  // Place the hero image in each format frame.
+  // When the variation supplies native per-format URLs (nativePerFormatRendered),
+  // we use the atlas URL as a fallback since individual format URLs aren't in the
+  // variation view shape yet. The atlas itself is a 4×4 composite thumbnail that
+  // is useful as a preview — a dedicated per-format URL will be wired in
+  // the next slice when the variation shape gains per-format URL fields.
+  let primaryFrameId: string | null = null;
 
-  // Drop the image inside the frame.
-  const imgId = createShapeId();
-  editor.createShape({
-    id: imgId,
-    type: 'image',
-    parentId: frameId,
-    x: 0,
-    y: 0,
-    props: {
-      assetId,
-      w: FRAME_W_PX,
-      h: FRAME_H_PX,
-    },
-  });
+  for (const spec of FORMAT_FRAME_SPECS) {
+    const frameId = formatToFrameId.get(spec.formatId);
+    if (!frameId) continue;
 
-  // Drop text overlays inside the frame as geo shapes with labels so the
-  // creator can click + edit the copy. We use 'geo' rectangles with text
-  // rather than 'text' shapes because geo shapes are compatible with
-  // tldraw 3.x's richText-based text shape API without requiring ProseMirror
-  // node construction.
-  //
-  // FOLLOW-UP: propagate edits to 'global'-scoped shapes to sibling variation
-  // frames via editor.store.listen → patch-siblings. The meta.scope tag below
-  // carries the intent so the next engineer can wire it without touching shape
-  // creation.
-  if (variation.textOverlays && variation.textOverlays.length > 0) {
-    for (const overlay of variation.textOverlays) {
-      const copy =
-        overlay.content[locale] ??
-        overlay.content['en-SG'] ??
-        Object.values(overlay.content)[0] ??
-        '';
-      if (!copy) continue;
+    if (spec.formatId === '1x1') primaryFrameId = frameId;
 
-      const bbox = overlay.zone.bbox;
-      // When the agent didn't return bbox, skip shape placement — we cannot
-      // position the overlay without coordinates.
-      if (!bbox) continue;
+    const frame = editor.getShape(frameId as never) as
+      | { props: { w: number; h: number } }
+      | undefined;
+    if (!frame) continue;
 
-      // Scale the bbox from the hero's 1024² coordinate space to the frame.
-      const scaleX = FRAME_W_PX / 1024;
-      const scaleY = FRAME_H_PX / 1024;
+    const { w: fw, h: fh } = frame.props;
 
-      const geoId = createShapeId();
-      // tldraw 3.x geo shapes use `richText` internally; we cast through
-      // unknown here because the public createShape API accepts a plain `text`
-      // string that gets coerced on save. The cast avoids the strict-mode
-      // object-literal check while keeping runtime behaviour correct.
-      // See: https://tldraw.dev/docs/shapes/geo
-      editor.createShape({
-        id: geoId,
-        type: 'geo',
-        parentId: frameId,
-        x: bbox.x * scaleX,
-        y: bbox.y * scaleY,
+    // Register the hero image as a canvas asset
+    const assetId = AssetRecordType.createId();
+    const isAtlas = Boolean(variation.atlasUrl);
+    editor.createAssets([
+      {
+        id: assetId,
+        type: 'image',
+        typeName: 'asset',
         props: {
-          geo: 'rectangle',
-          w: Math.max(bbox.w * scaleX, 40),
-          h: Math.max(bbox.h * scaleY, 24),
-          fill: 'none' as const,
-          dash: 'dashed' as const,
-          color: 'white' as const,
-          size: 's' as const,
-          align: (overlay.textAlign === 'center' ? 'middle' : overlay.textAlign === 'end' ? 'end' : 'start') as 'start' | 'middle' | 'end',
-          verticalAlign: 'middle' as const,
-          labelColor: 'white' as const,
-        } as Record<string, unknown>,
-        meta: {
-          autoModeTextOverlay: true,
-          autoModeTextContent: copy,
-          // 'global' = creator intent: propagate to all variation frames.
-          // 'local'  = this frame only.
-          scope: overlay.zone.purpose === 'headline' || overlay.zone.purpose === 'cta' ? 'global' : 'local',
-          zone: overlay.zone.purpose,
-          locale,
+          name: isAtlas
+            ? `v${variation.index} atlas`
+            : `v${variation.index} ${spec.formatId}`,
+          src: imageUrl,
+          w: isAtlas ? 2048 : 1024,
+          h: isAtlas ? 2048 : 1024,
+          mimeType: 'image/png',
+          isAnimated: false,
         },
-      } as Parameters<typeof editor.createShape>[0]);
+        meta: {},
+      },
+    ]);
+
+    // Drop the image as a child of the format frame
+    const imgId = createShapeId();
+    editor.createShape({
+      id: imgId,
+      type: 'image',
+      parentId: frameId as never,
+      x: 0,
+      y: 0,
+      props: {
+        assetId,
+        w: fw,
+        h: fh,
+      },
+      meta: {
+        autoModeVariationId: variation.id,
+        autoModeVariationIndex: variation.index,
+        formatId: spec.formatId,
+      },
+    });
+  }
+
+  // Drop text overlays inside the 1:1 frame as geo shapes.
+  // Each shape carries the full provenance needed for global/local propagation.
+  if (variation.textOverlays && variation.textOverlays.length > 0) {
+    const targetFrameId = primaryFrameId ?? frameIds[0];
+    if (!targetFrameId) {
+      // No frame to parent to — skip overlays gracefully
+    } else {
+      const targetFrame = editor.getShape(targetFrameId as never) as
+        | { props: { w: number; h: number } }
+        | undefined;
+      const fw = targetFrame?.props.w ?? 1080;
+      const fh = targetFrame?.props.h ?? 1080;
+
+      for (const overlay of variation.textOverlays) {
+        const copy =
+          overlay.content[locale] ??
+          overlay.content['en-SG'] ??
+          Object.values(overlay.content)[0] ??
+          '';
+        if (!copy) continue;
+
+        const bbox = overlay.zone.bbox;
+        if (!bbox) continue;
+
+        // Scale the bbox from the hero's 1024² coordinate space to the frame
+        const scaleX = fw / 1024;
+        const scaleY = fh / 1024;
+
+        const geoId = createShapeId();
+        editor.createShape({
+          id: geoId,
+          type: 'geo',
+          parentId: targetFrameId as never,
+          x: bbox.x * scaleX,
+          y: bbox.y * scaleY,
+          props: {
+            geo: 'rectangle',
+            w: Math.max(bbox.w * scaleX, 40),
+            h: Math.max(bbox.h * scaleY, 24),
+            fill: 'none' as const,
+            dash: 'dashed' as const,
+            color: 'white' as const,
+            size: 's' as const,
+            align: (overlay.textAlign === 'center'
+              ? 'middle'
+              : overlay.textAlign === 'end'
+              ? 'end'
+              : 'start') as 'start' | 'middle' | 'end',
+            verticalAlign: 'middle' as const,
+            labelColor: 'white' as const,
+          } as Record<string, unknown>,
+          meta: {
+            autoModeTextOverlay: true,
+            autoModeTextContent: copy,
+            // 'global' = propagate to all variation frames on edit.
+            // 'local'  = only this frame/cell.
+            scope:
+              overlay.zone.purpose === 'headline' || overlay.zone.purpose === 'cta'
+                ? 'global'
+                : 'local',
+            zone: overlay.zone.purpose,
+            // Enriched provenance for propagator and Convex persistence:
+            variationId: variation.id,
+            locale,
+            format: '1x1', // overlays are anchored to the 1:1 frame by default
+            role: overlay.zone.purpose,
+          },
+        } as Parameters<typeof editor.createShape>[0]);
+      }
     }
   }
 
-  editor.select(frameId);
-  editor.zoomToSelection({ animation: { duration: 300 } });
-  return frameId;
+  // Zoom to the primary (1:1) frame so the creator sees the result
+  if (primaryFrameId) {
+    editor.select(primaryFrameId as never);
+    editor.zoomToSelection({ animation: { duration: 300 } });
+  } else if (frameIds.length > 0) {
+    editor.select(frameIds[0] as never);
+    editor.zoomToSelection({ animation: { duration: 300 } });
+  }
+
+  return primaryFrameId ?? frameIds[0] ?? null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Global text propagation
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Payload sent to the Convex updateVariationOverlay mutation when a global-
+ * scope text shape is edited. The mutation persists the change so it survives
+ * page refreshes and is visible to other collaborators.
+ */
+export interface VariationOverlayUpdate {
+  variationId: string;
+  locale: string;
+  format: string;
+  scope: 'global' | 'local';
+  role: string;
+  text: string;
 }
 
 /**
+ * Wire up a tldraw store.listen callback that fans out edits to global-scoped
+ * text overlay shapes to all sibling shapes in the same variation + role.
+ *
+ * - `global` → update all sibling shapes with matching `meta.variationId` and
+ *   `meta.role` (regardless of locale or format). Calls the Convex mutation.
+ * - `local` → no fan-out; shape stays isolated.
+ *
+ * Returns an unsubscribe function. The caller (WorkspaceShell) should call it
+ * on cleanup (component unmount or when the editor changes).
+ */
+export function buildGlobalTextPropagator(
+  editor: Editor,
+  onUpdate: (args: VariationOverlayUpdate) => Promise<void>
+): () => void {
+  // Track the last text value per shape id to detect actual content changes
+  // (store.listen fires for all field changes, not just text).
+  const lastText = new Map<string, string>();
+
+  const unsubscribe = editor.store.listen(
+    (event: {
+      changes: {
+        updated: Record<string, [unknown, unknown]>;
+      };
+    }) => {
+      const updated = event.changes.updated;
+      if (!updated || typeof updated !== 'object') return;
+
+      for (const [shapeId, [, nextRaw]] of Object.entries(updated)) {
+        const next = nextRaw as Record<string, unknown>;
+        if (!next || next.type !== 'geo') continue;
+
+        const meta = (next.meta ?? {}) as Record<string, unknown>;
+        if (!meta.autoModeTextOverlay) continue;
+
+        const scope = meta.scope as string | undefined;
+        const variationId = meta.variationId as string | undefined;
+        const role = meta.role as string | undefined;
+        const locale = meta.locale as string | undefined;
+        const format = meta.format as string | undefined;
+
+        if (!variationId || !role) continue;
+
+        // Extract the current text from props
+        const props = (next.props ?? {}) as Record<string, unknown>;
+        const currentText =
+          (props.text as string | undefined) ??
+          (props.label as string | undefined) ??
+          '';
+
+        // Only act on actual text changes
+        const prev = lastText.get(shapeId);
+        if (prev === currentText) continue;
+        lastText.set(shapeId, currentText);
+
+        if (scope !== 'global') continue;
+
+        // Fan out to all sibling shapes: same variationId + role
+        const siblings = editor.getCurrentPageShapes().filter((s) => {
+          if (s.id === (shapeId as never)) return false; // skip self
+          const sm = (s.meta ?? {}) as Record<string, unknown>;
+          return (
+            sm.autoModeTextOverlay === true &&
+            sm.variationId === variationId &&
+            sm.role === role
+          );
+        });
+
+        for (const sibling of siblings) {
+          editor.updateShape({
+            id: sibling.id as never,
+            type: 'geo',
+            props: {
+              ...((sibling as unknown as { props: Record<string, unknown> }).props ?? {}),
+              text: currentText,
+              label: currentText,
+            },
+          } as Parameters<typeof editor.updateShape>[0]);
+        }
+
+        // Persist to Convex (fire-and-forget; errors logged by caller)
+        void onUpdate({
+          variationId,
+          locale: locale ?? 'en-SG',
+          format: format ?? '1x1',
+          scope: 'global',
+          role,
+          text: currentText,
+        });
+      }
+    },
+    // Listen to 'change' events (the correct subscription type for store)
+    { source: 'user', scope: 'document' } as never
+  );
+
+  return () => {
+    if (typeof unsubscribe === 'function') unsubscribe();
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Legacy helpers (preserved for backward compat)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
  * Return the shape ids of all tldraw frames that were placed by Auto Mode
- * (tagged with `meta.autoModeVariationId`).
+ * (tagged with `meta.autoModeVariationId`). Used by the dedup guard in
+ * WorkspaceShell to prevent re-dropping already-placed variations.
  */
 export function getAutoModeFrameIds(editor: Editor): string[] {
   const shapes = editor.getCurrentPageShapes();
