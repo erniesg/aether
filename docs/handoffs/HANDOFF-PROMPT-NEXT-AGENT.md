@@ -60,15 +60,24 @@ SCHEDULED" in auto-post mode but nothing is actually scheduled.
 
 ### 2. Vision-then-segment with one-shot SAM3 A/B (~45-60 min)
 
+**Important caveat:** SAM3 is text-promptable directly — `/api/segment` accepts
+a `prompt: string`. You DO NOT need Claude vision to run SAM3. The vision
+step gives RICHER content-specific prompts ("wet leather jacket on man's
+head") instead of the generic "person, jacket, background", but the
+one-shot path is fully functional alone.
+
 User wants to A/B compare:
 - **One-shot**: `/api/segment` with a generic prompt like
-  `'subject, foreground, background, text, brand'`
-- **Two-stage**: Claude vision describes → SAM3 with vision-derived prompts
+  `'subject, foreground, background, text, brand'` — fast, no extra LLM call.
+- **Two-stage**: Claude 4.7 vision describes the hero first → SAM3 with the
+  vision-derived prompts → richer per-subject masks. Adds ~$0.005 + 1s.
 
 **Acceptance:**
 - New tools in `lib/agent/multi.ts`: `describe_image(imageUrl)` (Claude 4.7
-  vision via Anthropic SDK; local-handler tool, no HTTP route) and
-  `segment_subjects(imageUrl, prompts[])` (HTTP wrapper around `/api/segment`).
+  vision via Anthropic SDK with image content blocks; local-handler tool,
+  no HTTP route) and `segment_subjects(imageUrl, prompts[])` (HTTP wrapper
+  around `/api/segment` — note: passes prompts as comma-joined string since
+  the route's `prompt` param is a single string, not an array).
 - `runPostHeroPipeline` in `lib/agent/auto-mode.ts` runs BOTH paths in
   parallel via Promise.allSettled and stores both mask sets on the
   variation:
@@ -93,9 +102,10 @@ canvas shapes:
 - one tldraw shape per layer with bbox + transform + z-index, re-projected
   per format (4:5 / 9:16 / 16:9)
 
-Use **gpt-image-1** (OPENAI_API_KEY present) or **Seedream**
-(VOLCENGINE_ARK_API_KEY present) for the inpaint adapter — already wired,
-no new provider integration needed. Skip Replicate.
+Use **gpt-image-2** (already our DEFAULT_MODEL in lib/providers/image/openai.ts;
+OPENAI_API_KEY present) or **Seedream** (VOLCENGINE_ARK_API_KEY present) for
+the inpaint adapter — already wired, no new provider integration needed.
+Skip Replicate.
 
 **Acceptance:**
 - New `/api/inpaint` route accepting `{ sourceImage, mask, prompt }` →
@@ -168,21 +178,32 @@ editing.
 - Per-variation card opens the lap's clientRunIds in the existing
   capability-run viewer.
 
-### 6. IG production setup (multi-day, NOT agent work)
+### 6. Posting to other platforms (Postiz already has all 7 keys)
 
-Per the user's screenshot of the Instagram API console (app
-"Berlayar AI-IG", App ID 2176290403206401):
+**All 7 platform OAuth client_id/secret pairs are loaded into Postiz
+Cloud Run** as env vars (verified Apr 26 night): INSTAGRAM_*,
+FACEBOOK_*, X_*, LINKEDIN_*, TIKTOK_*, PINTEREST_*, YOUTUBE_*. Backed
+by Secret Manager.
 
-- Generate access tokens — add IG Tester account, generate long-lived token.
-- Configure webhook callback URL + verify token. Public HTTPS endpoint
-  needed; use `aether.berlayar.ai/api/ig-webhook` once prod DNS is unblocked.
-- Switch app mode to "Live".
-- Complete app review (Instagram requires review for production access).
+**To enable posting to any of those platforms via Postiz:** Ernie
+logs into the Postiz UI at
+`https://postiz-1047564447300.asia-southeast1.run.app/auth`, adds
+each platform via Integrations, completes the per-platform OAuth dance.
+Postiz then handles posting to all 7 from a single API surface — that's
+what `lib/providers/publisher/postiz.ts` (when authored) would call.
 
-**Already working separately:** the personal `@ernie0529` IGAA token in
-`infra/postiz/.env.postiz` posts via Graph API directly. Smoke at
-`scripts/smoke-ig-post.mjs --live` (if that script was authored —
-check the prior handoff; previous agent claimed it but file wasn't found).
+**`postiz` adapter for the publisher seam (~1-2 hr) — separate slice:**
+- Add `lib/providers/publisher/postiz.ts` implementing the
+  PublisherProvider contract.
+- Postiz exposes a REST API; auth is via `Authorization: Bearer <api-key>`
+  (generate in Postiz user settings).
+- Then the auto-post path in slice #1 above just calls
+  `recordScheduledPost({ provider: 'postiz', ... })` and the seam
+  handles the platform-specific posting.
+
+**IG production app review (Berlayar AI-IG, App ID 2176290403206401)**
+is only needed if you bypass Postiz and call IG Graph API directly.
+For now, **don't** — Postiz handles it. Skip the multi-day app review.
 
 ## Hard rules — never break
 
