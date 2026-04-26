@@ -1,0 +1,43 @@
+[
+  {
+    "faces": [],
+    "products": [
+      {
+        "name": "air purifier",
+        "description": "tall rounded rectangular device with fabric mesh lower half, smooth white top, and small B logo"
+      }
+    ],
+    "brands": [
+      {
+        "name": "B logo",
+        "description": "small letter B emblem on the front of the purifier"
+      }
+    ],
+    "otherComponents": [
+      {
+        "name": "bed with white linens",
+        "kind": "environment-prop"
+      },
+      {
+        "name": "wooden side table",
+        "kind": "environment-prop"
+      },
+      {
+        "name": "table lamp base",
+        "kind": "environment-prop"
+      },
+      {
+        "name": "wooden slatted wall",
+        "kind": "environment-prop"
+      },
+      {
+        "name": "wooden floor",
+        "kind": "environment-prop"
+      }
+    ],
+    "smallObjectGroups": [],
+    "background": {
+      "description": ""
+    }
+  }
+]

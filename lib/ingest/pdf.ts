@@ -15,7 +15,22 @@
  * sniffs to `application/pdf`.
  */
 
-import { PDFParse } from 'pdf-parse';
+// pdf-parse v2 wraps pdfjs-dist which trips Next's server webpack at
+// import time ("Object.defineProperty called on non-object"). Lazy-load
+// it inside parsePdfIngestion so URL / text / image triggers — which
+// don't touch pdf-parse — keep working.
+type PDFParseClass = new (input: { data: Uint8Array }) => {
+  getText(): Promise<unknown>;
+};
+let cachedPDFParse: PDFParseClass | null = null;
+async function getPDFParse(): Promise<PDFParseClass> {
+  if (cachedPDFParse) return cachedPDFParse;
+  const mod = (await import('pdf-parse')) as unknown as {
+    PDFParse: PDFParseClass;
+  };
+  cachedPDFParse = mod.PDFParse;
+  return cachedPDFParse;
+}
 
 export interface PdfIngestion {
   /** Original source (HTTP URL or data: URL). */
@@ -118,6 +133,7 @@ export async function parsePdfIngestion(
   // BEFORE the call — PDF.js detaches the underlying ArrayBuffer when
   // parsing finishes, leaving bytes.byteLength reading 0.
   const rawByteCount = bytes.byteLength;
+  const PDFParse = await getPDFParse();
   const parser = new PDFParse({
     data: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
   });

@@ -1,0 +1,98 @@
+[
+  {
+    "index": 0,
+    "name": "get_current_datetime",
+    "input": {
+      "timezone": "Asia/Singapore"
+    },
+    "output": {
+      "ok": true,
+      "provider": "local",
+      "nowUtc": "2026-04-26T12:47:47.662Z",
+      "nowLocal": "2026-04-26T20:47:47",
+      "timezone": "Asia/Singapore",
+      "epochMs": 1777207667662
+    },
+    "ok": true,
+    "ms": 567,
+    "clientRunId": "agent_datetime_mofrk4gv_nskvkw"
+  },
+  {
+    "index": 1,
+    "name": "search_signals",
+    "input": {
+      "seedText": "https://www.eightsleep.com/",
+      "platforms": [
+        "instagram"
+      ],
+      "limit": 8
+    },
+    "output": {
+      "ok": true,
+      "plan": {
+        "seedText": "https://www.eightsleep.com/",
+        "platforms": [
+          "instagram"
+        ],
+        "targets": [
+          {
+            "id": "research-web-url-www-eightsleep-com",
+            "kind": "url",
+            "platform": "web",
+            "value": "https://www.eightsleep.com/",
+            "label": "web source",
+            "sourceUrl": "https://www.eightsleep.com/",
+            "reason": "creator source",
+            "tags": [
+              "research",
+              "web",
+              "url",
+              "www-eightsleep-com"
+            ]
+          }
+        ],
+        "querySummary": "web source"
+      },
+      "records": [
+        {
+          "id": "ref_mofrk5dw_yxz7ej",
+          "kind": "image",
+          "previewUrl": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+          "fullUrl": "https://www.eightsleep.com/sg/",
+          "attribution": {
+            "source": "generic",
+            "url": "https://www.eightsleep.com/sg/"
+          },
+          "capturedAt": "2026-04-26T12:47:48.548Z",
+          "title": "web source",
+          "usageIntent": "visual anchor",
+          "tags": [
+            "research",
+            "web",
+            "url",
+            "www-eightsleep-com"
+          ],
+          "notes": "creator source; url https://www.eightsleep.com/"
+        }
+      ],
+      "scrapedCount": 1,
+      "signalCount": 0,
+      "materializedCount": 0
+    },
+    "ok": true,
+    "ms": 1342,
+    "clientRunId": "agent_signals-search_mofrk4wl_iqyrsq"
+  },
+  {
+    "index": 2,
+    "name": "generate_image",
+    "input": {
+      "prompt": "Eight Sleep | Now in Singapore — Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights.\nHero subject: Eight Sleep | Now in Singapore — Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights. — featuring air purifier (tall rounded rectangular device with fabric mesh lower half, smooth white top, and small B logo) — brand: B logo (reference vibe: Eight Sleep | Now in Singapore).\nMood: cinematic.\nCompose this image so it remains readable when cropped to any of these aspect ratios: 1:1, 4:5, 9:16, 16:9. The hero subject must stay centered and uncropped in every one.\nReserve the following regions as soft negative space — flat tone, low detail, no clutter — so editable text overlays can be placed there separately:\n- the upper-center region (90% × 18%) for the headline.\n- the lower-center region (90% × 17%) for the caption.\nPrimary subject anchor: the central 64% × 64% region of the frame; this region must survive every crop.\nDo not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.",
+      "aspectRatio": "1:1"
+    },
+    "output": "<stripped>",
+    "ok": true,
+    "ms": 177629,
+    "clientRunId": "agent_image-gen_mofrkc1q_maro2b"
+  }
+]

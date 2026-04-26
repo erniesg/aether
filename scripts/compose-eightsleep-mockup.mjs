@@ -21,10 +21,14 @@ import path from 'node:path';
 import sharp from 'sharp';
 
 const ROOT = '/Users/erniesg/code/erniesg/aether';
+// Evidence dir + hero file picked via env override so the script can be
+// re-run against any smoke folder.
 const EVIDENCE = path.join(
   ROOT,
-  'docs/handoffs/auto-mode-evidence/eightsleep-smoke-2026-04-26'
+  process.env.AETHER_EVIDENCE_DIR ??
+    'docs/handoffs/auto-mode-evidence/eightsleep-smoke-2026-04-26'
 );
+const HERO_FILE = process.env.AETHER_HERO_FILE ?? 'url-hero-3.png';
 const OUT_DIR = path.join(EVIDENCE, 'composed');
 
 const LOCALES = ['en-SG', 'zh-Hans-SG', 'ms-SG', 'ta-SG'];
@@ -175,7 +179,7 @@ function wrapCjk(text, widthChars) {
 }
 
 async function main() {
-  const heroPath = path.join(EVIDENCE, 'url-hero-3.png');
+  const heroPath = path.join(EVIDENCE, HERO_FILE);
   const textOverlaysPath = path.join(EVIDENCE, 'text-overlays.json');
   await fs.mkdir(OUT_DIR, { recursive: true });
 
