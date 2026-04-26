@@ -121,6 +121,21 @@ export const list = queryGeneric({
   },
 });
 
+/**
+ * Fetch a single capabilityRun row by its client-assigned run ID.
+ * Used by the /api/campaigns/[id]/trace endpoint to enrich agentSteps
+ * with provider/model/latency data from the ledger.
+ * Returns null when the clientRunId is not found.
+ */
+export const getByClientId = queryGeneric({
+  args: { clientRunId: v.string() },
+  handler: async (ctx, args) => {
+    const doc = await findByClientId(ctx, args.clientRunId);
+    if (!doc) return null;
+    return toRecord(doc);
+  },
+});
+
 async function findByClientId(ctx: any, clientRunId: string): Promise<RunDoc | null> {
   return (await ctx.db
     .query('capabilityRun')

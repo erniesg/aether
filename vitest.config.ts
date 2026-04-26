@@ -13,6 +13,7 @@ export default defineConfig({
       'tests/component/**/*.test.{ts,tsx}',
       'tests/integration/**/*.test.{ts,tsx}',
       'lib/**/*.test.{ts,tsx}',
+      'app/**/*.test.{ts,tsx}',
     ],
     exclude: ['tests/e2e/**', 'node_modules', '.next', '.open-next'],
   },

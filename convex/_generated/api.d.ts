@@ -9,6 +9,7 @@
  */
 
 import type * as agentSession from "../agentSession.js";
+import type * as assets from "../assets.js";
 import type * as brandPolicy from "../brandPolicy.js";
 import type * as campaigns from "../campaigns.js";
 import type * as clusters from "../clusters.js";
@@ -29,6 +30,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agentSession: typeof agentSession;
+  assets: typeof assets;
   brandPolicy: typeof brandPolicy;
   campaigns: typeof campaigns;
   clusters: typeof clusters;
