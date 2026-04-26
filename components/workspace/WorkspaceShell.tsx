@@ -358,9 +358,28 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   // Auto Mode state — persisted in component state; ideally moves to Convex later.
   const [autoModeConfig, setAutoModeConfig] = useState<AutoModeConfig>(DEFAULT_AUTO_MODE_CONFIG);
   const [inFlightCampaignId, setInFlightCampaignId] = useState<string | null>(null);
+  // Deep-link: `?campaign=<id>` mounts the workspace already subscribed to a
+  // cached campaign so the right rail + canvas populate from Convex without
+  // firing a fresh lap. Used by the demo replay mode and Discord deep links
+  // ("Review in Aether ↗" buttons land here). Reads window.location once on
+  // mount — useSearchParams() would require a Suspense boundary higher up.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const cid = new URLSearchParams(window.location.search).get('campaign');
+    if (cid && cid.length > 0) setInFlightCampaignId(cid);
+    // Run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Live lap subscription — Convex reactive or poll fallback.
-  const { campaign: autoModeCampaign, variations: autoModeVariations } =
-    useCampaignLap(inFlightCampaignId);
+  // researchBundle + schedulePlan now ride on the campaign row (persisted),
+  // so they survive a refresh and don't need separate component state.
+  // events is the lap event log surfaced live in the right rail.
+  const {
+    campaign: autoModeCampaign,
+    variations: autoModeVariations,
+    events: autoModeEvents,
+  } = useCampaignLap(inFlightCampaignId);
+  const autoModeResearchBundle = autoModeCampaign?.researchBundle;
   // Track which variation indices have already been dropped on canvas so we
   // don't duplicate frames when the lap is re-subscribed.
   const droppedVariationIndices = useRef<Set<number>>(new Set());
@@ -1269,7 +1288,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     for (const variation of autoModeVariations) {
       if (variation.status !== 'ready') continue;
       if (droppedVariationIndices.current.has(variation.index)) continue;
-      if (!variation.heroImageUrl && !variation.atlasUrl) continue;
+      const hasAnyUrl =
+        Boolean(variation.heroImageUrl) ||
+        Boolean(variation.atlasUrl) ||
+        Object.values(variation.nativePerFormatUrls ?? {}).some(
+          (u) => typeof u === 'string' && u.length > 0
+        );
+      if (!hasAnyUrl) continue;
       droppedVariationIndices.current.add(variation.index);
       try {
         dropVariationOnCanvas({ editor, variation });
@@ -1571,6 +1596,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
    */
   const fireAutoModeLap = useCallback(
     async (url: string) => {
+      // Clear stale lap state immediately so the right rail doesn't show the
+      // previous campaign's research/variation cards while the new lap is
+      // in flight. useCampaignLap returns EMPTY when campaignId is null.
+      setInFlightCampaignId(null);
+      droppedVariationIndices.current = new Set();
       try {
         const res = await fetch('/api/auto-mode/run', {
           method: 'POST',
@@ -1580,13 +1610,22 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             variationCount: autoModeConfig.variationCount,
             notifyMode: autoModeConfig.notifyMode,
             concurrency: autoModeConfig.concurrency,
+            useManagedAgents: autoModeConfig.useManagedAgents,
             workspaceId: wsId,
           }),
         });
-        const json = (await res.json()) as { ok: boolean; campaignId?: string; error?: string };
+        const json = (await res.json()) as {
+          ok: boolean;
+          campaignId?: string;
+          error?: string;
+        };
         if (json.ok && json.campaignId) {
           setInFlightCampaignId(json.campaignId);
           droppedVariationIndices.current = new Set();
+          // researchBundle + schedulePlan are now persisted on the campaign
+          // row (see lib/agent/auto-mode.ts setCampaignResearchBundle /
+          // setCampaignSchedulePlan); useCampaignLap surfaces them via
+          // autoModeCampaign — no separate component state needed.
           log('auto-mode lap fired · campaignId:', json.campaignId);
         } else {
           logError('auto-mode run failed:', json.error);
@@ -2127,6 +2166,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           onOpenPublishPreview={() => setPublishPreviewOpen(true)}
           autoModeCampaign={autoModeCampaign}
           autoModeVariations={autoModeVariations}
+          autoModeResearchBundle={autoModeResearchBundle}
+          autoModeEvents={autoModeEvents}
           onAutoModeApprove={handleAutoModeApprove}
           onAutoModeReject={handleAutoModeReject}
         />
