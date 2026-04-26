@@ -189,9 +189,10 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
 
   lines.push(
     '',
-    'Steps:',
+    'Steps (DO EACH STEP EXACTLY ONCE — never retry a tool call):',
     '1) Call search_signals once with the trigger as seedText, platform=instagram, limit=8.',
-    "2) Call generate_image once. The aspectRatio MUST be 1:1. Write a visually specific hero prompt."
+    "2) Call generate_image EXACTLY ONCE with aspectRatio=1:1. Even if the first result is imperfect, accept it — re-rendering wastes credits and time.",
+    '   Write a visually specific hero prompt.'
   );
 
   if (input.parallelMoodSeed) {
@@ -221,7 +222,8 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     '  "whenLocal": "<ISO8601 timestamp during a Singapore prime-time IG window in the next 36 hours>",',
     '  "moodNote": "<10-word mood label distinguishing this variation>"',
     '}',
-    'IMPORTANT: today is 2026-04-26 (SGT). Schedule whenLocal AFTER today.'
+    'IMPORTANT: today is 2026-04-26 (SGT). Schedule whenLocal AFTER today.',
+    'BUDGET: total 2 tool calls (1 search_signals + 1 generate_image), then the JSON. NEVER call generate_image more than once.'
   );
 
   return lines.join('\n');
