@@ -1,0 +1,26 @@
+{
+  "status": "completed",
+  "campaignId": "ns74pva2z8aa6df7w2bqytzhgh85jgk8",
+  "scheduledPostIds": [
+    "mx7a2vtdya3aytqr0z52svhp4n85kjjj"
+  ],
+  "variations": [
+    {
+      "index": 1,
+      "status": "ready",
+      "schedulePlatform": "instagram",
+      "scheduleWhenLocal": "2026-04-27T21:30:00+08:00",
+      "caption": "Sleep cooler, wake sharper. The Eight Sleep Pod 4 Ultra tunes your bed to the perfect temperature all night — built for humid SG nights, lah.",
+      "atlasUrl": "https://oceanic-dolphin-808.convex.cloud/api/storage/cd27b216-19aa-4e8a-9d9f-082954a34f7d",
+      "heroImageUrl": "https://oceanic-dolphin-808.convex.cloud/api/storage/8993f63b-3494-49be-aaad-afd57cfc0321",
+      "masksOneShot": {
+        "matched": 0,
+        "count": 0
+      },
+      "masksVisionGuided": {
+        "matched": 0,
+        "count": 0
+      }
+    }
+  ]
+}
