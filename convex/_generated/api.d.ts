@@ -14,6 +14,7 @@ import type * as providerPrefs from "../providerPrefs.js";
 import type * as publisher from "../publisher.js";
 import type * as runs from "../runs.js";
 import type * as signals from "../signals.js";
+import type * as textOverlay from "../textOverlay.js";
 
 import type {
   ApiFromModules,
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   publisher: typeof publisher;
   runs: typeof runs;
   signals: typeof signals;
+  textOverlay: typeof textOverlay;
 }>;
 
 /**

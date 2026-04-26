@@ -9,7 +9,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import { abortStuckRuns, useRuns } from '@/lib/store/runs';
+import { STALE_ABORT_ERROR, abortStuckRuns, useRuns } from '@/lib/store/runs';
 import { useRunDetails } from '@/lib/store/runDetails';
 import { useVoiceCaption } from '@/lib/voice/caption-store';
 import { cn } from '@/lib/utils/cn';
@@ -109,7 +109,10 @@ function summarizeFrames(
  */
 export function ComposerStatus() {
   const runs = useRuns();
-  const top = runs[0];
+  const top = useMemo(
+    () => runs.find((run) => run.error !== STALE_ABORT_ERROR),
+    [runs]
+  );
   const details = useRunDetails(top?.id);
   const voice = useVoiceCaption();
   const [elapsed, setElapsed] = useState(0);
