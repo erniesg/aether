@@ -190,8 +190,9 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
   lines.push(
     '',
     'Steps (DO EACH STEP EXACTLY ONCE — never retry a tool call):',
-    '1) Call search_signals once with the trigger as seedText, platform=instagram, limit=8.',
-    "2) Call generate_image EXACTLY ONCE with aspectRatio=1:1. Even if the first result is imperfect, accept it — re-rendering wastes credits and time.",
+    '1) Call get_current_datetime(timezone="Asia/Singapore") so you know what "now" is — needed for Step 4.',
+    '2) Call search_signals once with the trigger as seedText, platform=instagram, limit=8.',
+    "3) Call generate_image EXACTLY ONCE with aspectRatio=1:1. Even if the first result is imperfect, accept it — re-rendering wastes credits and time.",
     '   Write a visually specific hero prompt.'
   );
 
@@ -208,7 +209,7 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
   }
 
   lines.push(
-    '3) Output ONLY a JSON object with this shape, no other prose:',
+    '4) Output ONLY a JSON object with this shape, no other prose:',
     '{',
     '  "caption": "<60-180 char IG caption in en-SG, tied to the trigger>",',
     '  "captionsByLocale": {',
@@ -219,11 +220,10 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     '  },',
     '  "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5"],',
     '  "platform": "instagram",',
-    '  "whenLocal": "<ISO8601 timestamp during a Singapore prime-time IG window in the next 36 hours>",',
+    '  "whenLocal": "<ISO8601 timestamp during a Singapore prime-time IG window WITHIN 36 hours of the get_current_datetime result>",',
     '  "moodNote": "<10-word mood label distinguishing this variation>"',
     '}',
-    'IMPORTANT: today is 2026-04-26 (SGT). Schedule whenLocal AFTER today.',
-    'BUDGET: total 2 tool calls (1 search_signals + 1 generate_image), then the JSON. NEVER call generate_image more than once.'
+    'BUDGET: total 3 tool calls (1 datetime + 1 search_signals + 1 generate_image), then the JSON. NEVER call generate_image more than once.'
   );
 
   return lines.join('\n');
