@@ -13,6 +13,46 @@ export default defineSchema({
     ownerId: v.string(),
   }),
 
+  /**
+   * Uploaded asset registry. Auto-mode uploads gpt-image-2 heroes here
+   * (they come back as data URLs that SAM3 can't fetch); URL ingestion
+   * uploads detected logos + product cutouts so the hero gen has fetchable
+   * brand assets to condition on.
+   *
+   * `storageId` references Convex File Storage; `publicUrl` is the
+   * CDN-fetchable version SAM3/Modal/etc. consume.
+   */
+  asset: defineTable({
+    storageId: v.string(),
+    publicUrl: v.string(),
+    kind: v.union(
+      v.literal('hero'),
+      v.literal('logo'),
+      v.literal('product'),
+      v.literal('reference'),
+      v.literal('mask'),
+      v.literal('cutout'),
+      v.literal('other')
+    ),
+    mime: v.string(),
+    /** Optional workspace scope. */
+    wsId: v.optional(v.id('workspace')),
+    /** Optional campaign cross-link so the right rail can show
+     *  "this campaign's heroes" without a separate join table. */
+    campaignId: v.optional(v.id('campaign')),
+    /** Free-form lineage hint (e.g. "ingested from eightsleep.com /sg/").
+     *  Drives the "traceable back to the reference" UX Ernie called for. */
+    sourceUrl: v.optional(v.string()),
+    /** Original dimensions when known. */
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+    bytes: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index('by_workspace', ['wsId'])
+    .index('by_campaign', ['campaignId'])
+    .index('by_storage', ['storageId']),
+
   // ─── left rail: inputs ─────────────────────────────────────────────────
   sourceItem: defineTable({
     wsId: v.id('workspace'),
@@ -535,6 +575,9 @@ export default defineSchema({
       v.literal('failed')
     ),
     heroImageUrl: v.optional(v.string()),
+    /** Convex `asset` doc id when the hero was uploaded to storage
+     *  (data-URL → public CDN URL conversion). */
+    heroAssetId: v.optional(v.id('asset')),
     caption: v.optional(v.string()),
     /** SG-locale captions: en-SG, zh-Hans-SG, ms-SG, ta-SG. */
     captionsByLocale: v.optional(v.any()),

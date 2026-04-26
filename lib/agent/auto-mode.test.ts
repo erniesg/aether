@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
   const describeImage = vi.fn();
   const fetchUrlIngestion = vi.fn();
   const fetchPdfIngestion = vi.fn();
+  const uploadAssetToConvex = vi.fn();
   return {
     runMultiAgent,
     startCampaign,
@@ -40,6 +41,7 @@ const mocks = vi.hoisted(() => {
     describeImage,
     fetchUrlIngestion,
     fetchPdfIngestion,
+    uploadAssetToConvex,
   };
 });
 
@@ -101,6 +103,16 @@ vi.mock('@/lib/ingest/pdf', async () => {
   return {
     ...actual,
     fetchPdfIngestion: mocks.fetchPdfIngestion,
+  };
+});
+
+vi.mock('@/lib/storage/convexAsset', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/storage/convexAsset')>(
+    '@/lib/storage/convexAsset'
+  );
+  return {
+    ...actual,
+    uploadAssetToConvex: mocks.uploadAssetToConvex,
   };
 });
 
@@ -1422,6 +1434,128 @@ describe('runAutoMode · orchestration', () => {
     });
 
     expect(mocks.fetchUrlIngestion).not.toHaveBeenCalled();
+  });
+
+  it('uploads a data:image hero to Convex storage so SAM3 can fetch it', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 12,
+          // Hero comes back as a data URL — that's what gpt-image-2 does today.
+          output: {
+            result: {
+              images: [
+                {
+                  url: 'data:image/png;base64,iVBORw0KGgoAAA…',
+                },
+              ],
+            },
+          },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    mocks.uploadAssetToConvex.mockResolvedValueOnce({
+      id: 'asset_doc_42',
+      publicUrl: 'https://convex.cdn/abc/hero.png',
+      storageId: 'sid_42',
+      bytes: 1024 * 1000,
+      mime: 'image/png',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'idol drama' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    expect(mocks.uploadAssetToConvex).toHaveBeenCalledTimes(1);
+    const uploadArgs = mocks.uploadAssetToConvex.mock.calls[0][0];
+    expect(uploadArgs.kind).toBe('hero');
+    expect(uploadArgs.source).toMatch(/^data:image\/png;base64,/);
+
+    // The variation now carries the public URL + asset id, NOT the data URL.
+    const v = result.variations[0];
+    expect(v.heroImageUrl).toBe('https://convex.cdn/abc/hero.png');
+    expect(v.heroAssetId).toBe('asset_doc_42');
+  });
+
+  it('keeps the data URL when Convex upload fails (fail-soft, downstream segmentation skips)', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 12,
+          output: {
+            result: {
+              images: [{ url: 'data:image/png;base64,iVBOR…' }],
+            },
+          },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+    // Convex unreachable / not provisioned.
+    mocks.uploadAssetToConvex.mockResolvedValueOnce(null);
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    const v = result.variations[0];
+    expect(v.heroImageUrl).toBe('data:image/png;base64,iVBOR…');
+    expect(v.heroAssetId).toBeUndefined();
+    // Variation is still 'ready' — we have a hero, just not a fetchable one.
+    expect(v.status).toBe('ready');
+  });
+
+  it('does NOT upload when the hero is already a public URL', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: {
+            result: { images: [{ url: 'https://cdn.example.com/x.png' }] },
+          },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    expect(mocks.uploadAssetToConvex).not.toHaveBeenCalled();
+    expect(result.variations[0].heroImageUrl).toBe(
+      'https://cdn.example.com/x.png'
+    );
+    expect(result.variations[0].heroAssetId).toBeUndefined();
   });
 
   it('feeds parallel mood seed into the layout-aware prompt mood keywords', async () => {
