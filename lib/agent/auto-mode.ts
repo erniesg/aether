@@ -35,6 +35,7 @@ import {
   describeImage,
   descriptionToSegmentPrompts,
 } from './describe-image';
+import { fetchUrlIngestion, type UrlIngestion } from '@/lib/ingest/url';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -183,6 +184,13 @@ export interface AutoModeResult {
    * and 'review' modes, and when no workspaceId was supplied.
    */
   scheduledPostIds: string[];
+  /**
+   * When `trigger.kind === 'url'`, the structured page ingestion that fed
+   * the variation prompts and (when no explicit reference was supplied)
+   * the hero generation reference image. Helps the UI show "what we
+   * scraped" alongside what we made.
+   */
+  urlIngestion?: UrlIngestion;
 }
 
 interface VariationPromptInput {
@@ -194,6 +202,11 @@ interface VariationPromptInput {
   /** parallel mode: up-front mood seed assigned to this variation. */
   parallelMoodSeed?: string;
   referenceImage?: AutoModeReferenceImage;
+  /** When trigger.kind === 'url' and ingestion succeeded, this is the
+   *  page's title/description/body excerpt/products — woven into the
+   *  variation prompt so the agent reasons about the actual page content
+   *  instead of just the URL string. */
+  urlIngestion?: UrlIngestion;
 }
 
 /**
@@ -214,16 +227,48 @@ function buildPreHeroLayoutAwarePrompt(input: {
   trigger: AutoModeTrigger;
   parallelMoodSeed?: string;
   referenceHint?: string;
+  urlIngestion?: UrlIngestion;
 }): string {
-  const heroDescription = input.referenceHint
-    ? `${input.trigger.payload} (reference vibe: ${input.referenceHint})`
-    : input.trigger.payload;
+  // Compose the hero description from whatever signal is most specific:
+  // for URL triggers, the ingested page title + description carry the
+  // actual subject (a raw URL string is meaningless to the layout
+  // planner); for text triggers, the trigger payload is the brief.
+  const heroDescription = (() => {
+    if (input.urlIngestion) {
+      const ing = input.urlIngestion;
+      const parts: string[] = [];
+      if (ing.title) parts.push(ing.title);
+      if (ing.description) parts.push(ing.description);
+      else if (ing.bodyExcerpt) parts.push(ing.bodyExcerpt.split('\n')[0]);
+      if (ing.products[0]?.name) parts.push(`featuring ${ing.products[0].name}`);
+      const joined = parts.join(' — ');
+      if (joined) {
+        return input.referenceHint
+          ? `${joined} (reference vibe: ${input.referenceHint})`
+          : joined;
+      }
+    }
+    return input.referenceHint
+      ? `${input.trigger.payload} (reference vibe: ${input.referenceHint})`
+      : input.trigger.payload;
+  })();
+  // The creator-prompt LEAD line shown verbatim at the top of the layout-
+  // aware prompt should also reflect the ingested brief when available;
+  // a URL-as-lead is uninformative to the image generator.
+  const creatorPrompt = (() => {
+    if (input.urlIngestion?.title) {
+      return input.urlIngestion.description
+        ? `${input.urlIngestion.title} — ${input.urlIngestion.description}`
+        : input.urlIngestion.title;
+    }
+    return input.trigger.payload;
+  })();
   const component = buildAutoModeComponent({
     rewrittenPromptOrCaption: heroDescription,
     moodNote: input.parallelMoodSeed,
   });
   return buildLayoutAwarePrompt({
-    creatorPrompt: input.trigger.payload,
+    creatorPrompt,
     component,
   });
 }
@@ -233,6 +278,7 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     trigger: input.trigger,
     parallelMoodSeed: input.parallelMoodSeed,
     referenceHint: input.referenceImage?.hint,
+    urlIngestion: input.urlIngestion,
   });
 
   const lines = [
@@ -240,6 +286,45 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     '',
     `Trigger (${input.trigger.kind}): ${input.trigger.payload}`,
   ];
+
+  // URL ingestion enrichment — when the trigger was a URL we already
+  // fetched the page; weave the title / description / product info /
+  // body excerpt into the prompt so the agent has the page's actual
+  // story to work from, not just the URL string.
+  if (input.urlIngestion) {
+    const ing = input.urlIngestion;
+    lines.push('', '--- INGESTED PAGE CONTENT (auto-extracted) ---');
+    if (ing.title) lines.push(`Page title: ${ing.title}`);
+    if (ing.description) lines.push(`Description: ${ing.description}`);
+    if (ing.products.length > 0) {
+      lines.push('Products listed on the page:');
+      for (const p of ing.products.slice(0, 3)) {
+        const offer = p.offers
+          ? ` (${p.offers.currency ?? ''}${p.offers.price ?? ''})`
+          : '';
+        const brand = p.brand ? ` — ${p.brand}` : '';
+        lines.push(
+          `  · ${p.name}${brand}${offer}${p.description ? ': ' + p.description.slice(0, 160) : ''}`
+        );
+      }
+    }
+    if (ing.bodyExcerpt) {
+      lines.push(
+        'Body excerpt (h1 / h2 / lead paragraph):',
+        ing.bodyExcerpt
+          .split('\n')
+          .slice(0, 8)
+          .map((l) => `  · ${l}`)
+          .join('\n')
+      );
+    }
+    if (ing.primaryImage) {
+      lines.push(
+        `Hero image found on the page: ${ing.primaryImage.url} (this will be used as the reference for generate_image unless a different reference was supplied).`
+      );
+    }
+    lines.push('---');
+  }
 
   if (input.referenceImage) {
     const refUrl = input.referenceImage.url ?? '<inline base64>';
@@ -831,6 +916,31 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     notifyMode: req.notifyMode,
   });
 
+  // ─── URL ingestion (multimodal v1) ──────────────────────────────────────
+  // When the trigger is a URL, fetch the page once at the lap level so all
+  // variations share the same enriched context. Fail-soft: a network or
+  // parse error degrades to plain trigger-as-string. The og-image becomes
+  // the default reference image when the caller didn't supply one.
+  let urlIngestion: UrlIngestion | undefined;
+  let effectiveReferenceImage = req.referenceImage;
+  if (req.trigger.kind === 'url') {
+    try {
+      urlIngestion = await fetchUrlIngestion(req.trigger.payload);
+      if (!effectiveReferenceImage && urlIngestion.primaryImage) {
+        effectiveReferenceImage = {
+          url: urlIngestion.primaryImage.url,
+          hint: urlIngestion.title || urlIngestion.description || undefined,
+        };
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[auto-mode] url ingestion failed for ${req.trigger.payload}:`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
+
   // ─── Lap-start ping (always, regardless of notifyMode) ────────────────
   // User wants visibility on kickoff so they know the lap is in flight.
   await notifyDiscord({
@@ -839,8 +949,8 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       `▶︎ Auto Mode lap started`,
       `Trigger: ${req.trigger.kind} · ${req.trigger.payload.slice(0, 80)}`,
       `${req.variationCount} variations · ${concurrency} · ${req.notifyMode}${
-        req.referenceImage ? ' · with reference' : ''
-      }`,
+        effectiveReferenceImage ? ' · with reference' : ''
+      }${urlIngestion ? ` · ingested: "${urlIngestion.title.slice(0, 60)}"` : ''}`,
       campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
     ].join('\n'),
   });
@@ -860,12 +970,13 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           trigger: req.trigger,
           priorMoodNotes: [],
           parallelMoodSeed: moodSeed,
-          referenceImage: req.referenceImage,
+          referenceImage: effectiveReferenceImage,
+          urlIngestion,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
         maxIterationsPerVariation: req.maxIterationsPerVariation,
-        referenceImage: req.referenceImage,
+        referenceImage: effectiveReferenceImage,
       });
     });
     const settled = await Promise.allSettled(tasks);
@@ -891,12 +1002,13 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           total: req.variationCount,
           trigger: req.trigger,
           priorMoodNotes: [...priorMoodNotes],
-          referenceImage: req.referenceImage,
+          referenceImage: effectiveReferenceImage,
+          urlIngestion,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
         maxIterationsPerVariation: req.maxIterationsPerVariation,
-        referenceImage: req.referenceImage,
+        referenceImage: effectiveReferenceImage,
       });
       if (variation.moodNote) priorMoodNotes.push(variation.moodNote);
       variations.push(variation);
@@ -975,5 +1087,6 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     status: lapStatus,
     notified,
     scheduledPostIds,
+    urlIngestion,
   };
 }
