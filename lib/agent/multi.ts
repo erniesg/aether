@@ -1,11 +1,17 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
 import { resolveToolEntryRef } from '@/lib/tool/registry';
+import { listAgentTools, type AgentTool, type ToolDispatchSpec } from './agent-tools';
 
 /**
  * Multi-tool agent loop. Claude Opus 4.7 picks among aether's capabilities
- * (search_signals, cluster_references, generate_image, analyze_video) and
- * orchestrates them to answer a creator's intent.
+ * (search_signals, cluster_references, generate_image, analyze_video,
+ * get_current_datetime) and orchestrates them to answer a creator's intent.
+ *
+ * The tool catalog lives in `lib/agent/agent-tools/` — one file per tool.
+ * `listAgentTools()` is the single source of truth; multi.ts no longer
+ * hardcodes per-tool dispatch (slice #4 refactor). Adding a tool is one new
+ * file + one line in agent-tools/index.ts.
  *
  * Each tool dispatch writes to the `capabilityRun` ledger with a typed
  * ToolRef so every step the agent takes shows up in the right rail next to
@@ -18,15 +24,29 @@ import { resolveToolEntryRef } from '@/lib/tool/registry';
 
 export const CLAUDE_MODEL = 'claude-opus-4-7';
 
+type Tool = Anthropic.Messages.Tool;
+
+const REGISTERED_TOOLS: AgentTool[] = listAgentTools();
+const ALL_TOOLS: Tool[] = REGISTERED_TOOLS.map((t) => t.tool);
+const TOOL_SPECS: Record<string, ToolDispatchSpec> = Object.fromEntries(
+  REGISTERED_TOOLS.map((t) => [t.tool.name, t.dispatch])
+);
+const TOOL_SUMMARIZERS: Record<string, (output: unknown) => string> =
+  Object.fromEntries(
+    REGISTERED_TOOLS.filter((t) => typeof t.summarizeOutput === 'function').map(
+      (t) => [t.tool.name, t.summarizeOutput as (output: unknown) => string]
+    )
+  );
+
+const SYSTEM_PROMPT_TOOL_LIST = REGISTERED_TOOLS.map(
+  (t) => `- ${t.tool.name}: ${t.tool.description}`
+).join('\n');
+
 const SYSTEM_PROMPT = [
   'You are the AI co-creator inside aether, a canvas-native creative system for individual creators.',
   '',
   'You can call these tools:',
-  '- search_signals(seedText, platforms, limit): scrape Pinterest/Instagram/TikTok/XHS for visual references that match a creator brief. Returns ReferenceRecords.',
-  '- cluster_references(images, minClusterSize): embed image URLs with CLIP and cluster with HDBSCAN. Returns cluster ids per image.',
-  '- generate_image(prompt, aspectRatio): render one hero image. Use 1:1 by default; 4:5 for IG portrait; 9:16 for stories/reels; 16:9 for banners.',
-  '- analyze_video(videoUrl, task): use Gemini to summarize / transcribe / extract moments / describe shots from a video URL.',
-  '- get_current_datetime(timezone?): cheap local call. Returns the current ISO8601 timestamp + IANA timezone. Use whenever you need "now" — scheduling, freshness, "since when" — instead of guessing.',
+  SYSTEM_PROMPT_TOOL_LIST,
   '',
   'Operating principles:',
   "- You're not a chatbot. You plan, call tools, and stop when the creator's intent is satisfied.",
@@ -35,112 +55,6 @@ const SYSTEM_PROMPT = [
   '- For anything time-sensitive, call get_current_datetime first — never assume the date from training data.',
   '- Stop and emit a brief summary text once the result is in hand.',
 ].join('\n');
-
-type Tool = Anthropic.Messages.Tool;
-
-const TOOL_SEARCH_SIGNALS: Tool = {
-  name: 'search_signals',
-  description:
-    'Scrape Pinterest / Instagram / TikTok / Xiaohongshu for visual references matching a creative brief. Returns the URL and metadata of each found post.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      seedText: { type: 'string', description: 'Creator brief or keyword. e.g. "streetwear lookbook" or "minimal kitchenware".' },
-      platforms: {
-        type: 'array',
-        items: { type: 'string', enum: ['instagram', 'pinterest', 'tiktok', 'xiaohongshu'] },
-        description: 'Platforms to scrape. Default: ["instagram"]',
-      },
-      limit: { type: 'number', description: 'Per-platform record cap. Default 12.' },
-    },
-    required: ['seedText'],
-  } as unknown as Tool['input_schema'],
-};
-
-const TOOL_CLUSTER_REFERENCES: Tool = {
-  name: 'cluster_references',
-  description:
-    'Embed a batch of image URLs with CLIP ViT-B/32 and cluster with HDBSCAN + UMAP. Use after search_signals to group references into visual themes.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      images: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            url: { type: 'string' },
-          },
-          required: ['id', 'url'],
-        },
-      },
-      minClusterSize: { type: 'number', description: 'HDBSCAN tuning. Smaller finds tighter clusters. Default 3.' },
-    },
-    required: ['images'],
-  } as unknown as Tool['input_schema'],
-};
-
-const TOOL_GENERATE_IMAGE: Tool = {
-  name: 'generate_image',
-  description:
-    'Render one hero image. The provider (OpenAI / Gemini / Replicate / Volcengine Seedream) is selected at runtime from env.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      prompt: { type: 'string', description: 'Visually specific prompt. Subject, composition, light, colour, style. Under 220 chars.' },
-      aspectRatio: {
-        type: 'string',
-        enum: ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'],
-        description: '1:1 default. IG portrait 4:5. Story/reel 9:16. Banner 16:9.',
-      },
-    },
-    required: ['prompt', 'aspectRatio'],
-  } as unknown as Tool['input_schema'],
-};
-
-const TOOL_ANALYZE_VIDEO: Tool = {
-  name: 'analyze_video',
-  description:
-    'Send a video URL to Gemini for understanding. Use task=summarize for a quick brief, transcribe for spoken dialogue, extract-moments for visual peaks, describe-shots for camera work.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      videoUrl: { type: 'string', description: 'Direct URL to the video file (mp4, mov, webm, etc.).' },
-      task: {
-        type: 'string',
-        enum: ['summarize', 'transcribe', 'extract-moments', 'describe-shots', 'free-form'],
-        description: 'Default summarize.',
-      },
-      prompt: { type: 'string', description: 'Optional override prompt; only used when task=free-form.' },
-    },
-    required: ['videoUrl'],
-  } as unknown as Tool['input_schema'],
-};
-
-const TOOL_GET_CURRENT_DATETIME: Tool = {
-  name: 'get_current_datetime',
-  description:
-    'Return the current datetime in ISO8601 along with the IANA timezone (default Asia/Singapore). Use this when scheduling, freshness checks, or any reasoning that depends on "now". Cheap and synchronous — call freely.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      timezone: {
-        type: 'string',
-        description: 'Optional IANA timezone (e.g. "Asia/Singapore", "Asia/Tokyo"). Defaults to Asia/Singapore.',
-      },
-    },
-    required: [],
-  } as unknown as Tool['input_schema'],
-};
-
-const ALL_TOOLS: Tool[] = [
-  TOOL_SEARCH_SIGNALS,
-  TOOL_CLUSTER_REFERENCES,
-  TOOL_GENERATE_IMAGE,
-  TOOL_ANALYZE_VIDEO,
-  TOOL_GET_CURRENT_DATETIME,
-];
 
 export interface MultiAgentParams {
   prompt: string;
@@ -176,137 +90,6 @@ export interface MultiAgentResult {
   iterations: number;
   stopReason: string | null;
 }
-
-interface ToolDispatchSpec {
-  /** Local id used by the registry + provenance. */
-  registryId: string;
-  /** HTTP route on this same Next app. Mutually exclusive with `local`. */
-  path?: string;
-  /** Pure-local handler — no network round-trip. Returns the JSON-shaped
-   *  output the agent loop expects. Used for cheap synchronous tools
-   *  like get_current_datetime. */
-  local?: (input: unknown) => Promise<unknown> | unknown;
-  /** Best-known provider stub at start time. The route's response usually
-   *  patches this with the actual adapter on finish. */
-  provider: string;
-  /** Best-known model stub at start time. */
-  model: string;
-  /** Map the agent tool name → /api request body. Required for HTTP tools. */
-  toBody?: (input: unknown) => unknown;
-  /** Pull a refined provider/model from the API response, when it carries
-   *  enough information to attribute the work. */
-  pickProvider?: (output: unknown) => { provider?: string; model?: string };
-}
-
-const TOOL_SPECS: Record<string, ToolDispatchSpec> = {
-  search_signals: {
-    registryId: 'signals-search',
-    path: '/api/research',
-    provider: 'multi',
-    model: 'signals-research',
-    toBody: (input) => {
-      const i = input as { seedText: string; platforms?: string[]; limit?: number };
-      return {
-        seedText: i.seedText,
-        platforms: i.platforms ?? ['instagram'],
-        limit: i.limit ?? 12,
-      };
-    },
-  },
-  cluster_references: {
-    registryId: 'clusters-run',
-    path: '/api/clusters/run',
-    provider: 'modal-clip',
-    model: 'clip-vit-b32',
-    toBody: (input) => input,
-    pickProvider: (output) => {
-      const o = output as Record<string, unknown> | undefined;
-      const provider = typeof o?.provider === 'string' ? (o.provider as string) : undefined;
-      return provider ? { provider } : {};
-    },
-  },
-  generate_image: {
-    registryId: 'image-gen',
-    path: '/api/generate',
-    provider: 'auto',
-    model: 'auto',
-    toBody: (input) => {
-      const i = input as { prompt: string; aspectRatio: string };
-      return { prompt: i.prompt, aspectRatioOverride: i.aspectRatio };
-    },
-    pickProvider: (output) => {
-      const o = output as Record<string, unknown> | undefined;
-      const provider = typeof o?.provider === 'string' ? (o.provider as string) : undefined;
-      const plan = (o?.plan as Record<string, unknown> | undefined) ?? undefined;
-      const model = typeof plan?.model === 'string' ? (plan.model as string) : undefined;
-      return { ...(provider ? { provider } : {}), ...(model ? { model } : {}) };
-    },
-  },
-  analyze_video: {
-    registryId: 'video-understand',
-    path: '/api/video-understand',
-    provider: 'gemini',
-    model: 'gemini-2.5-flash',
-    toBody: (input) => input,
-    pickProvider: (output) => {
-      const o = output as Record<string, unknown> | undefined;
-      const provider = typeof o?.provider === 'string' ? (o.provider as string) : undefined;
-      const model = typeof o?.modelId === 'string' ? (o.modelId as string) : undefined;
-      return { ...(provider ? { provider } : {}), ...(model ? { model } : {}) };
-    },
-  },
-  get_current_datetime: {
-    registryId: 'datetime',
-    provider: 'local',
-    model: 'system-clock',
-    local: (input) => {
-      const i = (input ?? {}) as { timezone?: string };
-      const tz = typeof i.timezone === 'string' && i.timezone.length > 0
-        ? i.timezone
-        : 'Asia/Singapore';
-      const now = new Date();
-      // Format the local-time string in the requested timezone using
-      // Intl.DateTimeFormat. Falls back to 'Asia/Singapore' on bad zone.
-      let localFormatted: string;
-      let resolvedTz: string;
-      try {
-        const fmt = new Intl.DateTimeFormat('en-CA', {
-          timeZone: tz,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        });
-        localFormatted = fmt.format(now).replace(', ', 'T');
-        resolvedTz = tz;
-      } catch {
-        const fmt = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Asia/Singapore',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        });
-        localFormatted = fmt.format(now).replace(', ', 'T');
-        resolvedTz = 'Asia/Singapore';
-      }
-      return {
-        ok: true,
-        provider: 'local',
-        nowUtc: now.toISOString(),
-        nowLocal: localFormatted,
-        timezone: resolvedTz,
-        epochMs: now.getTime(),
-      };
-    },
-  },
-};
 
 function genClientRunId(name: string): string {
   return `agent_${name}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -574,57 +357,16 @@ async function readGenerateSse(
   };
 }
 
+/**
+ * Compact a tool output before sending it back to Claude — large payloads
+ * (image bytes, embedding vectors) eat tokens fast. Each tool's
+ * `summarizeOutput` (registered in lib/agent/agent-tools/) drops the heavy
+ * parts. Tools without one fall through to JSON.stringify.
+ */
 function summarizeToolOutput(name: string, output: unknown): string {
-  // Compact tool output before sending back to Claude — large payloads (image
-  // bytes, big embedding vectors) eat tokens fast. Keep enough so Claude can
-  // reason; drop the heavy parts.
-  if (!output || typeof output !== 'object') return JSON.stringify(output ?? null);
-  const o = output as Record<string, unknown>;
-  if (name === 'search_signals') {
-    const records = (o.records as Array<Record<string, unknown>>) ?? [];
-    return JSON.stringify({
-      ok: o.ok,
-      signalCount: o.signalCount,
-      records: records.slice(0, 8).map((r) => ({
-        id: r.id,
-        title: r.title,
-        attribution: r.attribution,
-        fullUrl: r.fullUrl,
-        tags: r.tags,
-      })),
-    });
-  }
-  if (name === 'cluster_references') {
-    const items = (o.items as Array<Record<string, unknown>>) ?? [];
-    return JSON.stringify({
-      ok: o.ok,
-      nClusters: o.nClusters,
-      nNoise: o.nNoise,
-      provider: o.provider,
-      items: items.map((it) => ({ id: it.id, clusterId: it.clusterId, umap: it.umap })),
-    });
-  }
-  if (name === 'generate_image') {
-    return JSON.stringify({
-      ok: o.ok,
-      provider: o.provider,
-      plan: o.plan,
-      // strip the b64/data URL bytes
-      result: o.result ? { width: (o.result as Record<string, unknown>).width, height: (o.result as Record<string, unknown>).height } : null,
-    });
-  }
-  if (name === 'analyze_video') {
-    return JSON.stringify({ ok: o.ok, provider: o.provider, modelId: o.modelId, text: o.text, usageMs: o.usageMs });
-  }
-  if (name === 'get_current_datetime') {
-    return JSON.stringify({
-      ok: o.ok,
-      nowUtc: o.nowUtc,
-      nowLocal: o.nowLocal,
-      timezone: o.timezone,
-    });
-  }
-  return JSON.stringify(output);
+  const summarizer = TOOL_SUMMARIZERS[name];
+  if (summarizer) return summarizer(output);
+  return JSON.stringify(output ?? null);
 }
 
 export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgentResult> {
