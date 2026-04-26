@@ -107,12 +107,27 @@ function isLatinWord(seg: string): boolean {
   return /^[A-Za-z0-9.,'"’\-–—:;()/]+$/.test(seg);
 }
 
+// ASCII / shared trailing punctuation that must never start a wrapped line.
+// Matches the cjk-wrap.ts TRAILING_PUNCT_CP behaviour, but for the ASCII
+// punct that the Tamil / Bahasa / English Intl.Segmenter emits as standalone
+// word tokens. Without this, ". " between sentences ends up alone at the
+// start of a line ("\n. ஒரே" instead of "வெதுவெதுப்பு.\nஒரே").
+const ASCII_TRAILING_PUNCT = new Set([
+  '.', ',', ';', ':', '!', '?', ')', ']', '}', '"', "'", '%', '”', '’',
+]);
+
+function isAsciiTrailingPunct(seg: string): boolean {
+  return seg.length === 1 && ASCII_TRAILING_PUNCT.has(seg);
+}
+
 function tokenWidth(seg: string): number {
   if (isWhitespace(seg)) return seg.length * 0.3;
   if (isLatinWord(seg)) return seg.length * 0.55;
   // CJK / Tamil / mixed — assume full em width per char.
   return [...seg].length * 1.0;
 }
+
+import { wrapZhHans } from './cjk-wrap';
 
 function wrapByLocale(
   text: string,
@@ -121,9 +136,16 @@ function wrapByLocale(
 ): string[] {
   if (!text || widthCols <= 0) return text ? [text] : [];
 
-  // Intl.Segmenter is available in Node 18+ / all modern browsers.
-  // Word granularity preserves compound words ("智能控温" stays one
-  // segment in Chinese; "லிங்க" stays one in Tamil).
+  // zh-Hans: Intl.Segmenter falls back to grapheme-cluster boundaries in V8
+  // and breaks compound words mid-phrase (e.g. "无忧试睡" → "无" / "忧试睡").
+  // Use the FMM-based wrapper which preserves compounds and prefers Chinese
+  // punctuation as line-break points.
+  if (locale === 'zh-Hans-SG') {
+    return wrapZhHans(text, widthCols);
+  }
+
+  // Other locales: Intl.Segmenter word granularity is sufficient (Tamil
+  // grapheme clusters stay intact, Latin/Bahasa words break on whitespace).
   const segmenter = new Intl.Segmenter(localeForWrap(locale), {
     granularity: 'word',
   });
@@ -146,9 +168,19 @@ function wrapByLocale(
     }
     const w = tokenWidth(tok);
     if (currentWidth + w > widthCols && current.length > 0) {
-      lines.push(current.trimEnd());
-      current = tok;
-      currentWidth = w;
+      // Trailing punctuation never starts a line — append it to the current
+      // line (small overflow tolerated) and flush. Mirrors the CJK
+      // punctuation rule in cjk-wrap.ts.
+      if (isAsciiTrailingPunct(tok)) {
+        current += tok;
+        lines.push(current.trimEnd());
+        current = '';
+        currentWidth = 0;
+      } else {
+        lines.push(current.trimEnd());
+        current = tok;
+        currentWidth = w;
+      }
     } else {
       current += tok;
       currentWidth += w;
@@ -232,33 +264,50 @@ export function buildFormatSvg(input: BuildSvgInput): string {
 }
 
 /**
- * Crop the source hero to the target format's aspect ratio (centered) then
- * resize to format dimensions. Returns the cropped PNG bytes.
+ * Crop the source hero to the target format's aspect ratio then resize.
+ * When `cropRect` is supplied (normalised [0,1] hero coords from
+ * cropHeroToFormats / mask-aware crop), use those bounds so face / product
+ * / logo bboxes survive every aspect. Falls back to center-crop when no
+ * rect is supplied (legacy callers / non-auto-mode use).
  */
 export async function cropAndResize(
   heroBytes: Buffer | Uint8Array,
-  format: ComposeFormat
+  format: ComposeFormat,
+  cropRect?: {
+    topLeft: { x: number; y: number };
+    bottomRight: { x: number; y: number };
+  }
 ): Promise<Buffer> {
   const meta = await sharp(heroBytes).metadata();
   const srcW = meta.width ?? 1024;
   const srcH = meta.height ?? 1024;
-  const targetRatio = format.w / format.h;
-  const srcRatio = srcW / srcH;
 
   let cropW: number;
   let cropH: number;
   let cropX: number;
   let cropY: number;
-  if (srcRatio > targetRatio) {
-    cropH = srcH;
-    cropW = Math.round(srcH * targetRatio);
-    cropX = Math.round((srcW - cropW) / 2);
-    cropY = 0;
+  if (cropRect) {
+    cropX = Math.round(cropRect.topLeft.x * srcW);
+    cropY = Math.round(cropRect.topLeft.y * srcH);
+    cropW = Math.max(1, Math.round((cropRect.bottomRight.x - cropRect.topLeft.x) * srcW));
+    cropH = Math.max(1, Math.round((cropRect.bottomRight.y - cropRect.topLeft.y) * srcH));
+    // Guard against rounding overflow.
+    cropW = Math.min(cropW, srcW - cropX);
+    cropH = Math.min(cropH, srcH - cropY);
   } else {
-    cropW = srcW;
-    cropH = Math.round(srcW / targetRatio);
-    cropX = 0;
-    cropY = Math.round((srcH - cropH) / 2);
+    const targetRatio = format.w / format.h;
+    const srcRatio = srcW / srcH;
+    if (srcRatio > targetRatio) {
+      cropH = srcH;
+      cropW = Math.round(srcH * targetRatio);
+      cropX = Math.round((srcW - cropW) / 2);
+      cropY = 0;
+    } else {
+      cropW = srcW;
+      cropH = Math.round(srcW / targetRatio);
+      cropX = 0;
+      cropY = Math.round((srcH - cropH) / 2);
+    }
   }
 
   return sharp(heroBytes)
@@ -310,6 +359,19 @@ export interface ComposeVariantSetInput {
   nativePerFormatBytes?: Partial<
     Record<ComposeFormat['id'], Buffer | Uint8Array>
   >;
+  /**
+   * Mask-aware crop rectangles per format (normalised [0,1] hero coords,
+   * from cropHeroToFormats). When supplied for a format, `cropAndResize`
+   * uses these coords instead of center-crop, keeping face / product /
+   * logo bboxes inside the cropped frame. Replaces the brittle "always
+   * center-crop" path that lost subjects on 9:16.
+   */
+  perFormatCrops?: Partial<
+    Record<
+      ComposeFormat['id'],
+      { topLeft: { x: number; y: number }; bottomRight: { x: number; y: number } }
+    >
+  >;
   /** Output of applyTextOverlay — one entry per text-bearing zone. */
   textOverlays?: ProposedTextOverlay[];
   /**
@@ -326,15 +388,25 @@ export interface ComposeVariantSetOutput {
   /** key: `${format.id}-${locale}` → composed PNG bytes. */
   tiles: Map<string, Buffer>;
   /** 4×4 atlas — 4 formats (rows) × 4 locales (cols). Each cell is a
-   *  label band stacked above the cropped/rendered image so the label
-   *  never occludes the headline / caption inside the frame. */
+   *  label band stacked above the rendered image so the label never
+   *  occludes the headline / caption inside the frame. Row image heights
+   *  match the format aspect (9x16 rows are tall, 16x9 rows are short)
+   *  so the native render fills the cell without cropping or letterbox. */
   atlas: Buffer;
-  /** Image-area side length per cell — square. */
+  /** Column width — uniform across all format rows. */
   atlasTileSize: number;
-  /** Total cell width (= atlasTileSize, image is centred horizontally). */
+  /** Column width (= atlasTileSize). */
   atlasCellWidth: number;
-  /** Total cell height (= atlasTileSize + label band height). */
+  /** 1x1 row's cell height. Kept for backwards-compat — callers that
+   *  need the full atlas dimensions should read `atlasWidth` /
+   *  `atlasHeight`, or the per-row map in `atlasRowHeights`. */
   atlasCellHeight: number;
+  /** Total atlas pixel width = cols × atlasCellWidth. */
+  atlasWidth: number;
+  /** Total atlas pixel height = sum of all row heights. */
+  atlasHeight: number;
+  /** Per-format row total cell height (image + label band). */
+  atlasRowHeights: Record<ComposeFormat['id'], number>;
 }
 
 /**
@@ -357,7 +429,8 @@ export async function composeVariantSet(
           .toBuffer();
         return [format.id, { format, bytes }] as const;
       }
-      const bytes = await cropAndResize(input.heroBytes, format);
+      const cropRect = input.perFormatCrops?.[format.id];
+      const bytes = await cropAndResize(input.heroBytes, format, cropRect);
       return [format.id, { format, bytes }] as const;
     })
   );
@@ -396,52 +469,70 @@ export async function composeVariantSet(
   );
   const tiles = new Map<string, Buffer>(tileEntries);
 
-  // 3) Atlas: 4 formats (rows) × 4 locales (cols). Each cell is laid out
-  //    as a label band on TOP and the image below (label OUTSIDE the
-  //    cropped frame so it never occludes the rendered headline).
-  const tileSize = 380;
+  // 3) Atlas: 4 formats (rows) × 4 locales (cols). Column width is uniform;
+  //    row image height is derived from the format aspect so 9x16 rows are
+  //    tall, 16x9 rows are short. Native renders fill the cell at their
+  //    real aspect — no square-crop, no letterbox bars. This replaces the
+  //    earlier "tileSize × tileSize" layout that hid the actual aspect of
+  //    every non-square format inside a square cell.
+  const colW = 380;
   const labelH = 56;
-  const cellW = tileSize;
-  const cellH = tileSize + labelH;
   const cellBg = { r: 16, g: 16, b: 16 };
+  // Image height per format row = colW / aspect, so the cell fills with the
+  // hero at its native aspect.
+  const rowImageH: Record<ComposeFormat['id'], number> = {
+    '1x1': colW,
+    '4x5': Math.round((colW * 5) / 4), // 380 → 475
+    '9x16': Math.round((colW * 16) / 9), // 380 → 676
+    '16x9': Math.round((colW * 9) / 16), // 380 → 214
+  };
+  const rowCellH: Record<ComposeFormat['id'], number> = {
+    '1x1': rowImageH['1x1'] + labelH,
+    '4x5': rowImageH['4x5'] + labelH,
+    '9x16': rowImageH['9x16'] + labelH,
+    '16x9': rowImageH['16x9'] + labelH,
+  };
+  // Cumulative Y offsets per row.
+  const rowYOffsets: Record<ComposeFormat['id'], number> = {
+    '1x1': 0,
+    '4x5': rowCellH['1x1'],
+    '9x16': rowCellH['1x1'] + rowCellH['4x5'],
+    '16x9': rowCellH['1x1'] + rowCellH['4x5'] + rowCellH['9x16'],
+  };
+  const atlasW = COMPOSE_LOCALES.length * colW;
+  const atlasH = COMPOSE_FORMATS.reduce((sum, f) => sum + rowCellH[f.id], 0);
   const atlasTiles = await Promise.all(
     COMPOSE_FORMATS.flatMap((format) =>
       COMPOSE_LOCALES.map(async (locale) => {
         const key = `${format.id}-${locale}`;
         const png = tiles.get(key);
-        const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${labelH}">
-  <rect x="0" y="0" width="${cellW}" height="${labelH}" fill="black"/>
-  <text x="${cellW / 2}" y="${Math.round(labelH * 0.68)}" font-family="Menlo,Consolas,monospace" font-size="22" font-weight="700"
+        const cellH = rowCellH[format.id];
+        const imgH = rowImageH[format.id];
+        const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${labelH}">
+  <rect x="0" y="0" width="${colW}" height="${labelH}" fill="black"/>
+  <text x="${colW / 2}" y="${Math.round(labelH * 0.68)}" font-family="Menlo,Consolas,monospace" font-size="22" font-weight="700"
         fill="white" text-anchor="middle">${format.id} · ${locale}</text>
 </svg>`;
         if (!png || png.length === 0) {
           return sharp({
-            create: { width: cellW, height: cellH, channels: 3, background: cellBg },
+            create: { width: colW, height: cellH, channels: 3, background: cellBg },
           })
             .composite([{ input: Buffer.from(labelSvg), top: 0, left: 0 }])
             .png()
             .toBuffer();
         }
-        // Image fitted into (tileSize × tileSize) below the label band.
+        // Resize to (colW × imgH). Source tile is already at format dims
+        // (1080×1350 for 4x5, 1080×1920 for 9x16, etc.) so this preserves
+        // aspect — `fit: 'cover'` is a guard for tiles from cropAndResize
+        // that might be slightly off, and centres any minor mismatch.
         const fitted = await sharp(png)
-          .resize({
-            width: tileSize,
-            height: tileSize,
-            fit: 'inside',
-            background: cellBg,
-          })
+          .resize({ width: colW, height: imgH, fit: 'cover', position: 'center' })
           .toBuffer();
-        const fittedMeta = await sharp(fitted).metadata();
-        // Centre-pad inside the image area.
-        const fitW = fittedMeta.width ?? tileSize;
-        const fitH = fittedMeta.height ?? tileSize;
-        const left = Math.round((cellW - fitW) / 2);
-        const top = labelH + Math.round((tileSize - fitH) / 2);
         return sharp({
-          create: { width: cellW, height: cellH, channels: 3, background: cellBg },
+          create: { width: colW, height: cellH, channels: 3, background: cellBg },
         })
           .composite([
-            { input: fitted, top, left },
+            { input: fitted, top: labelH, left: 0 },
             { input: Buffer.from(labelSvg), top: 0, left: 0 },
           ])
           .png()
@@ -451,21 +542,20 @@ export async function composeVariantSet(
   );
 
   const cols = COMPOSE_LOCALES.length;
-  const rows = COMPOSE_FORMATS.length;
   const composites: Array<{ input: Buffer; top: number; left: number }> = [];
-  for (let r = 0; r < rows; r += 1) {
+  COMPOSE_FORMATS.forEach((format, r) => {
     for (let c = 0; c < cols; c += 1) {
       composites.push({
         input: atlasTiles[r * cols + c],
-        top: r * cellH,
-        left: c * cellW,
+        top: rowYOffsets[format.id],
+        left: c * colW,
       });
     }
-  }
+  });
   const atlas = await sharp({
     create: {
-      width: cols * cellW,
-      height: rows * cellH,
+      width: atlasW,
+      height: atlasH,
       channels: 3,
       background: cellBg,
     },
@@ -477,8 +567,14 @@ export async function composeVariantSet(
   return {
     tiles,
     atlas,
-    atlasTileSize: tileSize,
-    atlasCellWidth: cellW,
-    atlasCellHeight: cellH,
+    atlasTileSize: colW,
+    atlasCellWidth: colW,
+    // Backwards-compat: the 1x1 row's cell height. Callers that need the
+    // total atlas dimensions should read sharp.metadata(atlas) directly,
+    // since rows have variable heights now.
+    atlasCellHeight: rowCellH['1x1'],
+    atlasWidth: atlasW,
+    atlasHeight: atlasH,
+    atlasRowHeights: rowCellH,
   };
 }
