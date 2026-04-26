@@ -1,9 +1,12 @@
 /**
  * Component tests for the render-mode chip in PromptComposer.
  *
- * The chip reads "render: responsive ▾" (default) and toggles to
- * "render: variants" when clicked. The choice flows through onSubmit
- * as renderMode: 'crop' | 'fanout'.
+ * The chip reads "crop" (default, one render cropped to each format) and
+ * toggles to "variants" (separate render per format) when clicked.
+ * The choice flows through onSubmit as renderMode: 'crop' | 'fanout'.
+ *
+ * C2 fix: "responsive" terminology removed — ambiguous with CSS breakpoints.
+ * Both modes now use unambiguous geometric terms: "crop" vs "variants".
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -13,22 +16,22 @@ import { PromptComposer } from '@/components/composer/PromptComposer';
 afterEach(cleanup);
 
 describe('PromptComposer · render-mode chip', () => {
-  it('shows "render: responsive" chip by default', () => {
+  it('shows "crop" chip by default (one hero render, geometric crop to formats)', () => {
     render(<PromptComposer formatCount={4} />);
 
     const chip = screen.getByRole('button', { name: /render mode/i });
-    expect(chip).toHaveTextContent(/responsive/i);
+    expect(chip).toHaveTextContent(/^crop$/i);
   });
 
-  it('toggles to "variants" when clicked and back to "responsive" on second click', async () => {
+  it('toggles to "variants" when clicked and back to "crop" on second click', async () => {
     render(<PromptComposer formatCount={4} />);
 
     const chip = screen.getByRole('button', { name: /render mode/i });
     await userEvent.click(chip);
-    expect(chip).toHaveTextContent(/variants/i);
+    expect(chip).toHaveTextContent(/^variants$/i);
 
     await userEvent.click(chip);
-    expect(chip).toHaveTextContent(/responsive/i);
+    expect(chip).toHaveTextContent(/^crop$/i);
   });
 
   it('onSubmit receives renderMode="crop" when chip is "responsive"', async () => {

@@ -68,6 +68,22 @@ export interface AutoModeVariationView {
   finishedAt?: number;
 }
 
+/**
+ * A named step in the BE pipeline for one Auto-Mode lap.
+ * Steps are inferred from variation status transitions + agentRunIds in the
+ * UI layer (no Convex schema change needed). Displayed as a mini timeline
+ * above the variation cards so creators can see exactly where the lap is.
+ */
+export interface LapStepView {
+  /** Machine-readable step identifier. */
+  name: 'url-ingest' | 'vision-describe' | 'sam3-segment' | 'generate' | 'compose-atlas' | 'publish';
+  /** Human-readable label shown in the timeline chip. */
+  label: string;
+  status: 'pending' | 'running' | 'done' | 'failed';
+  startedAt?: number;
+  finishedAt?: number;
+}
+
 export interface AutoModeCampaignView {
   id: string;
   triggerKind: 'url' | 'file' | 'text';
@@ -78,6 +94,8 @@ export interface AutoModeCampaignView {
   startedAt: number;
   finishedAt?: number;
   error?: string;
+  /** Inferred step timeline for the lap (C4). Populated by useCampaignLap. */
+  lapSteps?: LapStepView[];
 }
 
 export interface AutoModePanelProps {
@@ -115,6 +133,44 @@ function formatRelative(t: number | undefined): string {
   if (delta < 60_000) return `${Math.round(delta / 1000)}s ago`;
   if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m ago`;
   return new Date(t).toISOString().slice(0, 16).replace('T', ' ');
+}
+
+const STEP_STATUS_TONE: Record<LapStepView['status'], 'neutral' | 'info' | 'ok' | 'error'> = {
+  pending: 'neutral',
+  running: 'info',
+  done: 'ok',
+  failed: 'error',
+};
+
+function LapStepTimeline({ steps }: { steps: LapStepView[] }) {
+  if (steps.length === 0) return null;
+  return (
+    <div
+      data-testid="lap-step-timeline"
+      className="mb-3 flex flex-col gap-1"
+      aria-label="lap step timeline"
+    >
+      {steps.map((step) => (
+        <div
+          key={step.name}
+          data-testid={`lap-step-${step.name}`}
+          data-step-status={step.status}
+          className="flex items-center gap-1.5"
+        >
+          <Chip tone={STEP_STATUS_TONE[step.status]} size="sm" variant="ghost">
+            {step.label}
+          </Chip>
+          {step.status === 'running' ? (
+            <span className="font-mono text-[9px] text-ink-muted animate-pulse">···</span>
+          ) : step.status === 'done' && step.finishedAt && step.startedAt ? (
+            <span className="font-mono text-[9px] text-ink-faint">
+              {Math.round((step.finishedAt - step.startedAt) / 100) / 10}s
+            </span>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function AutoModePanel({ campaign, variations, onApprove, onReject }: AutoModePanelProps) {
@@ -156,6 +212,11 @@ export function AutoModePanel({ campaign, variations, onApprove, onReject }: Aut
           {okCount}/{campaign.variationCount} ready · {formatRelative(campaign.startedAt)}
         </div>
       </div>
+
+      {/* C4: Step timeline — shows named BE steps with status chips */}
+      {campaign.lapSteps && campaign.lapSteps.length > 0 ? (
+        <LapStepTimeline steps={campaign.lapSteps} />
+      ) : null}
 
       <div className="flex flex-col gap-2">
         {sorted.map((v) => (
