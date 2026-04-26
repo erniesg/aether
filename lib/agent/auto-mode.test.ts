@@ -161,6 +161,37 @@ describe('parseAgentEnvelope', () => {
     );
     expect(out.hashtags).toEqual(['#ok', '#fine']);
   });
+
+  // Regression: IKEA lap shipped `<no caption>` because the agent emitted
+  // `captionsByLocale.en-SG` but omitted top-level `caption`. The lap-end
+  // ping read ONLY `caption`, so the en-SG translation was effectively
+  // invisible. parseAgentEnvelope must hoist en-SG → caption when caption
+  // is absent so all downstream consumers (Discord text + embed) see it.
+  it('falls back to captionsByLocale.en-SG when top-level caption is absent', () => {
+    const out = parseAgentEnvelope(
+      JSON.stringify({
+        captionsByLocale: {
+          'en-SG': 'IKEA SG sustainable furniture, made affordable',
+          'zh-Hans-SG': '宜家新加坡可持续家具，价格实惠',
+        },
+        moodNote: 'warm bright',
+      })
+    );
+    expect(out.caption).toBe('IKEA SG sustainable furniture, made affordable');
+    expect(out.captionsByLocale?.['en-SG']).toBe(
+      'IKEA SG sustainable furniture, made affordable'
+    );
+  });
+
+  it('keeps top-level caption when both are present (does NOT overwrite)', () => {
+    const out = parseAgentEnvelope(
+      JSON.stringify({
+        caption: 'top-level wins',
+        captionsByLocale: { 'en-SG': 'do not use this' },
+      })
+    );
+    expect(out.caption).toBe('top-level wins');
+  });
 });
 
 describe('pickHeroImageUrl', () => {
@@ -372,6 +403,68 @@ describe('runAutoMode · orchestration', () => {
       (c: any[]) => c[0].tag === 'lap-end-review'
     );
     expect(endCall[0].content).toContain('AWAITING APPROVAL');
+  });
+
+  it('caption appears in lap-end embed and text body even when only captionsByLocale.en-SG is present', async () => {
+    // Regression for the IKEA `<no caption>` Discord ping. The agent emitted
+    // captionsByLocale but no top-level `caption`; the lap-end body printed
+    // `<no caption>` because it read `v.caption` directly. After the fix:
+    //   - parseAgentEnvelope hoists en-SG → caption
+    //   - both the variation-line (text) and the embed surface the caption
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        // No top-level `caption` — only captionsByLocale.
+        captionsByLocale: {
+          'en-SG': 'IKEA SG sustainable furniture, made affordable',
+          'zh-Hans-SG': '宜家新加坡可持续家具，价格实惠',
+          'ms-SG': 'Perabot mampan IKEA SG, harga berpatutan',
+          'ta-SG': 'IKEA SG நீடித்த தளபாடங்கள், மலிவான விலையில்',
+        },
+        platform: 'instagram',
+        whenLocal: '2026-04-27T19:00+08:00',
+        moodNote: 'warm-bright',
+      }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 12,
+          output: { result: { images: [{ url: 'https://cdn/ikea.png' }] } },
+          clientRunId: 'agent_image-gen_1',
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_x',
+      trigger: { kind: 'text', payload: 'IKEA' },
+      variationCount: 1,
+      notifyMode: 'notify',
+    });
+
+    expect(result.variations[0].caption).toBe(
+      'IKEA SG sustainable furniture, made affordable'
+    );
+
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-notify'
+    );
+    expect(endCall).toBeDefined();
+    // Text body MUST NOT show the placeholder.
+    expect(endCall[0].content).not.toContain('<no caption>');
+    // Text body MUST contain (a prefix of) the en-SG caption.
+    expect(endCall[0].content).toContain('IKEA SG sustainable furniture');
+    // Embed array MUST carry the caption as title and description.
+    expect(endCall[0].embeds).toBeDefined();
+    expect(endCall[0].embeds[0].title).toContain('IKEA SG sustainable');
+    expect(endCall[0].embeds[0].description).toContain(
+      'IKEA SG sustainable furniture'
+    );
   });
 
   it('uses POSTS SCHEDULED copy on auto-post lap-end ping', async () => {
