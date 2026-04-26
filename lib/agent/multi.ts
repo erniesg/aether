@@ -1,16 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
+import { resolveToolEntryRef } from '@/lib/tool/registry';
 
 /**
  * Multi-tool agent loop. Claude Opus 4.7 picks among aether's capabilities
  * (search_signals, cluster_references, generate_image, analyze_video) and
  * orchestrates them to answer a creator's intent.
  *
- * This is the "first-class agentic surface" wiring on top of the existing
- * single-tool image-gen planner (lib/agent/generate.ts) and the per-flow
- * agents (text-apply, sketch-to-component, edit-component). Each tool here
- * dispatches to the corresponding /api route in this same Next.js app, so
- * the surface stays HTTP-uniform — an MCP server later can wrap the same
- * tool list without refactoring.
+ * Each tool dispatch writes to the `capabilityRun` ledger with a typed
+ * ToolRef so every step the agent takes shows up in the right rail next to
+ * the hand-driven runs. Logging is fail-soft — a Convex outage downgrades
+ * the ledger to best-effort and the agent loop keeps running.
  *
  * The loop is intentionally short (max 6 iterations). Cost-aware: forced
  * tool-use is OFF — Claude can answer directly when no tool is needed.
@@ -127,6 +127,9 @@ export interface MultiAgentParams {
   prompt: string;
   baseUrl: string;
   maxIterations?: number;
+  /** Convex workspace document id. When supplied, every tool step is scoped
+   *  to that workspace in the runs ledger so the right rail shows them. */
+  wsId?: string;
 }
 
 export interface MultiAgentToolStep {
@@ -137,6 +140,9 @@ export interface MultiAgentToolStep {
   ok: boolean;
   errorMessage?: string;
   ms: number;
+  /** clientRunId of the ledger row written for this step (when Convex was
+   *  reachable). Undefined when the recorder was a no-op. */
+  clientRunId?: string;
 }
 
 export interface MultiAgentResult {
@@ -146,52 +152,141 @@ export interface MultiAgentResult {
   stopReason: string | null;
 }
 
+interface ToolDispatchSpec {
+  /** Local id used by the registry + provenance. */
+  registryId: string;
+  /** HTTP route on this same Next app. */
+  path: string;
+  /** Best-known provider stub at start time. The route's response usually
+   *  patches this with the actual adapter on finish. */
+  provider: string;
+  /** Best-known model stub at start time. */
+  model: string;
+  /** Map the agent tool name → /api request body. */
+  toBody: (input: unknown) => unknown;
+  /** Pull a refined provider/model from the API response, when it carries
+   *  enough information to attribute the work. */
+  pickProvider?: (output: unknown) => { provider?: string; model?: string };
+}
+
+const TOOL_SPECS: Record<string, ToolDispatchSpec> = {
+  search_signals: {
+    registryId: 'signals-search',
+    path: '/api/research',
+    provider: 'multi',
+    model: 'signals-research',
+    toBody: (input) => {
+      const i = input as { seedText: string; platforms?: string[]; limit?: number };
+      return {
+        seedText: i.seedText,
+        platforms: i.platforms ?? ['instagram'],
+        limit: i.limit ?? 12,
+      };
+    },
+  },
+  cluster_references: {
+    registryId: 'clusters-run',
+    path: '/api/clusters/run',
+    provider: 'modal-clip',
+    model: 'clip-vit-b32',
+    toBody: (input) => input,
+    pickProvider: (output) => {
+      const o = output as Record<string, unknown> | undefined;
+      const provider = typeof o?.provider === 'string' ? (o.provider as string) : undefined;
+      return provider ? { provider } : {};
+    },
+  },
+  generate_image: {
+    registryId: 'image-gen',
+    path: '/api/generate',
+    provider: 'auto',
+    model: 'auto',
+    toBody: (input) => {
+      const i = input as { prompt: string; aspectRatio: string };
+      return { prompt: i.prompt, aspectRatioOverride: i.aspectRatio };
+    },
+    pickProvider: (output) => {
+      const o = output as Record<string, unknown> | undefined;
+      const provider = typeof o?.provider === 'string' ? (o.provider as string) : undefined;
+      const plan = (o?.plan as Record<string, unknown> | undefined) ?? undefined;
+      const model = typeof plan?.model === 'string' ? (plan.model as string) : undefined;
+      return { ...(provider ? { provider } : {}), ...(model ? { model } : {}) };
+    },
+  },
+  analyze_video: {
+    registryId: 'video-understand',
+    path: '/api/video-understand',
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    toBody: (input) => input,
+    pickProvider: (output) => {
+      const o = output as Record<string, unknown> | undefined;
+      const provider = typeof o?.provider === 'string' ? (o.provider as string) : undefined;
+      const model = typeof o?.modelId === 'string' ? (o.modelId as string) : undefined;
+      return { ...(provider ? { provider } : {}), ...(model ? { model } : {}) };
+    },
+  },
+};
+
+function genClientRunId(name: string): string {
+  return `agent_${name}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 async function dispatchTool(
   name: string,
   input: unknown,
-  baseUrl: string
-): Promise<{ ok: true; output: unknown } | { ok: false; errorMessage: string }> {
-  const ROUTES: Record<string, string> = {
-    search_signals: '/api/research',
-    cluster_references: '/api/clusters/run',
-    generate_image: '/api/generate',
-    analyze_video: '/api/video-understand',
-  };
-  const path = ROUTES[name];
-  if (!path) return { ok: false, errorMessage: `unknown tool ${name}` };
+  baseUrl: string,
+  wsId: string | undefined
+): Promise<
+  | { ok: true; output: unknown; clientRunId?: string }
+  | { ok: false; errorMessage: string; clientRunId?: string }
+> {
+  const spec = TOOL_SPECS[name];
+  if (!spec) return { ok: false, errorMessage: `unknown tool ${name}` };
 
-  let body: unknown;
-  if (name === 'search_signals') {
-    const i = input as { seedText: string; platforms?: string[]; limit?: number };
-    body = {
-      seedText: i.seedText,
-      platforms: i.platforms ?? ['instagram'],
-      limit: i.limit ?? 12,
-    };
-  } else if (name === 'cluster_references') {
-    body = input;
-  } else if (name === 'generate_image') {
-    const i = input as { prompt: string; aspectRatio: string };
-    body = { prompt: i.prompt, aspectRatioOverride: i.aspectRatio };
-  } else if (name === 'analyze_video') {
-    body = input;
-  } else {
-    body = input;
-  }
+  const clientRunId = genClientRunId(spec.registryId);
+  const promptForLedger = JSON.stringify(input);
 
+  // Best-effort start record. If Convex is offline, recordRunStart no-ops
+  // and we move on — the loop must not block on the ledger.
+  await recordRunStart({
+    clientRunId,
+    wsId,
+    tool: spec.registryId,
+    provider: spec.provider,
+    model: spec.model,
+    prompt: promptForLedger,
+    entryRef: resolveToolEntryRef(spec.registryId),
+  });
+
+  const startedAt = Date.now();
   try {
-    const r = await fetch(`${baseUrl}${path}`, {
+    const r = await fetch(`${baseUrl}${spec.path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(spec.toBody(input)),
     });
     const json = await r.json();
+    const latencyMs = Date.now() - startedAt;
+
     if (!r.ok) {
-      return { ok: false, errorMessage: `${path} → HTTP ${r.status}: ${JSON.stringify(json)}` };
+      const err = `${spec.path} → HTTP ${r.status}: ${JSON.stringify(json)}`;
+      await recordRunFail(clientRunId, err, r.status);
+      return { ok: false, errorMessage: err, clientRunId };
     }
-    return { ok: true, output: json };
+
+    const refined = spec.pickProvider ? spec.pickProvider(json) : {};
+    await recordRunFinish(clientRunId, {
+      status: 'ok',
+      latencyMs,
+      provider: refined.provider ?? spec.provider,
+      model: refined.model ?? spec.model,
+    });
+    return { ok: true, output: json, clientRunId };
   } catch (err) {
-    return { ok: false, errorMessage: err instanceof Error ? err.message : String(err) };
+    const message = err instanceof Error ? err.message : String(err);
+    await recordRunFail(clientRunId, message);
+    return { ok: false, errorMessage: message, clientRunId };
   }
 }
 
@@ -284,7 +379,7 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
     const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
     for (const block of toolUses) {
       const t0 = Date.now();
-      const dispatch = await dispatchTool(block.name, block.input, params.baseUrl);
+      const dispatch = await dispatchTool(block.name, block.input, params.baseUrl, params.wsId);
       const ms = Date.now() - t0;
       if (dispatch.ok) {
         steps.push({
@@ -294,6 +389,7 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
           output: dispatch.output,
           ok: true,
           ms,
+          clientRunId: dispatch.clientRunId,
         });
         toolResults.push({
           type: 'tool_result',
@@ -308,6 +404,7 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
           ok: false,
           errorMessage: dispatch.errorMessage,
           ms,
+          clientRunId: dispatch.clientRunId,
         });
         toolResults.push({
           type: 'tool_result',

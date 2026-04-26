@@ -8,6 +8,7 @@ export const maxDuration = 300;
 interface RequestBody {
   prompt?: string;
   maxIterations?: number;
+  wsId?: string;
 }
 
 export async function POST(request: Request) {
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
       prompt: body.prompt,
       baseUrl,
       maxIterations: body.maxIterations,
+      wsId: typeof body.wsId === 'string' ? body.wsId : undefined,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
