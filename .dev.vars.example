@@ -47,15 +47,20 @@ SPATIAL_MODAL_TOKEN=
 # prefers real providers over `draft` when their keys are present.
 SPATIAL_PROVIDER=draft
 
-# Convex — set after `npx convex dev` creates a project
-NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
-CONVEX_DEPLOY_KEY=...
-
-# Publisher — preview is always available. Set these to also schedule real
-# posts through Postiz from the publish rail.
-PUBLISHER_PROVIDER=postiz
+# Publisher providers.
+# `preview` is always available. `postiz` schedules Western channels through a
+# self-hosted Postiz instance; `social-auto-upload` schedules CJK/browser-
+# automation channels through the Python sidecar in sidecars/social-auto-upload.
+#
+# Local default — preview only (no real posting).
+PUBLISHER_PROVIDER=preview
+# Keep unset/preview for local preview-only UI. Set to `server` in deployments
+# where the right rail should call /api/publish and reach configured sidecars.
+NEXT_PUBLIC_PUBLISHER_MODE=preview
+# Postiz — set these to enable real Western-channel scheduling.
 POSTIZ_API_URL=https://api.postiz.com/public/v1
 POSTIZ_API_KEY=
+# Per-platform integration IDs from your Postiz account.
 POSTIZ_INTEGRATION_INSTAGRAM=
 POSTIZ_INTEGRATION_TIKTOK=
 POSTIZ_INTEGRATION_X=
@@ -64,6 +69,13 @@ POSTIZ_INTEGRATION_YOUTUBE_SHORTS=
 POSTIZ_INTEGRATION_PINTEREST=
 POSTIZ_PINTEREST_BOARD_ID=
 POSTIZ_PINTEREST_LINK_URL=
+# CJK/browser-automation sidecar.
+SOCIAL_AUTO_UPLOAD_URL=http://127.0.0.1:8891
+SOCIAL_AUTO_UPLOAD_TOKEN=
+
+# Convex — set after `npx convex dev` creates a project
+NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
+CONVEX_DEPLOY_KEY=...
 
 # App
 AETHER_ENV=development
