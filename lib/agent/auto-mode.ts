@@ -3,9 +3,17 @@ import {
   insertCampaignVariation,
   recordScheduledPost,
   setCampaignStatus,
+  setCampaignResearchBundle,
+  setCampaignSchedulePlan,
+  setCampaignClusterBundle,
   startCampaign,
 } from '@/lib/convex/http';
-import { notifyDiscord, type DiscordEmbed } from '@/lib/notify/discord';
+import { logLapEvent } from './lap-logger';
+import {
+  notifyDiscord,
+  type DiscordActionRow,
+  type DiscordEmbed,
+} from '@/lib/notify/discord';
 import {
   resolvePublisher,
   resolvePublisherForPost,
@@ -40,12 +48,21 @@ import {
   type ImageDescription,
 } from './describe-image';
 import { fetchUrlIngestion, type UrlIngestion } from '@/lib/ingest/url';
+import { parseBrandProduct } from '@/lib/ingest/brand-parser';
+import { searchProductOnSerp, searchProductImagesOnSerp } from '@/lib/ingest/serp';
 import { fetchPdfIngestion, type PdfIngestion } from '@/lib/ingest/pdf';
 import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
 import { composeVariantSet } from '@/lib/text-overlay/compose';
 import { renderPerFormatHeroes } from './per-format-render';
 import type { AspectRatio } from '@/lib/providers/image/types';
 import { runResearchAgent, type ResearchBundle } from './managed/research';
+import {
+  runSignoffAgent,
+  type BrandGuardrails,
+  type SchedulePlan,
+  type SignoffVariation,
+} from './managed/signoff';
+import { runClusterAgent, type ClusterBundle } from './managed/cluster';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -136,6 +153,16 @@ export interface AutoModeRequest {
    * Postiz schedules through fine without this flag.
    */
   forcePostNow?: boolean;
+  /**
+   * Per-lap toggle for the Managed Agents API path. Default: true (use
+   * Managed Agents when AGENT_ID + ENVIRONMENT_ID env vars are set,
+   * fall back to messages.create otherwise). When false, all three
+   * managed agents (research / cluster / signoff) skip the Managed
+   * Agents API entirely and run on messages.create regardless of env
+   * config — useful for the demo "compare standard vs managed" toggle
+   * and for cost-controlled local iteration. Surfaced in the right rail.
+   */
+  useManagedAgents?: boolean;
 }
 
 /**
@@ -197,6 +224,15 @@ export interface AutoModeVariationResult {
    *  array when AUTO_MODE_NATIVE_PER_FORMAT was off or all aspects failed
    *  — both downgrade to crop-from-1:1 in the atlas composer. */
   nativePerFormatRendered?: Array<'4x5' | '9x16' | '16x9'>;
+  /**
+   * Per-format public URLs after Convex upload. `'1x1'` is always the
+   * heroImageUrl itself (the 1:1 hero IS the original render). 4x5/9x16/
+   * 16x9 are populated when AUTO_MODE_NATIVE_PER_FORMAT renders succeeded
+   * AND the bytes were uploaded to Convex. Missing keys signal "no native
+   * render available for this format" — the canvas drop and Discord embed
+   * fall back to atlas → hero. Undefined when the variation has no hero.
+   */
+  nativePerFormatUrls?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
   /** Per-aspect provider error messages from native-per-format render
    *  (when any aspect rejected). Useful for surfacing in /inspect. */
   nativePerFormatErrors?: Record<string, string>;
@@ -254,6 +290,22 @@ export interface AutoModeResult {
    * this in the right-rail "research" panel (sources, snippets, insights).
    */
   researchBundle?: ResearchBundle;
+  /**
+   * Signoff Managed Agent plan. Populated when AUTO_MODE_USE_SIGNOFF=1 and
+   * notifyMode='auto-post'; per-variation decision (auto-post / hold-for-
+   * review / reject) gates which variations actually go through publishing.
+   * Undefined when the gate was disabled or the agent failed (fail-soft —
+   * the lap falls back to scheduling every ready variation).
+   */
+  schedulePlan?: SchedulePlan;
+  /**
+   * Cluster Managed Agent bundle. Populated when the cluster agent groups
+   * the lap's reference images (urlIngestion.images + serp images +
+   * explicit refs) into 2-4 visual clusters. Surfaces in the right rail
+   * and /inspect so creators can see "these references group like X / Y /
+   * Z". Undefined when the agent was skipped (no refs) or failed.
+   */
+  clusterBundle?: ClusterBundle;
 }
 
 interface VariationPromptInput {
@@ -906,29 +958,8 @@ async function runPostHeroPipeline(input: {
   // standard 1024² when missing.
   const heroAsset = { width: 1024, height: 1024, url: input.heroUrl };
 
-  // 1. Format crops — pure math, never throws.
-  const cropped: CroppedFormat[] = cropHeroToFormats({
-    heroAsset,
-    formats: STANDARD_FORMATS,
-    safeZones: DEFAULT_TEXT_SAFE_ZONES,
-  });
-  const formatCrops: AutoModeFormatCrop[] = cropped.map((c) => ({
-    formatId: c.formatId,
-    aspectRatio:
-      c.format.id === '1x1'
-        ? '1:1'
-        : c.format.id === '4x5'
-          ? '4:5'
-          : c.format.id === '9x16'
-            ? '9:16'
-            : '16:9',
-    w: c.w,
-    h: c.h,
-    crop: c.crop,
-    fit: c.fit,
-  }));
-
-  // 2. Segmentation A/B — run BOTH paths in parallel. Either path failing
+  // 1. Segmentation A/B — run BOTH paths in parallel BEFORE crop math so
+  // mask bboxes can feed safeZones (mask-aware crop). Either path failing
   // is non-fatal; the other still feeds the planner. When both succeed,
   // vision-guided wins (richer per-image prompts → tighter masks).
   const [oneShotSettled, visionGuidedSettled] = await Promise.allSettled([
@@ -966,6 +997,52 @@ async function runPostHeroPipeline(input: {
   const forbiddenRegions = primaryMasks
     ? segmentSubjectsToForbiddenRegions(primaryMasks)
     : [];
+
+  // 2. Mask-aware safe zones — convert face / product / logo mask bboxes
+  // into SafeZone entries so cropHeroToFormats avoids cropping out the
+  // subject when generating 4:5 / 9:16 / 16:9 frames. Replaces the old
+  // "always center-crop with static safe zones" behaviour. Static safe
+  // zones (DEFAULT_TEXT_SAFE_ZONES) stay in for the text bands; mask
+  // zones are appended so cropping respects the actual subject geometry.
+  const maskSafeZones: SafeZone[] = (forbiddenRegions ?? [])
+    .filter((r) => r.kind === 'face' || r.kind === 'product' || r.kind === 'logo')
+    .map((r) => ({
+      purpose:
+        r.kind === 'logo'
+          ? 'logo'
+          : r.kind === 'product'
+            ? 'product'
+            : 'hero',
+      bbox: r.bbox,
+      mustSurviveAllCrops: true,
+    }));
+  const allSafeZones: SafeZone[] = [
+    ...DEFAULT_TEXT_SAFE_ZONES,
+    ...maskSafeZones,
+  ];
+
+  // 3. Format crops — pure math, never throws. Now mask-aware: crops are
+  // chosen so face / product / logo bboxes survive every aspect.
+  const cropped: CroppedFormat[] = cropHeroToFormats({
+    heroAsset,
+    formats: STANDARD_FORMATS,
+    safeZones: allSafeZones,
+  });
+  const formatCrops: AutoModeFormatCrop[] = cropped.map((c) => ({
+    formatId: c.formatId,
+    aspectRatio:
+      c.format.id === '1x1'
+        ? '1:1'
+        : c.format.id === '4x5'
+          ? '4:5'
+          : c.format.id === '9x16'
+            ? '9:16'
+            : '16:9',
+    w: c.w,
+    h: c.h,
+    crop: c.crop,
+    fit: c.fit,
+  }));
 
   // 3. Text-overlay planner — multilingual + adaptive placement.
   const component = buildAutoModeComponent({
@@ -1166,6 +1243,52 @@ async function runOneVariation(
     }
   }
 
+  // Upload native per-format renders to Convex storage so each format
+  // frame on the canvas can show its own native render instead of
+  // repeating the atlas. 1:1 always equals heroImageUrl (the 1:1 hero IS
+  // the original render). 4x5/9x16/16x9 entries appear only when the
+  // bytes-collected step above produced them AND Convex is configured.
+  // Fail-soft per format: an upload reject just leaves that key absent
+  // and the canvas drop falls back to atlas → hero.
+  let nativePerFormatUrls:
+    | Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>
+    | undefined;
+  if (!effectiveError && heroImageUrl) {
+    const urls: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>> = {
+      '1x1': heroImageUrl,
+    };
+    if (nativePerFormatBytes) {
+      const aspects = (['4x5', '9x16', '16x9'] as const).filter(
+        (a) => Boolean(nativePerFormatBytes[a])
+      );
+      // Parallel uploads — each format is independent, sequential awaits cost
+      // ~3× wall-time. allSettled keeps one slow/failing aspect from blocking
+      // the others: per-format upload errors stay scoped to that format.
+      const settled = await Promise.allSettled(
+        aspects.map((formatId) =>
+          uploadAssetToConvex({
+            source: nativePerFormatBytes![formatId]!,
+            kind: 'hero',
+            mime: 'image/png',
+            sourceUrl: `auto-mode v${input.promptInput.index} ${formatId} native`,
+          }).then((uploaded) => ({ formatId, uploaded }))
+        )
+      );
+      for (const res of settled) {
+        if (res.status === 'fulfilled' && res.value.uploaded) {
+          urls[res.value.formatId] = res.value.uploaded.publicUrl;
+        } else if (res.status === 'rejected') {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[auto-mode v${input.promptInput.index}] native upload failed:`,
+            res.reason instanceof Error ? res.reason.message : String(res.reason)
+          );
+        }
+      }
+    }
+    nativePerFormatUrls = urls;
+  }
+
   // Variant atlas — 4 formats × 4 SG locales composed into one PNG so
   // Discord shows every (aspect ratio, language) at-a-glance per variation
   // before posts fire. Failures are fail-soft: a missing atlas just means
@@ -1180,11 +1303,27 @@ async function runOneVariation(
     process.env.AUTO_MODE_DISABLE_ATLAS !== '1'
   ) {
     try {
+      // Build perFormatCrops from the mask-aware formatCrops produced by
+      // postHero so the atlas tiles use the same crop rectangles the
+      // canvas does (subjects survive every aspect, no center-crop).
+      const perFormatCrops: Partial<
+        Record<
+          '1x1' | '4x5' | '9x16' | '16x9',
+          { topLeft: { x: number; y: number }; bottomRight: { x: number; y: number } }
+        >
+      > = {};
+      for (const fc of postHero.formatCrops ?? []) {
+        const id = fc.formatId as '1x1' | '4x5' | '9x16' | '16x9';
+        if (id === '1x1' || id === '4x5' || id === '9x16' || id === '16x9') {
+          perFormatCrops[id] = fc.crop;
+        }
+      }
       const atlas = await composeAndUploadAtlas({
         heroSource: rawHeroImageUrl ?? heroImageUrl,
         textOverlays: postHero.textOverlays,
         captionsByLocale: envelope.captionsByLocale,
         nativePerFormatBytes,
+        perFormatCrops,
       });
       if (atlas) {
         atlasUrl = atlas.publicUrl;
@@ -1219,6 +1358,7 @@ async function runOneVariation(
     atlasAssetId,
     nativePerFormatRendered,
     nativePerFormatErrors,
+    nativePerFormatUrls,
     agentSteps: agentStepsForVariation,
     agentFinalText,
     error: effectiveError,
@@ -1238,6 +1378,13 @@ async function composeAndUploadAtlas(input: {
   nativePerFormatBytes?: Partial<
     Record<'1x1' | '4x5' | '9x16' | '16x9', Buffer>
   >;
+  /** Mask-aware crop rectangles per format (cropHeroToFormats output). */
+  perFormatCrops?: Partial<
+    Record<
+      '1x1' | '4x5' | '9x16' | '16x9',
+      { topLeft: { x: number; y: number }; bottomRight: { x: number; y: number } }
+    >
+  >;
 }): Promise<{ publicUrl: string; assetId: string } | null> {
   const heroBytes = await fetchHeroBytes(input.heroSource);
   if (!heroBytes) return null;
@@ -1246,14 +1393,15 @@ async function composeAndUploadAtlas(input: {
     textOverlays: input.textOverlays,
     fallbackCaptions: input.captionsByLocale,
     nativePerFormatBytes: input.nativePerFormatBytes,
+    perFormatCrops: input.perFormatCrops,
   });
   const uploaded = await uploadAssetToConvex({
     source: composed.atlas,
     kind: 'other',
     mime: 'image/png',
     sourceUrl: 'auto-mode variant atlas (4 formats × 4 SG locales)',
-    width: composed.atlasTileSize * 4,
-    height: composed.atlasTileSize * 4,
+    width: composed.atlasWidth,
+    height: composed.atlasHeight,
   });
   if (!uploaded) return null;
   return { publicUrl: uploaded.publicUrl, assetId: uploaded.id };
@@ -1316,6 +1464,9 @@ async function scheduleVariationPosts(input: {
    *  immediate-fire on adapters that reject true future scheduling
    *  (X / IG / TikTok direct). */
   forcePostNow?: boolean;
+  /** Campaign id for Discord ping idempotency. `null` when running in
+   *  local-only mode (no Convex) — those laps don't dedupe. */
+  campaignId?: string | null;
 }): Promise<string[]> {
   const ids: string[] = [];
   if (!input.workspaceId) return ids;
@@ -1387,7 +1538,11 @@ async function scheduleVariationPosts(input: {
         publisher.id !== 'preview' && publisher.id !== 'postiz';
       if (isReal) {
         await notifyDiscord({
-          tag: `publish-${platform}`,
+          campaignId: input.campaignId ?? undefined,
+          // Variation index in the tag so each (campaign, platform, variation)
+          // dedupes independently — multiple variations posting to the same
+          // platform must all fire.
+          tag: `publish-${platform}-v${variation.index}`,
           content: [
             `🟢 Posted to ${platform.toUpperCase()} — v${variation.index}`,
             `link: ${result.previewUrl ?? '(no preview url)'}`,
@@ -1409,7 +1564,8 @@ async function scheduleVariationPosts(input: {
       // Notify on failure too — Ernie wants to see when something
       // didn't publish so he can act, not just when it did.
       await notifyDiscord({
-        tag: `publish-fail-${platform}`,
+        campaignId: input.campaignId ?? undefined,
+        tag: `publish-fail-${platform}-v${variation.index}`,
         content: [
           `🔴 Publish to ${platform.toUpperCase()} failed — v${variation.index}`,
           `error: ${err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200)}`,
@@ -1461,6 +1617,12 @@ async function persistVariation(
     formatCrops: variation.formatCrops,
     masksOneShot: variation.masksOneShot,
     masksVisionGuided: variation.masksVisionGuided,
+    nativePerFormatUrls: variation.nativePerFormatUrls,
+    atlasUrl: variation.atlasUrl,
+    atlasAssetId: variation.atlasAssetId,
+    textOverlays: variation.textOverlays,
+    nativePerFormatRendered: variation.nativePerFormatRendered,
+    textOverlayWarnings: variation.textOverlayWarnings,
     agentRunIds,
     error: variation.error,
   });
@@ -1470,6 +1632,73 @@ async function persistVariation(
 const EMBED_COLOR_GREEN = 0x57f287; // ready
 const EMBED_COLOR_YELLOW = 0xfee75c; // review / pending
 const EMBED_COLOR_RED = 0xed4245; // failed
+
+/**
+ * Build the action-row link buttons that go on the lap-end Discord
+ * message. Approve/Reject pairs per ready variation in review mode;
+ * Cancel buttons in auto-post mode; a "Review in Aether ↗" link in
+ * every mode so the click can land on the inspect page when the user
+ * wants more context. Skipped when there's nothing to act on (no ready
+ * variations OR campaignId missing — the endpoints both look up the
+ * campaign by id, so a local-only lap can't expose useful buttons).
+ */
+function buildLapEndActionRows(input: {
+  campaignId: string | null;
+  variations: AutoModeVariationResult[];
+  notifyMode: AutoModeNotifyMode;
+  baseUrl: string;
+}): DiscordActionRow[] {
+  const { campaignId, variations, notifyMode, baseUrl } = input;
+  if (!campaignId) return [];
+  const origin = baseUrl.replace(/\/+$/, '');
+  const ready = variations.filter((v) => v.status === 'ready');
+  if (ready.length === 0) return [];
+
+  const rows: DiscordActionRow[] = [];
+
+  if (notifyMode === 'review' || notifyMode === 'notify') {
+    // Approve/Reject pair per ready variation. Discord caps each row at 5
+    // buttons; with up to 4 variations × 2 buttons = 8 we may spill into a
+    // second row.
+    for (let i = 0; i < ready.length; i += 2) {
+      const slice = ready.slice(i, i + 2);
+      const components = slice.flatMap((v) => [
+        {
+          type: 2 as const,
+          style: 5 as const,
+          label: `Approve v${v.index}`,
+          url: `${origin}/api/auto-mode/approve?c=${encodeURIComponent(campaignId)}&v=${v.index}`,
+          emoji: { name: '✅' },
+        },
+        {
+          type: 2 as const,
+          style: 5 as const,
+          label: `Reject v${v.index}`,
+          url: `${origin}/api/auto-mode/reject?c=${encodeURIComponent(campaignId)}&v=${v.index}`,
+          emoji: { name: '✖️' },
+        },
+      ]);
+      if (components.length > 0) rows.push({ type: 1, components });
+    }
+  }
+
+  // "Review in Aether ↗" — opens the inspect page so the user can scrub
+  // the full lap timeline + atlas thumbnails before deciding. Always
+  // appended on its own row so the approve buttons stay above the fold.
+  rows.push({
+    type: 1,
+    components: [
+      {
+        type: 2,
+        style: 5,
+        label: 'Review in Aether ↗',
+        url: `${origin}/inspect/${encodeURIComponent(campaignId)}`,
+      },
+    ],
+  });
+
+  return rows.slice(0, 5);
+}
 
 /**
  * Build a single Discord embed for one variation at lap-end. Includes:
@@ -1582,6 +1811,29 @@ function buildVariationEmbed(input: {
  * canonical names rather than guessing by silhouette. Closes the
  * "Pod Hub mis-labelled as air purifier" gap.
  */
+/**
+ * Best-effort BrandGuardrails derivation from a URL ingestion. The signoff
+ * Managed Agent uses this as its evaluation context. We seed brand names
+ * from page title + Schema.org Product brand fields; forbidden topics and
+ * required elements stay empty by default (creators can override per-
+ * workspace once the brand-context store is plumbed end-to-end).
+ */
+function buildGuardrailsFromIngestion(
+  ingestion: UrlIngestion | undefined
+): BrandGuardrails {
+  const brandNames: string[] = [];
+  if (ingestion?.title) brandNames.push(ingestion.title);
+  for (const p of ingestion?.products ?? []) {
+    if (p.brand && !brandNames.includes(p.brand)) brandNames.push(p.brand);
+  }
+  return {
+    brandNames,
+    forbiddenTopics: [],
+    requiredElements: [],
+    maxCaptionLength: undefined,
+  };
+}
+
 export function buildBrandContextFromIngestion(
   ingestion: UrlIngestion | undefined
 ): string | undefined {
@@ -1635,6 +1887,19 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     notifyMode: req.notifyMode,
   });
 
+  logLapEvent({
+    campaignId,
+    tag: 'lap.start',
+    message: `lap kickoff · ${req.trigger.kind} · ${req.variationCount} variations · ${req.notifyMode}`,
+    data: {
+      triggerKind: req.trigger.kind,
+      variationCount: req.variationCount,
+      notifyMode: req.notifyMode,
+      concurrency,
+      workspaceId: req.workspaceId ?? null,
+    },
+  });
+
   // ─── Multimodal trigger ingestion ──────────────────────────────────────
   // Run once per lap so all variations share the same enriched context.
   // Fail-soft per source: a network/parse error degrades to plain
@@ -1648,12 +1913,132 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
   if (req.trigger.kind === 'url') {
     try {
       urlIngestion = await fetchUrlIngestion(req.trigger.payload);
+      if (urlIngestion) {
+        logLapEvent({
+          campaignId,
+          tag: 'ingest.url.ok',
+          message: `ingested ${urlIngestion.title || req.trigger.payload}`,
+          data: {
+            title: urlIngestion.title,
+            description: urlIngestion.description?.slice(0, 80),
+            productCount: urlIngestion.products.length,
+            imageCount: urlIngestion.images.length,
+            primaryImage: urlIngestion.primaryImage?.url,
+            rawHtmlBytes: urlIngestion.rawHtmlBytes,
+          },
+        });
+      }
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[auto-mode] url ingestion failed for ${req.trigger.payload}:`,
-        err instanceof Error ? err.message : String(err)
-      );
+      logLapEvent({
+        campaignId,
+        level: 'warn',
+        tag: 'ingest.url.fail',
+        message: `url ingestion failed: ${err instanceof Error ? err.message : String(err)}`,
+        data: { url: req.trigger.payload },
+      });
+    }
+
+    // ── Brand + product enrichment ────────────────────────────────────
+    // When Schema.org Product JSON-LD is absent (the eightsleep case —
+    // products[] is []), parse the og:title pattern locally for an
+    // immediate brand/product hint, then enrich via SerpAPI Google Search
+    // when SERPAPI_KEY is configured. Synthesize a single IngestedProduct
+    // and prepend so buildBrandContextFromIngestion / vision-describe /
+    // the variation prompt all see specific names rather than the
+    // generic page title. Fail-soft: every step reverts to the previous
+    // state on error so the lap continues unchanged.
+    if (urlIngestion && urlIngestion.products.length === 0) {
+      const parsed = parseBrandProduct(urlIngestion);
+      logLapEvent({
+        campaignId,
+        tag: 'brand-parse.parsed',
+        message: `${parsed.brand} · ${parsed.product} (${parsed.confidence})`,
+        data: {
+          brand: parsed.brand,
+          product: parsed.product,
+          confidence: parsed.confidence,
+          source: parsed.source,
+        },
+      });
+      let serpProduct: Awaited<ReturnType<typeof searchProductOnSerp>> = null;
+      let serpExtraImages: string[] = [];
+      try {
+        const query = `${parsed.brand} ${parsed.product}`.slice(0, 200);
+        serpProduct = await searchProductOnSerp(query);
+        if (serpProduct) {
+          logLapEvent({
+            campaignId,
+            tag: 'serp.enriched',
+            message: `${serpProduct.brand} · ${serpProduct.product} (${serpProduct.source})`,
+            data: {
+              brand: serpProduct.brand,
+              product: serpProduct.product,
+              source: serpProduct.source,
+              imageCount: serpProduct.imageUrls.length,
+              officialUrl: serpProduct.officialUrl,
+            },
+          });
+        } else {
+          logLapEvent({
+            campaignId,
+            level: 'debug',
+            tag: 'serp.skipped',
+            message: 'serp returned no product enrichment',
+          });
+        }
+        // Pull a few extra image candidates from Google Images when the
+        // og:image was generic — they augment vision-describe references.
+        // Only fire when we have low-medium confidence on local parse and
+        // the og:image landscape is small.
+        if (
+          (parsed.confidence !== 'high' || urlIngestion.images.length < 3) &&
+          process.env.SERPAPI_KEY
+        ) {
+          serpExtraImages = await searchProductImagesOnSerp(
+            `${parsed.brand} ${parsed.product}`,
+            5
+          );
+          if (serpExtraImages.length > 0) {
+            logLapEvent({
+              campaignId,
+              tag: 'serp.images',
+              message: `${serpExtraImages.length} extra reference images`,
+              data: { count: serpExtraImages.length },
+            });
+          }
+        }
+      } catch (err) {
+        logLapEvent({
+          campaignId,
+          level: 'warn',
+          tag: 'serp.failed',
+          message: `serp enrichment failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+
+      const finalBrand = serpProduct?.brand ?? parsed.brand;
+      const finalProduct = serpProduct?.product ?? parsed.product;
+      const finalDescription =
+        serpProduct?.description ?? urlIngestion.description ?? '';
+      urlIngestion = {
+        ...urlIngestion,
+        products: [
+          {
+            name: finalProduct,
+            brand: finalBrand,
+            description: finalDescription || undefined,
+            schemaType: serpProduct?.source ?? 'parsed',
+          },
+          ...urlIngestion.products,
+        ],
+        images: [
+          ...urlIngestion.images,
+          ...serpExtraImages.map((url) => ({
+            url,
+            source: 'json-ld' as const,
+          })),
+        ],
+      };
     }
   } else if (req.trigger.kind === 'file' && isPdfPayload(req.trigger.payload)) {
     try {
@@ -1816,30 +2201,111 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     urlIngestion
   ) {
     try {
+      logLapEvent({
+        campaignId,
+        tag: 'research.start',
+        message: 'running research managed agent',
+      });
       researchBundle = await runResearchAgent({
         brand: urlIngestion.title || req.trigger.payload,
         url: req.trigger.payload,
         ingestion: urlIngestion,
         workspaceId: req.workspaceId,
+        useManagedAgents: req.useManagedAgents,
       });
-      // eslint-disable-next-line no-console
-      console.log(
-        `[auto-mode] research bundle ready — ${researchBundle.competitors.length} competitors, ` +
-        `${researchBundle.localeInsights.length} locale insights, ` +
-        `${researchBundle.sources.length} sources (${researchBundle.usedManagedAgentsApi ? 'managed-agents' : 'tool-use'} path)`
-      );
+      logLapEvent({
+        campaignId,
+        tag: 'research.ok',
+        message: `${researchBundle.competitors.length} competitors · ${researchBundle.localeInsights.length} locales · ${researchBundle.sources.length} sources (${researchBundle.usedManagedAgentsApi ? 'managed-agents' : 'tool-use'})`,
+        data: {
+          competitorCount: researchBundle.competitors.length,
+          localeInsightCount: researchBundle.localeInsights.length,
+          sourceCount: researchBundle.sources.length,
+          usedManagedAgentsApi: researchBundle.usedManagedAgentsApi,
+          latencyMs: researchBundle.latencyMs,
+        },
+      });
+      // Persist on the campaign row so /inspect and the right rail
+      // surface research signals on page reload (replaces ephemeral
+      // component-state holding in WorkspaceShell).
+      if (campaignId) {
+        await setCampaignResearchBundle(campaignId, researchBundle);
+      }
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[auto-mode] research agent failed (lap continues without it):`,
-        err instanceof Error ? err.message : String(err)
-      );
+      logLapEvent({
+        campaignId,
+        level: 'warn',
+        tag: 'research.fail',
+        message: `research agent failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
+  // ─── Cluster Managed Agent ────────────────────────────────────────────
+  // Group the lap's reference images by visual similarity. Used as
+  // provenance + surfaced in /inspect so creators see "these references
+  // form 3 distinct visual clusters". Skipped when:
+  //   - ANTHROPIC_API_KEY is absent (no LLM budget)
+  //   - There are <2 distinct refs to cluster (no signal)
+  //   - AUTO_MODE_SKIP_CLUSTER=1 (escape hatch for tight runs)
+  // Fail-soft: any error leaves clusterBundle undefined and the lap
+  // continues unchanged.
+  let clusterBundle: ClusterBundle | undefined;
+  const clusterRefs = (() => {
+    const urls = new Set<string>();
+    for (const r of effectiveReferenceImages ?? []) {
+      if (r.url && !r.url.startsWith('data:')) urls.add(r.url);
+    }
+    for (const i of urlIngestion?.images ?? []) {
+      if (i.url) urls.add(i.url);
+    }
+    return Array.from(urls).slice(0, 12);
+  })();
+  if (
+    process.env.ANTHROPIC_API_KEY &&
+    process.env.AUTO_MODE_SKIP_CLUSTER !== '1' &&
+    clusterRefs.length >= 2
+  ) {
+    try {
+      logLapEvent({
+        campaignId,
+        tag: 'cluster.start',
+        message: `clustering ${clusterRefs.length} reference images`,
+        data: { refCount: clusterRefs.length },
+      });
+      clusterBundle = await runClusterAgent({
+        refs: clusterRefs.map((url) => ({ url })),
+        workspaceId: req.workspaceId,
+        useManagedAgents: req.useManagedAgents,
+      });
+      logLapEvent({
+        campaignId,
+        tag: 'cluster.ok',
+        message: `${clusterBundle.clusters.length} clusters · ${clusterBundle.unclustered.length} unclustered (${clusterBundle.usedManagedAgentsApi ? 'managed-agents' : 'messages.create'})`,
+        data: {
+          clusterCount: clusterBundle.clusters.length,
+          unclusteredCount: clusterBundle.unclustered.length,
+          usedManagedAgentsApi: clusterBundle.usedManagedAgentsApi,
+          latencyMs: clusterBundle.latencyMs,
+        },
+      });
+      if (campaignId) {
+        await setCampaignClusterBundle(campaignId, clusterBundle);
+      }
+    } catch (err) {
+      logLapEvent({
+        campaignId,
+        level: 'warn',
+        tag: 'cluster.fail',
+        message: `cluster agent failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
     }
   }
 
   // ─── Lap-start ping (always, regardless of notifyMode) ────────────────
   // User wants visibility on kickoff so they know the lap is in flight.
   await notifyDiscord({
+    campaignId: campaignId ?? undefined,
     tag: 'lap-start',
     content: [
       `▶︎ Auto Mode lap started`,
@@ -1920,6 +2386,30 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       });
       if (variation.moodNote) priorMoodNotes.push(variation.moodNote);
       variations.push(variation);
+      logLapEvent({
+        campaignId,
+        variationIndex: variation.index,
+        level: variation.status === 'ready' ? 'info' : 'warn',
+        tag:
+          variation.status === 'ready'
+            ? 'variation.ready'
+            : 'variation.failed',
+        message:
+          variation.status === 'ready'
+            ? `${variation.caption?.slice(0, 60) ?? '(no caption)'}`
+            : `failed: ${variation.error ?? 'unknown'}`,
+        data: {
+          status: variation.status,
+          hasHero: Boolean(variation.heroImageUrl),
+          atlasUrl: variation.atlasUrl ?? null,
+          nativePerFormatRendered: variation.nativePerFormatRendered ?? [],
+          masksOneShotMatched: variation.masksOneShot?.matched ?? 0,
+          masksVisionGuidedMatched: variation.masksVisionGuided?.matched ?? 0,
+          textOverlayCount: variation.textOverlays?.length ?? 0,
+          schedulePlatform: variation.schedulePlatform,
+          scheduleWhenLocal: variation.scheduleWhenLocal,
+        },
+      });
     }
   }
 
@@ -1938,16 +2428,98 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     : 'completed';
   if (campaignId) await setCampaignStatus(campaignId, lapStatus);
 
+  // ─── Signoff Managed Agent ────────────────────────────────────────────
+  // When AUTO_MODE_USE_SIGNOFF=1 and we're in auto-post mode, run the
+  // signoff agent before publishing. Its per-variation decision filters
+  // which variations actually go through scheduleVariationPosts. The agent
+  // also produces a SchedulePlan we surface in AutoModeResult so the UI
+  // (and downstream tools) can show why each variation got auto-posted vs
+  // held for human review. Fail-soft: any agent error → fall back to the
+  // legacy behaviour (every ready variation gets scheduled).
+  let schedulePlan: SchedulePlan | undefined;
+  let postableVariations = variations;
+  if (
+    req.notifyMode === 'auto-post' &&
+    process.env.AUTO_MODE_USE_SIGNOFF === '1' &&
+    process.env.ANTHROPIC_API_KEY
+  ) {
+    const readyVariations = variations.filter((v) => v.status === 'ready');
+    if (readyVariations.length > 0) {
+      try {
+        const guardrails = buildGuardrailsFromIngestion(urlIngestion);
+        const signoffVariations: SignoffVariation[] = readyVariations.map((v) => ({
+          index: v.index,
+          caption: v.captionsByLocale?.['en-SG'] ?? v.caption,
+          platform: v.schedulePlatform,
+          scheduleWhenLocal: v.scheduleWhenLocal,
+          moodNote: v.moodNote,
+          hasHero: Boolean(v.heroImageUrl),
+        }));
+        schedulePlan = await runSignoffAgent({
+          variations: signoffVariations,
+          guardrails,
+          workspaceId: req.workspaceId,
+          useManagedAgents: req.useManagedAgents,
+        });
+        // Persist for /inspect (mirror of researchBundle persistence path).
+        if (campaignId) {
+          await setCampaignSchedulePlan(campaignId, schedulePlan);
+        }
+        const planByIndex = new Map(
+          schedulePlan.variations.map((p) => [p.variationIndex, p])
+        );
+        postableVariations = variations.filter((v) => {
+          if (v.status !== 'ready') return false;
+          const plan = planByIndex.get(v.index);
+          return plan?.decision === 'auto-post';
+        });
+        // Discord ping per held / rejected variation so a human can act.
+        for (const v of variations) {
+          if (v.status !== 'ready') continue;
+          const plan = planByIndex.get(v.index);
+          if (!plan) continue;
+          if (plan.decision === 'hold-for-review') {
+            await notifyDiscord({
+              campaignId: campaignId ?? undefined,
+              tag: `signoff-hold-v${v.index}`,
+              content: [
+                `🟡 Signoff held v${v.index} for review`,
+                `rationale: ${plan.rationale}`,
+                v.caption ? `caption: ${v.caption.slice(0, 120)}` : '',
+              ]
+                .filter(Boolean)
+                .join('\n'),
+            });
+          } else if (plan.decision === 'reject') {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[auto-mode] signoff rejected v${v.index}: ${plan.rationale}`
+            );
+          }
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[auto-mode] signoff agent failed — falling back to schedule-all:',
+          err instanceof Error ? err.message : String(err)
+        );
+        schedulePlan = undefined;
+        postableVariations = variations;
+      }
+    }
+  }
+
   // ─── Auto-post step ───────────────────────────────────────────────────
   // Only when the caller asked for auto-post mode. Skips when no
   // workspaceId since the preview publisher requires one.
   let scheduledPostIds: string[] = [];
   if (req.notifyMode === 'auto-post') {
     scheduledPostIds = await scheduleVariationPosts({
-      variations,
+      variations: postableVariations,
       workspaceId: req.workspaceId,
       baseUrl: req.baseUrl,
       forcePostNow: req.forcePostNow,
+      campaignId,
     });
   }
 
@@ -1999,10 +2571,40 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     })
   );
 
+  logLapEvent({
+    campaignId,
+    level: lapStatus === 'completed' ? 'info' : 'warn',
+    tag: 'lap.end',
+    message: `lap ${lapStatus} · ${okCount}/${req.variationCount} ready · ${scheduledPostIds.length} scheduled`,
+    data: {
+      lapStatus,
+      readyCount: okCount,
+      variationCount: req.variationCount,
+      scheduledPostCount: scheduledPostIds.length,
+      notifyMode: req.notifyMode,
+      durationMs: Date.now() - (variations[0]?.agentSteps?.[0]?.ms ? Date.now() - variations[0].agentSteps[0].ms : Date.now()),
+    },
+  });
+
+  // Lap-end button row. In review mode, every ready variation gets a pair
+  // of link buttons (Approve / Reject) pointing to GET endpoints that act
+  // on the campaign+variation. Plus a "Review in Aether ↗" link to the
+  // inspect page so the user can review on canvas before clicking.
+  // Discord caps each action row at 5 buttons; we keep approvals together
+  // and put the review link on its own row when present.
+  const lapEndComponents = buildLapEndActionRows({
+    campaignId,
+    variations,
+    notifyMode: req.notifyMode,
+    baseUrl: req.baseUrl,
+  });
+
   const notified = await notifyDiscord({
+    campaignId: campaignId ?? undefined,
     tag: `lap-end-${req.notifyMode}`,
     content: endContent,
     embeds: lapEndEmbeds.length > 0 ? lapEndEmbeds : undefined,
+    components: lapEndComponents.length > 0 ? lapEndComponents : undefined,
   });
 
   return {
@@ -2015,5 +2617,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     pdfIngestion,
     referenceDescriptions,
     researchBundle,
+    schedulePlan,
+    clusterBundle,
   };
 }

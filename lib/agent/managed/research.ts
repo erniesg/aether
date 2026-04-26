@@ -71,6 +71,10 @@ export interface ResearchAgentInput {
   client?: Anthropic;
   /** Convex workspace id for provenance ledger scoping. */
   workspaceId?: string;
+  /** When false, skip the Managed Agents API path even if AGENT_ID +
+   *  ENVIRONMENT_ID are configured. Forces fallback to messages.create
+   *  with the web_search built-in tool. Default: true. */
+  useManagedAgents?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -423,17 +427,41 @@ export async function runResearchAgent(
     prompt: JSON.stringify({ brand: input.brand, url: input.url }),
   });
 
-  const agentConfig = resolveAgentConfig();
+  const agentConfig =
+    input.useManagedAgents === false ? null : resolveAgentConfig();
 
   try {
     if (agentConfig) {
-      return await runViaManagedAgentsApi(
+      const bundle = await runViaManagedAgentsApi(
         input,
         client,
         agentConfig.agentId,
         agentConfig.environmentId,
         clientRunId
       );
+      // Heuristic: managed-agents path occasionally returns the parser's
+      // empty defaults when the agent emits only tool_use blocks (no final
+      // synthesis text). When that happens, retry once via the tool-use
+      // path which is more deterministic for "produce a JSON object" tasks.
+      // Keeps the lap from showing 0/0/0 in the right-rail "research" chip
+      // when web_search clearly ran (the latency was non-trivial).
+      const looksEmpty =
+        bundle.competitors.length === 0 &&
+        bundle.localeInsights.length === 0 &&
+        bundle.sources.length === 0;
+      if (looksEmpty) {
+        try {
+          const fallback = await runViaToolUse(input, client, clientRunId);
+          // Mark the fallback bundle as managed-API even though we used the
+          // tool-use path — the agent IS configured and ran first; this is
+          // a best-effort retry, not a config-driven fallback.
+          return { ...fallback, usedManagedAgentsApi: true };
+        } catch {
+          // Tool-use retry also failed — return the original (empty) bundle.
+          return bundle;
+        }
+      }
+      return bundle;
     } else {
       // Fallback: standard tool-use loop with web_search.
       // This path is used when ANTHROPIC_RESEARCH_AGENT_ID is not set.
