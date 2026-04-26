@@ -16,6 +16,8 @@ import {
 import type { ToolbarVerb } from '@/components/canvas/FloatingToolbar';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { PinDialog, type ProposedCapability } from '@/components/capability/PinDialog';
+import { SkillAcceptDialog } from '@/components/capability/SkillAcceptDialog';
+import type { SkillManifest, SkillRef } from '@/lib/agent/skills/types';
 import { PublishPreview } from '@/components/workspace/PublishPreview';
 import { SettingsPopover } from '@/components/workspace/SettingsPopover';
 import {
@@ -339,6 +341,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const providerPrefs = useWorkspaceProviderPrefs(wsId);
   const saveProviderPrefs = useSaveWorkspaceProviderPrefs();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
+  // AC5 — when set, the SkillAcceptDialog is open and a SKILL.md is being
+  // drafted (or has been drafted) for this prompt. Cleared on accept/reject.
+  const [pendingSkillPrompt, setPendingSkillPrompt] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
@@ -1382,6 +1387,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         return;
       }
 
+      if (requestPlan.kind === 'author-skill') {
+        log('author-skill · opening skill accept dialog');
+        setPendingSkillPrompt(requestPlan.authoringPrompt);
+        return;
+      }
+
       if (requestPlan.kind === 'tool' && requestPlan.toolId === 'spatial-gen') {
         await runSpatialOnCanvas(prompt, {
           providerOverride,
@@ -1493,12 +1504,128 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     []
   );
 
+  // AC5 — once Claude drafts the SKILL.md and the creator accepts, the manifest
+  // is materialised on disk via /api/capability/accept-skill, then surfaced as
+  // a definition in the in-memory store so it auto-pins on the floating
+  // toolbar (the chip rail reads from `pinnedCapabilities`).
+  const handleSkillAccept = useCallback(
+    async (manifest: SkillManifest) => {
+      log('skill-accept · persisting:', manifest.name);
+      const bypassAgent =
+        typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('bypass') === '1';
+      try {
+        const res = await fetch('/api/capability/accept-skill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manifest }),
+        });
+        const json = (await res.json()) as {
+          ok: boolean;
+          skillRef?: SkillRef;
+          manifestPathRelative?: string;
+          error?: string;
+        };
+        if (!res.ok || !json.ok || !json.skillRef) {
+          throw new Error(json.error ?? `accept-skill failed (${res.status})`);
+        }
+        // Reuse the capability-definition store as the canonical pinned-skills
+        // surface. `tool: 'skill'` + `entryRef.kind: 'skill'` is the marker the
+        // chip-press handler uses to dispatch via /api/skill/run instead of
+        // /api/generate.
+        const def = addDefinition({
+          name: manifest.name,
+          trigger: manifest.description || `run skill ${manifest.name}`,
+          paramSchema: {
+            type: 'object',
+            properties: {
+              layerId: { type: 'string' },
+            },
+            required: [],
+          },
+          notes: `pinned via author-skill (${json.manifestPathRelative ?? 'on disk'})`,
+          createdBy: 'agent',
+          tool: 'skill',
+          provider: 'anthropic',
+          entryRef: {
+            kind: 'skill',
+            id: manifest.name,
+            version: manifest.version,
+          },
+          runTemplate: {
+            prompt: manifest.description,
+            providerId: 'anthropic',
+            // Stash the skill identity inside style so handleCapabilityPress
+            // can resolve manifestPath without touching the registry. style
+            // is a typed Record<string, unknown> on CapabilityRunTemplate.
+            style: {
+              skillManifestPath: json.skillRef.manifestPath,
+              skillId: manifest.name,
+              skillVersion: manifest.version,
+              bypassAgent,
+            },
+          },
+        });
+        log('skill pinned:', def.id, '·', def.name);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logError('skill accept failed:', err);
+        if (typeof window !== 'undefined') window.alert(`skill accept failed: ${message}`);
+      } finally {
+        setPendingSkillPrompt(null);
+      }
+    },
+    []
+  );
+
   const handleCapabilityPress = useCallback(
     async (definitionId: string) => {
       const def = getDefinitionById(definitionId);
       if (!def) return;
       const prompt = def.runTemplate.prompt ?? def.trigger;
       log('rerun capability:', def.id, '·', prompt);
+      if (def.tool === 'skill') {
+        const style = (def.runTemplate.style ?? {}) as {
+          skillManifestPath?: string;
+          skillId?: string;
+          skillVersion?: number;
+          bypassAgent?: boolean;
+        };
+        try {
+          const res = await fetch('/api/skill/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              skillRef: style.skillId
+                ? {
+                    id: style.skillId,
+                    version: style.skillVersion ?? 1,
+                    manifestPath: style.skillManifestPath,
+                  }
+                : undefined,
+              manifestPath: style.skillManifestPath,
+              input: { prompt, definitionId },
+              bypassAgent: style.bypassAgent === true,
+            }),
+          });
+          const json = (await res.json()) as {
+            ok: boolean;
+            result?: unknown;
+            error?: string;
+          };
+          if (!res.ok || !json.ok) {
+            throw new Error(json.error ?? `skill run failed (${res.status})`);
+          }
+          log('skill run completed:', def.name, json.result);
+        } catch (err) {
+          logError('skill run failed:', err);
+          if (typeof window !== 'undefined') {
+            const message = err instanceof Error ? err.message : String(err);
+            window.alert(`skill run failed: ${message}`);
+          }
+        }
+        return;
+      }
       if (def.tool === 'spatial-gen') {
         await runSpatialOnCanvas(prompt, {
           definitionId,
@@ -1768,6 +1895,16 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         open={pinTargetRun !== null}
         onAccept={handlePinAccept}
         onReject={() => setPinTargetRun(null)}
+      />
+
+      <SkillAcceptDialog
+        pendingPrompt={pendingSkillPrompt}
+        onAccept={handleSkillAccept}
+        onReject={() => setPendingSkillPrompt(null)}
+        bypassAgent={
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).get('bypass') === '1'
+        }
       />
 
       {publishPreviewOpen ? (
