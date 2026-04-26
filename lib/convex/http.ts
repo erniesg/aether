@@ -257,10 +257,12 @@ export interface ServerVariationInsert {
   status: 'pending' | 'running' | 'ready' | 'failed';
   heroImageUrl?: string;
   caption?: string;
+  captionsByLocale?: Record<string, string>;
   hashtags?: string[];
   moodNote?: string;
   schedulePlatform?: string;
   scheduleWhenLocal?: string;
+  formatCrops?: unknown;
   agentRunIds: string[];
   error?: string;
 }
