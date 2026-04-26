@@ -80,10 +80,19 @@ describe('renderPerFormatHeroes', () => {
     });
     expect(calls).toHaveLength(2);
     for (const call of calls) {
-      expect(call.prompt).toBe('shared prompt');
+      // Prompt is base + an aspect-specific composition cue appended on a
+      // new line. The base must always survive intact (it carries the
+      // brand / subject), and the cue must mention the cell's aspect so
+      // gpt-image-2 frames for it instead of letterboxing.
+      expect(call.prompt.startsWith('shared prompt')).toBe(true);
+      expect(call.prompt).toMatch(/Frame this as/);
       expect(call.refs).toEqual([{ url: 'https://ref.example/a.png' }]);
       expect(call.n).toBe(1);
     }
+    // Each aspect must get its OWN cue (4:5 ≠ 9:16 prompts).
+    expect(calls[0].prompt).not.toBe(calls[1].prompt);
+    expect(calls[0].prompt).toMatch(/4:5/);
+    expect(calls[1].prompt).toMatch(/9:16/);
   });
 
   it('fail-soft per aspect: one rejection does not abort the others', async () => {

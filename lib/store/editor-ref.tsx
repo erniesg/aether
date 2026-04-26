@@ -18,7 +18,18 @@ const EditorRefContext = createContext<Ctx | null>(null);
 
 export function EditorRefProvider({ children }: { children: ReactNode }) {
   const [editor, setEditorState] = useState<Editor | null>(null);
-  const setEditor = useCallback((e: Editor | null) => setEditorState(e), []);
+  const setEditor = useCallback((e: Editor | null) => {
+    setEditorState(e);
+    // Test-only hook: expose the live editor on window for Playwright /
+    // recording scripts that need to drive shape edits programmatically.
+    // Skipped in production so the API isn't reachable from page scripts.
+    if (
+      typeof window !== 'undefined' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      (window as unknown as { __aetherEditor: Editor | null }).__aetherEditor = e;
+    }
+  }, []);
   const value = useMemo(() => ({ editor, setEditor }), [editor, setEditor]);
   return <EditorRefContext.Provider value={value}>{children}</EditorRefContext.Provider>;
 }
