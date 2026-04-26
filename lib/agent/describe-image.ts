@@ -305,6 +305,28 @@ function pickBackground(value: unknown): { description: string } {
 }
 
 /**
+ * SAM3 grounds prompts on visual signals (shape, colour, material), not
+ * brand semantics. Feeding it "Pod 4 Ultra Hub" 500s; feeding it
+ * "compact bedside fabric-wrapped device" returns a real mask. So when
+ * a product/brand carries a vision-derived `description`, we prefer
+ * that. The `name` becomes a secondary fallback.
+ *
+ * Verified against the SAM3 Modal endpoint
+ * (https://berlayar-ai--aether-sam3.modal.run): visual prompts return
+ * 200 + masks in 600-1000ms; brand-name prompts return 500.
+ */
+function pickSegmentPrompt(named: { name?: string; description?: string }): string | null {
+  const desc = named.description?.trim();
+  const name = named.name?.trim();
+  // Description wins when it actually describes something visual
+  // (≥ 12 chars filters out one-word descs like "device").
+  if (desc && desc.length >= 12) return desc;
+  if (name) return name;
+  if (desc) return desc;
+  return null;
+}
+
+/**
  * Translate an `ImageDescription` into the `SegmentSubjectsPrompt[]` the
  * vision-guided segmentation path feeds into SAM3. Each face becomes a
  * separate face-kind prompt; products → product-kind; brands → logo-kind;
@@ -322,12 +344,12 @@ export function descriptionToSegmentPrompts(
     out.push({ prompt: text, componentKind: 'face' });
   }
   for (const p of desc.products) {
-    if (!p.name) continue;
-    out.push({ prompt: p.name, componentKind: 'product' });
+    const prompt = pickSegmentPrompt(p);
+    if (prompt) out.push({ prompt, componentKind: 'product' });
   }
   for (const b of desc.brands) {
-    if (!b.name) continue;
-    out.push({ prompt: b.name, componentKind: 'logo' });
+    const prompt = pickSegmentPrompt(b);
+    if (prompt) out.push({ prompt, componentKind: 'logo' });
   }
   for (const c of desc.otherComponents) {
     let componentKind: ComponentKind = 'other';

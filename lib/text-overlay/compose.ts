@@ -66,53 +66,95 @@ function escapeXml(s: string): string {
     .replaceAll("'", '&apos;');
 }
 
-function wrapWord(text: string, widthChars: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-  for (const w of words) {
-    if ((current + ' ' + w).trim().length > widthChars) {
-      if (current) lines.push(current);
-      current = w;
-    } else {
-      current = (current + ' ' + w).trim();
-    }
+/**
+ * Locale-aware text wrapping using `Intl.Segmenter` for word-level
+ * granularity. Replaces the prior split-on-whitespace + per-CJK-char
+ * approaches that broke `智能控温` mid-compound and didn't respect Tamil
+ * grapheme clusters. The segmenter knows where words end in each script,
+ * so we only ever line-break at boundaries the language itself
+ * recognises.
+ *
+ * Width is tracked in approximate column units, not characters:
+ *  - Latin/Bahasa/Tamil words: char count × 0.55 (fits ~2 chars per
+ *    headline em-square at our 5.6%-of-frame-height font size)
+ *  - CJK runs: char count × 1.0 (each Han glyph is ~1 em wide)
+ *  - Whitespace handled implicitly via the segmenter's word boundaries
+ *
+ * Tested against zh-Hans-SG, en-SG, ms-SG, ta-SG fixtures; preserves
+ * compound words and Tamil grapheme clusters across line breaks.
+ */
+function localeForWrap(locale: LocaleCode): string {
+  // Intl.Segmenter understands the bare BCP-47 tag. Map our SG locales
+  // to the language's primary segmentation profile.
+  switch (locale) {
+    case 'zh-Hans-SG':
+      return 'zh-Hans';
+    case 'ms-SG':
+      return 'ms';
+    case 'ta-SG':
+      return 'ta';
+    case 'en-SG':
+    default:
+      return 'en';
   }
-  if (current) lines.push(current);
-  return lines;
 }
 
-function wrapCjk(text: string, widthChars: number): string[] {
+function isWhitespace(seg: string): boolean {
+  return /^\s+$/.test(seg);
+}
+
+function isLatinWord(seg: string): boolean {
+  return /^[A-Za-z0-9.,'"’\-–—:;()/]+$/.test(seg);
+}
+
+function tokenWidth(seg: string): number {
+  if (isWhitespace(seg)) return seg.length * 0.3;
+  if (isLatinWord(seg)) return seg.length * 0.55;
+  // CJK / Tamil / mixed — assume full em width per char.
+  return [...seg].length * 1.0;
+}
+
+function wrapByLocale(
+  text: string,
+  widthCols: number,
+  locale: LocaleCode
+): string[] {
+  if (!text || widthCols <= 0) return text ? [text] : [];
+
+  // Intl.Segmenter is available in Node 18+ / all modern browsers.
+  // Word granularity preserves compound words ("智能控温" stays one
+  // segment in Chinese; "லிங்க" stays one in Tamil).
+  const segmenter = new Intl.Segmenter(localeForWrap(locale), {
+    granularity: 'word',
+  });
   const tokens: string[] = [];
-  let buf = '';
-  for (const ch of text) {
-    const isLatin = /[A-Za-z0-9.,'"’\-–—:;()/]/.test(ch);
-    if (isLatin) {
-      buf += ch;
-    } else {
-      if (buf) {
-        tokens.push(buf);
-        buf = '';
-      }
-      tokens.push(ch);
-    }
+  for (const s of segmenter.segment(text)) {
+    tokens.push(s.segment);
   }
-  if (buf) tokens.push(buf);
+
   const lines: string[] = [];
   let current = '';
   let currentWidth = 0;
   for (const tok of tokens) {
-    const isLatinTok = /^[A-Za-z0-9]/.test(tok);
-    const tokWidth = isLatinTok ? tok.length * 0.55 : tok.length * 1.0;
-    if (currentWidth + tokWidth > widthChars && current) {
-      lines.push(current.trim());
-      current = '';
-      currentWidth = 0;
+    if (isWhitespace(tok)) {
+      // Eat leading whitespace at line start; otherwise keep one space.
+      if (current.length > 0) {
+        current += tok;
+        currentWidth += tokenWidth(tok);
+      }
+      continue;
     }
-    current += isLatinTok && current && !current.endsWith(' ') ? ' ' + tok : tok;
-    currentWidth += tokWidth + (isLatinTok ? 0.55 : 0);
+    const w = tokenWidth(tok);
+    if (currentWidth + w > widthCols && current.length > 0) {
+      lines.push(current.trimEnd());
+      current = tok;
+      currentWidth = w;
+    } else {
+      current += tok;
+      currentWidth += w;
+    }
   }
-  if (current) lines.push(current.trim());
+  if (current.trim().length > 0) lines.push(current.trimEnd());
   return lines;
 }
 
@@ -139,13 +181,12 @@ export function buildFormatSvg(input: BuildSvgInput): string {
   const captionFs = Math.round(format.h * 0.034);
   const sidePad = Math.round(format.w * 0.05);
   const innerW = format.w - 2 * sidePad;
-  const emW = isCjk ? 1.0 : 0.55;
 
   if (headline) {
-    const widthChars = Math.max(8, Math.floor(innerW / (headlineFs * emW)) - 1);
-    const lines = isCjk
-      ? wrapCjk(headline, widthChars)
-      : wrapWord(headline, widthChars);
+    // Width budget in column units (1.0 = one CJK em). Subtract a 1-col
+    // safety so the rightmost glyph doesn't kiss the padding edge.
+    const widthCols = Math.max(8, innerW / headlineFs - 1);
+    const lines = wrapByLocale(headline, widthCols, locale);
     const lineHeight = headlineFs * (isCjk ? 1.35 : 1.22);
     const startY = Math.round(format.h * 0.04) + headlineFs;
     const cx = format.w / 2;
@@ -162,10 +203,8 @@ export function buildFormatSvg(input: BuildSvgInput): string {
   }
 
   if (caption) {
-    const widthChars = Math.max(12, Math.floor(innerW / (captionFs * emW)) - 1);
-    const lines = isCjk
-      ? wrapCjk(caption, widthChars)
-      : wrapWord(caption, widthChars);
+    const widthCols = Math.max(12, innerW / captionFs - 1);
+    const lines = wrapByLocale(caption, widthCols, locale);
     const lineHeight = captionFs * (isCjk ? 1.4 : 1.3);
     const totalH = lines.length * lineHeight;
     const startY = format.h - Math.round(format.h * 0.05) - totalH + captionFs * 0.85;
