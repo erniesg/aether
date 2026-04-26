@@ -1632,10 +1632,53 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
   // Fail-soft: any reject leaves the slot undefined and the lap continues.
   // (placed BELOW effectiveReferenceImages resolution — moved into a helper)
 
+  // ─── B1 fix: convert primary ingested image URL to data URL ─────────────
+  // Root cause of the "air-purifier tower" 1×1 bug: the OpenAI Images Edits
+  // API (gpt-image-2) only activates when refs are base64 data URLs. URL-
+  // based refs from urlIngestion.images are passed verbatim to the provider
+  // which silently drops them (isBase64DataUrl returns false) and falls back
+  // to text-only generation — so the 1×1 gets no product-photo anchor.
+  //
+  // Fix: when URL ingestion found a primary image and the caller didn't
+  // supply explicit refs, eagerly fetch the primary image URL and encode
+  // it as a base64 data URL so the Edits API gets invoked and anchors the
+  // hero render on the ACTUAL product photo. Fail-soft: on any network or
+  // decode error we fall back to URL-based refs (same behaviour as before).
+  //
+  // This is the single highest-leverage fix for the 1×1 atlas cell showing
+  // an air-purifier-shaped tower instead of the Eight Sleep Pod 4 Ultra.
+  let primaryImageDataUrl: string | undefined;
+  if (
+    !req.referenceImages?.length &&
+    !req.referenceImage &&
+    urlIngestion?.primaryImage?.url &&
+    !urlIngestion.primaryImage.url.startsWith('data:')
+  ) {
+    try {
+      const res = await fetch(urlIngestion.primaryImage.url);
+      if (res.ok) {
+        const mime = res.headers.get('content-type') ?? 'image/jpeg';
+        const buf = Buffer.from(await res.arrayBuffer());
+        primaryImageDataUrl = `data:${mime.split(';')[0]};base64,${buf.toString('base64')}`;
+        console.log(
+          `[auto-mode] fetched primary image as data URL (${buf.length} bytes) — Edits API will anchor on actual product photo`
+        );
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[auto-mode] failed to fetch primary image as data URL (falling back to URL-based ref):`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
+
   // Resolve effective reference images:
   //   1. req.referenceImages (plural, explicit) wins
   //   2. req.referenceImage (legacy singular) wraps to a 1-item array
-  //   3. URL ingestion's images: primary first, then top 2 body images
+  //   3. URL ingestion's images: primary first (as data URL when possible,
+  //      for Images Edits API anchoring), then top 2 body images as URL refs
+  //      (for the vision-describe context step that doesn't need data URLs).
   //   4. Image-file trigger: the payload itself becomes the reference
   const effectiveReferenceImages: AutoModeReferenceImage[] = (() => {
     if (req.referenceImages && req.referenceImages.length > 0) {
@@ -1647,10 +1690,17 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     if (urlIngestion?.images && urlIngestion.images.length > 0) {
       const ingestedHint =
         urlIngestion.title || urlIngestion.description || undefined;
-      return urlIngestion.images.slice(0, 3).map((img) => ({
+      // Primary image: use data URL when we successfully fetched it (enables
+      // Edits API); fall back to URL-based ref (vision-describe still works).
+      const primaryRef: AutoModeReferenceImage = primaryImageDataUrl
+        ? { dataUrl: primaryImageDataUrl, hint: ingestedHint }
+        : { url: urlIngestion.images[0].url, hint: ingestedHint };
+      // Remaining body images: URL refs (cheaper, vision-describe compatible).
+      const bodyRefs = urlIngestion.images.slice(1, 3).map((img) => ({
         url: img.url,
         hint: ingestedHint,
       }));
+      return [primaryRef, ...bodyRefs];
     }
     if (
       req.trigger.kind === 'file' &&
