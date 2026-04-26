@@ -71,7 +71,8 @@ export type PublisherProviderId =
   | 'social-auto-upload'
   | 'x'
   | 'instagram'
-  | 'pinterest';
+  | 'pinterest'
+  | 'linkedin';
 
 export interface PublisherProvider {
   id: PublisherProviderId;

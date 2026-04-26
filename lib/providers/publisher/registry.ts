@@ -18,6 +18,10 @@ import {
   isPinterestPublisherConfigured,
 } from './pinterest';
 import {
+  createLinkedInPublisherFromEnv,
+  isLinkedInPublisherConfigured,
+} from './linkedin';
+import {
   PublisherUnavailableError,
   type PublisherProvider,
   type PublisherProviderId,
@@ -52,6 +56,7 @@ export const KNOWN_PUBLISHER_IDS: ReadonlyArray<PublisherProviderId> = [
   'x',
   'instagram',
   'pinterest',
+  'linkedin',
 ];
 
 export interface ResolvePublisherOptions {
@@ -91,6 +96,9 @@ function instantiatePublisher(
   }
   if (id === 'pinterest') {
     return createPinterestPublisherFromEnv({}, opts.env);
+  }
+  if (id === 'linkedin') {
+    return createLinkedInPublisherFromEnv({}, opts.env);
   }
   if (id === 'preview') {
     return createPreviewPublisher({
@@ -145,6 +153,7 @@ export function resolvePublisherForPost(
     envDefault,
     'x',
     'instagram',
+    'linkedin',
     'pinterest',
     'postiz',
     'social-auto-upload',
@@ -189,6 +198,9 @@ export function listAvailablePublishers(): Array<{
   }
   if (isPinterestPublisherConfigured(process.env)) {
     list.push({ id: 'pinterest', displayName: 'Pinterest' });
+  }
+  if (isLinkedInPublisherConfigured(process.env)) {
+    list.push({ id: 'linkedin', displayName: 'LinkedIn' });
   }
   return list;
 }
