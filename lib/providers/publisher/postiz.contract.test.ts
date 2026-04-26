@@ -116,4 +116,50 @@ describe('PostizPublisher · contract', () => {
       /POSTIZ_INTEGRATION_INSTAGRAM/
     );
   });
+
+  it('cancels by calling DELETE on Postiz before clearing local storage', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toContain('/posts/post_1');
+      expect(init?.method).toBe('DELETE');
+      expect(init?.headers).toMatchObject({ Authorization: 'postiz-key' });
+      return new Response(null, { status: 204 });
+    });
+    const storage = createInMemoryScheduledPostStorage();
+    await storage.insert('ws_demo', { ...post(), provider: 'postiz', externalId: 'post_1' });
+    const publisher = createPostizPublisher({
+      workspaceId: 'ws_demo',
+      apiKey: 'postiz-key',
+      integrationIds: { instagram: 'ig_integration' },
+      storage,
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    await publisher.cancel('post_1');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats Postiz 404 on cancel as already-gone (idempotent)', async () => {
+    const fetchMock = vi.fn(async () => new Response('not found', { status: 404 }));
+    const publisher = createPostizPublisher({
+      workspaceId: 'ws_demo',
+      apiKey: 'postiz-key',
+      integrationIds: { instagram: 'ig_integration' },
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(publisher.cancel('post_gone')).resolves.toBeUndefined();
+  });
+
+  it('throws PublisherError when Postiz cancel returns non-404 failure', async () => {
+    const fetchMock = vi.fn(async () => new Response('boom', { status: 500 }));
+    const publisher = createPostizPublisher({
+      workspaceId: 'ws_demo',
+      apiKey: 'postiz-key',
+      integrationIds: { instagram: 'ig_integration' },
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(publisher.cancel('post_1')).rejects.toThrow(/Postiz DELETE.*HTTP 500/);
+  });
 });

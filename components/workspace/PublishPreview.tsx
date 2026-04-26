@@ -24,6 +24,8 @@ const PLATFORM_META: Record<
   },
   xhs: { label: 'xiaohongshu', aspect: '3 / 4', hint: 'note · 1080×1440' },
   douyin: { label: 'douyin', aspect: '9 / 16', hint: 'vertical · 1080×1920' },
+  bilibili: { label: 'bilibili', aspect: '16 / 9', hint: 'video · 1920×1080' },
+  kuaishou: { label: 'kuaishou', aspect: '9 / 16', hint: 'vertical · 1080×1920' },
   pinterest: { label: 'pinterest', aspect: '2 / 3', hint: 'pin · 1000×1500' },
 };
 

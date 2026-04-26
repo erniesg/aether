@@ -474,6 +474,8 @@ export default defineSchema({
       v.literal('youtube-shorts'),
       v.literal('xhs'),
       v.literal('douyin'),
+      v.literal('bilibili'),
+      v.literal('kuaishou'),
       v.literal('pinterest')
     ),
     mediaUrls: v.array(v.string()),

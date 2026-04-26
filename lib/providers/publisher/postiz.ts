@@ -217,6 +217,21 @@ export function createPostizPublisher(
     return (await res.json()) as T;
   }
 
+  async function deleteRequest(path: string): Promise<void> {
+    const res = await fetchImpl(`${apiBaseUrl}${path}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: opts.apiKey,
+      },
+    });
+    if (!res.ok && res.status !== 404) {
+      throw new PublisherError(
+        `Postiz DELETE ${path} failed with HTTP ${res.status}`,
+        PROVIDER_ID
+      );
+    }
+  }
+
   async function uploadMedia(mediaUrl: string, index: number): Promise<PostizUpload> {
     if (/^https:\/\//i.test(mediaUrl)) {
       return postJson<PostizUpload>('/upload-from-url', { url: mediaUrl });
@@ -305,6 +320,12 @@ export function createPostizPublisher(
     },
 
     async cancel(id) {
+      // Cancel externally on Postiz first — the local storage row only
+      // controls our preview overlay; the actual scheduled post lives on
+      // Postiz. If the external delete fails, throw so creators see the
+      // failure rather than silently believing the post was cancelled.
+      // 404 is treated as already-gone (idempotent cancel).
+      await deleteRequest(`/posts/${encodeURIComponent(id)}`);
       await opts.storage?.cancel(id);
     },
   };
