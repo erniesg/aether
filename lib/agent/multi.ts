@@ -63,11 +63,18 @@ export interface MultiAgentParams {
   /** Convex workspace document id. When supplied, every tool step is scoped
    *  to that workspace in the runs ledger so the right rail shows them. */
   wsId?: string;
-  /** Optional reference image for hero renders. When set, every
-   *  generate_image tool dispatch attaches this as `refs[0]` so the
-   *  underlying provider does an image-to-image render instead of
-   *  text-only. Adapters that don't support refs degrade gracefully —
-   *  the prompt should still mention the reference. */
+  /**
+   * Optional reference images for hero renders. When set, every
+   * generate_image tool dispatch attaches them as `refs[]` so the
+   * underlying provider does an image-to-image render. Adapters that don't
+   * support refs degrade gracefully — the prompt should still mention them.
+   *
+   * Multi-image: pass several refs to bias the hero toward a brand kit /
+   * product photo set. The legacy singular `referenceImage` field is also
+   * accepted and gets folded into refs[0] for callers that haven't migrated.
+   */
+  referenceImages?: Array<{ url?: string; dataUrl?: string }>;
+  /** @deprecated — use referenceImages. Kept for back-compat. */
   referenceImage?: { url?: string; dataUrl?: string };
 }
 
@@ -96,19 +103,23 @@ function genClientRunId(name: string): string {
 }
 
 /**
- * Inject `refs[0]` into a generate_image body. /api/generate's request
- * shape already accepts `refs: ImageRef[] = [{ url, weight? }]`. Both
- * remote URLs and `data:` base64 URIs are valid here — the adapters that
- * support image-to-image fetch the URL string verbatim.
+ * Inject `refs[]` into a generate_image body. /api/generate's request shape
+ * accepts `refs: ImageRef[] = [{ url, weight? }]`. Remote URLs and
+ * `data:` base64 URIs are both valid — adapters that support image-to-image
+ * fetch the URL string verbatim. Multiple refs let downstream adapters
+ * blend brand kit + product photo sets.
  */
-function attachReferenceImage(
+function attachReferenceImages(
   baseBody: unknown,
-  ref: { url?: string; dataUrl?: string }
+  refs: ReadonlyArray<{ url?: string; dataUrl?: string }>
 ): unknown {
-  const refUrl = ref.url ?? ref.dataUrl;
-  if (!refUrl) return baseBody;
+  if (!refs.length) return baseBody;
   if (typeof baseBody !== 'object' || baseBody === null) return baseBody;
-  return { ...(baseBody as Record<string, unknown>), refs: [{ url: refUrl }] };
+  const refsBody = refs
+    .map((r) => ({ url: r.url ?? r.dataUrl }))
+    .filter((r): r is { url: string } => typeof r.url === 'string' && r.url.length > 0);
+  if (!refsBody.length) return baseBody;
+  return { ...(baseBody as Record<string, unknown>), refs: refsBody };
 }
 
 async function dispatchTool(
@@ -116,7 +127,7 @@ async function dispatchTool(
   input: unknown,
   baseUrl: string,
   wsId: string | undefined,
-  referenceImage?: { url?: string; dataUrl?: string }
+  referenceImages?: ReadonlyArray<{ url?: string; dataUrl?: string }>
 ): Promise<
   | { ok: true; output: unknown; clientRunId?: string }
   | { ok: false; errorMessage: string; clientRunId?: string }
@@ -167,14 +178,14 @@ async function dispatchTool(
     };
   }
 
-  // Build the request body. For generate_image, transparently attach a
-  // reference image (when supplied at the loop level) — the agent's tool
-  // schema doesn't expose this so Claude doesn't need to manage the
+  // Build the request body. For generate_image, transparently attach
+  // reference image(s) (when supplied at the loop level) — the agent's
+  // tool schema doesn't expose this so Claude doesn't need to manage the
   // reference URL/dataUrl lifecycle.
   const baseBody = spec.toBody(input);
   const body =
-    name === 'generate_image' && referenceImage
-      ? attachReferenceImage(baseBody, referenceImage)
+    name === 'generate_image' && referenceImages && referenceImages.length > 0
+      ? attachReferenceImages(baseBody, referenceImages)
       : baseBody;
 
   const startedAt = Date.now();
@@ -410,6 +421,13 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
       break;
     }
 
+    // Fold the legacy singular referenceImage into the plural list so a
+    // single dispatch path handles both. Order matters — explicit
+    // referenceImages take precedence; the legacy field is appended.
+    const refs: Array<{ url?: string; dataUrl?: string }> = [
+      ...(params.referenceImages ?? []),
+      ...(params.referenceImage ? [params.referenceImage] : []),
+    ];
     const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
     for (const block of toolUses) {
       const t0 = Date.now();
@@ -418,7 +436,7 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
         block.input,
         params.baseUrl,
         params.wsId,
-        params.referenceImage
+        refs.length > 0 ? refs : undefined
       );
       const ms = Date.now() - t0;
       if (dispatch.ok) {

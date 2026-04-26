@@ -107,7 +107,14 @@ export interface AutoModeRequest {
    *  next variation's prompt for distinctness. parallel = Promise.allSettled
    *  fan-out with up-front variation seeds. Default: 'sequential'. */
   concurrency?: AutoModeConcurrency;
-  /** Optional reference image for the hero render. */
+  /**
+   * Optional reference images for the hero render. Multi-image lets a
+   * brand kit + product photo set bias the generation. When trigger.kind
+   * is 'url' and these are not supplied, the page's og:image and top
+   * body images become the default refs.
+   */
+  referenceImages?: AutoModeReferenceImage[];
+  /** @deprecated — use referenceImages. Kept for back-compat. */
   referenceImage?: AutoModeReferenceImage;
   /** Optional bound on per-variation iterations (passed to runMultiAgent). */
   maxIterationsPerVariation?: number;
@@ -201,7 +208,7 @@ interface VariationPromptInput {
   priorMoodNotes: string[];
   /** parallel mode: up-front mood seed assigned to this variation. */
   parallelMoodSeed?: string;
-  referenceImage?: AutoModeReferenceImage;
+  referenceImages?: AutoModeReferenceImage[];
   /** When trigger.kind === 'url' and ingestion succeeded, this is the
    *  page's title/description/body excerpt/products — woven into the
    *  variation prompt so the agent reasons about the actual page content
@@ -228,6 +235,7 @@ function buildPreHeroLayoutAwarePrompt(input: {
   parallelMoodSeed?: string;
   referenceHint?: string;
   urlIngestion?: UrlIngestion;
+  referenceImageCount?: number;
 }): string {
   // Compose the hero description from whatever signal is most specific:
   // for URL triggers, the ingested page title + description carry the
@@ -274,11 +282,17 @@ function buildPreHeroLayoutAwarePrompt(input: {
 }
 
 const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
+  const refs = input.referenceImages ?? [];
+  // First ref's hint (when present) makes the cleanest creator brief
+  // augmentation. Subsequent refs are still attached as image-to-image
+  // but their hints aren't woven into the layout-aware prompt body.
+  const primaryHint = refs[0]?.hint;
   const layoutAwarePrompt = buildPreHeroLayoutAwarePrompt({
     trigger: input.trigger,
     parallelMoodSeed: input.parallelMoodSeed,
-    referenceHint: input.referenceImage?.hint,
+    referenceHint: primaryHint,
     urlIngestion: input.urlIngestion,
+    referenceImageCount: refs.length,
   });
 
   const lines = [
@@ -326,15 +340,21 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     lines.push('---');
   }
 
-  if (input.referenceImage) {
-    const refUrl = input.referenceImage.url ?? '<inline base64>';
-    const hint = input.referenceImage.hint
-      ? ` Reference notes: ${input.referenceImage.hint}.`
-      : '';
-    lines.push(
-      '',
-      `A reference image is attached for this hero render: ${refUrl}.${hint} Honour its composition and feel; do not copy it literally.`
-    );
+  if (refs.length > 0) {
+    const heading =
+      refs.length === 1
+        ? 'A reference image is attached for this hero render:'
+        : `${refs.length} reference images are attached for this hero render — blend their feel; do not copy any literally:`;
+    lines.push('', heading);
+    for (const ref of refs.slice(0, 6)) {
+      const refUrl = ref.url ?? '<inline base64>';
+      const hint = ref.hint ? ` — ${ref.hint}` : '';
+      lines.push(`- ${refUrl}${hint}`);
+    }
+    if (refs.length > 6) {
+      lines.push(`(${refs.length - 6} additional refs not listed inline)`);
+    }
+    lines.push('Honour their composition and feel; do not copy any literally.');
   }
 
   lines.push(
@@ -707,7 +727,7 @@ interface RunOneVariationInput {
   baseUrl: string;
   workspaceId?: string;
   maxIterationsPerVariation?: number;
-  referenceImage?: AutoModeReferenceImage;
+  referenceImages?: AutoModeReferenceImage[];
 }
 
 async function runOneVariation(
@@ -724,12 +744,10 @@ async function runOneVariation(
       baseUrl: input.baseUrl,
       wsId: input.workspaceId,
       maxIterations: input.maxIterationsPerVariation,
-      referenceImage: input.referenceImage
-        ? {
-            url: input.referenceImage.url,
-            dataUrl: input.referenceImage.dataUrl,
-          }
-        : undefined,
+      referenceImages: input.referenceImages?.map((ref) => ({
+        url: ref.url,
+        dataUrl: ref.dataUrl,
+      })),
     });
     agentStepsForVariation = agentRun.steps;
     agentFinalText = agentRun.finalText;
@@ -919,19 +937,13 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
   // ─── URL ingestion (multimodal v1) ──────────────────────────────────────
   // When the trigger is a URL, fetch the page once at the lap level so all
   // variations share the same enriched context. Fail-soft: a network or
-  // parse error degrades to plain trigger-as-string. The og-image becomes
-  // the default reference image when the caller didn't supply one.
+  // parse error degrades to plain trigger-as-string. The og:image (and
+  // top body images) become the default reference images when the caller
+  // didn't supply any.
   let urlIngestion: UrlIngestion | undefined;
-  let effectiveReferenceImage = req.referenceImage;
   if (req.trigger.kind === 'url') {
     try {
       urlIngestion = await fetchUrlIngestion(req.trigger.payload);
-      if (!effectiveReferenceImage && urlIngestion.primaryImage) {
-        effectiveReferenceImage = {
-          url: urlIngestion.primaryImage.url,
-          hint: urlIngestion.title || urlIngestion.description || undefined,
-        };
-      }
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn(
@@ -941,6 +953,28 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     }
   }
 
+  // Resolve effective reference images:
+  //   1. req.referenceImages (plural, explicit) wins
+  //   2. req.referenceImage (legacy singular) wraps to a 1-item array
+  //   3. URL ingestion's images: primary first, then top 2 body images
+  const effectiveReferenceImages: AutoModeReferenceImage[] = (() => {
+    if (req.referenceImages && req.referenceImages.length > 0) {
+      return req.referenceImages;
+    }
+    if (req.referenceImage) {
+      return [req.referenceImage];
+    }
+    if (urlIngestion?.images && urlIngestion.images.length > 0) {
+      const ingestedHint =
+        urlIngestion.title || urlIngestion.description || undefined;
+      return urlIngestion.images.slice(0, 3).map((img) => ({
+        url: img.url,
+        hint: ingestedHint,
+      }));
+    }
+    return [];
+  })();
+
   // ─── Lap-start ping (always, regardless of notifyMode) ────────────────
   // User wants visibility on kickoff so they know the lap is in flight.
   await notifyDiscord({
@@ -949,7 +983,9 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       `▶︎ Auto Mode lap started`,
       `Trigger: ${req.trigger.kind} · ${req.trigger.payload.slice(0, 80)}`,
       `${req.variationCount} variations · ${concurrency} · ${req.notifyMode}${
-        effectiveReferenceImage ? ' · with reference' : ''
+        effectiveReferenceImages.length > 0
+          ? ` · ${effectiveReferenceImages.length} ref${effectiveReferenceImages.length === 1 ? '' : 's'}`
+          : ''
       }${urlIngestion ? ` · ingested: "${urlIngestion.title.slice(0, 60)}"` : ''}`,
       campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
     ].join('\n'),
@@ -970,13 +1006,13 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           trigger: req.trigger,
           priorMoodNotes: [],
           parallelMoodSeed: moodSeed,
-          referenceImage: effectiveReferenceImage,
+          referenceImages: effectiveReferenceImages,
           urlIngestion,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
         maxIterationsPerVariation: req.maxIterationsPerVariation,
-        referenceImage: effectiveReferenceImage,
+        referenceImages: effectiveReferenceImages,
       });
     });
     const settled = await Promise.allSettled(tasks);
@@ -1002,13 +1038,13 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           total: req.variationCount,
           trigger: req.trigger,
           priorMoodNotes: [...priorMoodNotes],
-          referenceImage: effectiveReferenceImage,
+          referenceImages: effectiveReferenceImages,
           urlIngestion,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
         maxIterationsPerVariation: req.maxIterationsPerVariation,
-        referenceImage: effectiveReferenceImage,
+        referenceImages: effectiveReferenceImages,
       });
       if (variation.moodNote) priorMoodNotes.push(variation.moodNote);
       variations.push(variation);
