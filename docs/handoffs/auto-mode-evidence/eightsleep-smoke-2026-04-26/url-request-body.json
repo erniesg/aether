@@ -1,0 +1,11 @@
+{
+  "trigger": {
+    "kind": "url",
+    "payload": "https://www.eightsleep.com/"
+  },
+  "variationCount": 1,
+  "notifyMode": "auto-post",
+  "concurrency": "sequential",
+  "workspaceId": "ws-eightsleep-url-smoke",
+  "maxIterationsPerVariation": 4
+}

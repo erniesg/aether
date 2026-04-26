@@ -1,0 +1,40 @@
+[
+  {
+    "zone": {
+      "purpose": "headline",
+      "bbox": {
+        "x": 0.05,
+        "y": 0.05,
+        "w": 0.9,
+        "h": 0.18
+      },
+      "mustSurviveAllCrops": true
+    },
+    "content": {
+      "en-SG": "Sleep deeper than the city.",
+      "zh-Hans-SG": "沉睡，比城市更深。",
+      "ms-SG": "Tidur lebih dalam dari kota.",
+      "ta-SG": "நகரத்தை விட ஆழ்ந்த உறக்கம்."
+    },
+    "textAlign": "center"
+  },
+  {
+    "zone": {
+      "purpose": "caption",
+      "bbox": {
+        "x": 0.05,
+        "y": 0.78,
+        "w": 0.9,
+        "h": 0.17
+      },
+      "mustSurviveAllCrops": true
+    },
+    "content": {
+      "en-SG": "Pod 4 Ultra cools, warms, tracks every breath. Wake before the city stirs.",
+      "zh-Hans-SG": "Pod 4 Ultra 自动调温，记录每次呼吸。在城市苏醒之前，先醒来。",
+      "ms-SG": "Pod 4 Ultra menyejuk, memanas, menjejak setiap nafas. Bangun sebelum kota bangkit.",
+      "ta-SG": "Pod 4 Ultra குளிர்விக்கும், சூடேற்றும், ஒவ்வொரு மூச்சையும் கண்காணிக்கும். நகரம் விழிக்கும் முன் எழுந்திரு."
+    },
+    "textAlign": "center"
+  }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "index": 0,
+    "name": "get_current_datetime",
+    "input": {
+      "timezone": "Asia/Singapore"
+    },
+    "ok": true,
+    "ms": 618,
+    "clientRunId": "agent_datetime_mofoe6cs_bzf8tm"
+  },
+  {
+    "index": 1,
+    "name": "search_signals",
+    "input": {
+      "seedText": "eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition",
+      "platforms": [
+        "instagram"
+      ],
+      "limit": 8
+    },
+    "ok": true,
+    "ms": 635,
+    "clientRunId": "agent_signals-search_mofoe6ty_bq8gm9"
+  },
+  {
+    "index": 2,
+    "name": "generate_image",
+    "input": {
+      "prompt": "eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition\nHero subject: eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition.\nMood: cinematic.\nCompose this image so it remains readable when cropped to any of these aspect ratios: 1:1, 4:5, 9:16, 16:9. The hero subject must stay centered and uncropped in every one.\nReserve the following regions as soft negative space — flat tone, low detail, no clutter — so editable text overlays can be placed there separately:\n- the upper-center region (90% × 18%) for the headline.\n- the lower-center region (90% × 17%) for the caption.\nPrimary subject anchor: the central 64% × 64% region of the frame; this region must survive every crop.\nDo not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.",
+      "aspectRatio": "1:1"
+    },
+    "ok": true,
+    "ms": 142203,
+    "clientRunId": "agent_image-gen_mofoeasn_8lj6ov"
+  }
+]

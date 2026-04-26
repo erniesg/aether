@@ -1,0 +1,70 @@
+[
+  {
+    "formatId": "1x1",
+    "aspectRatio": "1:1",
+    "w": 1024,
+    "h": 1024,
+    "crop": {
+      "topLeft": {
+        "x": 0,
+        "y": 0
+      },
+      "bottomRight": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "fit": "fitted"
+  },
+  {
+    "formatId": "4x5",
+    "aspectRatio": "4:5",
+    "w": 1080,
+    "h": 1350,
+    "crop": {
+      "topLeft": {
+        "x": 0.09999999999999998,
+        "y": 0
+      },
+      "bottomRight": {
+        "x": 0.9,
+        "y": 1
+      }
+    },
+    "fit": "partial"
+  },
+  {
+    "formatId": "9x16",
+    "aspectRatio": "9:16",
+    "w": 1080,
+    "h": 1920,
+    "crop": {
+      "topLeft": {
+        "x": 0.21875,
+        "y": 0
+      },
+      "bottomRight": {
+        "x": 0.78125,
+        "y": 1
+      }
+    },
+    "fit": "partial"
+  },
+  {
+    "formatId": "16x9",
+    "aspectRatio": "16:9",
+    "w": 1920,
+    "h": 1080,
+    "crop": {
+      "topLeft": {
+        "x": 0,
+        "y": 0.21875
+      },
+      "bottomRight": {
+        "x": 1,
+        "y": 0.78125
+      }
+    },
+    "fit": "partial"
+  }
+]
