@@ -36,6 +36,7 @@ import {
   descriptionToSegmentPrompts,
 } from './describe-image';
 import { fetchUrlIngestion, type UrlIngestion } from '@/lib/ingest/url';
+import { fetchPdfIngestion, type PdfIngestion } from '@/lib/ingest/pdf';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -198,6 +199,12 @@ export interface AutoModeResult {
    * scraped" alongside what we made.
    */
   urlIngestion?: UrlIngestion;
+  /**
+   * When `trigger.kind === 'file'` and the payload sniffs to a PDF, the
+   * extracted text + page metadata. Same role as `urlIngestion` for PDFs:
+   * weaves into the variation prompt and surfaces in the UI.
+   */
+  pdfIngestion?: PdfIngestion;
 }
 
 interface VariationPromptInput {
@@ -214,6 +221,9 @@ interface VariationPromptInput {
    *  variation prompt so the agent reasons about the actual page content
    *  instead of just the URL string. */
   urlIngestion?: UrlIngestion;
+  /** When trigger.kind === 'file' and the payload sniffs to a PDF, the
+   *  extracted text + metadata. Title/author/excerpt feed the prompt. */
+  pdfIngestion?: PdfIngestion;
 }
 
 /**
@@ -235,12 +245,14 @@ function buildPreHeroLayoutAwarePrompt(input: {
   parallelMoodSeed?: string;
   referenceHint?: string;
   urlIngestion?: UrlIngestion;
+  pdfIngestion?: PdfIngestion;
   referenceImageCount?: number;
 }): string {
   // Compose the hero description from whatever signal is most specific:
-  // for URL triggers, the ingested page title + description carry the
-  // actual subject (a raw URL string is meaningless to the layout
-  // planner); for text triggers, the trigger payload is the brief.
+  // - URL trigger: ingested page title + description + first product.
+  // - PDF trigger: ingested title + first lines of the document (the raw
+  //   payload is a data: URL or .pdf URL, neither informs the planner).
+  // - Text trigger: payload itself.
   const heroDescription = (() => {
     if (input.urlIngestion) {
       const ing = input.urlIngestion;
@@ -256,18 +268,37 @@ function buildPreHeroLayoutAwarePrompt(input: {
           : joined;
       }
     }
+    if (input.pdfIngestion) {
+      const pdf = input.pdfIngestion;
+      const parts: string[] = [];
+      if (pdf.title) parts.push(pdf.title);
+      // First non-empty line of the body usually carries the doc's headline.
+      const firstLine = pdf.text
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .find((s) => s.length > 12);
+      if (firstLine) parts.push(firstLine.slice(0, 240));
+      const joined = parts.join(' — ');
+      if (joined) {
+        return input.referenceHint
+          ? `${joined} (reference vibe: ${input.referenceHint})`
+          : joined;
+      }
+    }
     return input.referenceHint
       ? `${input.trigger.payload} (reference vibe: ${input.referenceHint})`
       : input.trigger.payload;
   })();
-  // The creator-prompt LEAD line shown verbatim at the top of the layout-
-  // aware prompt should also reflect the ingested brief when available;
-  // a URL-as-lead is uninformative to the image generator.
+  // Creator-prompt lead reflects the ingested brief when available — a
+  // URL or data: URL string is uninformative to the image generator.
   const creatorPrompt = (() => {
     if (input.urlIngestion?.title) {
       return input.urlIngestion.description
         ? `${input.urlIngestion.title} — ${input.urlIngestion.description}`
         : input.urlIngestion.title;
+    }
+    if (input.pdfIngestion?.title) {
+      return input.pdfIngestion.title;
     }
     return input.trigger.payload;
   })();
@@ -292,6 +323,7 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     parallelMoodSeed: input.parallelMoodSeed,
     referenceHint: primaryHint,
     urlIngestion: input.urlIngestion,
+    pdfIngestion: input.pdfIngestion,
     referenceImageCount: refs.length,
   });
 
@@ -307,7 +339,7 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
   // story to work from, not just the URL string.
   if (input.urlIngestion) {
     const ing = input.urlIngestion;
-    lines.push('', '--- INGESTED PAGE CONTENT (auto-extracted) ---');
+    lines.push('', '--- INGESTED PAGE CONTENT (auto-extracted from URL) ---');
     if (ing.title) lines.push(`Page title: ${ing.title}`);
     if (ing.description) lines.push(`Description: ${ing.description}`);
     if (ing.products.length > 0) {
@@ -335,6 +367,29 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     if (ing.primaryImage) {
       lines.push(
         `Hero image found on the page: ${ing.primaryImage.url} (this will be used as the reference for generate_image unless a different reference was supplied).`
+      );
+    }
+    lines.push('---');
+  }
+
+  // PDF ingestion enrichment — same shape as URL but pulls from a
+  // document (spec sheet, marketing PDF, brief). No image extraction in v2.
+  if (input.pdfIngestion) {
+    const pdf = input.pdfIngestion;
+    lines.push('', '--- INGESTED PDF CONTENT (auto-extracted from file) ---');
+    if (pdf.title) lines.push(`Document title: ${pdf.title}`);
+    if (pdf.author) lines.push(`Author: ${pdf.author}`);
+    lines.push(`Pages: ${pdf.pageCount}`);
+    if (pdf.textExcerpt) {
+      lines.push(
+        'Text excerpt (head, ~1500 chars):',
+        pdf.textExcerpt
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0)
+          .slice(0, 16)
+          .map((l) => `  · ${l}`)
+          .join('\n')
       );
     }
     lines.push('---');
@@ -551,6 +606,18 @@ function buildAutoModeComponent(input: {
 
 function isDataUrl(url: string | undefined): boolean {
   return typeof url === 'string' && url.startsWith('data:');
+}
+
+/** Quick PDF sniff: data URL with application/pdf, or path/URL ending in .pdf. */
+function isPdfPayload(payload: string): boolean {
+  if (!payload) return false;
+  if (
+    payload.startsWith('data:') &&
+    payload.toLowerCase().includes('application/pdf')
+  ) {
+    return true;
+  }
+  return /\.pdf(\?|#|$)/i.test(payload);
 }
 
 /**
@@ -934,13 +1001,16 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     notifyMode: req.notifyMode,
   });
 
-  // ─── URL ingestion (multimodal v1) ──────────────────────────────────────
-  // When the trigger is a URL, fetch the page once at the lap level so all
-  // variations share the same enriched context. Fail-soft: a network or
-  // parse error degrades to plain trigger-as-string. The og:image (and
-  // top body images) become the default reference images when the caller
-  // didn't supply any.
+  // ─── Multimodal trigger ingestion ──────────────────────────────────────
+  // Run once per lap so all variations share the same enriched context.
+  // Fail-soft per source: a network/parse error degrades to plain
+  // trigger-as-string with a warning, lap continues.
+  //   - URL: fetch the page, extract title/description/products/images
+  //   - File (PDF): extract text + page metadata
+  //   - File (image, future): treated as reference image
+  //   - Text: no ingestion needed
   let urlIngestion: UrlIngestion | undefined;
+  let pdfIngestion: PdfIngestion | undefined;
   if (req.trigger.kind === 'url') {
     try {
       urlIngestion = await fetchUrlIngestion(req.trigger.payload);
@@ -948,6 +1018,16 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       // eslint-disable-next-line no-console
       console.warn(
         `[auto-mode] url ingestion failed for ${req.trigger.payload}:`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  } else if (req.trigger.kind === 'file' && isPdfPayload(req.trigger.payload)) {
+    try {
+      pdfIngestion = await fetchPdfIngestion(req.trigger.payload);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[auto-mode] pdf ingestion failed for ${req.trigger.payload.slice(0, 80)}:`,
         err instanceof Error ? err.message : String(err)
       );
     }
@@ -986,7 +1066,11 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
         effectiveReferenceImages.length > 0
           ? ` · ${effectiveReferenceImages.length} ref${effectiveReferenceImages.length === 1 ? '' : 's'}`
           : ''
-      }${urlIngestion ? ` · ingested: "${urlIngestion.title.slice(0, 60)}"` : ''}`,
+      }${urlIngestion ? ` · url-ingested: "${urlIngestion.title.slice(0, 60)}"` : ''}${
+        pdfIngestion
+          ? ` · pdf-ingested: "${(pdfIngestion.title || pdfIngestion.source.slice(0, 60))}" (${pdfIngestion.pageCount}p)`
+          : ''
+      }`,
       campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
     ].join('\n'),
   });
@@ -1008,6 +1092,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           parallelMoodSeed: moodSeed,
           referenceImages: effectiveReferenceImages,
           urlIngestion,
+          pdfIngestion,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
@@ -1040,6 +1125,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           priorMoodNotes: [...priorMoodNotes],
           referenceImages: effectiveReferenceImages,
           urlIngestion,
+          pdfIngestion,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
@@ -1124,5 +1210,6 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     notified,
     scheduledPostIds,
     urlIngestion,
+    pdfIngestion,
   };
 }
