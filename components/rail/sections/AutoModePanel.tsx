@@ -20,6 +20,13 @@ import { Button } from '@/components/ui/Button';
  * Purely view-layer: takes a campaign + variations as props. The parent
  * is responsible for subscribing to `api.campaigns.get` (Convex) and
  * passing the result down. No fetching here.
+ *
+ * LANE-C TODO: surface `researchBundle` (competitors, localeInsights,
+ * recentCampaigns, sources) in a collapsible "Research signals" section
+ * below the lap status line. The bundle is returned by runAutoMode and
+ * should be threaded through WorkspaceShell → RightRail → AutoModePanel
+ * as an optional prop `researchBundle?: ResearchBundle`. One chip per
+ * competitor, one chip per locale insight — progressive disclosure only.
  */
 
 export interface AutoModeFormatCropView {

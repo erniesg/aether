@@ -115,10 +115,12 @@ Provider-agnostic by contract: `lib/providers/image/{openai,gemini,replicate,vol
 
 **Demo (25%).** Concrete: paste `eightsleep.com`, watch a real lap, click `/inspect/<id>` to see every step. Real captures in `docs/handoffs/auto-mode-evidence/`. The atlas in `auto-post-smoke-2026-04-26-night/atlas-3-native.png` is one real lap's output, not a mockup.
 
-**Opus 4.7 use (25%).** Three non-trivial places it's the engine, not a wrapper:
+**Opus 4.7 use (25%).** Five non-trivial places it's the engine, not a wrapper:
 1. **Brand-context piped vision-describe** — `lib/agent/describe-image.ts:buildSystemPrompt(brandContext)`. Without this, vision misidentifies products by silhouette; with it, products are named correctly. This is a small architectural fix that's only obvious once you've seen the failure.
 2. **Multilingual copy planner** — `lib/agent/text-apply.ts:applyTextOverlay`. Tool-use call to Opus 4.7 that emits `{ overlays: [{purpose, content: [{locale, text}], textAlign}] }`. Idiomatic per locale, not literal.
 3. **Agent loop with the real tool surface** — `lib/agent/multi.ts` runs Claude with `get_current_datetime`, `search_signals`, `generate_image`, `analyze_video`, `cluster_references`. Each tool's input/output is a typed `capabilityRun` row. Provenance ships for free.
+4. **Anthropic Managed Agents** — three native wrappers in `lib/agent/managed/`: `research.ts` (competitive signals + locale insights via `web_search_20250305`), `cluster.ts` (visual similarity grouping via vision), `signoff.ts` (brand guardrail + schedule decision). Each uses `client.beta.sessions` when `ANTHROPIC_{RESEARCH,CLUSTER,SIGNOFF}_{AGENT,ENVIRONMENT}_ID` are set; falls back to standard `messages.create` otherwise. Provenance written to `capabilityRun` on every run.
+5. **Research agent wired into the lap** — `runAutoMode` runs `runResearchAgent` once per URL-triggered lap (before variation fan-out) so every variation's system note includes real competitor signals, recent campaign context, and locale-specific insights. Fail-soft: any error leaves `researchBundle` undefined and the lap continues.
 
 **Depth & execution (20%).** Typed provenance on every action (`entryRef → capabilityRun`). Provider-agnostic adapters with contract tests. Fail-soft per stage (vision-describe failure ≠ lap failure; SAM3 failure ≠ text-overlay failure; per-aspect render failure ≠ atlas failure). Vitest 1188 passing across 160 files at the time of this README. `tsc --noEmit` clean. Worktrees for parallel slices.
 
