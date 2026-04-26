@@ -170,7 +170,7 @@ function makeFormatFrames(): ShapeRecord[] {
     meta: {
       aetherFormatFrame: true,
       aspect: spec.aspect,
-      format: spec.formatId,
+      formatId: spec.formatId,
     },
   }));
 }

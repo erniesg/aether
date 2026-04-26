@@ -96,7 +96,11 @@ import {
   type AutoModeConfig,
 } from '@/components/canvas/AutoModeToggle';
 import { useCampaignLap } from '@/lib/auto-mode/useCampaignLap';
-import { dropVariationOnCanvas } from '@/lib/auto-mode/canvas';
+import {
+  dropVariationOnCanvas,
+  buildGlobalTextPropagator,
+  type VariationOverlayUpdate,
+} from '@/lib/auto-mode/canvas';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -1282,6 +1286,36 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       droppedVariationIndices.current = new Set();
     }
   }, [inFlightCampaignId]);
+
+  // Lane A — Slice 4: wire global/local text-overlay propagation.
+  // When the editor is ready, attach a store listener that fans out edits to
+  // global-scoped text shapes across all sibling cells (same variation + role).
+  // The mutation callback persists each edit to Convex so the state survives
+  // refresh and is visible to collaborators.
+  //
+  // NOTE: The Convex mutation call is best-effort (fire-and-forget). Failures
+  // are logged but do not revert the canvas state so the creator's typing is
+  // never interrupted.
+  useEffect(() => {
+    if (!editor) return;
+
+    // Stub mutation — calls the Convex HTTP route when Convex is available,
+    // falls back to a no-op log so the canvas propagation still works offline.
+    const onUpdate = async (args: VariationOverlayUpdate): Promise<void> => {
+      try {
+        await fetch('/api/campaigns/overlay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(args),
+        });
+      } catch (err) {
+        logError('overlay update failed (non-fatal):', err);
+      }
+    };
+
+    const unsubscribe = buildGlobalTextPropagator(editor, onUpdate);
+    return unsubscribe;
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) {
