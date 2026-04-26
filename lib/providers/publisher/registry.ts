@@ -1,25 +1,30 @@
 import { createPreviewPublisher } from './preview';
 import { createInMemoryScheduledPostStorage } from './memory-storage';
+import { createPostizPublisherFromEnv } from './postiz';
+import {
+  createSocialAutoUploadPublisher,
+  isSocialAutoUploadPublisherConfigured,
+} from './social-auto-upload';
 import {
   PublisherUnavailableError,
   type PublisherProvider,
   type PublisherProviderId,
+  type ScheduledPost,
   type ScheduledPostStorage,
 } from './types';
 
 /**
- * Publisher adapter selection. M1 ships `preview` only — postiz /
- * social-auto-upload are reserved ids so the agent loop's config files can
- * point at them ahead of the adapter implementations landing.
+ * Publisher adapter selection. `preview` is always available for local creator
+ * review. `postiz` becomes available when the API key and at least one
+ * platform integration id are present.
  *
  * Precedence when resolving:
  *   1. explicit `preferredId`
  *   2. env `PUBLISHER_PROVIDER`
  *   3. iteration order (preview first, since it has no credential dependency)
  *
- * If the chosen adapter isn't implemented yet, `resolvePublisher` throws
- * `PublisherUnavailableError` — callers turn that into a visible empty state,
- * not a silent fallback, so creators know why no posting happened.
+ * If the chosen adapter is unavailable, resolution falls through to preview
+ * unless the caller made an explicit provider request.
  */
 
 export const KNOWN_PUBLISHER_IDS: ReadonlyArray<PublisherProviderId> = [
@@ -30,9 +35,41 @@ export const KNOWN_PUBLISHER_IDS: ReadonlyArray<PublisherProviderId> = [
 
 export interface ResolvePublisherOptions {
   workspaceId: string;
-  storage: ScheduledPostStorage;
+  storage?: ScheduledPostStorage;
   preferredId?: string;
   baseUrl?: string;
+  env?: NodeJS.ProcessEnv;
+}
+
+export interface ResolvePublisherForPostOptions extends ResolvePublisherOptions {
+  post: Parameters<PublisherProvider['canPublish']>[0];
+}
+
+function instantiatePublisher(
+  id: string,
+  opts: ResolvePublisherOptions
+): PublisherProvider | null {
+  if (id === 'postiz') {
+    return createPostizPublisherFromEnv(
+      {
+        workspaceId: opts.workspaceId,
+        storage: opts.storage,
+        baseUrl: opts.baseUrl,
+      },
+      opts.env
+    );
+  }
+  if (id === 'social-auto-upload' && isSocialAutoUploadPublisherConfigured(opts.env)) {
+    return createSocialAutoUploadPublisher({ workspaceId: opts.workspaceId });
+  }
+  if (id === 'preview') {
+    return createPreviewPublisher({
+      workspaceId: opts.workspaceId,
+      storage: opts.storage,
+      baseUrl: opts.baseUrl,
+    });
+  }
+  return null;
 }
 
 export function resolvePublisher(
@@ -42,19 +79,15 @@ export function resolvePublisher(
   const order = [opts.preferredId, envDefault, 'preview'].filter(
     (x): x is string => typeof x === 'string' && x.length > 0
   );
-  // Silent fall-through for unshipped stubs (postiz / social-auto-upload),
-  // matching lib/providers/image/registry.ts behaviour. If an explicit
-  // preferredId was given and nothing matched, throw so the caller can show
-  // a clear error instead of silently picking preview.
   for (const id of order) {
-    if (id === 'preview') {
-      return createPreviewPublisher({
-        workspaceId: opts.workspaceId,
-        storage: opts.storage,
-        baseUrl: opts.baseUrl,
-      });
+    const publisher = instantiatePublisher(id, opts);
+    if (publisher) return publisher;
+    if (id === 'postiz' && opts.preferredId === 'postiz') {
+      throw new PublisherUnavailableError(
+        'postiz',
+        'POSTIZ_API_KEY and POSTIZ_INTEGRATION_<PLATFORM> are required'
+      );
     }
-    // postiz / social-auto-upload are known ids with no adapter yet; skip.
   }
   throw new PublisherUnavailableError(
     opts.preferredId ?? 'any',
@@ -62,11 +95,56 @@ export function resolvePublisher(
   );
 }
 
+/**
+ * Platform-aware resolution for real publishing. Unlike `resolvePublisher`,
+ * this does not let preview win before configured real adapters have had a
+ * chance to claim the post. That allows one export pack to route Western
+ * platforms to Postiz and CJK/browser-automation platforms to the Python
+ * sidecar.
+ */
+export function resolvePublisherForPost(
+  opts: ResolvePublisherForPostOptions
+): PublisherProvider {
+  const envDefault = process.env.PUBLISHER_PROVIDER;
+  const order = [
+    opts.preferredId,
+    envDefault,
+    'postiz',
+    'social-auto-upload',
+    'preview',
+  ].filter((x): x is string => typeof x === 'string' && x.length > 0);
+
+  const seen = new Set<string>();
+  for (const id of order) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const publisher = instantiatePublisher(id, opts);
+    if (publisher?.canPublish(opts.post)) return publisher;
+  }
+
+  throw new PublisherUnavailableError(
+    opts.preferredId ?? (opts.post as ScheduledPost).platform,
+    `no publisher adapter can publish ${(opts.post as ScheduledPost).platform}`
+  );
+}
+
 export function listAvailablePublishers(): Array<{
   id: PublisherProviderId;
   displayName: string;
 }> {
-  return [{ id: 'preview', displayName: 'preview (no posting)' }];
+  const list: Array<{ id: PublisherProviderId; displayName: string }> = [
+    { id: 'preview', displayName: 'preview' },
+  ];
+  if (createPostizPublisherFromEnv({
+    workspaceId: 'availability-check',
+    storage: createInMemoryScheduledPostStorage(),
+  })) {
+    list.push({ id: 'postiz', displayName: 'Postiz' });
+  }
+  if (isSocialAutoUploadPublisherConfigured()) {
+    list.push({ id: 'social-auto-upload', displayName: 'social-auto-upload' });
+  }
+  return list;
 }
 
 /** Re-export for tests that want to build an ephemeral publisher quickly. */

@@ -6,23 +6,30 @@ import {
   Layers3,
   Package2,
   PaintBucket,
+  Search,
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
 import { RailSection } from './RailSection';
 import { BrandSection, brandSectionSummary } from './sections/BrandSection';
+import { CampaignSection, campaignSectionSummary } from './sections/CampaignSection';
+import { OfferSection, offerSectionSummary } from './sections/OfferSection';
 import {
   SignalsSection,
   signalsSectionSummary,
 } from './sections/SignalsSection';
-import { ReferencesImagesTab } from './sections/ReferencesImagesTab';
+import {
+  ResearchSection,
+  researchSectionSummary,
+} from './sections/ResearchSection';
+import {
+  ReferencesImagesTab,
+  ReferencesManualTab,
+} from './sections/ReferencesImagesTab';
 import { useSignals } from '@/lib/signals/store';
 import { useReferences, referenceSummary } from '@/lib/references/store';
-import {
-  DEMO_CREATOR_CONTEXT,
-  summarizeInputSet,
-} from '@/lib/context/model';
+import { useCreatorContext } from '@/lib/context/creator-store';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -36,87 +43,7 @@ type SectionSpec = {
 
 type ReferencesTabId = 'images' | 'templates' | 'elements';
 
-const CONTEXT = DEMO_CREATOR_CONTEXT;
-
-function PlaceholderBody({ hint }: { hint: string }) {
-  return (
-    <div className="flex h-24 items-center justify-center">
-      <span className="font-caption text-ink-dim">{hint}</span>
-    </div>
-  );
-}
-
-function CampaignBody() {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">goal</span>
-        <textarea
-          defaultValue={CONTEXT.campaign.goal}
-          rows={3}
-          className="resize-none rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">audience</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.audience}</span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">channels</span>
-        <div className="flex flex-wrap gap-1">
-          {CONTEXT.campaign.channels.map((channel) => (
-            <span
-              key={channel}
-              className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-mono text-2xs uppercase tracking-wide text-ink-dim"
-            >
-              {channel}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">cta</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.campaign.cta}</span>
-      </div>
-      <div className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
-        <span className="font-caption text-ink-dim">active input set</span>
-        <p className="mt-1 font-caption text-xs text-ink">{summarizeInputSet(CONTEXT)}</p>
-      </div>
-    </div>
-  );
-}
-
-function OfferBody() {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">offer</span>
-        <span className="font-display text-sm text-ink">{CONTEXT.offer.name}</span>
-        <span className="font-caption text-xs text-ink-dim">{CONTEXT.offer.summary}</span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">claims</span>
-        <div className="flex flex-wrap gap-1">
-          {CONTEXT.offer.claims.map((claim) => (
-            <span
-              key={claim}
-              className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 font-caption text-xs text-ink"
-            >
-              {claim}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="font-caption text-ink-dim">hero asset</span>
-        <span className="font-caption text-xs text-ink">{CONTEXT.offer.heroAsset}</span>
-      </div>
-    </div>
-  );
-}
-
-
-function ReferencesBody() {
+function ReferencesBody({ workspaceId }: { workspaceId?: string }) {
   const [tab, setTab] = useState<ReferencesTabId>('images');
   const tabs: Array<{ id: ReferencesTabId; label: string }> = [
     { id: 'images', label: 'images' },
@@ -150,11 +77,11 @@ function ReferencesBody() {
         })}
       </div>
       {tab === 'images' ? (
-        <ReferencesImagesTab />
+        <ReferencesImagesTab workspaceId={workspaceId} />
       ) : tab === 'templates' ? (
-        <PlaceholderBody hint="starting layouts seed an artboard" />
+        <ReferencesManualTab kind="template" workspaceId={workspaceId} />
       ) : (
-        <PlaceholderBody hint="stock shapes · icons · stickers" />
+        <ReferencesManualTab kind="element" workspaceId={workspaceId} />
       )}
     </div>
   );
@@ -166,10 +93,17 @@ function ReferencesBody() {
  * pinned references, and live signals. The prompt composer remains the canvas
  * form of the current input set, so we keep that concept out of the rail.
  */
-function LeftRailInner({ className }: { className?: string }) {
+function LeftRailInner({
+  className,
+  workspaceId,
+}: {
+  className?: string;
+  workspaceId?: string;
+}) {
   const { railRef } = useRail();
-  const signals = useSignals();
-  const references = useReferences();
+  const signals = useSignals(workspaceId);
+  const references = useReferences(workspaceId);
+  const context = useCreatorContext(workspaceId);
   const signalsSummary = signalsSectionSummary(signals);
 
   const sections: ReadonlyArray<SectionSpec> = [
@@ -177,33 +111,25 @@ function LeftRailInner({ className }: { className?: string }) {
       id: 'brand',
       label: 'brand',
       icon: PaintBucket,
-      summary: brandSectionSummary(CONTEXT.brand),
+      summary: brandSectionSummary(context.brand),
       hasContent: true,
-      body: <BrandSection />,
+      body: <BrandSection context={context.brand} workspaceId={workspaceId} />,
     },
     {
       id: 'offer',
       label: 'offer',
       icon: Package2,
-      summary: `${CONTEXT.offer.claims.length} claims`,
+      summary: offerSectionSummary(context.offer),
       hasContent: true,
-      body: <OfferBody />,
+      body: <OfferSection workspaceId={workspaceId} />,
     },
     {
       id: 'campaign',
       label: 'campaign',
       icon: Flag,
-      summary: `${CONTEXT.campaign.channels.length} channels`,
+      summary: campaignSectionSummary(context.campaign),
       hasContent: true,
-      body: <CampaignBody />,
-    },
-    {
-      id: 'references',
-      label: 'references',
-      icon: Layers3,
-      summary: referenceSummary(references),
-      hasContent: references.length > 0,
-      body: <ReferencesBody />,
+      body: <CampaignSection workspaceId={workspaceId} />,
     },
     {
       id: 'signals',
@@ -211,7 +137,23 @@ function LeftRailInner({ className }: { className?: string }) {
       icon: TrendingUp,
       summary: signalsSummary,
       hasContent: signals.length > 0,
-      body: <SignalsSection />,
+      body: <SignalsSection workspaceId={workspaceId} />,
+    },
+    {
+      id: 'research',
+      label: 'research',
+      icon: Search,
+      summary: researchSectionSummary(references.length),
+      hasContent: references.length > 0 || signals.length > 0,
+      body: <ResearchSection workspaceId={workspaceId} />,
+    },
+    {
+      id: 'references',
+      label: 'references',
+      icon: Layers3,
+      summary: referenceSummary(references),
+      hasContent: references.length > 0,
+      body: <ReferencesBody workspaceId={workspaceId} />,
     },
   ];
 
@@ -241,10 +183,16 @@ function LeftRailInner({ className }: { className?: string }) {
   );
 }
 
-export function LeftRail({ className }: { className?: string }) {
+export function LeftRail({
+  className,
+  workspaceId,
+}: {
+  className?: string;
+  workspaceId?: string;
+}) {
   return (
     <RailProvider>
-      <LeftRailInner className={className} />
+      <LeftRailInner className={className} workspaceId={workspaceId} />
     </RailProvider>
   );
 }

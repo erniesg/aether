@@ -3,22 +3,31 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { resetSignalsForTests } from '@/lib/signals/store';
+import { resetBrandContextForTests } from '@/lib/context/brand-store';
 
 afterEach(cleanup);
 beforeEach(() => {
   window.localStorage.clear();
   resetSignalsForTests();
+  resetBrandContextForTests();
 });
 
-describe('LeftRail · stable context first, run material last', () => {
-  it('renders exactly five rail sections in brand · offer · campaign · references · signals order', () => {
+describe('LeftRail · stable context first, research feeds references', () => {
+  it('renders rail sections in creator-loop order', () => {
     const { container } = render(<LeftRail />);
 
     const sections = Array.from(
       container.querySelectorAll<HTMLElement>('[data-rail-section]')
     );
     const ids = sections.map((s) => s.dataset.railSection);
-    expect(ids).toEqual(['brand', 'offer', 'campaign', 'references', 'signals']);
+    expect(ids).toEqual([
+      'brand',
+      'offer',
+      'campaign',
+      'signals',
+      'research',
+      'references',
+    ]);
   });
 
   it('drops the deprecated operator-shaped sections (sources, clusters, input-set, product, brief, targets)', () => {
@@ -43,11 +52,10 @@ describe('LeftRail · stable context first, run material last', () => {
 
     const flyout = container.querySelector<HTMLElement>('[data-rail-flyout="brand"]');
     expect(flyout).not.toBeNull();
-    const text = (flyout!.textContent ?? '').toLowerCase();
-    expect(text).toContain('brand site');
-    expect(text).toContain('repo');
-    expect(text).toContain('uploaded docs');
-    expect(text).toContain('assets');
+    expect(screen.getByDisplayValue(/brand site/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/repo/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/uploaded docs/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/assets/i)).toBeInTheDocument();
   });
 
   it('campaign section separates the current goal from stable brand data', async () => {
@@ -81,6 +89,21 @@ describe('LeftRail · stable context first, run material last', () => {
     const tabs = screen.getAllByRole('tab');
     const labels = tabs.map((t) => (t.textContent ?? '').trim().toLowerCase());
     expect(labels).toEqual(['images', 'templates', 'elements']);
+  });
+
+  it('research section exposes seed, source, target, and scout controls', async () => {
+    const { container } = render(<LeftRail />);
+
+    const researchTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="research"]'
+    );
+    expect(researchTrigger).not.toBeNull();
+    await userEvent.click(researchTrigger!);
+
+    expect(screen.getByLabelText(/research seeds/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /research sources/i })).toBeInTheDocument();
+    expect(screen.getByText('targets')).toBeInTheDocument();
+    expect(screen.getByTestId('research-run')).toBeInTheDocument();
   });
 
   it('signals section exposes three CRUD groups (keywords · hashtags · accounts)', async () => {

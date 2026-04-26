@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   AssetRecordType,
@@ -47,6 +47,10 @@ import {
   setVoiceToolCall,
   setVoiceTranscript,
 } from '@/lib/voice/caption-store';
+import { useTextOverlayBridge } from './text-overlay-bridge';
+import { useCreatorContext } from '@/lib/context/creator-store';
+import { EyesClosedHandle, type EyesClosedCaptureRequest } from './EyesClosedHandle';
+import { createSketchSnapshotTracker } from '@/lib/canvas/sketchSnapshot';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -71,6 +75,7 @@ const EMPTY_PINS: ReadonlyArray<{ id: string; label: string }> = [];
 
 export interface CanvasSubstrateProps {
   className?: string;
+  workspaceId?: string;
   composerRef: React.RefObject<ComposerHandle | null>;
   safeZonesVisible?: boolean;
   onSafeZonesToggle?: (next: boolean) => void;
@@ -86,6 +91,8 @@ export interface CanvasSubstrateProps {
    * duplicating the stream logic here.
    */
   onVoiceGenerate?: (prompt: string, scope: 'single' | 'all') => void | Promise<void>;
+  /** Runs generation from a canvas lens-authored prompt, using the shell pipeline. */
+  onMoodboardGenerate?: (prompt: string) => void | Promise<void>;
   /**
    * Exposes the voice chip as a render prop so tests can inject a stub
    * VoiceProvider. When omitted, the default `VoiceOrb` is rendered with the
@@ -94,6 +101,21 @@ export interface CanvasSubstrateProps {
   renderVoiceSlot?: (dispatchers: import('@/lib/voice/tools').VoiceDispatchers) => React.ReactNode;
   /** When true, show the voice orb inside the toolbar. Defaults to true. */
   voiceEnabled?: boolean;
+  /**
+   * Fires on eyes-closed release (issue #128 / Q7). The shell owns the
+   * sketch-to-component planner call + downstream generate dispatch — this
+   * substrate only tracks which strokes belong to the current hold.
+   */
+  onEyesClosedCapture?: (capture: EyesClosedCaptureRequest) => void | Promise<void>;
+  /**
+   * Render prop seam for the eyes-closed handle, mirroring `renderVoiceSlot`.
+   * Tests pass a stub provider via this so the chip can drive the same code
+   * path without touching the real Gemini Live transport.
+   */
+  renderEyesClosedSlot?: (params: {
+    onCapture: (capture: EyesClosedCaptureRequest) => void | Promise<void>;
+    getSketchSnapshot: () => Promise<string>;
+  }) => React.ReactNode;
 }
 
 type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
@@ -269,6 +291,7 @@ function resolveSegmentationFrame(
 
 export const CanvasSubstrate = memo(function CanvasSubstrate({
   className,
+  workspaceId,
   composerRef,
   safeZonesVisible = false,
   onSafeZonesToggle,
@@ -277,8 +300,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   onVerbPress,
   onSpatializeFromSelection,
   onVoiceGenerate,
+  onMoodboardGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
+  onEyesClosedCapture,
+  renderEyesClosedSlot,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
@@ -293,9 +319,29 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     useState(false);
   const { editor } = useEditorRef();
 
+  const creatorContext = useCreatorContext(workspaceId);
+  // Wire the multilingual text-overlay bridge: listens for image-landed
+  // events, calls /api/text-overlay/apply, materialises AetherTextShapes,
+  // and persists each overlay to Convex. No-ops when there's no editor.
+  useTextOverlayBridge({
+    workspaceId,
+    creatorContext: {
+      brand: creatorContext.brand,
+      offer: creatorContext.offer,
+      campaign: creatorContext.campaign,
+    },
+  });
+
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
   }, [composerRef]);
+
+  const usePromptInComposer = useCallback(
+    (prompt: string) => {
+      composerRef.current?.setPrompt(prompt);
+    },
+    [composerRef]
+  );
 
   const handlePrimitiveToolPress = useCallback(
     (tool: PrimitiveTool) => {
@@ -352,6 +398,15 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     sync();
     return editor.store.listen(sync);
   }, [editor]);
+
+  useEffect(() => {
+    const onClusterLensEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ open?: boolean }>).detail;
+      setClusterLensOpen(detail?.open ?? true);
+    };
+    window.addEventListener('aether:cluster-lens', onClusterLensEvent);
+    return () => window.removeEventListener('aether:cluster-lens', onClusterLensEvent);
+  }, []);
 
   const openSegmentation = useCallback(
     (verb: SegmentationVerb) => {
@@ -1097,6 +1152,56 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       : <VoiceOrb dispatchers={dispatchers} onCaption={handleVoiceCaption} />
     : null;
 
+  // Sketch tracker: captures only the shapes drawn between hold-start and
+  // hold-release, so each eyes-closed dispatch ships *just* the new strokes
+  // (not the seeded artboards or earlier drafts).
+  const sketchTrackerRef = useRef(createSketchSnapshotTracker(() => editor));
+  // Re-bind the editor handle when the editor swaps (mount/unmount cycles).
+  useEffect(() => {
+    sketchTrackerRef.current = createSketchSnapshotTracker(() => editor);
+  }, [editor]);
+
+  const handleEyesClosedCapture = useCallback(
+    async (capture: EyesClosedCaptureRequest) => {
+      // Capture sketch first — `EyesClosedHandle` already called
+      // `getSketchSnapshot` and passed us the data URL. The hold-start
+      // baseline is restarted on the next hold via `getSketchSnapshot`.
+      sketchTrackerRef.current.start();
+      await onEyesClosedCapture?.(capture);
+    },
+    [onEyesClosedCapture]
+  );
+
+  const getSketchSnapshot = useCallback(async (): Promise<string> => {
+    const snapshot = await sketchTrackerRef.current.capture();
+    // Re-baseline so the next hold only captures fresh strokes. Done here
+    // (not in handleEyesClosedCapture) so an empty hold still resets.
+    sketchTrackerRef.current.start();
+    return snapshot;
+  }, []);
+
+  // Re-baseline whenever the eyes-closed handle is about to start a new
+  // session. We piggyback on the pointerdown / keydown by watching for the
+  // recording state to flip. Simpler: baseline once at mount and after each
+  // capture (handled above).
+  useEffect(() => {
+    sketchTrackerRef.current.start();
+  }, []);
+
+  const eyesClosedSlot = renderEyesClosedSlot
+    ? renderEyesClosedSlot({
+        onCapture: handleEyesClosedCapture,
+        getSketchSnapshot,
+      })
+    : onEyesClosedCapture
+    ? (
+        <EyesClosedHandle
+          onCapture={handleEyesClosedCapture}
+          getSketchSnapshot={getSketchSnapshot}
+        />
+      )
+    : null;
+
   return (
     <section
       data-taxonomy="tool"
@@ -1117,11 +1222,18 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
         voiceSlot={voiceSlot ?? undefined}
+        eyesClosedSlot={eyesClosedSlot ?? undefined}
         clusterLensActive={clusterLensOpen}
         onClusterLensToggle={() => setClusterLensOpen((prev) => !prev)}
       />
 
-      {clusterLensOpen ? <ClusterLens /> : null}
+      {clusterLensOpen ? (
+        <ClusterLens
+          workspaceId={workspaceId}
+          onMoodboardPrompt={usePromptInComposer}
+          onMoodboardGenerate={onMoodboardGenerate}
+        />
+      ) : null}
 
       {imageActionsTarget ? (
         <SelectedImageActions

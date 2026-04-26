@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic';
 
 const OPENAI_DEFAULT_MODEL = 'gpt-4o-realtime-preview';
 const OPENAI_DEFAULT_VOICE = 'alloy';
-const GEMINI_DEFAULT_MODEL = 'gemini-live-2.5-flash-native-audio';
+// Per the provider mandate: Gemini is the voice layer for aether. Default to
+// the current Live preview model; env override via GEMINI_LIVE_MODEL.
+const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 const GEMINI_DEFAULT_VOICE = 'Kore';
 const OPENAI_SESSIONS_URL = 'https://api.openai.com/v1/realtime/sessions';
 
@@ -31,8 +33,43 @@ interface SessionIssuerDeps {
 function currentProvider(
   override?: VoiceProviderId
 ): VoiceProviderId {
+  // Per the provider mandate: Gemini is the voice layer for aether.
+  // OpenAI Realtime stays as a fallback adapter behind the same seam, but
+  // is no longer the default — it must be opted into via env override.
   return override ?? ((process.env.VOICE_PROVIDER ??
-    'openai-realtime') as VoiceProviderId);
+    'gemini-live') as VoiceProviderId);
+}
+
+/**
+ * Fetch workspace provider prefs from Convex via HTTP client.
+ * Returns null gracefully when Convex is not provisioned or the lookup fails.
+ */
+async function fetchWorkspaceVoicePrefs(
+  workspaceId: string
+): Promise<{ providerId?: VoiceProviderId; model?: string } | null> {
+  try {
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+    const deployKey = process.env.CONVEX_DEPLOY_KEY;
+    if (!convexUrl || !deployKey) return null;
+
+    const { ConvexHttpClient } = await import('convex/browser');
+    const { anyApi } = await import('convex/server');
+    const client = new ConvexHttpClient(convexUrl);
+    const clientWithAuth = client as unknown as { setAdminAuth?: (k: string) => void };
+    if (typeof clientWithAuth.setAdminAuth === 'function') clientWithAuth.setAdminAuth(deployKey);
+
+    const prefsApi = (anyApi as unknown as { providerPrefs: { getProviderPrefs: unknown } })
+      .providerPrefs.getProviderPrefs;
+    const prefs = await (client as unknown as { query: (fn: unknown, args: unknown) => Promise<unknown> }).query(prefsApi, { workspaceId });
+    if (!prefs) return null;
+    const p = prefs as { voiceProviderId?: string; voiceModel?: string };
+    return {
+      providerId: p.voiceProviderId as VoiceProviderId | undefined,
+      model: p.voiceModel,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function resolveModel(
@@ -213,9 +250,32 @@ export async function issueVoiceSession(
   };
 }
 
-export async function POST() {
+export async function POST(request?: Request) {
   try {
-    const session = await issueVoiceSession();
+    // Read optional workspaceId from request body to apply per-workspace prefs.
+    let workspaceId: string | undefined;
+    if (request) {
+      try {
+        const body = await request.clone().json().catch(() => ({})) as Record<string, unknown>;
+        if (typeof body.workspaceId === 'string') workspaceId = body.workspaceId;
+      } catch {
+        // no body / invalid JSON — fine, proceed with env defaults
+      }
+    }
+
+    let providerOverride: VoiceProviderId | undefined;
+    let modelOverride: string | undefined;
+
+    if (workspaceId) {
+      const wsprefs = await fetchWorkspaceVoicePrefs(workspaceId);
+      if (wsprefs?.providerId) providerOverride = wsprefs.providerId;
+      if (wsprefs?.model) modelOverride = wsprefs.model;
+    }
+
+    const session = await issueVoiceSession({
+      provider: providerOverride,
+      model: modelOverride,
+    });
     return NextResponse.json({ ok: true, session });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

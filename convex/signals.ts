@@ -28,6 +28,7 @@ function normalizeValue(kind: 'keyword' | 'hashtag' | 'account', raw: string): s
 interface SignalDoc {
   _id: unknown;
   wsId?: unknown;
+  workspaceId?: string;
   kind: 'keyword' | 'hashtag' | 'account';
   value: string;
   addedAt: number;
@@ -47,9 +48,15 @@ function toRecord(doc: SignalDoc) {
 }
 
 export const list = queryGeneric({
-  args: { wsId: v.optional(v.id('workspace')) },
+  args: { wsId: v.optional(v.id('workspace')), workspaceId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const docs: SignalDoc[] = args.wsId
+    const docs: SignalDoc[] = args.workspaceId
+      ? ((await ctx.db
+          .query('signalSubscription')
+          .withIndex('by_workspace', (q: any) => q.eq('workspaceId', args.workspaceId))
+          .order('asc')
+          .take(500)) as SignalDoc[])
+      : args.wsId
       ? ((await ctx.db
           .query('signalSubscription')
           .withIndex('by_ws', (q: any) => q.eq('wsId', args.wsId))
@@ -63,13 +70,19 @@ export const list = queryGeneric({
 export const add = mutationGeneric({
   args: {
     wsId: v.optional(v.id('workspace')),
+    workspaceId: v.optional(v.string()),
     kind: KIND_VALIDATOR,
     value: v.string(),
   },
   handler: async (ctx, args) => {
     const normalized = normalizeValue(args.kind, args.value);
     if (!normalized) throw new Error('signal value required');
-    const existing = args.wsId
+    const existing = args.workspaceId
+      ? ((await ctx.db
+          .query('signalSubscription')
+          .withIndex('by_workspace', (q: any) => q.eq('workspaceId', args.workspaceId))
+          .collect()) as SignalDoc[])
+      : args.wsId
       ? ((await ctx.db
           .query('signalSubscription')
           .withIndex('by_ws', (q: any) => q.eq('wsId', args.wsId))
@@ -79,6 +92,7 @@ export const add = mutationGeneric({
     if (dup) return String(dup._id);
     const id = await ctx.db.insert('signalSubscription', {
       wsId: args.wsId,
+      workspaceId: args.workspaceId,
       kind: args.kind,
       value: normalized,
       addedAt: Date.now(),
@@ -91,6 +105,19 @@ export const remove = mutationGeneric({
   args: { id: v.id('signalSubscription') },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);
+  },
+});
+
+export const update = mutationGeneric({
+  args: {
+    id: v.id('signalSubscription'),
+    kind: KIND_VALIDATOR,
+    value: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const normalized = normalizeValue(args.kind, args.value);
+    if (!normalized) throw new Error('signal value required');
+    await ctx.db.patch(args.id, { kind: args.kind, value: normalized });
   },
 });
 

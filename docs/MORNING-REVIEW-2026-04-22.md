@@ -227,7 +227,7 @@ The initial run surfaced one real test bug (the `role="alert"` collision) which 
 - No `gh pr create`, `gh pr merge`, `gh pr comment`, `gh issue comment`, `gh issue close`.
 - No `wrangler deploy` — staging and production untouched.
 - No destructive git (no force-push, no branch deletion, no `reset --hard` on shared refs).
-- Did not respond to any Codex review comments (there are none — Codex only shows up when a PR is open, which is the human's call).
+- Did not respond to any automated review comments; PR review remains a human-owned step unless explicitly dispatched.
 - Did not install Playwright browsers or run either e2e spec. ← **updated: did run them, 6/6 pass on integration, one test-code bug fixed. See "E2E validation" section.**
 - Did not touch `/Users/erniesg/code/erniesg/aether-prehack`.
 - Did not delete any files.

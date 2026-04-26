@@ -81,4 +81,19 @@ describe('reference registry · routing', () => {
     expect(outcome.fallback).toBe(false);
     expect(outcome.record.kind).toBe('image');
   });
+
+  it('accepts a bare domain and still routes through generic ingest', async () => {
+    const html =
+      '<html><head><meta property="og:image" content="https://cdn.example.com/a.png" /></head></html>';
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(htmlResponse(html));
+    const outcome = await ingestReferenceUrl('unknown.example.com/post/1', {
+      fetcher,
+    });
+
+    expect(String(fetcher.mock.calls[0]![0])).toBe(
+      'https://unknown.example.com/post/1'
+    );
+    expect(outcome.providerId).toBe('generic');
+    expect(outcome.record.kind).toBe('image');
+  });
 });

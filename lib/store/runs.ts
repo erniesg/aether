@@ -11,7 +11,12 @@
  * store so staging keeps working before Convex is provisioned.
  */
 
-import type { CapabilityRunRecord, RunStatus, RunStep } from './runs.types';
+import {
+  STALE_ABORT_ERROR,
+  type CapabilityRunRecord,
+  type RunStatus,
+  type RunStep,
+} from './runs.types';
 import {
   useRunsMemory,
   startRunMemory,
@@ -27,10 +32,12 @@ import {
   stepRunConvex,
   finishRunConvex,
   failRunConvex,
+  abortStuckRunsConvex,
 } from './runs.convex';
 import { resetRunDetailsForTests } from './runDetails';
 import { isConvexEnabled } from '@/lib/convex/client';
 
+export { STALE_ABORT_ERROR };
 export type { CapabilityRunRecord, RunStatus, RunStep };
 
 function genClientRunId(): string {
@@ -80,6 +87,30 @@ export function failRun(id: string, error: string, httpStatus?: number): void {
     return;
   }
   failRunMemory(id, error, httpStatus);
+}
+
+/**
+ * Escape hatch: abort every run row that's been `running` for longer than
+ * `olderThanMs` (default 60s). Useful when `runs:finish` failed server-side
+ * and the composer status indicator is stuck "generating · placing on
+ * canvas · NNNNs".
+ *
+ * Memory-mode fallback iterates the in-memory store directly so the local
+ * dev experience matches Convex.
+ */
+export async function abortStuckRuns(
+  olderThanMs = 60_000
+): Promise<{ aborted: number }> {
+  if (isConvexEnabled()) return abortStuckRunsConvex(olderThanMs);
+  const threshold = Date.now() - olderThanMs;
+  let aborted = 0;
+  for (const run of useRunsMemory()) {
+    if (run.status !== 'running') continue;
+    if (run.startedAt > threshold) continue;
+    failRunMemory(run.id, STALE_ABORT_ERROR);
+    aborted += 1;
+  }
+  return { aborted };
 }
 
 /**

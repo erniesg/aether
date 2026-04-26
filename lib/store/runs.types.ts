@@ -1,6 +1,14 @@
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
+import type { ArtifactKind } from '@/lib/tool/registry';
 
-export type RunStatus = 'running' | 'ok' | 'error';
+/**
+ * Canonical error string written by `abortStuckRuns` across memory and Convex
+ * paths. UI histories filter this out so stale-abort noise never hides the
+ * creator's last useful run status.
+ */
+export const STALE_ABORT_ERROR = 'aborted: run exceeded inactivity threshold';
+
+export type RunStatus = 'running' | 'ok' | 'error' | 'draft-executor';
 
 export type RunStep =
   | 'prepared'
@@ -17,7 +25,7 @@ export interface CapabilityRunRecord {
   provider: string;
   model: string;
   prompt: string;
-  artifactKind?: 'image' | 'spatial';
+  artifactKind?: ArtifactKind;
   outputFormat?: 'particle-field' | 'gaussian-splat';
   quality?: 'draft' | 'standard' | 'high';
   sourceMode?: 'selected-image';

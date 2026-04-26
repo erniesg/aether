@@ -5,7 +5,7 @@ import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const GENERATIONS_ENDPOINT = 'https://api.openai.com/v1/images/generations';
 const EDITS_ENDPOINT = 'https://api.openai.com/v1/images/edits';
-const DEFAULT_MODEL = 'gpt-image-1';
+const DEFAULT_MODEL = 'gpt-image-2';
 const OPENAI_TIMEOUT_MS = 120_000;
 type OpenAISize = '1024x1024' | '1024x1536' | '1536x1024';
 
@@ -97,10 +97,9 @@ export function createOpenAIProvider(
     id: 'openai',
     displayName: 'OpenAI Images',
     isAvailable: () => Boolean(apiKey),
-    // gpt-image-1 stays first so it remains the default until an OpenAI org
-    // is verified for gpt-image-2. Pass ?model=gpt-image-2 to opt in once
-    // verification propagates.
-    listModels: () => ['gpt-image-1', 'gpt-image-2', 'dall-e-3'],
+    // gpt-image-2 is the verified default. Pass ?model=gpt-image-1 to fall back
+    // to the previous default if needed.
+    listModels: () => ['gpt-image-2', 'gpt-image-1', 'dall-e-3'],
   };
 
   async function generate(req: ImageGenRequest, opts: { model: string }): Promise<ImageGenResult> {

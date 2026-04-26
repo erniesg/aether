@@ -58,6 +58,20 @@ describe('brand · ingest · url mode', () => {
     expect(snap.confidence).toBeGreaterThan(0);
   });
 
+  it('accepts a bare domain and normalizes it to https', async () => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => buildResponse(HTML_FIXTURE));
+    const snap = await ingestBrand(
+      { kind: 'url', source: 'tong.berlayar.ai' },
+      { fetcher: fetcher as unknown as typeof fetch, bypassAgent: true }
+    );
+
+    expect(String(fetcher.mock.calls[0]![0])).toBe('https://tong.berlayar.ai');
+    expect(snap.source).toEqual({
+      kind: 'url',
+      url: 'https://tong.berlayar.ai',
+    });
+  });
+
   it('rejects a non-ok response with a 4xx-shaped error', async () => {
     const fetcher = vi.fn(async () => new Response('nope', { status: 404 }));
     await expect(
@@ -123,6 +137,26 @@ describe('brand · ingest · repo mode', () => {
       expect.arrayContaining(['Canela Deck', 'Inter'])
     );
     expect(snap.voice.samples.some((s) => s.toLowerCase().includes('golden-hour'))).toBe(true);
+  });
+
+  it('accepts a bare GitHub repo URL', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/README.md')) {
+        return buildResponse('# Solstice\n\nPalette #0F1013. Slow skincare.');
+      }
+      return new Response('', { status: 404 });
+    });
+
+    const snap = await ingestBrand(
+      { kind: 'repo', source: 'github.com/solstice/solstice-launch-kit' },
+      { fetcher: fetcher as unknown as typeof fetch, bypassAgent: true }
+    );
+
+    expect(snap.source).toEqual({
+      kind: 'repo',
+      url: 'https://github.com/solstice/solstice-launch-kit',
+    });
   });
 
   it('rejects non-github URLs', async () => {

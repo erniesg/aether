@@ -113,6 +113,122 @@ export default defineSchema({
     voice: v.optional(v.string()),
   }).index('by_ws', ['wsId']),
 
+  // Creator-context profiles keyed by the route workspace id. The app does
+  // not yet map `/workspace/:wsId` to a Convex workspace document, so these
+  // tables scope by stable workspace string while the older graph tables keep
+  // their `v.id('workspace')` contracts.
+  brandProfile: defineTable({
+    workspaceId: v.string(),
+    // id is the BrandContext.id — a stable client-side identifier that travels
+    // through coerceBrandContext and the BRAND validator. It must be stored so
+    // the round-trip from getBrand → useBrandContext produces the same id that
+    // was saved, not the Convex document _id.
+    id: v.string(),
+    name: v.string(),
+    palette: v.array(v.string()),
+    type: v.array(v.string()),
+    voice: v.string(),
+    knowledgeSources: v.array(
+      v.object({
+        id: v.string(),
+        kind: v.union(
+          v.literal('url'),
+          v.literal('repo'),
+          v.literal('upload'),
+          v.literal('asset')
+        ),
+        label: v.string(),
+        note: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  offerProfile: defineTable({
+    workspaceId: v.string(),
+    // id is the OfferContext.id — same round-trip rationale as brandProfile.id.
+    // Without this, saveOffer's strict-mode validation throws on the unknown
+    // `id` field and the fire-and-forget mutation swallows the error.
+    id: v.string(),
+    name: v.string(),
+    summary: v.string(),
+    claims: v.array(v.string()),
+    heroAsset: v.string(),
+    heroAssetReferenceId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  campaignProfile: defineTable({
+    workspaceId: v.string(),
+    // id is the CampaignContext.id — same rationale as offerProfile.id above.
+    id: v.string(),
+    name: v.string(),
+    goal: v.string(),
+    audience: v.string(),
+    channels: v.array(v.string()),
+    cta: v.string(),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  // AI-suggested offer drafts produced by the brand-propose workers (Track A).
+  // Lives in its own table so the rail can subscribe + render accept/reject
+  // cards without leaking proposal state into the canonical offerProfile.
+  // Accepting a row promotes it into offerProfile and deletes the proposal;
+  // rejecting just deletes it. proposalId is the worker-emitted stable id.
+  proposedOffer: defineTable({
+    workspaceId: v.string(),
+    proposalId: v.string(),
+    name: v.string(),
+    summary: v.string(),
+    claims: v.array(v.string()),
+    heroAsset: v.string(),
+    proposedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  proposedCampaign: defineTable({
+    workspaceId: v.string(),
+    proposalId: v.string(),
+    name: v.string(),
+    goal: v.string(),
+    audience: v.string(),
+    channels: v.array(v.string()),
+    cta: v.string(),
+    proposedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  workspaceContext: defineTable({
+    workspaceId: v.string(),
+    activeReferenceIds: v.array(v.string()),
+    activeSignalIds: v.array(v.string()),
+    constraints: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  creatorReference: defineTable({
+    workspaceId: v.string(),
+    kind: v.union(
+      v.literal('image'),
+      v.literal('video'),
+      v.literal('embed'),
+      v.literal('template'),
+      v.literal('element')
+    ),
+    previewUrl: v.string(),
+    fullUrl: v.optional(v.string()),
+    attribution: v.object({
+      source: v.string(),
+      author: v.optional(v.string()),
+      url: v.string(),
+    }),
+    capturedAt: v.string(),
+    title: v.optional(v.string()),
+    usageIntent: v.optional(v.string()),
+    tags: v.array(v.string()),
+    notes: v.optional(v.string()),
+    clusterId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
   productFact: defineTable({
     wsId: v.id('workspace'),
     name: v.string(),
@@ -158,16 +274,25 @@ export default defineSchema({
   // plumbing and a single demo workspace is implicit.
   signalSubscription: defineTable({
     wsId: v.optional(v.id('workspace')),
+    workspaceId: v.optional(v.string()),
     kind: v.union(v.literal('keyword'), v.literal('hashtag'), v.literal('account')),
     value: v.string(),
     addedAt: v.number(),
     lastCheckedAt: v.optional(v.number()),
     mutedUntil: v.optional(v.number()),
-  }).index('by_ws', ['wsId']),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_workspace', ['workspaceId']),
 
   // ─── canvas ────────────────────────────────────────────────────────────
+  // wsId is optional for the same reason it is on capabilityRun / clusterCard /
+  // signalSubscription: pre-Phase-5 the canvas writes snapshots without a
+  // Convex workspace document, using a plain string key (wsKey). Making wsId
+  // optional here allows existing documents to pass schema validation while the
+  // workspace plumbing is wired up in Phase 5.
   canvasSnapshot: defineTable({
-    wsId: v.id('workspace'),
+    wsId: v.optional(v.id('workspace')),
+    wsKey: v.optional(v.string()),
     tldrawStoreJson: v.string(),
     snapshottedAt: v.number(),
   }).index('by_ws', ['wsId']),
@@ -187,6 +312,28 @@ export default defineSchema({
     overrideJson: v.optional(v.string()),
     renderedUrl: v.optional(v.string()),
   }).index('by_kv', ['keyVisualId']),
+
+  // Multilingual text-overlay layers pinned to an artboard. Canonical store
+  // for the text-apply capability (umbrella #66). `content` is a serialized
+  // `Record<BCP47LocaleCode, string>`; `style` and `placement` are the
+  // full TextOverlayStyle / AetherTextPlacement records from
+  // lib/text-overlay/types.ts. Stored as `v.any()` so T4–T9 can evolve the
+  // inner shape without a schema migration.
+  textOverlay: defineTable({
+    wsId: v.id('workspace'),
+    artboardId: v.string(),
+    content: v.any(),
+    activeLanguage: v.string(),
+    style: v.any(),
+    placement: v.any(),
+    smartPlacement: v.boolean(),
+    protectedElementIds: v.array(v.string()),
+    provenance: v.object({ capabilityRunId: v.string() }),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_wsId', ['wsId'])
+    .index('by_artboardId', ['artboardId']),
 
   // ─── capability system (the hero) ──────────────────────────────────────
   capabilityDefinition: defineTable({
@@ -222,7 +369,15 @@ export default defineSchema({
         version: v.number(),
       })
     ),
-    artifactKind: v.optional(v.union(v.literal('image'), v.literal('spatial'))),
+    artifactKind: v.optional(
+      v.union(
+        v.literal('image'),
+        v.literal('spatial'),
+        v.literal('text-overlay'),
+        v.literal('video'),
+        v.literal('audio')
+      )
+    ),
     outputFormat: v.optional(v.union(v.literal('particle-field'), v.literal('gaussian-splat'))),
     quality: v.optional(v.union(v.literal('draft'), v.literal('standard'), v.literal('high'))),
     sourceMode: v.optional(v.literal('selected-image')),
@@ -254,11 +409,20 @@ export default defineSchema({
     httpStatus: v.optional(v.number()),
     inputs: v.any(),
     outputs: v.any(),
+    outputRefs: v.optional(v.array(v.string())),
+    scope: v.optional(v.string()),
     beforeSnapshotRef: v.optional(v.string()),
     afterSnapshotRef: v.optional(v.string()),
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
-    status: v.union(v.literal('running'), v.literal('ok'), v.literal('error')),
+    status: v.union(
+      v.literal('running'),
+      v.literal('ok'),
+      v.literal('error'),
+      // Recorded by stub executors that only persist the intent of a run —
+      // the real executor lands later in the track and promotes to 'ok'.
+      v.literal('draft-executor')
+    ),
   })
     .index('by_ws', ['wsId'])
     .index('by_client_run_id', ['clientRunId']),
@@ -272,6 +436,23 @@ export default defineSchema({
     createdAt: v.number(),
   }).index('by_ws', ['wsId']),
 
+  // ─── skills (Anthropic Skills foundation) ─────────────────────────────
+  // Mirrors authored Skills as graph artifacts so the capability factory can
+  // query them and the right rail can surface them. `manifestPath` is the FS
+  // path (relative to repo root) of the SKILL.md; `referenceFilePaths` mirrors
+  // the front-matter `referenceFiles[]`. Schema is intentionally simple so
+  // authoring-loop follow-ups can evolve it without a migration.
+  skill: defineTable({
+    name: v.string(),
+    version: v.number(),
+    description: v.string(),
+    manifestPath: v.string(),
+    referenceFilePaths: v.array(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_name', ['name'])
+    .index('by_name_version', ['name', 'version']),
+
   // ─── output ────────────────────────────────────────────────────────────
   exportPack: defineTable({
     wsId: v.id('workspace'),
@@ -280,6 +461,19 @@ export default defineSchema({
     downloadUrl: v.string(),
     createdAt: v.number(),
   }).index('by_ws', ['wsId']),
+
+  // ─── workspace provider preferences ──────────────────────────────────────
+  // Per-workspace overrides for the default AI providers. All fields are
+  // optional — when absent the API routes fall back to env vars and then code
+  // defaults. keyed by stable workspaceId string (same scope as brandProfile).
+  workspaceProviderPrefs: defineTable({
+    workspaceId: v.string(),
+    imageProviderId: v.optional(v.string()),
+    voiceProviderId: v.optional(v.string()),
+    voiceModel: v.optional(v.string()),
+    segmentationProviderId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
 
   // Publisher seam (issue #9 — Slice 1). One row per platform post; multi-
   // platform fan-out is N rows. `wsId` optional for the same reason it is on
@@ -294,6 +488,8 @@ export default defineSchema({
       v.literal('youtube-shorts'),
       v.literal('xhs'),
       v.literal('douyin'),
+      v.literal('bilibili'),
+      v.literal('kuaishou'),
       v.literal('pinterest')
     ),
     mediaUrls: v.array(v.string()),
