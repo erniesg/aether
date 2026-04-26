@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
   const notifyDiscord = vi.fn();
   const publisherSchedule = vi.fn();
   const resolvePublisher = vi.fn();
+  const resolvePublisherForPost = vi.fn();
   const segmentSubjects = vi.fn();
   const describeImage = vi.fn();
   const fetchUrlIngestion = vi.fn();
@@ -38,6 +39,7 @@ const mocks = vi.hoisted(() => {
     notifyDiscord,
     publisherSchedule,
     resolvePublisher,
+    resolvePublisherForPost,
     segmentSubjects,
     describeImage,
     fetchUrlIngestion,
@@ -64,6 +66,7 @@ vi.mock('@/lib/notify/discord', () => ({
 
 vi.mock('@/lib/providers/publisher/registry', () => ({
   resolvePublisher: mocks.resolvePublisher,
+  resolvePublisherForPost: mocks.resolvePublisherForPost,
 }));
 
 vi.mock('./segment-subjects', async () => {
@@ -849,7 +852,7 @@ describe('runAutoMode · orchestration', () => {
       .mockResolvedValueOnce({
         previewUrl: '/workspace/ws_x?publishPreview=preview-B',
       });
-    mocks.resolvePublisher.mockReturnValue({
+    mocks.resolvePublisherForPost.mockReturnValue({
       id: 'preview',
       canPublish: () => true,
       schedule: mocks.publisherSchedule,
@@ -869,10 +872,11 @@ describe('runAutoMode · orchestration', () => {
     });
 
     expect(result.scheduledPostIds).toEqual(['sched-A', 'sched-B']);
-    // Publisher resolved once with the workspace and preview as preferred id.
-    expect(mocks.resolvePublisher).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'ws_x', preferredId: 'preview' })
-    );
+    // Per-post resolution — once per ready variation, with the post object.
+    expect(mocks.resolvePublisherForPost).toHaveBeenCalledTimes(2);
+    expect(mocks.resolvePublisherForPost.mock.calls[0][0]).toMatchObject({
+      workspaceId: 'ws_x',
+    });
     // One scheduled-post insert per ready variation.
     expect(mocks.recordScheduledPost).toHaveBeenCalledTimes(2);
     const firstScheduleCall = mocks.recordScheduledPost.mock.calls[0][0];
@@ -918,7 +922,7 @@ describe('runAutoMode · orchestration', () => {
     mocks.publisherSchedule.mockResolvedValueOnce({
       previewUrl: '/workspace/ws/?publishPreview=p1',
     });
-    mocks.resolvePublisher.mockReturnValue({
+    mocks.resolvePublisherForPost.mockReturnValue({
       id: 'preview',
       canPublish: () => true,
       schedule: mocks.publisherSchedule,
@@ -1032,7 +1036,7 @@ describe('runAutoMode · orchestration', () => {
     mocks.publisherSchedule.mockResolvedValue({
       previewUrl: '/workspace/ws/?publishPreview=ok',
     });
-    mocks.resolvePublisher.mockReturnValue({
+    mocks.resolvePublisherForPost.mockReturnValue({
       id: 'preview',
       canPublish: () => true,
       schedule: mocks.publisherSchedule,

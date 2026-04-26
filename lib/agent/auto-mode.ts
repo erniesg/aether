@@ -6,7 +6,10 @@ import {
   startCampaign,
 } from '@/lib/convex/http';
 import { notifyDiscord, type DiscordEmbed } from '@/lib/notify/discord';
-import { resolvePublisher } from '@/lib/providers/publisher/registry';
+import {
+  resolvePublisher,
+  resolvePublisherForPost,
+} from '@/lib/providers/publisher/registry';
 import {
   PUBLISH_PLATFORMS,
   type PublishPlatform,
@@ -124,6 +127,14 @@ export interface AutoModeRequest {
   referenceImage?: AutoModeReferenceImage;
   /** Optional bound on per-variation iterations (passed to runMultiAgent). */
   maxIterationsPerVariation?: number;
+  /**
+   * When true, override every variation's `scheduleWhenLocal` with
+   * (now + 30s) before handing to the publisher. Lets the auto-post path
+   * fire IMMEDIATE posts on adapters that reject true future scheduling
+   * (X / IG / TikTok direct). Use for "fire it right now" demos —
+   * Postiz schedules through fine without this flag.
+   */
+  forcePostNow?: boolean;
 }
 
 /**
@@ -1213,15 +1224,13 @@ async function scheduleVariationPosts(input: {
   variations: AutoModeVariationResult[];
   workspaceId?: string;
   baseUrl: string;
+  /** When true, override scheduledAt to (now + 30s). Required for
+   *  immediate-fire on adapters that reject true future scheduling
+   *  (X / IG / TikTok direct). */
+  forcePostNow?: boolean;
 }): Promise<string[]> {
   const ids: string[] = [];
   if (!input.workspaceId) return ids;
-
-  const publisher = resolvePublisher({
-    workspaceId: input.workspaceId,
-    preferredId: 'preview',
-    baseUrl: input.baseUrl,
-  });
 
   for (const variation of input.variations) {
     if (variation.status !== 'ready') continue;
@@ -1231,7 +1240,11 @@ async function scheduleVariationPosts(input: {
     const platform = variation.schedulePlatform as PublishPlatform;
     if (!PUBLISH_PLATFORMS.includes(platform)) continue;
 
-    const scheduledAt = normalizeScheduledAt(variation.scheduleWhenLocal);
+    // forcePostNow overrides the agent's whenLocal so X/IG/TT direct
+    // adapters don't reject for being too far in the future.
+    const scheduledAt = input.forcePostNow
+      ? new Date(Date.now() + 30_000).toISOString()
+      : normalizeScheduledAt(variation.scheduleWhenLocal);
     if (!scheduledAt) continue;
 
     const post: ScheduledPost = {
@@ -1242,6 +1255,26 @@ async function scheduleVariationPosts(input: {
       hashtags: variation.hashtags ?? [],
       scheduledAt,
     };
+
+    // Per-post resolution so X posts route to X, IG posts to IG, TT to
+    // postiz/social-auto-upload, with preview as the always-available
+    // fallback. The previous "preview-only" wiring meant we never hit a
+    // real adapter even when X creds were present.
+    let publisher;
+    try {
+      publisher = resolvePublisherForPost({
+        workspaceId: input.workspaceId,
+        baseUrl: input.baseUrl,
+        post,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[auto-mode] scheduleVariationPosts: no publisher for ${platform}:`,
+        err instanceof Error ? err.message : String(err)
+      );
+      continue;
+    }
 
     try {
       const result = await publisher.schedule(post);
@@ -1260,8 +1293,8 @@ async function scheduleVariationPosts(input: {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(
-        `[auto-mode] scheduleVariationPosts: variation ${variation.index} failed`,
-        err
+        `[auto-mode] scheduleVariationPosts: variation ${variation.index} (${platform}) failed:`,
+        err instanceof Error ? err.message : String(err)
       );
     }
   }
@@ -1705,6 +1738,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       variations,
       workspaceId: req.workspaceId,
       baseUrl: req.baseUrl,
+      forcePostNow: req.forcePostNow,
     });
   }
 
