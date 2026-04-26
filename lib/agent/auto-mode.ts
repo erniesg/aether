@@ -37,6 +37,7 @@ import {
 } from './describe-image';
 import { fetchUrlIngestion, type UrlIngestion } from '@/lib/ingest/url';
 import { fetchPdfIngestion, type PdfIngestion } from '@/lib/ingest/pdf';
+import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -149,6 +150,10 @@ export interface AutoModeVariationResult {
   index: number;
   status: 'ready' | 'failed';
   heroImageUrl?: string;
+  /** Convex asset doc id when the hero was uploaded to Convex storage
+   *  (i.e. the data URL was successfully migrated). Lets the UI fetch the
+   *  source bytes for re-segmentation / variant fork-off. */
+  heroAssetId?: string;
   caption?: string;
   /** Captions across the 4 SG locales. Filled by the agent's JSON envelope
    *  (Claude translates inline) plus, when text-overlay/apply runs, the
@@ -852,7 +857,28 @@ async function runOneVariation(
   }
 
   const envelope = parseAgentEnvelope(agentFinalText);
-  const heroImageUrl = pickHeroImageUrl(agentStepsForVariation);
+  const rawHeroImageUrl = pickHeroImageUrl(agentStepsForVariation);
+
+  // gpt-image-2 returns the hero as a data URL. SAM3 (Modal-hosted,
+  // external) can't fetch data URLs, so we upload to Convex File Storage
+  // and use the public CDN URL downstream. Fail-soft: if Convex isn't
+  // reachable, we keep the data URL and downstream segmentation skips
+  // (legacy behaviour). Provenance preserved on the asset row's sourceUrl.
+  let heroImageUrl = rawHeroImageUrl;
+  let heroAssetId: string | undefined;
+  if (rawHeroImageUrl && rawHeroImageUrl.startsWith('data:')) {
+    const uploaded = await uploadAssetToConvex({
+      source: rawHeroImageUrl,
+      kind: 'hero',
+      sourceUrl: 'auto-mode hero render',
+      width: 1024,
+      height: 1024,
+    });
+    if (uploaded) {
+      heroImageUrl = uploaded.publicUrl;
+      heroAssetId = uploaded.id;
+    }
+  }
 
   // A variation without a hero image is NOT ready — even if the agent loop
   // returned cleanly, a failed generate_image (timeout / provider error)
@@ -885,6 +911,7 @@ async function runOneVariation(
     index: input.promptInput.index,
     status: effectiveError ? 'failed' : 'ready',
     heroImageUrl,
+    heroAssetId,
     caption: envelope.caption,
     captionsByLocale: envelope.captionsByLocale,
     hashtags: envelope.hashtags,
@@ -1005,6 +1032,7 @@ async function persistVariation(
     index: variation.index,
     status: variation.status,
     heroImageUrl: variation.heroImageUrl,
+    heroAssetId: variation.heroAssetId,
     caption: variation.caption,
     captionsByLocale: variation.captionsByLocale,
     hashtags: variation.hashtags,

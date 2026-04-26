@@ -256,6 +256,8 @@ export interface ServerVariationInsert {
   index: number;
   status: 'pending' | 'running' | 'ready' | 'failed';
   heroImageUrl?: string;
+  /** Convex `asset` doc id when the hero was uploaded to storage. */
+  heroAssetId?: string;
   caption?: string;
   captionsByLocale?: Record<string, string>;
   hashtags?: string[];
