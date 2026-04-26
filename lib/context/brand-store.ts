@@ -5,6 +5,7 @@ export {
   coerceBrandContext,
   resetBrandContextForTests,
   saveBrandContext,
+  seedBrandContextForTests,
   useBrandContext,
 } from './creator-store';
 

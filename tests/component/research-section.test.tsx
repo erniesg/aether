@@ -3,7 +3,12 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ResearchSection } from '@/components/rail/sections/ResearchSection';
 import { clearReferencesForTests } from '@/lib/references/store';
-import { resetCreatorContextForTests } from '@/lib/context/creator-store';
+import {
+  resetCreatorContextForTests,
+  seedBrandContextForTests,
+  seedOfferContextForTests,
+} from '@/lib/context/creator-store';
+import { DEMO_CREATOR_CONTEXT } from '@/lib/context/model';
 
 const mocks = vi.hoisted(() => ({
   runResearchViaApi: vi.fn(),
@@ -37,6 +42,11 @@ beforeEach(() => {
   window.localStorage.clear();
   resetCreatorContextForTests();
   clearReferencesForTests();
+  // Seed DEMO brand + offer so planResearch generates targets and the scout button is enabled.
+  // Fresh workspaces start empty (C1 fix); this test verifies the research flow works
+  // once brand + offer context has been filled in.
+  seedBrandContextForTests(DEMO_CREATOR_CONTEXT.brand);
+  seedOfferContextForTests(DEMO_CREATOR_CONTEXT.offer);
   mocks.runResearchViaApi.mockResolvedValue({
     ok: true,
     plan: { seedText: 'slow morning', platforms: ['pinterest'], targets: [] },

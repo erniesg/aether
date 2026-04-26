@@ -42,6 +42,7 @@ import {
 } from '@/lib/text-overlay/active-locale';
 import type { BCP47LocaleCode } from '@/lib/text-overlay/types';
 import { cn } from '@/lib/utils/cn';
+import { useDemoMode } from '@/lib/demo/context';
 
 const LOCALE_LABELS: Record<string, string> = {
   en: 'EN',
@@ -602,6 +603,14 @@ export function RightRail({
   onAutoModeApprove,
   onAutoModeReject,
 }: RightRailProps) {
+  // Demo mode: override the live lap with the cached fixture.
+  // Read-only — approve/reject callbacks are suppressed in demo mode.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const demo = useDemoMode();
+  const effectiveCampaign = demo.active && demo.lap ? demo.lap.campaign : autoModeCampaign;
+  const effectiveVariations =
+    demo.active && demo.lap ? demo.lap.variations : autoModeVariations;
+
   return (
     <RailProvider>
       <RightRailInner
@@ -613,10 +622,11 @@ export function RightRail({
         workspaceId={workspaceId}
         heroMediaUrls={heroMediaUrls}
         onOpenPublishPreview={onOpenPublishPreview}
-        autoModeCampaign={autoModeCampaign}
-        autoModeVariations={autoModeVariations}
-        onAutoModeApprove={onAutoModeApprove}
-        onAutoModeReject={onAutoModeReject}
+        autoModeCampaign={effectiveCampaign}
+        autoModeVariations={effectiveVariations}
+        // In demo mode, suppress mutating callbacks so the canvas stays read-only.
+        onAutoModeApprove={demo.active ? undefined : onAutoModeApprove}
+        onAutoModeReject={demo.active ? undefined : onAutoModeReject}
       />
     </RailProvider>
   );

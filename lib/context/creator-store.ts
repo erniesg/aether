@@ -9,6 +9,7 @@ import { useSignals, isMuted, displaySignalValue } from '@/lib/signals/store';
 import type { SignalRecord } from '@/lib/signals/types';
 import {
   DEMO_CREATOR_CONTEXT,
+  EMPTY_CREATOR_CONTEXT,
   type BrandContext,
   type CampaignContext,
   type CreatorContextModel,
@@ -130,7 +131,7 @@ export function coerceBrandContext(value: unknown): BrandContext | null {
 
   return {
     id: v.id,
-    name: v.name.trim() || DEMO_CREATOR_CONTEXT.brand.name,
+    name: v.name.trim(),
     palette,
     type: compactStringArray(v.type),
     voice: typeof v.voice === 'string' ? v.voice.trim() : '',
@@ -146,7 +147,7 @@ export function coerceOfferContext(value: unknown): OfferContext | null {
   if (typeof v.id !== 'string' || typeof v.name !== 'string') return null;
   return {
     id: v.id,
-    name: v.name.trim() || DEMO_CREATOR_CONTEXT.offer.name,
+    name: v.name.trim(),
     summary: typeof v.summary === 'string' ? v.summary.trim() : '',
     claims: compactStringArray(v.claims),
     heroAsset: typeof v.heroAsset === 'string' ? v.heroAsset.trim() : '',
@@ -163,7 +164,7 @@ export function coerceCampaignContext(value: unknown): CampaignContext | null {
   if (typeof v.id !== 'string' || typeof v.name !== 'string') return null;
   return {
     id: v.id,
-    name: v.name.trim() || DEMO_CREATOR_CONTEXT.campaign.name,
+    name: v.name.trim(),
     goal: typeof v.goal === 'string' ? v.goal.trim() : '',
     audience: typeof v.audience === 'string' ? v.audience.trim() : '',
     channels: compactStringArray(v.channels),
@@ -187,10 +188,11 @@ function coerceInputSet(value: unknown): InputSetDraft | null {
 function loadBrand(workspaceId?: string): BrandContext {
   const key = workspaceKey(workspaceId);
   if (!brandCache.has(key)) {
+    // Fallback to EMPTY (not DEMO) so a fresh workspace is genuinely blank.
     brandCache.set(
       key,
       coerceBrandContext(readJson(storageKey(BRAND_CONTEXT_STORAGE_KEY, workspaceId))) ??
-        DEMO_CREATOR_CONTEXT.brand
+        EMPTY_CREATOR_CONTEXT.brand
     );
   }
   return brandCache.get(key)!;
@@ -202,7 +204,7 @@ function loadOffer(workspaceId?: string): OfferContext {
     offerCache.set(
       key,
       coerceOfferContext(readJson(storageKey(OFFER_CONTEXT_STORAGE_KEY, workspaceId))) ??
-        DEMO_CREATOR_CONTEXT.offer
+        EMPTY_CREATOR_CONTEXT.offer
     );
   }
   return offerCache.get(key)!;
@@ -214,7 +216,7 @@ function loadCampaign(workspaceId?: string): CampaignContext {
     campaignCache.set(
       key,
       coerceCampaignContext(readJson(storageKey(CAMPAIGN_CONTEXT_STORAGE_KEY, workspaceId))) ??
-        DEMO_CREATOR_CONTEXT.campaign
+        EMPTY_CREATOR_CONTEXT.campaign
     );
   }
   return campaignCache.get(key)!;
@@ -226,26 +228,34 @@ function loadInputSet(workspaceId?: string): InputSetDraft {
     inputSetCache.set(
       key,
       coerceInputSet(readJson(storageKey(WORKSPACE_CONTEXT_STORAGE_KEY, workspaceId))) ??
-        DEMO_CREATOR_CONTEXT.inputSet
+        EMPTY_CREATOR_CONTEXT.inputSet
     );
   }
   return inputSetCache.get(key)!;
 }
 
+/**
+ * Server-render snapshots — return EMPTY (not DEMO) so the initial HTML has
+ * blank fields rather than flashing "Slow Morning Drop / 5 PINNED" before
+ * Convex resolves. useSyncExternalStore's third arg (getServerSnapshot) is
+ * only used during SSR; the client path calls loadBrand/loadOffer/loadCampaign
+ * immediately, which reads localStorage or falls back to DEMO_CREATOR_CONTEXT
+ * only if actual persisted data exists.
+ */
 function getServerBrand(): BrandContext {
-  return DEMO_CREATOR_CONTEXT.brand;
+  return EMPTY_CREATOR_CONTEXT.brand;
 }
 
 function getServerOffer(): OfferContext {
-  return DEMO_CREATOR_CONTEXT.offer;
+  return EMPTY_CREATOR_CONTEXT.offer;
 }
 
 function getServerCampaign(): CampaignContext {
-  return DEMO_CREATOR_CONTEXT.campaign;
+  return EMPTY_CREATOR_CONTEXT.campaign;
 }
 
 function getServerInputSet(): InputSetDraft {
-  return DEMO_CREATOR_CONTEXT.inputSet;
+  return EMPTY_CREATOR_CONTEXT.inputSet;
 }
 
 function saveMemory<T>(
@@ -271,7 +281,9 @@ export function useBrandContext(workspaceId?: string): BrandContext {
     const data = useQuery(creatorContextApi.getBrand as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as BrandContext | null | undefined;
-    return coerceBrandContext(data) ?? DEMO_CREATOR_CONTEXT.brand;
+    // undefined = still loading → show EMPTY (no flash); null = empty row in DB → show EMPTY
+    if (data === undefined || data === null) return EMPTY_CREATOR_CONTEXT.brand;
+    return coerceBrandContext(data) ?? EMPTY_CREATOR_CONTEXT.brand;
   }
   return useSyncExternalStore(
     subscribe,
@@ -323,7 +335,8 @@ export function useOfferContext(workspaceId?: string): OfferContext {
     const data = useQuery(creatorContextApi.getOffer as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as OfferContext | null | undefined;
-    return coerceOfferContext(data) ?? DEMO_CREATOR_CONTEXT.offer;
+    if (data === undefined || data === null) return EMPTY_CREATOR_CONTEXT.offer;
+    return coerceOfferContext(data) ?? EMPTY_CREATOR_CONTEXT.offer;
   }
   return useSyncExternalStore(
     subscribe,
@@ -375,7 +388,8 @@ export function useCampaignContext(workspaceId?: string): CampaignContext {
     const data = useQuery(creatorContextApi.getCampaign as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as CampaignContext | null | undefined;
-    return coerceCampaignContext(data) ?? DEMO_CREATOR_CONTEXT.campaign;
+    if (data === undefined || data === null) return EMPTY_CREATOR_CONTEXT.campaign;
+    return coerceCampaignContext(data) ?? EMPTY_CREATOR_CONTEXT.campaign;
   }
   return useSyncExternalStore(
     subscribe,
@@ -427,7 +441,8 @@ export function useWorkspaceInputSet(workspaceId?: string): InputSetDraft {
     const data = useQuery(creatorContextApi.getInputSet as never, {
       workspaceId: workspaceKey(workspaceId),
     } as never) as InputSetDraft | null | undefined;
-    return coerceInputSet(data) ?? DEMO_CREATOR_CONTEXT.inputSet;
+    if (data === undefined || data === null) return EMPTY_CREATOR_CONTEXT.inputSet;
+    return coerceInputSet(data) ?? EMPTY_CREATOR_CONTEXT.inputSet;
   }
   return useSyncExternalStore(
     subscribe,
@@ -509,19 +524,21 @@ export function useCreatorContext(workspaceId?: string): CreatorContextModel {
 
   return useMemo(() => {
     const liveSignals = signalRecords.filter((signal) => !isMuted(signal));
+    // Only use signal fallbacks if the creator has actually added signals.
+    // Do NOT fall back to DEMO signals — that causes the "5 PINNED" flash.
     const signals =
       signalRecords.length > 0
         ? signalRecords.map(signalToContext)
-        : DEMO_CREATOR_CONTEXT.signals;
+        : EMPTY_CREATOR_CONTEXT.signals;
     const signalIds =
       liveSignals.length > 0
         ? liveSignals.map((signal) => signal.id)
         : savedInputSet.signalIds.length > 0
           ? savedInputSet.signalIds
-          : DEMO_CREATOR_CONTEXT.inputSet.signalIds;
+          : EMPTY_CREATOR_CONTEXT.inputSet.signalIds;
 
     return {
-      ...DEMO_CREATOR_CONTEXT,
+      ...EMPTY_CREATOR_CONTEXT,
       brand,
       offer,
       campaign,
@@ -540,7 +557,7 @@ export function useCreatorContext(workspaceId?: string): CreatorContextModel {
 }
 
 export function resetBrandContextForTests(): void {
-  brandCache.set(DEFAULT_WORKSPACE_ID, DEMO_CREATOR_CONTEXT.brand);
+  brandCache.set(DEFAULT_WORKSPACE_ID, EMPTY_CREATOR_CONTEXT.brand);
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.removeItem(BRAND_CONTEXT_STORAGE_KEY);
@@ -548,6 +565,26 @@ export function resetBrandContextForTests(): void {
       // ignore
     }
   }
+  notify();
+}
+
+/**
+ * Seed helpers for tests that need pre-populated context (e.g. to test that
+ * knowledge sources display correctly, or that offer claims can be edited).
+ * Always call the matching reset* helper in afterEach to clean up.
+ */
+export function seedBrandContextForTests(brand: BrandContext): void {
+  brandCache.set(DEFAULT_WORKSPACE_ID, brand);
+  notify();
+}
+
+export function seedOfferContextForTests(offer: OfferContext): void {
+  offerCache.set(DEFAULT_WORKSPACE_ID, offer);
+  notify();
+}
+
+export function seedCampaignContextForTests(campaign: CampaignContext): void {
+  campaignCache.set(DEFAULT_WORKSPACE_ID, campaign);
   notify();
 }
 
