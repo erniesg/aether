@@ -463,14 +463,20 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // an AbortError. Block-scoped lets aren't visible across catch in TS.
       const STREAM_STALE_MS = 120_000;
       const abortCtrl = new AbortController();
+      // Track whether the AbortController was triggered by the stale timer
+      // (not a user-initiated cancel). The catch block uses this to choose
+      // a neutral tone for "lap continues server-side" vs. a true error tone
+      // for an unexpected abort from the browser.
+      let staleAborted = false;
       let staleTimer: ReturnType<typeof setTimeout> | null = null;
       const resetStaleTimer = () => {
         if (staleTimer) clearTimeout(staleTimer);
         staleTimer = setTimeout(() => {
+          staleAborted = true;
           appendRunActivity(runId, {
-            title: 'generation timed out',
-            detail: `no events for ${STREAM_STALE_MS / 1000}s — aborting`,
-            tone: 'error',
+            title: 'stream inactive',
+            detail: `no events for ${STREAM_STALE_MS / 1000}s — disconnecting client (lap continues server-side)`,
+            tone: 'neutral',
           });
           abortCtrl.abort();
         }, STREAM_STALE_MS);
@@ -901,18 +907,31 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         if (staleTimer) clearTimeout(staleTimer);
         const aborted =
           err instanceof DOMException && err.name === 'AbortError';
-        const message = aborted
-          ? 'aborted (stale stream or user cancel)'
-          : err instanceof Error
-            ? err.message
-            : String(err);
         if (!aborted) logError('fetch threw:', err);
-        appendRunActivity(runId, {
-          title: aborted ? 'generation aborted' : 'request failed',
-          detail: message,
-          tone: 'error',
-        });
-        failRun(runId, aborted ? message : `fetch failed: ${message}`);
+
+        if (aborted && staleAborted) {
+          // The stale-stream timer fired — the SSE connection timed out while
+          // waiting for the server (e.g. a long auto-mode lap). The server-side
+          // work is still running; this is a client disconnect, not a failure.
+          appendRunActivity(runId, {
+            title: 'stream disconnected',
+            detail: 'client timed out waiting for events — server-side work continues',
+            tone: 'neutral',
+          });
+          failRun(runId, 'stream disconnected (server-side work continues)');
+        } else {
+          const message = aborted
+            ? 'aborted (user cancel)'
+            : err instanceof Error
+              ? err.message
+              : String(err);
+          appendRunActivity(runId, {
+            title: aborted ? 'generation cancelled' : 'request failed',
+            detail: message,
+            tone: 'error',
+          });
+          failRun(runId, aborted ? message : `fetch failed: ${message}`);
+        }
       }
     },
     [editor]
@@ -1867,8 +1886,28 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   // This listens at window level so it intercepts tldraw's own drop handling
   // before tldraw processes the event (we call stopPropagation only on URL
   // drops so other content still flows through).
+  //
+  // Dedup guard: some browsers synthesise BOTH a `drop` and a `paste` event
+  // for the same URL payload, and React StrictMode double-invokes effects in
+  // dev. A `lastFiredRef` records the most recent (url, timestamp) pair; any
+  // identical URL within 5 s is silently skipped so one drop → one lap.
   useEffect(() => {
     if (!autoModeConfig.enabled) return;
+
+    // { url, firedAt } — mutated by reference inside the closure.
+    const lastFired = { url: '', firedAt: 0 };
+    const DEDUP_WINDOW_MS = 5_000;
+
+    function deduped(url: string): boolean {
+      const now = Date.now();
+      if (url === lastFired.url && now - lastFired.firedAt < DEDUP_WINDOW_MS) {
+        log('auto-mode dedup · skipping duplicate lap for url:', url);
+        return true;
+      }
+      lastFired.url = url;
+      lastFired.firedAt = now;
+      return false;
+    }
 
     function extractUrlFromDataTransfer(dt: DataTransfer): string | null {
       const text = dt.getData('text/plain') ?? dt.getData('text/uri-list') ?? '';
@@ -1882,17 +1921,6 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       return null;
     }
 
-    function extractUrlFromClipboard(items: DataTransferItemList): string | null {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.kind === 'string' && (item.type === 'text/plain' || item.type === 'text/uri-list')) {
-          // Clipboard reads are async; we snapshot the item synchronously.
-          // We'll handle via the sync getData path on the paste event.
-        }
-      }
-      return null;
-    }
-
     const handleDrop = (event: DragEvent) => {
       if (!event.dataTransfer) return;
       const url = extractUrlFromDataTransfer(event.dataTransfer);
@@ -1900,6 +1928,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       // It's a URL drop — intercept it and fire the lap.
       event.preventDefault();
       event.stopPropagation();
+      if (deduped(url)) return;
       log('auto-mode drop intercepted · url:', url);
       void fireAutoModeLap(url);
     };
@@ -1915,6 +1944,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
       event.preventDefault();
       event.stopPropagation();
+      if (deduped(text)) return;
       log('auto-mode paste intercepted · url:', text);
       void fireAutoModeLap(text);
     };
