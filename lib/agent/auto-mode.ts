@@ -40,6 +40,8 @@ import { fetchUrlIngestion, type UrlIngestion } from '@/lib/ingest/url';
 import { fetchPdfIngestion, type PdfIngestion } from '@/lib/ingest/pdf';
 import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
 import { composeVariantSet } from '@/lib/text-overlay/compose';
+import { renderPerFormatHeroes } from './per-format-render';
+import type { AspectRatio } from '@/lib/providers/image/types';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -1017,6 +1019,56 @@ async function runOneVariation(
           workspaceId: input.workspaceId,
         });
 
+  // Native-per-format hero renders (AUTO_MODE_NATIVE_PER_FORMAT=1 only).
+  // Bug-4: cropping the 1:1 hero to 4:5/9:16/16:9 can clip subjects. When
+  // enabled, we re-render the missing aspects natively in PARALLEL so the
+  // model frames each format correctly. Cost: 3× extra OpenAI image gens
+  // per variation (~$0.57 at gpt-image-2 high quality), so it's opt-in.
+  // Fail-soft: any rejected aspect just falls through to crop-from-1:1.
+  let nativePerFormatBytes:
+    | Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', Buffer>>
+    | undefined;
+  if (
+    !effectiveError &&
+    heroImageUrl &&
+    process.env.AUTO_MODE_NATIVE_PER_FORMAT === '1'
+  ) {
+    const heroPrompt = extractHeroPrompt(agentStepsForVariation);
+    if (heroPrompt) {
+      try {
+        const refs = (input.referenceImages ?? [])
+          .map((r) => ({ url: r.url ?? r.dataUrl ?? '' }))
+          .filter((r) => r.url.length > 0);
+        const result = await renderPerFormatHeroes({
+          prompt: heroPrompt,
+          refs,
+          aspectRatios: ['4:5', '9:16', '16:9'] as AspectRatio[],
+        });
+        const aspectToFormatId: Record<string, '4x5' | '9x16' | '16x9'> = {
+          '4:5': '4x5',
+          '9:16': '9x16',
+          '16:9': '16x9',
+        };
+        const collected: Partial<Record<'4x5' | '9x16' | '16x9', Buffer>> = {};
+        for (const [aspect, render] of result.byAspect) {
+          const formatId = aspectToFormatId[aspect];
+          if (!formatId) continue;
+          const bytes = await fetchHeroBytes(render.dataUrl ?? render.url);
+          if (bytes) collected[formatId] = bytes;
+        }
+        if (Object.keys(collected).length > 0) {
+          nativePerFormatBytes = collected;
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[auto-mode] native-per-format render failed for variation ${input.promptInput.index}:`,
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+    }
+  }
+
   // Variant atlas — 4 formats × 4 SG locales composed into one PNG so
   // Discord shows every (aspect ratio, language) at-a-glance per variation
   // before posts fire. Failures are fail-soft: a missing atlas just means
@@ -1035,6 +1087,7 @@ async function runOneVariation(
         heroSource: rawHeroImageUrl ?? heroImageUrl,
         textOverlays: postHero.textOverlays,
         captionsByLocale: envelope.captionsByLocale,
+        nativePerFormatBytes,
       });
       if (atlas) {
         atlasUrl = atlas.publicUrl;
@@ -1083,6 +1136,9 @@ async function composeAndUploadAtlas(input: {
   heroSource: string;
   textOverlays?: ProposedTextOverlay[];
   captionsByLocale?: Partial<Record<LocaleCode, string>>;
+  nativePerFormatBytes?: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', Buffer>
+  >;
 }): Promise<{ publicUrl: string; assetId: string } | null> {
   const heroBytes = await fetchHeroBytes(input.heroSource);
   if (!heroBytes) return null;
@@ -1090,6 +1146,7 @@ async function composeAndUploadAtlas(input: {
     heroBytes,
     textOverlays: input.textOverlays,
     fallbackCaptions: input.captionsByLocale,
+    nativePerFormatBytes: input.nativePerFormatBytes,
   });
   const uploaded = await uploadAssetToConvex({
     source: composed.atlas,
@@ -1101,6 +1158,22 @@ async function composeAndUploadAtlas(input: {
   });
   if (!uploaded) return null;
   return { publicUrl: uploaded.publicUrl, assetId: uploaded.id };
+}
+
+/**
+ * Recover the prompt the agent passed to its 1:1 generate_image tool call.
+ * Used when re-rendering at non-1:1 aspects so the new renders share the
+ * agent's framing/composition language rather than diverging.
+ */
+function extractHeroPrompt(steps: MultiAgentToolStep[]): string | undefined {
+  for (const step of steps) {
+    if (step.name !== 'generate_image' || !step.ok) continue;
+    const i = step.input as { prompt?: unknown } | undefined;
+    if (typeof i?.prompt === 'string' && i.prompt.length > 0) {
+      return i.prompt;
+    }
+  }
+  return undefined;
 }
 
 async function fetchHeroBytes(source: string): Promise<Buffer | null> {

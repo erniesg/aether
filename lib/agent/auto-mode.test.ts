@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => {
   const fetchUrlIngestion = vi.fn();
   const fetchPdfIngestion = vi.fn();
   const uploadAssetToConvex = vi.fn();
+  const renderPerFormatHeroes = vi.fn();
   return {
     runMultiAgent,
     startCampaign,
@@ -42,6 +43,7 @@ const mocks = vi.hoisted(() => {
     fetchUrlIngestion,
     fetchPdfIngestion,
     uploadAssetToConvex,
+    renderPerFormatHeroes,
   };
 });
 
@@ -113,6 +115,16 @@ vi.mock('@/lib/storage/convexAsset', async () => {
   return {
     ...actual,
     uploadAssetToConvex: mocks.uploadAssetToConvex,
+  };
+});
+
+vi.mock('./per-format-render', async () => {
+  const actual = await vi.importActual<typeof import('./per-format-render')>(
+    './per-format-render'
+  );
+  return {
+    ...actual,
+    renderPerFormatHeroes: mocks.renderPerFormatHeroes,
   };
 });
 
@@ -490,6 +502,95 @@ describe('runAutoMode · orchestration', () => {
     );
     expect(endCall).toBeDefined();
     expect(endCall[0].content).toContain('POSTS SCHEDULED');
+  });
+
+  it('AUTO_MODE_NATIVE_PER_FORMAT=1 fires renderPerFormatHeroes with the agent prompt + refs, in parallel', async () => {
+    // Bug-4: when the flag is on, the lap should re-render 4:5 / 9:16 / 16:9
+    // natively in parallel rather than cropping from the 1:1 hero. The
+    // helper is mocked here to verify the wiring (prompt extraction +
+    // refs forwarding); the helper's parallelism is verified in
+    // per-format-render.test.ts.
+    const prevFlag = process.env.AUTO_MODE_NATIVE_PER_FORMAT;
+    process.env.AUTO_MODE_NATIVE_PER_FORMAT = '1';
+    try {
+      mocks.runMultiAgent.mockResolvedValueOnce({
+        finalText: JSON.stringify({ caption: 'a calm urban park' }),
+        steps: [
+          {
+            index: 0,
+            name: 'generate_image',
+            input: { prompt: 'a calm urban park, dawn light', aspectRatio: '1:1' },
+            ok: true,
+            ms: 12,
+            output: { result: { images: [{ url: 'https://cdn/hero.png' }] } },
+            clientRunId: 'agent_image-gen_1',
+          },
+        ],
+        iterations: 1,
+        stopReason: 'end_turn',
+      });
+      mocks.renderPerFormatHeroes.mockResolvedValueOnce({
+        byAspect: new Map([
+          ['4:5', { url: 'https://cdn/4-5.png', width: 1080, height: 1350, latencyMs: 30 }],
+          ['9:16', { url: 'https://cdn/9-16.png', width: 1080, height: 1920, latencyMs: 32 }],
+          ['16:9', { url: 'https://cdn/16-9.png', width: 1920, height: 1080, latencyMs: 28 }],
+        ]),
+        totalLatencyMs: 35,
+        errorsByAspect: new Map(),
+      });
+
+      await runAutoMode({
+        baseUrl: 'http://localhost:3000',
+        workspaceId: 'ws_x',
+        trigger: { kind: 'text', payload: 'urban park' },
+        variationCount: 1,
+        notifyMode: 'notify',
+        referenceImages: [{ url: 'https://example.com/ref.png' }],
+      });
+
+      expect(mocks.renderPerFormatHeroes).toHaveBeenCalledTimes(1);
+      const call = mocks.renderPerFormatHeroes.mock.calls[0][0];
+      expect(call.prompt).toBe('a calm urban park, dawn light');
+      expect(call.aspectRatios).toEqual(['4:5', '9:16', '16:9']);
+      expect(call.refs).toEqual([{ url: 'https://example.com/ref.png' }]);
+    } finally {
+      if (prevFlag === undefined) delete process.env.AUTO_MODE_NATIVE_PER_FORMAT;
+      else process.env.AUTO_MODE_NATIVE_PER_FORMAT = prevFlag;
+    }
+  });
+
+  it('does NOT fire renderPerFormatHeroes when AUTO_MODE_NATIVE_PER_FORMAT is unset (default off)', async () => {
+    // Cost guard: opt-in flag stays default off. No renderPerFormatHeroes
+    // call without the explicit '1'.
+    const prevFlag = process.env.AUTO_MODE_NATIVE_PER_FORMAT;
+    delete process.env.AUTO_MODE_NATIVE_PER_FORMAT;
+    try {
+      mocks.runMultiAgent.mockResolvedValueOnce({
+        finalText: JSON.stringify({ caption: 'x' }),
+        steps: [
+          {
+            index: 0,
+            name: 'generate_image',
+            input: { prompt: 'p', aspectRatio: '1:1' },
+            ok: true,
+            ms: 1,
+            output: { result: { images: [{ url: 'https://cdn/hero.png' }] } },
+          },
+        ],
+        iterations: 1,
+        stopReason: 'end_turn',
+      });
+      await runAutoMode({
+        baseUrl: 'http://localhost:3000',
+        workspaceId: 'ws_x',
+        trigger: { kind: 'text', payload: 'x' },
+        variationCount: 1,
+        notifyMode: 'notify',
+      });
+      expect(mocks.renderPerFormatHeroes).not.toHaveBeenCalled();
+    } finally {
+      if (prevFlag !== undefined) process.env.AUTO_MODE_NATIVE_PER_FORMAT = prevFlag;
+    }
   });
 
   it('marks lap as failed when a variation throws and persists the variation as failed', async () => {
