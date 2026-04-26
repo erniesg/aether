@@ -8,12 +8,17 @@
  * @module
  */
 
+import type * as agentSession from "../agentSession.js";
+import type * as brandPolicy from "../brandPolicy.js";
+import type * as campaigns from "../campaigns.js";
 import type * as clusters from "../clusters.js";
 import type * as creatorContext from "../creatorContext.js";
+import type * as proposals from "../proposals.js";
 import type * as providerPrefs from "../providerPrefs.js";
 import type * as publisher from "../publisher.js";
 import type * as runs from "../runs.js";
 import type * as signals from "../signals.js";
+import type * as skills from "../skills.js";
 import type * as textOverlay from "../textOverlay.js";
 
 import type {
@@ -23,12 +28,17 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentSession: typeof agentSession;
+  brandPolicy: typeof brandPolicy;
+  campaigns: typeof campaigns;
   clusters: typeof clusters;
   creatorContext: typeof creatorContext;
+  proposals: typeof proposals;
   providerPrefs: typeof providerPrefs;
   publisher: typeof publisher;
   runs: typeof runs;
   signals: typeof signals;
+  skills: typeof skills;
   textOverlay: typeof textOverlay;
 }>;
 
