@@ -488,7 +488,7 @@ describe('runAutoMode · orchestration', () => {
     expect(mocks.setCampaignStatus).toHaveBeenCalledWith('camp_1', 'failed');
   });
 
-  it('forwards referenceImage to runMultiAgent and into the variation prompt', async () => {
+  it('forwards a singular legacy referenceImage to runMultiAgent and into the variation prompt', async () => {
     mocks.runMultiAgent.mockResolvedValueOnce({
       finalText: '{}',
       steps: [],
@@ -505,12 +505,39 @@ describe('runAutoMode · orchestration', () => {
     });
 
     const call = mocks.runMultiAgent.mock.calls[0][0];
-    expect(call.referenceImage).toEqual({
-      url: 'https://cdn/ref.png',
-      dataUrl: undefined,
-    });
+    expect(call.referenceImages).toEqual([
+      { url: 'https://cdn/ref.png', dataUrl: undefined },
+    ]);
     expect(call.prompt).toContain('https://cdn/ref.png');
     expect(call.prompt).toContain('rainy idol scene');
+  });
+
+  it('forwards a plural referenceImages array to runMultiAgent and lists all in the variation prompt', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'review',
+      referenceImages: [
+        { url: 'https://cdn/brand.png', hint: 'brand kit' },
+        { url: 'https://cdn/product.png', hint: 'product photo' },
+        { url: 'https://cdn/lifestyle.png' },
+      ],
+    });
+
+    const call = mocks.runMultiAgent.mock.calls[0][0];
+    expect(call.referenceImages).toHaveLength(3);
+    expect(call.referenceImages[0].url).toBe('https://cdn/brand.png');
+    expect(call.prompt).toContain('3 reference images');
+    expect(call.prompt).toContain('brand kit');
+    expect(call.prompt).toContain('https://cdn/lifestyle.png');
   });
 
   it('injects a layout-aware hero prompt body so generate_image renders crop-friendly heroes', async () => {
@@ -1024,7 +1051,9 @@ describe('runAutoMode · orchestration', () => {
 
     // The OG image became the default reference because the caller didn't
     // supply one.
-    expect(mocks.runMultiAgent.mock.calls[0][0].referenceImage).toEqual({
+    const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
+    expect(refs).toBeDefined();
+    expect(refs[0]).toEqual({
       url: 'https://cdn.example.com/og-hero.jpg',
       dataUrl: undefined,
     });
@@ -1084,10 +1113,10 @@ describe('runAutoMode · orchestration', () => {
     });
 
     // The explicit reference wins; ingestion's primary image is NOT used.
-    expect(mocks.runMultiAgent.mock.calls[0][0].referenceImage).toEqual({
-      url: 'https://cdn.example.com/explicit.jpg',
-      dataUrl: undefined,
-    });
+    const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
+    expect(refs).toEqual([
+      { url: 'https://cdn.example.com/explicit.jpg', dataUrl: undefined },
+    ]);
   });
 
   it('survives URL ingestion failure — lap continues with raw trigger', async () => {
@@ -1119,9 +1148,10 @@ describe('runAutoMode · orchestration', () => {
     // Ingestion failed, but the lap completed.
     expect(result.urlIngestion).toBeUndefined();
     expect(result.status).toBe('completed');
-    // No reference image attached (ingestion couldn't supply one and the
+    // No reference images attached (ingestion couldn't supply any and the
     // caller didn't either).
-    expect(mocks.runMultiAgent.mock.calls[0][0].referenceImage).toBeUndefined();
+    const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
+    expect(refs === undefined || refs.length === 0).toBe(true);
   });
 
   it('skips URL ingestion entirely for text triggers', async () => {
