@@ -114,3 +114,8 @@ DISCORD_APPLICATION_ID=
 GITHUB_MERGE_TOKEN=
 # "owner/repo" — the repo the interaction route is authorized to act on.
 GITHUB_REPOSITORY=erniesg/aether
+
+# X (Twitter) Account Activity API webhook receiver — app/api/webhooks/x/route.ts
+# Generate at: developer.twitter.com → Project → App → Keys and Tokens → Consumer Keys
+# Required in production; omit in dev (route accepts without verification when AETHER_ENV=development).
+X_WEBHOOK_CONSUMER_SECRET=
