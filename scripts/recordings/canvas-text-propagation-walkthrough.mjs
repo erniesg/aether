@@ -97,7 +97,9 @@ async function main() {
         s.meta &&
         s.meta.autoModeTextOverlay === true &&
         s.meta.scope === 'global' &&
-        s.meta.zonePurpose === 'headline'
+        // canvas.ts stores the role as `zone` (the purpose string from
+        // the layout planner), e.g. 'headline' / 'caption' / 'cta'.
+        s.meta.zone === 'headline'
     );
     if (!target) return false;
     editor.updateShape({
