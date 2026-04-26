@@ -21,6 +21,7 @@ import type {
   SemanticCreativeComponent,
 } from '@/lib/types/semantic-component';
 import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
+import { buildLayoutAwarePrompt } from './prompt/layout-aware';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -169,7 +170,45 @@ interface VariationPromptInput {
   referenceImage?: AutoModeReferenceImage;
 }
 
+/**
+ * Pre-compose the layout-aware hero prompt the agent will pass verbatim
+ * into generate_image. Pre-hero (no caption available yet) we use the
+ * trigger payload as both the creator prompt lead and the hero
+ * description; in parallel mode the up-front mood seed feeds component
+ * mood keywords so the layout planner bakes mood into the rendered image
+ * via the existing buildAutoModeComponent → buildLayoutAwarePrompt path.
+ *
+ * The resulting prompt has safe zones (top headline + bottom caption
+ * bands as `mustSurviveAllCrops`), multi-aspect crop guidance for
+ * 1:1 / 4:5 / 9:16 / 16:9, and a no-on-image-text instruction baked in.
+ * One render satisfies every standard format crop without per-format
+ * regeneration — the fast-tier promise.
+ */
+function buildPreHeroLayoutAwarePrompt(input: {
+  trigger: AutoModeTrigger;
+  parallelMoodSeed?: string;
+  referenceHint?: string;
+}): string {
+  const heroDescription = input.referenceHint
+    ? `${input.trigger.payload} (reference vibe: ${input.referenceHint})`
+    : input.trigger.payload;
+  const component = buildAutoModeComponent({
+    rewrittenPromptOrCaption: heroDescription,
+    moodNote: input.parallelMoodSeed,
+  });
+  return buildLayoutAwarePrompt({
+    creatorPrompt: input.trigger.payload,
+    component,
+  });
+}
+
 const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
+  const layoutAwarePrompt = buildPreHeroLayoutAwarePrompt({
+    trigger: input.trigger,
+    parallelMoodSeed: input.parallelMoodSeed,
+    referenceHint: input.referenceImage?.hint,
+  });
+
   const lines = [
     `Auto-Mode lap. You are running variation ${input.index} of ${input.total}.`,
     '',
@@ -193,19 +232,26 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     '1) Call get_current_datetime(timezone="Asia/Singapore") so you know what "now" is — needed for Step 4.',
     '2) Call search_signals once with the trigger as seedText, platform=instagram, limit=8.',
     "3) Call generate_image EXACTLY ONCE with aspectRatio=1:1. Even if the first result is imperfect, accept it — re-rendering wastes credits and time.",
-    '   Write a visually specific hero prompt.'
+    '   Use the LAYOUT-AWARE hero prompt below VERBATIM as the `prompt` argument. It already encodes safe zones, multi-format crop guidance, and a no-on-image-text directive so one render survives crops to 4:5 / 9:16 / 16:9 without re-render. Do not paraphrase or shorten it:',
+    '   <<<HERO_PROMPT',
+    layoutAwarePrompt,
+    '   HERO_PROMPT>>>'
   );
 
+  // Variation positioning — informational. The layout-aware prompt above
+  // already bakes mood keywords (parallel seed) into the rendered image;
+  // these lines just remind Claude where this variation sits in the lap so
+  // distinctness rationale is explicit in the system prompt context.
   if (input.parallelMoodSeed) {
     lines.push(
-      `   This variation MUST lean toward this mood: ${input.parallelMoodSeed}. Other variations are running in parallel with different seeds.`
+      `   This variation MUST lean toward this mood: ${input.parallelMoodSeed}. Other variations are running in parallel with different seeds; the layout-aware prompt already encodes this mood, this line is for variation positioning.`
     );
   } else if (input.priorMoodNotes.length > 0) {
     lines.push(
-      `   Prior variations chose these moods (do NOT repeat): ${input.priorMoodNotes.join(' | ')}.`
+      `   Prior variations chose these moods (do NOT repeat): ${input.priorMoodNotes.join(' | ')}. If the layout-aware mood collides, swap in a distinct mood keyword before sending the prompt.`
     );
   } else {
-    lines.push('   This is the first variation — pick any cohesive mood.');
+    lines.push('   This is the first variation — the layout-aware prompt has a default mood; honour it.');
   }
 
   lines.push(

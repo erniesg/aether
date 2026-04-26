@@ -451,4 +451,70 @@ describe('runAutoMode · orchestration', () => {
     expect(call.prompt).toContain('https://cdn/ref.png');
     expect(call.prompt).toContain('rainy idol scene');
   });
+
+  it('injects a layout-aware hero prompt body so generate_image renders crop-friendly heroes', async () => {
+    // The fast tier wants ONE hero that survives crops to 1:1 / 4:5 / 9:16 / 16:9
+    // without per-format regeneration. We pre-compose a layout-aware prompt
+    // (safe zones + multi-aspect guidance baked in) and instruct Claude to
+    // pass it verbatim to generate_image. Without this, Claude composes a
+    // free-form prompt and the resulting hero often crops to 'partial'.
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: {
+        kind: 'text',
+        payload: 'idol drama like shot, guy is wet by the rain pulling jacket overhead',
+      },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    const prompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    // Multi-aspect guidance from buildLayoutAwarePrompt — the proof we
+    // wove the layout planner into the variation prompt.
+    expect(prompt).toMatch(/cropped to any of these aspect ratios/);
+    // Safe-zone reservation language.
+    expect(prompt).toMatch(/Reserve the following regions/);
+    // The trigger payload survives into the layout-aware body.
+    expect(prompt).toMatch(/idol drama/);
+    // Claude is told to use the layout-aware body verbatim, not free-form.
+    expect(prompt).toMatch(/verbatim/i);
+    // No on-image text — overlays are added separately downstream.
+    expect(prompt).toMatch(/Do not render any text, logos, or watermarks/);
+  });
+
+  it('feeds parallel mood seed into the layout-aware prompt mood keywords', async () => {
+    mocks.runMultiAgent
+      .mockResolvedValueOnce({
+        finalText: '{}',
+        steps: [],
+        iterations: 1,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        finalText: '{}',
+        steps: [],
+        iterations: 1,
+        stopReason: 'end_turn',
+      });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'streetwear lookbook' },
+      variationCount: 2,
+      notifyMode: 'review',
+      concurrency: 'parallel',
+    });
+
+    const firstPrompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    // PARALLEL_MOOD_SEEDS[0] = 'warm dawn — soft golden palette, low contrast, hopeful'
+    // The seed's keywords should be present in the layout-aware Mood line.
+    expect(firstPrompt).toMatch(/Mood:.*(warm|dawn|golden|hopeful)/);
+  });
 });
