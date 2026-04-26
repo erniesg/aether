@@ -36,6 +36,18 @@ SEGMENTATION_PROVIDER=sam3
 CLIP_MODAL_URL=https://<workspace>--aether-clip-cluster.modal.run
 CLIP_MODAL_TOKEN=
 
+# Research signals — uses the same env names as the Tong signal pipeline, but
+# the implementation is self-contained in aether. Instagram prefers Apify;
+# XHS prefers RapidAPI; TikTok uses public search and degrades quietly.
+SIGNALS_EXECUTION_MODE=live
+SIGNALS_SCRAPER_INSTAGRAM=apify
+SIGNALS_XHS_PROVIDERS=rapidapi
+SIGNALS_XHS_RETRIES=4
+APIFY_API_TOKEN=
+RAPIDAPI_KEY=
+INSTAGRAM_ACCESS_TOKEN=
+INSTAGRAM_USER_ID=
+
 # Spatial (gaussian splat / particle field) providers.
 # `draft` is always available and renders a local SVG preview — no keys needed.
 # `replicate-splat` uses REPLICATE_API_TOKEN (model: jd7h/splatter-image by default).

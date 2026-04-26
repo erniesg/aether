@@ -8,6 +8,7 @@ export interface ResearchClientResponse {
   plan: ResearchPlan;
   records: ReferenceRecord[];
   scrapedCount: number;
+  signalCount: number;
   materializedCount: number;
 }
 
@@ -30,6 +31,7 @@ export async function runResearchViaApi(
     plan: json.plan,
     records: json.records,
     scrapedCount: json.scrapedCount ?? 0,
+    signalCount: json.signalCount ?? 0,
     materializedCount: json.materializedCount ?? 0,
   };
 }
