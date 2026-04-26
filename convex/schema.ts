@@ -536,10 +536,17 @@ export default defineSchema({
     ),
     heroImageUrl: v.optional(v.string()),
     caption: v.optional(v.string()),
+    /** SG-locale captions: en-SG, zh-Hans-SG, ms-SG, ta-SG. */
+    captionsByLocale: v.optional(v.any()),
     hashtags: v.optional(v.array(v.string())),
     moodNote: v.optional(v.string()),
     schedulePlatform: v.optional(v.string()),
     scheduleWhenLocal: v.optional(v.string()),
+    /** Per-format crop rectangles derived from the hero. Each entry =
+     *  { aspectRatio, w, h, crop: { topLeft, bottomRight } } in tldraw's
+     *  normalized [0,1] coords (lib/canvas/cropToFormat). The hero (1:1)
+     *  is included as a no-op crop so consumers don't special-case. */
+    formatCrops: v.optional(v.any()),
     /** clientRunIds in `capabilityRun` produced by this variation's agent
      *  loop. UI can resolve them back to the per-tool ledger rows. */
     agentRunIds: v.array(v.string()),

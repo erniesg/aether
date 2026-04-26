@@ -5,6 +5,22 @@ import {
   startCampaign,
 } from '@/lib/convex/http';
 import { notifyDiscord } from '@/lib/notify/discord';
+import {
+  cropHeroToFormats,
+  type CroppedFormat,
+} from '@/lib/canvas/cropToFormat';
+import {
+  segmentationToForbiddenRegions,
+  type SegmentMaskJson,
+} from '@/lib/segment/maskToForbiddenRegions';
+import { applyTextOverlay } from './text-apply';
+import type { ProposedTextOverlay } from './text-apply';
+import type {
+  FormatTarget,
+  SafeZone,
+  SemanticCreativeComponent,
+} from '@/lib/types/semantic-component';
+import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -95,15 +111,40 @@ const PARALLEL_MOOD_SEEDS = [
   'soft pastel — chalk tones, dreamy diffusion, intimate scale',
 ] as const;
 
+export interface AutoModeFormatCrop {
+  formatId: string;
+  aspectRatio: '1:1' | '4:5' | '9:16' | '16:9';
+  w: number;
+  h: number;
+  /** Normalized [0,1] crop coords in the hero's coordinate space. */
+  crop: { topLeft: { x: number; y: number }; bottomRight: { x: number; y: number } };
+  /** From cropHeroToFormats: 'fitted' | 'partial' | 'centered-fallback'. */
+  fit: string;
+}
+
 export interface AutoModeVariationResult {
   index: number;
   status: 'ready' | 'failed';
   heroImageUrl?: string;
   caption?: string;
+  /** Captions across the 4 SG locales. Filled by the agent's JSON envelope
+   *  (Claude translates inline) plus, when text-overlay/apply runs, the
+   *  authored copy per locale from the planner. */
+  captionsByLocale?: Partial<Record<LocaleCode, string>>;
   hashtags?: string[];
   moodNote?: string;
   schedulePlatform?: string;
   scheduleWhenLocal?: string;
+  /** Per-format crop rectangles (1:1 hero + 4:5 + 9:16 + 16:9). Pure
+   *  geometry — no extra renders. */
+  formatCrops?: AutoModeFormatCrop[];
+  /** Adaptive text overlays produced by lib/agent/text-apply: one per
+   *  text-bearing safe zone × locale. Position is segmentation-aware
+   *  (faces/products/logos forbidden). */
+  textOverlays?: ProposedTextOverlay[];
+  /** Non-fatal warnings from the text-overlay planner ('no-safe-zone-found'
+   *  when every zone overlaps a forbidden region). */
+  textOverlayWarnings?: string[];
   agentSteps: MultiAgentToolStep[];
   agentFinalText: string;
   error?: string;
@@ -168,19 +209,36 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
   lines.push(
     '3) Output ONLY a JSON object with this shape, no other prose:',
     '{',
-    '  "caption": "<60-180 char IG caption tied to the trigger>",',
+    '  "caption": "<60-180 char IG caption in en-SG, tied to the trigger>",',
+    '  "captionsByLocale": {',
+    '    "en-SG":      "<same caption>",',
+    '    "zh-Hans-SG": "<natural-sounding Singaporean Mandarin translation, equivalent length>",',
+    '    "ms-SG":      "<natural-sounding Bahasa Singapura translation, equivalent length>",',
+    '    "ta-SG":      "<natural-sounding Singaporean Tamil translation, equivalent length>"',
+    '  },',
     '  "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5"],',
     '  "platform": "instagram",',
     '  "whenLocal": "<ISO8601 timestamp during a Singapore prime-time IG window in the next 36 hours>",',
     '  "moodNote": "<10-word mood label distinguishing this variation>"',
-    '}'
+    '}',
+    'IMPORTANT: today is 2026-04-26 (SGT). Schedule whenLocal AFTER today.'
   );
 
   return lines.join('\n');
 };
 
+export type LocaleCode = 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+
+export const SG_LOCALES: readonly LocaleCode[] = [
+  'en-SG',
+  'zh-Hans-SG',
+  'ms-SG',
+  'ta-SG',
+] as const;
+
 export interface ParsedAgentEnvelope {
   caption?: string;
+  captionsByLocale?: Partial<Record<LocaleCode, string>>;
   hashtags?: string[];
   platform?: string;
   whenLocal?: string;
@@ -226,6 +284,19 @@ function pickEnvelope(parsed: Record<string, unknown>): ParsedAgentEnvelope {
   if (typeof parsed.platform === 'string') out.platform = parsed.platform;
   if (typeof parsed.whenLocal === 'string') out.whenLocal = parsed.whenLocal;
   if (typeof parsed.moodNote === 'string') out.moodNote = parsed.moodNote;
+  if (
+    typeof parsed.captionsByLocale === 'object' &&
+    parsed.captionsByLocale !== null &&
+    !Array.isArray(parsed.captionsByLocale)
+  ) {
+    const raw = parsed.captionsByLocale as Record<string, unknown>;
+    const filtered: Partial<Record<LocaleCode, string>> = {};
+    for (const code of SG_LOCALES) {
+      const v = raw[code];
+      if (typeof v === 'string' && v.trim().length > 0) filtered[code] = v;
+    }
+    if (Object.keys(filtered).length > 0) out.captionsByLocale = filtered;
+  }
   return out;
 }
 
@@ -248,6 +319,172 @@ export function pickHeroImageUrl(steps: MultiAgentToolStep[]): string | undefine
     if (typeof topLevelUrl === 'string' && topLevelUrl.length > 0) return topLevelUrl;
   }
   return undefined;
+}
+
+// ───── Post-hero pipeline (multi-format + adaptive multilingual text) ────
+
+const STANDARD_FORMATS: ReadonlyArray<FormatTarget> = [
+  { id: '1x1', w: 1024, h: 1024, label: 'Hero · Square' },
+  { id: '4x5', w: 1080, h: 1350, label: 'IG Portrait' },
+  { id: '9x16', w: 1080, h: 1920, label: 'Story / Reel' },
+  { id: '16x9', w: 1920, h: 1080, label: 'Banner' },
+];
+
+/**
+ * Default text-bearing safe zones for an Auto-Mode hero. The agent
+ * doesn't author a sketch for us, so we use sensible IG defaults: a
+ * headline reservation at the top, caption at the bottom. Both are
+ * `mustSurviveAllCrops` so cropHeroToFormats preserves them across
+ * 4:5 / 9:16 / 16:9.
+ */
+const DEFAULT_TEXT_SAFE_ZONES: ReadonlyArray<SafeZone> = [
+  {
+    purpose: 'headline',
+    bbox: { x: 0.05, y: 0.05, w: 0.9, h: 0.18 },
+    mustSurviveAllCrops: true,
+  },
+  {
+    purpose: 'caption',
+    bbox: { x: 0.05, y: 0.78, w: 0.9, h: 0.17 },
+    mustSurviveAllCrops: true,
+  },
+];
+
+function buildAutoModeComponent(input: {
+  rewrittenPromptOrCaption: string;
+  moodNote?: string;
+}): SemanticCreativeComponent {
+  const moodKeywords = (input.moodNote ?? '')
+    .split(/[\s,—|·]+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 2)
+    .slice(0, 8);
+  return {
+    hero: { description: input.rewrittenPromptOrCaption },
+    mood: { keywords: moodKeywords.length > 0 ? moodKeywords : ['cinematic'] },
+    safeZones: [...DEFAULT_TEXT_SAFE_ZONES],
+    cropPriorities: {
+      primary: { x: 0.18, y: 0.18, w: 0.64, h: 0.64 },
+    },
+    formats: [...STANDARD_FORMATS],
+  };
+}
+
+function isDataUrl(url: string | undefined): boolean {
+  return typeof url === 'string' && url.startsWith('data:');
+}
+
+async function runSegmentationOnHero(input: {
+  heroUrl: string;
+  baseUrl: string;
+  width: number;
+  height: number;
+}): Promise<SegmentMaskJson | null> {
+  // SAM3 (Modal) fetches the URL server-side. Data URLs are not fetchable
+  // from there, so skip segmentation when the hero comes back as inline
+  // base64. The text-overlay planner still runs without forbidden regions.
+  if (isDataUrl(input.heroUrl)) return null;
+  try {
+    const r = await fetch(`${input.baseUrl}/api/segment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceUrl: input.heroUrl,
+        mode: 'unmask',
+        width: input.width,
+        height: input.height,
+        prompt: 'faces, products, brand logos, text',
+      }),
+    });
+    if (!r.ok) return null;
+    const json = (await r.json()) as Record<string, unknown>;
+    const raw = json.raw as SegmentMaskJson | undefined;
+    if (!raw || !Array.isArray(raw.masks)) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+interface PostHeroOutcome {
+  formatCrops: AutoModeFormatCrop[];
+  textOverlays?: ProposedTextOverlay[];
+  textOverlayWarnings?: string[];
+}
+
+async function runPostHeroPipeline(input: {
+  heroUrl: string | undefined;
+  caption: string | undefined;
+  moodNote: string | undefined;
+  baseUrl: string;
+  workspaceId?: string;
+}): Promise<PostHeroOutcome> {
+  if (!input.heroUrl) {
+    return { formatCrops: [] };
+  }
+
+  // Hero dims: when /api/generate streams images we lift width/height from
+  // the frame.completed event into result.images[0]. Fall back to the
+  // standard 1024² when missing.
+  const heroAsset = { width: 1024, height: 1024, url: input.heroUrl };
+
+  // 1. Format crops — pure math, never throws.
+  const cropped: CroppedFormat[] = cropHeroToFormats({
+    heroAsset,
+    formats: STANDARD_FORMATS,
+    safeZones: DEFAULT_TEXT_SAFE_ZONES,
+  });
+  const formatCrops: AutoModeFormatCrop[] = cropped.map((c) => ({
+    formatId: c.formatId,
+    aspectRatio:
+      c.format.id === '1x1'
+        ? '1:1'
+        : c.format.id === '4x5'
+          ? '4:5'
+          : c.format.id === '9x16'
+            ? '9:16'
+            : '16:9',
+    w: c.w,
+    h: c.h,
+    crop: c.crop,
+    fit: c.fit,
+  }));
+
+  // 2. Segmentation → forbiddenRegions (face / brand / logo masks).
+  const masks = await runSegmentationOnHero({
+    heroUrl: input.heroUrl,
+    baseUrl: input.baseUrl,
+    width: heroAsset.width,
+    height: heroAsset.height,
+  });
+  const forbiddenRegions = masks ? segmentationToForbiddenRegions(masks) : [];
+
+  // 3. Text-overlay planner — multilingual + adaptive placement.
+  const component = buildAutoModeComponent({
+    rewrittenPromptOrCaption: input.caption ?? 'idol drama hero',
+    moodNote: input.moodNote,
+  });
+  try {
+    const overlay = await applyTextOverlay({
+      component,
+      sourceLocale: asBCP47LocaleCode('en-SG'),
+      targetLocales: [
+        asBCP47LocaleCode('zh-Hans-SG'),
+        asBCP47LocaleCode('ms-SG'),
+        asBCP47LocaleCode('ta-SG'),
+      ],
+      creatorIntent: input.caption,
+      forbiddenRegions,
+      wsId: input.workspaceId,
+    });
+    return {
+      formatCrops,
+      textOverlays: overlay.layers,
+      textOverlayWarnings: overlay.warnings,
+    };
+  } catch {
+    return { formatCrops };
+  }
 }
 
 interface RunOneVariationInput {
@@ -288,15 +525,30 @@ async function runOneVariation(
   const envelope = parseAgentEnvelope(agentFinalText);
   const heroImageUrl = pickHeroImageUrl(agentStepsForVariation);
 
+  // Post-hero: format crops + segmentation-aware multilingual text overlays.
+  const postHero = variationError
+    ? { formatCrops: [] as AutoModeFormatCrop[] }
+    : await runPostHeroPipeline({
+        heroUrl: heroImageUrl,
+        caption: envelope.caption,
+        moodNote: envelope.moodNote,
+        baseUrl: input.baseUrl,
+        workspaceId: input.workspaceId,
+      });
+
   return {
     index: input.promptInput.index,
     status: variationError ? 'failed' : 'ready',
     heroImageUrl,
     caption: envelope.caption,
+    captionsByLocale: envelope.captionsByLocale,
     hashtags: envelope.hashtags,
     moodNote: envelope.moodNote,
     schedulePlatform: envelope.platform,
     scheduleWhenLocal: envelope.whenLocal,
+    formatCrops: postHero.formatCrops,
+    textOverlays: postHero.textOverlays,
+    textOverlayWarnings: postHero.textOverlayWarnings,
     agentSteps: agentStepsForVariation,
     agentFinalText,
     error: variationError,
@@ -319,10 +571,12 @@ async function persistVariation(
     status: variation.status,
     heroImageUrl: variation.heroImageUrl,
     caption: variation.caption,
+    captionsByLocale: variation.captionsByLocale,
     hashtags: variation.hashtags,
     moodNote: variation.moodNote,
     schedulePlatform: variation.schedulePlatform,
     scheduleWhenLocal: variation.scheduleWhenLocal,
+    formatCrops: variation.formatCrops,
     agentRunIds,
     error: variation.error,
   });

@@ -1,0 +1,54 @@
+{
+  "ok": true,
+  "campaignId": null,
+  "variations": [
+    {
+      "index": 1,
+      "status": "ready",
+      "heroImageUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAAQACAIAAACoEwUVAABnL2NhQlgAAG...[base64 truncated; saved as v1-hero.png]",
+      "caption": "Caught in the downpour, jacket overhead, heart somewhere between the next train and her last text. A drama scene I never asked to star in.",
+      "hashtags": [
+        "#cinematicportrait",
+        "#rainynight",
+        "#jdramaaesthetic",
+        "#filmgrain",
+        "#moodygrams"
+      ],
+      "moodNote": "Neon-soaked melancholy under teal-amber rain, quiet drama protagonist",
+      "schedulePlatform": "instagram",
+      "scheduleWhenLocal": "2025-01-28T20:30:00+08:00",
+      "agentSteps": [
+        {
+          "index": 0,
+          "name": "search_signals",
+          "input": {
+            "seedText": "idol drama like shot, guy is wet by the rain and he is pulling his jacket overhead to shield from the rain",
+            "platforms": [
+              "instagram"
+            ],
+            "limit": 8
+          },
+          "output": "<elided>",
+          "ok": true,
+          "ms": 110,
+          "clientRunId": "agent_signals-search_mofks6ik_am95t5"
+        },
+        {
+          "index": 1,
+          "name": "generate_image",
+          "input": {
+            "prompt": "Cinematic Japanese idol drama still: young man drenched in rain, dark jacket pulled over his head as a shield, downcast gaze, neon-lit wet street at night, shallow depth of field, moody teal-amber palette, 35mm film grain.",
+            "aspectRatio": "1:1"
+          },
+          "output": "<elided>",
+          "ok": true,
+          "ms": 117713,
+          "clientRunId": "agent_image-gen_mofks6lm_vrtc96"
+        }
+      ],
+      "agentFinalText": "{\n  \"caption\": \"Caught in the downpour, jacket overhead, heart somewhere between the next train and her last text. A drama scene I never asked to star in.\",\n  \"hashtags\": [\"#cinematicportrait\",\"#rainynight\",\"#jdramaaesthetic\",\"#filmgrain\",\"#moodygrams\"],\n  \"platform\": \"instagram\",\n  \"whenLocal\": \"2025-01-28T20:30:00+08:00\",\n  \"moodNote\": \"Neon-soaked melancholy under teal-amber rain, quiet drama protagonist\"\n}"
+    }
+  ],
+  "status": "completed",
+  "notified": false
+}
