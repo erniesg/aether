@@ -258,8 +258,19 @@ function pickLocaleText(
 }
 
 export interface ComposeVariantSetInput {
-  /** Hero PNG bytes (1:1 from the agent). */
+  /** Hero PNG bytes (1:1 from the agent). Used as the source for any
+   *  format that doesn't have an entry in `nativePerFormatBytes`. */
   heroBytes: Buffer | Uint8Array;
+  /**
+   * Optional native renders per format — when supplied for a format,
+   * `composeVariantSet` skips the crop-from-1:1 path for that aspect and
+   * uses the native bytes directly (still resized to the exact format
+   * dims via sharp). Subjects framed for the target aspect avoid the
+   * "head crop" problem of cropping from a 1:1 hero.
+   */
+  nativePerFormatBytes?: Partial<
+    Record<ComposeFormat['id'], Buffer | Uint8Array>
+  >;
   /** Output of applyTextOverlay — one entry per text-bearing zone. */
   textOverlays?: ProposedTextOverlay[];
   /**
@@ -288,9 +299,19 @@ export interface ComposeVariantSetOutput {
 export async function composeVariantSet(
   input: ComposeVariantSetInput
 ): Promise<ComposeVariantSetOutput> {
-  // 1) Crop hero into 4 formats — 4 sharp pipelines in parallel.
+  // 1) Per-format hero bytes. When the caller supplies a native render for
+  //    a format (Bug-4: AUTO_MODE_NATIVE_PER_FORMAT=1), skip the crop and
+  //    just resize to the exact target dims — preserves the model's framing
+  //    decisions for the aspect. Otherwise fall back to crop-from-1:1.
   const cropEntries = await Promise.all(
     COMPOSE_FORMATS.map(async (format) => {
+      const native = input.nativePerFormatBytes?.[format.id];
+      if (native) {
+        const bytes = await sharp(native)
+          .resize(format.w, format.h, { fit: 'cover', position: 'center' })
+          .toBuffer();
+        return [format.id, { format, bytes }] as const;
+      }
       const bytes = await cropAndResize(input.heroBytes, format);
       return [format.id, { format, bytes }] as const;
     })
