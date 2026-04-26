@@ -192,6 +192,13 @@ export interface AutoModeVariationResult {
   atlasUrl?: string;
   /** Convex asset id of the atlas (for re-fetch / cleanup paths). */
   atlasAssetId?: string;
+  /** Format ids for which native-per-format render produced bytes. Empty
+   *  array when AUTO_MODE_NATIVE_PER_FORMAT was off or all aspects failed
+   *  — both downgrade to crop-from-1:1 in the atlas composer. */
+  nativePerFormatRendered?: Array<'4x5' | '9x16' | '16x9'>;
+  /** Per-aspect provider error messages from native-per-format render
+   *  (when any aspect rejected). Useful for surfacing in /inspect. */
+  nativePerFormatErrors?: Record<string, string>;
   /** Non-fatal warnings from the text-overlay planner ('no-safe-zone-found'
    *  when every zone overlaps a forbidden region). */
   textOverlayWarnings?: string[];
@@ -1039,22 +1046,45 @@ async function runOneVariation(
   let nativePerFormatBytes:
     | Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', Buffer>>
     | undefined;
-  if (
-    !effectiveError &&
-    heroImageUrl &&
-    process.env.AUTO_MODE_NATIVE_PER_FORMAT === '1'
-  ) {
+  let nativePerFormatRendered: Array<'4x5' | '9x16' | '16x9'> = [];
+  let nativePerFormatErrors: Record<string, string> | undefined;
+  const flagOn = process.env.AUTO_MODE_NATIVE_PER_FORMAT === '1';
+  // eslint-disable-next-line no-console
+  console.log(
+    `[auto-mode v${input.promptInput.index}] native-per-format gate: flagOn=${flagOn}, hasHero=${!!heroImageUrl}, effectiveError=${effectiveError ?? 'none'}`
+  );
+  if (!effectiveError && heroImageUrl && flagOn) {
     const heroPrompt = extractHeroPrompt(agentStepsForVariation);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[auto-mode v${input.promptInput.index}] heroPrompt extracted: ${heroPrompt ? `${heroPrompt.length} chars` : 'NONE'}`
+    );
     if (heroPrompt) {
       try {
         const refs = (input.referenceImages ?? [])
           .map((r) => ({ url: r.url ?? r.dataUrl ?? '' }))
           .filter((r) => r.url.length > 0);
+        // eslint-disable-next-line no-console
+        console.log(
+          `[auto-mode v${input.promptInput.index}] firing renderPerFormatHeroes — ${refs.length} refs, 3 aspects in parallel…`
+        );
         const result = await renderPerFormatHeroes({
           prompt: heroPrompt,
           refs,
           aspectRatios: ['4:5', '9:16', '16:9'] as AspectRatio[],
         });
+        // eslint-disable-next-line no-console
+        console.log(
+          `[auto-mode v${input.promptInput.index}] renderPerFormatHeroes returned: ${result.byAspect.size} fulfilled, ${result.errorsByAspect.size} errored, totalLatencyMs=${result.totalLatencyMs}`
+        );
+        if (result.errorsByAspect.size > 0) {
+          nativePerFormatErrors = {};
+          for (const [aspect, err] of result.errorsByAspect) {
+            nativePerFormatErrors[aspect] = err;
+            // eslint-disable-next-line no-console
+            console.warn(`[auto-mode v${input.promptInput.index}] ${aspect} failed: ${err}`);
+          }
+        }
         const aspectToFormatId: Record<string, '4x5' | '9x16' | '16x9'> = {
           '4:5': '4x5',
           '9:16': '9x16',
@@ -1065,15 +1095,27 @@ async function runOneVariation(
           const formatId = aspectToFormatId[aspect];
           if (!formatId) continue;
           const bytes = await fetchHeroBytes(render.dataUrl ?? render.url);
-          if (bytes) collected[formatId] = bytes;
+          if (bytes) {
+            collected[formatId] = bytes;
+            nativePerFormatRendered.push(formatId);
+          } else {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[auto-mode v${input.promptInput.index}] ${aspect} bytes fetch failed (url len ${render.url?.length ?? 0}, dataUrl present=${!!render.dataUrl})`
+            );
+          }
         }
         if (Object.keys(collected).length > 0) {
           nativePerFormatBytes = collected;
+          // eslint-disable-next-line no-console
+          console.log(
+            `[auto-mode v${input.promptInput.index}] nativePerFormatBytes populated for: ${Object.keys(collected).join(', ')}`
+          );
         }
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn(
-          `[auto-mode] native-per-format render failed for variation ${input.promptInput.index}:`,
+          `[auto-mode v${input.promptInput.index}] native-per-format render threw:`,
           err instanceof Error ? err.message : String(err)
         );
       }
@@ -1131,6 +1173,8 @@ async function runOneVariation(
     masksVisionGuided: postHero.masksVisionGuided,
     atlasUrl,
     atlasAssetId,
+    nativePerFormatRendered,
+    nativePerFormatErrors,
     agentSteps: agentStepsForVariation,
     agentFinalText,
     error: effectiveError,
