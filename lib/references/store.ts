@@ -133,7 +133,15 @@ export function useWorkspaceReferences(workspaceId?: string): ReferenceRecord[] 
 }
 
 export function addReference(record: ReferenceRecord, workspaceId?: string): void {
-  if (isConvexEnabled()) {
+  // Convex document fields cap at 1 MB. A clipboard-pasted or uploaded image
+  // produces a data: URL that routinely runs several megabytes — persisting it
+  // to Convex throws a server-side 500. data: URLs are session-only visual
+  // anchors; the creator pin only needs the remote URL for durable persistence.
+  // When the previewUrl is a data URL we fall through to the in-memory store
+  // so the reference is still usable in the current session without error.
+  const isDataUrl = record.previewUrl.startsWith('data:');
+
+  if (isConvexEnabled() && !isDataUrl) {
     const client = getConvexClient();
     if (!client) return;
     void client.mutation(referencesApi.addReference as never, {
