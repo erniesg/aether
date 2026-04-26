@@ -42,6 +42,29 @@ export interface IngestedProduct {
   schemaType?: string;
 }
 
+export interface BrandPalette {
+  /** Mapped from --brand-primary / --primary / --color-primary / --colour-primary */
+  primary?: string;
+  /** Mapped from --secondary / --color-secondary / --brand-secondary */
+  secondary?: string;
+  /** Mapped from --accent / --color-accent */
+  accent?: string;
+  /** Mapped from --background / --bg / --color-background */
+  background?: string;
+  /** Mapped from --foreground / --fg / --color-foreground */
+  foreground?: string;
+  /** All extracted hex colors, de-duped, ordered by occurrence frequency. Max 12. */
+  all: string[];
+}
+
+export interface IngestedLogo {
+  url: string;
+  source: 'apple-touch-icon' | 'icon-svg' | 'og-logo' | 'header-img' | 'favicon';
+  mime?: string;
+  width?: number;
+  height?: number;
+}
+
 export interface UrlIngestion {
   url: string;
   finalUrl: string;
@@ -57,6 +80,12 @@ export interface UrlIngestion {
   bodyExcerpt: string;
   fetchedAt: string;
   rawHtmlBytes: number;
+  /** Brand color palette from :root CSS tokens and inline element styles. */
+  brandPalette?: BrandPalette;
+  /** Typefaces detected from Google Fonts links and font-family declarations. Max 6. */
+  fonts?: string[];
+  /** Most likely site logo, preferring high-DPI + transparent sources. */
+  logo?: IngestedLogo;
 }
 
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -149,6 +178,9 @@ export function parseHtmlIngestion(
   }
 
   const bodyExcerpt = collectBodyExcerpt(doc);
+  const brandPalette = extractBrandPalette(doc, input.finalUrl);
+  const fonts = extractFonts(doc);
+  const logo = extractLogo(doc, input.finalUrl);
 
   return {
     url: input.requestedUrl,
@@ -167,6 +199,9 @@ export function parseHtmlIngestion(
     bodyExcerpt,
     fetchedAt: new Date().toISOString(),
     rawHtmlBytes: html.length,
+    brandPalette,
+    fonts,
+    logo,
   };
 }
 
@@ -377,6 +412,271 @@ function area(img: IngestedImage): number {
   if (img.width && img.height) return img.width * img.height;
   if (img.width) return img.width * img.width;
   return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Brand palette extractor
+// ---------------------------------------------------------------------------
+
+/** Hex color regex: matches #rgb, #rrggbb, #rgba, #rrggbbaa (case-insensitive). */
+const HEX_COLOR_RE = /#[0-9a-fA-F]{3,8}\b/g;
+
+/** Maps a CSS custom-property name to a BrandPalette field. */
+const TOKEN_FIELD_MAP: Record<string, keyof Omit<BrandPalette, 'all'>> = {
+  // primary
+  '--primary': 'primary',
+  '--brand-primary': 'primary',
+  '--color-primary': 'primary',
+  '--colour-primary': 'primary',
+  // secondary
+  '--secondary': 'secondary',
+  '--brand-secondary': 'secondary',
+  '--color-secondary': 'secondary',
+  '--colour-secondary': 'secondary',
+  // accent
+  '--accent': 'accent',
+  '--color-accent': 'accent',
+  '--colour-accent': 'accent',
+  // background
+  '--background': 'background',
+  '--bg': 'background',
+  '--color-background': 'background',
+  '--colour-background': 'background',
+  '--brand-background': 'background',
+  // foreground
+  '--foreground': 'foreground',
+  '--fg': 'foreground',
+  '--color-foreground': 'foreground',
+  '--colour-foreground': 'foreground',
+  '--brand-foreground': 'foreground',
+};
+
+function extractBrandPalette(doc: Document, baseUrl: string): BrandPalette | undefined {
+  // Frequency map across all sources
+  const freq = new Map<string, number>();
+
+  const bump = (hex: string) => {
+    const normalized = hex.toLowerCase();
+    freq.set(normalized, (freq.get(normalized) ?? 0) + 1);
+  };
+
+  // --- Source 1: :root custom properties in <style> blocks ---
+  const styleTags = Array.from(doc.querySelectorAll('style'));
+  const namedTokens: Partial<Record<keyof Omit<BrandPalette, 'all'>, string>> = {};
+
+  for (const style of styleTags) {
+    const css = style.textContent ?? '';
+    // Find :root { ... } blocks — simple scan (not a full CSS parser).
+    const rootMatch = css.match(/:root\s*\{([^}]*)\}/s);
+    if (rootMatch) {
+      const block = rootMatch[1];
+      // Each declaration: --token-name: value;
+      const declRe = /(--[\w-]+)\s*:\s*([^;]+);/g;
+      let m: RegExpExecArray | null;
+      while ((m = declRe.exec(block)) !== null) {
+        const tokenName = m[1].trim();
+        const value = m[2].trim();
+        const hexMatch = value.match(/^#[0-9a-fA-F]{3,8}$/);
+        if (!hexMatch) continue;
+        const hex = hexMatch[0].toLowerCase();
+        // Map to palette field if known token
+        const field = TOKEN_FIELD_MAP[tokenName];
+        if (field && !namedTokens[field]) {
+          namedTokens[field] = hex;
+        }
+        bump(hex);
+      }
+    }
+
+    // --- Source 2: All font-family + color declarations anywhere in <style> ---
+    // Collect all hex literals from non-:root declarations too
+    const nonRootCss = css.replace(/:root\s*\{[^}]*\}/gs, '');
+    const hexMatches = nonRootCss.match(HEX_COLOR_RE) ?? [];
+    for (const hex of hexMatches) {
+      bump(hex);
+    }
+  }
+
+  // --- Source 3: Inline styles on <header>, <nav>, <button>, and their children ---
+  const inlineEls = Array.from(
+    doc.querySelectorAll('header, header *, nav, nav *, button, button *')
+  );
+  for (const el of inlineEls) {
+    const style = el.getAttribute('style');
+    if (!style) continue;
+    const hexMatches = style.match(HEX_COLOR_RE) ?? [];
+    for (const hex of hexMatches) {
+      bump(hex);
+    }
+  }
+
+  if (freq.size === 0 && Object.keys(namedTokens).length === 0) {
+    return undefined;
+  }
+
+  // Sort by frequency descending, cap to 12
+  const all = Array.from(freq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([hex]) => hex);
+
+  return {
+    primary: namedTokens.primary,
+    secondary: namedTokens.secondary,
+    accent: namedTokens.accent,
+    background: namedTokens.background,
+    foreground: namedTokens.foreground,
+    all,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Fonts extractor
+// ---------------------------------------------------------------------------
+
+const MAX_FONTS = 6;
+
+function extractFonts(doc: Document): string[] | undefined {
+  const seen = new Set<string>();
+  const fonts: string[] = [];
+
+  const addFont = (name: string) => {
+    const clean = name.trim().replace(/^['"]|['"]$/g, '').replace(/\+/g, ' ');
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      fonts.push(clean);
+    }
+  };
+
+  // --- Source 1: Google Fonts <link> tags ---
+  const gfontLinks = Array.from(
+    doc.querySelectorAll('link[rel="stylesheet"][href*="fonts.googleapis.com"]')
+  );
+  for (const link of gfontLinks) {
+    const href = link.getAttribute('href') ?? '';
+    try {
+      const url = new URL(href);
+      // Support both ?family= (single) and multiple &family= params
+      const families = url.searchParams.getAll('family');
+      for (const fam of families) {
+        // family=Inter:wght@400;700  → "Inter"
+        // family=Playfair+Display:ital → "Playfair Display"
+        const base = fam.split(':')[0].split('@')[0];
+        addFont(base);
+        if (fonts.length >= MAX_FONTS) return fonts;
+      }
+    } catch {
+      // Malformed URL — skip
+    }
+  }
+
+  // --- Source 2: font-family declarations in <style> blocks ---
+  const styleTags = Array.from(doc.querySelectorAll('style'));
+  for (const style of styleTags) {
+    const css = style.textContent ?? '';
+    const fontFamilyRe = /font-family\s*:\s*([^;{}]+);/gi;
+    let m: RegExpExecArray | null;
+    while ((m = fontFamilyRe.exec(css)) !== null) {
+      // Take the first comma-separated value, strip quotes and generic families
+      const firstFamily = m[1].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+      if (!firstFamily) continue;
+      // Skip CSS variable references (var(--...)), generic keywords, and
+      // anything that looks like a CSS selector fragment (contains { or })
+      if (
+        /^var\(/i.test(firstFamily) ||
+        /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|inherit|initial|unset)$/i.test(firstFamily) ||
+        /[{}]/.test(firstFamily)
+      ) {
+        continue;
+      }
+      addFont(firstFamily);
+      if (fonts.length >= MAX_FONTS) return fonts;
+    }
+  }
+
+  return fonts.length > 0 ? fonts : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Logo extractor
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the most-likely site logo in preference order:
+ *   1. apple-touch-icon  (highest-DPI, often PNG with transparent bg)
+ *   2. icon/svg          (vector = transparent by nature)
+ *   3. og:logo meta      (explicit logo signal)
+ *   4. header <img> with "logo" in alt/src
+ *   5. rel="icon" (any)
+ *   6. /favicon.ico fallback
+ */
+function extractLogo(doc: Document, finalUrl: string): IngestedLogo | undefined {
+  // 1. apple-touch-icon
+  const ati = doc.querySelector('link[rel~="apple-touch-icon"]');
+  if (ati) {
+    const href = ati.getAttribute('href');
+    if (href) {
+      const url = absolutize(href, finalUrl);
+      if (url) return { url, source: 'apple-touch-icon' };
+    }
+  }
+
+  // 2. SVG icon
+  const svgIcon = doc.querySelector('link[rel="icon"][type="image/svg+xml"]');
+  if (svgIcon) {
+    const href = svgIcon.getAttribute('href');
+    if (href) {
+      const url = absolutize(href, finalUrl);
+      if (url) return { url, source: 'icon-svg', mime: 'image/svg+xml' };
+    }
+  }
+
+  // 3. og:logo meta
+  const ogLogo =
+    doc.querySelector('meta[property="og:logo"]')?.getAttribute('content') ?? '';
+  if (ogLogo) {
+    const url = absolutize(ogLogo, finalUrl);
+    if (url) return { url, source: 'og-logo' };
+  }
+
+  // 4. header <img> with "logo" in alt or src
+  const headerImgs = Array.from(doc.querySelectorAll('header img'));
+  for (const img of headerImgs) {
+    const alt = img.getAttribute('alt') ?? '';
+    const src = img.getAttribute('src') ?? '';
+    if (/logo/i.test(alt) || /logo/i.test(src)) {
+      const url = absolutize(src, finalUrl);
+      if (url) {
+        const w = parsePixelAttr(img.getAttribute('width'));
+        const h = parsePixelAttr(img.getAttribute('height'));
+        return { url, source: 'header-img', width: w, height: h };
+      }
+    }
+  }
+
+  // 5. any rel="icon"
+  const favicon = doc.querySelector('link[rel="icon"]');
+  if (favicon) {
+    const href = favicon.getAttribute('href');
+    if (href) {
+      const url = absolutize(href, finalUrl);
+      if (url) {
+        const mime = favicon.getAttribute('type') ?? undefined;
+        return { url, source: 'favicon', mime };
+      }
+    }
+  }
+
+  // 6. /favicon.ico fallback
+  try {
+    const base = new URL(finalUrl);
+    return {
+      url: `${base.protocol}//${base.host}/favicon.ico`,
+      source: 'favicon',
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function collectBodyExcerpt(doc: Document): string {
