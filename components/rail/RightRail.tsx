@@ -7,6 +7,7 @@ import {
   Eye,
   LayoutGrid,
   Radio,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect } from 'react';
@@ -17,6 +18,11 @@ import {
   PublishSection,
   publishSectionSummary,
 } from './sections/PublishSection';
+import {
+  AutoModePanel,
+  type AutoModeCampaignView,
+  type AutoModeVariationView,
+} from './sections/AutoModePanel';
 import { useScheduledPosts } from '@/lib/publisher/store';
 import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
 import {
@@ -374,6 +380,10 @@ function RightRailInner({
   workspaceId,
   heroMediaUrls,
   onOpenPublishPreview,
+  autoModeCampaign,
+  autoModeVariations,
+  onAutoModeApprove,
+  onAutoModeReject,
 }: {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
@@ -383,6 +393,10 @@ function RightRailInner({
   workspaceId: string;
   heroMediaUrls?: string[];
   onOpenPublishPreview?: (postId: string) => void;
+  autoModeCampaign?: AutoModeCampaignView | null;
+  autoModeVariations?: AutoModeVariationView[];
+  onAutoModeApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
+  onAutoModeReject?: (variationIndex: number) => Promise<void>;
 }) {
   const { railRef, openSection, toggle } = useRail();
   const gens = useGenerationsSummary();
@@ -440,6 +454,12 @@ function RightRailInner({
     </button>
   ) : null;
 
+  const autoModeSectionSummary = autoModeCampaign
+    ? autoModeCampaign.status === 'running'
+      ? 'lap · running'
+      : `${autoModeVariations?.filter((v) => v.status === 'ready').length ?? 0} ready`
+    : 'idle';
+
   const sections: SectionSpec[] = [
     ...(focusedCard
       ? [
@@ -454,6 +474,22 @@ function RightRailInner({
           } as SectionSpec,
         ]
       : []),
+    {
+      id: 'auto-mode',
+      label: 'auto mode',
+      icon: Zap,
+      summary: autoModeSectionSummary,
+      hasContent: Boolean(autoModeCampaign),
+      active: autoModeCampaign?.status === 'running',
+      body: (
+        <AutoModePanel
+          campaign={autoModeCampaign ?? null}
+          variations={autoModeVariations ?? []}
+          onApprove={onAutoModeApprove}
+          onReject={onAutoModeReject}
+        />
+      ),
+    },
     {
       id: 'focus',
       label: 'this focus',
@@ -545,6 +581,11 @@ export interface RightRailProps {
    * 1x1 placeholder so the flow still works for demo. */
   heroMediaUrls?: string[];
   onOpenPublishPreview?: (postId: string) => void;
+  /** Auto-Mode lap that is currently in-flight or most recently completed. */
+  autoModeCampaign?: AutoModeCampaignView | null;
+  autoModeVariations?: AutoModeVariationView[];
+  onAutoModeApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
+  onAutoModeReject?: (variationIndex: number) => Promise<void>;
 }
 
 export function RightRail({
@@ -556,6 +597,10 @@ export function RightRail({
   workspaceId = 'demo-ws',
   heroMediaUrls,
   onOpenPublishPreview,
+  autoModeCampaign,
+  autoModeVariations,
+  onAutoModeApprove,
+  onAutoModeReject,
 }: RightRailProps) {
   return (
     <RailProvider>
@@ -568,6 +613,10 @@ export function RightRail({
         workspaceId={workspaceId}
         heroMediaUrls={heroMediaUrls}
         onOpenPublishPreview={onOpenPublishPreview}
+        autoModeCampaign={autoModeCampaign}
+        autoModeVariations={autoModeVariations}
+        onAutoModeApprove={onAutoModeApprove}
+        onAutoModeReject={onAutoModeReject}
       />
     </RailProvider>
   );

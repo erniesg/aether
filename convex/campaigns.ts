@@ -46,14 +46,20 @@ interface CampaignVariationDoc {
   campaignId: unknown;
   workspaceId?: string;
   index: number;
-  status: 'pending' | 'running' | 'ready' | 'failed';
+  status: 'pending' | 'running' | 'ready' | 'failed' | 'rejected';
   heroImageUrl?: string;
+  heroAssetId?: unknown;
   caption?: string;
+  captionsByLocale?: unknown;
   hashtags?: string[];
   moodNote?: string;
   schedulePlatform?: string;
   scheduleWhenLocal?: string;
+  formatCrops?: unknown;
   agentRunIds: string[];
+  atlasUrl?: string;
+  textOverlays?: unknown;
+  nativePerFormatRendered?: string[];
   error?: string;
   startedAt: number;
   finishedAt?: number;
@@ -82,11 +88,17 @@ function toVariation(doc: CampaignVariationDoc) {
     index: doc.index,
     status: doc.status,
     heroImageUrl: doc.heroImageUrl,
+    heroAssetId: doc.heroAssetId ? String(doc.heroAssetId) : undefined,
     caption: doc.caption,
+    captionsByLocale: doc.captionsByLocale,
     hashtags: doc.hashtags,
     moodNote: doc.moodNote,
     schedulePlatform: doc.schedulePlatform,
     scheduleWhenLocal: doc.scheduleWhenLocal,
+    formatCrops: doc.formatCrops,
+    atlasUrl: doc.atlasUrl,
+    textOverlays: doc.textOverlays,
+    nativePerFormatRendered: doc.nativePerFormatRendered,
     agentRunIds: doc.agentRunIds,
     error: doc.error,
     startedAt: doc.startedAt,
@@ -203,5 +215,29 @@ export const listByWorkspace = queryGeneric({
       .order('desc')
       .take(20)) as CampaignDoc[];
     return campaigns.map(toCampaign);
+  },
+});
+
+/** List all variations for a campaign — used by the right-rail live panel. */
+export const listVariations = queryGeneric({
+  args: { campaignId: v.id('campaign') },
+  handler: async (ctx, args) => {
+    const variations = (await ctx.db
+      .query('campaignVariation')
+      .withIndex('by_campaign', (q: any) => q.eq('campaignId', args.campaignId))
+      .collect()) as CampaignVariationDoc[];
+    return variations.sort((a, b) => a.index - b.index).map(toVariation);
+  },
+});
+
+/** Mark a variation as rejected so the right-rail card updates immediately. */
+export const rejectVariation = mutationGeneric({
+  args: { variationId: v.id('campaignVariation') },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.variationId as any, {
+      status: 'rejected',
+      finishedAt: Date.now(),
+    });
+    return null;
   },
 });

@@ -90,6 +90,13 @@ import { useCreatorContext } from '@/lib/context/creator-store';
 import { setEyesClosedCapture } from '@/lib/voice/eyes-closed-store';
 import type { EyesClosedCaptureRequest } from '@/components/canvas/EyesClosedHandle';
 import type { SemanticCreativeComponent } from '@/lib/types/semantic-component';
+import {
+  AutoModeToggle,
+  DEFAULT_AUTO_MODE_CONFIG,
+  type AutoModeConfig,
+} from '@/components/canvas/AutoModeToggle';
+import { useCampaignLap } from '@/lib/auto-mode/useCampaignLap';
+import { dropVariationOnCanvas } from '@/lib/auto-mode/canvas';
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -344,6 +351,15 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   // AC5 — when set, the SkillAcceptDialog is open and a SKILL.md is being
   // drafted (or has been drafted) for this prompt. Cleared on accept/reject.
   const [pendingSkillPrompt, setPendingSkillPrompt] = useState<string | null>(null);
+  // Auto Mode state — persisted in component state; ideally moves to Convex later.
+  const [autoModeConfig, setAutoModeConfig] = useState<AutoModeConfig>(DEFAULT_AUTO_MODE_CONFIG);
+  const [inFlightCampaignId, setInFlightCampaignId] = useState<string | null>(null);
+  // Live lap subscription — Convex reactive or poll fallback.
+  const { campaign: autoModeCampaign, variations: autoModeVariations } =
+    useCampaignLap(inFlightCampaignId);
+  // Track which variation indices have already been dropped on canvas so we
+  // don't duplicate frames when the lap is re-subscribed.
+  const droppedVariationIndices = useRef<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
@@ -1224,6 +1240,30 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [definitions, runSpatialOnCanvas]
   );
 
+  // Slice 3 — when a variation becomes 'ready', pop it onto the canvas.
+  useEffect(() => {
+    if (!editor || !autoModeVariations) return;
+    for (const variation of autoModeVariations) {
+      if (variation.status !== 'ready') continue;
+      if (droppedVariationIndices.current.has(variation.index)) continue;
+      if (!variation.heroImageUrl && !variation.atlasUrl) continue;
+      droppedVariationIndices.current.add(variation.index);
+      try {
+        dropVariationOnCanvas({ editor, variation });
+      } catch (err) {
+        logError('auto-mode canvas drop failed:', err);
+      }
+    }
+  }, [editor, autoModeVariations]);
+
+  // Reset the dropped-index tracker when a new campaign starts so we
+  // don't carry stale state into the next lap.
+  useEffect(() => {
+    if (!inFlightCampaignId) {
+      droppedVariationIndices.current = new Set();
+    }
+  }, [inFlightCampaignId]);
+
   useEffect(() => {
     if (!editor) {
       setFormats([]);
@@ -1469,6 +1509,85 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       references,
       creatorContext,
     ]
+  );
+
+  /**
+   * Slice 1 — fire an Auto Mode lap.
+   * Fire-and-forget: the campaign id lands in `inFlightCampaignId` and the
+   * live subscription in `useCampaignLap` takes over from there.
+   */
+  const fireAutoModeLap = useCallback(
+    async (url: string) => {
+      try {
+        const res = await fetch('/api/auto-mode/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            trigger: { kind: 'url', payload: url },
+            variationCount: autoModeConfig.variationCount,
+            notifyMode: autoModeConfig.notifyMode,
+            concurrency: autoModeConfig.concurrency,
+            workspaceId: wsId,
+          }),
+        });
+        const json = (await res.json()) as { ok: boolean; campaignId?: string; error?: string };
+        if (json.ok && json.campaignId) {
+          setInFlightCampaignId(json.campaignId);
+          droppedVariationIndices.current = new Set();
+          log('auto-mode lap fired · campaignId:', json.campaignId);
+        } else {
+          logError('auto-mode run failed:', json.error);
+        }
+      } catch (err) {
+        logError('auto-mode fetch failed:', err);
+      }
+    },
+    [autoModeConfig, wsId]
+  );
+
+  /** Slice 4 — approve a variation by index. */
+  const handleAutoModeApprove = useCallback(
+    async (variationIndex: number, notifyMode: 'review' | 'auto-post') => {
+      if (!inFlightCampaignId) return;
+      try {
+        await fetch('/api/auto-mode/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campaignId: inFlightCampaignId,
+            variationIndex,
+            notifyMode,
+            workspaceId: wsId,
+          }),
+        });
+      } catch (err) {
+        logError('auto-mode approve failed:', err);
+      }
+    },
+    [inFlightCampaignId, wsId]
+  );
+
+  /** Slice 4 — reject a variation by index. */
+  const handleAutoModeReject = useCallback(
+    async (variationIndex: number) => {
+      if (!inFlightCampaignId) return;
+      // Optimistic: fire and forget; the Convex subscription reflects the patch.
+      try {
+        await fetch('/api/auto-mode/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campaignId: inFlightCampaignId,
+            variationIndex,
+            notifyMode: 'reject',
+            workspaceId: wsId,
+          }),
+        });
+      } catch (err) {
+        logError('auto-mode reject failed:', err);
+      }
+    },
+    [inFlightCampaignId, wsId]
   );
 
   const handlePin = useCallback((run: CapabilityRunRecord) => {
@@ -1743,6 +1862,71 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [formats]
   );
 
+  // Slice 1 — global drop/paste listener. When Auto Mode is enabled and the
+  // user drops or pastes a URL onto the canvas, fire a lap automatically.
+  // This listens at window level so it intercepts tldraw's own drop handling
+  // before tldraw processes the event (we call stopPropagation only on URL
+  // drops so other content still flows through).
+  useEffect(() => {
+    if (!autoModeConfig.enabled) return;
+
+    function extractUrlFromDataTransfer(dt: DataTransfer): string | null {
+      const text = dt.getData('text/plain') ?? dt.getData('text/uri-list') ?? '';
+      const trimmed = text.trim();
+      try {
+        const u = new URL(trimmed);
+        if (u.protocol === 'http:' || u.protocol === 'https:') return trimmed;
+      } catch {
+        // not a URL
+      }
+      return null;
+    }
+
+    function extractUrlFromClipboard(items: DataTransferItemList): string | null {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'string' && (item.type === 'text/plain' || item.type === 'text/uri-list')) {
+          // Clipboard reads are async; we snapshot the item synchronously.
+          // We'll handle via the sync getData path on the paste event.
+        }
+      }
+      return null;
+    }
+
+    const handleDrop = (event: DragEvent) => {
+      if (!event.dataTransfer) return;
+      const url = extractUrlFromDataTransfer(event.dataTransfer);
+      if (!url) return;
+      // It's a URL drop — intercept it and fire the lap.
+      event.preventDefault();
+      event.stopPropagation();
+      log('auto-mode drop intercepted · url:', url);
+      void fireAutoModeLap(url);
+    };
+
+    const handlePaste = (event: ClipboardEvent) => {
+      if (!event.clipboardData) return;
+      const text = event.clipboardData.getData('text/plain').trim();
+      try {
+        const u = new URL(text);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+      } catch {
+        return; // not a URL
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      log('auto-mode paste intercepted · url:', text);
+      void fireAutoModeLap(text);
+    };
+
+    window.addEventListener('drop', handleDrop);
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('drop', handleDrop);
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [autoModeConfig.enabled, fireAutoModeLap]);
+
   // Focus lens is a camera/selection change, not a chrome toggle. When view
   // flips to 'focus' we zoom to a single artboard; arrow keys cycle through
   // frames in document order. Switching back to 'canvas' zooms to fit every
@@ -1827,22 +2011,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             prefs={providerPrefs ?? ({} as WorkspaceProviderPrefs)}
             onSave={(next) => saveProviderPrefs(wsId, next)}
           />
-          {/*
-            Auto-Mode shortcut — until the right-rail AutoModePanel is
-            wired (Slice B1), give the user a one-click route into the
-            standalone trigger page so they can fire a lap without
-            leaving the workspace context. Opens in a new tab so the
-            canvas stays put.
-          */}
-          <a
-            href="/auto-mode"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md border border-border-soft px-2.5 py-1 font-caption text-xs text-ink-dim transition hover:border-ink-dim hover:text-ink"
+          {/* Auto Mode toggle — wired to the right-rail lap panel (Slice B1). */}
+          <AutoModeToggle
+            config={autoModeConfig}
+            onChange={setAutoModeConfig}
+            busy={autoModeCampaign?.status === 'running'}
+            className="shrink-0"
             data-taxonomy="navigation"
-          >
-            auto-mode ↗
-          </a>
+          />
           <Chip tone="neutral" size="sm">
             scaffold
           </Chip>
@@ -1885,6 +2061,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           workspaceId={wsId}
           heroMediaUrls={heroMediaUrls}
           onOpenPublishPreview={() => setPublishPreviewOpen(true)}
+          autoModeCampaign={autoModeCampaign}
+          autoModeVariations={autoModeVariations}
+          onAutoModeApprove={handleAutoModeApprove}
+          onAutoModeReject={handleAutoModeReject}
         />
       </div>
 

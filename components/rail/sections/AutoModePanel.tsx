@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
+import { Button } from '@/components/ui/Button';
 
 /**
  * AutoModePanel — right-rail body for the in-flight + most-recent Auto Mode
@@ -32,8 +33,19 @@ export interface AutoModeFormatCropView {
 export interface AutoModeVariationView {
   id: string;
   index: number;
-  status: 'pending' | 'running' | 'ready' | 'failed';
+  status: 'pending' | 'running' | 'ready' | 'failed' | 'rejected';
   heroImageUrl?: string;
+  /** Atlas URL (4 formats × 4 locales). Preferred over heroImageUrl for display. */
+  atlasUrl?: string;
+  textOverlays?: Array<{
+    zone: {
+      purpose: string;
+      bbox?: { x: number; y: number; w: number; h: number };
+    };
+    content: Record<string, string>;
+    textAlign?: 'start' | 'center' | 'end';
+  }>;
+  nativePerFormatRendered?: string[];
   caption?: string;
   captionsByLocale?: Partial<
     Record<'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG', string>
@@ -64,6 +76,10 @@ export interface AutoModeCampaignView {
 export interface AutoModePanelProps {
   campaign: AutoModeCampaignView | null;
   variations: AutoModeVariationView[];
+  /** Called when the user approves a variation. Passes the variation index. */
+  onApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
+  /** Called when the user rejects a variation. */
+  onReject?: (variationIndex: number) => Promise<void>;
 }
 
 const LOCALE_LABEL: Record<string, string> = {
@@ -82,6 +98,7 @@ const STATUS_TONE: Record<
   ready: 'ok',
   completed: 'ok',
   failed: 'error',
+  rejected: 'warn',
 };
 
 function formatRelative(t: number | undefined): string {
@@ -93,7 +110,7 @@ function formatRelative(t: number | undefined): string {
   return new Date(t).toISOString().slice(0, 16).replace('T', ' ');
 }
 
-export function AutoModePanel({ campaign, variations }: AutoModePanelProps) {
+export function AutoModePanel({ campaign, variations, onApprove, onReject }: AutoModePanelProps) {
   const sorted = useMemo(
     () => [...variations].sort((a, b) => a.index - b.index),
     [variations]
@@ -135,14 +152,61 @@ export function AutoModePanel({ campaign, variations }: AutoModePanelProps) {
 
       <div className="flex flex-col gap-2">
         {sorted.map((v) => (
-          <VariationCard key={v.id} variation={v} />
+          <VariationCard
+            key={v.id}
+            variation={v}
+            campaignId={campaign.id}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
         ))}
       </div>
     </Surface>
   );
 }
 
-function VariationCard({ variation }: { variation: AutoModeVariationView }) {
+function VariationCard({
+  variation,
+  campaignId: _campaignId,
+  onApprove,
+  onReject,
+}: {
+  variation: AutoModeVariationView;
+  campaignId: string;
+  onApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
+  onReject?: (variationIndex: number) => Promise<void>;
+}) {
+  const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [approved, setApproved] = useState(false);
+  const [rejected, setRejected] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState('');
+
+  const handleApprove = useCallback(
+    async (notifyMode: 'review' | 'auto-post') => {
+      if (!onApprove || approving || rejecting) return;
+      setApproving(true);
+      try {
+        await onApprove(variation.index, notifyMode);
+        setApproved(true);
+      } finally {
+        setApproving(false);
+      }
+    },
+    [onApprove, variation.index, approving, rejecting]
+  );
+
+  const handleReject = useCallback(async () => {
+    if (!onReject || approving || rejecting) return;
+    setRejecting(true);
+    try {
+      await onReject(variation.index);
+      setRejected(true);
+    } finally {
+      setRejecting(false);
+    }
+  }, [onReject, variation.index, approving, rejecting]);
   const localeKeys = variation.captionsByLocale
     ? (Object.keys(variation.captionsByLocale) as Array<
         keyof NonNullable<AutoModeVariationView['captionsByLocale']>
@@ -223,6 +287,65 @@ function VariationCard({ variation }: { variation: AutoModeVariationView }) {
           {variation.error ? (
             <div className="font-mono text-[10px] text-signal-error mt-1">{variation.error}</div>
           ) : null}
+
+          {/* Approve / reject / schedule — shown when status is ready and not yet actioned */}
+          {variation.status === 'ready' && !rejected && (
+            <div className="flex flex-col gap-1.5 mt-2">
+              {!approved ? (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={approving || rejecting}
+                    onClick={() => void handleApprove('review')}
+                    data-testid={`variation-approve-${variation.index}`}
+                  >
+                    {approving ? 'approving…' : 'approve'}
+                  </Button>
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    disabled={approving || rejecting}
+                    onClick={() => setScheduleOpen((prev) => !prev)}
+                    data-testid={`variation-schedule-${variation.index}`}
+                  >
+                    schedule
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={approving || rejecting}
+                    onClick={() => void handleReject()}
+                    data-testid={`variation-reject-${variation.index}`}
+                  >
+                    {rejecting ? 'rejecting…' : 'reject'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="font-mono text-[10px] text-signal-ok mt-1">approved</div>
+              )}
+              {scheduleOpen && !approved && (
+                <div className="flex flex-col gap-1.5 mt-1">
+                  <input
+                    type="datetime-local"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    data-testid={`variation-schedule-input-${variation.index}`}
+                    className="w-full rounded border border-border-soft bg-surface-panel px-2 py-1 font-mono text-[10px] text-ink focus:border-accent focus:outline-none"
+                  />
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={!scheduleDate || approving}
+                    onClick={() => void handleApprove('auto-post')}
+                    data-testid={`variation-schedule-confirm-${variation.index}`}
+                  >
+                    confirm &amp; post
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </Surface>
