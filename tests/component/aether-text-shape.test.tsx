@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { act, cleanup, render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   AetherTextShapeBody,
+  AetherTextShapeLiveBody,
   AetherTextShapeUtil,
   AETHER_TEXT_OVERLAY_EDITED_EVENT,
   AETHER_TEXT_SHAPE_TYPE,
+  type AetherTextShape,
   type AetherTextOverlayEditedDetail,
 } from '@/components/canvas/shapes/AetherTextShape';
 import {
@@ -259,5 +261,43 @@ describe('AetherTextShape · active-locale store integration', () => {
       />
     );
     expect(screen.getByRole('textbox').textContent).toBe(CONTENT['ja-JP']);
+  });
+
+  it('subscribes live canvas shapes to active-locale changes', () => {
+    const shape = {
+      id: 'shape-live',
+      type: AETHER_TEXT_SHAPE_TYPE,
+      props: {
+        content: CONTENT,
+        bcp47Locale: 'en',
+        sourceLocale: 'en',
+        w: 480,
+        h: 96,
+        placement: '{}',
+        protectedRegions: '[]',
+        wsId: 'ws-1',
+        artboardId: 'frame-1',
+        textOverlayRowId: 'row-1',
+        capabilityRunId: 'run-1',
+        fontSize: 48,
+        color: '#ffffff',
+        textAlign: 'center',
+        fontWeight: 600,
+        backgroundColor: '',
+      },
+    } as unknown as AetherTextShape;
+
+    render(<AetherTextShapeLiveBody shape={shape} />);
+    expect(screen.getByRole('textbox').textContent).toBe(CONTENT.en);
+
+    act(() => {
+      setActiveLocale(asBCP47LocaleCode('zh-Hans'));
+    });
+
+    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['zh-Hans']);
+    expect(screen.getByRole('textbox')).toHaveAttribute(
+      'aria-label',
+      'text overlay (zh-Hans)'
+    );
   });
 });

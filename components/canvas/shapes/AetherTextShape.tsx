@@ -13,7 +13,7 @@ import {
   type TLResizeInfo,
 } from 'tldraw';
 import { asBCP47LocaleCode, type BCP47LocaleCode } from '@/lib/text-overlay/types';
-import { getActiveLocale, pickLocalizedText } from '@/lib/text-overlay/active-locale';
+import { pickLocalizedText, useActiveLocale } from '@/lib/text-overlay/active-locale';
 
 /**
  * Custom tldraw shape that backs a multilingual text overlay on top of an
@@ -310,6 +310,32 @@ export function AetherTextShapeBody(props: AetherTextShapeBodyProps): React.Reac
   );
 }
 
+export function AetherTextShapeLiveBody({
+  shape,
+}: {
+  shape: AetherTextShape;
+}): React.ReactElement {
+  const liveLocale = useActiveLocale();
+
+  return (
+    <AetherTextShapeBody
+      shapeId={shape.id}
+      wsId={shape.props.wsId}
+      artboardId={shape.props.artboardId}
+      textOverlayRowId={shape.props.textOverlayRowId}
+      content={shape.props.content}
+      bcp47Locale={shape.props.bcp47Locale}
+      sourceLocale={shape.props.sourceLocale}
+      fontSize={shape.props.fontSize}
+      color={shape.props.color}
+      textAlign={shape.props.textAlign}
+      fontWeight={shape.props.fontWeight}
+      backgroundColor={shape.props.backgroundColor}
+      activeLocaleOverride={liveLocale}
+    />
+  );
+}
+
 /**
  * tldraw shape util for aether-text. We extend `ShapeUtil` directly (not
  * `BaseBoxShapeUtil`) because the latter's generic constraint requires the
@@ -351,17 +377,6 @@ export class AetherTextShapeUtil extends ShapeUtil<AetherTextShape> {
   }
 
   override component(shape: AetherTextShape): React.ReactElement {
-    // Read from the live active-locale store on every render so swapping the
-    // right-rail switcher repaints all aether-text shapes without having to
-    // patch each shape's `bcp47Locale` prop. Falls back to the shape's own
-    // value (and then sourceLocale) when the store is undefined.
-    let liveLocale: string | undefined;
-    try {
-      liveLocale = getActiveLocale();
-    } catch {
-      liveLocale = undefined;
-    }
-
     return (
       <HTMLContainer
         id={shape.id}
@@ -371,21 +386,7 @@ export class AetherTextShapeUtil extends ShapeUtil<AetherTextShape> {
           height: shape.props.h,
         }}
       >
-        <AetherTextShapeBody
-          shapeId={shape.id}
-          wsId={shape.props.wsId}
-          artboardId={shape.props.artboardId}
-          textOverlayRowId={shape.props.textOverlayRowId}
-          content={shape.props.content}
-          bcp47Locale={shape.props.bcp47Locale}
-          sourceLocale={shape.props.sourceLocale}
-          fontSize={shape.props.fontSize}
-          color={shape.props.color}
-          textAlign={shape.props.textAlign}
-          fontWeight={shape.props.fontWeight}
-          backgroundColor={shape.props.backgroundColor}
-          activeLocaleOverride={liveLocale}
-        />
+        <AetherTextShapeLiveBody shape={shape} />
       </HTMLContainer>
     );
   }
