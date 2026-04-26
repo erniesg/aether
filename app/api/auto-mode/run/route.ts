@@ -22,6 +22,10 @@ interface RequestBody {
   referenceImage?: { url?: string; dataUrl?: string; hint?: string };
   workspaceId?: string;
   maxIterationsPerVariation?: number;
+  /** When true (and notifyMode='auto-post'), override every variation's
+   *  scheduledAt to (now + 30s) so X / IG / TT direct adapters fire
+   *  immediately. */
+  forcePostNow?: boolean;
 }
 
 const TRIGGER_KINDS: AutoModeTriggerKind[] = ['url', 'file', 'text'];
@@ -140,6 +144,7 @@ export async function POST(request: Request) {
         typeof body.maxIterationsPerVariation === 'number'
           ? body.maxIterationsPerVariation
           : undefined,
+      forcePostNow: body.forcePostNow === true,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
