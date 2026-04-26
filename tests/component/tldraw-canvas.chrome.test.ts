@@ -31,4 +31,11 @@ describe('TldrawCanvas · operator-chrome overrides', () => {
     expect(TLDRAW_CHROME_OVERRIDES.Toolbar).toBeNull();
     expect(TLDRAW_CHROME_OVERRIDES.StylePanel).toBeNull();
   });
+
+  it('hides the native image bubble menu so aether SelectedImageActions is the only strip', () => {
+    // The native tldraw "Image tools" bubble menu (Replace media / Crop image /
+    // Download original / Alternative text) otherwise overlaps the aether
+    // contextual strip — see docs/issues/2026-04-23-canvas-chrome-hierarchy.md.
+    expect(TLDRAW_CHROME_OVERRIDES.ImageToolbar).toBeNull();
+  });
 });

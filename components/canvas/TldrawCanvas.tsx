@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import {
+  AssetRecordType,
   Tldraw,
+  createShapeId,
   type Editor,
-  type TLComponents,
   type TLAnyShapeUtilConstructor,
+  type TLComponents,
 } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { useTheme } from '@/app/design-system/ThemeProvider';
@@ -45,6 +47,11 @@ export const TLDRAW_CHROME_OVERRIDES: Partial<TLComponents> = {
   DebugPanel: null,
   Toolbar: null,
   StylePanel: null,
+  // The native "Image tools" bubble (Replace media / Crop image / Download
+  // original / Alternative text) otherwise double-stacks with aether's
+  // SelectedImageActions strip. aether owns this surface — see
+  // docs/issues/2026-04-23-canvas-chrome-hierarchy.md.
+  ImageToolbar: null,
 };
 
 /**
@@ -91,6 +98,20 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
       onMount={(editor: Editor) => {
         editorRef.current = editor;
         setEditor(editor);
+        if (typeof window !== 'undefined') {
+          const globalShim = window as unknown as {
+            editor?: Editor;
+            tldraw?: {
+              AssetRecordType: { createId: typeof AssetRecordType.createId };
+              createShapeId: typeof createShapeId;
+            };
+          };
+          globalShim.editor = editor;
+          globalShim.tldraw = {
+            AssetRecordType: { createId: () => AssetRecordType.createId() },
+            createShapeId,
+          };
+        }
         editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
         // Seed the four hero artboards on an empty workspace so the multiformat
         // promise is visible on first paint. No-op if the page already has shapes.
