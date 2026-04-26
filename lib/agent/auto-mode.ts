@@ -626,7 +626,9 @@ export function parseAgentEnvelope(finalText: string): ParsedAgentEnvelope {
 
 function pickEnvelope(parsed: Record<string, unknown>): ParsedAgentEnvelope {
   const out: ParsedAgentEnvelope = {};
-  if (typeof parsed.caption === 'string') out.caption = parsed.caption;
+  if (typeof parsed.caption === 'string' && parsed.caption.trim().length > 0) {
+    out.caption = parsed.caption;
+  }
   if (Array.isArray(parsed.hashtags)) {
     out.hashtags = parsed.hashtags.filter((tag): tag is string => typeof tag === 'string');
   }
@@ -645,6 +647,14 @@ function pickEnvelope(parsed: Record<string, unknown>): ParsedAgentEnvelope {
       if (typeof v === 'string' && v.trim().length > 0) filtered[code] = v;
     }
     if (Object.keys(filtered).length > 0) out.captionsByLocale = filtered;
+  }
+  // Hoist en-SG → caption when top-level was missing/empty. The IKEA bug:
+  // the agent emitted only captionsByLocale, leaving lap-end pings to print
+  // `<no caption>` because the text-body builder reads v.caption directly.
+  // Doing this once here keeps every downstream consumer (Discord text +
+  // embed + persistence) coherent without scattered fallbacks.
+  if (!out.caption && out.captionsByLocale?.['en-SG']) {
+    out.caption = out.captionsByLocale['en-SG'];
   }
   return out;
 }
