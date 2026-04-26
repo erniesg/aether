@@ -21,6 +21,8 @@ const PUBLISHER_ENV_KEYS = [
   'X_ACCESS_TOKEN_SECRET',
   'IG_ACCESS_TOKEN',
   'IG_USER_ID',
+  'LINKEDIN_ACCESS_TOKEN',
+  'LINKEDIN_MEMBER_ID',
 ] as const;
 
 function postFor(platform: ScheduledPost['platform']): ScheduledPost {
@@ -51,7 +53,7 @@ describe('publisher registry', () => {
     }
   });
 
-  it('exposes the six publisher ids defined for the seam', () => {
+  it('exposes the seven publisher ids defined for the seam', () => {
     expect(new Set(KNOWN_PUBLISHER_IDS)).toEqual(
       new Set([
         'preview',
@@ -60,6 +62,7 @@ describe('publisher registry', () => {
         'x',
         'instagram',
         'pinterest',
+        'linkedin',
       ])
     );
   });
