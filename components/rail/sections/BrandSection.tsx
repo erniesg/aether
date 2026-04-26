@@ -3,7 +3,7 @@
 import { Check, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  DEMO_CREATOR_CONTEXT,
+  EMPTY_CREATOR_CONTEXT,
   describeWorkspaceMode,
   type BrandContext,
   type KnowledgeSource,
@@ -202,10 +202,10 @@ async function fileToDataUrl(file: File): Promise<string> {
 }
 
 export function BrandSection({
-  context = DEMO_CREATOR_CONTEXT.brand,
+  context = EMPTY_CREATOR_CONTEXT.brand,
   workspaceId,
-  workspaceMode = DEMO_CREATOR_CONTEXT.workspaceMode,
-  workspaceLabel = DEMO_CREATOR_CONTEXT.workspaceLabel,
+  workspaceMode = EMPTY_CREATOR_CONTEXT.workspaceMode,
+  workspaceLabel = EMPTY_CREATOR_CONTEXT.workspaceLabel,
   ingest = defaultIngest,
   propose = defaultPropose,
 }: BrandSectionProps) {
@@ -388,6 +388,7 @@ export function BrandSection({
         onChange={updateDraft}
         onSave={onSave}
         fallback={context}
+        hasExternalAlert={state.kind === 'error' || proposeState.kind === 'error'}
       />
     </div>
   );
@@ -401,6 +402,7 @@ function BrandProfileEditor({
   onChange,
   onSave,
   fallback,
+  hasExternalAlert,
 }: {
   draft: BrandContext;
   dirty: boolean;
@@ -409,6 +411,7 @@ function BrandProfileEditor({
   onChange: (fn: (prev: BrandContext) => BrandContext) => void;
   onSave: () => void;
   fallback: BrandContext;
+  hasExternalAlert?: boolean;
 }) {
   const palette = draft.palette.length > 0 ? draft.palette : fallback.palette;
   const typeLines = draft.type.length > 0 ? draft.type : [''];
@@ -527,7 +530,7 @@ function BrandProfileEditor({
         <button
           type="button"
           onClick={() =>
-            onChange((prev) => ({ ...prev, palette: [...prev.palette, '#FFFFFF'] }))
+            onChange((prev) => ({ ...prev, palette: [...prev.palette, ''] }))
           }
           className="inline-flex w-fit items-center gap-1 rounded-sm border border-border-soft px-2 py-1 font-caption text-xs text-ink-dim transition-colors hover:text-ink"
         >
@@ -600,7 +603,7 @@ function BrandProfileEditor({
 
       <div className="flex items-center justify-between gap-2 border-t border-border-soft pt-2">
         <span
-          role={validationMessage || saveState === 'error' ? 'alert' : 'status'}
+          role={(validationMessage || saveState === 'error') && !hasExternalAlert ? 'alert' : 'status'}
           className={`font-caption text-xs ${saveState === 'error' ? 'text-red-400' : 'text-ink-dim'}`}
         >
           {validationMessage ?? (saveState === 'error' ? 'save failed' : saveState === 'saved' ? 'saved' : dirty ? 'unsaved edits' : 'saved')}

@@ -155,6 +155,50 @@ export function buildCreatorGenerationPrompt(
   return lines.join('\n');
 }
 
+/**
+ * EMPTY_CREATOR_CONTEXT — zero-filled shell used as the server-render default
+ * so the workspace opens with genuinely blank state rather than flashing the
+ * DEMO placeholder data before Convex resolves.
+ *
+ * Rule: coerce helpers in creator-store must return null (not EMPTY) for absent
+ * Convex data. The UI then checks `name === ''` or `id === ''` to decide whether
+ * to render the section header vs. an empty-state prompt.
+ */
+export const EMPTY_CREATOR_CONTEXT: CreatorContextModel = {
+  workspaceMode: 'venture',
+  workspaceLabel: '',
+  brand: {
+    id: '',
+    name: '',
+    palette: [],
+    type: [],
+    voice: '',
+    knowledgeSources: [],
+  },
+  offer: {
+    id: '',
+    name: '',
+    summary: '',
+    claims: [],
+    heroAsset: '',
+  },
+  campaign: {
+    id: '',
+    name: '',
+    goal: '',
+    audience: '',
+    channels: [],
+    cta: '',
+  },
+  signals: [],
+  inputSet: {
+    id: '',
+    referenceCount: 0,
+    signalIds: [],
+    constraints: [],
+  },
+};
+
 export const DEMO_CREATOR_CONTEXT: CreatorContextModel = {
   workspaceMode: 'venture',
   workspaceLabel: 'Solstice Collective',

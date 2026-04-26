@@ -12,10 +12,14 @@ import {
   CAMPAIGN_CONTEXT_STORAGE_KEY,
   OFFER_CONTEXT_STORAGE_KEY,
   resetCreatorContextForTests,
+  seedBrandContextForTests,
+  seedCampaignContextForTests,
+  seedOfferContextForTests,
 } from '@/lib/context/creator-store';
 import { addReference, clearReferencesForTests } from '@/lib/references/store';
 import { resetSignalsForTests } from '@/lib/signals/store';
 import type { ReferenceRecord } from '@/lib/providers/reference/types';
+import { DEMO_CREATOR_CONTEXT } from '@/lib/context/model';
 
 const REFERENCE_STORAGE_KEY = 'aether.references.v1';
 const SIGNAL_STORAGE_KEY = 'aether.signals.v1';
@@ -54,6 +58,9 @@ afterEach(() => {
 
 describe('creator context rail sections', () => {
   it('saves offer edits, claims, and hero asset through the context store', async () => {
+    // Seed DEMO offer so claim 1 is pre-populated. Fresh workspaces start empty
+    // (C1 fix); this test verifies that existing claims can be edited and saved.
+    seedOfferContextForTests(DEMO_CREATOR_CONTEXT.offer);
     render(<OfferSection />);
 
     await userEvent.clear(screen.getByLabelText(/offer name/i));
@@ -76,6 +83,8 @@ describe('creator context rail sections', () => {
   });
 
   it('saves campaign goal, audience, channels, and CTA through the context store', async () => {
+    // Seed DEMO campaign so channel 1 is pre-populated. Fresh workspaces start empty (C1 fix).
+    seedCampaignContextForTests(DEMO_CREATOR_CONTEXT.campaign);
     render(<CampaignSection />);
 
     await userEvent.clear(screen.getByLabelText(/campaign name/i));
@@ -130,6 +139,10 @@ describe('creator context rail sections', () => {
   });
 
   it('adds suggested signals and lets existing entries be edited', async () => {
+    // Seed DEMO brand + offer so suggestSignalsFromContext produces "ceramide cleanse" chip.
+    // Fresh workspaces start empty (C1 fix) and show no suggestions until context is filled.
+    seedBrandContextForTests(DEMO_CREATOR_CONTEXT.brand);
+    seedOfferContextForTests(DEMO_CREATOR_CONTEXT.offer);
     render(<SignalsSection />);
 
     await userEvent.click(screen.getByRole('button', { name: /ceramide cleanse/i }));

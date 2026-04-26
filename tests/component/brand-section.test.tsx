@@ -139,32 +139,29 @@ describe('BrandSection · drop zone', () => {
     });
   });
 
-  it('renders the baseline brand as an editable profile before ingest', () => {
+  it('renders an empty brand profile before ingest on a fresh workspace', () => {
+    // C1 fix: a cold-open workspace must show blank fields, not DEMO placeholders.
     render(<BrandSection />);
-    expect(screen.getByLabelText(/brand name/i)).toHaveValue('Solstice Skin');
-    expect(screen.getAllByTestId('brand-palette-chip')).toHaveLength(5);
-    expect(screen.getByLabelText(/brand voice/i)).toHaveValue(
-      'slow, certain, more gesture than grammar.'
-    );
+    expect(screen.getByLabelText(/brand name/i)).toHaveValue('');
+    expect(screen.queryAllByTestId('brand-palette-chip')).toHaveLength(0);
+    expect(screen.getByLabelText(/brand voice/i)).toHaveValue('');
   });
 
   it('saves edited brand fields to the client brand profile store', async () => {
+    // Start from empty state (C1 fix — no DEMO data pre-loaded).
     render(<BrandSection />);
 
-    await userEvent.clear(screen.getByLabelText(/brand name/i));
     await userEvent.type(screen.getByLabelText(/brand name/i), 'Tong');
-    // Type rows are per-line inputs now: clear the first, set CJK; add a row
-    // for Inter.
+    // Add a type row (no pre-existing rows on an empty workspace).
+    await userEvent.click(screen.getByRole('button', { name: /^\+ type$/i }));
     const firstType = screen.getByLabelText('brand type 1');
-    await userEvent.clear(firstType);
     await userEvent.type(firstType, 'Noto Sans CJK');
     await userEvent.click(screen.getByRole('button', { name: /^\+ type$/i }));
     const secondType = screen.getByLabelText('brand type 2');
-    await userEvent.clear(secondType);
     await userEvent.type(secondType, 'Inter');
-    await userEvent.clear(screen.getByLabelText(/brand voice/i));
     await userEvent.type(screen.getByLabelText(/brand voice/i), 'Learn CJK by living in them.');
-    await userEvent.clear(screen.getByLabelText(/hex colour 1/i));
+    // Add a colour row before setting the colour.
+    await userEvent.click(screen.getByRole('button', { name: /^colour$/i }));
     await userEvent.type(screen.getByLabelText(/hex colour 1/i), '#ef3340');
 
     await userEvent.click(screen.getByRole('button', { name: /save/i }));
@@ -178,8 +175,11 @@ describe('BrandSection · drop zone', () => {
   });
 
   it('keeps hex input and the native colour picker in sync', async () => {
+    // Start from empty state; add a colour first.
     render(<BrandSection />);
 
+    await userEvent.type(screen.getByLabelText(/brand name/i), 'TestBrand');
+    await userEvent.click(screen.getByRole('button', { name: /^colour$/i }));
     fireEvent.change(screen.getByLabelText(/pick colour 1/i), {
       target: { value: '#123456' },
     });
@@ -194,7 +194,8 @@ describe('BrandSection · drop zone', () => {
   it('requires invalid hex colours to be fixed before saving', async () => {
     render(<BrandSection />);
 
-    await userEvent.clear(screen.getByLabelText(/hex colour 1/i));
+    await userEvent.type(screen.getByLabelText(/brand name/i), 'TestBrand');
+    await userEvent.click(screen.getByRole('button', { name: /^colour$/i }));
     await userEvent.type(screen.getByLabelText(/hex colour 1/i), 'nope');
 
     expect(screen.getByRole('alert')).toHaveTextContent(/invalid colour/i);
@@ -204,7 +205,8 @@ describe('BrandSection · drop zone', () => {
   it('accepts hex input with or without the leading hash', async () => {
     render(<BrandSection />);
 
-    await userEvent.clear(screen.getByLabelText(/hex colour 1/i));
+    await userEvent.type(screen.getByLabelText(/brand name/i), 'TestBrand');
+    await userEvent.click(screen.getByRole('button', { name: /^colour$/i }));
     await userEvent.type(screen.getByLabelText(/hex colour 1/i), 'ef3340');
     await userEvent.click(screen.getByRole('button', { name: /save/i }));
 

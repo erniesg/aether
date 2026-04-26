@@ -3,7 +3,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { resetSignalsForTests } from '@/lib/signals/store';
-import { resetBrandContextForTests } from '@/lib/context/brand-store';
+import { resetBrandContextForTests, seedBrandContextForTests } from '@/lib/context/brand-store';
+import { DEMO_CREATOR_CONTEXT } from '@/lib/context/model';
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -42,6 +43,10 @@ describe('LeftRail · stable context first, research feeds references', () => {
   });
 
   it('brand section surfaces long-lived knowledge sources from site · repo · docs · assets', async () => {
+    // Seed DEMO brand data so the brand section has knowledge sources to display.
+    // On a fresh workspace the section starts empty (C1 fix); this test verifies
+    // that sources RENDER correctly once they have been ingested.
+    seedBrandContextForTests(DEMO_CREATOR_CONTEXT.brand);
     const { container } = render(<LeftRail />);
 
     const brandTrigger = container.querySelector<HTMLButtonElement>(
