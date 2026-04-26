@@ -1421,6 +1421,34 @@ function buildVariationEmbed(input: {
 }
 
 /**
+ * Build a brand-context string for vision-describe from URL ingestion.
+ * Title + description usually carry the brand name and product line
+ * already; products[] adds canonical product names when JSON-LD was
+ * present. Empty string when no ingestion happened (text trigger).
+ *
+ * Wired into describeImage so the model labels products with their
+ * canonical names rather than guessing by silhouette. Closes the
+ * "Pod Hub mis-labelled as air purifier" gap.
+ */
+export function buildBrandContextFromIngestion(
+  ingestion: UrlIngestion | undefined
+): string | undefined {
+  if (!ingestion) return undefined;
+  const lines: string[] = [];
+  if (ingestion.title) lines.push(`Page title: ${ingestion.title}`);
+  if (ingestion.description) lines.push(`Page summary: ${ingestion.description}`);
+  if (ingestion.products.length > 0) {
+    lines.push('Products mentioned on the page:');
+    for (const p of ingestion.products.slice(0, 8)) {
+      const desc = p.description ? ` — ${p.description.slice(0, 120)}` : '';
+      lines.push(`  - ${p.name}${desc}`);
+    }
+  }
+  if (lines.length === 0) return undefined;
+  return lines.join('\n');
+}
+
+/**
  * Format an ISO-8601 timestamp as a human-readable SG (UTC+8) string.
  * e.g. "2026-04-27T19:00:00+08:00" → "Mon 27 Apr 2026, 7:00 PM SGT"
  * Fails gracefully to the raw string when parsing fails.
@@ -1539,6 +1567,14 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
   // extraction returns empty, vision fills the gap by looking at the
   // ref pixels directly. Skipped silently for refs that are data URLs
   // OR when ANTHROPIC_API_KEY is absent OR when the call rejects.
+  //
+  // BRAND CONTEXT (architectural fix from 2026-04-26 night): when URL
+  // ingestion captured the page title + description, we pipe it into
+  // every describeImage call so the model can label products by their
+  // canonical names (e.g. "Pod 4 Ultra") rather than guessing from
+  // silhouette ("air purifier"). This is the upstream fix Ernie called
+  // out — vision-describe was running blind without source context.
+  const brandContext = buildBrandContextFromIngestion(urlIngestion);
   let referenceDescriptions: ImageDescription[] | undefined;
   if (
     process.env.ANTHROPIC_API_KEY &&
@@ -1549,7 +1585,9 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       .slice(0, 2);
     if (describable.length > 0) {
       const settled = await Promise.allSettled(
-        describable.map((r) => describeImage({ imageUrl: r.url as string }))
+        describable.map((r) =>
+          describeImage({ imageUrl: r.url as string, brandContext })
+        )
       );
       const got: ImageDescription[] = [];
       for (const res of settled) {
