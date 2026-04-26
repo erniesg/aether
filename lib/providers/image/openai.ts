@@ -1,10 +1,11 @@
 import type { ImageGenProvider, ImageGenRequest, ImageGenResult, ImageRef } from './types';
 import { ImageGenError } from './types';
+import { applyComposition } from './composition';
 import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const GENERATIONS_ENDPOINT = 'https://api.openai.com/v1/images/generations';
 const EDITS_ENDPOINT = 'https://api.openai.com/v1/images/edits';
-const DEFAULT_MODEL = 'gpt-image-1';
+const DEFAULT_MODEL = 'gpt-image-2';
 const OPENAI_TIMEOUT_MS = 120_000;
 type OpenAISize = '1024x1024' | '1024x1536' | '1536x1024';
 
@@ -96,16 +97,20 @@ export function createOpenAIProvider(
     id: 'openai',
     displayName: 'OpenAI Images',
     isAvailable: () => Boolean(apiKey),
-    // gpt-image-1 stays first so it remains the default until an OpenAI org
-    // is verified for gpt-image-2. Pass ?model=gpt-image-2 to opt in once
-    // verification propagates.
-    listModels: () => ['gpt-image-1', 'gpt-image-2', 'dall-e-3'],
+    // gpt-image-2 is the verified default. Pass ?model=gpt-image-1 to fall back
+    // to the previous default if needed.
+    listModels: () => ['gpt-image-2', 'gpt-image-1', 'dall-e-3'],
   };
 
   async function generate(req: ImageGenRequest, opts: { model: string }): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
     const model = opts.model || DEFAULT_MODEL;
     const { size, width, height } = pickOpenAISize(req);
+    const applied = applyComposition(
+      { prompt: req.prompt, negativePrompt: req.negativePrompt },
+      req.composition ?? {},
+      'openai'
+    );
 
     // OpenAI's edit endpoint only accepts uploaded image files. The composer
     // sends ad-hoc refs as base64 data URLs, so only those should route to
@@ -115,7 +120,7 @@ export function createOpenAIProvider(
       (r): r is ImageRef => isBase64DataUrl(r?.url)
     );
     if (refs.length > 0) {
-      return editWithRefs(req, refs, model, size, width, height);
+      return editWithRefs(req, refs, model, size, width, height, applied.prompt);
     }
 
     const elapsed = mark();
@@ -127,7 +132,7 @@ export function createOpenAIProvider(
       },
       body: JSON.stringify({
         model,
-        prompt: req.prompt,
+        prompt: applied.prompt,
         n: req.n ?? 1,
         size,
         quality: 'high',
@@ -168,13 +173,14 @@ export function createOpenAIProvider(
     model: string,
     size: OpenAISize,
     width: number,
-    height: number
+    height: number,
+    prompt: string = req.prompt
   ): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
 
     const form = new FormData();
     form.append('model', model);
-    form.append('prompt', req.prompt);
+    form.append('prompt', prompt);
     form.append('n', String(req.n ?? 1));
     form.append('size', size);
     form.append('quality', 'high');

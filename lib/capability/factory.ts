@@ -1,4 +1,6 @@
+import path from 'node:path';
 import type { CapabilityEntryKind, CapabilityEntryRef } from './entry';
+import type { SkillRef } from '@/lib/agent/skills/types';
 
 export type CapabilityEntryStatus = 'draft' | 'published' | 'archived';
 export type CapabilityPublishScope = 'workspace' | 'team';
@@ -29,6 +31,58 @@ export interface CapabilityFactoryPlan {
   humanReviewRequired: boolean;
   reviewRoute?: CapabilityReviewRoute;
   reason: string;
+  /**
+   * When `action === 'author-skill'`, a deterministic stub SkillRef is
+   * populated so the caller can write the SKILL.md to disk and store the ref.
+   * Real Claude-driven authoring of the manifest body is a follow-up slice.
+   */
+  draftSkillRef?: SkillRef;
+}
+
+/**
+ * Derive a stable kebab-case skill id from the creator's prompt.
+ * Takes the first 6 significant words, lowercases and hyphenates them.
+ */
+function deriveSkillId(prompt: string): string {
+  return prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6)
+    .join('-');
+}
+
+/**
+ * Build a deterministic stub SkillRef for the `author-skill` plan branch.
+ * The manifest body is left empty — the authoring loop (follow-up slice) will
+ * fill it via Claude. All we need now is a stable ref + manifestPath.
+ */
+function buildDraftSkillRef(request: CapabilityFactoryRequest): SkillRef {
+  const id = deriveSkillId(request.prompt) || request.artifactKind;
+  const manifestPath = path.join(
+    process.cwd(),
+    'lib',
+    'agent',
+    'skills',
+    id,
+    'SKILL.md'
+  );
+  return {
+    kind: 'skill',
+    id,
+    version: 1,
+    manifestPath,
+    manifest: {
+      name: id,
+      version: 1,
+      description: `Auto-drafted skill for: ${request.prompt.slice(0, 120)}`,
+      tools: [],
+      referenceFiles: [],
+      instructions: '',
+    },
+  };
 }
 
 function toEntryRef(entry: CapabilityRegistryEntry): CapabilityEntryRef {
@@ -64,6 +118,7 @@ export function planCapabilityFactoryAction(
       reason: teamPublish
         ? `A reusable team skill should be authored over the existing ${base.kind} '${base.id}' and reviewed before publication.`
         : `A workspace skill can be authored over the existing ${base.kind} '${base.id}'.`,
+      draftSkillRef: buildDraftSkillRef(request),
     };
   }
 

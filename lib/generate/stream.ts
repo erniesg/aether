@@ -18,7 +18,7 @@ export type GenerateStreamEvent =
   | {
       type: 'run.started';
       at: number;
-      mode: 'single' | 'fanout';
+      mode: 'single' | 'fanout' | 'crop';
       frames: { total: number };
     }
   | {
@@ -78,6 +78,8 @@ export type GenerateStreamEvent =
       firstImageUrl?: string;
       elapsedMs: number;
       error?: string;
+      /** Which execution mode was used — present when the generate route ran multi-format. */
+      mode?: 'crop' | 'fanout';
     };
 
 const encoder = new TextEncoder();

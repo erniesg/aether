@@ -161,7 +161,7 @@ describe('/api/generate streaming', () => {
     });
   });
 
-  it('streams per-frame progress when the request fans out to multiple artboards', async () => {
+  it('streams per-frame progress when the request fans out to multiple artboards (mode=fanout explicit)', async () => {
     mocks.planGenerate.mockResolvedValue({
       plan: {
         rewrittenPrompt: 'shared launch visual',
@@ -198,6 +198,7 @@ describe('/api/generate streaming', () => {
         body: JSON.stringify({
           prompt: 'fan this out',
           bypassAgent: true,
+          mode: 'fanout',
           targets: [
             { id: 'frame_ig_post', label: 'IG Post', aspectRatio: '4:5' },
             { id: 'frame_story', label: 'Story', aspectRatio: '9:16' },
@@ -237,5 +238,140 @@ describe('/api/generate streaming', () => {
       { prompt: 'shared launch visual', aspectRatio: '4:5' },
       { prompt: 'shared launch visual', aspectRatio: '9:16' },
     ]);
+  });
+
+  it('passes resolved visual-composition policy from the HTTP request to the provider', async () => {
+    mocks.planGenerate.mockResolvedValue({
+      plan: {
+        rewrittenPrompt: 'visual only campaign still',
+        aspectRatio: '1:1',
+      },
+      provider: {
+        id: 'openai',
+        displayName: 'OpenAI Images',
+        model: 'gpt-image-1',
+      },
+      debug: {
+        plannerMode: 'bypass',
+      },
+    });
+    mocks.providerGenerate.mockResolvedValue({
+      provider: 'openai',
+      model: 'gpt-image-1',
+      latencyMs: 1200,
+      images: [
+        {
+          url: TINY_PNG,
+          width: 1024,
+          height: 1024,
+          mimeType: 'image/png',
+        },
+      ],
+    });
+
+    const { POST } = await import('@/app/api/generate/route');
+    const response = await POST(
+      new Request('http://localhost/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'make a visual-only campaign still',
+          bypassAgent: true,
+          composition: {
+            textStrategy: 'none',
+            constraints: ['no-signatures', 'not-yet-known'],
+          },
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.providerGenerate).toHaveBeenCalledTimes(1);
+    expect(mocks.providerGenerate.mock.calls[0][0]).toMatchObject({
+      prompt: 'visual only campaign still',
+      aspectRatio: '1:1',
+      composition: {
+        textStrategy: 'none',
+        constraints: ['no-signatures'],
+      },
+    });
+  });
+
+  it('applies the system visual-composition default when request composition is omitted', async () => {
+    mocks.planGenerate.mockResolvedValue({
+      plan: {
+        rewrittenPrompt: 'default visual policy still',
+        aspectRatio: '4:5',
+      },
+      provider: {
+        id: 'openai',
+        displayName: 'OpenAI Images',
+        model: 'gpt-image-1',
+      },
+      debug: {
+        plannerMode: 'bypass',
+      },
+    });
+    mocks.providerGenerate.mockResolvedValue({
+      provider: 'openai',
+      model: 'gpt-image-1',
+      latencyMs: 1200,
+      images: [
+        {
+          url: TINY_PNG,
+          width: 1024,
+          height: 1280,
+          mimeType: 'image/png',
+        },
+      ],
+    });
+
+    const { POST } = await import('@/app/api/generate/route');
+    const response = await POST(
+      new Request('http://localhost/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'make a campaign still',
+          bypassAgent: true,
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.providerGenerate.mock.calls[0][0]).toMatchObject({
+      composition: {
+        textStrategy: 'none',
+        constraints: ['no-signatures', 'no-watermarks'],
+      },
+    });
+  });
+
+  it('rejects invalid composition payloads before planning', async () => {
+    const { POST } = await import('@/app/api/generate/route');
+    const response = await POST(
+      new Request('http://localhost/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'make a campaign still',
+          composition: {
+            textStrategy: 'posterize',
+          },
+        }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'composition.textStrategy is invalid',
+    });
+    expect(mocks.planGenerate).not.toHaveBeenCalled();
+    expect(mocks.providerGenerate).not.toHaveBeenCalled();
   });
 });

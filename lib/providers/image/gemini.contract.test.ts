@@ -106,6 +106,25 @@ describe('gemini (imagen) adapter · contract', () => {
     });
   });
 
+  it("applies composition textStrategy='none' — populates parameters.negativePrompt", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ predictions: [{ bytesBase64Encoded: 'YQ==', mimeType: 'image/png' }] })
+    );
+    const provider = createGeminiProvider('key');
+    await provider.generate(
+      { prompt: 'sunset cityscape', composition: { textStrategy: 'none' } },
+      { model: 'imagen-4.0-generate-001' }
+    );
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init?.body as string);
+    expect(body.instances[0].prompt).toContain('No text, no typography.');
+    expect(body.instances[0].prompt).toContain('sunset cityscape');
+    expect(typeof body.parameters.negativePrompt).toBe('string');
+    expect(body.parameters.negativePrompt.toLowerCase()).toContain('text');
+    expect(body.parameters.negativePrompt.toLowerCase()).toContain('typography');
+  });
+
   it('throws ImageGenError on non-200 response', async () => {
     fetchMock.mockResolvedValue(new Response('forbidden', { status: 403 }));
     const provider = createGeminiProvider('key');

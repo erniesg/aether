@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   AssetRecordType,
@@ -25,7 +25,22 @@ import type {
 } from './FloatingToolbar';
 import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
-import { getImageInfo, getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
+import {
+  getImageInfo,
+  getSelectedImageInfo,
+  getSelectionStripInfo,
+  type SelectedImageInfo,
+  type SelectionStripInfo,
+} from '@/lib/canvas/selectedImage';
+import {
+  applyAlign,
+  applyDistribute,
+  applyOpacity,
+  applyOrder,
+  type AlignAction,
+  type DistributeAction,
+  type OrderAction,
+} from '@/lib/canvas/shapeControls';
 import { pickAspectRatio } from '@/lib/canvas/fanOut';
 import { placeSpatialPreviewOnCanvas } from '@/lib/spatial/canvas';
 import type {
@@ -47,6 +62,10 @@ import {
   setVoiceToolCall,
   setVoiceTranscript,
 } from '@/lib/voice/caption-store';
+import { useTextOverlayBridge } from './text-overlay-bridge';
+import { useCreatorContext } from '@/lib/context/creator-store';
+import { EyesClosedHandle, type EyesClosedCaptureRequest } from './EyesClosedHandle';
+import { createSketchSnapshotTracker } from '@/lib/canvas/sketchSnapshot';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -97,6 +116,21 @@ export interface CanvasSubstrateProps {
   renderVoiceSlot?: (dispatchers: import('@/lib/voice/tools').VoiceDispatchers) => React.ReactNode;
   /** When true, show the voice orb inside the toolbar. Defaults to true. */
   voiceEnabled?: boolean;
+  /**
+   * Fires on eyes-closed release (issue #128 / Q7). The shell owns the
+   * sketch-to-component planner call + downstream generate dispatch — this
+   * substrate only tracks which strokes belong to the current hold.
+   */
+  onEyesClosedCapture?: (capture: EyesClosedCaptureRequest) => void | Promise<void>;
+  /**
+   * Render prop seam for the eyes-closed handle, mirroring `renderVoiceSlot`.
+   * Tests pass a stub provider via this so the chip can drive the same code
+   * path without touching the real Gemini Live transport.
+   */
+  renderEyesClosedSlot?: (params: {
+    onCapture: (capture: EyesClosedCaptureRequest) => void | Promise<void>;
+    getSketchSnapshot: () => Promise<string>;
+  }) => React.ReactNode;
 }
 
 type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
@@ -284,9 +318,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   onMoodboardGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
+  onEyesClosedCapture,
+  renderEyesClosedSlot,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
+  const [selectionStrip, setSelectionStrip] = useState<SelectionStripInfo | null>(null);
   const [segmentation, setSegmentation] = useState<SegmentationDraft | null>(null);
   const [clusterLensOpen, setClusterLensOpen] = useState(false);
   const [backgroundFill, setBackgroundFill] =
@@ -297,6 +334,19 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const [segmentationProvidersLoading, setSegmentationProvidersLoading] =
     useState(false);
   const { editor } = useEditorRef();
+
+  const creatorContext = useCreatorContext(workspaceId);
+  // Wire the multilingual text-overlay bridge: listens for image-landed
+  // events, calls /api/text-overlay/apply, materialises AetherTextShapes,
+  // and persists each overlay to Convex. No-ops when there's no editor.
+  useTextOverlayBridge({
+    workspaceId,
+    creatorContext: {
+      brand: creatorContext.brand,
+      offer: creatorContext.offer,
+      campaign: creatorContext.campaign,
+    },
+  });
 
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
@@ -343,6 +393,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   useEffect(() => {
     if (!editor) {
       setSelectedImage(null);
+      setSelectionStrip(null);
       setSegmentation(null);
       return;
     }
@@ -350,6 +401,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     const sync = () => {
       const next = getSelectedImageInfo(editor);
       setSelectedImage(next);
+      setSelectionStrip(getSelectionStripInfo(editor));
       setSegmentation((current) => {
         if (!current) return current;
         const target = getImageInfo(editor, current.targetShapeId);
@@ -1052,7 +1104,56 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     );
   }, [segmentation?.runId]);
 
+  const handleOpacityChange = useCallback(
+    (opacity: number) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length === 0) return;
+      editor.markHistoryStoppingPoint('set opacity');
+      applyOpacity(editor, ids, opacity);
+    },
+    [editor]
+  );
+
+  const handleOrder = useCallback(
+    (action: OrderAction) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length === 0) return;
+      editor.markHistoryStoppingPoint('reorder');
+      applyOrder(editor, ids, action);
+    },
+    [editor]
+  );
+
+  const handleAlign = useCallback(
+    (action: AlignAction) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length < 2) return;
+      editor.markHistoryStoppingPoint('align');
+      applyAlign(editor, ids, action);
+    },
+    [editor]
+  );
+
+  const handleDistribute = useCallback(
+    (action: DistributeAction) => {
+      if (!editor) return;
+      const ids = editor.getSelectedShapeIds();
+      if (ids.length < 2) return;
+      editor.markHistoryStoppingPoint('distribute');
+      applyDistribute(editor, ids, action);
+    },
+    [editor]
+  );
+
   const imageActionsTarget = selectedImage ?? segmentation?.target ?? null;
+  const stripRect =
+    selectionStrip && selectionStrip.selectionCount >= 2
+      ? selectionStrip.screenBounds
+      : (imageActionsTarget?.screenBounds ?? selectionStrip?.screenBounds ?? null);
+  const showStrip = stripRect !== null && (imageActionsTarget !== null || (selectionStrip !== null && selectionStrip.selectionCount >= 2));
 
   const dispatchers = useMemo<VoiceDispatchers>(
     () => ({
@@ -1118,6 +1219,56 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       : <VoiceOrb dispatchers={dispatchers} onCaption={handleVoiceCaption} />
     : null;
 
+  // Sketch tracker: captures only the shapes drawn between hold-start and
+  // hold-release, so each eyes-closed dispatch ships *just* the new strokes
+  // (not the seeded artboards or earlier drafts).
+  const sketchTrackerRef = useRef(createSketchSnapshotTracker(() => editor));
+  // Re-bind the editor handle when the editor swaps (mount/unmount cycles).
+  useEffect(() => {
+    sketchTrackerRef.current = createSketchSnapshotTracker(() => editor);
+  }, [editor]);
+
+  const handleEyesClosedCapture = useCallback(
+    async (capture: EyesClosedCaptureRequest) => {
+      // Capture sketch first — `EyesClosedHandle` already called
+      // `getSketchSnapshot` and passed us the data URL. The hold-start
+      // baseline is restarted on the next hold via `getSketchSnapshot`.
+      sketchTrackerRef.current.start();
+      await onEyesClosedCapture?.(capture);
+    },
+    [onEyesClosedCapture]
+  );
+
+  const getSketchSnapshot = useCallback(async (): Promise<string> => {
+    const snapshot = await sketchTrackerRef.current.capture();
+    // Re-baseline so the next hold only captures fresh strokes. Done here
+    // (not in handleEyesClosedCapture) so an empty hold still resets.
+    sketchTrackerRef.current.start();
+    return snapshot;
+  }, []);
+
+  // Re-baseline whenever the eyes-closed handle is about to start a new
+  // session. We piggyback on the pointerdown / keydown by watching for the
+  // recording state to flip. Simpler: baseline once at mount and after each
+  // capture (handled above).
+  useEffect(() => {
+    sketchTrackerRef.current.start();
+  }, []);
+
+  const eyesClosedSlot = renderEyesClosedSlot
+    ? renderEyesClosedSlot({
+        onCapture: handleEyesClosedCapture,
+        getSketchSnapshot,
+      })
+    : onEyesClosedCapture
+    ? (
+        <EyesClosedHandle
+          onCapture={handleEyesClosedCapture}
+          getSketchSnapshot={getSketchSnapshot}
+        />
+      )
+    : null;
+
   return (
     <section
       data-taxonomy="tool"
@@ -1138,6 +1289,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
         voiceSlot={voiceSlot ?? undefined}
+        eyesClosedSlot={eyesClosedSlot ?? undefined}
         clusterLensActive={clusterLensOpen}
         onClusterLensToggle={() => setClusterLensOpen((prev) => !prev)}
       />
@@ -1150,9 +1302,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         />
       ) : null}
 
-      {imageActionsTarget ? (
+      {showStrip && stripRect ? (
         <SelectedImageActions
-          rect={imageActionsTarget.screenBounds}
+          rect={stripRect}
+          selectionCount={selectionStrip?.selectionCount ?? 1}
+          isSingleImage={Boolean(imageActionsTarget) && (selectionStrip?.selectionCount ?? 1) === 1}
+          opacity={selectionStrip?.opacity ?? 1}
           hasPreview={Boolean(segmentation?.preview)}
           previewVisible={segmentation?.previewVisible ?? false}
           disabled={segmentation?.loading}
@@ -1160,6 +1315,10 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           onCutout={() => openSegmentation('cutout')}
           onSpatialize={handleSpatialize}
           onPreviewVisibilityChange={handlePreviewVisibilityChange}
+          onOpacityChange={handleOpacityChange}
+          onOrder={handleOrder}
+          onAlign={handleAlign}
+          onDistribute={handleDistribute}
         />
       ) : null}
 

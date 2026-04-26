@@ -1,5 +1,6 @@
 import type { ImageGenProvider, ImageGenRequest, ImageGenResult } from './types';
 import { ImageGenError } from './types';
+import { applyComposition } from './composition';
 import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const DEFAULT_MODEL = 'imagen-4.0-generate-001';
@@ -43,6 +44,12 @@ export function createGeminiProvider(
       };
       const aspectForProvider = req.aspectRatio && ASPECT_MAP[req.aspectRatio] ? ASPECT_MAP[req.aspectRatio] : '1:1';
 
+      const applied = applyComposition(
+        { prompt: req.prompt, negativePrompt: req.negativePrompt },
+        req.composition ?? {},
+        'gemini'
+      );
+
       const elapsed = mark();
       const res = await fetchWithTimeout(
         `${ENDPOINT_BASE}/${encodeURIComponent(model)}:predict?key=${encodeURIComponent(apiKey)}`,
@@ -50,12 +57,12 @@ export function createGeminiProvider(
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            instances: [{ prompt: req.prompt }],
+            instances: [{ prompt: applied.prompt }],
             parameters: {
               sampleCount: count,
               aspectRatio: aspectForProvider,
               seed: req.seed,
-              negativePrompt: req.negativePrompt,
+              negativePrompt: applied.negativePrompt,
               outputMimeType: 'image/png',
             },
           }),

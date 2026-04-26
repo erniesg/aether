@@ -2,9 +2,14 @@ import { createPreviewPublisher } from './preview';
 import { createInMemoryScheduledPostStorage } from './memory-storage';
 import { createPostizPublisherFromEnv } from './postiz';
 import {
+  createSocialAutoUploadPublisher,
+  isSocialAutoUploadPublisherConfigured,
+} from './social-auto-upload';
+import {
   PublisherUnavailableError,
   type PublisherProvider,
   type PublisherProviderId,
+  type ScheduledPost,
   type ScheduledPostStorage,
 } from './types';
 
@@ -36,6 +41,37 @@ export interface ResolvePublisherOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+export interface ResolvePublisherForPostOptions extends ResolvePublisherOptions {
+  post: Parameters<PublisherProvider['canPublish']>[0];
+}
+
+function instantiatePublisher(
+  id: string,
+  opts: ResolvePublisherOptions
+): PublisherProvider | null {
+  if (id === 'postiz') {
+    return createPostizPublisherFromEnv(
+      {
+        workspaceId: opts.workspaceId,
+        storage: opts.storage,
+        baseUrl: opts.baseUrl,
+      },
+      opts.env
+    );
+  }
+  if (id === 'social-auto-upload' && isSocialAutoUploadPublisherConfigured(opts.env)) {
+    return createSocialAutoUploadPublisher({ workspaceId: opts.workspaceId });
+  }
+  if (id === 'preview') {
+    return createPreviewPublisher({
+      workspaceId: opts.workspaceId,
+      storage: opts.storage,
+      baseUrl: opts.baseUrl,
+    });
+  }
+  return null;
+}
+
 export function resolvePublisher(
   opts: ResolvePublisherOptions
 ): PublisherProvider {
@@ -44,34 +80,51 @@ export function resolvePublisher(
     (x): x is string => typeof x === 'string' && x.length > 0
   );
   for (const id of order) {
-    if (id === 'postiz') {
-      const publisher = createPostizPublisherFromEnv(
-        {
-          workspaceId: opts.workspaceId,
-          storage: opts.storage,
-          baseUrl: opts.baseUrl,
-        },
-        opts.env
+    const publisher = instantiatePublisher(id, opts);
+    if (publisher) return publisher;
+    if (id === 'postiz' && opts.preferredId === 'postiz') {
+      throw new PublisherUnavailableError(
+        'postiz',
+        'POSTIZ_API_KEY and POSTIZ_INTEGRATION_<PLATFORM> are required'
       );
-      if (publisher) return publisher;
-      if (opts.preferredId === 'postiz') {
-        throw new PublisherUnavailableError(
-          'postiz',
-          'POSTIZ_API_KEY and POSTIZ_INTEGRATION_<PLATFORM> are required'
-        );
-      }
-    }
-    if (id === 'preview') {
-      return createPreviewPublisher({
-        workspaceId: opts.workspaceId,
-        storage: opts.storage,
-        baseUrl: opts.baseUrl,
-      });
     }
   }
   throw new PublisherUnavailableError(
     opts.preferredId ?? 'any',
     `no publisher adapter matched (checked: ${KNOWN_PUBLISHER_IDS.join(', ')})`
+  );
+}
+
+/**
+ * Platform-aware resolution for real publishing. Unlike `resolvePublisher`,
+ * this does not let preview win before configured real adapters have had a
+ * chance to claim the post. That allows one export pack to route Western
+ * platforms to Postiz and CJK/browser-automation platforms to the Python
+ * sidecar.
+ */
+export function resolvePublisherForPost(
+  opts: ResolvePublisherForPostOptions
+): PublisherProvider {
+  const envDefault = process.env.PUBLISHER_PROVIDER;
+  const order = [
+    opts.preferredId,
+    envDefault,
+    'postiz',
+    'social-auto-upload',
+    'preview',
+  ].filter((x): x is string => typeof x === 'string' && x.length > 0);
+
+  const seen = new Set<string>();
+  for (const id of order) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const publisher = instantiatePublisher(id, opts);
+    if (publisher?.canPublish(opts.post)) return publisher;
+  }
+
+  throw new PublisherUnavailableError(
+    opts.preferredId ?? (opts.post as ScheduledPost).platform,
+    `no publisher adapter can publish ${(opts.post as ScheduledPost).platform}`
   );
 }
 
@@ -87,6 +140,9 @@ export function listAvailablePublishers(): Array<{
     storage: createInMemoryScheduledPostStorage(),
   })) {
     list.push({ id: 'postiz', displayName: 'Postiz' });
+  }
+  if (isSocialAutoUploadPublisherConfigured()) {
+    list.push({ id: 'social-auto-upload', displayName: 'social-auto-upload' });
   }
   return list;
 }

@@ -1,9 +1,16 @@
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
 
+/**
+ * Artifact kinds the capability system can produce. New kinds get added here
+ * first so the registry, the capability types, and the Convex validator can
+ * all widen in lockstep. Do not inline these literals anywhere else.
+ */
+export type ArtifactKind = 'image' | 'video' | 'audio' | 'spatial' | 'text-overlay';
+
 export interface ToolRegistryEntry extends CapabilityEntryRef<'tool'> {
-  artifactKind: string;
+  artifactKind: ArtifactKind;
   label: string;
-  outputKind: 'image';
+  outputKind: ArtifactKind;
   status: 'draft' | 'published' | 'archived';
 }
 
@@ -60,6 +67,15 @@ const TOOL_REGISTRY = {
     artifactKind: 'spatial',
     label: 'Spatial generation',
     outputKind: 'image',
+    status: 'draft',
+  },
+  'text-apply': {
+    kind: 'tool',
+    id: 'text-apply',
+    version: 1,
+    artifactKind: 'text-overlay',
+    label: 'Text apply',
+    outputKind: 'text-overlay',
     status: 'draft',
   },
 } as const satisfies Record<string, ToolRegistryEntry>;
