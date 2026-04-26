@@ -34,6 +34,7 @@ import {
 import {
   describeImage,
   descriptionToSegmentPrompts,
+  type ImageDescription,
 } from './describe-image';
 import { fetchUrlIngestion, type UrlIngestion } from '@/lib/ingest/url';
 import { fetchPdfIngestion, type PdfIngestion } from '@/lib/ingest/pdf';
@@ -210,6 +211,13 @@ export interface AutoModeResult {
    * weaves into the variation prompt and surfaces in the UI.
    */
   pdfIngestion?: PdfIngestion;
+  /**
+   * Vision-described content of the top reference images (Claude 4.7
+   * vision). Surfaced so the UI can show "the hero was generated based
+   * on these refs, which contain X products, Y brands, Z faces" — the
+   * traceable-to-reference provenance Ernie called for.
+   */
+  referenceDescriptions?: ImageDescription[];
 }
 
 interface VariationPromptInput {
@@ -229,6 +237,12 @@ interface VariationPromptInput {
   /** When trigger.kind === 'file' and the payload sniffs to a PDF, the
    *  extracted text + metadata. Title/author/excerpt feed the prompt. */
   pdfIngestion?: PdfIngestion;
+  /** Vision-described content of each reference image — Claude 4.7 vision
+   *  output. Fixes the "didn't find the Pod" gap: when the og:image is a
+   *  generic bedroom shot, the description tells the gen "here's the
+   *  Pod 4 Ultra mattress cover, low-profile chrome under-bed lighting,
+   *  sleeping figure" so the hero render knows what to draw. */
+  referenceDescriptions?: ImageDescription[];
 }
 
 /**
@@ -251,6 +265,7 @@ function buildPreHeroLayoutAwarePrompt(input: {
   referenceHint?: string;
   urlIngestion?: UrlIngestion;
   pdfIngestion?: PdfIngestion;
+  referenceDescriptions?: ImageDescription[];
   referenceImageCount?: number;
 }): string {
   // For image-file triggers (data URLs), the raw payload is megabytes of
@@ -264,6 +279,25 @@ function buildPreHeroLayoutAwarePrompt(input: {
   // - PDF trigger: ingested title + first lines of the document (the raw
   //   payload is a data: URL or .pdf URL, neither informs the planner).
   // - Text trigger: payload itself.
+  // Pull product / brand / face content from any vision-described
+  // references so the layout-aware prompt knows what to render. Critical
+  // for cases where the URL ingestion couldn't extract Schema.org Product
+  // (e.g. eightsleep homepage) — vision fills the gap.
+  const visionProducts: string[] = [];
+  const visionBrands: string[] = [];
+  const visionFaces: string[] = [];
+  for (const desc of input.referenceDescriptions ?? []) {
+    for (const p of desc.products) {
+      if (p.name) visionProducts.push(p.description ? `${p.name} (${p.description})` : p.name);
+    }
+    for (const b of desc.brands) {
+      if (b.name) visionBrands.push(b.name);
+    }
+    for (const f of desc.faces) {
+      if (f.description) visionFaces.push(f.description);
+    }
+  }
+
   const heroDescription = (() => {
     if (input.urlIngestion) {
       const ing = input.urlIngestion;
@@ -271,7 +305,17 @@ function buildPreHeroLayoutAwarePrompt(input: {
       if (ing.title) parts.push(ing.title);
       if (ing.description) parts.push(ing.description);
       else if (ing.bodyExcerpt) parts.push(ing.bodyExcerpt.split('\n')[0]);
-      if (ing.products[0]?.name) parts.push(`featuring ${ing.products[0].name}`);
+      // Prefer vision-described product over Schema.org-extracted one when
+      // both exist — vision is per-image specific and catches what
+      // structured data misses.
+      if (visionProducts.length > 0) {
+        parts.push(`featuring ${visionProducts.slice(0, 2).join(' and ')}`);
+      } else if (ing.products[0]?.name) {
+        parts.push(`featuring ${ing.products[0].name}`);
+      }
+      if (visionBrands.length > 0) {
+        parts.push(`brand: ${visionBrands.slice(0, 2).join(', ')}`);
+      }
       const joined = parts.join(' — ');
       if (joined) {
         return input.referenceHint
@@ -335,6 +379,7 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     referenceHint: primaryHint,
     urlIngestion: input.urlIngestion,
     pdfIngestion: input.pdfIngestion,
+    referenceDescriptions: input.referenceDescriptions,
     referenceImageCount: refs.length,
   });
 
@@ -433,6 +478,53 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
       lines.push(`(${refs.length - 6} additional refs not listed inline)`);
     }
     lines.push('Honour their composition and feel; do not copy any literally.');
+  }
+
+  // Vision-described references: Claude 4.7 looked at each ref and wrote
+  // out what's in it (faces, products, brands, components). This is HOW
+  // the gen learns "the Pod 4 Ultra is the mattress cover with the chrome
+  // under-bed glow" instead of guessing from the URL string alone. Fixes
+  // the "generic bedroom" complaint when the og:image doesn't visually
+  // foreground the actual product.
+  if (input.referenceDescriptions && input.referenceDescriptions.length > 0) {
+    lines.push('', '--- VISION-DESCRIBED REFERENCES (auto-extracted) ---');
+    input.referenceDescriptions.forEach((desc, idx) => {
+      lines.push(`Reference ${idx + 1}:`);
+      if (desc.faces.length > 0) {
+        lines.push(
+          `  Faces: ${desc.faces
+            .map((f) => f.description + (f.name ? ` (${f.name})` : ''))
+            .join('; ')}`
+        );
+      }
+      if (desc.products.length > 0) {
+        lines.push(
+          `  Products: ${desc.products
+            .map((p) => p.name + (p.description ? ` — ${p.description}` : ''))
+            .join('; ')}`
+        );
+      }
+      if (desc.brands.length > 0) {
+        lines.push(
+          `  Brands: ${desc.brands.map((b) => b.name).join(', ')}`
+        );
+      }
+      if (desc.otherComponents.length > 0) {
+        lines.push(
+          `  Other: ${desc.otherComponents
+            .slice(0, 6)
+            .map((c) => `${c.name} (${c.kind})`)
+            .join(', ')}`
+        );
+      }
+      if (desc.background.description) {
+        lines.push(`  Setting: ${desc.background.description}`);
+      }
+    });
+    lines.push(
+      'Use these descriptions to ground your hero in the ACTUAL products / setting / faces shown in the references. When products are explicitly named, the hero MUST feature them recognisably — do not fall back to a generic scene.',
+      '---'
+    );
   }
 
   lines.push(
@@ -1090,6 +1182,15 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     }
   }
 
+  // ─── Vision-describe top references ──────────────────────────────────
+  // Before the lap fans out, run Claude 4.7 vision on the top N reference
+  // images so the hero prompt has concrete product / brand / face facts
+  // to riff off — fixes the "didn't find the Pod" gap where Schema.org
+  // Product extraction was empty for eightsleep and the hero rendered as
+  // a generic bedroom. Cost: ~$0.005-0.01 per ref. Budget cap of 2.
+  // Fail-soft: any reject leaves the slot undefined and the lap continues.
+  // (placed BELOW effectiveReferenceImages resolution — moved into a helper)
+
   // Resolve effective reference images:
   //   1. req.referenceImages (plural, explicit) wins
   //   2. req.referenceImage (legacy singular) wraps to a 1-item array
@@ -1126,6 +1227,32 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     }
     return [];
   })();
+
+  // Vision-describe up to 2 top reference images so the hero gen knows
+  // what's IN them (products, brands, faces, setting). This is the fix
+  // for the "didn't find the Pod" gap — when URL Schema.org Product
+  // extraction returns empty, vision fills the gap by looking at the
+  // ref pixels directly. Skipped silently for refs that are data URLs
+  // OR when ANTHROPIC_API_KEY is absent OR when the call rejects.
+  let referenceDescriptions: ImageDescription[] | undefined;
+  if (
+    process.env.ANTHROPIC_API_KEY &&
+    effectiveReferenceImages.length > 0
+  ) {
+    const describable = effectiveReferenceImages
+      .filter((r) => r.url && !r.url.startsWith('data:'))
+      .slice(0, 2);
+    if (describable.length > 0) {
+      const settled = await Promise.allSettled(
+        describable.map((r) => describeImage({ imageUrl: r.url as string }))
+      );
+      const got: ImageDescription[] = [];
+      for (const res of settled) {
+        if (res.status === 'fulfilled') got.push(res.value);
+      }
+      if (got.length > 0) referenceDescriptions = got;
+    }
+  }
 
   // ─── Lap-start ping (always, regardless of notifyMode) ────────────────
   // User wants visibility on kickoff so they know the lap is in flight.
@@ -1165,6 +1292,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           referenceImages: effectiveReferenceImages,
           urlIngestion,
           pdfIngestion,
+          referenceDescriptions,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
@@ -1198,6 +1326,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           referenceImages: effectiveReferenceImages,
           urlIngestion,
           pdfIngestion,
+          referenceDescriptions,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
@@ -1283,5 +1412,6 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     scheduledPostIds,
     urlIngestion,
     pdfIngestion,
+    referenceDescriptions,
   };
 }
