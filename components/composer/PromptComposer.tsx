@@ -468,8 +468,11 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
           })()}
 
           {(() => {
-            const label = renderMode === 'crop' ? 'render: responsive' : 'render: variants';
-            const aria = `render mode · ${label} · click to toggle between responsive (one render, crop) and variants (separate renders)`;
+            // C2: unified "variants" naming — "crop" (one hero, geometric crop)
+            // vs "variants" (N separate renders, one per format). No "responsive"
+            // terminology — that was ambiguous with CSS responsive breakpoints.
+            const label = renderMode === 'crop' ? 'crop' : 'variants';
+            const aria = `render mode · ${label} · click to toggle between crop (one render, cropped to each format) and variants (separate render per format)`;
             return (
               <button
                 type="button"
