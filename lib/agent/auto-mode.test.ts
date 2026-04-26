@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
   const segmentSubjects = vi.fn();
   const describeImage = vi.fn();
   const fetchUrlIngestion = vi.fn();
+  const fetchPdfIngestion = vi.fn();
   return {
     runMultiAgent,
     startCampaign,
@@ -38,6 +39,7 @@ const mocks = vi.hoisted(() => {
     segmentSubjects,
     describeImage,
     fetchUrlIngestion,
+    fetchPdfIngestion,
   };
 });
 
@@ -89,6 +91,16 @@ vi.mock('@/lib/ingest/url', async () => {
   return {
     ...actual,
     fetchUrlIngestion: mocks.fetchUrlIngestion,
+  };
+});
+
+vi.mock('@/lib/ingest/pdf', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/ingest/pdf')>(
+    '@/lib/ingest/pdf'
+  );
+  return {
+    ...actual,
+    fetchPdfIngestion: mocks.fetchPdfIngestion,
   };
 });
 
@@ -1152,6 +1164,158 @@ describe('runAutoMode · orchestration', () => {
     // caller didn't either).
     const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
     expect(refs === undefined || refs.length === 0).toBe(true);
+  });
+
+  it('ingests a PDF trigger and weaves the document into the prompt', async () => {
+    mocks.fetchPdfIngestion.mockResolvedValueOnce({
+      source: 'https://eightsleep.com/spec-sheet.pdf',
+      title: 'Pod 4 Ultra · Technical Spec Sheet',
+      author: 'Eight Sleep Inc.',
+      text: 'Pod 4 Ultra is the world\'s most advanced sleep system…',
+      textExcerpt:
+        'Pod 4 Ultra · Technical Spec Sheet\nDual-zone temperature control\n30-night risk-free trial',
+      pageCount: 4,
+      fetchedAt: '2026-04-26T12:00:00Z',
+      rawBytes: 1_200_000,
+    });
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: {
+        kind: 'file',
+        payload: 'https://eightsleep.com/spec-sheet.pdf',
+      },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    expect(mocks.fetchPdfIngestion).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchPdfIngestion).toHaveBeenCalledWith(
+      'https://eightsleep.com/spec-sheet.pdf'
+    );
+    expect(result.pdfIngestion?.title).toBe('Pod 4 Ultra · Technical Spec Sheet');
+
+    const prompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain('INGESTED PDF CONTENT');
+    expect(prompt).toContain('Pod 4 Ultra · Technical Spec Sheet');
+    expect(prompt).toContain('Eight Sleep Inc.');
+    expect(prompt).toContain('Pages: 4');
+    expect(prompt).toContain('Dual-zone temperature control');
+    // Hero subject derived from PDF title, not the raw .pdf URL.
+    expect(prompt).toMatch(/Hero subject: Pod 4 Ultra/);
+    expect(prompt).not.toMatch(/Hero subject: https:\/\/.*\.pdf/);
+  });
+
+  it('detects PDFs by data: URL too', async () => {
+    mocks.fetchPdfIngestion.mockResolvedValueOnce({
+      source: 'data:application/pdf;base64,<bytes>',
+      title: 'Inline doc',
+      author: '',
+      text: 'inline body',
+      textExcerpt: 'inline body',
+      pageCount: 1,
+      fetchedAt: '2026-04-26T12:00:00Z',
+      rawBytes: 800,
+    });
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: {
+        kind: 'file',
+        payload: 'data:application/pdf;base64,<bytes>',
+      },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+    expect(mocks.fetchPdfIngestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT call PDF ingestion when the file payload is not a PDF', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: {
+        kind: 'file',
+        payload: 'data:image/png;base64,iVBORw0KGgo',
+      },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+    expect(mocks.fetchPdfIngestion).not.toHaveBeenCalled();
+  });
+
+  it('survives PDF ingestion failure — lap continues with raw trigger', async () => {
+    mocks.fetchPdfIngestion.mockRejectedValueOnce(new Error('parse failed'));
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: {
+        kind: 'file',
+        payload: 'https://example.com/broken.pdf',
+      },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+    expect(result.pdfIngestion).toBeUndefined();
+    expect(result.status).toBe('completed');
   });
 
   it('skips URL ingestion entirely for text triggers', async () => {
