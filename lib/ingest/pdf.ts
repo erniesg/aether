@@ -114,7 +114,10 @@ export async function parsePdfIngestion(
 ): Promise<PdfIngestion> {
   // pdf-parse v2 is class-based: new PDFParse({data}).getText() returns
   // { text, total (page count), info: { Title, Author, ... } }.
-  // Convert Node Buffer → Uint8Array for the parser.
+  // Convert Node Buffer → Uint8Array for the parser. Capture byteLength
+  // BEFORE the call — PDF.js detaches the underlying ArrayBuffer when
+  // parsing finishes, leaving bytes.byteLength reading 0.
+  const rawByteCount = bytes.byteLength;
   const parser = new PDFParse({
     data: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
   });
@@ -138,7 +141,7 @@ export async function parsePdfIngestion(
     textExcerpt: clampHeadExcerpt(text, opts.excerptChars ?? DEFAULT_EXCERPT_CHARS),
     pageCount,
     fetchedAt: new Date().toISOString(),
-    rawBytes: bytes.byteLength,
+    rawBytes: rawByteCount,
   };
 }
 
