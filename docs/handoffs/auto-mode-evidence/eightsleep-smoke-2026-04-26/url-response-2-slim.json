@@ -1,0 +1,317 @@
+{
+  "ok": true,
+  "campaignId": "ns71gbvcbfhv3vw0bfxqrv8gpn85kejx",
+  "variations": [
+    {
+      "index": 1,
+      "status": "ready",
+      "heroImageUrl": "<1658306 chars>",
+      "caption": "Sleep, upgraded lah. The Pod is now in Singapore — personalised cooling & heating for each side of the bed, so you and your partner both wake up recharged. Risk-free for 30 nights.",
+      "captionsByLocale": {
+        "en-SG": "Sleep, upgraded lah. The Pod is now in Singapore — personalised cooling & heating for each side of the bed, so you and your partner both wake up recharged. Risk-free for 30 nights.",
+        "zh-Hans-SG": "睡眠升级啦！Eight Sleep 智能床垫正式登陆新加坡——左右两侧独立冷暖调控，让你和另一半都一觉到天亮。30 晚无风险试睡，不爱可退。",
+        "ms-SG": "Tidur, naik taraf lah. The Pod kini di Singapura — penyejuk & pemanas peribadi untuk setiap sisi katil, supaya anda dan pasangan bangun segar. Cuba bebas risiko 30 malam.",
+        "ta-SG": "தூக்கம், இப்போது அப்கிரேட்! The Pod இப்போது சிங்கப்பூரில் — படுக்கையின் ஒவ்வொரு பக்கத்திற்கும் தனிப்பட்ட குளிரூட்டல் & வெப்பம். 30 இரவுகள் ரிஸ்க்-ஃப்ரீ முயற்சி."
+      },
+      "hashtags": [
+        "#EightSleep",
+        "#ThePod",
+        "#SleepBetterSG",
+        "#SmartSleep",
+        "#SingaporeWellness"
+      ],
+      "moodNote": "Cinematic dual-tone bedroom calm, premium tech-wellness sanctuary glow",
+      "schedulePlatform": "instagram",
+      "scheduleWhenLocal": "2026-04-27T21:00:00+08:00",
+      "formatCrops": [
+        {
+          "formatId": "1x1",
+          "aspectRatio": "1:1",
+          "w": 1024,
+          "h": 1024,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "fit": "fitted"
+        },
+        {
+          "formatId": "4x5",
+          "aspectRatio": "4:5",
+          "w": 1080,
+          "h": 1350,
+          "crop": {
+            "topLeft": {
+              "x": 0.09999999999999998,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.9,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "9x16",
+          "aspectRatio": "9:16",
+          "w": 1080,
+          "h": 1920,
+          "crop": {
+            "topLeft": {
+              "x": 0.21875,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.78125,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "16x9",
+          "aspectRatio": "16:9",
+          "w": 1920,
+          "h": 1080,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0.21875
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 0.78125
+            }
+          },
+          "fit": "partial"
+        }
+      ],
+      "textOverlays": [
+        {
+          "zone": {
+            "purpose": "headline",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.05,
+              "w": 0.9,
+              "h": 0.18
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "Sleep, Upgraded Lah.",
+            "zh-Hans-SG": "睡眠,升级了。",
+            "ms-SG": "Tidur, Kini Lebih Hebat.",
+            "ta-SG": "தூக்கம், இனி உயர்தரம்."
+          },
+          "textAlign": "center"
+        },
+        {
+          "zone": {
+            "purpose": "caption",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.78,
+              "w": 0.9,
+              "h": 0.17
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "Personalised cooling & heating for each side. Try The Pod risk-free for 30 nights.",
+            "zh-Hans-SG": "床的两侧独立控温,个性化冷暖。The Pod 30 晚无忧试睡。",
+            "ms-SG": "Penyejuk & pemanas peribadi setiap sisi. Cuba The Pod tanpa risiko, 30 malam.",
+            "ta-SG": "ஒவ்வொரு பக்கத்திற்கும் தனிப்பயன் குளிர் & வெப்பம். The Pod-ஐ 30 இரவுகள் இலவசமாக முயற்சி செய்."
+          },
+          "textAlign": "center"
+        }
+      ],
+      "agentSteps": [
+        {
+          "index": 0,
+          "name": "get_current_datetime",
+          "input": {
+            "timezone": "Asia/Singapore"
+          },
+          "output": {
+            "ok": true,
+            "provider": "local",
+            "nowUtc": "2026-04-26T11:35:45.760Z",
+            "nowLocal": "2026-04-26T19:35:45",
+            "timezone": "Asia/Singapore",
+            "epochMs": 1777203345760
+          },
+          "ok": true,
+          "ms": 544,
+          "clientRunId": "agent_datetime_mofozhod_jrrqez"
+        },
+        {
+          "index": 1,
+          "name": "search_signals",
+          "input": {
+            "seedText": "Eight Sleep Pod Singapore cooling smart mattress",
+            "platforms": [
+              "instagram"
+            ],
+            "limit": 8
+          },
+          "output": {
+            "ok": true,
+            "plan": {
+              "seedText": "Eight Sleep Pod Singapore cooling smart mattress",
+              "platforms": [
+                "instagram"
+              ],
+              "targets": [
+                {
+                  "id": "research-instagram-keyword-eight-sleep-pod-singapore",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "eight sleep pod singapore",
+                  "label": "instagram eight sleep pod singapore",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/eightsleeppodsingapore/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "eight-sleep-pod-singapore"
+                  ]
+                }
+              ],
+              "querySummary": "instagram eight sleep pod singapore"
+            },
+            "records": [
+              {
+                "id": "ref_research_instagram_keyword_eight-sleep-pod-singapore",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Eeight%20sleep%20pod%20singapore%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/eightsleeppodsingapore/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/eightsleeppodsingapore/"
+                },
+                "capturedAt": "2026-04-26T11:35:46.399Z",
+                "title": "instagram eight sleep pod singapore",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "eight-sleep-pod-singapore"
+                ],
+                "notes": "creator keyword; keyword eight sleep pod singapore"
+              }
+            ],
+            "scrapedCount": 0,
+            "signalCount": 0,
+            "materializedCount": 1
+          },
+          "ok": true,
+          "ms": 644,
+          "clientRunId": "agent_signals-search_mofozi3h_f82ups"
+        },
+        {
+          "index": 2,
+          "name": "generate_image",
+          "input": {
+            "prompt": "Eight Sleep | Now in Singapore — Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights.\nHero subject: Eight Sleep | Now in Singapore — Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights. (reference vibe: Eight Sleep | Now in Singapore).\nMood: cinematic.\nCompose this image so it remains readable when cropped to any of these aspect ratios: 1:1, 4:5, 9:16, 16:9. The hero subject must stay centered and uncropped in every one.\nReserve the following regions as soft negative space — flat tone, low detail, no clutter — so editable text overlays can be placed there separately:\n- the upper-center region (90% × 18%) for the headline.\n- the lower-center region (90% × 17%) for the caption.\nPrimary subject anchor: the central 64% × 64% region of the frame; this region must survive every crop.\nDo not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.",
+            "aspectRatio": "1:1"
+          },
+          "output": "<stripped>",
+          "ok": true,
+          "ms": 174376,
+          "clientRunId": "agent_image-gen_mofozm5t_b2lohq"
+        }
+      ],
+      "agentFinalText": "{\n  \"caption\": \"Sleep, upgraded lah. The Pod is now in Singapore — personalised cooling & heating for each side of the bed, so you and your partner both wake up recharged. Risk-free for 30 nights.\",\n  \"captionsByLocale\": {\n    \"en-SG\": \"Sleep, upgraded lah. The Pod is now in Singapore — personalised cooling & heating for each side of the bed, so you and your partner both wake up recharged. Risk-free for 30 nights.\",\n    \"zh-Hans-SG\": \"睡眠升级啦！Eight Sleep 智能床垫正式登陆新加坡——左右两侧独立冷暖调控，让你和另一半都一觉到天亮。30 晚无风险试睡，不爱可退。\",\n    \"ms-SG\": \"Tidur, naik taraf lah. The Pod kini di Singapura — penyejuk & pemanas peribadi untuk setiap sisi katil, supaya anda dan pasangan bangun segar. Cuba bebas risiko 30 malam.\",\n    \"ta-SG\": \"தூக்கம், இப்போது அப்கிரேட்! The Pod இப்போது சிங்கப்பூரில் — படுக்கையின் ஒவ்வொரு பக்கத்திற்கும் தனிப்பட்ட குளிரூட்டல் & வெப்பம். 30 இரவுகள் ரிஸ்க்-ஃப்ரீ முயற்சி.\"\n  },\n  \"hashtags\": [\"#EightSleep\",\"#ThePod\",\"#SleepBetterSG\",\"#SmartSleep\",\"#SingaporeWellness\"],\n  \"platform\": \"instagram\",\n  \"whenLocal\": \"2026-04-27T21:00:00+08:00\",\n  \"moodNote\": \"Cinematic dual-tone bedroom calm, premium tech-wellness sanctuary glow\"\n}"
+    }
+  ],
+  "status": "completed",
+  "notified": false,
+  "scheduledPostIds": [
+    "sp_mofp3typ_1"
+  ],
+  "urlIngestion": {
+    "url": "https://www.eightsleep.com/",
+    "finalUrl": "https://www.eightsleep.com/sg/",
+    "title": "Eight Sleep | Now in Singapore",
+    "description": "Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights.",
+    "primaryImage": {
+      "url": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+      "source": "og-image",
+      "width": 1200,
+      "height": 630
+    },
+    "images": [
+      {
+        "url": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+        "source": "og-image",
+        "width": 1200,
+        "height": 630
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1759164387/bedroom-pillows-blanket_reaqt3.png",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769369641/TempElevationSound_Temperature_Metric_o5s50c.jpg",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769171470/TempElevationSound_Elevation_tlbqi3.jpg",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769171471/TempElevationSound_Sound_fckntt.jpg",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_1_vavtxa.jpg",
+        "alt": "Sleep in perfect harmony",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_2_l2gusd.jpg",
+        "alt": "Relief from hot flashes, every night",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_3_n719nn.jpg",
+        "alt": "Optimize every night",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_4_driptf.jpg",
+        "alt": "Finally sleep through the heat",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173301/Sleep_Challenge_5_ri60be.jpg",
+        "alt": "Recover after training",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173301/Sleep_Challenge_6_eheeeq.jpg",
+        "alt": "Less snoring, more sleep",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769180015/pod-5-sleeping-morning-rested-variant_yqunvt.jpg",
+        "alt": "Sleeping Card",
+        "source": "img-tag"
+      }
+    ],
+    "products": [],
+    "bodyExcerpt": "Designed for deep sleep. Personalized to you.\nA sleep system designed for deeper recovery, on any bed\nTemperature\nElevation\nSound\nThe best sleep you've ever had\nEnjoy the Pod at home, and return it for a full refund if you don’t love it",
+    "fetchedAt": "2026-04-26T11:35:42.464Z",
+    "rawHtmlBytes": 1036731
+  }
+}

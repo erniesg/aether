@@ -1,0 +1,75 @@
+{
+  "url": "https://www.eightsleep.com/",
+  "finalUrl": "https://www.eightsleep.com/sg/",
+  "title": "Eight Sleep | Now in Singapore",
+  "description": "Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights.",
+  "primaryImage": {
+    "url": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+    "source": "og-image",
+    "width": 1200,
+    "height": 630
+  },
+  "images": [
+    {
+      "url": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+      "source": "og-image",
+      "width": 1200,
+      "height": 630
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1759164387/bedroom-pillows-blanket_reaqt3.png",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769369641/TempElevationSound_Temperature_Metric_o5s50c.jpg",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769171470/TempElevationSound_Elevation_tlbqi3.jpg",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769171471/TempElevationSound_Sound_fckntt.jpg",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_1_vavtxa.jpg",
+      "alt": "Sleep in perfect harmony",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_2_l2gusd.jpg",
+      "alt": "Relief from hot flashes, every night",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_3_n719nn.jpg",
+      "alt": "Optimize every night",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_4_driptf.jpg",
+      "alt": "Finally sleep through the heat",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769173301/Sleep_Challenge_5_ri60be.jpg",
+      "alt": "Recover after training",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769173301/Sleep_Challenge_6_eheeeq.jpg",
+      "alt": "Less snoring, more sleep",
+      "source": "img-tag"
+    },
+    {
+      "url": "https://www.eightsleep.com/sg/q_80/v1769180015/pod-5-sleeping-morning-rested-variant_yqunvt.jpg",
+      "alt": "Sleeping Card",
+      "source": "img-tag"
+    }
+  ],
+  "products": [],
+  "bodyExcerpt": "Designed for deep sleep. Personalized to you.\nA sleep system designed for deeper recovery, on any bed\nTemperature\nElevation\nSound\nThe best sleep you've ever had\nEnjoy the Pod at home, and return it for a full refund if you don’t love it",
+  "fetchedAt": "2026-04-26T11:29:45.857Z",
+  "rawHtmlBytes": 1036788
+}

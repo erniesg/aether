@@ -1,0 +1,11 @@
+{
+  "trigger": {
+    "kind": "text",
+    "payload": "eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition"
+  },
+  "variationCount": 1,
+  "notifyMode": "auto-post",
+  "concurrency": "sequential",
+  "workspaceId": "ws-eightsleep-smoke",
+  "maxIterationsPerVariation": 4
+}

@@ -1,0 +1,417 @@
+{
+  "ok": true,
+  "campaignId": "ns762kxevcrmj2dcwkrfjjtv3s85k7jf",
+  "variations": [
+    {
+      "index": 1,
+      "status": "ready",
+      "heroImageUrl": "<data:image/png;base64 1508406 chars>",
+      "caption": "Engineered for deeper sleep, lah. The Pod 4 Ultra cools, warms and tracks every breath — wake up like the city's still asleep. ✨",
+      "captionsByLocale": {
+        "en-SG": "Engineered for deeper sleep, lah. The Pod 4 Ultra cools, warms and tracks every breath — wake up like the city's still asleep. ✨",
+        "zh-Hans-SG": "为更深的睡眠而生。Pod 4 Ultra 自动调温、记录每一次呼吸——醒来时,整座城市还在沉睡。✨",
+        "ms-SG": "Direka untuk tidur yang lebih lena. Pod 4 Ultra menyejuk, memanas dan merekod setiap nafas — bangun sebelum kota terjaga. ✨",
+        "ta-SG": "ஆழ்ந்த தூக்கத்திற்காக வடிவமைக்கப்பட்டது. Pod 4 Ultra குளிர்விக்கும், சூடாக்கும், ஒவ்வொரு மூச்சையும் கண்காணிக்கும் — நகரம் விழிப்பதற்கு முன் எழுந்திருங்கள். ✨"
+      },
+      "hashtags": [
+        "#EightSleep",
+        "#Pod4Ultra",
+        "#SleepTech",
+        "#SGLifestyle",
+        "#ScandiInteriors"
+      ],
+      "moodNote": "Hushed chrome dawn, cinematic Scandi calm, editorial sleep luxury",
+      "schedulePlatform": "instagram",
+      "scheduleWhenLocal": "2026-04-27T21:30:00+08:00",
+      "formatCrops": [
+        {
+          "formatId": "1x1",
+          "aspectRatio": "1:1",
+          "w": 1024,
+          "h": 1024,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "fit": "fitted"
+        },
+        {
+          "formatId": "4x5",
+          "aspectRatio": "4:5",
+          "w": 1080,
+          "h": 1350,
+          "crop": {
+            "topLeft": {
+              "x": 0.09999999999999998,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.9,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "9x16",
+          "aspectRatio": "9:16",
+          "w": 1080,
+          "h": 1920,
+          "crop": {
+            "topLeft": {
+              "x": 0.21875,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.78125,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "16x9",
+          "aspectRatio": "16:9",
+          "w": 1920,
+          "h": 1080,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0.21875
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 0.78125
+            }
+          },
+          "fit": "partial"
+        }
+      ],
+      "textOverlays": [
+        {
+          "zone": {
+            "purpose": "headline",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.05,
+              "w": 0.9,
+              "h": 0.18
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "Sleep deeper than the city.",
+            "zh-Hans-SG": "沉睡，比城市更深。",
+            "ms-SG": "Tidur lebih dalam dari kota.",
+            "ta-SG": "நகரத்தை விட ஆழ்ந்த உறக்கம்."
+          },
+          "textAlign": "center"
+        },
+        {
+          "zone": {
+            "purpose": "caption",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.78,
+              "w": 0.9,
+              "h": 0.17
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "Pod 4 Ultra cools, warms, tracks every breath. Wake before the city stirs.",
+            "zh-Hans-SG": "Pod 4 Ultra 自动调温，记录每次呼吸。在城市苏醒之前，先醒来。",
+            "ms-SG": "Pod 4 Ultra menyejuk, memanas, menjejak setiap nafas. Bangun sebelum kota bangkit.",
+            "ta-SG": "Pod 4 Ultra குளிர்விக்கும், சூடேற்றும், ஒவ்வொரு மூச்சையும் கண்காணிக்கும். நகரம் விழிக்கும் முன் எழுந்திரு."
+          },
+          "textAlign": "center"
+        }
+      ],
+      "agentSteps": [
+        {
+          "index": 0,
+          "name": "get_current_datetime",
+          "input": {
+            "timezone": "Asia/Singapore"
+          },
+          "output": {
+            "ok": true,
+            "provider": "local",
+            "nowUtc": "2026-04-26T11:19:11.285Z",
+            "nowLocal": "2026-04-26T19:19:11",
+            "timezone": "Asia/Singapore",
+            "epochMs": 1777202351285
+          },
+          "ok": true,
+          "ms": 618,
+          "clientRunId": "agent_datetime_mofoe6cs_bzf8tm"
+        },
+        {
+          "index": 1,
+          "name": "search_signals",
+          "input": {
+            "seedText": "eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition",
+            "platforms": [
+              "instagram"
+            ],
+            "limit": 8
+          },
+          "output": {
+            "ok": true,
+            "plan": {
+              "seedText": "eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition",
+              "platforms": [
+                "instagram"
+              ],
+              "targets": [
+                {
+                  "id": "research-instagram-keyword-eightsleep-pod-ultra-hero",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "eightsleep pod ultra hero",
+                  "label": "instagram eightsleep pod ultra hero",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/eightsleeppodultrahero/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "eightsleep-pod-ultra-hero"
+                  ]
+                },
+                {
+                  "id": "research-instagram-keyword-premium-sleep-tech-editorial",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "premium sleep tech editorial",
+                  "label": "instagram premium sleep tech editorial",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/premiumsleeptecheditorial/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "premium-sleep-tech-editorial"
+                  ]
+                },
+                {
+                  "id": "research-instagram-keyword-soft-cinematic-morning-light",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "soft cinematic morning light",
+                  "label": "instagram soft cinematic morning light",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/softcinematicmorninglight/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "soft-cinematic-morning-light"
+                  ]
+                },
+                {
+                  "id": "research-instagram-keyword-person-sleeping-serenely",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "person sleeping serenely",
+                  "label": "instagram person sleeping serenely",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/personsleepingserenely/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "person-sleeping-serenely"
+                  ]
+                },
+                {
+                  "id": "research-instagram-keyword-minimalist-scandinavian-aesthetic",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "minimalist scandinavian aesthetic",
+                  "label": "instagram minimalist scandinavian aesthetic",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/minimalistscandinavianaesthetic/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "minimalist-scandinavian-aesthetic"
+                  ]
+                },
+                {
+                  "id": "research-instagram-keyword-ad-grade-composition",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "ad-grade composition",
+                  "label": "instagram ad-grade composition",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/adgradecomposition/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "ad-grade-composition"
+                  ]
+                }
+              ],
+              "querySummary": "instagram eightsleep pod ultra hero · instagram premium sleep tech editorial · instagram soft cinematic morning light · instagram person sleeping serenely"
+            },
+            "records": [
+              {
+                "id": "ref_research_instagram_keyword_eightsleep-pod-ultra-hero",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Eeightsleep%20pod%20ultra%20hero%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/eightsleeppodultrahero/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/eightsleeppodultrahero/"
+                },
+                "capturedAt": "2026-04-26T11:19:12.008Z",
+                "title": "instagram eightsleep pod ultra hero",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "eightsleep-pod-ultra-hero"
+                ],
+                "notes": "creator keyword; keyword eightsleep pod ultra hero"
+              },
+              {
+                "id": "ref_research_instagram_keyword_premium-sleep-tech-editorial",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22234%22%20cy%3D%22222%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Epremium%20sleep%20tech%20editorial%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/premiumsleeptecheditorial/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/premiumsleeptecheditorial/"
+                },
+                "capturedAt": "2026-04-26T11:19:12.008Z",
+                "title": "instagram premium sleep tech editorial",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "premium-sleep-tech-editorial"
+                ],
+                "notes": "creator keyword; keyword premium sleep tech editorial"
+              },
+              {
+                "id": "ref_research_instagram_keyword_soft-cinematic-morning-light",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22298%22%20cy%3D%22254%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Esoft%20cinematic%20morning%20light%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/softcinematicmorninglight/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/softcinematicmorninglight/"
+                },
+                "capturedAt": "2026-04-26T11:19:12.008Z",
+                "title": "instagram soft cinematic morning light",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "soft-cinematic-morning-light"
+                ],
+                "notes": "creator keyword; keyword soft cinematic morning light"
+              },
+              {
+                "id": "ref_research_instagram_keyword_person-sleeping-serenely",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22286%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Eperson%20sleeping%20serenely%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/personsleepingserenely/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/personsleepingserenely/"
+                },
+                "capturedAt": "2026-04-26T11:19:12.008Z",
+                "title": "instagram person sleeping serenely",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "person-sleeping-serenely"
+                ],
+                "notes": "creator keyword; keyword person sleeping serenely"
+              },
+              {
+                "id": "ref_research_instagram_keyword_minimalist-scandinavian-aesthetic",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22234%22%20cy%3D%22190%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Eminimalist%20scandinavian%20aest%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/minimalistscandinavianaesthetic/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/minimalistscandinavianaesthetic/"
+                },
+                "capturedAt": "2026-04-26T11:19:12.008Z",
+                "title": "instagram minimalist scandinavian aesthetic",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "minimalist-scandinavian-aesthetic"
+                ],
+                "notes": "creator keyword; keyword minimalist scandinavian aesthetic"
+              },
+              {
+                "id": "ref_research_instagram_keyword_ad-grade-composition",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22298%22%20cy%3D%22222%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Ead-grade%20composition%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/adgradecomposition/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/adgradecomposition/"
+                },
+                "capturedAt": "2026-04-26T11:19:12.008Z",
+                "title": "instagram ad-grade composition",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "ad-grade-composition"
+                ],
+                "notes": "creator keyword; keyword ad-grade composition"
+              }
+            ],
+            "scrapedCount": 0,
+            "signalCount": 0,
+            "materializedCount": 6
+          },
+          "ok": true,
+          "ms": 635,
+          "clientRunId": "agent_signals-search_mofoe6ty_bq8gm9"
+        },
+        {
+          "index": 2,
+          "name": "generate_image",
+          "input": {
+            "prompt": "eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition\nHero subject: eightsleep pod 4 ultra hero, premium sleep tech editorial — chrome and matte navy bedroom palette, soft cinematic morning light, person sleeping serenely, minimalist Scandinavian aesthetic, ad-grade composition.\nMood: cinematic.\nCompose this image so it remains readable when cropped to any of these aspect ratios: 1:1, 4:5, 9:16, 16:9. The hero subject must stay centered and uncropped in every one.\nReserve the following regions as soft negative space — flat tone, low detail, no clutter — so editable text overlays can be placed there separately:\n- the upper-center region (90% × 18%) for the headline.\n- the lower-center region (90% × 17%) for the caption.\nPrimary subject anchor: the central 64% × 64% region of the frame; this region must survive every crop.\nDo not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.",
+            "aspectRatio": "1:1"
+          },
+          "output": "<stripped>",
+          "ok": true,
+          "ms": 142203,
+          "clientRunId": "agent_image-gen_mofoeasn_8lj6ov"
+        }
+      ],
+      "agentFinalText": "{\n  \"caption\": \"Engineered for deeper sleep, lah. The Pod 4 Ultra cools, warms and tracks every breath — wake up like the city's still asleep. ✨\",\n  \"captionsByLocale\": {\n    \"en-SG\": \"Engineered for deeper sleep, lah. The Pod 4 Ultra cools, warms and tracks every breath — wake up like the city's still asleep. ✨\",\n    \"zh-Hans-SG\": \"为更深的睡眠而生。Pod 4 Ultra 自动调温、记录每一次呼吸——醒来时,整座城市还在沉睡。✨\",\n    \"ms-SG\": \"Direka untuk tidur yang lebih lena. Pod 4 Ultra menyejuk, memanas dan merekod setiap nafas — bangun sebelum kota terjaga. ✨\",\n    \"ta-SG\": \"ஆழ்ந்த தூக்கத்திற்காக வடிவமைக்கப்பட்டது. Pod 4 Ultra குளிர்விக்கும், சூடாக்கும், ஒவ்வொரு மூச்சையும் கண்காணிக்கும் — நகரம் விழிப்பதற்கு முன் எழுந்திருங்கள். ✨\"\n  },\n  \"hashtags\": [\"#EightSleep\",\"#Pod4Ultra\",\"#SleepTech\",\"#SGLifestyle\",\"#ScandiInteriors\"],\n  \"platform\": \"instagram\",\n  \"whenLocal\": \"2026-04-27T21:30:00+08:00\",\n  \"moodNote\": \"Hushed chrome dawn, cinematic Scandi calm, editorial sleep luxury\"\n}"
+    }
+  ],
+  "status": "completed",
+  "notified": false,
+  "scheduledPostIds": [
+    "sp_mofoht40_1"
+  ]
+}
