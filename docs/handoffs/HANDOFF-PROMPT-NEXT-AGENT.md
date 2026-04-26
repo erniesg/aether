@@ -67,10 +67,37 @@ head") instead of the generic "person, jacket, background", but the
 one-shot path is fully functional alone.
 
 User wants to A/B compare:
-- **One-shot**: `/api/segment` with a generic prompt like
-  `'subject, foreground, background, text, brand'` — fast, no extra LLM call.
-- **Two-stage**: Claude 4.7 vision describes the hero first → SAM3 with the
-  vision-derived prompts → richer per-subject masks. Adds ~$0.005 + 1s.
+- **One-shot**: `/api/segment` with a STATIC comprehensive prompt list
+  that targets the SAME kinds we need from the two-stage path. Send each
+  prompt in parallel (or via a single segment route extension), tag each
+  returned mask with its prompt's kind:
+  ```
+  ONE_SHOT_PROMPTS = [
+    { prompt: 'face',              kind: 'face' },
+    { prompt: 'person',            kind: 'subject' },
+    { prompt: 'jacket',            kind: 'apparel' },
+    { prompt: 'shirt',             kind: 'apparel' },
+    { prompt: 'pants',             kind: 'apparel' },
+    { prompt: 'shoes',             kind: 'apparel' },
+    { prompt: 'jewelry',           kind: 'accessory' },  // group
+    { prompt: 'bag, accessory',    kind: 'accessory' },
+    { prompt: 'product',           kind: 'product' },
+    { prompt: 'brand logo, mark',  kind: 'logo' },
+    { prompt: 'text, typography',  kind: 'logo' },       // baked-on text = logo-class safety
+    { prompt: 'background',        kind: 'other' },
+  ];
+  ```
+  SAM3 returns no mask when a prompt isn't found — empty results are
+  fine. Fast (no LLM call) and broad coverage; loses per-image semantic
+  grouping (earrings + necklace stay separate unless 'jewelry' catches
+  them as one).
+- **Two-stage**: Claude 4.7 vision describes the hero first → emits the
+  exact component list + grouping decisions for THIS image → SAM3 prompted
+  with those derived names. More accurate per-image grouping ("the wet
+  white shirt" vs generic "shirt"); adds ~$0.005 + 1s vision call.
+
+Both paths produce the SAME output shape — the kind-tagged mask array
+the planner consumes. The A/B is just about prompt quality.
 
 **Granularity rule (per Ernie 2026-04-26):**
 - Each foreground component gets its OWN mask — not one bulk "foreground"
@@ -124,9 +151,9 @@ across a face, never let a hashtag overlap a brand mark.
   parallel via Promise.allSettled and stores both mask sets on the
   variation:
     - `formatCrops` (existing)
-    - `masksOneShot` — SAM3 with a fixed generic prompt
-      ("person, jacket, accessory, product, brand, background").
-      Coarse but cheap.
+    - `masksOneShot` — array of `{ label, kind, bbox, conf }` from
+      running every entry of `ONE_SHOT_PROMPTS` in parallel. Same shape
+      as `masksVisionGuided`, just sourced from the static prompt list.
     - `masksVisionGuided` — array of `{ label, kind: 'face'|'product'|'logo'|'other',
       bbox, conf, isGroup, groupMembers? }`, one entry per Claude-proposed
       component or grouped small-object cluster. The `kind` field maps
