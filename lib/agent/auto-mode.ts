@@ -16,10 +16,6 @@ import {
   cropHeroToFormats,
   type CroppedFormat,
 } from '@/lib/canvas/cropToFormat';
-import {
-  segmentationToForbiddenRegions,
-  type SegmentMaskJson,
-} from '@/lib/segment/maskToForbiddenRegions';
 import { applyTextOverlay } from './text-apply';
 import type { ProposedTextOverlay } from './text-apply';
 import type {
@@ -29,6 +25,16 @@ import type {
 } from '@/lib/types/semantic-component';
 import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
 import { buildLayoutAwarePrompt } from './prompt/layout-aware';
+import {
+  ONE_SHOT_PROMPTS,
+  segmentSubjects,
+  segmentSubjectsToForbiddenRegions,
+  type SegmentSubjectsResult,
+} from './segment-subjects';
+import {
+  describeImage,
+  descriptionToSegmentPrompts,
+} from './describe-image';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -153,6 +159,13 @@ export interface AutoModeVariationResult {
   /** Non-fatal warnings from the text-overlay planner ('no-safe-zone-found'
    *  when every zone overlaps a forbidden region). */
   textOverlayWarnings?: string[];
+  /** SAM3 masks from the static one-shot prompt list (slice #2). Persisted
+   *  for A/B inspection alongside masksVisionGuided. */
+  masksOneShot?: SegmentSubjectsResult;
+  /** SAM3 masks from Claude vision-derived prompts (slice #2). When both
+   *  paths succeed, vision-guided is the primary input to the text-overlay
+   *  planner; one-shot is the comparison reference. */
+  masksVisionGuided?: SegmentSubjectsResult;
   agentSteps: MultiAgentToolStep[];
   agentFinalText: string;
   error?: string;
@@ -435,33 +448,55 @@ function isDataUrl(url: string | undefined): boolean {
   return typeof url === 'string' && url.startsWith('data:');
 }
 
-async function runSegmentationOnHero(input: {
-  heroUrl: string;
-  baseUrl: string;
-  width: number;
-  height: number;
-}): Promise<SegmentMaskJson | null> {
-  // SAM3 (Modal) fetches the URL server-side. Data URLs are not fetchable
-  // from there, so skip segmentation when the hero comes back as inline
-  // base64. The text-overlay planner still runs without forbidden regions.
-  if (isDataUrl(input.heroUrl)) return null;
+/**
+ * Segmentation A/B paths (slice #2). Both run in parallel via
+ * Promise.allSettled inside `runPostHeroPipeline`. The fast / one-shot path
+ * has no LLM dependency — pure SAM3 calls. The vision-guided path adds one
+ * Claude vision call to derive per-image prompts; falls through to null if
+ * ANTHROPIC_API_KEY is absent or the vision call fails.
+ *
+ * Both produce the SAME shape (`SegmentSubjectsResult`) so the consumer
+ * (text-overlay planner) is path-agnostic.
+ */
+async function runOneShotSegmentationPath(
+  heroUrl: string,
+  baseUrl: string,
+  width: number,
+  height: number
+): Promise<SegmentSubjectsResult | null> {
+  if (isDataUrl(heroUrl)) return null;
   try {
-    const r = await fetch(`${input.baseUrl}/api/segment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceUrl: input.heroUrl,
-        mode: 'unmask',
-        width: input.width,
-        height: input.height,
-        prompt: 'faces, products, brand logos, text',
-      }),
+    return await segmentSubjects({
+      imageUrl: heroUrl,
+      prompts: ONE_SHOT_PROMPTS,
+      baseUrl,
+      width,
+      height,
     });
-    if (!r.ok) return null;
-    const json = (await r.json()) as Record<string, unknown>;
-    const raw = json.raw as SegmentMaskJson | undefined;
-    if (!raw || !Array.isArray(raw.masks)) return null;
-    return raw;
+  } catch {
+    return null;
+  }
+}
+
+async function runVisionGuidedSegmentationPath(
+  heroUrl: string,
+  baseUrl: string,
+  width: number,
+  height: number
+): Promise<SegmentSubjectsResult | null> {
+  if (isDataUrl(heroUrl)) return null;
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  try {
+    const desc = await describeImage({ imageUrl: heroUrl });
+    const prompts = descriptionToSegmentPrompts(desc);
+    if (prompts.length === 0) return null;
+    return await segmentSubjects({
+      imageUrl: heroUrl,
+      prompts,
+      baseUrl,
+      width,
+      height,
+    });
   } catch {
     return null;
   }
@@ -471,6 +506,8 @@ interface PostHeroOutcome {
   formatCrops: AutoModeFormatCrop[];
   textOverlays?: ProposedTextOverlay[];
   textOverlayWarnings?: string[];
+  masksOneShot?: SegmentSubjectsResult;
+  masksVisionGuided?: SegmentSubjectsResult;
 }
 
 async function runPostHeroPipeline(input: {
@@ -511,14 +548,44 @@ async function runPostHeroPipeline(input: {
     fit: c.fit,
   }));
 
-  // 2. Segmentation → forbiddenRegions (face / brand / logo masks).
-  const masks = await runSegmentationOnHero({
-    heroUrl: input.heroUrl,
-    baseUrl: input.baseUrl,
-    width: heroAsset.width,
-    height: heroAsset.height,
-  });
-  const forbiddenRegions = masks ? segmentationToForbiddenRegions(masks) : [];
+  // 2. Segmentation A/B — run BOTH paths in parallel. Either path failing
+  // is non-fatal; the other still feeds the planner. When both succeed,
+  // vision-guided wins (richer per-image prompts → tighter masks).
+  const [oneShotSettled, visionGuidedSettled] = await Promise.allSettled([
+    runOneShotSegmentationPath(
+      input.heroUrl,
+      input.baseUrl,
+      heroAsset.width,
+      heroAsset.height
+    ),
+    runVisionGuidedSegmentationPath(
+      input.heroUrl,
+      input.baseUrl,
+      heroAsset.width,
+      heroAsset.height
+    ),
+  ]);
+  const masksOneShot =
+    oneShotSettled.status === 'fulfilled' && oneShotSettled.value
+      ? oneShotSettled.value
+      : undefined;
+  const masksVisionGuided =
+    visionGuidedSettled.status === 'fulfilled' && visionGuidedSettled.value
+      ? visionGuidedSettled.value
+      : undefined;
+
+  // Pick the primary input for the text-overlay planner. Vision-guided
+  // wins when present AND it surfaced at least one mask; else fall back
+  // to one-shot; else empty (planner runs without forbidden regions).
+  const primaryMasks =
+    masksVisionGuided && masksVisionGuided.masks.length > 0
+      ? masksVisionGuided
+      : masksOneShot && masksOneShot.masks.length > 0
+        ? masksOneShot
+        : null;
+  const forbiddenRegions = primaryMasks
+    ? segmentSubjectsToForbiddenRegions(primaryMasks)
+    : [];
 
   // 3. Text-overlay planner — multilingual + adaptive placement.
   const component = buildAutoModeComponent({
@@ -542,9 +609,11 @@ async function runPostHeroPipeline(input: {
       formatCrops,
       textOverlays: overlay.layers,
       textOverlayWarnings: overlay.warnings,
+      masksOneShot,
+      masksVisionGuided,
     };
   } catch {
-    return { formatCrops };
+    return { formatCrops, masksOneShot, masksVisionGuided };
   }
 }
 
@@ -610,6 +679,8 @@ async function runOneVariation(
     formatCrops: postHero.formatCrops,
     textOverlays: postHero.textOverlays,
     textOverlayWarnings: postHero.textOverlayWarnings,
+    masksOneShot: postHero.masksOneShot,
+    masksVisionGuided: postHero.masksVisionGuided,
     agentSteps: agentStepsForVariation,
     agentFinalText,
     error: variationError,
@@ -726,6 +797,8 @@ async function persistVariation(
     schedulePlatform: variation.schedulePlatform,
     scheduleWhenLocal: variation.scheduleWhenLocal,
     formatCrops: variation.formatCrops,
+    masksOneShot: variation.masksOneShot,
+    masksVisionGuided: variation.masksVisionGuided,
     agentRunIds,
     error: variation.error,
   });
