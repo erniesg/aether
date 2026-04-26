@@ -1,19 +1,24 @@
 /**
- * One-off: compose the eightsleep smoke evidence into a final
- * multilingual mockup (hero + headline + caption per locale × per format).
+ * One-off: compose the auto-mode evidence into multi-format × multilingual
+ * mockups so Ernie can see what the demo produces end to end.
  *
- * Reads: docs/handoffs/auto-mode-evidence/eightsleep-smoke-2026-04-26/
- *   url-hero-3.png       — the rendered hero at 1024×1024
- *   text-overlays.json   — { zone: bbox, content: { 'en-SG':…, 'zh-Hans-SG':…, 'ms-SG':…, 'ta-SG':… } }[]
- *   format-crops.json    — [{ aspectRatio, w, h, crop:{topLeft, bottomRight}, fit }]
+ * Reads:
+ *   $EVIDENCE/<HERO_FILE>             (defaults: url-hero-3.png)
+ *   $EVIDENCE/text-overlays.json      (per-zone content × 4 SG locales)
  *
- * Writes: docs/handoffs/auto-mode-evidence/eightsleep-smoke-2026-04-26/composed/
- *   1x1-en-SG.png … 1x1-ta-SG.png   (composed at native 1024² for legibility)
+ * Writes (16 + 1 grid):
+ *   $EVIDENCE/composed/
+ *     1x1-{en|zh|ms|ta}-SG.png        — square (1024×1024)
+ *     4x5-{...}.png                   — IG portrait (1080×1350)
+ *     9x16-{...}.png                  — Story / Reel (1080×1920)
+ *     16x9-{...}.png                  — banner (1920×1080)
+ *     all-formats-grid.png            — 4×4 atlas (formats × locales)
  *
- * The smoke's text overlay JSON is normalized — it doesn't bake characters
- * onto pixels. This script does that via SVG text + sharp composite, so
- * Ernie can SEE what each locale variant actually looks like instead of
- * just reading the JSON.
+ * For non-1:1 formats the script crops the hero center-square and rescales
+ * to the target aspect, then places text bands at consistent top/bottom
+ * positions for the cropped frame. Slice #5 + slice #3 (slow tier) replace
+ * this with proper canvas-native rendering + reposition; the script is
+ * smoke evidence only.
  */
 
 import { promises as fs } from 'node:fs';
@@ -21,8 +26,6 @@ import path from 'node:path';
 import sharp from 'sharp';
 
 const ROOT = '/Users/erniesg/code/erniesg/aether';
-// Evidence dir + hero file picked via env override so the script can be
-// re-run against any smoke folder.
 const EVIDENCE = path.join(
   ROOT,
   process.env.AETHER_EVIDENCE_DIR ??
@@ -35,21 +38,22 @@ const LOCALES = ['en-SG', 'zh-Hans-SG', 'ms-SG', 'ta-SG'];
 
 // Per-locale font fallbacks — system fonts on macOS that handle each script.
 const FONT_FALLBACKS = {
-  'en-SG':
-    "'Helvetica Neue','Helvetica',Arial,sans-serif",
+  'en-SG': "'Helvetica Neue','Helvetica',Arial,sans-serif",
   'zh-Hans-SG':
     "'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif",
-  'ms-SG':
-    "'Helvetica Neue','Helvetica',Arial,sans-serif",
-  'ta-SG':
-    "'Tamil MN','Latha','Noto Sans Tamil',sans-serif",
+  'ms-SG': "'Helvetica Neue','Helvetica',Arial,sans-serif",
+  'ta-SG': "'Tamil MN','Latha','Noto Sans Tamil',sans-serif",
 };
 
-const HERO_W = 1024;
-const HERO_H = 1024;
 const TEXT_FILL = '#ffffff';
 const TEXT_STROKE = '#000000';
-const SHADOW_BLUR = 6;
+
+const FORMATS = [
+  { id: '1x1', w: 1024, h: 1024, label: 'Square (IG feed)' },
+  { id: '4x5', w: 1080, h: 1350, label: 'IG portrait' },
+  { id: '9x16', w: 1080, h: 1920, label: 'Story / Reel' },
+  { id: '16x9', w: 1920, h: 1080, label: 'Banner' },
+];
 
 function escapeXml(s) {
   return s
@@ -60,8 +64,7 @@ function escapeXml(s) {
     .replaceAll("'", '&apos;');
 }
 
-/** Wrap text into N lines that fit within `widthChars` characters. */
-function wrap(text, widthChars) {
+function wrapWord(text, widthChars) {
   const words = text.split(/\s+/);
   const lines = [];
   let current = '';
@@ -77,73 +80,6 @@ function wrap(text, widthChars) {
   return lines;
 }
 
-/**
- * No band, no rect — just legible text. The canvas-native text overlay
- * tool (slice #5, lib/text-overlay) handles contrast-awareness + per-shape
- * editability properly via tldraw text shapes. This compositor uses a
- * crisp white fill + thin black stroke + drop shadow filter so the text
- * reads against either dark or bright backgrounds without slapping a
- * blanket bg behind every band.
- */
-function buildOverlaySvg({ width, height, layers, locale }) {
-  const fontStack = FONT_FALLBACKS[locale] ?? FONT_FALLBACKS['en-SG'];
-  const els = [];
-  for (const layer of layers) {
-    const text = layer.content?.[locale];
-    if (!text) continue;
-    const x = layer.zone.bbox.x * width;
-    const y = layer.zone.bbox.y * height;
-    const w = layer.zone.bbox.w * width;
-    const h = layer.zone.bbox.h * height;
-
-    const purpose = layer.zone.purpose;
-    // CJK glyphs render about 1.0 em wide each. Latin/Tamil are narrower
-    // (~0.55 em average). Use locale-aware width budgets so wrapping fits
-    // the safe zone without overflow.
-    const isCjk = locale === 'zh-Hans-SG';
-    const fontSize = purpose === 'headline' ? 52 : 28;
-    const emW = isCjk ? 1.0 : 0.55;
-    const lineHeight = fontSize * (isCjk ? 1.35 : 1.22);
-    const widthChars = Math.max(8, Math.floor(w / (fontSize * emW)) - 1);
-    const lines = isCjk ? wrapCjk(text, widthChars) : wrap(text, widthChars);
-    // Center vertically inside the safe zone.
-    const totalH = lines.length * lineHeight;
-    const startY = y + (h - totalH) / 2 + fontSize * 0.95;
-    const cx = x + w / 2;
-
-    lines.forEach((line, i) => {
-      const ly = startY + i * lineHeight;
-      els.push(
-        `<text x="${cx.toFixed(1)}" y="${ly.toFixed(1)}" ` +
-          `font-family="${fontStack}" ` +
-          `font-size="${fontSize}" font-weight="700" ` +
-          `fill="${TEXT_FILL}" stroke="${TEXT_STROKE}" stroke-width="2.5" ` +
-          `paint-order="stroke fill" stroke-linejoin="round" ` +
-          `text-anchor="middle" filter="url(#textshadow)">${escapeXml(line)}</text>`
-      );
-    });
-  }
-  return `
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <defs>
-    <filter id="textshadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.55"/>
-    </filter>
-  </defs>
-  ${els.join('\n  ')}
-</svg>`.trim();
-}
-
-/** Word-boundary wrap for languages with whitespace. */
-function wrapWord(text, widthChars) {
-  return wrap(text, widthChars);
-}
-
-/**
- * CJK wrap: glyph-by-glyph with a respect for ASCII tokens (e.g. "Pod 4
- * Ultra") so we don't break mid-word. Empirical heuristic — the canvas
- * tool will replace this with a real text-measurer + line-breaker.
- */
 function wrapCjk(text, widthChars) {
   const tokens = [];
   let buf = '';
@@ -178,6 +114,112 @@ function wrapCjk(text, widthChars) {
   return lines;
 }
 
+/**
+ * Build a per-format SVG that places headline at top 8% / caption at
+ * bottom 8% of the *cropped* frame. The exact font size scales with
+ * frame area so text is roughly the same visual prominence across formats.
+ */
+function buildFormatSvg({ format, layers, locale }) {
+  const fontStack = FONT_FALLBACKS[locale] ?? FONT_FALLBACKS['en-SG'];
+  const isCjk = locale === 'zh-Hans-SG';
+  const els = [];
+
+  // Pull the headline + caption per locale; layout-instruction bbox is
+  // ignored here (we re-position for the cropped format).
+  const headline = layers.find((l) => l.zone.purpose === 'headline')?.content?.[locale];
+  const caption = layers.find((l) => l.zone.purpose === 'caption')?.content?.[locale];
+
+  // Frame-relative font size so 1080×1350 and 1920×1080 both feel right.
+  // Tuned empirically; ~5.6% of frame height for headline.
+  const headlineFs = Math.round(format.h * 0.056);
+  const captionFs = Math.round(format.h * 0.034);
+  const sidePad = Math.round(format.w * 0.05);
+  const innerW = format.w - 2 * sidePad;
+  const emW = isCjk ? 1.0 : 0.55;
+
+  if (headline) {
+    const widthChars = Math.max(8, Math.floor(innerW / (headlineFs * emW)) - 1);
+    const lines = isCjk
+      ? wrapCjk(headline, widthChars)
+      : wrapWord(headline, widthChars);
+    const lineHeight = headlineFs * (isCjk ? 1.35 : 1.22);
+    const startY = Math.round(format.h * 0.04) + headlineFs;
+    const cx = format.w / 2;
+    lines.forEach((line, i) => {
+      els.push(
+        `<text x="${cx}" y="${startY + i * lineHeight}" ` +
+          `font-family="${fontStack}" ` +
+          `font-size="${headlineFs}" font-weight="700" ` +
+          `fill="${TEXT_FILL}" stroke="${TEXT_STROKE}" stroke-width="${Math.max(2, headlineFs * 0.045)}" ` +
+          `paint-order="stroke fill" stroke-linejoin="round" ` +
+          `text-anchor="middle" filter="url(#textshadow)">${escapeXml(line)}</text>`
+      );
+    });
+  }
+
+  if (caption) {
+    const widthChars = Math.max(12, Math.floor(innerW / (captionFs * emW)) - 1);
+    const lines = isCjk
+      ? wrapCjk(caption, widthChars)
+      : wrapWord(caption, widthChars);
+    const lineHeight = captionFs * (isCjk ? 1.4 : 1.3);
+    const totalH = lines.length * lineHeight;
+    const startY = format.h - Math.round(format.h * 0.05) - totalH + captionFs * 0.85;
+    const cx = format.w / 2;
+    lines.forEach((line, i) => {
+      els.push(
+        `<text x="${cx}" y="${startY + i * lineHeight}" ` +
+          `font-family="${fontStack}" ` +
+          `font-size="${captionFs}" font-weight="600" ` +
+          `fill="${TEXT_FILL}" stroke="${TEXT_STROKE}" stroke-width="${Math.max(1.5, captionFs * 0.05)}" ` +
+          `paint-order="stroke fill" stroke-linejoin="round" ` +
+          `text-anchor="middle" filter="url(#textshadow)">${escapeXml(line)}</text>`
+      );
+    });
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${format.w}" height="${format.h}" viewBox="0 0 ${format.w} ${format.h}">
+  <defs>
+    <filter id="textshadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+  ${els.join('\n  ')}
+</svg>`;
+}
+
+/**
+ * Crop the source hero to the target format's aspect ratio (centered),
+ * then resize to format dimensions.
+ */
+async function cropAndResize(heroBytes, format) {
+  const meta = await sharp(heroBytes).metadata();
+  const srcW = meta.width ?? 1024;
+  const srcH = meta.height ?? 1024;
+  const targetRatio = format.w / format.h;
+  const srcRatio = srcW / srcH;
+
+  let cropW, cropH, cropX, cropY;
+  if (srcRatio > targetRatio) {
+    // source wider than target → crop horizontally
+    cropH = srcH;
+    cropW = Math.round(srcH * targetRatio);
+    cropX = Math.round((srcW - cropW) / 2);
+    cropY = 0;
+  } else {
+    // source taller than target → crop vertically
+    cropW = srcW;
+    cropH = Math.round(srcW / targetRatio);
+    cropX = 0;
+    cropY = Math.round((srcH - cropH) / 2);
+  }
+
+  return sharp(heroBytes)
+    .extract({ left: cropX, top: cropY, width: cropW, height: cropH })
+    .resize(format.w, format.h)
+    .toBuffer();
+}
+
 async function main() {
   const heroPath = path.join(EVIDENCE, HERO_FILE);
   const textOverlaysPath = path.join(EVIDENCE, 'text-overlays.json');
@@ -186,63 +228,92 @@ async function main() {
   const heroBytes = await fs.readFile(heroPath);
   const layers = JSON.parse(await fs.readFile(textOverlaysPath, 'utf8'));
 
-  for (const locale of LOCALES) {
-    const svg = buildOverlaySvg({
-      width: HERO_W,
-      height: HERO_H,
-      layers,
-      locale,
-    });
-    const out = path.join(OUT_DIR, `1x1-${locale}.png`);
-    await sharp(heroBytes)
-      .resize(HERO_W, HERO_H)
-      .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
-      .png()
-      .toFile(out);
-    const stat = await fs.stat(out);
-    console.log(
-      `wrote ${path.relative(ROOT, out)} (${(stat.size / 1024).toFixed(0)}KB)`
-    );
+  // For each format × locale, crop hero + composite SVG.
+  for (const format of FORMATS) {
+    const cropped = await cropAndResize(heroBytes, format);
+    for (const locale of LOCALES) {
+      const svg = buildFormatSvg({ format, layers, locale });
+      const out = path.join(OUT_DIR, `${format.id}-${locale}.png`);
+      await sharp(cropped)
+        .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+        .png()
+        .toFile(out);
+      const stat = await fs.stat(out);
+      console.log(
+        `wrote ${path.relative(ROOT, out)} · ${format.w}×${format.h} · ${(stat.size / 1024).toFixed(0)}KB`
+      );
+    }
   }
 
-  // 2x2 grid for at-a-glance comparison — read the per-locale PNGs we
-  // just wrote and tile them with locale labels.
-  const tileW = 512;
-  const tileH = 512;
+  // Atlas: 4 formats × 4 locales = 16 thumbs in a 4×4 grid.
+  // Tile size constant — 1:1 frames stay square; portrait/landscape
+  // letterbox into the same tile so the atlas is uniform.
+  const tile = 380;
   const tiles = [];
-  for (const locale of LOCALES) {
-    const localePng = await fs.readFile(path.join(OUT_DIR, `1x1-${locale}.png`));
-    const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="56">
-  <rect x="0" y="0" width="240" height="56" fill="black" opacity="0.65" rx="6"/>
-  <text x="120" y="38" font-family="Menlo,Consolas,monospace" font-size="32" font-weight="700"
-        fill="white" text-anchor="middle">${locale}</text>
+  for (const format of FORMATS) {
+    for (const locale of LOCALES) {
+      const png = await fs.readFile(
+        path.join(OUT_DIR, `${format.id}-${locale}.png`)
+      );
+      const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tile}" height="56">
+  <rect x="0" y="0" width="${tile}" height="56" fill="black" opacity="0.65"/>
+  <text x="${tile / 2}" y="38" font-family="Menlo,Consolas,monospace" font-size="22" font-weight="700"
+        fill="white" text-anchor="middle">${format.id} · ${locale}</text>
 </svg>`.trim();
-    const tile = await sharp(localePng)
-      .resize(tileW, tileH)
-      .composite([{ input: Buffer.from(labelSvg), top: 8, left: 8 }])
-      .toBuffer();
-    tiles.push(tile);
+      const fitted = await sharp({
+        create: {
+          width: tile,
+          height: tile,
+          channels: 3,
+          background: { r: 16, g: 16, b: 16 },
+        },
+      })
+        .composite([
+          {
+            input: await sharp(png)
+              .resize({
+                width: tile,
+                height: tile,
+                fit: 'inside',
+                background: { r: 16, g: 16, b: 16 },
+              })
+              .toBuffer(),
+            gravity: 'center',
+          },
+          { input: Buffer.from(labelSvg), top: 0, left: 0 },
+        ])
+        .png()
+        .toBuffer();
+      tiles.push(fitted);
+    }
   }
 
-  const grid = await sharp({
+  // 4 rows × 4 columns: rows = formats, columns = locales.
+  const cols = LOCALES.length;
+  const rows = FORMATS.length;
+  const composites = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      composites.push({
+        input: tiles[r * cols + c],
+        top: r * tile,
+        left: c * tile,
+      });
+    }
+  }
+  await sharp({
     create: {
-      width: tileW * 2,
-      height: tileH * 2,
+      width: cols * tile,
+      height: rows * tile,
       channels: 3,
       background: { r: 16, g: 16, b: 16 },
     },
   })
-    .composite([
-      { input: tiles[0], top: 0, left: 0 },
-      { input: tiles[1], top: 0, left: tileW },
-      { input: tiles[2], top: tileH, left: 0 },
-      { input: tiles[3], top: tileH, left: tileW },
-    ])
+    .composite(composites)
     .png()
-    .toFile(path.join(OUT_DIR, 'multilingual-grid-1x1.png'));
-
+    .toFile(path.join(OUT_DIR, 'all-formats-grid.png'));
   console.log(
-    `wrote ${path.relative(ROOT, path.join(OUT_DIR, 'multilingual-grid-1x1.png'))}`
+    `wrote ${path.relative(ROOT, path.join(OUT_DIR, 'all-formats-grid.png'))} · ${cols * tile}×${rows * tile}`
   );
 }
 
