@@ -1,0 +1,126 @@
+{
+    "ok": true,
+    "campaign": {
+        "id": "ns76dv6w3xza1by5aq6nsnmfb185kfwt",
+        "triggerKind": "text",
+        "triggerPayload": "IKEA sustainable furniture",
+        "variationCount": 1,
+        "notifyMode": "notify",
+        "status": "completed",
+        "startedAt": 1777209512670,
+        "finishedAt": 1777209795143
+    },
+    "variations": [
+        {
+            "id": "nx70yzaef4t5q3vh8tpjnqzyjx85j688",
+            "index": 1,
+            "status": "ready",
+            "heroImageUrl": "https://oceanic-dolphin-808.convex.cloud/api/storage/499ef84a-3c66-4ed6-9552-591b8b02cbf1",
+            "caption": "Live softer, live greener \u2014 IKEA's sustainable pieces bring warm, recycled materials into your HDB without the price tag. Small swaps, big difference \ud83c\udf3f",
+            "hashtags": [
+                "#IKEASG",
+                "#SustainableLiving",
+                "#HDBHome",
+                "#EcoFurniture",
+                "#ScandiStyle"
+            ],
+            "moodNote": "Warm cinematic Scandinavian calm with earthy recycled material textures",
+            "schedulePlatform": "instagram",
+            "scheduleWhenLocal": "2026-04-27T20:00:00+08:00",
+            "agentSteps": [
+                {
+                    "clientRunId": "agent_datetime_mofsnqvf_5vxd1z",
+                    "name": "datetime",
+                    "ok": true,
+                    "ms": 1,
+                    "ledger": {
+                        "entryRef": {
+                            "id": "datetime",
+                            "kind": "tool",
+                            "version": 1
+                        },
+                        "finishedAt": 1777209516271,
+                        "id": "agent_datetime_mofsnqvf_5vxd1z",
+                        "latencyMs": 1,
+                        "model": "system-clock",
+                        "prompt": "{\"timezone\":\"Asia/Singapore\"}",
+                        "provider": "local",
+                        "startedAt": 1777209515979,
+                        "status": "ok",
+                        "step": "done",
+                        "tool": "datetime"
+                    }
+                },
+                {
+                    "clientRunId": "agent_signals-search_mofsnraw_lp5h0b",
+                    "name": "signals-search",
+                    "ok": true,
+                    "ms": 234,
+                    "ledger": {
+                        "entryRef": {
+                            "id": "signals-search",
+                            "kind": "tool",
+                            "version": 1
+                        },
+                        "finishedAt": 1777209517033,
+                        "id": "agent_signals-search_mofsnraw_lp5h0b",
+                        "latencyMs": 234,
+                        "model": "signals-research",
+                        "prompt": "{\"seedText\":\"IKEA sustainable furniture\",\"platforms\":[\"instagram\"],\"limit\":8}",
+                        "provider": "multi",
+                        "startedAt": 1777209516536,
+                        "status": "ok",
+                        "step": "done",
+                        "tool": "signals-search"
+                    }
+                },
+                {
+                    "clientRunId": "agent_image-gen_mofsnunq_c0yr4u",
+                    "name": "image-gen",
+                    "ok": true,
+                    "ms": 231,
+                    "ledger": {
+                        "entryRef": {
+                            "id": "image-gen",
+                            "kind": "tool",
+                            "version": 1
+                        },
+                        "finishedAt": 1777209748652,
+                        "id": "agent_image-gen_mofsnunq_c0yr4u",
+                        "latencyMs": 231,
+                        "model": "gpt-image-2",
+                        "prompt": "{\"prompt\":\"IKEA sustainable furniture\\nHero subject: IKEA sustainable furniture.\\nMood: cinematic.\\nCompose this image so it remains readable when cropped to any of these aspect ratios: 1:1, 4:5, 9:16, 16:9. The hero subject must stay centered and uncropped in every one.\\nReserve the following regions as soft negative space \u2014 flat tone, low detail, no clutter \u2014 so editable text overlays can be placed there separately:\\n- the upper-center region (90% \u00d7 18%) for the headline.\\n- the lower-center region (90% \u00d7 17%) for the caption.\\nPrimary subject anchor: the central 64% \u00d7 64% region of the frame; this region must survive every crop.\\nDo not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.\",\"aspectRatio\":\"1:1\"}",
+                        "provider": "openai",
+                        "startedAt": 1777209520886,
+                        "status": "ok",
+                        "step": "done",
+                        "tool": "image-gen"
+                    }
+                }
+            ],
+            "startedAt": 1777209794769,
+            "finishedAt": 1777209794769
+        }
+    ],
+    "scheduledPosts": [
+        {
+            "id": "mx7ds5455s4vqz1x5g78v1tyds85j66m",
+            "platform": "instagram",
+            "scheduledAt": "2026-04-27T21:30:00+08:00",
+            "mediaUrls": [
+                "https://oceanic-dolphin-808.convex.cloud/api/storage/3442e163-d7c3-414b-91cd-eaf123440a1f"
+            ],
+            "caption": "Sleep cooler, wake sharper lah. The Pod tunes each side of your bed \u2014 personalised cooling, heating and sleep tracking, now in Singapore. 30 nights risk-free.",
+            "hashtags": [
+                "#EightSleep",
+                "#ThePod",
+                "#SleepBetter",
+                "#SGWellness",
+                "#SmartHomeSG"
+            ],
+            "status": "scheduled",
+            "provider": "preview"
+        }
+    ],
+    "lapDataUnavailable": true
+}
