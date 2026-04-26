@@ -417,7 +417,19 @@ describe('runAutoMode · orchestration', () => {
       await new Promise((r) => setTimeout(r, delay));
       return {
         finalText: JSON.stringify({ moodNote: `parallel-${idx}` }),
-        steps: [],
+        // Include a successful generate_image step so the variation has a
+        // hero and is therefore marked 'ready' (a hero-less variation is
+        // 'failed' under the post-Apr-26 status rule).
+        steps: [
+          {
+            index: 0,
+            name: 'generate_image',
+            input: {},
+            ok: true,
+            ms: 5,
+            output: { result: { images: [{ url: `https://cdn/p${idx}.png` }] } },
+          },
+        ],
         iterations: 1,
         stopReason: 'end_turn',
       };

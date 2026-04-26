@@ -138,7 +138,8 @@ describe('openai adapter · contract', () => {
       .catch((e) => e);
 
     expect(err).toBeInstanceOf(ImageGenError);
-    expect(String(err)).toMatch(/timed out after 120s/);
+    // Default timeout is 240s; OPENAI_IMAGE_TIMEOUT_MS env can override.
+    expect(String(err)).toMatch(/timed out after \d+s/);
   });
 
   it('throws ImageGenError when response has no images', async () => {
