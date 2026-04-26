@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
   const resolvePublisher = vi.fn();
   const segmentSubjects = vi.fn();
   const describeImage = vi.fn();
+  const fetchUrlIngestion = vi.fn();
   return {
     runMultiAgent,
     startCampaign,
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => {
     resolvePublisher,
     segmentSubjects,
     describeImage,
+    fetchUrlIngestion,
   };
 });
 
@@ -77,6 +79,16 @@ vi.mock('./describe-image', async () => {
   return {
     ...actual,
     describeImage: mocks.describeImage,
+  };
+});
+
+vi.mock('@/lib/ingest/url', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/ingest/url')>(
+    '@/lib/ingest/url'
+  );
+  return {
+    ...actual,
+    fetchUrlIngestion: mocks.fetchUrlIngestion,
   };
 });
 
@@ -935,6 +947,208 @@ describe('runAutoMode · orchestration', () => {
     expect(mocks.segmentSubjects).toHaveBeenCalledTimes(1);
 
     if (previousKey) process.env.ANTHROPIC_API_KEY = previousKey;
+  });
+
+  it('ingests a URL trigger, weaves the page into the prompt, and uses the OG image as default reference', async () => {
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://www.eightsleep.com/',
+      finalUrl: 'https://www.eightsleep.com/',
+      title: 'Eight Sleep | Now in Singapore',
+      description:
+        'Fall asleep faster and stay asleep longer with personalised cooling.',
+      primaryImage: {
+        url: 'https://cdn.example.com/og-hero.jpg',
+        source: 'og-image',
+        width: 1200,
+        height: 630,
+      },
+      images: [
+        {
+          url: 'https://cdn.example.com/og-hero.jpg',
+          source: 'og-image',
+          width: 1200,
+          height: 630,
+        },
+      ],
+      products: [
+        {
+          name: 'Pod 4 Ultra',
+          description: 'Adaptive temperature sleep system',
+          brand: 'Eight Sleep',
+          schemaType: 'Product',
+          offers: { price: 4995, currency: 'SGD' },
+        },
+      ],
+      bodyExcerpt: 'Sleep, deeper.\nCooling. Warming. Tracking.',
+      fetchedAt: '2026-04-26T12:00:00Z',
+      rawHtmlBytes: 1_024_000,
+    });
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({ caption: 'x', platform: 'instagram' }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'url', payload: 'https://www.eightsleep.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // Ingestion ran once and surfaces in the result.
+    expect(mocks.fetchUrlIngestion).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchUrlIngestion).toHaveBeenCalledWith(
+      'https://www.eightsleep.com/'
+    );
+    expect(result.urlIngestion?.title).toBe('Eight Sleep | Now in Singapore');
+
+    // The agent prompt got the ingestion section + product data.
+    const prompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain('INGESTED PAGE CONTENT');
+    expect(prompt).toContain('Eight Sleep | Now in Singapore');
+    expect(prompt).toContain('Pod 4 Ultra');
+    expect(prompt).toContain('SGD');
+    expect(prompt).toContain('og-hero.jpg');
+
+    // The OG image became the default reference because the caller didn't
+    // supply one.
+    expect(mocks.runMultiAgent.mock.calls[0][0].referenceImage).toEqual({
+      url: 'https://cdn.example.com/og-hero.jpg',
+      dataUrl: undefined,
+    });
+
+    // The layout-aware blob's hero subject now reflects the page title +
+    // description, not the raw URL string.
+    expect(prompt).toMatch(
+      /Hero subject: Eight Sleep \| Now in Singapore.*personalised cooling/
+    );
+    expect(prompt).not.toMatch(
+      /Hero subject: https:\/\/www\.eightsleep\.com/
+    );
+  });
+
+  it('honours an explicit referenceImage even when URL ingestion has its own primary image', async () => {
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://example.com/',
+      finalUrl: 'https://example.com/',
+      title: 'page',
+      description: '',
+      primaryImage: {
+        url: 'https://cdn.example.com/og.jpg',
+        source: 'og-image',
+      },
+      images: [],
+      products: [],
+      bodyExcerpt: '',
+      fetchedAt: '2026-04-26T12:00:00Z',
+      rawHtmlBytes: 1000,
+    });
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'url', payload: 'https://example.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+      referenceImage: {
+        url: 'https://cdn.example.com/explicit.jpg',
+        hint: 'creator override',
+      },
+    });
+
+    // The explicit reference wins; ingestion's primary image is NOT used.
+    expect(mocks.runMultiAgent.mock.calls[0][0].referenceImage).toEqual({
+      url: 'https://cdn.example.com/explicit.jpg',
+      dataUrl: undefined,
+    });
+  });
+
+  it('survives URL ingestion failure — lap continues with raw trigger', async () => {
+    mocks.fetchUrlIngestion.mockRejectedValueOnce(new Error('HTTP 403'));
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'url', payload: 'https://blocked.example.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // Ingestion failed, but the lap completed.
+    expect(result.urlIngestion).toBeUndefined();
+    expect(result.status).toBe('completed');
+    // No reference image attached (ingestion couldn't supply one and the
+    // caller didn't either).
+    expect(mocks.runMultiAgent.mock.calls[0][0].referenceImage).toBeUndefined();
+  });
+
+  it('skips URL ingestion entirely for text triggers', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 9,
+          output: { result: { images: [{ url: 'https://cdn/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'streetwear lookbook' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    expect(mocks.fetchUrlIngestion).not.toHaveBeenCalled();
   });
 
   it('feeds parallel mood seed into the layout-aware prompt mood keywords', async () => {
