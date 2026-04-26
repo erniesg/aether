@@ -15,7 +15,7 @@
  * sniffs to `application/pdf`.
  */
 
-import pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 
 export interface PdfIngestion {
   /** Original source (HTTP URL or data: URL). */
@@ -112,24 +112,31 @@ export async function parsePdfIngestion(
   source: string,
   opts: FetchPdfIngestionOptions = {}
 ): Promise<PdfIngestion> {
-  // pdf-parse v2 exports differ between CJS / ESM; defensively handle both.
-  const parser =
-    typeof pdfParse === 'function'
-      ? pdfParse
-      : ((pdfParse as unknown as { default?: typeof pdfParse }).default ??
-        pdfParse);
-  const parsed = await parser(bytes);
-  const text = (parsed.text ?? '').trim();
+  // pdf-parse v2 is class-based: new PDFParse({data}).getText() returns
+  // { text, total (page count), info: { Title, Author, ... } }.
+  // Convert Node Buffer → Uint8Array for the parser.
+  const parser = new PDFParse({
+    data: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+  });
+  const parsed = (await parser.getText()) as unknown as Record<string, unknown>;
+  const text =
+    typeof parsed.text === 'string' ? parsed.text.trim() : '';
   const meta = (parsed.info ?? {}) as Record<string, unknown>;
   const title = typeof meta.Title === 'string' ? meta.Title.trim() : '';
   const author = typeof meta.Author === 'string' ? meta.Author.trim() : '';
+  const pageCount =
+    typeof parsed.total === 'number'
+      ? parsed.total
+      : typeof parsed.numpages === 'number'
+        ? parsed.numpages
+        : 0;
   return {
     source,
     title,
     author,
     text,
     textExcerpt: clampHeadExcerpt(text, opts.excerptChars ?? DEFAULT_EXCERPT_CHARS),
-    pageCount: parsed.numpages ?? 0,
+    pageCount,
     fetchedAt: new Date().toISOString(),
     rawBytes: bytes.byteLength,
   };

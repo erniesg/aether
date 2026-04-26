@@ -2,12 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { fetchPdfIngestion } from './pdf';
 
 const mocks = vi.hoisted(() => {
-  const pdfParse = vi.fn();
-  return { pdfParse };
+  const getText = vi.fn();
+  // PDFParse is a class — vi.fn() can't be `new`'d, so use a real class
+  // whose getText delegates to the spy. Tests set up via mocks.getText.
+  class PDFParse {
+    getText() {
+      return getText();
+    }
+  }
+  return { PDFParse, getText };
 });
 
 vi.mock('pdf-parse', () => ({
-  default: mocks.pdfParse,
+  PDFParse: mocks.PDFParse,
 }));
 
 // Build a fake PDF data URL from arbitrary base64.
@@ -18,7 +25,7 @@ function buildPdfDataUrl(base64: string): string {
 describe('fetchPdfIngestion', () => {
   it('extracts title / author / pageCount + clamps a head excerpt', async () => {
     const longText = 'Pod 4 Ultra. '.repeat(400); // ~5200 chars
-    mocks.pdfParse.mockResolvedValueOnce({
+    mocks.getText.mockResolvedValueOnce({
       text: longText,
       numpages: 8,
       info: { Title: 'Eight Sleep Spec Sheet', Author: 'Eight Sleep Inc.' },
@@ -37,7 +44,7 @@ describe('fetchPdfIngestion', () => {
 
   it('handles short PDFs (excerpt equals full text, no ellipsis)', async () => {
     const shortText = 'Single page PDF. Hello.';
-    mocks.pdfParse.mockResolvedValueOnce({
+    mocks.getText.mockResolvedValueOnce({
       text: shortText,
       numpages: 1,
       info: {},
@@ -62,7 +69,7 @@ describe('fetchPdfIngestion', () => {
   });
 
   it('fetches HTTP URLs and forwards a browser-like user agent', async () => {
-    mocks.pdfParse.mockResolvedValueOnce({
+    mocks.getText.mockResolvedValueOnce({
       text: 'fetched',
       numpages: 1,
       info: {},
