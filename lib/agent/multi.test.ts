@@ -210,6 +210,119 @@ describe('runMultiAgent · runs ledger provenance', () => {
     expect(mocks.recordRunFinish).not.toHaveBeenCalled();
   });
 
+  it('parses /api/generate SSE stream and extracts the hero image url', async () => {
+    mocks.messagesCreate
+      .mockResolvedValueOnce(
+        fakeMessage(
+          [toolUseBlock('generate_image', { prompt: 'rain', aspectRatio: '1:1' })],
+          'tool_use'
+        )
+      )
+      .mockResolvedValueOnce(fakeMessage([textBlock('done')], 'end_turn'));
+
+    const sseFrames = [
+      `event: generate\ndata: ${JSON.stringify({
+        type: 'plan.ready',
+        at: Date.now(),
+        plannerMode: 'anthropic',
+        rewrittenPrompt: 'idol drama rain hero',
+        aspectRatio: '1:1',
+        provider: { id: 'replicate', model: 'flux-1.1-pro' },
+      })}\n\n`,
+      `event: generate\ndata: ${JSON.stringify({
+        type: 'frame.completed',
+        at: Date.now(),
+        frame: { id: 'a', index: 0, total: 1, aspectRatio: '1:1' },
+        provider: { id: 'replicate', model: 'flux-1.1-pro' },
+        latencyMs: 4200,
+        image: {
+          url: 'https://cdn/hero.png',
+          width: 1024,
+          height: 1024,
+          mimeType: 'image/png',
+        },
+      })}\n\n`,
+      `event: generate\ndata: ${JSON.stringify({
+        type: 'run.completed',
+        at: Date.now(),
+        status: 'ok',
+        frames: { total: 1, completed: 1, failed: 0 },
+        provider: { id: 'replicate', model: 'flux-1.1-pro' },
+        firstImageUrl: 'https://cdn/hero.png',
+        elapsedMs: 4500,
+      })}\n\n`,
+    ].join('');
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(sseFrames, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await runMultiAgent({
+      prompt: 'render',
+      baseUrl: 'http://localhost:3000',
+    });
+
+    expect(result.steps[0].ok).toBe(true);
+    const out = result.steps[0].output as Record<string, unknown>;
+    expect(out.imageUrl).toBe('https://cdn/hero.png');
+    expect(((out.result as { images: Array<{ url: string }> }).images)[0].url).toBe(
+      'https://cdn/hero.png'
+    );
+    // refined provider/model lifted from the SSE stream
+    const finishCall = mocks.recordRunFinish.mock.calls[0];
+    expect(finishCall[1]).toMatchObject({
+      provider: 'replicate',
+      model: 'flux-1.1-pro',
+    });
+  });
+
+  it('returns generate_image error when SSE stream ends without a frame', async () => {
+    mocks.messagesCreate
+      .mockResolvedValueOnce(
+        fakeMessage(
+          [toolUseBlock('generate_image', { prompt: 'x', aspectRatio: '1:1' })],
+          'tool_use'
+        )
+      )
+      .mockResolvedValueOnce(fakeMessage([textBlock('done')], 'end_turn'));
+
+    const sseFrames = `event: generate\ndata: ${JSON.stringify({
+      type: 'frame.failed',
+      at: Date.now(),
+      frame: { id: 'a', index: 0, total: 1, aspectRatio: '1:1' },
+      provider: { id: 'replicate', model: 'flux-1.1-pro' },
+      error: 'NSFW filter blocked output',
+    })}\n\nevent: generate\ndata: ${JSON.stringify({
+      type: 'run.completed',
+      at: Date.now(),
+      status: 'error',
+      frames: { total: 1, completed: 0, failed: 1 },
+      elapsedMs: 1234,
+      error: 'all frames failed',
+    })}\n\n`;
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(sseFrames, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await runMultiAgent({
+      prompt: 'x',
+      baseUrl: 'http://localhost:3000',
+    });
+
+    expect(result.steps[0].ok).toBe(false);
+    expect(result.steps[0].errorMessage).toContain('NSFW');
+    expect(mocks.recordRunFail).toHaveBeenCalledTimes(1);
+  });
+
   it('attaches referenceImage as refs[0] in the generate_image body', async () => {
     mocks.messagesCreate
       .mockResolvedValueOnce(
