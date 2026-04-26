@@ -285,3 +285,69 @@ All of these should be set as `wrangler secret put --env staging` and `--env pro
 **Cookies expired (CJK platforms)** — re-run `modal run ... ::capture_cookies --platform PLATFORM`.
 
 **`wrangler secret put` complains about worker not existing** — deploy to staging first: `npm run deploy:stg`.
+
+---
+
+## Demo-day fallback — preview-only mode
+
+The publisher seam is built so the demo arc still works without a hosted Postiz
+or social-auto-upload sidecar. When `POSTIZ_API_KEY` and the per-platform
+`POSTIZ_INTEGRATION_*` env vars are unset, the route resolver falls back to the
+local `PreviewPublisher`, the rail keeps showing scheduled rows, and the canvas
+preview overlay still opens. **Nothing real ships** — the rail surfaces this
+loudly so demo viewers don't think a fake publish landed.
+
+### What you see in preview-only mode
+
+| Surface | Indicator |
+|---|---|
+| Right rail · publish lens | submit button reads **`schedule preview`** instead of `schedule post` (set by `serverPublishing` in `components/rail/sections/PublishSection.tsx`) |
+| Schedule response | route returns `status: "preview-only"` for every post (`app/api/publish/schedule/route.ts`) |
+| Cancel button | drives the in-memory `PreviewPublisher.cancel`, which marks the row `cancelled` (filtered out of the active list) |
+
+### Pre-deploy checklist
+
+Before running `bash infra/postiz/deploy.sh`, run the preflight script. It
+verifies `gcloud auth`, that `infra/postiz/.env.postiz` exists, that the six
+deploy-required vars are populated, and that each platform's `*_CLIENT_ID` is
+non-empty. OAuth gaps surface as warnings (Postiz still boots) and the
+required vars surface as failures:
+
+```bash
+node scripts/preflight-postiz.mjs
+# or, machine-readable:
+node scripts/preflight-postiz.mjs --json
+```
+
+Exit code is non-zero if any required check fails.
+
+### Post-deploy smoke
+
+After `deploy.sh` finishes and you've wired the secrets via `wrangler secret
+put` (steps 1.10 above), run the smoke script. It hits `${ROOT}/api/status`
+and `${POSTIZ_API_URL}/integrations` (with auth) so a 200 round-trip proves the
+URL + API key the workspace will use are both alive:
+
+```bash
+POSTIZ_API_URL='https://your-postiz.run.app/public/v1' \
+POSTIZ_API_KEY='your-key' \
+  node scripts/smoke-postiz.mjs
+```
+
+### Live contract test
+
+Once Postiz is hosted you can opt-in to the live contract test, which
+exercises the full upload → schedule → list → cancel round-trip against the
+real public API. The test is skipped by default and only runs when
+`POSTIZ_API_URL` is set:
+
+```bash
+POSTIZ_API_URL='https://your-postiz.run.app/public/v1' \
+POSTIZ_API_KEY='your-key' \
+POSTIZ_INTEGRATION_INSTAGRAM='ig_integration_id' \
+  npx vitest run tests/integration/postiz-live.contract.test.ts
+```
+
+The test schedules at +30 days and DELETEs the post it created, so a live run
+is net-zero on the Postiz queue. Treat any failure as a real contract drift
+between aether's adapter and the Postiz upgrade you just installed.
