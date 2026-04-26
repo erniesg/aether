@@ -14,6 +14,10 @@ import {
   isInstagramPublisherConfigured,
 } from './instagram';
 import {
+  createPinterestPublisherFromEnv,
+  isPinterestPublisherConfigured,
+} from './pinterest';
+import {
   PublisherUnavailableError,
   type PublisherProvider,
   type PublisherProviderId,
@@ -47,6 +51,7 @@ export const KNOWN_PUBLISHER_IDS: ReadonlyArray<PublisherProviderId> = [
   'social-auto-upload',
   'x',
   'instagram',
+  'pinterest',
 ];
 
 export interface ResolvePublisherOptions {
@@ -83,6 +88,9 @@ function instantiatePublisher(
   }
   if (id === 'instagram') {
     return createInstagramPublisherFromEnv({}, opts.env);
+  }
+  if (id === 'pinterest') {
+    return createPinterestPublisherFromEnv({}, opts.env);
   }
   if (id === 'preview') {
     return createPreviewPublisher({
@@ -137,6 +145,7 @@ export function resolvePublisherForPost(
     envDefault,
     'x',
     'instagram',
+    'pinterest',
     'postiz',
     'social-auto-upload',
     'preview',
@@ -177,6 +186,9 @@ export function listAvailablePublishers(): Array<{
   }
   if (isInstagramPublisherConfigured(process.env)) {
     list.push({ id: 'instagram', displayName: 'Instagram' });
+  }
+  if (isPinterestPublisherConfigured(process.env)) {
+    list.push({ id: 'pinterest', displayName: 'Pinterest' });
   }
   return list;
 }

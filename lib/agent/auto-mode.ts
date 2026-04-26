@@ -1334,12 +1334,43 @@ async function scheduleVariationPosts(input: {
         result.externalId ??
         `pub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       ids.push(id);
+
+      // Per-publish Discord ping with the live link so Ernie sees the
+      // post URL the moment it goes live, instead of digging through
+      // /inspect or the platform's app. Skips preview/postiz which
+      // don't return a clickable platform url.
+      const isReal =
+        publisher.id !== 'preview' && publisher.id !== 'postiz';
+      if (isReal) {
+        await notifyDiscord({
+          tag: `publish-${platform}`,
+          content: [
+            `🟢 Posted to ${platform.toUpperCase()} — v${variation.index}`,
+            `link: ${result.previewUrl ?? '(no preview url)'}`,
+            result.externalId ? `id: ${result.externalId}` : '',
+            variation.caption
+              ? `caption: ${variation.caption.slice(0, 120)}${variation.caption.length > 120 ? '…' : ''}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        });
+      }
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(
         `[auto-mode] scheduleVariationPosts: variation ${variation.index} (${platform}) failed:`,
         err instanceof Error ? err.message : String(err)
       );
+      // Notify on failure too — Ernie wants to see when something
+      // didn't publish so he can act, not just when it did.
+      await notifyDiscord({
+        tag: `publish-fail-${platform}`,
+        content: [
+          `🔴 Publish to ${platform.toUpperCase()} failed — v${variation.index}`,
+          `error: ${err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200)}`,
+        ].join('\n'),
+      });
     }
   }
 

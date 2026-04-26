@@ -70,7 +70,8 @@ export type PublisherProviderId =
   | 'postiz'
   | 'social-auto-upload'
   | 'x'
-  | 'instagram';
+  | 'instagram'
+  | 'pinterest';
 
 export interface PublisherProvider {
   id: PublisherProviderId;

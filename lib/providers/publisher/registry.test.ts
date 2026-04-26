@@ -51,9 +51,16 @@ describe('publisher registry', () => {
     }
   });
 
-  it('exposes the five publisher ids defined for the seam', () => {
+  it('exposes the six publisher ids defined for the seam', () => {
     expect(new Set(KNOWN_PUBLISHER_IDS)).toEqual(
-      new Set(['preview', 'postiz', 'social-auto-upload', 'x', 'instagram'])
+      new Set([
+        'preview',
+        'postiz',
+        'social-auto-upload',
+        'x',
+        'instagram',
+        'pinterest',
+      ])
     );
   });
 
