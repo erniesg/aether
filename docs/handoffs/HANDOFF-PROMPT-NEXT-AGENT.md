@@ -37,7 +37,96 @@ prefixes. `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
   HTTP 200, hydration clean.
 - Vitest: 1046 passing | 1 skipped (148 files).
 
+## Architectural reframe — fast tier vs slow tier (READ THIS FIRST)
+
+Per Ernie's feedback the night the lap shipped: the original idea was N
+separate gpt-image-2 calls per format (same reference + same prompt,
+generated at each aspect ratio). Quality was right but **expensive** —
+4 renders × 120s × $0.10 per variation. The pivot is:
+
+> One layout-aware hero. Crop and repurpose. Run the fancy stuff in the
+> background.
+
+Reference the DEBUT magazine cover example Ernie shared (4 formats:
+IG Post 1080×1350, Story 1080×1920, Reel cover 1080×1920, LinkedIn
+1200×627). Same hero composition, different crops, text positioned
+per-format. ONE render produced all four.
+
+**Two-tier output:**
+
+- **Fast tier (return to user immediately, ~150s)**:
+  1. Hero rendered with `lib/agent/prompt/layout-aware.ts:buildLayoutAwarePrompt`
+     — the prompt itself reserves safe zones (top headline, bottom caption)
+     and instructs the model to keep the subject crop-friendly across all
+     target aspect ratios. **WIRE THIS IN.** Currently the agent's
+     `generate_image` tool gets a free-form prompt from Claude — we should
+     wrap it through buildLayoutAwarePrompt so the cropping-by-default
+     contract is honored.
+  2. `cropHeroToFormats` for 1:1 / 4:5 / 9:16 / 16:9 — pure math, no
+     extra renders.
+  3. Multilingual captions + schedule + hashtags from the agent envelope.
+  4. Persist the variation, fire lap-end Discord ping with `[FAST READY]`
+     tag, return to user. They can publish or preview already.
+
+- **Slow tier (background, streams updates as it lands, ~30-90s extra)**:
+  1. SAM3 segmentation (one-shot 12-prompt list AND/OR vision-guided
+     two-stage — see slice #2).
+  2. Layer extraction: cutout PNGs per component (see slice #3).
+  3. Background inpaint via gpt-image-2 (see slice #3).
+  4. Per-format reposition for cases where pure cropping fails — e.g.
+     LinkedIn 1200×627 banner from a 1:1 hero is too extreme to crop
+     (faces would be lost), so the slow tier extracts subject layers
+     and recomposes them onto the inpainted bg at the new aspect ratio.
+  5. Adaptive multilingual text overlay placement using the masks as
+     forbidden regions.
+  6. Persist updates onto the same `campaignVariation` row (Convex
+     reactive query auto-updates the right rail). Fire a `[SLOW READY]`
+     Discord ping when complete.
+
+**Why this architecture:**
+- User gets results in 150s, not 4-5 minutes.
+- The slow tier is purely additive — if SAM3 / inpaint / reposition fail,
+  the user still has the fast-tier output.
+- For most formats (1:1, 4:5, 9:16) the fast-tier crop IS the right
+  output. Slow-tier reposition is only essential for extreme aspect
+  changes (LinkedIn 1200×627, X banner 3:1, etc.).
+- Segmentation results still matter even when cropping is sufficient,
+  because the text-overlay planner uses face/brand/product masks as
+  forbidden regions for adaptive layout — but that step can run in slow
+  tier without blocking publish.
+
+The fast tier is the demo path. Slow tier is the polish path. Plumb them
+as separate Convex updates so the UI streams progressively.
+
 ## Next slices in priority order
+
+### 0. FAST TIER — wire buildLayoutAwarePrompt into the hero render (~30-45 min)
+
+**Why:** the agent loop currently passes a free-form prompt to
+`generate_image` — Claude composes whatever sounds good. The hero might
+not be crop-friendly across 4:5 / 9:16 / 16:9. `lib/agent/prompt/
+layout-aware.ts` already exists (issue #105 — buildLayoutAwarePrompt) and
+bakes safe zones + multi-format crop guidance into the prompt. Wire it.
+
+**Acceptance:**
+- In `lib/agent/auto-mode.ts:runOneVariation`, before calling runMultiAgent,
+  build a SemanticCreativeComponent from the trigger + moodNote (mirror
+  what `buildAutoModeComponent` already does for the post-hero pipeline)
+  and pass it through `buildLayoutAwarePrompt` to get a layout-aware
+  string. Inject that string into the variation prompt as the
+  recommended `generate_image` prompt body, so Claude's tool call uses
+  it verbatim.
+- Smoke evidence: re-run the idol-drama smoke (use
+  `/tmp/auto-body.json`) and inspect the resulting hero. The composition
+  should leave clear breathing room top + bottom, subject centered, so
+  the existing cropHeroToFormats `partial` results become `fitted` for
+  4:5 and 9:16.
+- The DEBUT magazine cover Ernie shared is the demo target — same hero,
+  4 formats, layout pre-built into the prompt.
+
+**Files to touch:** `lib/agent/auto-mode.ts` (variation prompt
+construction), maybe `lib/agent/prompt/layout-aware.ts` (extend to take
+custom safe-zone presets if the existing API isn't flexible enough).
 
 ### 1. Lap-end → actually schedule when notifyMode='auto-post' (1-2 hr)
 
@@ -170,14 +259,23 @@ across a face, never let a hashtag overlap a brand mark.
 `v.any()` for now since the per-component shape is iterating),
 `docs/handoffs/auto-mode-evidence/SAM3-AB.md`.
 
-### 3. Layer extraction + inpainted bg + editable shapes per format (~3-4 hr)
+### 3. SLOW TIER — Layer extraction + inpainted bg + reposition for extreme crops (~3-4 hr)
 
-User's bigger architectural ask. Each variation should fan out into editable
-canvas shapes:
+**Reframe per the fast-vs-slow tier architecture above:** the crop-from-
+hero path (slice #0 + cropHeroToFormats) handles 1:1 / 4:5 / 9:16 with
+a layout-aware hero. This slice is for the cases where pure cropping
+FAILS — extreme aspect changes (LinkedIn 1200×627 banner, X banner 3:1)
+where cropping a 1:1 hero would lose the subject — AND for editable
+post-hero composition (move/scale/rotate the subject in tldraw).
+
+This runs in the BACKGROUND. Don't block the lap on it. Stream updates
+to the same campaignVariation row.
+
+Each variation should fan out into editable canvas shapes:
 - one inpainted background plate
 - one cutout per foreground subject (alpha-channel masked PNG)
 - one tldraw shape per layer with bbox + transform + z-index, re-projected
-  per format (4:5 / 9:16 / 16:9)
+  per format (4:5 / 9:16 / 16:9 / extreme banners)
 
 Use **gpt-image-2** (already our DEFAULT_MODEL in lib/providers/image/openai.ts;
 OPENAI_API_KEY present) or **Seedream** (VOLCENGINE_ARK_API_KEY present) for
