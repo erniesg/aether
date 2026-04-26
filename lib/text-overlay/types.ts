@@ -112,6 +112,24 @@ export interface TextOverlayLayer {
 }
 
 /**
+ * A region the text-overlay planner must not place copy over.
+ * Produced by `lib/segment/maskToForbiddenRegions` from a SAM3 segmentation
+ * result and passed into `applyTextOverlay` as `forbiddenRegions`.
+ * Coordinates are normalized 0..1 (origin top-left), matching `NormalizedBBox`.
+ */
+export interface ForbiddenRegion {
+  kind: 'face' | 'product' | 'logo' | 'other';
+  bbox: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  /** 0..1 — provider confidence; consumers may ignore low-confidence regions. */
+  confidence: number;
+}
+
+/**
  * The provenance record the agent emits after a `text-apply` run — one row
  * per call to `executeTextApply`. Shape aligns with `capabilityRun` so the
  * agent can replay the run against a different layer or aspect.
