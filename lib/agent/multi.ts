@@ -26,11 +26,13 @@ const SYSTEM_PROMPT = [
   '- cluster_references(images, minClusterSize): embed image URLs with CLIP and cluster with HDBSCAN. Returns cluster ids per image.',
   '- generate_image(prompt, aspectRatio): render one hero image. Use 1:1 by default; 4:5 for IG portrait; 9:16 for stories/reels; 16:9 for banners.',
   '- analyze_video(videoUrl, task): use Gemini to summarize / transcribe / extract moments / describe shots from a video URL.',
+  '- get_current_datetime(timezone?): cheap local call. Returns the current ISO8601 timestamp + IANA timezone. Use whenever you need "now" — scheduling, freshness, "since when" — instead of guessing.',
   '',
   'Operating principles:',
   "- You're not a chatbot. You plan, call tools, and stop when the creator's intent is satisfied.",
   '- Prefer to chain tools when the brief implies it (research → cluster → generate). Skip steps that are already implied.',
   '- When you call generate_image, write a visually specific prompt: subject, composition, light, colour, style. Keep under 220 chars.',
+  '- For anything time-sensitive, call get_current_datetime first — never assume the date from training data.',
   '- Stop and emit a brief summary text once the result is in hand.',
 ].join('\n');
 
@@ -116,11 +118,28 @@ const TOOL_ANALYZE_VIDEO: Tool = {
   } as unknown as Tool['input_schema'],
 };
 
+const TOOL_GET_CURRENT_DATETIME: Tool = {
+  name: 'get_current_datetime',
+  description:
+    'Return the current datetime in ISO8601 along with the IANA timezone (default Asia/Singapore). Use this when scheduling, freshness checks, or any reasoning that depends on "now". Cheap and synchronous — call freely.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      timezone: {
+        type: 'string',
+        description: 'Optional IANA timezone (e.g. "Asia/Singapore", "Asia/Tokyo"). Defaults to Asia/Singapore.',
+      },
+    },
+    required: [],
+  } as unknown as Tool['input_schema'],
+};
+
 const ALL_TOOLS: Tool[] = [
   TOOL_SEARCH_SIGNALS,
   TOOL_CLUSTER_REFERENCES,
   TOOL_GENERATE_IMAGE,
   TOOL_ANALYZE_VIDEO,
+  TOOL_GET_CURRENT_DATETIME,
 ];
 
 export interface MultiAgentParams {
@@ -161,15 +180,19 @@ export interface MultiAgentResult {
 interface ToolDispatchSpec {
   /** Local id used by the registry + provenance. */
   registryId: string;
-  /** HTTP route on this same Next app. */
-  path: string;
+  /** HTTP route on this same Next app. Mutually exclusive with `local`. */
+  path?: string;
+  /** Pure-local handler — no network round-trip. Returns the JSON-shaped
+   *  output the agent loop expects. Used for cheap synchronous tools
+   *  like get_current_datetime. */
+  local?: (input: unknown) => Promise<unknown> | unknown;
   /** Best-known provider stub at start time. The route's response usually
    *  patches this with the actual adapter on finish. */
   provider: string;
   /** Best-known model stub at start time. */
   model: string;
-  /** Map the agent tool name → /api request body. */
-  toBody: (input: unknown) => unknown;
+  /** Map the agent tool name → /api request body. Required for HTTP tools. */
+  toBody?: (input: unknown) => unknown;
   /** Pull a refined provider/model from the API response, when it carries
    *  enough information to attribute the work. */
   pickProvider?: (output: unknown) => { provider?: string; model?: string };
@@ -232,6 +255,57 @@ const TOOL_SPECS: Record<string, ToolDispatchSpec> = {
       return { ...(provider ? { provider } : {}), ...(model ? { model } : {}) };
     },
   },
+  get_current_datetime: {
+    registryId: 'datetime',
+    provider: 'local',
+    model: 'system-clock',
+    local: (input) => {
+      const i = (input ?? {}) as { timezone?: string };
+      const tz = typeof i.timezone === 'string' && i.timezone.length > 0
+        ? i.timezone
+        : 'Asia/Singapore';
+      const now = new Date();
+      // Format the local-time string in the requested timezone using
+      // Intl.DateTimeFormat. Falls back to 'Asia/Singapore' on bad zone.
+      let localFormatted: string;
+      let resolvedTz: string;
+      try {
+        const fmt = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        });
+        localFormatted = fmt.format(now).replace(', ', 'T');
+        resolvedTz = tz;
+      } catch {
+        const fmt = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Singapore',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        });
+        localFormatted = fmt.format(now).replace(', ', 'T');
+        resolvedTz = 'Asia/Singapore';
+      }
+      return {
+        ok: true,
+        provider: 'local',
+        nowUtc: now.toISOString(),
+        nowLocal: localFormatted,
+        timezone: resolvedTz,
+        epochMs: now.getTime(),
+      };
+    },
+  },
 };
 
 function genClientRunId(name: string): string {
@@ -281,6 +355,34 @@ async function dispatchTool(
     prompt: promptForLedger,
     entryRef: resolveToolEntryRef(spec.registryId),
   });
+
+  // Local tools (e.g. get_current_datetime) skip the network round-trip.
+  if (spec.local) {
+    const startedAt = Date.now();
+    try {
+      const out = await spec.local(input);
+      const latencyMs = Date.now() - startedAt;
+      await recordRunFinish(clientRunId, {
+        status: 'ok',
+        latencyMs,
+        provider: spec.provider,
+        model: spec.model,
+      });
+      return { ok: true, output: out, clientRunId };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await recordRunFail(clientRunId, message);
+      return { ok: false, errorMessage: message, clientRunId };
+    }
+  }
+
+  if (!spec.toBody || !spec.path) {
+    return {
+      ok: false,
+      errorMessage: `tool ${name} has neither local nor http handler`,
+      clientRunId,
+    };
+  }
 
   // Build the request body. For generate_image, transparently attach a
   // reference image (when supplied at the loop level) — the agent's tool
@@ -513,6 +615,14 @@ function summarizeToolOutput(name: string, output: unknown): string {
   }
   if (name === 'analyze_video') {
     return JSON.stringify({ ok: o.ok, provider: o.provider, modelId: o.modelId, text: o.text, usageMs: o.usageMs });
+  }
+  if (name === 'get_current_datetime') {
+    return JSON.stringify({
+      ok: o.ok,
+      nowUtc: o.nowUtc,
+      nowLocal: o.nowLocal,
+      timezone: o.timezone,
+    });
   }
   return JSON.stringify(output);
 }

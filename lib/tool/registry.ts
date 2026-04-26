@@ -105,6 +105,11 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  // NOTE: `datetime` is intentionally NOT in the registry — registry entries
+  // require an `artifactKind` from the canvas-artifact union, but datetime is
+  // an agent-context tool that never produces a canvas artifact. The
+  // resolveToolEntryRef fallback (`{ kind:'tool', id, version:1 }`) is used
+  // for these context-class tools instead.
 } as const satisfies Record<string, ToolRegistryEntry>;
 
 export type ToolRegistryId = keyof typeof TOOL_REGISTRY;
