@@ -51,6 +51,12 @@ const publisherApi = (
   }
 ).publisher;
 
+const lapEventApi = (
+  anyApi as unknown as {
+    lapEvent: { listByCampaign: unknown };
+  }
+).lapEvent;
+
 // ─── Return shapes ────────────────────────────────────────────────────────────
 
 export interface CampaignRow {
@@ -64,6 +70,16 @@ export interface CampaignRow {
   startedAt: number;
   finishedAt?: number;
   error?: string;
+  /** B2 research bundle (canonical shape: ResearchBundle in
+   *  lib/agent/managed/research.ts). Populated when the agent runs
+   *  successfully and persists via setCampaignResearchBundle. */
+  researchBundle?: unknown;
+  /** Signoff Managed Agent schedule plan (canonical: SchedulePlan in
+   *  lib/agent/managed/signoff.ts). Persisted via setCampaignSchedulePlan. */
+  schedulePlan?: unknown;
+  /** Cluster Managed Agent bundle (canonical: ClusterBundle in
+   *  lib/agent/managed/cluster.ts). Persisted via setCampaignClusterBundle. */
+  clusterBundle?: unknown;
 }
 
 export interface VariationRow {
@@ -83,6 +99,17 @@ export interface VariationRow {
   formatCrops?: unknown;
   masksOneShot?: unknown;
   masksVisionGuided?: unknown;
+  /** 4-locale × 4-format atlas (Convex public URL). Optional. */
+  atlasUrl?: string;
+  /** Per-locale text overlays (zone, content, bbox, scope). Stored as v.any
+   *  in Convex; consumers cast to ProposedTextOverlay[]. Optional. */
+  textOverlays?: unknown;
+  /** Aspect ids that produced bytes via per-format render (e.g. ['4x5','9x16']). */
+  nativePerFormatRendered?: string[];
+  /** Per-format public URLs after Convex upload — see auto-mode.ts shape. */
+  nativePerFormatUrls?: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+  >;
   agentRunIds: string[];
   error?: string;
   startedAt: number;
@@ -99,6 +126,16 @@ export interface AssetRow {
   width?: number;
   height?: number;
   createdAt: number;
+}
+
+export interface LapEventRow {
+  id: string;
+  ts: number;
+  variationIndex?: number;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  tag: string;
+  message: string;
+  data?: unknown;
 }
 
 export interface CapabilityRunRow {
@@ -184,4 +221,25 @@ export async function listScheduledPosts(
     wsId,
   } as never)) as ScheduledPostRow[];
   return result ?? [];
+}
+
+/**
+ * Lists structured lap events for a campaign in chronological order.
+ * Returns empty array when Convex is unreachable or there are no events.
+ */
+export async function listLapEvents(
+  campaignId: string,
+  limit = 500
+): Promise<LapEventRow[]> {
+  const client = getHttpClient();
+  if (!client) return [];
+  try {
+    const result = (await client.query(lapEventApi.listByCampaign as never, {
+      campaignId,
+      limit,
+    } as never)) as LapEventRow[];
+    return result ?? [];
+  } catch {
+    return [];
+  }
 }

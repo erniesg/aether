@@ -186,6 +186,8 @@ export interface DropVariationOnCanvasOptions {
       textAlign?: 'start' | 'center' | 'end';
     }>;
     nativePerFormatRendered?: string[];
+    /** Per-format hero URLs. See AutoModeVariationView for semantics. */
+    nativePerFormatUrls?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
   };
   /** Active locale for text overlay content selection. Default: 'en-SG'. */
   locale?: string;
@@ -211,8 +213,15 @@ export function dropVariationOnCanvas({
   variation,
   locale = 'en-SG',
 }: DropVariationOnCanvasOptions): string | null {
-  const imageUrl = variation.atlasUrl ?? variation.heroImageUrl;
-  if (!imageUrl) return null;
+  // Resolution order per format: nativePerFormatUrls[formatId] → atlasUrl →
+  // heroImageUrl. If neither atlas nor hero is available AND we have no
+  // per-format URLs, there's nothing to draw.
+  const fallbackUrl = variation.atlasUrl ?? variation.heroImageUrl;
+  const perFormat = variation.nativePerFormatUrls ?? {};
+  const hasAnyUrl =
+    Boolean(fallbackUrl) ||
+    Object.values(perFormat).some((u) => typeof u === 'string' && u.length > 0);
+  if (!hasAnyUrl) return null;
 
   // Ensure the 4 standard format frames exist (idempotent).
   const frameIds = ensureFormatFrames(editor);
@@ -223,12 +232,6 @@ export function dropVariationOnCanvas({
     if (frameIds[i]) formatToFrameId.set(spec.formatId, frameIds[i]);
   });
 
-  // Place the hero image in each format frame.
-  // When the variation supplies native per-format URLs (nativePerFormatRendered),
-  // we use the atlas URL as a fallback since individual format URLs aren't in the
-  // variation view shape yet. The atlas itself is a 4×4 composite thumbnail that
-  // is useful as a preview — a dedicated per-format URL will be wired in
-  // the next slice when the variation shape gains per-format URL fields.
   let primaryFrameId: string | null = null;
 
   for (const spec of FORMAT_FRAME_SPECS) {
@@ -244,19 +247,28 @@ export function dropVariationOnCanvas({
 
     const { w: fw, h: fh } = frame.props;
 
-    // Register the hero image as a canvas asset
+    const formatKey = spec.formatId as '1x1' | '4x5' | '9x16' | '16x9';
+    const nativeUrl = perFormat[formatKey];
+    const cellUrl = nativeUrl ?? fallbackUrl;
+    if (!cellUrl) continue;
+
+    const isNative = Boolean(nativeUrl);
+    const isAtlas = !isNative && Boolean(variation.atlasUrl);
+
+    // Register the per-cell image as a canvas asset
     const assetId = AssetRecordType.createId();
-    const isAtlas = Boolean(variation.atlasUrl);
     editor.createAssets([
       {
         id: assetId,
         type: 'image',
         typeName: 'asset',
         props: {
-          name: isAtlas
-            ? `v${variation.index} atlas`
-            : `v${variation.index} ${spec.formatId}`,
-          src: imageUrl,
+          name: isNative
+            ? `v${variation.index} ${spec.formatId} native`
+            : isAtlas
+              ? `v${variation.index} atlas`
+              : `v${variation.index} ${spec.formatId}`,
+          src: cellUrl,
           w: isAtlas ? 2048 : 1024,
           h: isAtlas ? 2048 : 1024,
           mimeType: 'image/png',
@@ -283,6 +295,7 @@ export function dropVariationOnCanvas({
         autoModeVariationId: variation.id,
         autoModeVariationIndex: variation.index,
         formatId: spec.formatId,
+        renderSource: isNative ? 'native' : isAtlas ? 'atlas' : 'hero',
       },
     });
   }

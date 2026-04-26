@@ -26,6 +26,10 @@ interface RequestBody {
    *  scheduledAt to (now + 30s) so X / IG / TT direct adapters fire
    *  immediately. */
   forcePostNow?: boolean;
+  /** Per-lap toggle for the Managed Agents API path. Default true. When
+   *  false, research / cluster / signoff force the messages.create
+   *  fallback even if AGENT_ID env vars are configured. */
+  useManagedAgents?: boolean;
 }
 
 const TRIGGER_KINDS: AutoModeTriggerKind[] = ['url', 'file', 'text'];
@@ -145,6 +149,10 @@ export async function POST(request: Request) {
           ? body.maxIterationsPerVariation
           : undefined,
       forcePostNow: body.forcePostNow === true,
+      // Default true so existing callers (smoke scripts, pre-toggle UI) keep
+      // hitting the Managed Agents API when IDs are configured. UI passes
+      // `false` explicitly when the creator flips the toggle off.
+      useManagedAgents: body.useManagedAgents !== false,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

@@ -23,12 +23,23 @@ import type {
  * can pass these through as props without any further fetching.
  */
 
+export interface LapEventView {
+  id: string;
+  ts: number;
+  variationIndex?: number;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  tag: string;
+  message: string;
+  data?: unknown;
+}
+
 interface CampaignLapState {
   campaign: AutoModeCampaignView | null;
   variations: AutoModeVariationView[];
+  events: LapEventView[];
 }
 
-const EMPTY: CampaignLapState = { campaign: null, variations: [] };
+const EMPTY: CampaignLapState = { campaign: null, variations: [], events: [] };
 
 /**
  * C4: Infer the named-step timeline from campaign + variation status.
@@ -129,6 +140,10 @@ const campaignsAnyApi = (anyApi as unknown as {
   };
 }).campaigns;
 
+const lapEventAnyApi = (anyApi as unknown as {
+  lapEvent: { listByCampaign: unknown };
+}).lapEvent;
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Convex-enabled path
 // ──────────────────────────────────────────────────────────────────────────────
@@ -152,6 +167,9 @@ function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
       startedAt: number;
       finishedAt?: number;
       error?: string;
+      researchBundle?: AutoModeCampaignView['researchBundle'];
+      schedulePlan?: AutoModeCampaignView['schedulePlan'];
+      clusterBundle?: AutoModeCampaignView['clusterBundle'];
     };
     variations: Array<{
       id: string;
@@ -168,12 +186,36 @@ function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
       atlasUrl?: string;
       textOverlays?: unknown;
       nativePerFormatRendered?: string[];
+      nativePerFormatUrls?: Partial<
+        Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+      >;
       agentRunIds: string[];
       error?: string;
       startedAt: number;
       finishedAt?: number;
     }>;
   } | null | undefined;
+
+  // Live lap events — separate Convex subscription (one query per row table).
+  // 'skip' until campaignId + Convex are available so test envs don't bind
+  // to a non-existent provider.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const eventsResult = useQuery(
+    lapEventAnyApi.listByCampaign as never,
+    campaignId && isConvexEnabled() ? ({ campaignId, limit: 200 } as never) : 'skip'
+  ) as
+    | Array<{
+        id: string;
+        campaignId: string;
+        variationIndex?: number;
+        tag: string;
+        level: 'debug' | 'info' | 'warn' | 'error';
+        message: string;
+        data?: unknown;
+        ts: number;
+      }>
+    | null
+    | undefined;
 
   if (!campaignId || !result) return EMPTY;
 
@@ -194,6 +236,7 @@ function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
     // textOverlays is stored as `any` in Convex schema; cast through unknown.
     textOverlays: v.textOverlays as AutoModeVariationView['textOverlays'],
     nativePerFormatRendered: v.nativePerFormatRendered,
+    nativePerFormatUrls: v.nativePerFormatUrls,
     agentRunIds: v.agentRunIds,
     error: v.error,
     startedAt: v.startedAt,
@@ -209,6 +252,9 @@ function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
     startedAt: campaign.startedAt,
     finishedAt: campaign.finishedAt,
     error: campaign.error,
+    researchBundle: campaign.researchBundle,
+    schedulePlan: campaign.schedulePlan,
+    clusterBundle: campaign.clusterBundle,
     lapSteps: inferLapSteps(
       {
         id: campaign.id,
@@ -224,7 +270,16 @@ function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
       mappedVariations
     ),
   };
-  return { campaign: mappedCampaign, variations: mappedVariations };
+  const events: LapEventView[] = (eventsResult ?? []).map((e) => ({
+    id: e.id,
+    ts: e.ts,
+    variationIndex: e.variationIndex,
+    level: e.level,
+    tag: e.tag,
+    message: e.message,
+    data: e.data,
+  }));
+  return { campaign: mappedCampaign, variations: mappedVariations, events };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -244,6 +299,13 @@ interface TraceVariation {
   moodNote?: string;
   schedulePlatform?: string;
   scheduleWhenLocal?: string;
+  formatCrops?: AutoModeVariationView['formatCrops'];
+  textOverlays?: AutoModeVariationView['textOverlays'];
+  atlasUrl?: string;
+  nativePerFormatRendered?: string[];
+  nativePerFormatUrls?: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+  >;
   agentRunIds?: string[];
   error?: string;
   startedAt: number;
@@ -262,6 +324,9 @@ interface TraceResponse {
     startedAt?: number;
     finishedAt?: number;
     error?: string;
+    researchBundle?: AutoModeCampaignView['researchBundle'];
+    schedulePlan?: AutoModeCampaignView['schedulePlan'];
+    clusterBundle?: AutoModeCampaignView['clusterBundle'];
   };
   variations?: TraceVariation[];
 }
@@ -290,6 +355,11 @@ function usePollingCampaignLap(campaignId: string | null): CampaignLapState {
         moodNote: v.moodNote,
         schedulePlatform: v.schedulePlatform,
         scheduleWhenLocal: v.scheduleWhenLocal,
+        formatCrops: v.formatCrops,
+        textOverlays: v.textOverlays,
+        atlasUrl: v.atlasUrl,
+        nativePerFormatRendered: v.nativePerFormatRendered,
+        nativePerFormatUrls: v.nativePerFormatUrls,
         agentRunIds: v.agentRunIds ?? [],
         error: v.error,
         startedAt: v.startedAt,
@@ -308,10 +378,16 @@ function usePollingCampaignLap(campaignId: string | null): CampaignLapState {
       };
       const campaign: AutoModeCampaignView = {
         ...baseCampaign,
+        researchBundle: c.researchBundle,
+        schedulePlan: c.schedulePlan,
+        clusterBundle: c.clusterBundle,
         lapSteps: inferLapSteps(baseCampaign, variations),
       };
 
-      setState({ campaign, variations });
+      // Polling fallback doesn't yet have lapEvents — the trace endpoint
+      // would need to be extended. Emit empty array; Convex-backed path is
+      // the primary source for the live event tail.
+      setState({ campaign, variations, events: [] });
 
       // Stop polling once the lap is done.
       if (campaign.status !== 'running') {

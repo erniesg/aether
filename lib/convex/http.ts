@@ -205,8 +205,15 @@ const campaignsApi = (anyApi as unknown as {
     startCampaign: unknown;
     setCampaignStatus: unknown;
     insertVariation: unknown;
+    setCampaignResearchBundle: unknown;
+    setCampaignSchedulePlan: unknown;
+    setCampaignClusterBundle: unknown;
   };
 }).campaigns;
+
+const lapEventApi = (anyApi as unknown as {
+  lapEvent: { recordLapEvent: unknown };
+}).lapEvent;
 
 export interface ServerCampaignStart {
   workspaceId?: string;
@@ -250,6 +257,99 @@ export async function setCampaignStatus(
   }
 }
 
+/**
+ * Persist the B2 research bundle on the campaign row. Fail-soft: a Convex
+ * outage or schema mismatch logs and returns; the lap continues.
+ */
+export async function setCampaignResearchBundle(
+  campaignId: string,
+  researchBundle: unknown
+): Promise<void> {
+  const client = getHttpClient();
+  if (!client) return;
+  try {
+    await (client as unknown as {
+      mutation: (m: never, a: never) => Promise<unknown>;
+    }).mutation(
+      (campaignsApi as { setCampaignResearchBundle: unknown })
+        .setCampaignResearchBundle as never,
+      { campaignId, researchBundle } as never
+    );
+  } catch (err) {
+    console.error('[convex/http] setCampaignResearchBundle failed', err);
+  }
+}
+
+/**
+ * Persist the signoff Managed Agent's schedule plan on the campaign row.
+ * Fail-soft analogue of setCampaignResearchBundle.
+ */
+export async function setCampaignSchedulePlan(
+  campaignId: string,
+  schedulePlan: unknown
+): Promise<void> {
+  const client = getHttpClient();
+  if (!client) return;
+  try {
+    await (client as unknown as {
+      mutation: (m: never, a: never) => Promise<unknown>;
+    }).mutation(
+      (campaignsApi as { setCampaignSchedulePlan: unknown })
+        .setCampaignSchedulePlan as never,
+      { campaignId, schedulePlan } as never
+    );
+  } catch (err) {
+    console.error('[convex/http] setCampaignSchedulePlan failed', err);
+  }
+}
+
+/**
+ * Persist the cluster Managed Agent bundle on the campaign row.
+ */
+export async function setCampaignClusterBundle(
+  campaignId: string,
+  clusterBundle: unknown
+): Promise<void> {
+  const client = getHttpClient();
+  if (!client) return;
+  try {
+    await (client as unknown as {
+      mutation: (m: never, a: never) => Promise<unknown>;
+    }).mutation(
+      (campaignsApi as { setCampaignClusterBundle: unknown })
+        .setCampaignClusterBundle as never,
+      { campaignId, clusterBundle } as never
+    );
+  } catch (err) {
+    console.error('[convex/http] setCampaignClusterBundle failed', err);
+  }
+}
+
+/**
+ * Append a structured lap event to Convex. Fail-soft: a Convex outage
+ * just drops the event (already logged to console by the caller).
+ * Server-side only — the client UI subscribes via useQuery.
+ */
+export interface ServerLapEvent {
+  campaignId: string;
+  variationIndex?: number;
+  tag: string;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  data?: unknown;
+  ts: number;
+}
+
+export async function recordLapEvent(input: ServerLapEvent): Promise<void> {
+  const client = getHttpClient();
+  if (!client) return;
+  try {
+    await client.mutation(lapEventApi.recordLapEvent as never, input as never);
+  } catch (err) {
+    console.error('[convex/http] recordLapEvent failed', err);
+  }
+}
+
 export interface ServerVariationInsert {
   campaignId: string;
   workspaceId?: string;
@@ -269,6 +369,22 @@ export interface ServerVariationInsert {
   masksOneShot?: unknown;
   /** SAM3 mask set from Claude vision-derived prompts (slice #2). */
   masksVisionGuided?: unknown;
+  /** Per-format public URLs (1:1, 4:5, 9:16, 16:9) — see auto-mode
+   *  AutoModeVariationResult.nativePerFormatUrls for semantics. Omitted
+   *  formats fall back to atlas → hero on the canvas drop. */
+  nativePerFormatUrls?: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+  >;
+  /** 4-locale × 4-format atlas URL (Convex storage). */
+  atlasUrl?: string;
+  /** Convex asset id of the atlas. */
+  atlasAssetId?: string;
+  /** Per-locale text overlays — ProposedTextOverlay[]. v.any in Convex. */
+  textOverlays?: unknown;
+  /** Aspect ids that produced bytes via per-format render. */
+  nativePerFormatRendered?: string[];
+  /** Non-fatal text-overlay planner warnings. */
+  textOverlayWarnings?: string[];
   agentRunIds: string[];
   error?: string;
 }
@@ -285,6 +401,40 @@ export async function insertCampaignVariation(
     )) as string;
   } catch (err) {
     console.error('[convex/http] insertCampaignVariation failed', err);
+    return null;
+  }
+}
+
+// ───── Inbound reply (X webhook) ─────────────────────────────────────────────
+
+const inboundReplyApi = (anyApi as unknown as {
+  inboundReply: { recordInboundReply: unknown };
+}).inboundReply;
+
+export interface ServerInboundReply {
+  externalId: string;
+  postExternalId: string;
+  replyText: string;
+  replyAuthor: string;
+}
+
+/**
+ * Best-effort persist of an inbound X reply into the Convex `inboundReply`
+ * table. Fail-soft: a Convex outage or provisioning gap logs and returns null
+ * so the webhook route always responds 200 to X.
+ */
+export async function recordInboundReply(
+  input: ServerInboundReply
+): Promise<string | null> {
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    return (await client.mutation(inboundReplyApi.recordInboundReply as never, {
+      ...input,
+      receivedAt: Date.now(),
+    } as never)) as string;
+  } catch (err) {
+    console.error('[convex/http] recordInboundReply failed', err);
     return null;
   }
 }
