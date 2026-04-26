@@ -101,4 +101,43 @@ describe('capability request resolver', () => {
       artifactKind: 'image',
     });
   });
+
+  it('routes "write a skill that …" prompts into the author-skill lane', () => {
+    const plan = resolveCapabilityRequest(
+      makeContext({
+        prompt: 'write a skill that neon-drenches any image on the canvas',
+        hasSelectedImage: false,
+      })
+    );
+
+    expect(plan).toEqual({
+      kind: 'author-skill',
+      authoringPrompt: 'write a skill that neon-drenches any image on the canvas',
+    });
+  });
+
+  it('preserves author-skill routing even when a definition would otherwise match', () => {
+    const plan = resolveCapabilityRequest(
+      makeContext({
+        prompt: 'author a skill that crops to vertical story',
+        definitions: [
+          {
+            id: 'cap_existing',
+            version: 1,
+            createdAt: 1,
+            name: 'crops to vertical story',
+            trigger: 'crop to vertical story',
+            paramSchema: { type: 'object', properties: { layerId: { type: 'string' } } },
+            createdBy: 'agent',
+            tool: 'image-gen',
+            provider: 'auto',
+            entryRef: { kind: 'tool', id: 'image-gen', version: 1 },
+            runTemplate: { prompt: 'crop to vertical story' },
+          },
+        ],
+      })
+    );
+
+    expect(plan.kind).toBe('author-skill');
+  });
 });

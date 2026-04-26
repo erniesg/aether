@@ -11,6 +11,7 @@ import { ArrowUp, ChevronDown, ImagePlus, Loader2, Sparkles, X } from 'lucide-re
 import { ingestUrlViaApi } from '@/lib/references/client';
 import { addReference } from '@/lib/references/store';
 import { cn } from '@/lib/utils/cn';
+import { MAX_REF_BYTES, formatRefSizeError } from '@/lib/refs/limits';
 
 /**
  * Imperative API the composer exposes to its parent. `focus` drives the
@@ -31,6 +32,13 @@ export interface ComposerHandle {
  */
 export type PromptScope = 'all' | 'single';
 
+/**
+ * How multiple format variants are rendered.
+ *   crop    — one hero render, geometric crop to every format (default / "responsive")
+ *   fanout  — N separate renders, one per format ("variants")
+ */
+export type RenderMode = 'crop' | 'fanout';
+
 export interface PromptSubmitOptions {
   /** Ad-hoc reference images as data URLs, only present when creators drop / paste / pick. */
   refs?: string[];
@@ -38,6 +46,8 @@ export interface PromptSubmitOptions {
   scope: PromptScope;
   /** Active target artboard when scope resolves to a single format. */
   targetId?: string;
+  /** How to execute the multi-format render. */
+  renderMode: RenderMode;
 }
 
 export interface PromptFormatOption {
@@ -59,8 +69,12 @@ export interface PromptComposerProps {
   activeFormatId?: string;
   /** Sticky scope; defaults to 'all'. Clicking the scope chip toggles this state. */
   defaultScope?: PromptScope;
+  /** Initial render mode. Defaults to 'crop' (responsive by default per demo thesis). */
+  defaultRenderMode?: RenderMode;
   /** Called when the creator picks a different single-format target. */
   onActiveFormatChange?: (formatId: string) => void;
+  /** Called when the creator changes the render mode chip. */
+  onRenderModeChange?: (mode: RenderMode) => void;
   /** Called when the creator clicks the input-set chip — typically opens the input-set rail. */
   onOpenInputSet?: () => void;
   /** Invoked with the prompt string and a submit-options bundle
@@ -72,7 +86,6 @@ export interface PromptComposerProps {
 }
 
 const MAX_REFS = 6;
-const MAX_REF_BYTES = 8 * 1024 * 1024; // 8 MB per ref — stays well under request-body limits.
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -97,7 +110,9 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       formats = [],
       activeFormatId,
       defaultScope = 'all',
+      defaultRenderMode = 'crop',
       onActiveFormatChange,
+      onRenderModeChange,
       onOpenInputSet,
       onSubmit,
       placeholder = 'describe the generation…',
@@ -115,6 +130,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     const [dragging, setDragging] = useState(false);
     const [refError, setRefError] = useState<string | null>(null);
     const [scope, setScope] = useState<PromptScope>(defaultScope);
+    const [renderMode, setRenderMode] = useState<RenderMode>(defaultRenderMode);
     const activeFormat =
       formats.find((format) => format.id === activeFormatId) ?? formats[0];
     const resolvedActiveFormatId = activeFormat?.id;
@@ -140,7 +156,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
         const fresh: string[] = [];
         for (const f of images) {
           if (f.size > MAX_REF_BYTES) {
-            setRefError(`${f.name} is over 8 MB — skipped`);
+            setRefError(formatRefSizeError(f));
             continue;
           }
           try {
@@ -220,6 +236,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
           refs: refs.length > 0 ? refs : undefined,
           scope: overrideScope ?? scope,
           targetId: (overrideScope ?? scope) === 'single' ? resolvedActiveFormatId : undefined,
+          renderMode,
         });
         setValue('');
         setRefs([]);
@@ -432,6 +449,31 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
                 )}
               >
                 {scopeLabel}
+              </button>
+            );
+          })()}
+
+          {(() => {
+            const label = renderMode === 'crop' ? 'render: responsive' : 'render: variants';
+            const aria = `render mode · ${label} · click to toggle between responsive (one render, crop) and variants (separate renders)`;
+            return (
+              <button
+                type="button"
+                aria-label={aria}
+                title={aria}
+                onClick={() => {
+                  const next: RenderMode = renderMode === 'crop' ? 'fanout' : 'crop';
+                  setRenderMode(next);
+                  onRenderModeChange?.(next);
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+                  renderMode === 'crop'
+                    ? 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+                    : 'border-accent-secondary/50 bg-accent-secondary/10 text-ink-muted hover:text-ink'
+                )}
+              >
+                {label}
               </button>
             );
           })()}

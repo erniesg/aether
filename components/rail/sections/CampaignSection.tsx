@@ -1,23 +1,69 @@
 'use client';
 
-import { Check, Plus, Save, Trash2 } from 'lucide-react';
+import { Check, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveCampaignContext,
+  useBrandContext,
   useCampaignContext,
   useCreatorContext,
 } from '@/lib/context/creator-store';
 import { summarizeInputSet, type CampaignContext } from '@/lib/context/model';
+import {
+  dismissProposedCampaign,
+  setProposedCampaigns,
+  useProposedCampaigns,
+  type ProposedCampaignRow,
+} from '@/lib/proposals/store';
+import { brandSnapshotFromContext } from '@/lib/brand/snapshot-from-context';
+import type { BrandFollowups } from '@/lib/brand/propose';
+import type { BrandSnapshot } from '@/lib/brand/types';
 
 type SaveState = 'idle' | 'saved';
+type RegenState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string };
 
-export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
+interface CampaignSectionProps {
+  workspaceId?: string;
+  /** Test seam — overrides the real /api/brand/propose call. */
+  regenerate?: (snapshot: BrandSnapshot) => Promise<BrandFollowups>;
+}
+
+async function defaultRegenerate(snapshot: BrandSnapshot, workspaceId?: string): Promise<BrandFollowups> {
+  const res = await fetch('/api/brand/propose', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snapshot, workspaceId, scope: 'campaigns' }),
+  });
+  const json = (await res.json()) as {
+    ok: boolean;
+    offers?: BrandFollowups['offers'];
+    campaigns?: BrandFollowups['campaigns'];
+    coverage?: BrandFollowups['coverage'];
+    error?: string;
+  };
+  if (!res.ok || !json.ok) {
+    throw new Error(json.error ?? `regenerate failed: ${res.status}`);
+  }
+  return {
+    offers: json.offers ?? [],
+    campaigns: json.campaigns ?? [],
+    coverage: json.coverage ?? { ok: true, notes: [] },
+  };
+}
+
+export function CampaignSection({ workspaceId, regenerate }: CampaignSectionProps) {
   const saved = useCampaignContext(workspaceId);
+  const brand = useBrandContext(workspaceId);
   const creatorContext = useCreatorContext(workspaceId);
+  const proposedCampaigns = useProposedCampaigns(workspaceId);
   const [draft, setDraft] = useState<CampaignContext>(saved);
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [newChannel, setNewChannel] = useState('');
+  const [regenState, setRegenState] = useState<RegenState>({ kind: 'idle' });
 
   // Two-phase hydration — see BrandSection for the rationale.
   const hasEdited = useRef(false);
@@ -81,10 +127,140 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
     setSaveState('saved');
   };
 
+  const acceptProposal = (row: ProposedCampaignRow) => {
+    const promoted: CampaignContext = {
+      id: row.proposalId,
+      name: row.name,
+      goal: row.goal,
+      audience: row.audience,
+      channels: row.channels,
+      cta: row.cta,
+    };
+    saveCampaignContext(promoted, workspaceId);
+    hasEdited.current = false;
+    setDraft(promoted);
+    setDirty(false);
+    setSaveState('saved');
+    dismissProposedCampaign(row.rowId, workspaceId);
+  };
+
+  const rejectProposal = (row: ProposedCampaignRow) => {
+    dismissProposedCampaign(row.rowId, workspaceId);
+  };
+
+  const onRegenerate = async () => {
+    setRegenState({ kind: 'loading' });
+    try {
+      const snapshot = brandSnapshotFromContext(brand);
+      const followups = regenerate
+        ? await regenerate(snapshot)
+        : await defaultRegenerate(snapshot, workspaceId);
+      setProposedCampaigns(followups.campaigns, workspaceId);
+      setRegenState({ kind: 'idle' });
+    } catch (err) {
+      setRegenState({
+        kind: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3" data-testid="campaign-section">
-      <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
         <span className="font-caption text-ink-dim">campaign</span>
+        <button
+          type="button"
+          aria-label="regenerate campaigns from brand"
+          onClick={onRegenerate}
+          disabled={regenState.kind === 'loading'}
+          className="inline-flex items-center gap-1 rounded-sm border border-border-soft px-2 py-0.5 font-caption text-2xs text-ink-dim transition-colors hover:text-ink disabled:opacity-50"
+        >
+          <RefreshCw
+            className={`h-3 w-3 ${regenState.kind === 'loading' ? 'animate-spin' : ''}`}
+            aria-hidden="true"
+          />
+          {regenState.kind === 'loading' ? 'regenerating…' : 'regenerate from brand'}
+        </button>
+      </div>
+
+      {regenState.kind === 'error' ? (
+        <div
+          role="alert"
+          data-testid="campaign-regenerate-error"
+          className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+        >
+          <span className="font-caption text-xs text-ink-dim">
+            regenerate failed · {regenState.message}
+          </span>
+        </div>
+      ) : null}
+
+      {proposedCampaigns.length > 0 ? (
+        <div data-testid="proposed-campaigns" className="flex flex-col gap-2">
+          {proposedCampaigns.map((row) => (
+            <div
+              key={row.rowId}
+              data-testid={`proposed-campaign-${row.proposalId}`}
+              className="flex flex-col gap-1 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+            >
+              <div className="flex items-start justify-between gap-1">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <div className="flex items-center gap-1">
+                    <span
+                      data-testid="ai-suggested-badge"
+                      className="inline-flex items-center gap-0.5 rounded-pill border border-border-soft bg-surface-panel px-1.5 py-0.5 font-caption text-2xs text-ink-dim"
+                    >
+                      <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                      AI-suggested
+                    </span>
+                  </div>
+                  <span className="truncate font-caption text-xs text-ink">{row.name}</span>
+                  <span className="font-caption text-2xs leading-snug text-ink-dim">
+                    {row.goal}
+                  </span>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <button
+                    type="button"
+                    aria-label={`accept proposed campaign ${row.name}`}
+                    onClick={() => acceptProposal(row)}
+                    className="inline-flex items-center gap-0.5 rounded-sm border border-border-soft px-1.5 py-0.5 font-caption text-2xs text-ink-dim transition-colors hover:text-ink"
+                  >
+                    <Check className="h-2.5 w-2.5" aria-hidden="true" />
+                    accept
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`reject proposed campaign ${row.name}`}
+                    onClick={() => rejectProposal(row)}
+                    className="grid h-5 w-5 place-items-center rounded-sm text-ink-dim transition-colors hover:text-ink"
+                  >
+                    <X className="h-2.5 w-2.5" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              {row.channels.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {row.channels.slice(0, 3).map((ch) => (
+                    <span
+                      key={ch}
+                      className="rounded-pill border border-border-soft px-1.5 py-0.5 font-caption text-2xs text-ink-dim"
+                    >
+                      {ch}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {row.cta ? (
+                <span className="font-caption text-2xs italic text-ink-dim">{row.cta}</span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-1">
         <input
           aria-label="campaign name"
           value={draft.name}

@@ -170,6 +170,32 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_workspace', ['workspaceId']),
 
+  // AI-suggested offer drafts produced by the brand-propose workers (Track A).
+  // Lives in its own table so the rail can subscribe + render accept/reject
+  // cards without leaking proposal state into the canonical offerProfile.
+  // Accepting a row promotes it into offerProfile and deletes the proposal;
+  // rejecting just deletes it. proposalId is the worker-emitted stable id.
+  proposedOffer: defineTable({
+    workspaceId: v.string(),
+    proposalId: v.string(),
+    name: v.string(),
+    summary: v.string(),
+    claims: v.array(v.string()),
+    heroAsset: v.string(),
+    proposedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  proposedCampaign: defineTable({
+    workspaceId: v.string(),
+    proposalId: v.string(),
+    name: v.string(),
+    goal: v.string(),
+    audience: v.string(),
+    channels: v.array(v.string()),
+    cta: v.string(),
+    proposedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
   workspaceContext: defineTable({
     workspaceId: v.string(),
     activeReferenceIds: v.array(v.string()),
@@ -250,9 +276,12 @@ export default defineSchema({
   // workspace plumbing is wired up in Phase 5.
   canvasSnapshot: defineTable({
     wsId: v.optional(v.id('workspace')),
+    wsKey: v.optional(v.string()),
     tldrawStoreJson: v.string(),
     snapshottedAt: v.number(),
-  }).index('by_ws', ['wsId']),
+  })
+    .index('by_ws', ['wsId'])
+    .index('by_ws_key', ['wsKey']),
 
   keyVisual: defineTable({
     wsId: v.id('workspace'),
@@ -392,6 +421,23 @@ export default defineSchema({
     affectedNodes: v.array(v.string()),
     createdAt: v.number(),
   }).index('by_ws', ['wsId']),
+
+  // ─── skills (Anthropic Skills foundation) ─────────────────────────────
+  // Mirrors authored Skills as graph artifacts so the capability factory can
+  // query them and the right rail can surface them. `manifestPath` is the FS
+  // path (relative to repo root) of the SKILL.md; `referenceFilePaths` mirrors
+  // the front-matter `referenceFiles[]`. Schema is intentionally simple so
+  // authoring-loop follow-ups can evolve it without a migration.
+  skill: defineTable({
+    name: v.string(),
+    version: v.number(),
+    description: v.string(),
+    manifestPath: v.string(),
+    referenceFilePaths: v.array(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_name', ['name'])
+    .index('by_name_version', ['name', 'version']),
 
   // ─── output ────────────────────────────────────────────────────────────
   exportPack: defineTable({

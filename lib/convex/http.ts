@@ -41,6 +41,10 @@ const publisherApi = (anyApi as unknown as {
   };
 }).publisher;
 
+const skillsApi = (anyApi as unknown as {
+  skills: { insert: unknown; getByName: unknown };
+}).skills;
+
 export interface ServerRunStart {
   clientRunId: string;
   artifactKind?: ArtifactKind;
@@ -155,5 +159,35 @@ export async function recordScheduledPostCancel(id: string): Promise<void> {
     await client.mutation(publisherApi.cancel as never, { id } as never);
   } catch (err) {
     console.error('[convex/http] recordScheduledPostCancel failed', err);
+  }
+}
+
+export interface ServerSkillInsert {
+  name: string;
+  version: number;
+  description: string;
+  /** Path to SKILL.md, relative to repo root. */
+  manifestPath: string;
+  referenceFilePaths: string[];
+}
+
+/**
+ * Best-effort insert of a SkillRecord into the Convex `skill` table.
+ * No-op when Convex is not provisioned. Returns the convex document id when
+ * the insert succeeded so the caller can echo it back to the client.
+ */
+export async function recordSkillInsert(
+  input: ServerSkillInsert
+): Promise<string | null> {
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    const id = (await client.mutation(skillsApi.insert as never, input as never)) as
+      | string
+      | null;
+    return id ?? null;
+  } catch (err) {
+    console.error('[convex/http] recordSkillInsert failed', err);
+    return null;
   }
 }
