@@ -184,18 +184,30 @@ describe('composeVariantSet', () => {
       }
     }
 
-    // Atlas: cols × atlasCellWidth × rows × atlasCellHeight.
-    // Cells are taller than wide because the label band sits ABOVE the
-    // image (so it doesn't occlude the headline inside the cropped frame).
+    // Atlas: cols × atlasCellWidth (uniform col width). Row image height
+    // is per-format aspect — 9x16 rows tall, 16x9 rows short — so the
+    // total atlas height is the sum of every row's cell height, NOT
+    // 4 × atlasCellHeight (that was the old uniform-square layout).
     const atlasMeta = await sharp(out.atlas).metadata();
     expect(atlasMeta.width).toBe(
       out.atlasCellWidth * COMPOSE_LOCALES.length
     );
-    expect(atlasMeta.height).toBe(
-      out.atlasCellHeight * COMPOSE_FORMATS.length
+    expect(atlasMeta.width).toBe(out.atlasWidth);
+    expect(atlasMeta.height).toBe(out.atlasHeight);
+    const expectedH = COMPOSE_FORMATS.reduce(
+      (sum, f) => sum + out.atlasRowHeights[f.id],
+      0
     );
-    expect(out.atlasCellHeight).toBeGreaterThan(out.atlasTileSize);
+    expect(atlasMeta.height).toBe(expectedH);
     expect(out.atlasCellWidth).toBe(out.atlasTileSize);
+    // 9x16 row must be the tallest, 16x9 the shortest — that's what makes
+    // the atlas show each format at its native aspect.
+    expect(out.atlasRowHeights['9x16']).toBeGreaterThan(
+      out.atlasRowHeights['1x1']
+    );
+    expect(out.atlasRowHeights['16x9']).toBeLessThan(
+      out.atlasRowHeights['1x1']
+    );
   });
 
   it('falls back to fallbackCaptions when textOverlays is absent', async () => {
