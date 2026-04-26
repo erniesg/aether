@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => {
   const fetchPdfIngestion = vi.fn();
   const uploadAssetToConvex = vi.fn();
   const renderPerFormatHeroes = vi.fn();
+  // B2: research agent mock — fail-soft by default (resolves to undefined → no bundle).
+  const runResearchAgent = vi.fn().mockResolvedValue(undefined);
   return {
     runMultiAgent,
     startCampaign,
@@ -46,6 +48,7 @@ const mocks = vi.hoisted(() => {
     fetchPdfIngestion,
     uploadAssetToConvex,
     renderPerFormatHeroes,
+    runResearchAgent,
   };
 });
 
@@ -130,6 +133,11 @@ vi.mock('./per-format-render', async () => {
     renderPerFormatHeroes: mocks.renderPerFormatHeroes,
   };
 });
+
+// B2: mock the research agent so runAutoMode can be tested without LLM calls.
+vi.mock('./managed/research', () => ({
+  runResearchAgent: mocks.runResearchAgent,
+}));
 
 import {
   parseAgentEnvelope,
@@ -2130,5 +2138,172 @@ describe('runAutoMode · orchestration', () => {
     expect(refs[0].dataUrl).toBeUndefined();
 
     mockFetch.mockRestore();
+  });
+
+  /**
+   * B2 — Research agent wiring.
+   *
+   * runAutoMode should invoke runResearchAgent when:
+   *   - trigger.kind === 'url'
+   *   - ANTHROPIC_API_KEY is set
+   *   - AUTO_MODE_SKIP_RESEARCH is not '1'
+   *
+   * The returned ResearchBundle must:
+   *   - be surfaced in the AutoModeResult as `researchBundle`
+   *   - be injected into each variation's system note so headline/sub copy
+   *     can cite competitive signals and recent campaigns
+   */
+  it('B2: research agent is invoked for URL triggers and its bundle surfaces in the result and variation prompt', async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    const prevSkip = process.env.AUTO_MODE_SKIP_RESEARCH;
+    process.env.ANTHROPIC_API_KEY = 'test-key-b2';
+    delete process.env.AUTO_MODE_SKIP_RESEARCH;
+
+    const fakeBundle = {
+      headline: 'Eight Sleep enters SG — disrupting the $B sleep market',
+      summary: 'Pod 4 Ultra targets affluent SG urbanites; key competitors are Tempur-Pedic, TEMPUR, and Nolah.',
+      competitors: ['Tempur-Pedic', 'TEMPUR', 'Nolah Sleep'],
+      recentCampaigns: [
+        { title: 'Eight Sleep NYC Launch', platform: 'instagram', url: 'https://www.instagram.com/p/abc123/' },
+      ],
+      localeInsights: [
+        { locale: 'en-SG', note: 'Lead with data: HDB and condo dwellers cite sleep quality as top health concern.' },
+      ],
+      sources: [{ title: 'Eight Sleep SG Press', url: 'https://www.eightsleep.com/sg' }],
+      usedManagedAgentsApi: false,
+      latencyMs: 80,
+    };
+    mocks.runResearchAgent.mockResolvedValueOnce(fakeBundle);
+
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://www.eightsleep.com/',
+      finalUrl: 'https://www.eightsleep.com/',
+      title: 'Eight Sleep | Pod 4 Ultra',
+      description: 'Sleep deeper with personalised cooling.',
+      primaryImage: { url: 'https://cdn.eightsleep.com/og-pod4.jpg', source: 'og-image', width: 1200, height: 630 },
+      images: [{ url: 'https://cdn.eightsleep.com/og-pod4.jpg', source: 'og-image', width: 1200, height: 630 }],
+      products: [{ name: 'Pod 4 Ultra', description: 'mattress + Hub', brand: 'Eight Sleep', schemaType: 'Product', offers: { price: 4995, currency: 'SGD' } }],
+      bodyExcerpt: 'Sleep, deeper.',
+      fetchedAt: '2026-04-28T00:00:00Z',
+      rawHtmlBytes: 100_000,
+    });
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({ caption: 'Sleep better, wake stronger', platform: 'instagram', whenLocal: '2026-04-28T19:00:00+08:00' }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: { prompt: 'Eight Sleep Pod 4 Ultra hero', aspectRatio: '1:1' },
+          ok: true,
+          ms: 100,
+          output: { result: { images: [{ url: 'https://cdn.openai.com/pod4-b2.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_b2',
+      trigger: { kind: 'url', payload: 'https://www.eightsleep.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // Research agent was called with the brand, URL, and ingestion context.
+    expect(mocks.runResearchAgent).toHaveBeenCalledTimes(1);
+    const researchCall = mocks.runResearchAgent.mock.calls[0][0];
+    expect(researchCall.brand).toBeTruthy();
+    expect(researchCall.url).toBe('https://www.eightsleep.com/');
+    expect(researchCall.ingestion).toBeDefined();
+
+    // The bundle surfaces in the AutoModeResult.
+    expect(result.researchBundle).toBeDefined();
+    expect(result.researchBundle?.competitors).toEqual(['Tempur-Pedic', 'TEMPUR', 'Nolah Sleep']);
+
+    // The variation system prompt includes the competitive context so
+    // headline/sub copy writers can cite real signals.
+    const prompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain('Competitors in SG:');
+    expect(prompt).toContain('Tempur-Pedic');
+
+    // Restore env.
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    else delete process.env.ANTHROPIC_API_KEY;
+    if (prevSkip !== undefined) process.env.AUTO_MODE_SKIP_RESEARCH = prevSkip;
+    else delete process.env.AUTO_MODE_SKIP_RESEARCH;
+  });
+
+  it('B2: research agent is skipped for text triggers (no URL to research)', async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key-b2';
+    try {
+      mocks.runMultiAgent.mockResolvedValueOnce({
+        finalText: '{}',
+        steps: [{ index: 0, name: 'generate_image', input: {}, ok: true, ms: 5, output: { result: { images: [{ url: 'https://cdn/x.png' }] } } }],
+        iterations: 1,
+        stopReason: 'end_turn',
+      });
+
+      await runAutoMode({
+        baseUrl: 'http://localhost:3000',
+        trigger: { kind: 'text', payload: 'streetwear lookbook' },
+        variationCount: 1,
+        notifyMode: 'review',
+      });
+
+      expect(mocks.runResearchAgent).not.toHaveBeenCalled();
+    } finally {
+      if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+      else delete process.env.ANTHROPIC_API_KEY;
+    }
+  });
+
+  it('B2: research agent failure is fail-soft — lap completes without a bundle', async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    const prevSkip = process.env.AUTO_MODE_SKIP_RESEARCH;
+    process.env.ANTHROPIC_API_KEY = 'test-key-b2';
+    delete process.env.AUTO_MODE_SKIP_RESEARCH;
+
+    mocks.runResearchAgent.mockRejectedValueOnce(new Error('research timeout'));
+
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://www.eightsleep.com/',
+      finalUrl: 'https://www.eightsleep.com/',
+      title: 'Eight Sleep',
+      description: '',
+      primaryImage: null,
+      images: [],
+      products: [],
+      bodyExcerpt: '',
+      fetchedAt: '2026-04-28T00:00:00Z',
+      rawHtmlBytes: 10_000,
+    });
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [{ index: 0, name: 'generate_image', input: {}, ok: true, ms: 5, output: { result: { images: [{ url: 'https://cdn/x.png' }] } } }],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'url', payload: 'https://www.eightsleep.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // Lap did not crash.
+    expect(result.status).toBe('completed');
+    // No research bundle (agent failed).
+    expect(result.researchBundle).toBeUndefined();
+
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    else delete process.env.ANTHROPIC_API_KEY;
+    if (prevSkip !== undefined) process.env.AUTO_MODE_SKIP_RESEARCH = prevSkip;
+    else delete process.env.AUTO_MODE_SKIP_RESEARCH;
   });
 });

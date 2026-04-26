@@ -45,6 +45,7 @@ import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
 import { composeVariantSet } from '@/lib/text-overlay/compose';
 import { renderPerFormatHeroes } from './per-format-render';
 import type { AspectRatio } from '@/lib/providers/image/types';
+import { runResearchAgent, type ResearchBundle } from './managed/research';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -246,6 +247,13 @@ export interface AutoModeResult {
    * traceable-to-reference provenance Ernie called for.
    */
   referenceDescriptions?: ImageDescription[];
+  /**
+   * B2 — Research Managed Agent bundle. Populated when runAutoMode runs
+   * the research agent successfully; undefined when the agent was skipped
+   * (no API key, or AUTO_MODE_SKIP_RESEARCH=1) or failed. Lane C surfaces
+   * this in the right-rail "research" panel (sources, snippets, insights).
+   */
+  researchBundle?: ResearchBundle;
 }
 
 interface VariationPromptInput {
@@ -271,6 +279,12 @@ interface VariationPromptInput {
    *  Pod 4 Ultra mattress cover, low-profile chrome under-bed lighting,
    *  sleeping figure" so the hero render knows what to draw. */
   referenceDescriptions?: ImageDescription[];
+  /**
+   * B2 Research Managed Agent bundle — injected per-variation so the agent
+   * can cite competitor signals, locale insights, and recent campaigns when
+   * composing the caption and scheduling decisions.
+   */
+  researchBundle?: ResearchBundle;
 }
 
 /**
@@ -315,13 +329,13 @@ function buildPreHeroLayoutAwarePrompt(input: {
   const visionBrands: string[] = [];
   const visionFaces: string[] = [];
   for (const desc of input.referenceDescriptions ?? []) {
-    for (const p of desc.products) {
+    for (const p of desc.products ?? []) {
       if (p.name) visionProducts.push(p.description ? `${p.name} (${p.description})` : p.name);
     }
-    for (const b of desc.brands) {
+    for (const b of desc.brands ?? []) {
       if (b.name) visionBrands.push(b.name);
     }
-    for (const f of desc.faces) {
+    for (const f of desc.faces ?? []) {
       if (f.description) visionFaces.push(f.description);
     }
   }
@@ -551,6 +565,36 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     });
     lines.push(
       'Use these descriptions to ground your hero in the ACTUAL products / setting / faces shown in the references. When products are explicitly named, the hero MUST feature them recognisably — do not fall back to a generic scene.',
+      '---'
+    );
+  }
+
+  // B2 Research Managed Agent bundle — competitor signals + locale insights.
+  // When present, the agent uses this to inform caption tone, hashtag
+  // choices, and whenLocal scheduling (e.g. avoid clashing with a competitor
+  // campaign that just ran). Surfaced after vision-described refs so the
+  // agent sees product facts first, then market context.
+  if (input.researchBundle) {
+    const rb = input.researchBundle;
+    lines.push('', '--- RESEARCH SIGNALS (from Anthropic Research Agent) ---');
+    if (rb.summary) lines.push(`Summary: ${rb.summary}`);
+    if (rb.competitors.length > 0) {
+      lines.push(`Competitors in SG: ${rb.competitors.slice(0, 4).join(', ')}`);
+    }
+    if (rb.recentCampaigns.length > 0) {
+      lines.push(
+        'Recent campaigns to differentiate from:',
+        ...rb.recentCampaigns.slice(0, 3).map((c) => `  · ${c}`)
+      );
+    }
+    if (rb.localeInsights.length > 0) {
+      lines.push('Locale copy insights:');
+      for (const li of rb.localeInsights) {
+        lines.push(`  ${li.locale}: ${li.insight}`);
+      }
+    }
+    lines.push(
+      'Use the above to write a caption that feels locally relevant and differentiates from the listed competitors and campaigns.',
       '---'
     );
   }
@@ -1749,9 +1793,47 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       );
       const got: ImageDescription[] = [];
       for (const res of settled) {
-        if (res.status === 'fulfilled') got.push(res.value);
+        if (res.status === 'fulfilled' && res.value != null) got.push(res.value);
       }
       if (got.length > 0) referenceDescriptions = got;
+    }
+  }
+
+  // ─── B2 Research Managed Agent ────────────────────────────────────────
+  // Run once per lap (before variation fan-out) so all variations can cite
+  // competitor signals, locale insights, and recent campaigns in their
+  // headline/sub copy. Skipped when:
+  //   - ANTHROPIC_API_KEY is absent (no LLM budget)
+  //   - AUTO_MODE_SKIP_RESEARCH=1 (escape hatch for tests / tight runs)
+  //   - trigger.kind is not 'url' (no brand URL to research)
+  // Fail-soft: any error leaves researchBundle undefined and the lap
+  // continues with text-only variation prompts (same as before this slice).
+  let researchBundle: ResearchBundle | undefined;
+  if (
+    process.env.ANTHROPIC_API_KEY &&
+    process.env.AUTO_MODE_SKIP_RESEARCH !== '1' &&
+    req.trigger.kind === 'url' &&
+    urlIngestion
+  ) {
+    try {
+      researchBundle = await runResearchAgent({
+        brand: urlIngestion.title || req.trigger.payload,
+        url: req.trigger.payload,
+        ingestion: urlIngestion,
+        workspaceId: req.workspaceId,
+      });
+      // eslint-disable-next-line no-console
+      console.log(
+        `[auto-mode] research bundle ready — ${researchBundle.competitors.length} competitors, ` +
+        `${researchBundle.localeInsights.length} locale insights, ` +
+        `${researchBundle.sources.length} sources (${researchBundle.usedManagedAgentsApi ? 'managed-agents' : 'tool-use'} path)`
+      );
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[auto-mode] research agent failed (lap continues without it):`,
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 
@@ -1794,6 +1876,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           urlIngestion,
           pdfIngestion,
           referenceDescriptions,
+          researchBundle,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
@@ -1828,6 +1911,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           urlIngestion,
           pdfIngestion,
           referenceDescriptions,
+          researchBundle,
         },
         baseUrl: req.baseUrl,
         workspaceId: req.workspaceId,
@@ -1930,5 +2014,6 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     urlIngestion,
     pdfIngestion,
     referenceDescriptions,
+    researchBundle,
   };
 }
