@@ -1272,13 +1272,12 @@ describe('runAutoMode · orchestration', () => {
     expect(prompt).toContain('og-hero.jpg');
 
     // The OG image became the default reference because the caller didn't
-    // supply one.
+    // supply one. When fetch of the primary image URL fails (no real network
+    // in tests), the code falls back to the URL-based ref shape.
     const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
     expect(refs).toBeDefined();
-    expect(refs[0]).toEqual({
-      url: 'https://cdn.example.com/og-hero.jpg',
-      dataUrl: undefined,
-    });
+    // url-based fallback (fetch failed silently in test env → primaryImageDataUrl is undefined)
+    expect(refs[0]).toMatchObject({ url: 'https://cdn.example.com/og-hero.jpg' });
 
     // The layout-aware blob's hero subject now reflects the page title +
     // description, not the raw URL string.
@@ -1336,9 +1335,7 @@ describe('runAutoMode · orchestration', () => {
 
     // The explicit reference wins; ingestion's primary image is NOT used.
     const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
-    expect(refs).toEqual([
-      { url: 'https://cdn.example.com/explicit.jpg', dataUrl: undefined },
-    ]);
+    expect(refs).toMatchObject([{ url: 'https://cdn.example.com/explicit.jpg' }]);
   });
 
   it('survives URL ingestion failure — lap continues with raw trigger', async () => {
@@ -1948,5 +1945,190 @@ describe('runAutoMode · orchestration', () => {
     if (!endCall) throw new Error('expected lap-end-notify Discord call');
     // image should be absent — Discord cannot fetch data: URLs.
     expect(endCall[0].embeds[0].image).toBeUndefined();
+  });
+
+  /**
+   * B1 regression — Eight Sleep 1×1 atlas air-purifier bug.
+   *
+   * Root cause: effectiveReferenceImages used URL-based refs from
+   * urlIngestion.images; the OpenAI provider's editWithRefs only activates
+   * for base64 data URLs, so URL refs were silently dropped and the 1×1
+   * hero was generated text-only without the actual product photo as anchor.
+   *
+   * Fix: fetch the primary ingested image URL and convert it to a base64
+   * data URL so the Images Edits API is invoked and the hero is anchored
+   * on the ACTUAL product photo (Pod 4 Ultra mattress + Hub).
+   *
+   * This test verifies that when fetch succeeds, the primary ref is a
+   * dataUrl-shaped reference (triggering Edits API); when fetch fails,
+   * it falls back gracefully to URL-based refs (no regression).
+   */
+  it('B1: converts primary ingested image URL to data URL so Edits API anchors the hero on the real product photo', async () => {
+    // Mock fetch to return a small PNG for the primary image URL.
+    // The base64 PNG is a 1×1 white pixel.
+    const fakePngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScAAAAAElFTkSuQmCC';
+    const fakePngBuf = Buffer.from(fakePngBase64, 'base64');
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockImplementationOnce(
+      async (url) => {
+        if (String(url).includes('og-pod4.jpg')) {
+          return new Response(fakePngBuf, {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' },
+          });
+        }
+        // Any other fetch (e.g. Convex upload) → fail.
+        throw new Error(`unexpected fetch: ${url}`);
+      }
+    );
+
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://www.eightsleep.com/',
+      finalUrl: 'https://www.eightsleep.com/',
+      title: 'Eight Sleep | Pod 4 Ultra — The World\'s Most Intelligent Mattress',
+      description:
+        'The Pod 4 Ultra features a mattress with thermal cover and Hub for sleep tracking.',
+      primaryImage: {
+        url: 'https://cdn.eightsleep.com/og-pod4.jpg',
+        source: 'og-image',
+        width: 1200,
+        height: 630,
+      },
+      images: [
+        {
+          url: 'https://cdn.eightsleep.com/og-pod4.jpg',
+          source: 'og-image',
+          width: 1200,
+          height: 630,
+        },
+      ],
+      products: [
+        {
+          name: 'Pod 4 Ultra',
+          description: 'mattress with thermal cover, sleep tracking Hub',
+          brand: 'Eight Sleep',
+          schemaType: 'Product',
+          offers: { price: 4995, currency: 'SGD' },
+        },
+      ],
+      bodyExcerpt: 'Sleep, deeper.\nCooling. Warming. Tracking.',
+      fetchedAt: '2026-04-28T00:00:00Z',
+      rawHtmlBytes: 512_000,
+    });
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({ caption: 'Eight Sleep Pod 4 Ultra — now in SG', platform: 'instagram', whenLocal: '2026-04-28T19:00:00+08:00' }),
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: { prompt: 'Eight Sleep Pod 4 Ultra mattress hero', aspectRatio: '1:1' },
+          ok: true,
+          ms: 120,
+          output: { result: { images: [{ url: 'https://cdn.openai.com/pod4-hero.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      workspaceId: 'ws_eightsleep',
+      trigger: { kind: 'url', payload: 'https://www.eightsleep.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    // The primary image URL was fetched and encoded as a data URL.
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://cdn.eightsleep.com/og-pod4.jpg'
+    );
+
+    // The ref passed to runMultiAgent MUST be a data URL (not a remote URL)
+    // so the Images Edits API activates and anchors the 1×1 hero on the
+    // actual product photo (mattress + Hub), not a hallucinated tower.
+    const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
+    expect(refs).toBeDefined();
+    expect(refs.length).toBeGreaterThan(0);
+    // Primary ref is a data URL.
+    expect(refs[0].dataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    // Remote URL field absent on the primary ref (it's a data URL ref now).
+    expect(refs[0].url).toBeUndefined();
+
+    // The variation prompt still has the brand context and product info.
+    const prompt = mocks.runMultiAgent.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain('Pod 4 Ultra');
+    expect(prompt).toContain('mattress');
+
+    mockFetch.mockRestore();
+  });
+
+  it('B1: falls back to URL-based ref when primary image fetch fails (fail-soft, no crash)', async () => {
+    // Simulate network failure for the primary image URL fetch.
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockImplementationOnce(
+      async (_url) => {
+        throw new Error('network error');
+      }
+    );
+
+    mocks.fetchUrlIngestion.mockResolvedValueOnce({
+      url: 'https://www.eightsleep.com/',
+      finalUrl: 'https://www.eightsleep.com/',
+      title: 'Eight Sleep | Pod 4 Ultra',
+      description: 'Sleep deeper.',
+      primaryImage: {
+        url: 'https://cdn.eightsleep.com/og-pod4.jpg',
+        source: 'og-image',
+        width: 1200,
+        height: 630,
+      },
+      images: [
+        {
+          url: 'https://cdn.eightsleep.com/og-pod4.jpg',
+          source: 'og-image',
+          width: 1200,
+          height: 630,
+        },
+      ],
+      products: [],
+      bodyExcerpt: '',
+      fetchedAt: '2026-04-28T00:00:00Z',
+      rawHtmlBytes: 100_000,
+    });
+
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: '{}',
+      steps: [
+        {
+          index: 0,
+          name: 'generate_image',
+          input: {},
+          ok: true,
+          ms: 10,
+          output: { result: { images: [{ url: 'https://cdn.openai.com/x.png' }] } },
+        },
+      ],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    // Should not throw — fail-soft path.
+    const result = await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'url', payload: 'https://www.eightsleep.com/' },
+      variationCount: 1,
+      notifyMode: 'review',
+    });
+
+    expect(result.status).toBe('completed');
+
+    // Fallback: URL-based ref (not a data URL).
+    const refs = mocks.runMultiAgent.mock.calls[0][0].referenceImages;
+    expect(refs).toBeDefined();
+    expect(refs[0]).toMatchObject({ url: 'https://cdn.eightsleep.com/og-pod4.jpg' });
+    expect(refs[0].dataUrl).toBeUndefined();
+
+    mockFetch.mockRestore();
   });
 });
