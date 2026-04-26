@@ -21,6 +21,15 @@ export type CapabilityRequestPlan =
       sourceMode: 'selected-image';
     }
   | {
+      /**
+       * Creator typed a `write/author/pin/create a skill that …` prompt — the
+       * shell should kick off the SKILL.md drafter (AC5) and open the
+       * accept/reject modal rather than running a normal generation.
+       */
+      kind: 'author-skill';
+      authoringPrompt: string;
+    }
+  | {
       kind: 'tool';
       toolId: 'image-gen' | 'spatial-gen';
       artifactKind: 'image' | 'spatial';
@@ -39,6 +48,13 @@ function normalize(value: string): string {
 
 function isSpatialPrompt(prompt: string): boolean {
   return /\b(gaussian splat|gaussian-splat|splat|particle field|particles?)\b/i.test(prompt);
+}
+
+const AUTHOR_SKILL_RE =
+  /^\s*(?:write|author|pin|create|draft|make|build)\s+(?:a\s+|the\s+)?skill\s+(?:that|to|which|for)\b/i;
+
+export function isAuthorSkillPrompt(prompt: string): boolean {
+  return AUTHOR_SKILL_RE.test(prompt);
 }
 
 function resolveSpatialFormat(prompt: string): 'particle-field' | 'gaussian-splat' {
@@ -67,6 +83,12 @@ function matchesDefinition(prompt: string, definition: CapabilityDefinitionRecor
 export function resolveCapabilityRequest(
   context: CapabilityRequestContext
 ): CapabilityRequestPlan {
+  // AC5 — explicit skill-authoring intent takes precedence over definition
+  // matching so the creator can re-author a skill with the same trigger.
+  if (isAuthorSkillPrompt(context.prompt)) {
+    return { kind: 'author-skill', authoringPrompt: context.prompt };
+  }
+
   for (const definition of context.definitions) {
     if (!matchesDefinition(context.prompt, definition)) continue;
     const artifactKind = definitionArtifactKind(definition);

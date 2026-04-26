@@ -29,6 +29,10 @@ const runsApi = (anyApi as unknown as {
   runs: { start: unknown; step: unknown; finish: unknown; fail: unknown };
 }).runs;
 
+const skillsApi = (anyApi as unknown as {
+  skills: { insert: unknown; getByName: unknown };
+}).skills;
+
 export interface ServerRunStart {
   clientRunId: string;
   artifactKind?: ArtifactKind;
@@ -109,4 +113,34 @@ export async function recordRunFail(
 
 export function isConvexHttpEnabled(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CONVEX_DEPLOY_KEY);
+}
+
+export interface ServerSkillInsert {
+  name: string;
+  version: number;
+  description: string;
+  /** Path to SKILL.md, relative to repo root. */
+  manifestPath: string;
+  referenceFilePaths: string[];
+}
+
+/**
+ * Best-effort insert of a SkillRecord into the Convex `skill` table.
+ * No-op when Convex is not provisioned. Returns the convex document id when
+ * the insert succeeded so the caller can echo it back to the client.
+ */
+export async function recordSkillInsert(
+  input: ServerSkillInsert
+): Promise<string | null> {
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    const id = (await client.mutation(skillsApi.insert as never, input as never)) as
+      | string
+      | null;
+    return id ?? null;
+  } catch (err) {
+    console.error('[convex/http] recordSkillInsert failed', err);
+    return null;
+  }
 }
