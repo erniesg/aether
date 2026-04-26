@@ -1,5 +1,6 @@
 import { mutationGeneric, queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
+import { STALE_ABORT_ERROR } from '@/lib/store/runs.types';
 import type { ArtifactKind } from '@/lib/tool/registry';
 
 // Capability-run persistence. Shape mirrors lib/store/runs CapabilityRunRecord
@@ -281,7 +282,7 @@ export const abortStuck = mutationGeneric({
       await ctx.db.patch(doc._id as any, {
         status: 'error',
         step: 'done',
-        error: 'aborted: run exceeded inactivity threshold',
+        error: STALE_ABORT_ERROR,
         finishedAt: Date.now(),
       });
       aborted += 1;

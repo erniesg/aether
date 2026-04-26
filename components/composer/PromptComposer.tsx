@@ -190,25 +190,30 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       const hasFiles = (e: DragEvent) =>
         Array.from(e.dataTransfer?.types ?? []).includes('Files');
 
-      const onWindowDragEnter = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
+      const claimFileDrag = (e: DragEvent) => {
+        if (!hasFiles(e)) return false;
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return true;
+      };
+
+      const onWindowDragEnter = (e: DragEvent) => {
+        if (!claimFileDrag(e)) return;
         dragDepth.current += 1;
         setDragging(true);
       };
       const onWindowDragOver = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
+        if (!claimFileDrag(e)) return;
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
       };
       const onWindowDragLeave = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
+        if (!claimFileDrag(e)) return;
         dragDepth.current = Math.max(0, dragDepth.current - 1);
         if (dragDepth.current === 0) setDragging(false);
       };
       const onWindowDrop = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
+        if (!claimFileDrag(e)) return;
         dragDepth.current = 0;
         setDragging(false);
         const files = e.dataTransfer?.files;
@@ -309,6 +314,8 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     const handleDragEnter = (event: ReactDragEvent<HTMLFormElement>) => {
       if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       dragDepth.current += 1;
       setDragging(true);
     };
@@ -316,17 +323,24 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     const handleDragOver = (event: ReactDragEvent<HTMLFormElement>) => {
       if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       event.dataTransfer.dropEffect = 'copy';
     };
 
     const handleDragLeave = (event: ReactDragEvent<HTMLFormElement>) => {
+      if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) return;
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       dragDepth.current = Math.max(0, dragDepth.current - 1);
       if (dragDepth.current === 0) setDragging(false);
     };
 
     const handleDrop = (event: ReactDragEvent<HTMLFormElement>) => {
       event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       dragDepth.current = 0;
       setDragging(false);
       const files = event.dataTransfer?.files;

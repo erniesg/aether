@@ -3,7 +3,14 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComposerStatus } from '@/components/composer/ComposerStatus';
 import { appendRunActivity, initRunDetails } from '@/lib/store/runDetails';
-import { finishRun, resetRunsForTests, startRun, stepRun } from '@/lib/store/runs';
+import {
+  STALE_ABORT_ERROR,
+  failRun,
+  finishRun,
+  resetRunsForTests,
+  startRun,
+  stepRun,
+} from '@/lib/store/runs';
 
 afterEach(() => {
   cleanup();
@@ -76,6 +83,49 @@ describe('ComposerStatus', () => {
     expect(screen.getByText(/text edit recorded/i)).toBeInTheDocument();
     expect(screen.queryByText(/stub/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('filters stale aborted runs without hiding the last useful status', () => {
+    const okRunId = startRun({
+      tool: 'image-gen',
+      provider: 'openai',
+      model: 'gpt-image-1',
+      prompt: 'a coffee ad',
+    });
+    finishRun(okRunId, {
+      provider: 'openai',
+      model: 'gpt-image-1',
+      latencyMs: 1200,
+      status: 'ok',
+    });
+
+    const staleRunId = startRun({
+      tool: 'image-gen',
+      provider: 'openai',
+      model: 'gpt-image-1',
+      prompt: 'stale run',
+    });
+    failRun(staleRunId, STALE_ABORT_ERROR);
+
+    render(<ComposerStatus />);
+
+    expect(screen.getByText(/placed on canvas · openai · gpt-image-1 · 1.2s/i)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(STALE_ABORT_ERROR))).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('keeps real pre-existing errors visible', () => {
+    const runId = startRun({
+      tool: 'image-gen',
+      provider: 'openai',
+      model: 'gpt-image-1',
+      prompt: 'a coffee ad',
+    });
+    failRun(runId, 'provider exploded', 502);
+
+    render(<ComposerStatus />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/error · openai · gpt-image-1 · provider exploded/i);
   });
 
   it('shows per-format progress in the expanded panel during fan-out', async () => {

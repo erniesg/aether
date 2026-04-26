@@ -279,9 +279,7 @@ export default defineSchema({
     wsKey: v.optional(v.string()),
     tldrawStoreJson: v.string(),
     snapshottedAt: v.number(),
-  })
-    .index('by_ws', ['wsId'])
-    .index('by_ws_key', ['wsKey']),
+  }).index('by_ws', ['wsId']),
 
   keyVisual: defineTable({
     wsId: v.id('workspace'),

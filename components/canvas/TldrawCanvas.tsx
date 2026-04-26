@@ -60,6 +60,8 @@ export interface TldrawCanvasProps {
   safeZonesVisible?: boolean;
 }
 
+const TLDRAW_LICENSE_KEY = process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY;
+
 export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
   const { theme } = useTheme();
   const { setEditor } = useEditorRef();
@@ -83,6 +85,7 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
     <Tldraw
       className="absolute inset-0"
       inferDarkMode={false}
+      licenseKey={TLDRAW_LICENSE_KEY}
       options={{ maxPages: 1 }}
       shapeUtils={AETHER_SHAPE_UTILS}
       onMount={(editor: Editor) => {
