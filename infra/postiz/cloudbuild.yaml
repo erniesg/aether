@@ -1,0 +1,20 @@
+steps:
+  # Pull the latest postiz image and redeploy Cloud Run.
+  # Trigger manually or wire a Cloud Scheduler job to run weekly.
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    id: redeploy-postiz
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - postiz
+      - --image=ghcr.io/gitroomhq/postiz-app:latest
+      - --region=$_REGION
+      - --project=$PROJECT_ID
+      - --quiet
+
+substitutions:
+  _REGION: asia-southeast1
+
+options:
+  logging: CLOUD_LOGGING_ONLY
