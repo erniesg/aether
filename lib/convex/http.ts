@@ -192,3 +192,86 @@ export async function recordSkillInsert(
     return null;
   }
 }
+
+// ───── Auto-Mode campaign helpers (handoff §9) ────────────────────────────
+
+const campaignsApi = (anyApi as unknown as {
+  campaigns: {
+    startCampaign: unknown;
+    setCampaignStatus: unknown;
+    insertVariation: unknown;
+  };
+}).campaigns;
+
+export interface ServerCampaignStart {
+  workspaceId?: string;
+  triggerKind: 'url' | 'file' | 'text';
+  triggerPayload: string;
+  variationCount: number;
+  notifyMode: 'notify' | 'review' | 'auto-post';
+}
+
+export async function startCampaign(
+  input: ServerCampaignStart
+): Promise<string | null> {
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    return (await client.mutation(
+      campaignsApi.startCampaign as never,
+      input as never
+    )) as string;
+  } catch (err) {
+    console.error('[convex/http] startCampaign failed', err);
+    return null;
+  }
+}
+
+export async function setCampaignStatus(
+  campaignId: string,
+  status: 'running' | 'completed' | 'failed',
+  error?: string
+): Promise<void> {
+  const client = getHttpClient();
+  if (!client) return;
+  try {
+    await client.mutation(campaignsApi.setCampaignStatus as never, {
+      campaignId,
+      status,
+      error,
+    } as never);
+  } catch (err) {
+    console.error('[convex/http] setCampaignStatus failed', err);
+  }
+}
+
+export interface ServerVariationInsert {
+  campaignId: string;
+  workspaceId?: string;
+  index: number;
+  status: 'pending' | 'running' | 'ready' | 'failed';
+  heroImageUrl?: string;
+  caption?: string;
+  hashtags?: string[];
+  moodNote?: string;
+  schedulePlatform?: string;
+  scheduleWhenLocal?: string;
+  agentRunIds: string[];
+  error?: string;
+}
+
+export async function insertCampaignVariation(
+  input: ServerVariationInsert
+): Promise<string | null> {
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    return (await client.mutation(
+      campaignsApi.insertVariation as never,
+      input as never
+    )) as string;
+  } catch (err) {
+    console.error('[convex/http] insertCampaignVariation failed', err);
+    return null;
+  }
+}

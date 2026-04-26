@@ -1,0 +1,197 @@
+import { mutationGeneric, queryGeneric } from 'convex/server';
+import { v } from 'convex/values';
+
+// Auto-Mode campaign ledger — handoff §9.
+//
+// One `campaign` row per Auto-Mode lap. N `campaignVariation` children per
+// `variationCount`. The agent loop that drives each variation logs every
+// tool step into `capabilityRun` already (lib/agent/multi.ts → recordRun*),
+// so the cross-link is the variation's `agentRunIds[]` array of clientRunIds.
+//
+// Uses *Generic builders because `convex/_generated` is not committed.
+
+const TRIGGER_KIND = v.union(v.literal('url'), v.literal('file'), v.literal('text'));
+const NOTIFY_MODE = v.union(
+  v.literal('notify'),
+  v.literal('review'),
+  v.literal('auto-post')
+);
+const CAMPAIGN_STATUS = v.union(
+  v.literal('running'),
+  v.literal('completed'),
+  v.literal('failed')
+);
+const VARIATION_STATUS = v.union(
+  v.literal('pending'),
+  v.literal('running'),
+  v.literal('ready'),
+  v.literal('failed')
+);
+
+interface CampaignDoc {
+  _id: unknown;
+  workspaceId?: string;
+  triggerKind: 'url' | 'file' | 'text';
+  triggerPayload: string;
+  variationCount: number;
+  notifyMode: 'notify' | 'review' | 'auto-post';
+  status: 'running' | 'completed' | 'failed';
+  startedAt: number;
+  finishedAt?: number;
+  error?: string;
+}
+
+interface CampaignVariationDoc {
+  _id: unknown;
+  campaignId: unknown;
+  workspaceId?: string;
+  index: number;
+  status: 'pending' | 'running' | 'ready' | 'failed';
+  heroImageUrl?: string;
+  caption?: string;
+  hashtags?: string[];
+  moodNote?: string;
+  schedulePlatform?: string;
+  scheduleWhenLocal?: string;
+  agentRunIds: string[];
+  error?: string;
+  startedAt: number;
+  finishedAt?: number;
+}
+
+function toCampaign(doc: CampaignDoc) {
+  return {
+    id: String(doc._id),
+    workspaceId: doc.workspaceId,
+    triggerKind: doc.triggerKind,
+    triggerPayload: doc.triggerPayload,
+    variationCount: doc.variationCount,
+    notifyMode: doc.notifyMode,
+    status: doc.status,
+    startedAt: doc.startedAt,
+    finishedAt: doc.finishedAt,
+    error: doc.error,
+  };
+}
+
+function toVariation(doc: CampaignVariationDoc) {
+  return {
+    id: String(doc._id),
+    campaignId: String(doc.campaignId),
+    workspaceId: doc.workspaceId,
+    index: doc.index,
+    status: doc.status,
+    heroImageUrl: doc.heroImageUrl,
+    caption: doc.caption,
+    hashtags: doc.hashtags,
+    moodNote: doc.moodNote,
+    schedulePlatform: doc.schedulePlatform,
+    scheduleWhenLocal: doc.scheduleWhenLocal,
+    agentRunIds: doc.agentRunIds,
+    error: doc.error,
+    startedAt: doc.startedAt,
+    finishedAt: doc.finishedAt,
+  };
+}
+
+export const startCampaign = mutationGeneric({
+  args: {
+    workspaceId: v.optional(v.string()),
+    triggerKind: TRIGGER_KIND,
+    triggerPayload: v.string(),
+    variationCount: v.number(),
+    notifyMode: NOTIFY_MODE,
+  },
+  handler: async (ctx, args) => {
+    const id = await ctx.db.insert('campaign', {
+      workspaceId: args.workspaceId,
+      triggerKind: args.triggerKind,
+      triggerPayload: args.triggerPayload,
+      variationCount: args.variationCount,
+      notifyMode: args.notifyMode,
+      status: 'running',
+      startedAt: Date.now(),
+    });
+    return String(id);
+  },
+});
+
+export const setCampaignStatus = mutationGeneric({
+  args: {
+    campaignId: v.id('campaign'),
+    status: CAMPAIGN_STATUS,
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = { status: args.status };
+    if (args.status !== 'running') patch.finishedAt = Date.now();
+    if (args.error) patch.error = args.error;
+    await ctx.db.patch(args.campaignId as any, patch);
+    return null;
+  },
+});
+
+export const insertVariation = mutationGeneric({
+  args: {
+    campaignId: v.id('campaign'),
+    workspaceId: v.optional(v.string()),
+    index: v.number(),
+    status: VARIATION_STATUS,
+    heroImageUrl: v.optional(v.string()),
+    caption: v.optional(v.string()),
+    hashtags: v.optional(v.array(v.string())),
+    moodNote: v.optional(v.string()),
+    schedulePlatform: v.optional(v.string()),
+    scheduleWhenLocal: v.optional(v.string()),
+    agentRunIds: v.array(v.string()),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const id = await ctx.db.insert('campaignVariation', {
+      campaignId: args.campaignId,
+      workspaceId: args.workspaceId,
+      index: args.index,
+      status: args.status,
+      heroImageUrl: args.heroImageUrl,
+      caption: args.caption,
+      hashtags: args.hashtags,
+      moodNote: args.moodNote,
+      schedulePlatform: args.schedulePlatform,
+      scheduleWhenLocal: args.scheduleWhenLocal,
+      agentRunIds: args.agentRunIds,
+      error: args.error,
+      startedAt: now,
+      finishedAt: args.status === 'ready' || args.status === 'failed' ? now : undefined,
+    });
+    return String(id);
+  },
+});
+
+export const get = queryGeneric({
+  args: { campaignId: v.id('campaign') },
+  handler: async (ctx, args) => {
+    const campaign = (await ctx.db.get(args.campaignId as any)) as CampaignDoc | null;
+    if (!campaign) return null;
+    const variations = (await ctx.db
+      .query('campaignVariation')
+      .withIndex('by_campaign', (q: any) => q.eq('campaignId', args.campaignId))
+      .collect()) as CampaignVariationDoc[];
+    return {
+      campaign: toCampaign(campaign),
+      variations: variations.sort((a, b) => a.index - b.index).map(toVariation),
+    };
+  },
+});
+
+export const listByWorkspace = queryGeneric({
+  args: { workspaceId: v.string() },
+  handler: async (ctx, args) => {
+    const campaigns = (await ctx.db
+      .query('campaign')
+      .withIndex('by_workspace', (q: any) => q.eq('workspaceId', args.workspaceId))
+      .order('desc')
+      .take(20)) as CampaignDoc[];
+    return campaigns.map(toCampaign);
+  },
+});
