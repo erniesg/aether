@@ -15,6 +15,12 @@ const PUBLISHER_ENV_KEYS = [
   'POSTIZ_INTEGRATION_INSTAGRAM',
   'SOCIAL_AUTO_UPLOAD_URL',
   'SOCIAL_AUTO_UPLOAD_TOKEN',
+  'X_API_KEY',
+  'X_API_KEY_SECRET',
+  'X_ACCESS_TOKEN',
+  'X_ACCESS_TOKEN_SECRET',
+  'IG_ACCESS_TOKEN',
+  'IG_USER_ID',
 ] as const;
 
 function postFor(platform: ScheduledPost['platform']): ScheduledPost {
@@ -45,9 +51,9 @@ describe('publisher registry', () => {
     }
   });
 
-  it('exposes the three publisher ids defined for the seam', () => {
+  it('exposes the five publisher ids defined for the seam', () => {
     expect(new Set(KNOWN_PUBLISHER_IDS)).toEqual(
-      new Set(['preview', 'postiz', 'social-auto-upload'])
+      new Set(['preview', 'postiz', 'social-auto-upload', 'x', 'instagram'])
     );
   });
 
@@ -148,5 +154,61 @@ describe('publisher registry', () => {
     });
 
     expect(publisher.id).toBe('preview');
+  });
+
+  it('resolvePublisherForPost routes x posts to the X direct adapter when configured', () => {
+    process.env.X_API_KEY = 'key';
+    process.env.X_API_KEY_SECRET = 'secret';
+    process.env.X_ACCESS_TOKEN = 'token';
+    process.env.X_ACCESS_TOKEN_SECRET = 'token_secret';
+
+    const publisher = resolvePublisherForPost({
+      workspaceId: 'ws_x',
+      storage: createInMemoryStorageForTests(),
+      post: postFor('x'),
+    });
+
+    expect(publisher.id).toBe('x');
+  });
+
+  it('resolvePublisherForPost routes instagram posts to the IG direct adapter when configured', () => {
+    process.env.IG_ACCESS_TOKEN = 'ig_token';
+    process.env.IG_USER_ID = 'ig_user';
+
+    const publisher = resolvePublisherForPost({
+      workspaceId: 'ws_x',
+      storage: createInMemoryStorageForTests(),
+      post: postFor('instagram'),
+    });
+
+    expect(publisher.id).toBe('instagram');
+  });
+
+  it('resolvePublisherForPost falls through from X direct to postiz for x posts when X is unconfigured', () => {
+    process.env.POSTIZ_API_KEY = 'postiz_key';
+    process.env.POSTIZ_INTEGRATION_X = 'x_integration';
+    // X env vars deliberately absent
+
+    const publisher = resolvePublisherForPost({
+      workspaceId: 'ws_x',
+      storage: createInMemoryStorageForTests(),
+      post: postFor('x'),
+    });
+
+    expect(publisher.id).toBe('postiz');
+  });
+
+  it('listAvailablePublishers includes X and IG when configured', () => {
+    process.env.X_API_KEY = 'key';
+    process.env.X_API_KEY_SECRET = 'secret';
+    process.env.X_ACCESS_TOKEN = 'token';
+    process.env.X_ACCESS_TOKEN_SECRET = 'token_secret';
+    process.env.IG_ACCESS_TOKEN = 'ig_token';
+    process.env.IG_USER_ID = 'ig_user';
+
+    const list = listAvailablePublishers();
+    const ids = list.map((p) => p.id);
+    expect(ids).toContain('x');
+    expect(ids).toContain('instagram');
   });
 });

@@ -6,6 +6,14 @@ import {
   isSocialAutoUploadPublisherConfigured,
 } from './social-auto-upload';
 import {
+  createXPublisherFromEnv,
+  isXPublisherConfigured,
+} from './x';
+import {
+  createInstagramPublisherFromEnv,
+  isInstagramPublisherConfigured,
+} from './instagram';
+import {
   PublisherUnavailableError,
   type PublisherProvider,
   type PublisherProviderId,
@@ -16,12 +24,18 @@ import {
 /**
  * Publisher adapter selection. `preview` is always available for local creator
  * review. `postiz` becomes available when the API key and at least one
- * platform integration id are present.
+ * platform integration id are present. `x` and `instagram` become available
+ * when their respective env vars are configured (see x.ts / instagram.ts for
+ * credential setup instructions).
  *
- * Precedence when resolving:
+ * Precedence when resolving for a specific post (resolvePublisherForPost):
  *   1. explicit `preferredId`
  *   2. env `PUBLISHER_PROVIDER`
- *   3. iteration order (preview first, since it has no credential dependency)
+ *   3. x      — when post.platform === 'x' AND X_API_KEY etc. are set
+ *   4. instagram — when post.platform === 'instagram' AND IG_ACCESS_TOKEN etc.
+ *   5. postiz
+ *   6. social-auto-upload
+ *   7. preview (always available, no credentials)
  *
  * If the chosen adapter is unavailable, resolution falls through to preview
  * unless the caller made an explicit provider request.
@@ -31,6 +45,8 @@ export const KNOWN_PUBLISHER_IDS: ReadonlyArray<PublisherProviderId> = [
   'preview',
   'postiz',
   'social-auto-upload',
+  'x',
+  'instagram',
 ];
 
 export interface ResolvePublisherOptions {
@@ -61,6 +77,12 @@ function instantiatePublisher(
   }
   if (id === 'social-auto-upload' && isSocialAutoUploadPublisherConfigured(opts.env)) {
     return createSocialAutoUploadPublisher({ workspaceId: opts.workspaceId });
+  }
+  if (id === 'x') {
+    return createXPublisherFromEnv({}, opts.env);
+  }
+  if (id === 'instagram') {
+    return createInstagramPublisherFromEnv({}, opts.env);
   }
   if (id === 'preview') {
     return createPreviewPublisher({
@@ -99,8 +121,12 @@ export function resolvePublisher(
  * Platform-aware resolution for real publishing. Unlike `resolvePublisher`,
  * this does not let preview win before configured real adapters have had a
  * chance to claim the post. That allows one export pack to route Western
- * platforms to Postiz and CJK/browser-automation platforms to the Python
- * sidecar.
+ * platforms to direct adapters / Postiz and CJK/browser-automation platforms
+ * to the Python sidecar.
+ *
+ * Precedence:
+ *   explicit override → env PUBLISHER_PROVIDER → x (X posts) →
+ *   instagram (IG posts) → postiz → social-auto-upload → preview
  */
 export function resolvePublisherForPost(
   opts: ResolvePublisherForPostOptions
@@ -109,6 +135,8 @@ export function resolvePublisherForPost(
   const order = [
     opts.preferredId,
     envDefault,
+    'x',
+    'instagram',
     'postiz',
     'social-auto-upload',
     'preview',
@@ -143,6 +171,12 @@ export function listAvailablePublishers(): Array<{
   }
   if (isSocialAutoUploadPublisherConfigured()) {
     list.push({ id: 'social-auto-upload', displayName: 'social-auto-upload' });
+  }
+  if (isXPublisherConfigured(process.env)) {
+    list.push({ id: 'x', displayName: 'X (Twitter)' });
+  }
+  if (isInstagramPublisherConfigured(process.env)) {
+    list.push({ id: 'instagram', displayName: 'Instagram' });
   }
   return list;
 }
