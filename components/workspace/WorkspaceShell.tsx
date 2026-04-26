@@ -1827,6 +1827,22 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             prefs={providerPrefs ?? ({} as WorkspaceProviderPrefs)}
             onSave={(next) => saveProviderPrefs(wsId, next)}
           />
+          {/*
+            Auto-Mode shortcut — until the right-rail AutoModePanel is
+            wired (Slice B1), give the user a one-click route into the
+            standalone trigger page so they can fire a lap without
+            leaving the workspace context. Opens in a new tab so the
+            canvas stays put.
+          */}
+          <a
+            href="/auto-mode"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md border border-border-soft px-2.5 py-1 font-caption text-xs text-ink-dim transition hover:border-ink-dim hover:text-ink"
+            data-taxonomy="navigation"
+          >
+            auto-mode ↗
+          </a>
           <Chip tone="neutral" size="sm">
             scaffold
           </Chip>
