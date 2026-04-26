@@ -299,13 +299,31 @@ async function dispatchTool(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const json = await r.json();
     const latencyMs = Date.now() - startedAt;
 
-    if (!r.ok) {
-      const err = `${spec.path} → HTTP ${r.status}: ${JSON.stringify(json)}`;
+    // /api/generate streams as text/event-stream. Parse the SSE feed and
+    // synthesise a JSON-shaped output that downstream code (Auto Mode hero
+    // extraction, summarizeToolOutput) already understands.
+    const contentType = r.headers.get('content-type') ?? '';
+    const isSse = contentType.includes('text/event-stream');
+
+    if (!r.ok && !isSse) {
+      const errBody = await r.text();
+      const err = `${spec.path} → HTTP ${r.status}: ${errBody.slice(0, 400)}`;
       await recordRunFail(clientRunId, err, r.status);
       return { ok: false, errorMessage: err, clientRunId };
+    }
+
+    let json: unknown;
+    if (isSse) {
+      const sseResult = await readGenerateSse(r);
+      if (!sseResult.ok) {
+        await recordRunFail(clientRunId, sseResult.error);
+        return { ok: false, errorMessage: sseResult.error, clientRunId };
+      }
+      json = sseResult.synthetic;
+    } else {
+      json = await r.json();
     }
 
     const refined = spec.pickProvider ? spec.pickProvider(json) : {};
@@ -321,6 +339,137 @@ async function dispatchTool(
     await recordRunFail(clientRunId, message);
     return { ok: false, errorMessage: message, clientRunId };
   }
+}
+
+/**
+ * Read /api/generate's text/event-stream feed and synthesise the
+ * non-streaming shape pickHeroImageUrl + downstream tooling expect:
+ * `{ ok, provider, plan, result: { images: [{url, width, height, mimeType}] }, imageUrl }`.
+ *
+ * The stream emits `event: generate\ndata: <JSON>\n\n` frames; we parse
+ * each frame and watch for `run.completed`. The image url is captured
+ * eagerly from the first `frame.completed` event so a stream that ends
+ * without a clean run.completed still produces a usable output.
+ */
+async function readGenerateSse(
+  response: Response
+): Promise<{ ok: true; synthetic: unknown } | { ok: false; error: string }> {
+  const body = response.body;
+  if (!body) return { ok: false, error: 'generate stream body missing' };
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let firstImage: { url: string; width?: number; height?: number; mimeType?: string } | null =
+    null;
+  let provider: { id?: string; model?: string } = {};
+  let plan: Record<string, unknown> = {};
+  let runCompleted: Record<string, unknown> | null = null;
+  let runError: string | null = null;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) buffer += decoder.decode(value, { stream: !done });
+    if (done) buffer += decoder.decode();
+
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary !== -1) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      const dataLine = frame.split('\n').find((line) => line.startsWith('data:'));
+      if (dataLine) {
+        const payload = dataLine.slice('data:'.length).trim();
+        try {
+          const event = JSON.parse(payload) as Record<string, unknown> & {
+            type?: string;
+          };
+          switch (event.type) {
+            case 'plan.ready': {
+              const provRef = event.provider as Record<string, unknown> | undefined;
+              provider = {
+                id: typeof provRef?.id === 'string' ? (provRef.id as string) : undefined,
+                model:
+                  typeof provRef?.model === 'string' ? (provRef.model as string) : undefined,
+              };
+              plan = {
+                rewrittenPrompt: event.rewrittenPrompt,
+                aspectRatio: event.aspectRatio,
+                rationale: event.rationale,
+                model: provider.model,
+              };
+              break;
+            }
+            case 'frame.completed': {
+              const img = event.image as Record<string, unknown> | undefined;
+              if (img && typeof img.url === 'string' && !firstImage) {
+                firstImage = {
+                  url: img.url,
+                  width: typeof img.width === 'number' ? img.width : undefined,
+                  height: typeof img.height === 'number' ? img.height : undefined,
+                  mimeType:
+                    typeof img.mimeType === 'string' ? img.mimeType : undefined,
+                };
+              }
+              break;
+            }
+            case 'frame.failed': {
+              if (typeof event.error === 'string') runError = event.error;
+              break;
+            }
+            case 'run.completed': {
+              runCompleted = event;
+              if (
+                typeof event.firstImageUrl === 'string' &&
+                !firstImage
+              ) {
+                firstImage = { url: event.firstImageUrl };
+              }
+              // Prefer the more specific frame.failed reason if we already
+              // have one — the run-level message is usually a generic
+              // "all frames failed".
+              if (typeof event.error === 'string' && !runError) {
+                runError = event.error;
+              }
+              break;
+            }
+            default:
+              break;
+          }
+        } catch {
+          // skip malformed frame
+        }
+      }
+      boundary = buffer.indexOf('\n\n');
+    }
+
+    if (done) break;
+  }
+
+  if (!firstImage) {
+    return {
+      ok: false,
+      error:
+        runError ??
+        (runCompleted
+          ? `generate stream completed without an image (status=${
+              (runCompleted as { status?: string }).status ?? 'unknown'
+            })`
+          : 'generate stream ended before any frame completed'),
+    };
+  }
+
+  return {
+    ok: true,
+    synthetic: {
+      ok: true,
+      provider: provider.id,
+      plan,
+      result: { images: [firstImage] },
+      imageUrl: firstImage.url,
+    },
+  };
 }
 
 function summarizeToolOutput(name: string, output: unknown): string {
