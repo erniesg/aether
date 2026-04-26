@@ -1,10 +1,17 @@
 import { runMultiAgent, type MultiAgentToolStep } from './multi';
 import {
   insertCampaignVariation,
+  recordScheduledPost,
   setCampaignStatus,
   startCampaign,
 } from '@/lib/convex/http';
 import { notifyDiscord } from '@/lib/notify/discord';
+import { resolvePublisher } from '@/lib/providers/publisher/registry';
+import {
+  PUBLISH_PLATFORMS,
+  type PublishPlatform,
+  type ScheduledPost,
+} from '@/lib/providers/publisher/types';
 import {
   cropHeroToFormats,
   type CroppedFormat,
@@ -157,6 +164,12 @@ export interface AutoModeResult {
   variations: AutoModeVariationResult[];
   status: 'completed' | 'failed';
   notified: boolean;
+  /**
+   * When `notifyMode='auto-post'`, the IDs of scheduledPost rows created
+   * (one per ready variation × its scheduled platform). Empty in 'notify'
+   * and 'review' modes, and when no workspaceId was supplied.
+   */
+  scheduledPostIds: string[];
 }
 
 interface VariationPromptInput {
@@ -603,6 +616,94 @@ async function runOneVariation(
   };
 }
 
+/**
+ * Auto-post step (notifyMode='auto-post' only). Iterates ready variations,
+ * resolves the publisher seam (preview by default — the always-available
+ * adapter that owns no external side effects), schedules one ScheduledPost
+ * per ready variation × its envelope-declared platform, and persists each
+ * row to Convex via `recordScheduledPost`.
+ *
+ * Fail-soft per variation: a publisher.schedule reject or a platform we
+ * don't recognise just logs and skips that one row — never aborts the lap.
+ *
+ * Skipped when `workspaceId` is missing (preview publisher requires a
+ * workspace to scope its storage; we don't fabricate one).
+ */
+async function scheduleVariationPosts(input: {
+  variations: AutoModeVariationResult[];
+  workspaceId?: string;
+  baseUrl: string;
+}): Promise<string[]> {
+  const ids: string[] = [];
+  if (!input.workspaceId) return ids;
+
+  const publisher = resolvePublisher({
+    workspaceId: input.workspaceId,
+    preferredId: 'preview',
+    baseUrl: input.baseUrl,
+  });
+
+  for (const variation of input.variations) {
+    if (variation.status !== 'ready') continue;
+    if (!variation.heroImageUrl) continue;
+    if (!variation.schedulePlatform || !variation.scheduleWhenLocal) continue;
+
+    const platform = variation.schedulePlatform as PublishPlatform;
+    if (!PUBLISH_PLATFORMS.includes(platform)) continue;
+
+    const scheduledAt = normalizeScheduledAt(variation.scheduleWhenLocal);
+    if (!scheduledAt) continue;
+
+    const post: ScheduledPost = {
+      id: '',
+      platform,
+      mediaUrls: [variation.heroImageUrl],
+      caption: variation.caption ?? '',
+      hashtags: variation.hashtags ?? [],
+      scheduledAt,
+    };
+
+    try {
+      const result = await publisher.schedule(post);
+      const persistedId = await recordScheduledPost({
+        workspaceId: input.workspaceId,
+        post,
+        provider: publisher.id,
+        externalId: result.externalId,
+      });
+      const id =
+        persistedId ??
+        extractPreviewIdFromUrl(result.previewUrl) ??
+        result.externalId ??
+        `pub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      ids.push(id);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[auto-mode] scheduleVariationPosts: variation ${variation.index} failed`,
+        err
+      );
+    }
+  }
+
+  return ids;
+}
+
+function normalizeScheduledAt(whenLocal: string): string | null {
+  const d = new Date(whenLocal);
+  if (Number.isNaN(d.getTime())) return null;
+  // Preserve the original tz offset so manifests stay human-readable.
+  return whenLocal;
+}
+
+function extractPreviewIdFromUrl(previewUrl: string): string | null {
+  try {
+    return new URL(previewUrl, 'http://local').searchParams.get('publishPreview');
+  } catch {
+    return null;
+  }
+}
+
 async function persistVariation(
   campaignId: string,
   workspaceId: string | undefined,
@@ -728,6 +829,18 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     : 'completed';
   if (campaignId) await setCampaignStatus(campaignId, lapStatus);
 
+  // ─── Auto-post step ───────────────────────────────────────────────────
+  // Only when the caller asked for auto-post mode. Skips when no
+  // workspaceId since the preview publisher requires one.
+  let scheduledPostIds: string[] = [];
+  if (req.notifyMode === 'auto-post') {
+    scheduledPostIds = await scheduleVariationPosts({
+      variations,
+      workspaceId: req.workspaceId,
+      baseUrl: req.baseUrl,
+    });
+  }
+
   // ─── Lap-end ping — copy depends on notifyMode ────────────────────────
   // Always firing the end ping (even in 'review' / 'auto-post') so the
   // user knows what state the lap finished in. The 'review' copy
@@ -747,7 +860,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
   if (req.notifyMode === 'review') {
     endHeader = `🟡 Auto Mode lap ${lapStatus} — AWAITING APPROVAL · ${okCount}/${req.variationCount} variations ready`;
   } else if (req.notifyMode === 'auto-post') {
-    endHeader = `🟢 Auto Mode lap ${lapStatus} — POSTS SCHEDULED · ${okCount}/${req.variationCount}`;
+    endHeader = `🟢 Auto Mode lap ${lapStatus} — POSTS SCHEDULED · ${scheduledPostIds.length}/${okCount} posts scheduled (${req.variationCount} variations)`;
   } else {
     endHeader = `${lapStatus === 'completed' ? '✅' : '⚠️'} Auto Mode lap ${lapStatus} — ${okCount}/${req.variationCount} variations ready (${concurrency})`;
   }
@@ -756,6 +869,9 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     endHeader,
     `Trigger: ${req.trigger.kind} · ${req.trigger.payload.slice(0, 80)}`,
     ...variationLines,
+    ...(scheduledPostIds.length > 0
+      ? [`scheduled_posts: ${scheduledPostIds.join(', ')}`]
+      : []),
     campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
   ].join('\n');
 
@@ -764,5 +880,11 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     content: endContent,
   });
 
-  return { campaignId, variations, status: lapStatus, notified };
+  return {
+    campaignId,
+    variations,
+    status: lapStatus,
+    notified,
+    scheduledPostIds,
+  };
 }
