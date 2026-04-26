@@ -69,16 +69,20 @@ describe('InstagramPublisher · contract', () => {
     expect(publisher.canPublish(post({ platform: 'x' }))).toBe(false);
   });
 
-  it('schedule happy path: two-step container + publish, returns permalink', async () => {
+  it('schedule happy path: container + status poll + publish, returns permalink', async () => {
+    // The IG content-publishing flow is now THREE steps after the
+    // pollContainerReady fix: create container → poll status_code until
+    // FINISHED → publish. The mock returns FINISHED on the first poll.
     const fetchMockFn = vi.fn(async (url: string | URL | Request) => {
       const href = String(url);
-      if (href.includes('/media?')) {
-        // Step 1: container creation
-        return json({ id: 'container_abc' });
-      }
       if (href.includes('/media_publish?')) {
-        // Step 2: publish
         return json({ id: 'media_xyz789' });
+      }
+      if (href.includes('container_abc?') && href.includes('fields=status_code')) {
+        return json({ status_code: 'FINISHED' });
+      }
+      if (href.includes('/media?')) {
+        return json({ id: 'container_abc' });
       }
       return new Response('unexpected', { status: 500 });
     });
@@ -95,7 +99,8 @@ describe('InstagramPublisher · contract', () => {
 
     expect(result.externalId).toBe('media_xyz789');
     expect(result.previewUrl).toContain('instagram.com');
-    expect(fetchMockFn).toHaveBeenCalledTimes(2);
+    // 3 fetches: container create + 1 status poll + media_publish.
+    expect(fetchMockFn).toHaveBeenCalledTimes(3);
 
     // Step 1: container creation should have image_url and caption
     const step1Url = String((fetchMockFn as Mock).mock.calls[0][0]);
@@ -103,10 +108,15 @@ describe('InstagramPublisher · contract', () => {
     expect(step1Url).toContain('image_url=');
     expect(step1Url).toContain('caption=');
 
-    // Step 2: publish should use the container id
+    // Step 2: status poll uses the container id
     const step2Url = String((fetchMockFn as Mock).mock.calls[1][0]);
-    expect(step2Url).toContain('/12345/media_publish');
     expect(step2Url).toContain('container_abc');
+    expect(step2Url).toContain('fields=status_code');
+
+    // Step 3: publish should use the container id
+    const step3Url = String((fetchMockFn as Mock).mock.calls[2][0]);
+    expect(step3Url).toContain('/12345/media_publish');
+    expect(step3Url).toContain('container_abc');
   });
 
   it('schedule rejects future-scheduled posts with a clear error', async () => {

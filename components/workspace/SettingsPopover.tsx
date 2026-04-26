@@ -207,8 +207,11 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
           className={cn(
             // size constraint: <300×220px
             'w-[280px]',
-            'absolute right-0 top-full z-50 mt-1',
-            'rounded-md border border-border bg-surface-panel shadow-md',
+            // z-[1000] clears tldraw canvas overlays; bg-surface-overlay
+            // (solid) replaces bg-surface-panel which was letting canvas
+            // shapes bleed through.
+            'absolute right-0 top-full z-[1000] mt-1',
+            'rounded-md border border-border bg-surface-overlay shadow-md',
             'flex flex-col gap-2 p-3'
           )}
         >
