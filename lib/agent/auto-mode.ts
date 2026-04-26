@@ -39,6 +39,7 @@ import {
 import { fetchUrlIngestion, type UrlIngestion } from '@/lib/ingest/url';
 import { fetchPdfIngestion, type PdfIngestion } from '@/lib/ingest/pdf';
 import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
+import { composeVariantSet } from '@/lib/text-overlay/compose';
 
 /**
  * Auto Mode orchestrator (handoff §9, v1 slice).
@@ -171,6 +172,13 @@ export interface AutoModeVariationResult {
    *  text-bearing safe zone × locale. Position is segmentation-aware
    *  (faces/products/logos forbidden). */
   textOverlays?: ProposedTextOverlay[];
+  /** Convex public URL of the 4×4 atlas (formats × locales) — one
+   *  concatenated thumbnail per variation that the Discord embed surfaces
+   *  so the user can review every variant before posts fire. Absent when
+   *  the hero never produced bytes or the atlas compose failed. */
+  atlasUrl?: string;
+  /** Convex asset id of the atlas (for re-fetch / cleanup paths). */
+  atlasAssetId?: string;
   /** Non-fatal warnings from the text-overlay planner ('no-safe-zone-found'
    *  when every zone overlaps a forbidden region). */
   textOverlayWarnings?: string[];
@@ -1009,6 +1017,38 @@ async function runOneVariation(
           workspaceId: input.workspaceId,
         });
 
+  // Variant atlas — 4 formats × 4 SG locales composed into one PNG so
+  // Discord shows every (aspect ratio, language) at-a-glance per variation
+  // before posts fire. Failures are fail-soft: a missing atlas just means
+  // the embed falls back to the 1:1 hero. Skipped entirely on failed
+  // variations or when AUTO_MODE_DISABLE_ATLAS=1 (escape hatch for tests
+  // that don't want sharp pulled in).
+  let atlasUrl: string | undefined;
+  let atlasAssetId: string | undefined;
+  if (
+    !effectiveError &&
+    heroImageUrl &&
+    process.env.AUTO_MODE_DISABLE_ATLAS !== '1'
+  ) {
+    try {
+      const atlas = await composeAndUploadAtlas({
+        heroSource: rawHeroImageUrl ?? heroImageUrl,
+        textOverlays: postHero.textOverlays,
+        captionsByLocale: envelope.captionsByLocale,
+      });
+      if (atlas) {
+        atlasUrl = atlas.publicUrl;
+        atlasAssetId = atlas.assetId;
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[auto-mode] atlas compose failed for variation ${input.promptInput.index}:`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
+
   return {
     index: input.promptInput.index,
     status: effectiveError ? 'failed' : 'ready',
@@ -1025,10 +1065,62 @@ async function runOneVariation(
     textOverlayWarnings: postHero.textOverlayWarnings,
     masksOneShot: postHero.masksOneShot,
     masksVisionGuided: postHero.masksVisionGuided,
+    atlasUrl,
+    atlasAssetId,
     agentSteps: agentStepsForVariation,
     agentFinalText,
     error: effectiveError,
   };
+}
+
+/**
+ * Fetch the hero PNG bytes (data URL or remote), compose the 4×4 atlas
+ * with the per-locale text overlays, and upload to Convex storage.
+ * Returns null when Convex isn't configured or the upload itself failed —
+ * the caller treats that as "atlas unavailable" and the lap continues.
+ */
+async function composeAndUploadAtlas(input: {
+  heroSource: string;
+  textOverlays?: ProposedTextOverlay[];
+  captionsByLocale?: Partial<Record<LocaleCode, string>>;
+}): Promise<{ publicUrl: string; assetId: string } | null> {
+  const heroBytes = await fetchHeroBytes(input.heroSource);
+  if (!heroBytes) return null;
+  const composed = await composeVariantSet({
+    heroBytes,
+    textOverlays: input.textOverlays,
+    fallbackCaptions: input.captionsByLocale,
+  });
+  const uploaded = await uploadAssetToConvex({
+    source: composed.atlas,
+    kind: 'other',
+    mime: 'image/png',
+    sourceUrl: 'auto-mode variant atlas (4 formats × 4 SG locales)',
+    width: composed.atlasTileSize * 4,
+    height: composed.atlasTileSize * 4,
+  });
+  if (!uploaded) return null;
+  return { publicUrl: uploaded.publicUrl, assetId: uploaded.id };
+}
+
+async function fetchHeroBytes(source: string): Promise<Buffer | null> {
+  if (source.startsWith('data:')) {
+    const commaIdx = source.indexOf(',');
+    if (commaIdx <= 5) return null;
+    try {
+      return Buffer.from(source.slice(commaIdx + 1), 'base64');
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const res = await fetch(source);
+    if (!res.ok) return null;
+    const arr = await res.arrayBuffer();
+    return Buffer.from(arr);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -1196,9 +1288,15 @@ function buildVariationEmbed(input: {
       ? variation.moodNote.slice(0, 60)
       : `Variation ${variation.index}`;
 
-  // Hero image — skip data URLs (Discord can't display them inline).
+  // Embed image: prefer the variant atlas (4 formats × 4 SG locales) so
+  // Ernie can review every aspect ratio and language at-a-glance before
+  // posts fire. Falls back to the 1:1 hero when atlas is unavailable
+  // (compose failure, no Convex storage). Skip data URLs either way —
+  // Discord can't fetch them inline.
   const heroUrl = variation.heroImageUrl;
-  const hasPublicHero = heroUrl && !heroUrl.startsWith('data:');
+  const embedImageUrl = variation.atlasUrl ?? heroUrl;
+  const hasPublicEmbedImage =
+    embedImageUrl && !embedImageUrl.startsWith('data:');
 
   // Locale presence pill string.
   const locales: string[] = [];
@@ -1244,7 +1342,7 @@ function buildVariationEmbed(input: {
     timestamp: new Date().toISOString(),
   };
   if (deepLink) embed.url = deepLink;
-  if (hasPublicHero) embed.image = { url: heroUrl };
+  if (hasPublicEmbedImage) embed.image = { url: embedImageUrl };
 
   return embed;
 }
