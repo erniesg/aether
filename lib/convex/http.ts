@@ -10,21 +10,26 @@ import type {
 
 /**
  * Convex HTTP client for server-side runtimes (Next.js route handlers).
- * Activates only when both NEXT_PUBLIC_CONVEX_URL and CONVEX_DEPLOY_KEY are
- * set; otherwise every recorder call is a no-op so staging keeps working
- * before the deployment is provisioned.
+ * Activates whenever NEXT_PUBLIC_CONVEX_URL is set. CONVEX_DEPLOY_KEY is
+ * optional — every mutation we call (runs.*, campaigns.*, publisher.*,
+ * skills.*) is public (`mutationGeneric` with no auth gate in handler),
+ * so admin auth is not required to invoke them. When the key IS set we
+ * still apply it via setAdminAuth so audit / rate-limit attribution
+ * lines up with the server identity.
  */
 
 let httpClient: ConvexHttpClient | null = null;
 
 function getHttpClient(): ConvexHttpClient | null {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const key = process.env.CONVEX_DEPLOY_KEY;
-  if (!url || !key) return null;
+  if (!url) return null;
   if (!httpClient) {
     httpClient = new ConvexHttpClient(url);
-    const client = httpClient as unknown as { setAdminAuth?: (k: string) => void };
-    if (typeof client.setAdminAuth === 'function') client.setAdminAuth(key);
+    const key = process.env.CONVEX_DEPLOY_KEY;
+    if (key && key.length > 0) {
+      const client = httpClient as unknown as { setAdminAuth?: (k: string) => void };
+      if (typeof client.setAdminAuth === 'function') client.setAdminAuth(key);
+    }
   }
   return httpClient;
 }
@@ -125,7 +130,7 @@ export async function recordRunFail(
 }
 
 export function isConvexHttpEnabled(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL && process.env.CONVEX_DEPLOY_KEY);
+  return Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 }
 
 export async function recordScheduledPost(input: {
