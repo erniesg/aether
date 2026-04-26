@@ -29,15 +29,26 @@ const SNAPSHOT: BrandSnapshot = {
 };
 
 // ---------------------------------------------------------------------------
-// Mock proposeBrandFollowups at the module boundary
+// Mock proposeBrandFollowups + proposal recorder at the module boundary
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
   proposeBrandFollowups: vi.fn(),
+  recordProposedOffers: vi.fn(),
+  recordProposedCampaigns: vi.fn(),
 }));
 
-vi.mock('@/lib/brand/propose', () => ({
-  proposeBrandFollowups: mocks.proposeBrandFollowups,
+vi.mock('@/lib/brand/propose', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/brand/propose')>('@/lib/brand/propose');
+  return {
+    ...actual,
+    proposeBrandFollowups: mocks.proposeBrandFollowups,
+  };
+});
+
+vi.mock('@/lib/proposals/server', () => ({
+  recordProposedOffers: mocks.recordProposedOffers,
+  recordProposedCampaigns: mocks.recordProposedCampaigns,
 }));
 
 // ---------------------------------------------------------------------------
@@ -47,6 +58,8 @@ vi.mock('@/lib/brand/propose', () => ({
 describe('/api/brand/propose', () => {
   afterEach(() => {
     mocks.proposeBrandFollowups.mockReset();
+    mocks.recordProposedOffers.mockReset();
+    mocks.recordProposedCampaigns.mockReset();
   });
 
   const FOLLOWUPS: BrandFollowups = {
@@ -90,7 +103,7 @@ describe('/api/brand/propose', () => {
     expect(json.offers).toBeInstanceOf(Array);
     expect(json.campaigns).toBeInstanceOf(Array);
     expect(typeof json.coverage.ok).toBe('boolean');
-    expect(mocks.proposeBrandFollowups).toHaveBeenCalledWith({ snapshot: SNAPSHOT });
+    expect(mocks.proposeBrandFollowups).toHaveBeenCalledWith({ snapshot: SNAPSHOT, scope: 'all' });
   });
 
   it('returns 400 when snapshot is missing', async () => {
@@ -125,5 +138,89 @@ describe('/api/brand/propose', () => {
     const json = await res.json();
     expect(json.ok).toBe(false);
     expect(json.code).toBe('propose_failed');
+  });
+
+  it('writes proposed offers + campaigns to Convex when workspaceId is supplied', async () => {
+    mocks.proposeBrandFollowups.mockResolvedValueOnce(FOLLOWUPS);
+    mocks.recordProposedOffers.mockResolvedValueOnce(undefined);
+    mocks.recordProposedCampaigns.mockResolvedValueOnce(undefined);
+
+    const { POST } = await import('@/app/api/brand/propose/route');
+    const res = await POST(
+      new Request('http://localhost/api/brand/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot: SNAPSHOT, workspaceId: 'ws-solstice' }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.recordProposedOffers).toHaveBeenCalledWith(
+      'ws-solstice',
+      FOLLOWUPS.offers
+    );
+    expect(mocks.recordProposedCampaigns).toHaveBeenCalledWith(
+      'ws-solstice',
+      FOLLOWUPS.campaigns
+    );
+  });
+
+  it('does not call the proposal recorders when workspaceId is missing', async () => {
+    mocks.proposeBrandFollowups.mockResolvedValueOnce(FOLLOWUPS);
+
+    const { POST } = await import('@/app/api/brand/propose/route');
+    const res = await POST(
+      new Request('http://localhost/api/brand/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot: SNAPSHOT }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.recordProposedOffers).not.toHaveBeenCalled();
+    expect(mocks.recordProposedCampaigns).not.toHaveBeenCalled();
+  });
+
+  it('routes scope=offers to the offer recorder only', async () => {
+    mocks.proposeBrandFollowups.mockResolvedValueOnce(FOLLOWUPS);
+
+    const { POST } = await import('@/app/api/brand/propose/route');
+    const res = await POST(
+      new Request('http://localhost/api/brand/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot: SNAPSHOT, workspaceId: 'ws-solstice', scope: 'offers' }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.proposeBrandFollowups).toHaveBeenCalledWith({
+      snapshot: SNAPSHOT,
+      scope: 'offers',
+    });
+    expect(mocks.recordProposedOffers).toHaveBeenCalledTimes(1);
+    expect(mocks.recordProposedCampaigns).not.toHaveBeenCalled();
+  });
+
+  it('routes scope=campaigns to the campaign recorder only', async () => {
+    mocks.proposeBrandFollowups.mockResolvedValueOnce(FOLLOWUPS);
+
+    const { POST } = await import('@/app/api/brand/propose/route');
+    const res = await POST(
+      new Request('http://localhost/api/brand/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshot: SNAPSHOT, workspaceId: 'ws-solstice', scope: 'campaigns' }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.proposeBrandFollowups).toHaveBeenCalledWith({
+      snapshot: SNAPSHOT,
+      scope: 'campaigns',
+    });
+    expect(mocks.recordProposedOffers).not.toHaveBeenCalled();
+    expect(mocks.recordProposedCampaigns).toHaveBeenCalledTimes(1);
   });
 });

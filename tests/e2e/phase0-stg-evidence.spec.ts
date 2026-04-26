@@ -191,15 +191,17 @@ test.describe('Phase 0 — stg evidence packet', () => {
     const ingestBtn = flyout.getByRole('button', { name: /ingest/i });
     await ingestBtn.click();
 
-    // The strongest propose signal is coverage-notes (only present after the
-    // 3-worker planner returns).
-    const coverage = page.locator('[data-testid="propose-coverage-notes"]');
-    const draftCards = page.locator('[data-testid="propose-draft-cards"]');
+    // After Track A: the brand panel itself only renders loading / error;
+    // the AI-suggested cards live on the offer + campaign rails. Watching
+    // the brand-panel error or offer-rail cards (post-rail-open) is the
+    // strongest propose signal.
     const proposeError = page.locator('[data-testid="propose-error"]');
+    const proposeLoading = page.locator('[data-testid="propose-loading"]');
 
     const verdict = await Promise.race([
-      coverage.waitFor({ state: 'visible', timeout: 90_000 }).then(() => 'coverage'),
-      draftCards.waitFor({ state: 'visible', timeout: 90_000 }).then(() => 'cards'),
+      proposeLoading
+        .waitFor({ state: 'hidden', timeout: 90_000 })
+        .then(() => 'completed'),
       proposeError.waitFor({ state: 'visible', timeout: 90_000 }).then(() => 'error'),
     ]).catch(() => 'timeout');
 

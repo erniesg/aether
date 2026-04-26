@@ -36,8 +36,17 @@ export interface BrandFollowups {
   coverage: { ok: boolean; notes: string[] };
 }
 
+/**
+ * Which workers to fan out. `'all'` (the default) runs offers, campaigns, and
+ * coverage. `'offers'` and `'campaigns'` run only that worker — used by the
+ * "regenerate from brand" buttons on the offer / campaign rails so a single
+ * rail can be re-proposed without paying for the other two.
+ */
+export type ProposeScope = 'all' | 'offers' | 'campaigns';
+
 export interface ProposeBrandFollowupsOptions {
   snapshot: BrandSnapshot;
+  scope?: ProposeScope;
   /** Override the Anthropic client (used in tests). */
   client?: Anthropic;
 }
@@ -257,55 +266,61 @@ function parseCoverage(raw: Record<string, unknown>): { ok: boolean; notes: stri
 export async function proposeBrandFollowups(
   opts: ProposeBrandFollowupsOptions
 ): Promise<BrandFollowups> {
-  const { snapshot } = opts;
+  const { snapshot, scope = 'all' } = opts;
   const client = opts.client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
   const snapshotMsg = buildSnapshotMessage(snapshot);
 
-  // Fan out all three workers concurrently via Promise.all.
-  // Each is wrapped in try/catch so one failure does not block the others.
+  const wantOffers = scope === 'all' || scope === 'offers';
+  const wantCampaigns = scope === 'all' || scope === 'campaigns';
+  const wantCoverage = scope === 'all';
+
+  // Fan out the requested workers concurrently via Promise.all. Each worker is
+  // wrapped in try/catch so one failure does not block the others. Per-rail
+  // regenerate calls drop the workers they don't need so a single-rail refresh
+  // doesn't pay for the other two.
   const [offerResult, campaignResult, coverageInput] = await Promise.all([
-    runWorker({
-      name: 'offerProposer',
-      systemPrompt: OFFER_PROPOSER_SYSTEM,
-      tool: OFFER_TOOL,
-      userMessage: `Propose offers for this brand.\n\n${snapshotMsg}`,
-      client,
-    }).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { offers: [], _error: msg } as Record<string, unknown>;
-    }),
+    wantOffers
+      ? runWorker({
+          name: 'offerProposer',
+          systemPrompt: OFFER_PROPOSER_SYSTEM,
+          tool: OFFER_TOOL,
+          userMessage: `Propose offers for this brand.\n\n${snapshotMsg}`,
+          client,
+        }).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { offers: [], _error: msg } as Record<string, unknown>;
+        })
+      : Promise.resolve({ offers: [] } as Record<string, unknown>),
 
-    runWorker({
-      name: 'campaignProposer',
-      systemPrompt: CAMPAIGN_PROPOSER_SYSTEM,
-      tool: CAMPAIGN_TOOL,
-      userMessage: `Propose campaigns for this brand.\n\n${snapshotMsg}`,
-      client,
-    }).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { campaigns: [], _error: msg } as Record<string, unknown>;
-    }),
+    wantCampaigns
+      ? runWorker({
+          name: 'campaignProposer',
+          systemPrompt: CAMPAIGN_PROPOSER_SYSTEM,
+          tool: CAMPAIGN_TOOL,
+          userMessage: `Propose campaigns for this brand.\n\n${snapshotMsg}`,
+          client,
+        }).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { campaigns: [], _error: msg } as Record<string, unknown>;
+        })
+      : Promise.resolve({ campaigns: [] } as Record<string, unknown>),
 
-    // Coverage reviewer runs in parallel — we'll feed it the offers/campaigns
-    // after Promise.all resolves. To keep true parallelism for the reviewer,
-    // we pass the snapshot message only (offers may not be ready yet).
-    // The reviewer gets full context when the snapshot alone is sufficient
-    // to flag missing signals. A second pass with offer/campaign summaries
-    // is an optional future improvement.
-    runWorker({
-      name: 'coverageReviewer',
-      systemPrompt: COVERAGE_REVIEWER_SYSTEM,
-      tool: COVERAGE_TOOL,
-      userMessage: `Review coverage for this brand snapshot.\n\n${snapshotMsg}`,
-      client,
-    }).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        ok: false,
-        notes: [`coverage reviewer failed: ${msg}`],
-      } as Record<string, unknown>;
-    }),
+    wantCoverage
+      ? runWorker({
+          name: 'coverageReviewer',
+          systemPrompt: COVERAGE_REVIEWER_SYSTEM,
+          tool: COVERAGE_TOOL,
+          userMessage: `Review coverage for this brand snapshot.\n\n${snapshotMsg}`,
+          client,
+        }).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            ok: false,
+            notes: [`coverage reviewer failed: ${msg}`],
+          } as Record<string, unknown>;
+        })
+      : Promise.resolve({ ok: true, notes: [] } as Record<string, unknown>),
   ]);
 
   const offers = parseOffers(offerResult);

@@ -170,6 +170,32 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_workspace', ['workspaceId']),
 
+  // AI-suggested offer drafts produced by the brand-propose workers (Track A).
+  // Lives in its own table so the rail can subscribe + render accept/reject
+  // cards without leaking proposal state into the canonical offerProfile.
+  // Accepting a row promotes it into offerProfile and deletes the proposal;
+  // rejecting just deletes it. proposalId is the worker-emitted stable id.
+  proposedOffer: defineTable({
+    workspaceId: v.string(),
+    proposalId: v.string(),
+    name: v.string(),
+    summary: v.string(),
+    claims: v.array(v.string()),
+    heroAsset: v.string(),
+    proposedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  proposedCampaign: defineTable({
+    workspaceId: v.string(),
+    proposalId: v.string(),
+    name: v.string(),
+    goal: v.string(),
+    audience: v.string(),
+    channels: v.array(v.string()),
+    cta: v.string(),
+    proposedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
   workspaceContext: defineTable({
     workspaceId: v.string(),
     activeReferenceIds: v.array(v.string()),
