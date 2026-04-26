@@ -172,3 +172,88 @@ export async function POST(request: Request) {
     );
   }
 }
+
+/**
+ * GET /api/auto-mode/approve?c=<campaignId>&v=<variationIndex>
+ *
+ * Browser-friendly entry point so Discord link buttons can hit this URL
+ * directly (link buttons issue a GET in the user's browser). Internally
+ * delegates to the POST handler with a synthesised JSON body, then renders
+ * a small HTML confirmation that includes a "Review in Aether ↗" link.
+ *
+ * The notifyMode defaults to 'auto-post' on this path because the user just
+ * clicked "Approve" — a button click is a stronger signal of intent than the
+ * review-mode JSON path, which expects the UI to drive scheduling separately.
+ */
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const campaignId = url.searchParams.get('c') ?? '';
+  const v = url.searchParams.get('v') ?? '';
+  const variationIndex = Number(v);
+  const wsId = url.searchParams.get('ws') ?? undefined;
+  if (!campaignId || !Number.isInteger(variationIndex)) {
+    return new NextResponse(
+      `<!doctype html><meta charset="utf-8"><title>Aether — bad approve</title>
+      <body style="font-family:system-ui;padding:32px;background:#0a0a0a;color:#fafafa;">
+      <h2>Approve link is malformed</h2>
+      <p>Missing or invalid <code>c</code> (campaign id) / <code>v</code> (variation index).</p>
+      </body>`,
+      { status: 400, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    );
+  }
+
+  const baseOrigin = `${url.protocol}//${url.host}`;
+  const synthBody: RequestBody = {
+    campaignId,
+    variationIndex,
+    notifyMode: 'auto-post',
+    workspaceId: wsId,
+    forcePostNow: true,
+  };
+
+  let result: { ok: boolean; approved?: boolean; note?: string; scheduledPostIds?: string[]; error?: string };
+  try {
+    const synthReq = new Request(request.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(synthBody),
+    });
+    const res = await POST(synthReq);
+    result = (await res.json()) as typeof result;
+  } catch (err) {
+    result = {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  const heading = result.ok
+    ? `✅ Approved variation v${variationIndex}`
+    : `⚠️ Approve failed for v${variationIndex}`;
+  const body = result.ok
+    ? result.note
+      ? `<p>${escapeHtml(result.note)}</p>`
+      : `<p>Posting through the configured publisher. Watch Discord for the live link.</p>`
+    : `<p>${escapeHtml(result.error ?? 'unknown error')}</p>`;
+
+  const html = `<!doctype html><meta charset="utf-8"><title>Aether — approve v${variationIndex}</title>
+  <body style="font-family:system-ui,-apple-system,sans-serif;padding:48px;background:#0a0a0a;color:#fafafa;line-height:1.5;">
+    <h2 style="margin-top:0">${escapeHtml(heading)}</h2>
+    ${body}
+    <p style="margin-top:24px"><a href="${escapeHtml(baseOrigin)}/inspect/${encodeURIComponent(campaignId)}" style="color:#7eb6ff">Review the full lap in Aether ↗</a></p>
+    <p style="opacity:0.5;font-size:13px;margin-top:32px;font-family:Menlo,Consolas,monospace;">campaign=${escapeHtml(campaignId)} · v${variationIndex}</p>
+  </body>`;
+  return new NextResponse(html, {
+    status: result.ok ? 200 : 500,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
