@@ -9,7 +9,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import { useRuns } from '@/lib/store/runs';
+import { STALE_ABORT_ERROR, abortStuckRuns, useRuns } from '@/lib/store/runs';
 import { useRunDetails } from '@/lib/store/runDetails';
 import { useVoiceCaption } from '@/lib/voice/caption-store';
 import { cn } from '@/lib/utils/cn';
@@ -109,7 +109,10 @@ function summarizeFrames(
  */
 export function ComposerStatus() {
   const runs = useRuns();
-  const top = runs[0];
+  const top = useMemo(
+    () => runs.find((run) => run.error !== STALE_ABORT_ERROR),
+    [runs]
+  );
   const details = useRunDetails(top?.id);
   const voice = useVoiceCaption();
   const [elapsed, setElapsed] = useState(0);
@@ -232,6 +235,27 @@ export function ComposerStatus() {
 
   if (top.status === 'running') {
     const stepLabel = top.step ?? 'starting';
+    // Abort button is opt-in only when the run is *clearly* stalled — not
+    // just slow. Three trigger paths, in increasing tolerance:
+    //   1. early-pipeline steps stuck > 15s — `prepared` / `sending` /
+    //      `received` / `parsing` should each be sub-second. >15s means the
+    //      SSE stream never started or got interrupted (tab closed mid-run,
+    //      deploy reset the worker, etc.); the row will sit `running`
+    //      forever.
+    //   2. step is 'placing' > 30s — placement to the canvas should be
+    //      near-instant; if it's that slow, the canonical Convex `runs:finish`
+    //      failure has hit.
+    //   3. universal backstop > 180s — fan-out across 4 formats with one
+    //      OpenAI call each can legitimately reach 60-120s in `awaiting`,
+    //      so 180s is the only safe ceiling for the long step.
+    const EARLY_STEPS = ['prepared', 'sending', 'received', 'parsing'] as const;
+    const isEarlyStuck =
+      EARLY_STEPS.includes(stepLabel as (typeof EARLY_STEPS)[number]) &&
+      elapsed >= 15;
+    const showAbort =
+      isEarlyStuck ||
+      (stepLabel === 'placing' && elapsed >= 30) ||
+      elapsed >= 180;
     return (
       <div className="relative">
         {activityPanel}
@@ -247,14 +271,33 @@ export function ComposerStatus() {
               {elapsed}s
             </span>
           </div>
-          <button
-            type="button"
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-xs text-accent/80 hover:bg-accent/10 hover:text-accent"
-            aria-label={expanded ? 'hide activity' : 'show activity'}
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {showAbort ? (
+              <button
+                type="button"
+                className="inline-flex h-5 items-center rounded-xs px-2 font-caption text-[10px] uppercase tracking-wide text-accent/80 hover:bg-accent/10 hover:text-accent"
+                aria-label="abort stuck run"
+                title="abort all runs that have been stuck for >60s"
+                onClick={() => {
+                  void abortStuckRuns().catch(() => {
+                    // Swallow; the composer status is best-effort UX, the
+                    // mutation is idempotent and any error surfaces in
+                    // subsequent run states.
+                  });
+                }}
+              >
+                abort
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-xs text-accent/80 hover:bg-accent/10 hover:text-accent"
+              aria-label={expanded ? 'hide activity' : 'show activity'}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -281,6 +324,32 @@ export function ComposerStatus() {
           >
             {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (top.status === 'draft-executor') {
+    const draftSummary = summaryTarget && summaryTarget !== 'stub · stub' ? ` · ${summaryTarget}` : '';
+    const draftLabel = top.tool === 'text-apply' ? 'text edit recorded' : 'capability recorded';
+    return (
+      <div className="relative">
+        {activityPanel}
+        <div className="flex h-6 items-center justify-between border-t border-border-soft bg-surface-bg-muted px-4 font-caption text-ink-dim">
+          <div className="flex min-w-0 items-center gap-2 truncate">
+            <Sparkles size={10} strokeWidth={2} className="shrink-0 text-ink-faint" />
+            <span className="truncate">{draftLabel}{draftSummary}</span>
+          </div>
+          {details && (details.activities.length > 0 || details.frames.length > 0) ? (
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-xs text-ink-dim hover:bg-surface-panel-muted hover:text-ink"
+              aria-label={expanded ? 'hide activity' : 'show activity'}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+            </button>
+          ) : null}
         </div>
       </div>
     );

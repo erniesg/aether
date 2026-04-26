@@ -10,30 +10,37 @@ name: claude-review
 #   2. The head-branch guard + explicit prompt keep the reviewer from
 #      reviewing its own review comments.
 #
-# Output contract: the reviewer comment MUST end with one of:
-#   VERDICT: APPROVE
-#   VERDICT: REQUEST_CHANGES
-#   VERDICT: BLOCK
+# Output contract: the reviewer structured output MUST include a `verdict`
+# field set to one of APPROVE, REQUEST_CHANGES, or BLOCK. Human-required BLOCK
+# verdicts must include a decision packet with reason + options; visual/product
+# ambiguity must also include artifact links.
 #
-# The `route-verdict` job reads the latest claude[bot] comment on the PR and
-# dispatches labels + Discord notification. See `lib/review/parseVerdict.ts`
-# for the verdict parser that the shell step defers to.
+# The `route-verdict` job reads the structured output, posts the PR comment,
+# and dispatches labels + Discord notification. It still falls back to parsing
+# an existing bot comment for older/manual runs.
 #
-# PROPOSED — Ernie to move from .github/workflows-proposed/ to .github/workflows/.
-# The GitHub App that authors agent PRs cannot modify workflow files; this
-# path keeps the YAML reviewable in the same PR while landing it requires a
-# human commit (or a `gh pr merge --admin`).
+# Active reviewer workflow. The GitHub App that authors agent PRs cannot
+# safely self-modify this file; changes here should land through human/Codex
+# review rather than author-agent branches.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to review
+        required: true
+        type: string
 
 jobs:
   review:
     # Only review agent-authored branches. Human PRs, and PRs opened by the
     # reviewer agent itself (it never pushes branches, but belt-and-braces),
     # are skipped.
-    if: startsWith(github.event.pull_request.head.ref, 'claude/issue-')
+    if: |
+      (github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'claude/issue-')) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -42,17 +49,35 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - name: Resolve PR context
+        id: pr_context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr view "${PR_NUMBER}" --json number,headRefName,headRefOid --jq '{number, headRefName, headRefOid}')"
+          {
+            echo "number=$(printf '%s' "${pr}" | jq -r '.number')"
+            echo "head_ref=$(printf '%s' "${pr}" | jq -r '.headRefName')"
+            echo "head_sha=$(printf '%s' "${pr}" | jq -r '.headRefOid')"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ steps.pr_context.outputs.head_sha }}
 
       - name: Run reviewer agent
         id: reviewer
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # workflow_dispatch runs are initiated by github-actions[bot] from
+          # claude.yml after it refreshes an existing PR branch with GITHUB_TOKEN.
+          allowed_bots: "*"
           # Plain-text review prompt. We previously used "/review --strict"
           # but claude-code-action@v1 doesn't recognize that as a built-in
           # slash command, so the agent no-opped and never produced a
@@ -64,6 +89,9 @@ jobs:
             and any artifact URLs posted as PR comments. Do NOT attempt to
             modify code; you only comment.
 
+            PR number: #${{ steps.pr_context.outputs.number }}
+            PR head branch: ${{ steps.pr_context.outputs.head_ref }}
+
             Apply STRICT review: red/green TDD compliance, hard rules from
             docs/AGENT-BRIEFING.md (provider seam, typed provenance, UI
             taxonomy, restraint, canvas-as-substrate), and the acceptance
@@ -71,30 +99,43 @@ jobs:
             when it should be integration, any hardcoded provider, any UI
             mixing taxonomy categories.
 
-            Post ONE PR comment using the GitHub tools. The comment must
-            end with EXACTLY one of these lines (no markdown emphasis, no
-            trailing whitespace):
+            Return structured output only. Do not try to post a PR comment
+            yourself; the routing step will post the review comment from your
+            structured output. The `verdict` field must be exactly one of
+            `APPROVE`, `REQUEST_CHANGES`, or `BLOCK`.
 
-              VERDICT: APPROVE
-              VERDICT: REQUEST_CHANGES
-              VERDICT: BLOCK
+            Put the human-readable review in the `body` field. The router will
+            append the final VERDICT line.
 
             - APPROVE: all acceptance criteria met, tests green, no hard-rule
               violations.
-            - REQUEST_CHANGES: small fixable issues; the author agent will
-              pick it up again.
-            - BLOCK: architectural concern or spec violation that needs
-              human resolution.
+            - REQUEST_CHANGES: fixable code, test, artifact-capture, or harness
+              issues; the author agent will be re-dispatched automatically.
+              Do not use BLOCK just because a screenshot/artifact is missing.
+            - BLOCK: only use for architectural, product, or visual ambiguity
+              that truly needs Ernie. Include `humanReview` with:
+              - `kind`: `visual`, `product`, `architecture`, or `other`
+              - `reason`: one concise sentence naming the ambiguity
+              - `options`: at least two concrete choices Ernie can pick from
+              - `artifactUrls`: screenshots, previews, PR comments, or other
+                evidence links whenever `kind` is `visual` or `product`
+
+            For visual/product ambiguity, do not route a vague "manual review"
+            note. Provide the specific artifacts and clear options. If those
+            artifacts are missing, return REQUEST_CHANGES asking the author
+            agent to capture them.
           claude_args: |
             --max-turns 120
             --model claude-opus-4-7
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","BLOCK"]},"body":{"type":"string","description":"Human-readable PR review summary and findings. Do not include the final VERDICT line."},"humanReview":{"type":"object","properties":{"kind":{"type":"string","enum":["visual","product","architecture","other"]},"reason":{"type":"string","description":"Concise reason a human decision is required."},"options":{"type":"array","minItems":2,"items":{"type":"object","properties":{"label":{"type":"string"},"description":{"type":"string"}},"required":["label","description"],"additionalProperties":false}},"artifactUrls":{"type":"array","items":{"type":"string"},"description":"Evidence links. Required by prompt whenever kind is visual or product."}},"required":["kind","reason","options"],"additionalProperties":false}},"required":["verdict","body"],"additionalProperties":false}'
 
       - name: Route verdict
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ steps.pr_context.outputs.number }}
+          PR_HEAD_REF: ${{ steps.pr_context.outputs.head_ref }}
+          REVIEWER_STRUCTURED_OUTPUT: ${{ steps.reviewer.outputs.structured_output }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}

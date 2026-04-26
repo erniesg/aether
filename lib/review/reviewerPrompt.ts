@@ -17,6 +17,10 @@
 //     VERDICT: APPROVE
 //     VERDICT: REQUEST_CHANGES
 //     VERDICT: BLOCK
+//   When BLOCK is caused by human-required visual/product ambiguity, the review
+//   must include a clear reason, at least two concrete options, and artifact
+//   URLs/screenshots so the human is choosing from evidence instead of a vague
+//   escalation.
 //   The post-review workflow step parses this via `parseVerdict`.
 
 export interface ReviewerPromptInput {
@@ -94,6 +98,16 @@ End your comment with EXACTLY one of these three lines (nothing after it):
 
 Use APPROVE only when every acceptance box is satisfied, tests are green, and the
 artifacts demonstrate the feature works. Use REQUEST_CHANGES for fixable gaps
-(missing test, minor taxonomy drift). Use BLOCK only when the PR represents a
-fundamentally wrong direction and a human must intervene.`;
+(missing test, minor taxonomy drift, missing screenshots/artifacts, harness
+failures). Use BLOCK only when the PR represents a fundamentally wrong direction
+or a product/visual ambiguity and a human must intervene.
+
+When you use BLOCK for visual or product ambiguity, include a short "Human
+decision packet" before the verdict with:
+- Reason: the ambiguity that needs a human call.
+- Options: at least two concrete choices the human can pick from.
+- Artifacts: screenshots, preview links, PR comments, or other evidence links.
+
+If the artifacts needed for a product/visual call are missing, use
+REQUEST_CHANGES instead and ask the author agent to capture them.`;
 }

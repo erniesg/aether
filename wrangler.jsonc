@@ -31,8 +31,28 @@
       "vars": {
         "AETHER_ENV": "staging",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai",
-        "NEXT_PUBLIC_CONVEX_URL": "",
-        "VOICE_PROVIDER": "openai-realtime"
+        "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
+        "VOICE_PROVIDER": "gemini-live",
+        "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+        "IMAGE_GEN_PROVIDER": "openai",
+        // Publisher — Postiz (Western platforms: IG/X/LinkedIn/TikTok/Pinterest/YT).
+        // Real values are wrangler secrets, NOT vars. These empty placeholders
+        // document what to set; see docs/DEPLOY-PUBLISHERS.md + infra/postiz/.
+        "POSTIZ_API_URL": "",
+        "POSTIZ_API_KEY": "",
+        "POSTIZ_INTEGRATION_INSTAGRAM": "",
+        "POSTIZ_INTEGRATION_TIKTOK": "",
+        "POSTIZ_INTEGRATION_X": "",
+        "POSTIZ_INTEGRATION_LINKEDIN": "",
+        "POSTIZ_INTEGRATION_YOUTUBE_SHORTS": "",
+        "POSTIZ_INTEGRATION_PINTEREST": "",
+        "POSTIZ_PINTEREST_BOARD_ID": "",
+        "POSTIZ_PINTEREST_LINK_URL": "",
+        // Publisher — social-auto-upload (CJK: TikTok CN / Douyin / XHS / Bilibili / Kuaishou).
+        // Modal ASGI endpoint. Cookie capture via modal run infra/social-auto-upload/modal_app.py.
+        // See docs/DEPLOY-PUBLISHERS.md + infra/social-auto-upload/.
+        "SOCIAL_AUTO_UPLOAD_URL": "",
+        "SOCIAL_AUTO_UPLOAD_TOKEN": ""
       }
     },
     "production": {
@@ -50,8 +70,10 @@
       "vars": {
         "AETHER_ENV": "production",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai",
-        "NEXT_PUBLIC_CONVEX_URL": "",
-        "VOICE_PROVIDER": "openai-realtime"
+        "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
+        "VOICE_PROVIDER": "gemini-live",
+        "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+        "IMAGE_GEN_PROVIDER": "openai"
       }
     }
   }

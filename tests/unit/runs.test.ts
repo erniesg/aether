@@ -175,7 +175,7 @@ describe('runs store — shape contract (consumers: ComposerStatus, ActionLog)',
     // ComposerStatus reads: status, step, startedAt, provider, model, latencyMs, error
     expect(top).toEqual(
       expect.objectContaining({
-        status: expect.stringMatching(/running|ok|error/),
+        status: expect.stringMatching(/running|ok|error|draft-executor/),
         startedAt: expect.any(Number),
         provider: expect.any(String),
         model: expect.any(String),
@@ -199,6 +199,42 @@ describe('runs store — Convex backend (NEXT_PUBLIC_CONVEX_URL set, useQuery mo
   beforeEach(() => {
     process.env.NEXT_PUBLIC_CONVEX_URL = 'https://example.convex.cloud';
     vi.resetModules();
+  });
+
+  it('startRun forwards explicit draft status to the Convex start mutation', async () => {
+    const mutationFn = vi.fn(async () => undefined);
+    vi.doMock('convex/react', () => ({
+      useQuery: vi.fn(() => []),
+      useMutation: vi.fn(() => mutationFn),
+      ConvexReactClient: class {
+        constructor(_url: string) {}
+        mutation = mutationFn;
+      },
+      ConvexProvider: ({ children }: { children: React.ReactNode }) => children,
+    }));
+
+    const runs = await import('@/lib/store/runs');
+    let id = '';
+    act(() => {
+      id = runs.startRun({
+        tool: 'text-apply',
+        provider: 'stub',
+        model: 'stub',
+        prompt: 'record text overlay intent',
+        artifactKind: 'text-overlay',
+        status: 'draft-executor',
+      });
+    });
+
+    expect(mutationFn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        clientRunId: id,
+        artifactKind: 'text-overlay',
+        tool: 'text-apply',
+        status: 'draft-executor',
+      })
+    );
   });
 
   it('useRuns returns the CapabilityRunRecord[] emitted by useQuery', async () => {
@@ -230,6 +266,16 @@ describe('runs store — Convex backend (NEXT_PUBLIC_CONVEX_URL set, useQuery mo
         step: 'sending' as const,
         startedAt: now - 500,
       },
+      {
+        id: 'run_draft',
+        tool: 'text-apply',
+        provider: 'stub',
+        model: 'stub',
+        prompt: 'record text overlay intent',
+        artifactKind: 'text-overlay' as const,
+        status: 'draft-executor' as const,
+        startedAt: now - 250,
+      },
     ];
 
     const mutationFn = vi.fn(async () => undefined);
@@ -247,7 +293,7 @@ describe('runs store — Convex backend (NEXT_PUBLIC_CONVEX_URL set, useQuery mo
 
     const runs = await import('@/lib/store/runs');
     const { result } = renderHook(() => runs.useRuns());
-    expect(result.current).toHaveLength(2);
+    expect(result.current).toHaveLength(3);
     expect(result.current[0]).toMatchObject({
       id: 'run_abc',
       status: 'ok',
@@ -259,6 +305,11 @@ describe('runs store — Convex backend (NEXT_PUBLIC_CONVEX_URL set, useQuery mo
       id: 'run_def',
       status: 'running',
       step: 'sending',
+    });
+    expect(result.current[2]).toMatchObject({
+      id: 'run_draft',
+      artifactKind: 'text-overlay',
+      status: 'draft-executor',
     });
   });
 

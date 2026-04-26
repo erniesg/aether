@@ -19,13 +19,29 @@ import {
 } from './sections/PublishSection';
 import { useScheduledPosts } from '@/lib/publisher/store';
 import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
+import {
+  useEyesClosedCapture,
+  type EyesClosedCapture,
+} from '@/lib/voice/eyes-closed-store';
 import { setFocusedClusterCard, useFocusedClusterCard } from '@/lib/clusters/focus';
 import {
   moveClusterCard,
   useClusters,
   type ClusterCard,
 } from '@/lib/clusters/store';
+import {
+  DEMO_LOCALES,
+  setActiveLocale,
+  useActiveLocale,
+} from '@/lib/text-overlay/active-locale';
+import type { BCP47LocaleCode } from '@/lib/text-overlay/types';
 import { cn } from '@/lib/utils/cn';
+
+const LOCALE_LABELS: Record<string, string> = {
+  en: 'EN',
+  'zh-Hans': '中文',
+  'ja-JP': '日本語',
+};
 
 type SectionSpec = {
   id: string;
@@ -47,15 +63,56 @@ function PlaceholderBody({ hint }: { hint: string }) {
 }
 
 /**
- * The "This focus" flyout: version tree + Script subsection. The version tree
- * is a stub today (one seeded row) — the creator loop hasn't yet produced
- * v1→vN, but the affordance needs to exist so the progressive-disclosure
- * contract holds from first paint. Script is the caption / voiceover / copy
- * per format — the script beat of "idea → picture → script" lives here.
+ * The "This focus" flyout: version tree + Script subsection + the eyes-closed
+ * capture provenance (issue #128). The version tree is a stub today — the
+ * creator loop hasn't yet produced v1→vN, but the affordance needs to exist
+ * so the progressive-disclosure contract holds from first paint. Script is
+ * the caption / voiceover / copy per format — the script beat of "idea →
+ * picture → script" lives here. The eyes-closed block surfaces the most
+ * recent voice transcript + sketch thumbnail + planner output as typed
+ * provenance for the active capture.
  */
+function LocaleSwitcher() {
+  const active = useActiveLocale();
+  return (
+    <section
+      className="flex flex-col gap-1.5"
+      aria-label="locale"
+      data-testid="focus-locale-switcher"
+    >
+      <span className="font-caption text-ink-dim">locale</span>
+      <div className="flex flex-wrap gap-1">
+        {DEMO_LOCALES.map((locale) => {
+          const isActive = locale === active;
+          return (
+            <button
+              key={locale}
+              type="button"
+              data-testid={`locale-switch-${locale}`}
+              data-active={isActive ? 'true' : 'false'}
+              onClick={() => setActiveLocale(locale as BCP47LocaleCode)}
+              className={cn(
+                'inline-flex h-7 items-center gap-1 rounded-sm border px-2 font-mono text-2xs uppercase tracking-wide transition-colors',
+                isActive
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel text-ink hover:border-border'
+              )}
+            >
+              {LOCALE_LABELS[locale] ?? locale}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function FocusBody() {
+  const eyesClosed = useEyesClosedCapture();
   return (
     <div className="flex flex-col gap-4">
+      {eyesClosed ? <EyesClosedFocusBlock capture={eyesClosed} /> : null}
+
       <section className="flex flex-col gap-1.5" aria-label="version tree">
         <span className="font-caption text-ink-dim">versions</span>
         <ol className="flex flex-col gap-1">
@@ -68,11 +125,98 @@ function FocusBody() {
         </ol>
       </section>
 
+      <LocaleSwitcher />
+
       <section className="flex flex-col gap-1.5" aria-label="script">
         <span className="font-caption text-ink-dim">script</span>
         <PlaceholderBody hint="caption · voiceover · copy per format" />
       </section>
     </div>
+  );
+}
+
+function EyesClosedFocusBlock({ capture }: { capture: EyesClosedCapture }) {
+  const transcript = capture.transcript || '— no spoken intent —';
+  const moodKeywords = capture.component?.mood?.keywords ?? [];
+  const heroDesc = capture.component?.hero?.description;
+  const plannerLabel =
+    capture.plannerMode === 'pending'
+      ? 'planning…'
+      : capture.plannerMode === 'anthropic'
+      ? 'opus 4.7'
+      : capture.plannerMode === 'fallback'
+      ? 'fallback'
+      : 'error';
+  return (
+    <section
+      className="flex flex-col gap-2 rounded-sm border border-border-soft bg-surface-panel-muted p-2"
+      aria-label="eyes-closed capture"
+      data-testid="eyes-closed-focus"
+    >
+      <header className="flex items-center justify-between gap-2">
+        <span className="font-caption text-ink-dim">eyes-closed capture</span>
+        <span
+          className="font-mono text-2xs uppercase tracking-wide text-accent"
+          data-testid="eyes-closed-planner-mode"
+        >
+          {plannerLabel}
+        </span>
+      </header>
+
+      <div className="flex gap-2">
+        {capture.sketchImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={capture.sketchImageUrl}
+            alt="captured sketch"
+            data-testid="eyes-closed-sketch"
+            className="h-16 w-16 shrink-0 rounded-xs border border-border-soft bg-surface-panel object-contain"
+          />
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xs border border-dashed border-border-soft">
+            <span className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+              voice-only
+            </span>
+          </div>
+        )}
+        <p
+          data-testid="eyes-closed-transcript"
+          className="flex-1 break-words font-caption text-ink"
+        >
+          {transcript}
+        </p>
+      </div>
+
+      {heroDesc ? (
+        <div className="flex flex-col gap-1" aria-label="planner output">
+          <span className="font-caption text-ink-dim">hero</span>
+          <span
+            data-testid="eyes-closed-hero"
+            className="font-caption text-xs text-ink"
+          >
+            {heroDesc}
+          </span>
+          {moodKeywords.length > 0 ? (
+            <ul className="mt-1 flex flex-wrap gap-1">
+              {moodKeywords.slice(0, 6).map((kw) => (
+                <li
+                  key={kw}
+                  className="rounded-pill border border-border-soft bg-surface-panel px-1.5 py-0.5 font-mono text-2xs uppercase tracking-wide text-ink-dim"
+                >
+                  {kw}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {capture.plannerError ? (
+        <span className="font-caption text-2xs text-ink-faint">
+          planner: {capture.plannerError}
+        </span>
+      ) : null}
+    </section>
   );
 }
 
@@ -244,6 +388,15 @@ function RightRailInner({
   const gens = useGenerationsSummary();
   const scheduledPosts = useScheduledPosts(workspaceId);
   const focusedCard = useFocusedClusterCard();
+  const eyesClosed = useEyesClosedCapture();
+  useEffect(() => {
+    // Auto-open the focus section whenever a fresh eyes-closed capture lands
+    // so the creator sees provenance without having to click into the rail.
+    if (eyesClosed && openSection !== 'focus') {
+      toggle('focus');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eyesClosed?.id]);
   useEffect(() => {
     // Auto-open the cluster-focus section whenever a new card gets focus.
     // Closing the section is a creator choice; we don't force-close on
@@ -305,7 +458,13 @@ function RightRailInner({
       id: 'focus',
       label: 'this focus',
       icon: Eye,
-      summary: 'nothing selected',
+      summary: eyesClosed
+        ? eyesClosed.plannerMode === 'pending'
+          ? 'eyes-closed · planning'
+          : 'eyes-closed capture'
+        : 'nothing selected',
+      hasContent: Boolean(eyesClosed),
+      active: Boolean(eyesClosed),
       body: <FocusBody />,
       headerAction: exportAction,
     },

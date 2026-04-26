@@ -16,6 +16,8 @@ export type PublishPlatform =
   | 'youtube-shorts'
   | 'xhs'
   | 'douyin'
+  | 'bilibili'
+  | 'kuaishou'
   | 'pinterest';
 
 export const PUBLISH_PLATFORMS: ReadonlyArray<PublishPlatform> = [
@@ -26,6 +28,8 @@ export const PUBLISH_PLATFORMS: ReadonlyArray<PublishPlatform> = [
   'youtube-shorts',
   'xhs',
   'douyin',
+  'bilibili',
+  'kuaishou',
   'pinterest',
 ];
 
@@ -46,6 +50,12 @@ export interface ScheduledPost {
   /** ISO8601 — use strings, not epoch ms, so manifests are human-readable. */
   scheduledAt: string;
   accountId?: string;
+  /** Provider that owns the external side effect when the post is real. */
+  provider?: PublisherProviderId | string;
+  /** Platform-side id used for later cancellation/status sync. */
+  externalId?: string;
+  /** Optional status when rows are read from persistence. */
+  status?: PublishStatus;
 }
 
 export interface ScheduleResult {

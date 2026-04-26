@@ -60,6 +60,7 @@ describe('/api/voice/session', () => {
   });
 
   it('declares all five voice tools when minting a session', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     process.env.OPENAI_API_KEY = 'sk-test';
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
@@ -122,7 +123,8 @@ describe('/api/voice/session', () => {
     expect(JSON.stringify(session)).not.toContain('gk-primary-must-not-leak');
   });
 
-  it('returns 503 when OPENAI_API_KEY is missing', async () => {
+  it('returns 503 when OPENAI_API_KEY is missing (openai-realtime path)', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     delete process.env.OPENAI_API_KEY;
     const { POST } = await import('@/app/api/voice/session/route');
     const response = await POST();
@@ -144,13 +146,15 @@ describe('/api/voice/session', () => {
   });
 
   it('returns 502 when OpenAI rejects the session request', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     process.env.OPENAI_API_KEY = 'sk-test';
     const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 })) as unknown as typeof fetch;
     const { issueVoiceSession } = await import('@/app/api/voice/session/route');
     await expect(issueVoiceSession({ fetchImpl })).rejects.toThrow(/429/);
   });
 
-  it('GET reports configuration state without exposing secrets', async () => {
+  it('GET reports openai-realtime configuration state without exposing secrets', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
     process.env.OPENAI_API_KEY = 'sk-test';
     const { GET } = await import('@/app/api/voice/session/route');
     const response = await GET();
@@ -163,6 +167,22 @@ describe('/api/voice/session', () => {
       })
     );
     expect(JSON.stringify(json)).not.toContain('sk-test');
+  });
+
+  it('defaults to gemini-live when VOICE_PROVIDER is unset (per provider mandate)', async () => {
+    delete process.env.VOICE_PROVIDER;
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-test';
+    const { GET } = await import('@/app/api/voice/session/route');
+    const response = await GET();
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        ok: true,
+        provider: 'gemini-live',
+        configured: true,
+      })
+    );
+    expect(JSON.stringify(json)).not.toContain('gk-test');
   });
 
   it('GET reports Gemini Live defaults and configuration state without exposing secrets', async () => {
@@ -183,5 +203,79 @@ describe('/api/voice/session', () => {
       })
     );
     expect(JSON.stringify(json)).not.toContain('gk-test');
+  });
+
+  // ── workspace-pref override tests ──────────────────────────────────────────
+
+  it('workspace pref overrides env: gemini-live pref wins over openai-realtime env', async () => {
+    process.env.VOICE_PROVIDER = 'openai-realtime';
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-pref-test';
+
+    const issueGeminiTokenImpl = vi.fn(async () => ({
+      name: 'tokens/pref_override_123',
+      expireTime: new Date(Date.now() + 60_000).toISOString(),
+    }));
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({
+      provider: 'gemini-live',
+      issueGeminiTokenImpl,
+    });
+
+    expect(session.provider).toBe('gemini-live');
+    expect(session.clientSecret).toBe('tokens/pref_override_123');
+  });
+
+  it('workspace pref overrides env: openai-realtime pref wins over gemini-live env', async () => {
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.OPENAI_API_KEY = 'sk-pref-override';
+
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          id: 'sess_pref',
+          client_secret: { value: 'ek_pref_override', expires_at: Math.floor(Date.now() / 1000) + 60 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    ) as unknown as typeof fetch;
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({
+      provider: 'openai-realtime',
+      fetchImpl,
+    });
+
+    expect(session.provider).toBe('openai-realtime');
+    expect(session.clientSecret).toBe('ek_pref_override');
+  });
+
+  it('workspace pref model flows through to gemini token request', async () => {
+    process.env.VOICE_PROVIDER = 'gemini-live';
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk-model-pref';
+    // env model is different from what pref specifies
+    process.env.GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+
+    const issueGeminiTokenImpl = vi.fn(async (params: {
+      apiKey: string;
+      model: string;
+      voice: string;
+    }) => {
+      // pref-specified model wins over env model
+      expect(params.model).toBe('gemini-live-2.5-flash-native-audio');
+      return {
+        name: 'tokens/model_pref_token',
+        expireTime: new Date(Date.now() + 60_000).toISOString(),
+      };
+    });
+
+    const { issueVoiceSession } = await import('@/app/api/voice/session/route');
+    const session = await issueVoiceSession({
+      provider: 'gemini-live',
+      model: 'gemini-live-2.5-flash-native-audio',
+      issueGeminiTokenImpl,
+    });
+
+    expect(session.model).toBe('gemini-live-2.5-flash-native-audio');
   });
 });

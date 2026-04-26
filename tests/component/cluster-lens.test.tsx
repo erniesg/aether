@@ -8,22 +8,39 @@ import {
   upsertClusterCard,
 } from '@/lib/clusters/store';
 import { clearFocusedClusterCardForTests } from '@/lib/clusters/focus';
+import {
+  addReference,
+  clearReferencesForTests,
+} from '@/lib/references/store';
 
 beforeEach(() => {
   delete process.env.NEXT_PUBLIC_CONVEX_URL;
   window.localStorage.clear();
   resetClustersForTests();
   clearFocusedClusterCardForTests();
+  clearReferencesForTests();
 });
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  clearReferencesForTests();
 });
 
 const ATTR = { source: 'pinterest', author: 'studio', url: 'https://pin.it/abc' };
 
 function seedCards() {
+  addReference({
+    id: 'ref-a',
+    kind: 'image',
+    previewUrl: 'data:image/png;base64,AAA',
+    fullUrl: 'https://pin.it/abc',
+    attribution: ATTR,
+    capturedAt: '2026-04-25T00:00:00.000Z',
+    title: 'Amber shelf ritual',
+    tags: ['amber', 'ritual'],
+    notes: 'warm product shelf',
+  });
   upsertClusterCard({
     referenceId: 'ref-a',
     clusterId: '0',
@@ -109,7 +126,7 @@ describe('ClusterLens · kanban', () => {
     const moved = document.querySelector<HTMLElement>(
       '[data-testid="cluster-card"][data-reference-id="ref-a"]'
     );
-    expect(moved?.getAttribute('data-cluster-column')).toBe('Shortlisted');
+    expect(moved?.getAttribute('data-card-column')).toBe('Shortlisted');
     expect(
       shortlisted.querySelector('[data-reference-id="ref-a"]')
     ).toBeTruthy();
@@ -164,5 +181,28 @@ describe('ClusterLens · kanban', () => {
     render(<ClusterLens />);
     const run = screen.getByTestId('cluster-lens-run');
     expect(run).toBeDisabled();
+  });
+
+  it('opens a tweakable moodboard from a labelled cluster and sends the prompt to composer', async () => {
+    seedCards();
+    const onMoodboardPrompt = vi.fn();
+    render(<ClusterLens onMoodboardPrompt={onMoodboardPrompt} />);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /make moodboard slow morning/i })
+    );
+    const panel = screen.getByTestId('moodboard-panel');
+    expect(panel).toHaveAttribute('data-taxonomy', 'tool');
+    expect(within(panel).getByText('slow morning')).toBeInTheDocument();
+
+    await userEvent.click(within(panel).getByRole('button', { name: /warmer/i }));
+    await userEvent.click(screen.getByTestId('moodboard-use-prompt'));
+
+    expect(onMoodboardPrompt).toHaveBeenCalledWith(
+      expect.stringContaining('slow morning')
+    );
+    expect(onMoodboardPrompt).toHaveBeenCalledWith(
+      expect.stringContaining('warmer')
+    );
   });
 });

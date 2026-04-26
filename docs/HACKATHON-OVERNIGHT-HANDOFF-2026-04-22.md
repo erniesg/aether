@@ -1,6 +1,6 @@
 # Overnight handoff — 2026-04-22 SGT
 
-You are picking up the aether hackathon build. Previous agent (Claude Opus 4.7) completed Phases 0–4 and is handing off to autonomous agents for overnight work. Your job: progress a specific tracked slice, ship it as an independent PR, and let human + Codex review in the morning.
+You are picking up the aether hackathon build. Previous agent (Claude Opus 4.7) completed Phases 0–4 and is handing off to autonomous agents for overnight work. Your job: progress a specific tracked slice, ship it as an independent PR, and leave it ready for human review in the morning.
 
 **Today's date (wall clock, agent's reference):** 2026-04-22 SGT / 2026-04-21 EDT.
 Hackathon kickoff was 2026-04-21 12:30 PM EDT — all code in this repo was authored after that. Preserve that invariant.
@@ -13,7 +13,7 @@ Hackathon kickoff was 2026-04-21 12:30 PM EDT — all code in this repo was auth
   - Health: `/api/health` · Generate: `/api/generate` (both fully functional)
 - **Production URL reserved but DO NOT DEPLOY:** `aether.berlayar.ai`
 - Legacy planning reference (READ-ONLY, DO NOT COPY CODE): `/Users/erniesg/code/erniesg/aether-prehack`
-- Codex review bot is configured on the repo (assume it will review PRs automatically)
+- Automated review is manual-only; do not assume a PR will receive an automatic review comment.
 
 ## Read first (in order)
 
@@ -108,7 +108,7 @@ By ~08:00 SGT, the human wakes to:
 - 1 PR per slice on `erniesg/aether` against `main`
 - Green CI (typecheck + tests) on each
 - Concise description + TDD log in each PR body
-- Codex review comment appearing naturally on each
+- Artifacts, TDD logs, and concise PR bodies ready for human review
 - No prod impact, no legacy-repo changes
 
 If your slice can't complete, open a DRAFT PR with the blocker clearly labeled.
