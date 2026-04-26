@@ -10,13 +10,14 @@ afterEach(() => {
 });
 
 describe('RightRail · creator-language rewrite', () => {
-  it('renders exactly four sections in focus · formats · all-generations · scheduled order', () => {
+  it('renders exactly five sections in auto-mode · focus · formats · all-generations · scheduled order', () => {
     const { container } = render(<RightRail />);
 
     const sections = Array.from(
       container.querySelectorAll<HTMLElement>('[data-rail-section]')
     );
     expect(sections.map((s) => s.dataset.railSection)).toEqual([
+      'auto-mode',
       'focus',
       'formats',
       'all-generations',
