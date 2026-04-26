@@ -286,10 +286,16 @@ export interface ComposeVariantSetInput {
 export interface ComposeVariantSetOutput {
   /** key: `${format.id}-${locale}` → composed PNG bytes. */
   tiles: Map<string, Buffer>;
-  /** 4×4 atlas — 4 formats (rows) × 4 locales (cols). */
+  /** 4×4 atlas — 4 formats (rows) × 4 locales (cols). Each cell is a
+   *  label band stacked above the cropped/rendered image so the label
+   *  never occludes the headline / caption inside the frame. */
   atlas: Buffer;
-  /** Per-tile dimensions of the atlas (square). */
+  /** Image-area side length per cell — square. */
   atlasTileSize: number;
+  /** Total cell width (= atlasTileSize, image is centred horizontally). */
+  atlasCellWidth: number;
+  /** Total cell height (= atlasTileSize + label band height). */
+  atlasCellHeight: number;
 }
 
 /**
@@ -351,50 +357,52 @@ export async function composeVariantSet(
   );
   const tiles = new Map<string, Buffer>(tileEntries);
 
-  // 3) Atlas: 4 formats (rows) × 4 locales (cols), each tile fitted into a
-  //    square cell with a label header.
+  // 3) Atlas: 4 formats (rows) × 4 locales (cols). Each cell is laid out
+  //    as a label band on TOP and the image below (label OUTSIDE the
+  //    cropped frame so it never occludes the rendered headline).
   const tileSize = 380;
+  const labelH = 56;
+  const cellW = tileSize;
+  const cellH = tileSize + labelH;
+  const cellBg = { r: 16, g: 16, b: 16 };
   const atlasTiles = await Promise.all(
     COMPOSE_FORMATS.flatMap((format) =>
       COMPOSE_LOCALES.map(async (locale) => {
         const key = `${format.id}-${locale}`;
         const png = tiles.get(key);
+        const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cellW}" height="${labelH}">
+  <rect x="0" y="0" width="${cellW}" height="${labelH}" fill="black"/>
+  <text x="${cellW / 2}" y="${Math.round(labelH * 0.68)}" font-family="Menlo,Consolas,monospace" font-size="22" font-weight="700"
+        fill="white" text-anchor="middle">${format.id} · ${locale}</text>
+</svg>`;
         if (!png || png.length === 0) {
-          // Black fallback cell.
           return sharp({
-            create: {
-              width: tileSize,
-              height: tileSize,
-              channels: 3,
-              background: { r: 16, g: 16, b: 16 },
-            },
+            create: { width: cellW, height: cellH, channels: 3, background: cellBg },
           })
+            .composite([{ input: Buffer.from(labelSvg), top: 0, left: 0 }])
             .png()
             .toBuffer();
         }
-        const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tileSize}" height="56">
-  <rect x="0" y="0" width="${tileSize}" height="56" fill="black" opacity="0.65"/>
-  <text x="${tileSize / 2}" y="38" font-family="Menlo,Consolas,monospace" font-size="22" font-weight="700"
-        fill="white" text-anchor="middle">${format.id} · ${locale}</text>
-</svg>`;
+        // Image fitted into (tileSize × tileSize) below the label band.
         const fitted = await sharp(png)
           .resize({
             width: tileSize,
             height: tileSize,
             fit: 'inside',
-            background: { r: 16, g: 16, b: 16 },
+            background: cellBg,
           })
           .toBuffer();
+        const fittedMeta = await sharp(fitted).metadata();
+        // Centre-pad inside the image area.
+        const fitW = fittedMeta.width ?? tileSize;
+        const fitH = fittedMeta.height ?? tileSize;
+        const left = Math.round((cellW - fitW) / 2);
+        const top = labelH + Math.round((tileSize - fitH) / 2);
         return sharp({
-          create: {
-            width: tileSize,
-            height: tileSize,
-            channels: 3,
-            background: { r: 16, g: 16, b: 16 },
-          },
+          create: { width: cellW, height: cellH, channels: 3, background: cellBg },
         })
           .composite([
-            { input: fitted, gravity: 'center' },
+            { input: fitted, top, left },
             { input: Buffer.from(labelSvg), top: 0, left: 0 },
           ])
           .png()
@@ -410,22 +418,28 @@ export async function composeVariantSet(
     for (let c = 0; c < cols; c += 1) {
       composites.push({
         input: atlasTiles[r * cols + c],
-        top: r * tileSize,
-        left: c * tileSize,
+        top: r * cellH,
+        left: c * cellW,
       });
     }
   }
   const atlas = await sharp({
     create: {
-      width: cols * tileSize,
-      height: rows * tileSize,
+      width: cols * cellW,
+      height: rows * cellH,
       channels: 3,
-      background: { r: 16, g: 16, b: 16 },
+      background: cellBg,
     },
   })
     .composite(composites)
     .png()
     .toBuffer();
 
-  return { tiles, atlas, atlasTileSize: tileSize };
+  return {
+    tiles,
+    atlas,
+    atlasTileSize: tileSize,
+    atlasCellWidth: cellW,
+    atlasCellHeight: cellH,
+  };
 }
