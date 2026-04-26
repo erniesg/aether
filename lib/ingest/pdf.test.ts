@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('pdf-parse', () => ({
   PDFParse: mocks.PDFParse,
+  default: { PDFParse: mocks.PDFParse },
 }));
 
 // Build a fake PDF data URL from arbitrary base64.

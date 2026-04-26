@@ -1,0 +1,40 @@
+[
+  {
+    "zone": {
+      "purpose": "headline",
+      "bbox": {
+        "x": 0.05,
+        "y": 0.05,
+        "w": 0.9,
+        "h": 0.18
+      },
+      "mustSurviveAllCrops": true
+    },
+    "content": {
+      "en-SG": "Sleep cooler. Wake sharper.",
+      "zh-Hans-SG": "睡得更凉，醒得更清。",
+      "ms-SG": "Tidur sejuk. Bangun cergas.",
+      "ta-SG": "குளிராய் தூங்கு. தெளிவாய் எழு."
+    },
+    "textAlign": "center"
+  },
+  {
+    "zone": {
+      "purpose": "caption",
+      "bbox": {
+        "x": 0.05,
+        "y": 0.78,
+        "w": 0.9,
+        "h": 0.17
+      },
+      "mustSurviveAllCrops": true
+    },
+    "content": {
+      "en-SG": "The Pod tunes each side of your bed. Now in Singapore — 30 nights risk-free.",
+      "zh-Hans-SG": "The Pod 为床的两侧独立调温，新加坡现已上市，30 晚无忧试睡。",
+      "ms-SG": "The Pod menala setiap sisi katil anda. Kini di Singapura — 30 malam tanpa risiko.",
+      "ta-SG": "The Pod உங்கள் படுக்கையின் இரு பக்கங்களையும் தனித்தனியே சீராக்குகிறது. சிங்கப்பூரில் இப்போது — 30 இரவுகள் இடர் இல்லாமல்."
+    },
+    "textAlign": "center"
+  }
+]

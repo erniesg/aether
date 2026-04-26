@@ -1,0 +1,375 @@
+{
+  "ok": true,
+  "campaignId": "ns702yzw1w92bqf7an8a0xaj9s85k0bp",
+  "variations": [
+    {
+      "index": 1,
+      "status": "ready",
+      "heroImageUrl": "https://oceanic-dolphin-808.convex.cloud/api/storage/3442e163-d7c3-414b-91cd-eaf123440a1f",
+      "heroAssetId": "pd79xrqb535zmw69gh1gfx4xb985kx6n",
+      "caption": "Sleep cooler, wake sharper lah. The Pod tunes each side of your bed — personalised cooling, heating and sleep tracking, now in Singapore. 30 nights risk-free.",
+      "captionsByLocale": {
+        "en-SG": "Sleep cooler, wake sharper lah. The Pod tunes each side of your bed — personalised cooling, heating and sleep tracking, now in Singapore. 30 nights risk-free.",
+        "zh-Hans-SG": "睡得更凉,醒得更精神。Pod 为床的两侧分别调节冷暖,追踪睡眠,新加坡现已上市。30 晚无忧试睡。",
+        "ms-SG": "Tidur lebih sejuk, bangun lebih segar. Pod laras suhu setiap sisi katil, jejak tidur anda — kini di Singapura. Cuba 30 malam tanpa risiko.",
+        "ta-SG": "குளிர்ச்சியாக தூங்குங்கள், புத்துணர்ச்சியுடன் எழுங்கள். Pod உங்கள் படுக்கையின் இரு பக்கங்களையும் தனித்தனியாக சீராக்கி தூக்கத்தைக் கண்காணிக்கிறது — இப்போது சிங்கப்பூரில். 30 இரவுகள் இலவச சோதனை."
+      },
+      "hashtags": [
+        "#EightSleep",
+        "#ThePod",
+        "#SleepBetter",
+        "#SGWellness",
+        "#SmartHomeSG"
+      ],
+      "moodNote": "Cinematic twilight calm, minimalist hero on quiet bedside",
+      "schedulePlatform": "instagram",
+      "scheduleWhenLocal": "2026-04-27T21:30:00+08:00",
+      "formatCrops": [
+        {
+          "formatId": "1x1",
+          "aspectRatio": "1:1",
+          "w": 1024,
+          "h": 1024,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "fit": "fitted"
+        },
+        {
+          "formatId": "4x5",
+          "aspectRatio": "4:5",
+          "w": 1080,
+          "h": 1350,
+          "crop": {
+            "topLeft": {
+              "x": 0.09999999999999998,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.9,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "9x16",
+          "aspectRatio": "9:16",
+          "w": 1080,
+          "h": 1920,
+          "crop": {
+            "topLeft": {
+              "x": 0.21875,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.78125,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "16x9",
+          "aspectRatio": "16:9",
+          "w": 1920,
+          "h": 1080,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0.21875
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 0.78125
+            }
+          },
+          "fit": "partial"
+        }
+      ],
+      "textOverlays": [
+        {
+          "zone": {
+            "purpose": "headline",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.05,
+              "w": 0.9,
+              "h": 0.18
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "Sleep cooler. Wake sharper.",
+            "zh-Hans-SG": "睡得更凉，醒得更清。",
+            "ms-SG": "Tidur sejuk. Bangun cergas.",
+            "ta-SG": "குளிராய் தூங்கு. தெளிவாய் எழு."
+          },
+          "textAlign": "center"
+        },
+        {
+          "zone": {
+            "purpose": "caption",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.78,
+              "w": 0.9,
+              "h": 0.17
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "The Pod tunes each side of your bed. Now in Singapore — 30 nights risk-free.",
+            "zh-Hans-SG": "The Pod 为床的两侧独立调温，新加坡现已上市，30 晚无忧试睡。",
+            "ms-SG": "The Pod menala setiap sisi katil anda. Kini di Singapura — 30 malam tanpa risiko.",
+            "ta-SG": "The Pod உங்கள் படுக்கையின் இரு பக்கங்களையும் தனித்தனியே சீராக்குகிறது. சிங்கப்பூரில் இப்போது — 30 இரவுகள் இடர் இல்லாமல்."
+          },
+          "textAlign": "center"
+        }
+      ],
+      "masksOneShot": {
+        "width": 1024,
+        "height": 1024,
+        "masks": [],
+        "matched": 0,
+        "prompted": 12
+      },
+      "masksVisionGuided": {
+        "width": 1024,
+        "height": 1024,
+        "masks": [],
+        "matched": 0,
+        "prompted": 9
+      },
+      "agentSteps": [
+        {
+          "index": 0,
+          "name": "get_current_datetime",
+          "input": {
+            "timezone": "Asia/Singapore"
+          },
+          "output": {
+            "ok": true,
+            "provider": "local",
+            "nowUtc": "2026-04-26T12:47:47.662Z",
+            "nowLocal": "2026-04-26T20:47:47",
+            "timezone": "Asia/Singapore",
+            "epochMs": 1777207667662
+          },
+          "ok": true,
+          "ms": 567,
+          "clientRunId": "agent_datetime_mofrk4gv_nskvkw"
+        },
+        {
+          "index": 1,
+          "name": "search_signals",
+          "input": {
+            "seedText": "https://www.eightsleep.com/",
+            "platforms": [
+              "instagram"
+            ],
+            "limit": 8
+          },
+          "output": {
+            "ok": true,
+            "plan": {
+              "seedText": "https://www.eightsleep.com/",
+              "platforms": [
+                "instagram"
+              ],
+              "targets": [
+                {
+                  "id": "research-web-url-www-eightsleep-com",
+                  "kind": "url",
+                  "platform": "web",
+                  "value": "https://www.eightsleep.com/",
+                  "label": "web source",
+                  "sourceUrl": "https://www.eightsleep.com/",
+                  "reason": "creator source",
+                  "tags": [
+                    "research",
+                    "web",
+                    "url",
+                    "www-eightsleep-com"
+                  ]
+                }
+              ],
+              "querySummary": "web source"
+            },
+            "records": [
+              {
+                "id": "ref_mofrk5dw_yxz7ej",
+                "kind": "image",
+                "previewUrl": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+                "fullUrl": "https://www.eightsleep.com/sg/",
+                "attribution": {
+                  "source": "generic",
+                  "url": "https://www.eightsleep.com/sg/"
+                },
+                "capturedAt": "2026-04-26T12:47:48.548Z",
+                "title": "web source",
+                "usageIntent": "visual anchor",
+                "tags": [
+                  "research",
+                  "web",
+                  "url",
+                  "www-eightsleep-com"
+                ],
+                "notes": "creator source; url https://www.eightsleep.com/"
+              }
+            ],
+            "scrapedCount": 1,
+            "signalCount": 0,
+            "materializedCount": 0
+          },
+          "ok": true,
+          "ms": 1342,
+          "clientRunId": "agent_signals-search_mofrk4wl_iqyrsq"
+        },
+        {
+          "index": 2,
+          "name": "generate_image",
+          "input": {
+            "prompt": "Eight Sleep | Now in Singapore — Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights.\nHero subject: Eight Sleep | Now in Singapore — Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights. — featuring air purifier (tall rounded rectangular device with fabric mesh lower half, smooth white top, and small B logo) — brand: B logo (reference vibe: Eight Sleep | Now in Singapore).\nMood: cinematic.\nCompose this image so it remains readable when cropped to any of these aspect ratios: 1:1, 4:5, 9:16, 16:9. The hero subject must stay centered and uncropped in every one.\nReserve the following regions as soft negative space — flat tone, low detail, no clutter — so editable text overlays can be placed there separately:\n- the upper-center region (90% × 18%) for the headline.\n- the lower-center region (90% × 17%) for the caption.\nPrimary subject anchor: the central 64% × 64% region of the frame; this region must survive every crop.\nDo not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.",
+            "aspectRatio": "1:1"
+          },
+          "output": "<stripped>",
+          "ok": true,
+          "ms": 177629,
+          "clientRunId": "agent_image-gen_mofrkc1q_maro2b"
+        }
+      ],
+      "agentFinalText": "{\n  \"caption\": \"Sleep cooler, wake sharper lah. The Pod tunes each side of your bed — personalised cooling, heating and sleep tracking, now in Singapore. 30 nights risk-free.\",\n  \"captionsByLocale\": {\n    \"en-SG\": \"Sleep cooler, wake sharper lah. The Pod tunes each side of your bed — personalised cooling, heating and sleep tracking, now in Singapore. 30 nights risk-free.\",\n    \"zh-Hans-SG\": \"睡得更凉,醒得更精神。Pod 为床的两侧分别调节冷暖,追踪睡眠,新加坡现已上市。30 晚无忧试睡。\",\n    \"ms-SG\": \"Tidur lebih sejuk, bangun lebih segar. Pod laras suhu setiap sisi katil, jejak tidur anda — kini di Singapura. Cuba 30 malam tanpa risiko.\",\n    \"ta-SG\": \"குளிர்ச்சியாக தூங்குங்கள், புத்துணர்ச்சியுடன் எழுங்கள். Pod உங்கள் படுக்கையின் இரு பக்கங்களையும் தனித்தனியாக சீராக்கி தூக்கத்தைக் கண்காணிக்கிறது — இப்போது சிங்கப்பூரில். 30 இரவுகள் இலவச சோதனை.\"\n  },\n  \"hashtags\": [\"#EightSleep\",\"#ThePod\",\"#SleepBetter\",\"#SGWellness\",\"#SmartHomeSG\"],\n  \"platform\": \"instagram\",\n  \"whenLocal\": \"2026-04-27T21:30:00+08:00\",\n  \"moodNote\": \"Cinematic twilight calm, minimalist hero on quiet bedside\"\n}"
+    }
+  ],
+  "status": "completed",
+  "notified": true,
+  "scheduledPostIds": [
+    "mx7ds5455s4vqz1x5g78v1tyds85j66m"
+  ],
+  "urlIngestion": {
+    "url": "https://www.eightsleep.com/",
+    "finalUrl": "https://www.eightsleep.com/sg/",
+    "title": "Eight Sleep | Now in Singapore",
+    "description": "Fall asleep faster and stay asleep longer with personalized cooling and heating for each side of the bed. The Pod reduces snoring, tracks your sleep, and works with any mattress. Try it risk-free for 30 nights.",
+    "primaryImage": {
+      "url": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+      "source": "og-image",
+      "width": 1200,
+      "height": 630
+    },
+    "images": [
+      {
+        "url": "https://res.cloudinary.com/eightsleep/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/v1747147611/Homepage_c0dril.png",
+        "source": "og-image",
+        "width": 1200,
+        "height": 630
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1759164387/bedroom-pillows-blanket_reaqt3.png",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769369641/TempElevationSound_Temperature_Metric_o5s50c.jpg",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769171470/TempElevationSound_Elevation_tlbqi3.jpg",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769171471/TempElevationSound_Sound_fckntt.jpg",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_1_vavtxa.jpg",
+        "alt": "Sleep in perfect harmony",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_2_l2gusd.jpg",
+        "alt": "Relief from hot flashes, every night",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_3_n719nn.jpg",
+        "alt": "Optimize every night",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173300/Sleep_Challenge_4_driptf.jpg",
+        "alt": "Finally sleep through the heat",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173301/Sleep_Challenge_5_ri60be.jpg",
+        "alt": "Recover after training",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769173301/Sleep_Challenge_6_eheeeq.jpg",
+        "alt": "Less snoring, more sleep",
+        "source": "img-tag"
+      },
+      {
+        "url": "https://www.eightsleep.com/sg/q_80/v1769180015/pod-5-sleeping-morning-rested-variant_yqunvt.jpg",
+        "alt": "Sleeping Card",
+        "source": "img-tag"
+      }
+    ],
+    "products": [],
+    "bodyExcerpt": "Designed for deep sleep. Personalized to you.\nA sleep system designed for deeper recovery, on any bed\nTemperature\nElevation\nSound\nThe best sleep you've ever had\nEnjoy the Pod at home, and return it for a full refund if you don’t love it",
+    "fetchedAt": "2026-04-26T12:47:36.262Z",
+    "rawHtmlBytes": 1036788
+  },
+  "referenceDescriptions": [
+    {
+      "faces": [],
+      "products": [
+        {
+          "name": "air purifier",
+          "description": "tall rounded rectangular device with fabric mesh lower half, smooth white top, and small B logo"
+        }
+      ],
+      "brands": [
+        {
+          "name": "B logo",
+          "description": "small letter B emblem on the front of the purifier"
+        }
+      ],
+      "otherComponents": [
+        {
+          "name": "bed with white linens",
+          "kind": "environment-prop"
+        },
+        {
+          "name": "wooden side table",
+          "kind": "environment-prop"
+        },
+        {
+          "name": "table lamp base",
+          "kind": "environment-prop"
+        },
+        {
+          "name": "wooden slatted wall",
+          "kind": "environment-prop"
+        },
+        {
+          "name": "wooden floor",
+          "kind": "environment-prop"
+        }
+      ],
+      "smallObjectGroups": [],
+      "background": {
+        "description": ""
+      }
+    }
+  ]
+}
