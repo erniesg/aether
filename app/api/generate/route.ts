@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { CLAUDE_MODEL, planGenerate } from '@/lib/agent/generate';
 import { encodeGenerateEvent } from '@/lib/generate/stream';
+import { resolveComposition } from '@/lib/providers/image/composition';
 import { listAvailableProviders, resolveProvider } from '@/lib/providers/image/registry';
-import type { AspectRatio, ImageGenResult, ImageRef } from '@/lib/providers/image/types';
+import type {
+  AspectRatio,
+  ImageComposition,
+  ImageConstraintToken,
+  ImageGenResult,
+  ImageRef,
+} from '@/lib/providers/image/types';
 import { ImageGenError, ProviderUnavailableError } from '@/lib/providers/image/types';
 import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
 import { cropHeroToFormats } from '@/lib/canvas/cropToFormat';
@@ -13,6 +20,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_RATIOS = ['1:1', '9:16', '16:9', '4:3', '3:4', '4:5', '2:3', '3:2'] as const;
+const ALLOWED_TEXT_STRATEGIES = ['none', 'baked', 'auto'] as const;
+const ALLOWED_CONSTRAINTS = [
+  'no-faces',
+  'no-watermarks',
+  'no-signatures',
+  'no-unknown-brand-logos',
+  'no-typography-artifacts',
+  'no-nsfw-overlay-text',
+] as const satisfies readonly ImageConstraintToken[];
 
 type AllowedAspectRatio = (typeof ALLOWED_RATIOS)[number];
 
@@ -68,6 +84,41 @@ function parseTargets(value: unknown): GenerateTarget[] | null {
     });
   }
   return targets;
+}
+
+function parseComposition(value: unknown):
+  | { ok: true; composition?: ImageComposition }
+  | { ok: false; error: string } {
+  if (value === undefined) return { ok: true };
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { ok: false, error: 'composition must be an object' };
+  }
+
+  const input = value as Record<string, unknown>;
+  const composition: ImageComposition = {};
+
+  if (input.textStrategy !== undefined) {
+    if (
+      typeof input.textStrategy !== 'string' ||
+      !(ALLOWED_TEXT_STRATEGIES as readonly string[]).includes(input.textStrategy)
+    ) {
+      return { ok: false, error: 'composition.textStrategy is invalid' };
+    }
+    composition.textStrategy = input.textStrategy as ImageComposition['textStrategy'];
+  }
+
+  if (input.constraints !== undefined) {
+    if (!Array.isArray(input.constraints)) {
+      return { ok: false, error: 'composition.constraints must be an array' };
+    }
+    composition.constraints = input.constraints.filter(
+      (token): token is ImageConstraintToken =>
+        typeof token === 'string' &&
+        (ALLOWED_CONSTRAINTS as readonly string[]).includes(token)
+    );
+  }
+
+  return { ok: true, composition };
 }
 
 /**
@@ -136,6 +187,11 @@ export async function POST(request: Request) {
   const clientRunId = typeof b.runId === 'string' ? b.runId : undefined;
   const aspectRatioOverride = parseAspectRatio(b.aspectRatio);
   const requestedTargets = parseTargets(b.targets);
+  const parsedComposition = parseComposition(b.composition);
+  if (!parsedComposition.ok) {
+    return jsonError(400, parsedComposition.error);
+  }
+  const composition = resolveComposition(parsedComposition.composition, undefined);
   const modeChoice = parseRenderMode(b.mode);
 
   console.log(
@@ -278,7 +334,13 @@ export async function POST(request: Request) {
               let heroImage: { url: string; width: number; height: number; mimeType: string };
               try {
                 const heroResult = await provider.generate(
-                  { prompt: planned.plan.rewrittenPrompt, refs, aspectRatio: heroTarget.aspectRatio, seed: planned.plan.seed },
+                  {
+                    prompt: planned.plan.rewrittenPrompt,
+                    refs,
+                    aspectRatio: heroTarget.aspectRatio,
+                    seed: planned.plan.seed,
+                    composition,
+                  },
                   { model: planned.provider.model }
                 );
                 const heroFirst = heroResult.images[0];
@@ -396,6 +458,7 @@ export async function POST(request: Request) {
                       refs,
                       aspectRatio: target.aspectRatio,
                       seed: planned.plan.seed,
+                      composition,
                     },
                     { model: planned.provider.model }
                   );

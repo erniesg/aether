@@ -1,5 +1,6 @@
 import type { ImageGenProvider, ImageGenRequest, ImageGenResult } from './types';
 import { ImageGenError } from './types';
+import { applyComposition } from './composition';
 import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const ENDPOINT = 'https://api.replicate.com/v1/predictions';
@@ -29,6 +30,12 @@ export function createReplicateProvider(
       const model = opts.model || DEFAULT_MODEL;
       const { w, h } = req.size ?? dimsFromAspect(req.aspectRatio);
 
+      const applied = applyComposition(
+        { prompt: req.prompt, negativePrompt: req.negativePrompt },
+        req.composition ?? {},
+        'replicate'
+      );
+
       const elapsed = mark();
 
       // Start prediction using the model slug endpoint (latest version).
@@ -41,12 +48,12 @@ export function createReplicateProvider(
         },
         body: JSON.stringify({
           input: {
-            prompt: req.prompt,
+            prompt: applied.prompt,
             aspect_ratio: req.aspectRatio ?? '1:1',
             width: w,
             height: h,
             seed: req.seed,
-            negative_prompt: req.negativePrompt,
+            negative_prompt: applied.negativePrompt,
           },
         }),
       });

@@ -16,6 +16,40 @@ export interface ImageRef {
   weight?: number;
 }
 
+/**
+ * Stable identifier for an image adapter. Mirrors `KNOWN_PROVIDER_IDS` in
+ * registry.ts; re-declared here so `types.ts` stays free of adapter imports.
+ */
+export type ImageProviderId = 'openai' | 'gemini' | 'replicate' | 'volcengine';
+
+/**
+ * How typography should be handled in the generated raster.
+ * - `none`  — no baked text. Adapters inject a negative-prompt dialect.
+ * - `baked` — opt-in; the model may include typography in the raster.
+ * - `auto`  — defer to the model's own judgment. Adapters pass composition
+ *             through without added negative-prompt tokens.
+ */
+export type ImageCompositionTextStrategy = 'none' | 'baked' | 'auto';
+
+/**
+ * Closed union of visual-composition constraints. Add new tokens here when
+ * they ship; adapter-level `mapComposition` implementations are intentionally
+ * tolerant (unknown-token warning, no throw) so older adapters keep working
+ * while the union grows.
+ */
+export type ImageConstraintToken =
+  | 'no-faces'
+  | 'no-watermarks'
+  | 'no-signatures'
+  | 'no-unknown-brand-logos'
+  | 'no-typography-artifacts'
+  | 'no-nsfw-overlay-text';
+
+export interface ImageComposition {
+  textStrategy?: ImageCompositionTextStrategy;
+  constraints?: ImageConstraintToken[];
+}
+
 export interface ImageGenRequest {
   prompt: string;
   refs?: ImageRef[];
@@ -27,6 +61,11 @@ export interface ImageGenRequest {
   n?: number;
   /** Optional negative prompt. Adapters that don't support it ignore it. */
   negativePrompt?: string;
+  /**
+   * Visual-composition policy. When omitted, adapters behave identically to
+   * pre-composition callers. See `applyComposition` for the shared mapping.
+   */
+  composition?: ImageComposition;
 }
 
 export interface ImageEditRequest extends ImageGenRequest {

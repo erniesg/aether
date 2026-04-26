@@ -1,5 +1,6 @@
 import type { ImageGenProvider, ImageGenRequest, ImageGenResult } from './types';
 import { ImageGenError } from './types';
+import { applyComposition } from './composition';
 import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
@@ -28,6 +29,12 @@ export function createVolcengineProvider(
       const model = opts.model || DEFAULT_MODEL;
       const { w, h } = req.size ?? dimsFromAspect(req.aspectRatio);
 
+      const applied = applyComposition(
+        { prompt: req.prompt, negativePrompt: req.negativePrompt },
+        req.composition ?? {},
+        'volcengine'
+      );
+
       const elapsed = mark();
       const res = await fetchWithTimeout(ENDPOINT, {
         method: 'POST',
@@ -37,12 +44,13 @@ export function createVolcengineProvider(
         },
         body: JSON.stringify({
           model,
-          prompt: req.prompt,
+          prompt: applied.prompt,
           size: `${w}x${h}`,
           seed: req.seed,
           guidance_scale: 3,
           response_format: 'url',
           watermark: false,
+          ...(applied.extraParams ?? {}),
         }),
       });
 

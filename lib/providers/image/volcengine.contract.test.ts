@@ -83,6 +83,24 @@ describe('volcengine (Seedream) adapter · contract', () => {
     expect(result.images[0]?.dataUrl).toBe('data:image/png;base64,YWJj');
   });
 
+  it("applies composition textStrategy='none' — populates native negative_prompt field", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [{ url: 'https://volc.cdn/clean.png' }] })
+    );
+    const provider = createVolcengineProvider('ark_test');
+    await provider.generate(
+      { prompt: 'sunset cityscape', composition: { textStrategy: 'none' } },
+      { model: 'doubao-seedream-3-0-t2i-250415' }
+    );
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init?.body as string);
+    expect(body.prompt).toBe('sunset cityscape');
+    expect(typeof body.negative_prompt).toBe('string');
+    expect(body.negative_prompt.toLowerCase()).toContain('text');
+    expect(body.negative_prompt.toLowerCase()).toContain('typography');
+  });
+
   it('throws ImageGenError on non-200 response with status + body', async () => {
     fetchMock.mockResolvedValue(new Response('unauthorized', { status: 401 }));
     const provider = createVolcengineProvider('ark_test');

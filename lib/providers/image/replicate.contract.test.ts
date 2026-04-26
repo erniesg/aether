@@ -133,6 +133,28 @@ describe('replicate adapter · contract', () => {
     expect(result.images[0]?.url).toBe('https://cdn.replicate.delivery/a.webp');
   });
 
+  it("applies composition textStrategy='none' — populates input.negative_prompt", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        id: 'pred-no-text',
+        status: 'succeeded',
+        output: 'https://cdn.replicate.delivery/clean.webp',
+      })
+    );
+    const provider = createReplicateProvider('r8_test');
+    await provider.generate(
+      { prompt: 'sunset cityscape', composition: { textStrategy: 'none' } },
+      { model: 'black-forest-labs/flux-1.1-pro' }
+    );
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init?.body as string);
+    expect(body.input.prompt).toBe('sunset cityscape');
+    expect(typeof body.input.negative_prompt).toBe('string');
+    expect(body.input.negative_prompt.toLowerCase()).toContain('text');
+    expect(body.input.negative_prompt.toLowerCase()).toContain('typography');
+  });
+
   it('throws ImageGenError when create returns non-200', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response('bad input', { status: 422 })
