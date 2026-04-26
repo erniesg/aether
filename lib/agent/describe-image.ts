@@ -314,8 +314,11 @@ function pickBackground(value: unknown): { description: string } {
  * Verified against the SAM3 Modal endpoint
  * (https://berlayar-ai--aether-sam3.modal.run): visual prompts return
  * 200 + masks in 600-1000ms; brand-name prompts return 500.
+ *
+ * Exported for regression testing — see describe-image.test.ts
+ * "Eight Sleep fixture" suite.
  */
-function pickSegmentPrompt(named: { name?: string; description?: string }): string | null {
+export function pickSegmentPrompt(named: { name?: string; description?: string }): string | null {
   const desc = named.description?.trim();
   const name = named.name?.trim();
   // Description wins when it actually describes something visual
