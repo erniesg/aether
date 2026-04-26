@@ -57,7 +57,7 @@ describe('volcengine (Seedream) adapter · contract', () => {
     const body = JSON.parse(init?.body as string);
     expect(body.model).toBe('doubao-seedream-3-0-t2i-250415');
     expect(body.prompt).toBe('a tiger');
-    expect(body.size).toBe('1792x1024');
+    expect(body.size).toBe('2048x1152');
     expect(body.seed).toBe(7);
     expect(body.response_format).toBe('url');
     expect(body.watermark).toBe(false);
@@ -66,8 +66,8 @@ describe('volcengine (Seedream) adapter · contract', () => {
     expect(result.provider).toBe('volcengine');
     expect(result.images).toHaveLength(1);
     expect(result.images[0]?.url).toBe('https://volc.cdn/out.png');
-    expect(result.images[0]?.width).toBe(1792);
-    expect(result.images[0]?.height).toBe(1024);
+    expect(result.images[0]?.width).toBe(2048);
+    expect(result.images[0]?.height).toBe(1152);
   });
 
   it('returns a data URL when Ark returns b64_json only', async () => {

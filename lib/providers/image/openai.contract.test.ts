@@ -114,9 +114,9 @@ describe('openai adapter · contract', () => {
 
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(init?.body as string);
-    // dimsFromAspect('9:16') = 1024×1792, both multiples of 16, ≈ 9:16.
-    expect(body.size).toBe('1024x1792');
-    expect(result.images[0]).toMatchObject({ width: 1024, height: 1792 });
+    // dimsFromAspect('9:16') = 1152×2048, both multiples of 16, exactly 9:16.
+    expect(body.size).toBe('1152x2048');
+    expect(result.images[0]).toMatchObject({ width: 1152, height: 2048 });
   });
 
   it('passes 16:9 dims through directly (no longer collapsed to 3:2)', async () => {
@@ -131,8 +131,9 @@ describe('openai adapter · contract', () => {
 
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(init?.body as string);
-    expect(body.size).toBe('1792x1024');
-    expect(result.images[0]).toMatchObject({ width: 1792, height: 1024 });
+    // dimsFromAspect('16:9') = 2048×1152, multiples of 16, exactly 16:9.
+    expect(body.size).toBe('2048x1152');
+    expect(result.images[0]).toMatchObject({ width: 2048, height: 1152 });
   });
 
   it('throws ImageGenError on non-200 response with status + body text', async () => {

@@ -4,8 +4,8 @@ import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 describe('dimsFromAspect', () => {
   const cases: Array<[string, { w: number; h: number }]> = [
     ['1:1', { w: 1024, h: 1024 }],
-    ['9:16', { w: 1024, h: 1792 }],
-    ['16:9', { w: 1792, h: 1024 }],
+    ['9:16', { w: 1152, h: 2048 }],
+    ['16:9', { w: 2048, h: 1152 }],
     ['4:3', { w: 1152, h: 864 }],
     ['3:4', { w: 864, h: 1152 }],
     ['4:5', { w: 1024, h: 1280 }],
