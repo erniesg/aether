@@ -53,7 +53,28 @@ import {
 
 const PROVIDER_ID = 'instagram' as const satisfies PublisherProviderId;
 const DEFAULT_GRAPH_VERSION = 'v22.0';
-const GRAPH_BASE = 'https://graph.facebook.com';
+
+/**
+ * Two flavours of IG content publishing co-exist as of 2026-04:
+ *   - FB Graph API (graph.facebook.com)        — token starts EAA…
+ *     Needs IG Business account linked to a FB Page; older flow.
+ *   - IG Business Login (graph.instagram.com)  — token starts IGAA…
+ *     Direct IG OAuth, no FB Page link required; newer flow.
+ *
+ * The shape of the publishing endpoints is identical — only the host
+ * differs. We auto-detect by token prefix; consumers can override via
+ * IG_API_BASE if needed.
+ */
+const FB_GRAPH_BASE = 'https://graph.facebook.com';
+const IG_BUSINESS_BASE = 'https://graph.instagram.com';
+
+function pickGraphBase(
+  accessToken: string,
+  override: string | undefined
+): string {
+  if (override) return override.replace(/\/+$/, '');
+  return accessToken.startsWith('IGAA') ? IG_BUSINESS_BASE : FB_GRAPH_BASE;
+}
 
 /** Immediate-post window: post within this ms window without rejecting. */
 const IMMEDIATE_WINDOW_MS = 5 * 60_000;
@@ -62,6 +83,12 @@ export interface InstagramPublisherOptions {
   accessToken: string;
   igUserId: string;
   graphVersion?: string;
+  /**
+   * Override the API base URL. When omitted we auto-detect:
+   *   - graph.instagram.com when token starts with IGAA…
+   *   - graph.facebook.com  otherwise (EAA…).
+   */
+  apiBase?: string;
   /**
    * Injected fetch for testing. Defaults to the global `fetch`.
    */
@@ -83,6 +110,7 @@ export function createInstagramPublisherFromEnv(
     accessToken: env.IG_ACCESS_TOKEN!.trim(),
     igUserId: env.IG_USER_ID!.trim(),
     graphVersion: env.IG_GRAPH_VERSION?.trim(),
+    apiBase: env.IG_API_BASE?.trim(),
     fetch: opts.fetch,
   });
 }
@@ -92,13 +120,14 @@ export function createInstagramPublisher(
 ): PublisherProvider {
   const graphVersion = opts.graphVersion ?? DEFAULT_GRAPH_VERSION;
   const fetchImpl = opts.fetch ?? globalThis.fetch;
+  const graphBase = pickGraphBase(opts.accessToken, opts.apiBase);
 
   function graphUrl(path: string, params: Record<string, string>): string {
     const qs = new URLSearchParams({
       ...params,
       access_token: opts.accessToken,
     }).toString();
-    return `${GRAPH_BASE}/${graphVersion}/${path}?${qs}`;
+    return `${graphBase}/${graphVersion}/${path}?${qs}`;
   }
 
   async function graphPost<T>(path: string, params: Record<string, string>): Promise<T> {
@@ -130,6 +159,43 @@ export function createInstagramPublisher(
   function isImmediate(scheduledAt: string): boolean {
     const delta = new Date(scheduledAt).getTime() - Date.now();
     return delta <= IMMEDIATE_WINDOW_MS;
+  }
+
+  /**
+   * Poll an IG media container's status_code until it reaches FINISHED
+   * (or fails fast on ERROR/EXPIRED). 30 attempts × 1s = 30s ceiling —
+   * comfortable for image containers (typically 2-5s) and survives
+   * occasional reel/video processing.
+   */
+  async function pollContainerReady(containerId: string): Promise<void> {
+    type ContainerStatus = {
+      status_code:
+        | 'IN_PROGRESS'
+        | 'FINISHED'
+        | 'ERROR'
+        | 'EXPIRED'
+        | 'PUBLISHED';
+    };
+    const maxAttempts = 30;
+    const intervalMs = 1000;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const status = await graphGet<ContainerStatus>(containerId, {
+        fields: 'status_code',
+      });
+      if (status.status_code === 'FINISHED') return;
+      if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
+        throw new PublisherError(
+          `IG container ${containerId} ${status.status_code}`,
+          PROVIDER_ID
+        );
+      }
+      // IN_PROGRESS — wait and retry.
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new PublisherError(
+      `IG container ${containerId} did not reach FINISHED within ${(maxAttempts * intervalMs) / 1000}s`,
+      PROVIDER_ID
+    );
   }
 
   function buildCaption(post: ScheduledPost): string {
@@ -175,14 +241,23 @@ export function createInstagramPublisher(
       const imageUrl = post.mediaUrls[0]!;
       const caption = buildCaption(post);
 
-      // Step 1: Create media container
+      // Step 1: Create media container.
       const containerResp = await graphPost<{ id: string }>(
         `${opts.igUserId}/media`,
         { image_url: imageUrl, caption }
       );
       const containerId = containerResp.id;
 
-      // Step 2: Publish the container
+      // Step 2: Poll the container until it's FINISHED. IG fetches the
+      // image_url asynchronously, so media_publish 400s with
+      // "media is not ready to be published" if we fire it too soon.
+      // Per Meta docs the container progresses through:
+      //   IN_PROGRESS → FINISHED  (happy path)
+      //   IN_PROGRESS → ERROR | EXPIRED  (fail)
+      // Image containers usually finish within 2-5s.
+      await pollContainerReady(containerId);
+
+      // Step 3: Publish the container.
       const publishResp = await graphPost<{ id: string }>(
         `${opts.igUserId}/media_publish`,
         { creation_id: containerId }
