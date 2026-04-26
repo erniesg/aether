@@ -18,7 +18,71 @@ const OPENAI_TIMEOUT_MS = (() => {
   }
   return 240_000;
 })();
-type OpenAISize = '1024x1024' | '1024x1536' | '1536x1024';
+/**
+ * Size string accepted by gpt-image-2's `size` parameter — `"<W>x<H>"` where
+ * both edges are multiples of 16, max edge ≤ 3840, long-to-short ratio ≤ 3:1,
+ * and total pixels in [655_360, 8_294_400]. The legacy gpt-image-1 fixed
+ * sizes (1024x1024 / 1024x1536 / 1536x1024) all satisfy these rules so the
+ * adapter still works against gpt-image-1 without a model-specific branch.
+ */
+type OpenAISize = `${number}x${number}`;
+
+const SIZE_MIN_PIXELS = 655_360;
+const SIZE_MAX_PIXELS = 8_294_400;
+const SIZE_MAX_EDGE = 3840;
+
+/** Round `n` UP to the nearest multiple of 16 (gpt-image-2 size constraint). */
+function roundUpTo16(n: number): number {
+  return Math.max(16, Math.ceil(n / 16) * 16);
+}
+
+/**
+ * Best-effort fit a requested (w, h) into gpt-image-2's constraints:
+ *   - both edges multiples of 16
+ *   - long edge ≤ 3840
+ *   - long-to-short ratio ≤ 3:1
+ *   - total pixels in [655_360, 8_294_400]
+ *
+ * Preserves aspect ratio. Used when the caller wants exact native dims
+ * (e.g. 1080×1350 for 4:5) — we round each edge to the nearest multiple
+ * of 16 (1088×1360) which still maps to 4:5 within ~0.5% tolerance, then
+ * scale up to satisfy the lower pixel bound or down to satisfy the upper.
+ */
+function fitToGptImage2Size(
+  reqW: number,
+  reqH: number
+): { size: OpenAISize; width: number; height: number } {
+  let w = roundUpTo16(reqW);
+  let h = roundUpTo16(reqH);
+  // Cap each edge.
+  if (w > SIZE_MAX_EDGE) {
+    h = Math.round((h * SIZE_MAX_EDGE) / w);
+    w = SIZE_MAX_EDGE;
+  }
+  if (h > SIZE_MAX_EDGE) {
+    w = Math.round((w * SIZE_MAX_EDGE) / h);
+    h = SIZE_MAX_EDGE;
+  }
+  // Re-round after the edge cap.
+  w = roundUpTo16(w);
+  h = roundUpTo16(h);
+  // Scale up to meet the minimum pixel count (gpt-image-2 rejects tiny).
+  let pixels = w * h;
+  if (pixels < SIZE_MIN_PIXELS) {
+    const k = Math.sqrt(SIZE_MIN_PIXELS / pixels);
+    w = roundUpTo16(w * k);
+    h = roundUpTo16(h * k);
+    pixels = w * h;
+  }
+  // Scale down to meet the maximum pixel count.
+  if (pixels > SIZE_MAX_PIXELS) {
+    const k = Math.sqrt(SIZE_MAX_PIXELS / pixels);
+    // Round DOWN here so we stay under the cap.
+    w = Math.max(16, Math.floor((w * k) / 16) * 16);
+    h = Math.max(16, Math.floor((h * k) / 16) * 16);
+  }
+  return { size: `${w}x${h}` as OpenAISize, width: w, height: h };
+}
 
 function parseBase64DataUrl(value: unknown): { mime: string; payload: string } | null {
   if (typeof value !== 'string' || !value.startsWith('data:')) {
@@ -49,6 +113,18 @@ function isAbortError(error: unknown): error is { name: string } {
   );
 }
 
+/**
+ * Pick the `size` parameter for OpenAI's images API.
+ *
+ * gpt-image-2 accepts ANY pixel size that satisfies the docs' constraints
+ * (multiples of 16, ≤ 3840 max edge, ratio ≤ 3:1, 655K–8.3M total pixels).
+ * Historically (gpt-image-1) we collapsed everything into three canonical
+ * sizes (1024², 1024×1536, 1536×1024) which silently coerced 4:5 → 2:3
+ * and 9:16 → 2:3 — the source of the demo's "all portraits look the same
+ * shape" bug. We now pass the requested dimensions through, snapped to the
+ * gpt-image-2 grid, so a 4:5 ask returns ~1024×1280 and 9:16 returns
+ * ~1024×1792.
+ */
 function pickOpenAISize(req: ImageGenRequest): {
   size: OpenAISize;
   width: number;
@@ -58,14 +134,7 @@ function pickOpenAISize(req: ImageGenRequest): {
   if (!w || !h) {
     return { size: '1024x1024', width: 1024, height: 1024 };
   }
-  const ratio = w / h;
-  if (Math.abs(ratio - 1) < 0.12) {
-    return { size: '1024x1024', width: 1024, height: 1024 };
-  }
-  if (ratio > 1) {
-    return { size: '1536x1024', width: 1536, height: 1024 };
-  }
-  return { size: '1024x1536', width: 1024, height: 1536 };
+  return fitToGptImage2Size(w, h);
 }
 
 /**
@@ -108,9 +177,12 @@ export function createOpenAIProvider(
     id: 'openai',
     displayName: 'OpenAI Images',
     isAvailable: () => Boolean(apiKey),
-    // gpt-image-2 is the verified default. Pass ?model=gpt-image-1 to fall back
-    // to the previous default if needed.
-    listModels: () => ['gpt-image-2', 'gpt-image-1', 'dall-e-3'],
+    // gpt-image-2 only — gpt-image-1 was dropped because its size param
+    // collapsed every aspect into one of three fixed canvases (1024² /
+    // 1024×1536 / 1536×1024), and dall-e-3 has the same fixed-size
+    // limitation. Custom aspect ratios for the SG multiformat fan-out
+    // require gpt-image-2's free-pixel-size mode.
+    listModels: () => ['gpt-image-2'],
   };
 
   async function generate(req: ImageGenRequest, opts: { model: string }): Promise<ImageGenResult> {
@@ -174,9 +246,9 @@ export function createOpenAIProvider(
 
   /**
    * Multi-image edit path. Routes to `/v1/images/edits` with repeated
-   * `image[]` multipart parts — the shape gpt-image-2 + gpt-image-1 both
-   * accept. Each ref arrives as a base64 data URL from the client; we
-   * decode and attach as Blobs. Response shape matches generations.
+   * `image[]` multipart parts — gpt-image-2 accepts that shape. Each ref
+   * arrives as a base64 data URL from the client; we decode and attach as
+   * Blobs. Response shape matches generations.
    */
   async function editWithRefs(
     req: ImageGenRequest,

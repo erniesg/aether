@@ -85,7 +85,7 @@ describe('openai adapter · contract', () => {
     expect(result.images[0]?.dataUrl).toBe('data:image/png;base64,aGVsbG8=');
   });
 
-  it('maps portrait aspect ratios to OpenAI-supported portrait size', async () => {
+  it('passes 4:5 dims through directly (gpt-image-2 honours custom sizes)', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ data: [{ url: 'https://example.com/p.png' }] })
     );
@@ -97,24 +97,42 @@ describe('openai adapter · contract', () => {
 
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(init?.body as string);
-    expect(body.size).toBe('1024x1536');
-    expect(result.images[0]).toMatchObject({ width: 1024, height: 1536 });
+    // dimsFromAspect('4:5') = 1024×1280, both multiples of 16, exact 4:5.
+    expect(body.size).toBe('1024x1280');
+    expect(result.images[0]).toMatchObject({ width: 1024, height: 1280 });
   });
 
-  it('maps landscape aspect ratios to OpenAI-supported landscape size', async () => {
+  it('passes 9:16 dims through directly (no longer collapsed to 2:3)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [{ url: 'https://example.com/v.png' }] })
+    );
+    const provider = createOpenAIProvider('sk-test');
+    const result = await provider.generate(
+      { prompt: 'a vertical', aspectRatio: '9:16' },
+      { model: 'gpt-image-2' }
+    );
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const body = JSON.parse(init?.body as string);
+    // dimsFromAspect('9:16') = 1024×1792, both multiples of 16, ≈ 9:16.
+    expect(body.size).toBe('1024x1792');
+    expect(result.images[0]).toMatchObject({ width: 1024, height: 1792 });
+  });
+
+  it('passes 16:9 dims through directly (no longer collapsed to 3:2)', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ data: [{ url: 'https://example.com/l.png' }] })
     );
     const provider = createOpenAIProvider('sk-test');
     const result = await provider.generate(
       { prompt: 'a banner', aspectRatio: '16:9' },
-      { model: 'gpt-image-1' }
+      { model: 'gpt-image-2' }
     );
 
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(init?.body as string);
-    expect(body.size).toBe('1536x1024');
-    expect(result.images[0]).toMatchObject({ width: 1536, height: 1024 });
+    expect(body.size).toBe('1792x1024');
+    expect(result.images[0]).toMatchObject({ width: 1792, height: 1024 });
   });
 
   it('throws ImageGenError on non-200 response with status + body text', async () => {
