@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   AssetRecordType,
@@ -47,6 +47,8 @@ import {
   setVoiceToolCall,
   setVoiceTranscript,
 } from '@/lib/voice/caption-store';
+import { EyesClosedHandle, type EyesClosedCaptureRequest } from './EyesClosedHandle';
+import { createSketchSnapshotTracker } from '@/lib/canvas/sketchSnapshot';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -97,6 +99,21 @@ export interface CanvasSubstrateProps {
   renderVoiceSlot?: (dispatchers: import('@/lib/voice/tools').VoiceDispatchers) => React.ReactNode;
   /** When true, show the voice orb inside the toolbar. Defaults to true. */
   voiceEnabled?: boolean;
+  /**
+   * Fires on eyes-closed release (issue #128 / Q7). The shell owns the
+   * sketch-to-component planner call + downstream generate dispatch — this
+   * substrate only tracks which strokes belong to the current hold.
+   */
+  onEyesClosedCapture?: (capture: EyesClosedCaptureRequest) => void | Promise<void>;
+  /**
+   * Render prop seam for the eyes-closed handle, mirroring `renderVoiceSlot`.
+   * Tests pass a stub provider via this so the chip can drive the same code
+   * path without touching the real Gemini Live transport.
+   */
+  renderEyesClosedSlot?: (params: {
+    onCapture: (capture: EyesClosedCaptureRequest) => void | Promise<void>;
+    getSketchSnapshot: () => Promise<string>;
+  }) => React.ReactNode;
 }
 
 type SegmentationVerb = Extract<ToolbarVerb, 'cutout' | 'removebg' | 'unmask'>;
@@ -284,6 +301,8 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   onMoodboardGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
+  onEyesClosedCapture,
+  renderEyesClosedSlot,
 }: CanvasSubstrateProps) {
   const [scope, setScope] = useState<Scope>('global');
   const [selectedImage, setSelectedImage] = useState<SelectedImageInfo | null>(null);
@@ -1118,6 +1137,56 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       : <VoiceOrb dispatchers={dispatchers} onCaption={handleVoiceCaption} />
     : null;
 
+  // Sketch tracker: captures only the shapes drawn between hold-start and
+  // hold-release, so each eyes-closed dispatch ships *just* the new strokes
+  // (not the seeded artboards or earlier drafts).
+  const sketchTrackerRef = useRef(createSketchSnapshotTracker(() => editor));
+  // Re-bind the editor handle when the editor swaps (mount/unmount cycles).
+  useEffect(() => {
+    sketchTrackerRef.current = createSketchSnapshotTracker(() => editor);
+  }, [editor]);
+
+  const handleEyesClosedCapture = useCallback(
+    async (capture: EyesClosedCaptureRequest) => {
+      // Capture sketch first — `EyesClosedHandle` already called
+      // `getSketchSnapshot` and passed us the data URL. The hold-start
+      // baseline is restarted on the next hold via `getSketchSnapshot`.
+      sketchTrackerRef.current.start();
+      await onEyesClosedCapture?.(capture);
+    },
+    [onEyesClosedCapture]
+  );
+
+  const getSketchSnapshot = useCallback(async (): Promise<string> => {
+    const snapshot = await sketchTrackerRef.current.capture();
+    // Re-baseline so the next hold only captures fresh strokes. Done here
+    // (not in handleEyesClosedCapture) so an empty hold still resets.
+    sketchTrackerRef.current.start();
+    return snapshot;
+  }, []);
+
+  // Re-baseline whenever the eyes-closed handle is about to start a new
+  // session. We piggyback on the pointerdown / keydown by watching for the
+  // recording state to flip. Simpler: baseline once at mount and after each
+  // capture (handled above).
+  useEffect(() => {
+    sketchTrackerRef.current.start();
+  }, []);
+
+  const eyesClosedSlot = renderEyesClosedSlot
+    ? renderEyesClosedSlot({
+        onCapture: handleEyesClosedCapture,
+        getSketchSnapshot,
+      })
+    : onEyesClosedCapture
+    ? (
+        <EyesClosedHandle
+          onCapture={handleEyesClosedCapture}
+          getSketchSnapshot={getSketchSnapshot}
+        />
+      )
+    : null;
+
   return (
     <section
       data-taxonomy="tool"
@@ -1138,6 +1207,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         pinnedCapabilities={[...pinnedCapabilities]}
         onCapabilityPress={onCapabilityPress}
         voiceSlot={voiceSlot ?? undefined}
+        eyesClosedSlot={eyesClosedSlot ?? undefined}
         clusterLensActive={clusterLensOpen}
         onClusterLensToggle={() => setClusterLensOpen((prev) => !prev)}
       />
