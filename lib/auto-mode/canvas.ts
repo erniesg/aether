@@ -255,7 +255,19 @@ export function dropVariationOnCanvas({
     const isNative = Boolean(nativeUrl);
     const isAtlas = !isNative && Boolean(variation.atlasUrl);
 
-    // Register the per-cell image as a canvas asset
+    // Register the per-cell image as a canvas asset.
+    //
+    // Asset dims must match the source image's intrinsic dimensions or
+    // tldraw downstream calls (canvas createImageData, internal resamplers)
+    // can throw IndexSizeError when the asset metadata mismatches a
+    // non-square or non-1024² source. The earlier hardcoded 1024×1024 for
+    // every non-atlas asset broke once gpt-image-2's exact-aspect dims
+    // (1024×1280 for 4:5, 1152×2048 for 9:16, 2048×1152 for 16:9) landed.
+    // We now use the format frame's own dimensions — they share aspect
+    // with the source image and are within tldraw's safe range.
+    const assetDims = isAtlas
+      ? { w: 1520, h: 1969 } // composeVariantSet's variable-row atlas
+      : { w: fw, h: fh }; // format frame dims (1080×1080 / 1080×1350 / 1080×1920 / 1920×1080)
     const assetId = AssetRecordType.createId();
     editor.createAssets([
       {
@@ -269,8 +281,8 @@ export function dropVariationOnCanvas({
               ? `v${variation.index} atlas`
               : `v${variation.index} ${spec.formatId}`,
           src: cellUrl,
-          w: isAtlas ? 2048 : 1024,
-          h: isAtlas ? 2048 : 1024,
+          w: assetDims.w,
+          h: assetDims.h,
           mimeType: 'image/png',
           isAnimated: false,
         },
