@@ -595,6 +595,20 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     notifyMode: req.notifyMode,
   });
 
+  // ─── Lap-start ping (always, regardless of notifyMode) ────────────────
+  // User wants visibility on kickoff so they know the lap is in flight.
+  await notifyDiscord({
+    tag: 'lap-start',
+    content: [
+      `▶︎ Auto Mode lap started`,
+      `Trigger: ${req.trigger.kind} · ${req.trigger.payload.slice(0, 80)}`,
+      `${req.variationCount} variations · ${concurrency} · ${req.notifyMode}${
+        req.referenceImage ? ' · with reference' : ''
+      }`,
+      campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
+    ].join('\n'),
+  });
+
   let variations: AutoModeVariationResult[];
 
   if (concurrency === 'parallel') {
@@ -668,16 +682,41 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     : 'completed';
   if (campaignId) await setCampaignStatus(campaignId, lapStatus);
 
-  let notified = false;
-  if (req.notifyMode === 'notify') {
-    const okCount = variations.filter((v) => v.status === 'ready').length;
-    const summary = [
-      `Auto Mode lap ${lapStatus} — ${okCount}/${req.variationCount} variations ready (${concurrency}).`,
-      `Trigger: ${req.trigger.kind} · ${req.trigger.payload.slice(0, 80)}`,
-      campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
-    ].join('\n');
-    notified = await notifyDiscord({ content: summary });
+  // ─── Lap-end ping — copy depends on notifyMode ────────────────────────
+  // Always firing the end ping (even in 'review' / 'auto-post') so the
+  // user knows what state the lap finished in. The 'review' copy
+  // explicitly tells them an action is required; 'auto-post' copy lists
+  // what was scheduled.
+  const okCount = variations.filter((v) => v.status === 'ready').length;
+  const variationLines = variations.map((v) => {
+    const sched =
+      v.scheduleWhenLocal && v.schedulePlatform
+        ? ` · ${v.schedulePlatform} ${v.scheduleWhenLocal}`
+        : '';
+    const captionPreview = v.caption ? `“${v.caption.slice(0, 80)}…”` : '<no caption>';
+    return `  v${v.index} ${v.status === 'ready' ? '✓' : '✗'} ${captionPreview}${sched}`;
+  });
+
+  let endHeader: string;
+  if (req.notifyMode === 'review') {
+    endHeader = `🟡 Auto Mode lap ${lapStatus} — AWAITING APPROVAL · ${okCount}/${req.variationCount} variations ready`;
+  } else if (req.notifyMode === 'auto-post') {
+    endHeader = `🟢 Auto Mode lap ${lapStatus} — POSTS SCHEDULED · ${okCount}/${req.variationCount}`;
+  } else {
+    endHeader = `${lapStatus === 'completed' ? '✅' : '⚠️'} Auto Mode lap ${lapStatus} — ${okCount}/${req.variationCount} variations ready (${concurrency})`;
   }
+
+  const endContent = [
+    endHeader,
+    `Trigger: ${req.trigger.kind} · ${req.trigger.payload.slice(0, 80)}`,
+    ...variationLines,
+    campaignId ? `campaign=${campaignId}` : 'campaign=local-only',
+  ].join('\n');
+
+  const notified = await notifyDiscord({
+    tag: `lap-end-${req.notifyMode}`,
+    content: endContent,
+  });
 
   return { campaignId, variations, status: lapStatus, notified };
 }

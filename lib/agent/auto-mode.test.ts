@@ -234,8 +234,16 @@ describe('runAutoMode · orchestration', () => {
 
     // Discord ping in 'notify' mode.
     expect(result.notified).toBe(true);
-    expect(mocks.notifyDiscord).toHaveBeenCalledTimes(1);
-    expect(mocks.notifyDiscord.mock.calls[0][0].content).toContain('2/2 variations ready');
+    // 2 pings: lap-start + lap-end. The user explicitly asked for visibility
+    // on kickoff so the start ping fires regardless of notifyMode.
+    expect(mocks.notifyDiscord).toHaveBeenCalledTimes(2);
+    const tags = mocks.notifyDiscord.mock.calls.map((c: any[]) => c[0].tag);
+    expect(tags).toContain('lap-start');
+    expect(tags).toContain('lap-end-notify');
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-notify'
+    );
+    expect(endCall[0].content).toContain('2/2 variations ready');
   });
 
   it('passes prior moodNotes into the next variation prompt for distinctness', async () => {
@@ -267,7 +275,7 @@ describe('runAutoMode · orchestration', () => {
     expect(secondPrompt).toContain('serene-A');
   });
 
-  it('skips Discord webhook when notifyMode is review or auto-post', async () => {
+  it('fires lap-start AND lap-end pings on review mode (with AWAITING APPROVAL header)', async () => {
     mocks.runMultiAgent.mockResolvedValueOnce({
       finalText: '{}',
       steps: [],
@@ -275,15 +283,47 @@ describe('runAutoMode · orchestration', () => {
       stopReason: 'end_turn',
     });
 
-    const result = await runAutoMode({
+    await runAutoMode({
       baseUrl: 'http://localhost:3000',
       trigger: { kind: 'text', payload: 'x' },
       variationCount: 1,
       notifyMode: 'review',
     });
 
-    expect(result.notified).toBe(false);
-    expect(mocks.notifyDiscord).not.toHaveBeenCalled();
+    // Lifecycle: 2 pings (start + end). The 'review' end ping flags
+    // approval-required copy so the user knows action is needed.
+    expect(mocks.notifyDiscord).toHaveBeenCalledTimes(2);
+    const tags = mocks.notifyDiscord.mock.calls.map((c: any[]) => c[0].tag);
+    expect(tags).toEqual(['lap-start', 'lap-end-review']);
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-review'
+    );
+    expect(endCall[0].content).toContain('AWAITING APPROVAL');
+  });
+
+  it('uses POSTS SCHEDULED copy on auto-post lap-end ping', async () => {
+    mocks.runMultiAgent.mockResolvedValueOnce({
+      finalText: JSON.stringify({
+        platform: 'instagram',
+        whenLocal: '2026-04-27T20:00+08:00',
+      }),
+      steps: [],
+      iterations: 1,
+      stopReason: 'end_turn',
+    });
+
+    await runAutoMode({
+      baseUrl: 'http://localhost:3000',
+      trigger: { kind: 'text', payload: 'x' },
+      variationCount: 1,
+      notifyMode: 'auto-post',
+    });
+
+    const endCall = mocks.notifyDiscord.mock.calls.find(
+      (c: any[]) => c[0].tag === 'lap-end-auto-post'
+    );
+    expect(endCall).toBeDefined();
+    expect(endCall[0].content).toContain('POSTS SCHEDULED');
   });
 
   it('marks lap as failed when a variation throws and persists the variation as failed', async () => {

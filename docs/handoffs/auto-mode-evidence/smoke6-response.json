@@ -1,0 +1,241 @@
+{
+  "ok": true,
+  "campaignId": "ns7dbezt4tcxmm8h7kjwzprpnd85kdhc",
+  "variations": [
+    {
+      "index": 1,
+      "status": "ready",
+      "heroImageUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAAQACAIAAACoEwUVAABnL2NhQlgAAG...[3553094 chars total — saved as v1-hero-final-2.png]",
+      "caption": "Caught in the downpour, jacket up like a shield — main character energy, drama-ost playing in my head lah. 🌧️",
+      "captionsByLocale": {
+        "en-SG": "Caught in the downpour, jacket up like a shield — main character energy, drama-ost playing in my head lah. 🌧️",
+        "zh-Hans-SG": "突如其来的大雨，外套一掀挡在头顶——主角光环上线，脑海里自动播放偶像剧主题曲。🌧️",
+        "ms-SG": "Hujan lebat tiba-tiba, jaket diangkat jadi perisai — vibe watak utama, lagu tema drama main dalam kepala. 🌧️",
+        "ta-SG": "திடீர் மழையில் சிக்கி, ஜாக்கெட்டை தலைக்கு மேல் கேடயமாக்கி — ஹீரோ மூட், மனதில் டிராமா பாட்டு ஒலிக்குது. 🌧️"
+      },
+      "hashtags": [
+        "#rainyvibes",
+        "#cinematicportrait",
+        "#idoldrama",
+        "#mainchaeractor",
+        "#moodygrams"
+      ],
+      "moodNote": "Neon-soaked teal-amber rainy night, cinematic idol-drama longing",
+      "schedulePlatform": "instagram",
+      "scheduleWhenLocal": "2026-04-27T20:30:00+08:00",
+      "formatCrops": [
+        {
+          "formatId": "1x1",
+          "aspectRatio": "1:1",
+          "w": 1024,
+          "h": 1024,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "fit": "fitted"
+        },
+        {
+          "formatId": "4x5",
+          "aspectRatio": "4:5",
+          "w": 1080,
+          "h": 1350,
+          "crop": {
+            "topLeft": {
+              "x": 0.09999999999999998,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.9,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "9x16",
+          "aspectRatio": "9:16",
+          "w": 1080,
+          "h": 1920,
+          "crop": {
+            "topLeft": {
+              "x": 0.21875,
+              "y": 0
+            },
+            "bottomRight": {
+              "x": 0.78125,
+              "y": 1
+            }
+          },
+          "fit": "partial"
+        },
+        {
+          "formatId": "16x9",
+          "aspectRatio": "16:9",
+          "w": 1920,
+          "h": 1080,
+          "crop": {
+            "topLeft": {
+              "x": 0,
+              "y": 0.21875
+            },
+            "bottomRight": {
+              "x": 1,
+              "y": 0.78125
+            }
+          },
+          "fit": "partial"
+        }
+      ],
+      "textOverlays": [
+        {
+          "zone": {
+            "purpose": "headline",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.05,
+              "w": 0.9,
+              "h": 0.18
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "Main Character, Rain Scene",
+            "zh-Hans-SG": "雨中主角登场",
+            "ms-SG": "Watak Utama, Adegan Hujan",
+            "ta-SG": "மழையில் கதாநாயகன்"
+          },
+          "textAlign": "center"
+        },
+        {
+          "zone": {
+            "purpose": "caption",
+            "bbox": {
+              "x": 0.05,
+              "y": 0.78,
+              "w": 0.9,
+              "h": 0.17
+            },
+            "mustSurviveAllCrops": true
+          },
+          "content": {
+            "en-SG": "Jacket up, OST rolling — every downpour deserves its own drama edit.",
+            "zh-Hans-SG": "竖起衣领,OST响起——每场暴雨都值得一段戏剧剪辑。",
+            "ms-SG": "Kolar naik, OST bermain — setiap hujan layak dapat babak dramanya.",
+            "ta-SG": "காலர் உயர்த்தி, OST ஒலிக்க — ஒவ்வொரு மழைக்கும் ஒரு நாடகக் காட்சி."
+          },
+          "textAlign": "center"
+        }
+      ],
+      "agentSteps": [
+        {
+          "index": 0,
+          "name": "search_signals",
+          "input": {
+            "seedText": "idol drama shot guy wet rain pulling jacket overhead shield",
+            "platforms": [
+              "instagram"
+            ],
+            "limit": 8
+          },
+          "output": {
+            "ok": true,
+            "plan": {
+              "seedText": "idol drama shot guy wet rain pulling jacket overhead shield",
+              "platforms": [
+                "instagram"
+              ],
+              "targets": [
+                {
+                  "id": "research-instagram-keyword-idol-drama-shot-guy",
+                  "kind": "keyword",
+                  "platform": "instagram",
+                  "value": "idol drama shot guy",
+                  "label": "instagram idol drama shot guy",
+                  "sourceUrl": "https://www.instagram.com/explore/tags/idoldramashotguy/",
+                  "reason": "creator keyword",
+                  "tags": [
+                    "research",
+                    "instagram",
+                    "keyword",
+                    "idol-drama-shot-guy"
+                  ]
+                }
+              ],
+              "querySummary": "instagram idol drama shot guy"
+            },
+            "records": [
+              {
+                "id": "ref_research_instagram_keyword_idol-drama-shot-guy",
+                "kind": "image",
+                "previewUrl": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22840%22%20viewBox%3D%220%200%20640%20840%22%3E%3Crect%20width%3D%22640%22%20height%3D%22840%22%20fill%3D%22%23f0d8ef%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2264%22%20width%3D%22536%22%20height%3D%22612%22%20rx%3D%2218%22%20fill%3D%22%23fffaf2%22%20opacity%3D%220.9%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22190%22%20r%3D%22108%22%20fill%3D%22%23c35aa5%22%20opacity%3D%220.78%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22356%22%20width%3D%22432%22%20height%3D%22184%22%20rx%3D%228%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.9%22%2F%3E%3Ctext%20x%3D%2288%22%20y%3D%22728%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2228%22%20font-weight%3D%22700%22%3Einstagram%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22770%22%20fill%3D%22%233a2a62%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2234%22%3Eidol%20drama%20shot%20guy%3C%2Ftext%3E%3Ctext%20x%3D%2288%22%20y%3D%22806%22%20fill%3D%22%233a2a62%22%20opacity%3D%220.68%22%20font-family%3D%22Arial%2C%20Helvetica%2C%20sans-serif%22%20font-size%3D%2220%22%3Ekeyword%20research%20target%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "fullUrl": "https://www.instagram.com/explore/tags/idoldramashotguy/",
+                "attribution": {
+                  "source": "instagram",
+                  "url": "https://www.instagram.com/explore/tags/idoldramashotguy/"
+                },
+                "capturedAt": "2026-04-26T10:07:20.851Z",
+                "title": "instagram idol drama shot guy",
+                "usageIntent": "research direction",
+                "tags": [
+                  "research",
+                  "instagram",
+                  "keyword",
+                  "idol-drama-shot-guy"
+                ],
+                "notes": "creator keyword; keyword idol drama shot guy"
+              }
+            ],
+            "scrapedCount": 0,
+            "signalCount": 0,
+            "materializedCount": 1
+          },
+          "ok": true,
+          "ms": 1074,
+          "clientRunId": "agent_signals-search_mofltrzl_tvgdus"
+        },
+        {
+          "index": 1,
+          "name": "generate_image",
+          "input": {
+            "prompt": "Japanese idol drama still: young man caught in heavy rain at night, lifting dark denim jacket overhead as shield, wet hair, neon-lit wet street, cinematic moody teal-amber, shallow depth, film grain.",
+            "aspectRatio": "1:1"
+          },
+          "output": {
+            "ok": true,
+            "provider": "openai",
+            "plan": {
+              "rewrittenPrompt": "Japanese idol drama still: young man in heavy night rain, lifting dark denim jacket overhead as shield, soaked hair, neon-lit wet street reflections, cinematic teal-amber, shallow depth, film grain.",
+              "aspectRatio": "16:9",
+              "rationale": "Cinematic drama still suits a widescreen 16:9 frame for moody composition and neon street depth.",
+              "model": "gpt-image-2"
+            },
+            "result": {
+              "images": [
+                {
+                  "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAAQACAIAAACoEwUVAABnL2NhQlgAAG...[base64 elided]",
+                  "width": 1536,
+                  "height": 1024,
+                  "mimeType": "image/png"
+                }
+              ]
+            },
+            "imageUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAAQACAIAAACoEwUVAABnL2NhQlgAAG...[base64 elided]"
+          },
+          "ok": true,
+          "ms": 121309,
+          "clientRunId": "agent_image-gen_mofltvfg_0qf6cq"
+        }
+      ],
+      "agentFinalText": "{\n  \"caption\": \"Caught in the downpour, jacket up like a shield — main character energy, drama-ost playing in my head lah. 🌧️\",\n  \"captionsByLocale\": {\n    \"en-SG\": \"Caught in the downpour, jacket up like a shield — main character energy, drama-ost playing in my head lah. 🌧️\",\n    \"zh-Hans-SG\": \"突如其来的大雨，外套一掀挡在头顶——主角光环上线，脑海里自动播放偶像剧主题曲。🌧️\",\n    \"ms-SG\": \"Hujan lebat tiba-tiba, jaket diangkat jadi perisai — vibe watak utama, lagu tema drama main dalam kepala. 🌧️\",\n    \"ta-SG\": \"திடீர் மழையில் சிக்கி, ஜாக்கெட்டை தலைக்கு மேல் கேடயமாக்கி — ஹீரோ மூட், மனதில் டிராமா பாட்டு ஒலிக்குது. 🌧️\"\n  },\n  \"hashtags\": [\"#rainyvibes\",\"#cinematicportrait\",\"#idoldrama\",\"#mainchaeractor\",\"#moodygrams\"],\n  \"platform\": \"instagram\",\n  \"whenLocal\": \"2026-04-27T20:30:00+08:00\",\n  \"moodNote\": \"Neon-soaked teal-amber rainy night, cinematic idol-drama longing\"\n}"
+    }
+  ],
+  "status": "completed",
+  "notified": false
+}
