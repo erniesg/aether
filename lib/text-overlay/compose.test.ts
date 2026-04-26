@@ -184,10 +184,18 @@ describe('composeVariantSet', () => {
       }
     }
 
-    // Atlas: 4 cols × 4 rows × tileSize.
+    // Atlas: cols × atlasCellWidth × rows × atlasCellHeight.
+    // Cells are taller than wide because the label band sits ABOVE the
+    // image (so it doesn't occlude the headline inside the cropped frame).
     const atlasMeta = await sharp(out.atlas).metadata();
-    expect(atlasMeta.width).toBe(out.atlasTileSize * COMPOSE_LOCALES.length);
-    expect(atlasMeta.height).toBe(out.atlasTileSize * COMPOSE_FORMATS.length);
+    expect(atlasMeta.width).toBe(
+      out.atlasCellWidth * COMPOSE_LOCALES.length
+    );
+    expect(atlasMeta.height).toBe(
+      out.atlasCellHeight * COMPOSE_FORMATS.length
+    );
+    expect(out.atlasCellHeight).toBeGreaterThan(out.atlasTileSize);
+    expect(out.atlasCellWidth).toBe(out.atlasTileSize);
   });
 
   it('falls back to fallbackCaptions when textOverlays is absent', async () => {
