@@ -142,10 +142,14 @@ export function AutoModeToggle({
           id={popoverId}
           role="dialog"
           aria-label="Auto Mode configuration"
-          className="absolute z-50 mt-2 w-[260px]"
+          // z-[1000] to clear tldraw canvas chrome and frame overlays —
+          // tldraw uses up to ~999 for its own UI. Solid `overlay` tone +
+          // shadow gives the popover proper contrast against canvas
+          // content (was bleeding through with tone="panel").
+          className="absolute z-[1000] mt-2 w-[260px]"
           style={{ top: '100%', right: 0 }}
         >
-          <Surface tone="panel" border="default" className="p-3">
+          <Surface tone="overlay" border="default" elevated className="p-3">
             <div className="font-mono text-[10px] uppercase tracking-wide text-ink-muted mb-2">
               Auto Mode
             </div>
