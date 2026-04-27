@@ -258,6 +258,18 @@ export function createOpenAIProvider(
       return editWithRefs(req, refs, model, size, width, height, applied.prompt);
     }
 
+    return generateWithoutRefs(req, model, size, width, height, applied.prompt);
+  }
+
+  async function generateWithoutRefs(
+    req: ImageGenRequest,
+    model: string,
+    size: OpenAISize,
+    width: number,
+    height: number,
+    prompt: string = req.prompt
+  ): Promise<ImageGenResult> {
+    if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
     const elapsed = mark();
     const res = await fetchOpenAI(GENERATIONS_ENDPOINT, {
       method: 'POST',
@@ -267,7 +279,7 @@ export function createOpenAIProvider(
       },
       body: JSON.stringify({
         model,
-        prompt: applied.prompt,
+        prompt,
         n: req.n ?? 1,
         size,
         quality: 'high',
@@ -323,8 +335,42 @@ export function createOpenAIProvider(
     // URLs (e.g. Convex storage URLs the auto-mode lap passes) get
     // server-side fetched here. Done in parallel so wall time is bounded
     // by the slowest fetch, not the sum.
-    const blobs = await Promise.all(refs.map((ref) => refToBlob(ref)));
-    blobs.forEach(({ blob, ext }, i) => {
+    //
+    // Fail-soft per ref (2026-04-27): a single 404 / network error on one
+    // ref must NOT kill the whole call — we drop the bad ref and proceed
+    // with whichever refs survived. Brand-reference scrapers (Eight Sleep,
+    // IKEA, etc.) routinely hand us stale image URLs that 404 at fetch
+    // time; previously this surfaced as "openai: ref fetch returned HTTP
+    // 404" → variation.failed → lap.failed even though the call could have
+    // succeeded with the other refs. If ALL refs fail, fall back to plain
+    // /generations (no edits) instead of crashing.
+    const settled = await Promise.allSettled(
+      refs.map((ref) => refToBlob(ref))
+    );
+    const usable: Array<{ blob: Blob; ext: string }> = [];
+    settled.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        usable.push(r.value);
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[openai] ref ${i} fetch failed, dropping: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`
+        );
+      }
+    });
+    if (usable.length === 0) {
+      // All refs failed — drop to /generations so the lap can still produce
+      // SOMETHING instead of bubbling a hard fail.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[openai] all ${refs.length} refs failed to fetch — falling back to /generations`
+      );
+      // Fall through by re-issuing as a generations call. We synthesize the
+      // minimal generations request here so we don't need a method-level
+      // recursion guard.
+      return generateWithoutRefs(req, model, size, width, height, prompt);
+    }
+    usable.forEach(({ blob, ext }, i) => {
       form.append('image[]', blob, `ref-${i}.${ext}`);
     });
 
