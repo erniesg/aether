@@ -244,6 +244,24 @@ export const listByWorkspace = queryGeneric({
   },
 });
 
+/**
+ * Recent campaigns across ALL workspaces — used by the /runs history page
+ * so a creator can browse every lap they've ever fired without knowing the
+ * workspaceId. Bounded at 100 to keep payloads small; `paginate` would be
+ * the next step if a creator's history outgrows this cap.
+ */
+export const listRecent = queryGeneric({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = Math.min(args.limit ?? 50, 100);
+    const campaigns = (await ctx.db
+      .query('campaign')
+      .order('desc')
+      .take(limit)) as CampaignDoc[];
+    return campaigns.map(toCampaign);
+  },
+});
+
 /** List all variations for a campaign — used by the right-rail live panel. */
 export const listVariations = queryGeneric({
   args: { campaignId: v.id('campaign') },

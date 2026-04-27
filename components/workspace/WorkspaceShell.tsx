@@ -2156,6 +2156,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               droppedVariationIndices.current = new Set();
             }}
           />
+          <a
+            href="/runs"
+            className="font-caption text-[11px] text-ink-faint hover:text-ink"
+            data-taxonomy="navigation"
+          >
+            ↗ all runs
+          </a>
         </div>
         <div className="flex justify-center">
           <ViewSwitcher view={view} onChangeView={setView} />
