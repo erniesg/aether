@@ -340,6 +340,35 @@ export function dropVariationOnCanvas({
         const scaleX = fw / 1024;
         const scaleY = fh / 1024;
 
+        const align: 'start' | 'middle' | 'end' =
+          overlay.textAlign === 'center'
+            ? 'middle'
+            : overlay.textAlign === 'end'
+            ? 'end'
+            : 'start';
+
+        const overlayMeta = {
+          autoModeTextOverlay: true,
+          autoModeTextContent: copy,
+          // 'global' = propagate to all variation frames on edit.
+          // 'local'  = only this frame/cell.
+          scope:
+            overlay.zone.purpose === 'headline' ||
+            overlay.zone.purpose === 'cta'
+              ? 'global'
+              : 'local',
+          zone: overlay.zone.purpose,
+          variationId: variation.id,
+          locale,
+          format: '1x1',
+          role: overlay.zone.purpose,
+        };
+
+        const w = Math.max(bbox.w * scaleX, 40);
+        const h = Math.max(bbox.h * scaleY, 24);
+
+        // 1) Dashed rectangle as a positioning guide (helps the creator see
+        //    where the text is supposed to live; non-editable visual aid).
         const geoId = createShapeId();
         editor.createShape({
           id: geoId,
@@ -349,36 +378,48 @@ export function dropVariationOnCanvas({
           y: bbox.y * scaleY,
           props: {
             geo: 'rectangle',
-            w: Math.max(bbox.w * scaleX, 40),
-            h: Math.max(bbox.h * scaleY, 24),
+            w,
+            h,
             fill: 'none' as const,
             dash: 'dashed' as const,
             color: 'white' as const,
             size: 's' as const,
-            align: (overlay.textAlign === 'center'
-              ? 'middle'
-              : overlay.textAlign === 'end'
-              ? 'end'
-              : 'start') as 'start' | 'middle' | 'end',
             verticalAlign: 'middle' as const,
+            align,
             labelColor: 'white' as const,
           } as Record<string, unknown>,
-          meta: {
-            autoModeTextOverlay: true,
-            autoModeTextContent: copy,
-            // 'global' = propagate to all variation frames on edit.
-            // 'local'  = only this frame/cell.
-            scope:
-              overlay.zone.purpose === 'headline' || overlay.zone.purpose === 'cta'
-                ? 'global'
-                : 'local',
-            zone: overlay.zone.purpose,
-            // Enriched provenance for propagator and Convex persistence:
-            variationId: variation.id,
-            locale,
-            format: '1x1', // overlays are anchored to the 1:1 frame by default
-            role: overlay.zone.purpose,
-          },
+          meta: { ...overlayMeta, shapeRole: 'overlay-guide' },
+        } as Parameters<typeof editor.createShape>[0]);
+
+        // 2) Editable text shape ON TOP of the rectangle. Double-click to
+        //    edit; tldraw's text shape is fully mutable. Bug-fix 2026-04-27:
+        //    the previous flow created only a geo with no text prop at all,
+        //    so text overlays were invisible / non-editable on canvas. The
+        //    text shape carries the same overlay meta so the global-text
+        //    propagator can fan edits across all sibling frames.
+        const textId = createShapeId();
+        editor.createShape({
+          id: textId,
+          type: 'text',
+          parentId: targetFrameId as never,
+          x: bbox.x * scaleX,
+          y: bbox.y * scaleY,
+          props: {
+            // tldraw 3.x text shape — the props the editor recognises are
+            // text + size + color + align + autoSize/w. Use a centered
+            // medium-size white text by default; the creator can re-style
+            // any time.
+            text: copy,
+            size: 'm' as const,
+            color: 'white' as const,
+            font: 'sans' as const,
+            align,
+            // Width hint matches the bbox so wrapping mirrors the layout.
+            w,
+            autoSize: false as const,
+            scale: 1,
+          } as Record<string, unknown>,
+          meta: { ...overlayMeta, shapeRole: 'overlay-text' },
         } as Parameters<typeof editor.createShape>[0]);
       }
     }
