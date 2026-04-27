@@ -2311,7 +2311,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
   //      for Images Edits API anchoring), then top 2 body images as URL refs
   //      (for the vision-describe context step that doesn't need data URLs).
   //   4. Image-file trigger: the payload itself becomes the reference
-  const effectiveReferenceImages: AutoModeReferenceImage[] = (() => {
+  let effectiveReferenceImages: AutoModeReferenceImage[] = (() => {
     if (req.referenceImages && req.referenceImages.length > 0) {
       return req.referenceImages;
     }
@@ -2352,18 +2352,40 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
 
   // Ingest brand refs to durable storage so we don't trust upstream URLs
   // that 404 mid-lap (Eight Sleep / IKEA / Apple all rotate CDN URLs
-  // aggressively). Each non-data-URL ref is fetched once + uploaded to
-  // Convex storage; we use the resulting public URL downstream. Fail-soft
-  // per ref: if a fetch / upload fails, we drop the ref and continue with
-  // whatever survived rather than poisoning the whole lap.
-  //
-  // Primary refs that are already data URLs (e.g. the page's primaryImage
-  // we fetched + base64-encoded earlier, or refs the caller supplied
-  // directly) skip this — they're already durable.
+  // aggressively), AND so data-URL refs (drag-drop / fire-debut-lap) get
+  // a public Convex URL — without it, downstream cluster + describe-image
+  // agents (which filter `r.url.startsWith('data:')`) silently SKIP every
+  // drag-drop ref and the lap runs blind. Fail-soft per ref: if a fetch
+  // / decode / upload fails, we KEEP the original ref shape so OpenAI's
+  // adapter can still attach the bytes via its own data-URL → blob path.
   const stagedReferenceImages = (
     await Promise.all(
       effectiveReferenceImages.map(async (ref) => {
-        if (ref.dataUrl) return ref;
+        // Data URL → decode + upload to Convex so cluster / describe see
+        // a real https URL. Keep the dataUrl on the returned ref as a
+        // fallback (the openai adapter prefers url when present, but
+        // data-URL fallbacks remain durable if Convex is offline).
+        if (ref.dataUrl) {
+          try {
+            const uploaded = await uploadAssetToConvex({
+              source: ref.dataUrl,
+              kind: 'reference',
+              campaignId: campaignId ?? undefined,
+              wsId: req.workspaceId,
+              sourceUrl: 'inline data URL',
+            });
+            if (uploaded) {
+              return { ...ref, url: uploaded.publicUrl };
+            }
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              '[auto-mode/ingest] data-URL ref upload failed, falling back to inline:',
+              err instanceof Error ? err.message : String(err)
+            );
+          }
+          return ref; // Keep the dataUrl so OpenAI can still see it.
+        }
         if (!ref.url || ref.url.startsWith('data:')) return ref;
         try {
           const fetched = await fetch(ref.url);
@@ -2401,6 +2423,13 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       })
     )
   ).filter((r): r is AutoModeReferenceImage => r !== null);
+
+  // Replace the in-scope refs with the staged copy so every downstream
+  // consumer (cluster agent's URL filter, describe-image's URL filter,
+  // runOneVariation's referenceImages plumb-through, lap-trace logging)
+  // sees the Convex-hosted URL instead of the original data: blob.
+  // This was a multi-week silent bug — see commit message.
+  effectiveReferenceImages = stagedReferenceImages;
 
   // Vision-describe up to 2 top reference images so the hero gen knows
   // what's IN them (products, brands, faces, setting). This is the fix
