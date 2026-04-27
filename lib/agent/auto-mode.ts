@@ -2278,7 +2278,7 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
             mime,
             kind: 'reference',
             campaignId: campaignId ?? undefined,
-            workspaceId: req.workspaceId,
+            wsId: req.workspaceId,
             sourceUrl: ref.url,
           });
           if (!uploaded) {
