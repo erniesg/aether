@@ -77,10 +77,22 @@ describe('seedArtboards · reuses tldraw native frame shapes', () => {
   });
 
   it('default seeds cover the four hero formats the demo ships with', () => {
-    const labels = DEFAULT_ARTBOARDS.map((a) => a.name.toLowerCase());
-    expect(labels.join(' ')).toMatch(/ig post/);
-    expect(labels.join(' ')).toMatch(/story/);
-    expect(labels.join(' ')).toMatch(/reel/);
-    expect(labels.join(' ')).toMatch(/linkedin/);
+    const formatIds = DEFAULT_ARTBOARDS.map((a) => a.formatId);
+    expect(formatIds).toEqual(['1x1', '4x5', '9x16', '16x9']);
+  });
+
+  it('seeded frames carry aetherFormatFrame meta so ensureFormatFrames reuses them', () => {
+    // Frame-doubling regression guard (2026-04-27): without these meta keys,
+    // ensureFormatFrames() in lib/auto-mode/canvas.ts misses the seeded
+    // frames, creates a second set at x=0, and the user sees overlapping
+    // frames at the wrong aspect ratios.
+    const editor = makeEditor();
+    seedArtboards(editor as never);
+    for (let i = 0; i < DEFAULT_ARTBOARDS.length; i++) {
+      const meta = editor.createShape.mock.calls[i]![0].meta;
+      expect(meta.aetherFormatFrame).toBe(true);
+      expect(meta.formatId).toBe(DEFAULT_ARTBOARDS[i].formatId);
+      expect(meta.aspect).toBe(DEFAULT_ARTBOARDS[i].aspect);
+    }
   });
 });
