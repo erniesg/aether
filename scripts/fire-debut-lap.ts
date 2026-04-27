@@ -71,10 +71,20 @@ async function main() {
     referenceImages: refs,
   };
 
+  // The /api/auto-mode/run handler is synchronous — it doesn't return
+  // until the entire lap finishes (research + cluster + N variations of
+  // hero render + atlas compose + persistence). That's typically 4-8 min.
+  // Node's default fetch headers-timeout is 5 min, which races us out
+  // every time. Use an undici Agent with the headers timeout disabled.
+  const { Agent } = await import('undici');
+  const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
   const res = await fetch(`${apiBase}/api/auto-mode/run`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
+    // Cast: Node fetch accepts a `dispatcher` from undici but @types/node
+    // doesn't expose it on RequestInit yet.
+    ...({ dispatcher } as { dispatcher: unknown }),
   });
 
   if (!res.ok) {
