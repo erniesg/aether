@@ -1471,6 +1471,68 @@ async function fetchHeroBytes(source: string): Promise<Buffer | null> {
  * Skipped when `workspaceId` is missing (preview publisher requires a
  * workspace to scope its storage; we don't fabricate one).
  */
+/**
+ * Resolve the list of platforms a variation should publish to.
+ *
+ * Two modes:
+ *   1. AUTO_MODE_PLATFORMS env set → comma-separated list, fan-out mode.
+ *      Filter to PUBLISH_PLATFORMS validated entries. Used for "post one
+ *      variation simultaneously to X + IG + LinkedIn" behaviour.
+ *   2. Env unset → fall back to the agent's chosen `schedulePlatform`.
+ *      Single-platform behaviour as before — preserves backwards compat
+ *      for cached campaigns and any flow that hasn't migrated to fan-out.
+ */
+export function resolvePlatformsForVariation(
+  variation: AutoModeVariationResult
+): PublishPlatform[] {
+  const envList = process.env.AUTO_MODE_PLATFORMS?.trim();
+  if (envList && envList.length > 0) {
+    return envList
+      .split(',')
+      .map((p) => p.trim().toLowerCase())
+      .filter((p): p is PublishPlatform =>
+        PUBLISH_PLATFORMS.includes(p as PublishPlatform)
+      );
+  }
+  // Backwards-compat path: agent picked one platform.
+  if (
+    variation.schedulePlatform &&
+    PUBLISH_PLATFORMS.includes(
+      variation.schedulePlatform as PublishPlatform
+    )
+  ) {
+    return [variation.schedulePlatform as PublishPlatform];
+  }
+  return [];
+}
+
+/**
+ * Pick the best hero image URL for a given platform's preferred aspect.
+ * Falls through native-per-format → heroImageUrl when the preferred
+ * aspect isn't available. Avoids forcing IG to post a 16:9 banner when
+ * it has a 4:5 native render in hand.
+ */
+export function pickHeroForPlatform(
+  variation: AutoModeVariationResult,
+  platform: PublishPlatform
+): string | undefined {
+  const npfu = variation.nativePerFormatUrls ?? {};
+  const fallback = variation.heroImageUrl;
+  switch (platform) {
+    case 'instagram':
+      return npfu['4x5'] ?? npfu['1x1'] ?? fallback;
+    case 'linkedin':
+      return npfu['16x9'] ?? npfu['1x1'] ?? fallback;
+    case 'x':
+      return npfu['16x9'] ?? npfu['1x1'] ?? fallback;
+    case 'tiktok':
+    case 'youtube-shorts':
+      return npfu['9x16'] ?? npfu['1x1'] ?? fallback;
+    default:
+      return npfu['1x1'] ?? fallback;
+  }
+}
+
 async function scheduleVariationPosts(input: {
   variations: AutoModeVariationResult[];
   workspaceId?: string;
@@ -1489,26 +1551,37 @@ async function scheduleVariationPosts(input: {
   for (const variation of input.variations) {
     if (variation.status !== 'ready') continue;
     if (!variation.heroImageUrl) continue;
-    if (!variation.schedulePlatform || !variation.scheduleWhenLocal) continue;
+    if (!variation.scheduleWhenLocal) continue;
 
-    const platform = variation.schedulePlatform as PublishPlatform;
-    if (!PUBLISH_PLATFORMS.includes(platform)) continue;
+    // Fan-out (2026-04-27): publish a single variation to ALL platforms
+    // listed in AUTO_MODE_PLATFORMS instead of just the agent's chosen
+    // one. Each platform gets its format-appropriate hero (IG → 4:5,
+    // LinkedIn → 16:9, X → 16:9, TT → 9:16). Set
+    // AUTO_MODE_PLATFORMS=instagram,linkedin,x to enable.
+    const targetPlatforms = resolvePlatformsForVariation(variation);
+    if (targetPlatforms.length === 0) continue;
 
-    // forcePostNow overrides the agent's whenLocal so X/IG/TT direct
-    // adapters don't reject for being too far in the future.
-    const scheduledAt = input.forcePostNow
-      ? new Date(Date.now() + 30_000).toISOString()
-      : normalizeScheduledAt(variation.scheduleWhenLocal);
-    if (!scheduledAt) continue;
+    for (const platform of targetPlatforms) {
+      const hero = pickHeroForPlatform(variation, platform);
+      if (!hero) continue;
 
-    const post: ScheduledPost = {
-      id: '',
-      platform,
-      mediaUrls: [variation.heroImageUrl],
-      caption: variation.caption ?? '',
-      hashtags: variation.hashtags ?? [],
-      scheduledAt,
-    };
+      // forcePostNow overrides the agent's whenLocal so X/IG/TT direct
+      // adapters don't reject for being too far in the future. Stagger
+      // platforms by 5s each so we don't fire 3 simultaneous publishes.
+      const platformOffset = targetPlatforms.indexOf(platform) * 5_000;
+      const scheduledAt = input.forcePostNow
+        ? new Date(Date.now() + 30_000 + platformOffset).toISOString()
+        : normalizeScheduledAt(variation.scheduleWhenLocal);
+      if (!scheduledAt) continue;
+
+      const post: ScheduledPost = {
+        id: '',
+        platform,
+        mediaUrls: [hero],
+        caption: variation.caption ?? '',
+        hashtags: variation.hashtags ?? [],
+        scheduledAt,
+      };
 
     // Per-post resolution so X posts route to X, IG posts to IG, TT to
     // postiz/social-auto-upload, with preview as the always-available
@@ -1586,6 +1659,7 @@ async function scheduleVariationPosts(input: {
           `error: ${err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200)}`,
         ].join('\n'),
       });
+    }
     }
   }
 
