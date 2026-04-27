@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { AutoRefresh } from './AutoRefresh';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -426,6 +427,9 @@ export default async function InspectPage({
 
   return (
     <main className="min-h-screen bg-surface-base text-ink">
+      {/* Auto-refresh while the lap is in flight — re-fetches the trace
+          API every 5s so variations stream in. Stops when status settles. */}
+      <AutoRefresh status={trace.campaign?.status} />
       <header className="flex h-header items-center justify-between border-b border-border-soft bg-surface-panel px-6">
         <div className="flex items-center gap-3">
           <Link href="/" className="font-display text-lg tracking-tight">
@@ -434,6 +438,11 @@ export default async function InspectPage({
           <Chip tone="neutral" size="sm">
             inspect
           </Chip>
+          {trace.campaign?.status === 'running' || trace.campaign?.status === 'pending' ? (
+            <span className="font-caption text-[10px] text-ink-faint">
+              · live (auto-refresh every 5s)
+            </span>
+          ) : null}
         </div>
         <ThemeToggle />
       </header>

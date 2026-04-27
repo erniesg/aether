@@ -1968,6 +1968,16 @@ function formatSgTime(isoString: string): string {
 export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult> {
   const concurrency: AutoModeConcurrency = req.concurrency ?? 'sequential';
 
+  // Env override (2026-04-27): AUTO_MODE_USE_MANAGED_AGENTS=0 forces the
+  // research / cluster / signoff agents to skip the Anthropic Managed
+  // Agents API and run on plain messages.create. Useful when managed
+  // agents are flaky, when running a fully-local stack, or for the
+  // "compare standard vs managed" demo toggle. Off-by-default (true) so
+  // existing config still flows through.
+  if (process.env.AUTO_MODE_USE_MANAGED_AGENTS === '0') {
+    req = { ...req, useManagedAgents: false };
+  }
+
   const campaignId = await startCampaign({
     workspaceId: req.workspaceId,
     triggerKind: req.trigger.kind,
