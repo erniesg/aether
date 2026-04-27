@@ -462,6 +462,28 @@ describe('runSignoffAgent — contract tests', () => {
     expect(mocks.recordRunFinish).toHaveBeenCalledTimes(1);
   });
 
+  it('injects server-supplied "now" + 36h window into the prompt', async () => {
+    // Regression guard (2026-04-27): the model rejected legitimate posts as
+    // "far beyond the 36-hour window" because it computed today's date from
+    // its training cutoff. Prompt MUST anchor the window on a server clock.
+    const fakeClient = makeFakeClient({ messagesCreateText: '{}' });
+    const fixedNow = new Date('2026-04-27T08:30:00.000Z');
+    const expectedWindowEnd = new Date(
+      fixedNow.getTime() + 36 * 60 * 60 * 1000
+    ).toISOString();
+
+    await runSignoffAgent({ ...baseInput, client: fakeClient, now: fixedNow });
+
+    const messagesCreate = (fakeClient as unknown as { _messagesCreate: { mock: { calls: unknown[][] } } })._messagesCreate;
+    const callArgs = messagesCreate.mock.calls[0]![0] as { messages: Array<{ content: string }> };
+    const userPrompt = callArgs.messages[0].content;
+
+    expect(userPrompt).toContain(fixedNow.toISOString());
+    expect(userPrompt).toContain(expectedWindowEnd);
+    expect(userPrompt).toMatch(/server-supplied/i);
+    expect(userPrompt).toMatch(/Do NOT (use|rely)/i);
+  });
+
   it('managed agents path: creates session and streams response', async () => {
     process.env.ANTHROPIC_SIGNOFF_AGENT_ID = 'agent_signoff_test';
     process.env.ANTHROPIC_SIGNOFF_ENVIRONMENT_ID = 'env_test';

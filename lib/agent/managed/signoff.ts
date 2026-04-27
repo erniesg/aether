@@ -86,6 +86,12 @@ export interface SignoffAgentInput {
    *  ENVIRONMENT_ID are configured. Forces fallback to messages.create.
    *  Default: true. */
   useManagedAgents?: boolean;
+  /** Server-supplied "now" used to anchor the 36h auto-post window. The
+   *  agent must NOT compute relative dates from training cutoff — we hit a
+   *  bug on 2026-04-27 where the model thought today's scheduled posts
+   *  were "far beyond the 36-hour window" because its priors put 2026 in
+   *  the future. Inject explicit ISO8601 instead. Defaults to new Date(). */
+  now?: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -211,8 +217,18 @@ function buildSignoffPrompt(input: SignoffAgentInput): string {
     .filter(Boolean)
     .join('\n');
 
+  // Server-supplied "now" anchors the 36h window. Without this the model
+  // computed "today" from its training cutoff and rejected legitimate posts
+  // as "far in the future" — bug observed 2026-04-27.
+  const now = input.now ?? new Date();
+  const nowIso = now.toISOString();
+  const windowEnd = new Date(now.getTime() + 36 * 60 * 60 * 1000).toISOString();
+
   return [
     'You are the brand signoff agent for a social media campaign. Evaluate these variations against the brand guardrails and decide which to auto-post vs hold for human review.',
+    '',
+    `CURRENT TIME (server-supplied — DO NOT use your own date estimate): ${nowIso}`,
+    `36-HOUR AUTO-POST WINDOW ENDS AT: ${windowEnd}`,
     '',
     'VARIATIONS:',
     variationLines,
@@ -221,9 +237,11 @@ function buildSignoffPrompt(input: SignoffAgentInput): string {
     guardrailLines,
     '',
     'DECISION CRITERIA:',
-    '- "auto-post": variation meets all guardrails, schedule is within 36h, has hero image.',
+    `- "auto-post": variation meets all guardrails AND its schedule (whenLocal) is between ${nowIso} and ${windowEnd}, AND has a hero image.`,
     '- "hold-for-review": variation needs human eyes (borderline copy, missing schedule, etc.).',
     '- "reject": variation violates guardrails or lacks a hero image.',
+    '',
+    'IMPORTANT: Compute the 36-hour window strictly against the CURRENT TIME above. Do NOT rely on your own knowledge of today\'s date — it WILL be wrong.',
     '',
     'Return ONLY a JSON object:',
     '{',

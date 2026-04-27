@@ -2460,6 +2460,10 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
           guardrails,
           workspaceId: req.workspaceId,
           useManagedAgents: req.useManagedAgents,
+          // Server-supplied "now" so the agent doesn't compute the 36-hour
+          // window from its own (stale) date estimate. Bug seen 2026-04-27:
+          // model thought today's posts were "far in the future".
+          now: new Date(),
         });
         // Persist for /inspect (mirror of researchBundle persistence path).
         if (campaignId) {
