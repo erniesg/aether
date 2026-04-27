@@ -65,3 +65,8 @@ yarn-error.log*
 
 # claude code agent worktrees + session metadata
 .claude/
+
+# Local SAM3 + CLIP server venvs / caches
+.venv-local-models/
+modal/local/__pycache__/
+**/__pycache__/
