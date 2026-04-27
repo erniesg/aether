@@ -254,6 +254,18 @@ export function createOpenAIProvider(
     const refs = (req.refs ?? []).filter(
       (r): r is ImageRef => typeof r?.url === 'string' && r.url.length > 0
     );
+    // eslint-disable-next-line no-console
+    console.log(
+      `[openai/generate] model=${model} size=${size} refs=${refs.length} promptLen=${applied.prompt.length}`
+    );
+    refs.forEach((r, i) => {
+      const isData = r.url.startsWith('data:');
+      const sig = isData
+        ? `data:${r.url.slice(5, 25)}…(${Math.round(r.url.length / 1024)}KB b64)`
+        : r.url.slice(0, 80);
+      // eslint-disable-next-line no-console
+      console.log(`[openai/generate]   ref[${i}] ${isData ? 'DATA' : 'URL'} → ${sig}`);
+    });
     if (refs.length > 0) {
       return editWithRefs(req, refs, model, size, width, height, applied.prompt);
     }
@@ -373,6 +385,11 @@ export function createOpenAIProvider(
     usable.forEach(({ blob, ext }, i) => {
       form.append('image[]', blob, `ref-${i}.${ext}`);
     });
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[openai/edits] POST → ${EDITS_ENDPOINT} model=${model} size=${size} image[]=${usable.length} (bytes per ref: ${usable.map((u) => u.blob.size).join(', ')}) prompt[0..120]=${prompt.slice(0, 120).replace(/\s+/g, ' ')}`
+    );
 
     const elapsed = mark();
     const res = await fetchOpenAI(EDITS_ENDPOINT, {

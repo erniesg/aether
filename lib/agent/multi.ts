@@ -187,6 +187,25 @@ async function dispatchTool(
     name === 'generate_image' && referenceImages && referenceImages.length > 0
       ? attachReferenceImages(baseBody, referenceImages)
       : baseBody;
+  if (name === 'generate_image') {
+    const refList = referenceImages ?? [];
+    // eslint-disable-next-line no-console
+    console.log(
+      `[multi-agent/dispatch] generate_image — refs in scope=${refList.length}, attached=${
+        name === 'generate_image' && refList.length > 0
+      }`
+    );
+    refList.forEach((r, i) => {
+      const u = r.url ?? r.dataUrl ?? '';
+      const isData = u.startsWith('data:');
+      // eslint-disable-next-line no-console
+      console.log(
+        `[multi-agent/dispatch]   ref[${i}] ${isData ? 'DATA' : 'URL'} ${
+          isData ? `${Math.round(u.length / 1024)}KB b64` : u.slice(0, 80)
+        }`
+      );
+    });
+  }
 
   const startedAt = Date.now();
   try {

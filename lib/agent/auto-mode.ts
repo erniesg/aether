@@ -1202,6 +1202,21 @@ async function runOneVariation(
         console.log(
           `[auto-mode v${input.promptInput.index}] firing renderPerFormatHeroes — ${refs.length} brand refs + ${heroAnchor ? 'HERO-ANCHORED' : 'free-recompose'}, 3 aspects in parallel…`
         );
+        refs.forEach((r, i) => {
+          const isData = r.url.startsWith('data:');
+          // eslint-disable-next-line no-console
+          console.log(
+            `[auto-mode v${input.promptInput.index}]   brand-ref[${i}] ${
+              isData ? `DATA ${Math.round(r.url.length / 1024)}KB b64` : `URL ${r.url.slice(0, 80)}`
+            }`
+          );
+        });
+        if (heroAnchor) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[auto-mode v${input.promptInput.index}]   hero-anchor URL ${heroAnchor.url.slice(0, 80)}`
+          );
+        }
         const result = await renderPerFormatHeroes({
           prompt: heroPrompt,
           refs,
