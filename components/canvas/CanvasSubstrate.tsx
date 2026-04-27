@@ -1005,6 +1005,17 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       editor.sendToBack([bgShapeId as never]);
     }
 
+    // The cutoutDataUrl mime type depends on which provider path produced
+    // it: SAM2 (men1scus/birefnet → alphaCutoutUrl) returns a PNG; SAM3
+    // (and any path that falls through buildMaskedImageDataUrl) returns
+    // an SVG. Infer from the data URL prefix so tldraw's render pipeline
+    // picks the right path. Hardcoding either side stretches the asset
+    // visibly when it doesn't match.
+    const cutoutMimeType = segmentation.preview.cutoutDataUrl.startsWith(
+      'data:image/svg+xml'
+    )
+      ? 'image/svg+xml'
+      : 'image/png';
     const assetId = AssetRecordType.createId();
     editor.createAssets([
       {
@@ -1016,14 +1027,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           src: segmentation.preview.cutoutDataUrl,
           w: segmentation.preview.width,
           h: segmentation.preview.height,
-          // The cutoutDataUrl is a PNG (alpha-cutout from
-          // buildMaskedImageDataUrl or alphaCutoutUrl). It was previously
-          // mis-declared as 'image/svg+xml' which made tldraw use the
-          // SVG render path (preserveAspectRatio defaults) — that
-          // produced visible stretch / compression on shapes whose
-          // display dims didn't match the asset's intrinsic dims, since
-          // SVG sizing semantics differ from raster image sizing.
-          mimeType: 'image/png',
+          mimeType: cutoutMimeType,
           isAnimated: false,
         },
         meta: {
