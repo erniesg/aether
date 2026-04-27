@@ -138,12 +138,18 @@ export async function uploadAssetToConvex(
   }
 
   // Step 3: persist + get public URL.
+  // The asset table validates wsId as v.id('workspace') (a real doc id),
+  // but most callers (drag-drop persist, auto-mode laps) pass a slug like
+  // 'demo-eightsleep-fresh' that doesn't round-trip. Detect doc-id shape
+  // (random base32, no hyphens, ~26-32 chars) and drop anything that
+  // doesn't match — the asset still persists, just unscoped to a ws.
+  const sanitizedWsId = isLikelyConvexDocId(input.wsId) ? input.wsId : undefined;
   try {
     const result = (await client.mutation(assetsApi.recordUploadedAsset as never, {
       storageId,
       kind: input.kind,
       mime,
-      wsId: input.wsId,
+      wsId: sanitizedWsId,
       campaignId: input.campaignId,
       sourceUrl: input.sourceUrl,
       width: input.width,
@@ -202,4 +208,19 @@ function decodeSource(input: UploadAssetInput): { bytes: Buffer; mime: string } 
 
 export function isDataUrl(url: string | undefined): url is string {
   return typeof url === 'string' && url.startsWith('data:');
+}
+
+/**
+ * Convex doc ids are 32-character random base32 strings (no hyphens or
+ * underscores — those signal a slug). This guard lets the helper accept
+ * either form: a real workspace id round-trips through, while a slug
+ * gets dropped client-side so the v.id('workspace') validator on the
+ * mutation never sees an invalid value.
+ *
+ * Length range is permissive (20-40) because Convex has shifted across
+ * deployments; a tighter regex would brittle-fail on a future change.
+ */
+export function isLikelyConvexDocId(s: string | undefined): s is string {
+  if (!s) return false;
+  return /^[a-z0-9]{20,40}$/i.test(s);
 }

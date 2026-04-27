@@ -22,6 +22,7 @@ import {
   startCampaign,
 } from '@/lib/convex/http';
 import { scheduleVariationPosts } from '@/lib/agent/auto-mode';
+import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
 
 export interface PersistGenerationInput {
   workspaceId?: string;
@@ -104,14 +105,61 @@ export async function persistGenerateAsCampaign(
   // value is harmless — the lap-end card uses it as the default schedule
   // suggestion when the creator opens the schedule picker.
   const scheduleWhenLocal = new Date().toISOString();
+
+  // Convex docs cap at 1 MiB. gpt-image-2 / gemini-flash-image return
+  // base64 data URLs (~3-5 MB each), so attempting to write them
+  // directly into a `campaignVariation.heroImageUrl` row fails with
+  // "Value is too large". Stage data URLs through Convex File Storage
+  // first — the resulting publicUrl is a short string. Same for each
+  // entry in nativePerFormatUrls. wsId is intentionally NOT passed:
+  // the asset table validates it as v.id('workspace') (doc id), but
+  // workspaceId here is a slug like 'demo-dingman-joe' that doesn't
+  // round-trip. Asset rows persist without ws scoping in this path —
+  // the campaign+variation already carry the slug.
+  let persistedHeroUrl = input.heroImageUrl;
+  if (persistedHeroUrl.startsWith('data:')) {
+    const uploaded = await uploadAssetToConvex({
+      source: persistedHeroUrl,
+      kind: 'hero',
+      sourceUrl: `drag-drop generation · ${input.prompt.slice(0, 60)}`,
+    });
+    if (uploaded) {
+      persistedHeroUrl = uploaded.publicUrl;
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[persist-generation] hero upload returned null — variation row will likely fail the 1 MiB Convex cap'
+      );
+    }
+  }
+
+  // Same staging dance for per-format URLs. Build the staged map in
+  // parallel since uploads are independent. Keeps order stable.
+  let persistedPerFormatUrls = input.nativePerFormatUrls;
+  if (input.nativePerFormatUrls) {
+    const entries = await Promise.all(
+      Object.entries(input.nativePerFormatUrls).map(async ([fid, url]) => {
+        if (!url) return [fid, url] as const;
+        if (!url.startsWith('data:')) return [fid, url] as const;
+        const uploaded = await uploadAssetToConvex({
+          source: url,
+          kind: 'hero',
+          sourceUrl: `drag-drop generation · ${fid} · ${input.prompt.slice(0, 60)}`,
+        });
+        return [fid, uploaded?.publicUrl ?? url] as const;
+      })
+    );
+    persistedPerFormatUrls = Object.fromEntries(entries) as typeof input.nativePerFormatUrls;
+  }
+
   try {
     await insertCampaignVariation({
       campaignId,
       workspaceId: input.workspaceId,
       index: 1,
       status: 'ready',
-      heroImageUrl: input.heroImageUrl,
-      nativePerFormatUrls: input.nativePerFormatUrls,
+      heroImageUrl: persistedHeroUrl,
+      nativePerFormatUrls: persistedPerFormatUrls,
       caption: input.prompt,
       schedulePlatform: 'instagram',
       scheduleWhenLocal,
@@ -140,7 +188,9 @@ export async function persistGenerateAsCampaign(
     discordSent = await sendDragDropDiscordPing({
       baseUrl: input.baseUrl,
       campaignId,
-      heroImageUrl: input.heroImageUrl,
+      // Use the staged URL so the Discord embed can render the inline
+      // image preview. Discord refuses data: URIs in embed.image.url.
+      heroImageUrl: persistedHeroUrl,
       prompt: input.prompt,
       provider: input.provider,
       model: input.model,
@@ -152,7 +202,10 @@ export async function persistGenerateAsCampaign(
 
   // When the creator picked auto-post on the composer, fire publishers
   // immediately (T-30s scheduling on direct adapters). Fail-soft — a
-  // publisher error doesn't roll back the persisted campaign.
+  // publisher error doesn't roll back the persisted campaign. Uses the
+  // staged (Convex-public) URLs so platform pullers (Meta especially)
+  // get something they can fetch — the original data: URLs would be
+  // unfetchable across origins.
   if (notifyMode === 'auto-post' && input.workspaceId) {
     try {
       await scheduleVariationPosts({
@@ -160,8 +213,8 @@ export async function persistGenerateAsCampaign(
           {
             index: 1,
             status: 'ready',
-            heroImageUrl: input.heroImageUrl,
-            nativePerFormatUrls: input.nativePerFormatUrls,
+            heroImageUrl: persistedHeroUrl,
+            nativePerFormatUrls: persistedPerFormatUrls,
             caption: input.prompt,
             schedulePlatform: 'instagram',
             scheduleWhenLocal,

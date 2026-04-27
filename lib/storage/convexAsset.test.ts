@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { uploadAssetToConvex, isDataUrl } from './convexAsset';
+import { uploadAssetToConvex, isDataUrl, isLikelyConvexDocId } from './convexAsset';
 
 const PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -12,6 +12,72 @@ describe('isDataUrl', () => {
     expect(isDataUrl('https://cdn/x.png')).toBe(false);
     expect(isDataUrl(undefined)).toBe(false);
     expect(isDataUrl('')).toBe(false);
+  });
+});
+
+describe('isLikelyConvexDocId', () => {
+  it('accepts real-shape Convex doc ids', () => {
+    expect(isLikelyConvexDocId('jx79fraawqfnrcc8v24ptrwc9185mbsg')).toBe(true);
+    expect(isLikelyConvexDocId('jx7by477ck74q41887d8cjq8bx85nb4p')).toBe(true);
+  });
+  it('rejects slugs (the actual bug surface — workspaceId is a slug)', () => {
+    expect(isLikelyConvexDocId('demo-eightsleep-fresh')).toBe(false);
+    expect(isLikelyConvexDocId('demo-dingman-joe')).toBe(false);
+    expect(isLikelyConvexDocId('demo_ws_1')).toBe(false);
+  });
+  it('rejects empty / undefined / wrong-length strings', () => {
+    expect(isLikelyConvexDocId(undefined)).toBe(false);
+    expect(isLikelyConvexDocId('')).toBe(false);
+    expect(isLikelyConvexDocId('short')).toBe(false);
+    expect(isLikelyConvexDocId('a'.repeat(60))).toBe(false);
+  });
+});
+
+describe('uploadAssetToConvex · wsId sanitisation', () => {
+  const origConvexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  beforeEach(() => { process.env.NEXT_PUBLIC_CONVEX_URL = 'https://example.convex.cloud'; });
+  afterEach(() => {
+    if (origConvexUrl) process.env.NEXT_PUBLIC_CONVEX_URL = origConvexUrl;
+    else delete process.env.NEXT_PUBLIC_CONVEX_URL;
+    vi.restoreAllMocks();
+  });
+
+  function makeMocks() {
+    const mutation = vi.fn();
+    mutation.mockResolvedValueOnce('https://convex/upload-signed');
+    mutation.mockResolvedValueOnce({ id: 'asset_doc_x', publicUrl: 'https://cdn/y.png' });
+    const fakeClient = { mutation } as unknown as Parameters<typeof uploadAssetToConvex>[0]['client'];
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ storageId: 'sid_x' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    ) as unknown as typeof fetch;
+    return { mutation, fakeClient, fetchImpl };
+  }
+
+  it('drops slug-shaped wsId before calling recordUploadedAsset', async () => {
+    const { mutation, fakeClient, fetchImpl } = makeMocks();
+    await uploadAssetToConvex({
+      source: PNG_DATA_URL,
+      kind: 'hero',
+      wsId: 'demo-eightsleep-fresh', // slug — would have crashed v.id('workspace') validator
+      client: fakeClient,
+      fetchImpl,
+    });
+    // Second mutation call is recordUploadedAsset; its args are call[1].
+    const recordArgs = mutation.mock.calls[1][1] as Record<string, unknown>;
+    expect(recordArgs.wsId).toBeUndefined();
+  });
+
+  it('forwards a doc-id-shaped wsId unchanged', async () => {
+    const { mutation, fakeClient, fetchImpl } = makeMocks();
+    await uploadAssetToConvex({
+      source: PNG_DATA_URL,
+      kind: 'hero',
+      wsId: 'jx79fraawqfnrcc8v24ptrwc9185mbsg', // real doc id shape
+      client: fakeClient,
+      fetchImpl,
+    });
+    const recordArgs = mutation.mock.calls[1][1] as Record<string, unknown>;
+    expect(recordArgs.wsId).toBe('jx79fraawqfnrcc8v24ptrwc9185mbsg');
   });
 });
 
