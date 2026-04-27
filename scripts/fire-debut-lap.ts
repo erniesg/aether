@@ -29,7 +29,7 @@ const arg = (k: string) => argv.find((a) => a.startsWith(`--${k}=`))?.split('=')
 const workspaceId = arg('workspace') ?? 'demo-debut-editorial';
 const apiBase = arg('api') ?? 'http://localhost:3030';
 
-const BRIEF = [
+const DEFAULT_BRIEF = [
   'Editorial fashion magazine cover photograph for "登场 DEBUT" magazine,',
   'featuring two East Asian male models styled together as a duo — one',
   'with rimless glasses in a tailored chrome-grey wool suit, the other',
@@ -40,6 +40,27 @@ const BRIEF = [
   'Vogue. Anchor identity across all 4 social aspects (1:1, 4:5, 9:16,',
   '16:9) — same subjects, same styling, only the canvas extent changes.',
 ].join(' ');
+
+// Override the brief without editing the file: --brief="…" or --brief=kfc
+// for one of the canned moods. Anything else is treated as the literal
+// payload. Refs (dingman + joe_glasses) are always passed.
+const briefArg = arg('brief');
+const CANNED_BRIEFS: Record<string, string> = {
+  kfc: [
+    'Documentary-style photo of the two men from the reference images',
+    'sitting together at a KFC restaurant in Malaysia, eating fried',
+    'chicken with their hands. Casual streetwear, late-afternoon natural',
+    'light through the window, red-and-white KFC interior visible behind',
+    'them, plates of chicken + fries + Pepsi cups on a melamine tray.',
+    'Mood: candid, warm, friends sharing a meal. Preserve the EXACT faces,',
+    'hair, and styling from the reference images. Same two men across all',
+    '4 aspects (1:1, 4:5, 9:16, 16:9) — only framing changes.',
+  ].join(' '),
+};
+const BRIEF =
+  briefArg && CANNED_BRIEFS[briefArg]
+    ? CANNED_BRIEFS[briefArg]
+    : briefArg ?? DEFAULT_BRIEF;
 
 function readAsDataUrl(path: string): string {
   const buf = readFileSync(path);
