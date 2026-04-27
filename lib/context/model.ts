@@ -152,6 +152,20 @@ export function buildCreatorGenerationPrompt(
     lines.push(`Pinned references: ${references.length} source${references.length === 1 ? '' : 's'}; ${refSummary}.`);
   }
 
+  // Identity anchor cue — only emitted when reference images are present.
+  // Without this, gpt-image-2 treats `image[]` refs as style/composition
+  // hints and frequently substitutes generic faces. With it, the model
+  // is explicitly told to preserve people / brands from the refs unless
+  // the creator's prompt overrides. The auto-mode lap's per-format
+  // hero-anchor cue is stronger ("PRESERVE EXACTLY"); this is the
+  // composer-direct equivalent so drag-drop generations don't drift
+  // off-identity by default. Bug fix 2026-04-27 — was empty before.
+  if (references.length > 0) {
+    lines.push(
+      'Reference images are attached. Preserve the EXACT faces, hair, clothing, and brand identity from them — recompose the scene around those subjects, do not substitute different people. Override only if the creator request explicitly asks for a different subject.'
+    );
+  }
+
   return lines.join('\n');
 }
 
