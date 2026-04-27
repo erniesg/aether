@@ -35,7 +35,7 @@ export interface ArtboardSeed {
  * the seeded set — visible to the user as "wrong aspect ratios".
  */
 export const DEFAULT_ARTBOARDS: ReadonlyArray<ArtboardSeed> = [
-  { name: 'IG Square · 1080×1080',   w: 1080, h: 1080, formatId: '1x1',  aspect: '1:1'  },
+  { name: 'IG Square · 1080×1080',   w: 1080, h: 1080, formatId: '1x1',  aspect: '1:1',  preset: 'ig-square' },
   { name: 'IG Post · 1080×1350',     w: 1080, h: 1350, formatId: '4x5',  aspect: '4:5',  preset: 'ig-post' },
   { name: 'Story / Reel · 1080×1920', w: 1080, h: 1920, formatId: '9x16', aspect: '9:16', preset: 'story' },
   { name: 'LinkedIn · 1920×1080',    w: 1920, h: 1080, formatId: '16x9', aspect: '16:9' },

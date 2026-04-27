@@ -1,4 +1,5 @@
 export type SafeZonePresetId =
+  | 'ig-square'
   | 'ig-post'
   | 'story'
   | 'reel-cover'
@@ -39,6 +40,11 @@ export interface SafeZoneFrameLike {
  * Platform-safe areas for the seeded demo artboards.
  *
  * Research basis:
+ * - Instagram feed 1:1: light inset for the like/comment overlay row that the
+ *   in-app viewer paints over the bottom of the image.
+ * - Instagram feed 4:5: the post displays at 4:5 in feed, but the profile
+ *   grid crops it to a centred 1:1. The visible safe zone here is the
+ *   profile-grid crop window — anything outside disappears in the grid.
  * - Instagram Stories: Meta says to leave roughly 14% top and 20% bottom
  *   free for CTA stickers in Stories ads.
  * - Instagram Reels cover: Meta recommends a 420×654 cover-photo preview,
@@ -46,14 +52,19 @@ export interface SafeZoneFrameLike {
  * - LinkedIn 1200×627 images: LinkedIn says to keep key details away from the
  *   edges, especially the lower-right corner, because display can shift by
  *   device. The inset values here are a conservative interpretation of that.
- * - IG feed 4:5: no comparable official occlusion guidance surfaced, so we
- *   don't draw a safe-zone mask there.
  */
 export const SAFE_ZONE_PRESETS: Readonly<Record<SafeZonePresetId, SafeZonePreset>> = {
+  'ig-square': {
+    id: 'ig-square',
+    label: 'IG square safe area',
+    kind: 'inset',
+    insets: { top: 0.06, right: 0.04, bottom: 0.1, left: 0.04 },
+  },
   'ig-post': {
     id: 'ig-post',
-    label: 'IG post',
-    kind: 'none',
+    label: 'IG profile-grid crop',
+    kind: 'center-crop',
+    cropAspectRatio: 1,
   },
   story: {
     id: 'story',
@@ -89,6 +100,7 @@ export function resolveSafeZonePresetId(frame: SafeZoneFrameLike): SafeZonePrese
   if (isPresetId(metaPreset)) return metaPreset;
 
   const rawName = frame.props?.name?.trim().toLowerCase() ?? '';
+  if (rawName.startsWith('ig square')) return 'ig-square';
   if (rawName.startsWith('ig post')) return 'ig-post';
   if (rawName.startsWith('story')) return 'story';
   if (rawName.startsWith('reel cover')) return 'reel-cover';
@@ -97,6 +109,7 @@ export function resolveSafeZonePresetId(frame: SafeZoneFrameLike): SafeZonePrese
   const w = frame.props?.w;
   const h = frame.props?.h;
   const ratio = w && h ? w / h : undefined;
+  if (approx(ratio, 1)) return 'ig-square';
   if (approx(ratio, 1080 / 1350)) return 'ig-post';
   if (approx(ratio, 1200 / 627)) return 'linkedin-landscape';
   return null;
