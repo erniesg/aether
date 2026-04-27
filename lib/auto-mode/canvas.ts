@@ -317,18 +317,34 @@ export function dropVariationOnCanvas({
     });
   }
 
-  // Drop text overlays inside the 1:1 frame as geo shapes.
-  // Each shape carries the full provenance needed for global/local propagation.
+  // Drop text overlays as geo shapes inside EVERY format frame — not just
+  // 1:1. Earlier we only dropped on primary; the global-text propagator
+  // (lib/auto-mode/canvas.ts:buildGlobalTextPropagator) walks siblings by
+  // (variationId, role) so an edit on a 1:1 headline shape only fanned out
+  // when other frames had matching shapes. With shapes only on 1:1 there
+  // were no siblings to update; the 4:5 / 9:16 / 16:9 frames showed
+  // whatever text the atlas / native render had baked into the image at
+  // lap-time, which differed per format because applyTextOverlay generates
+  // distinct copy per (zone × format × locale) cell.
+  //
+  // Now: each format frame gets its OWN AetherTextShape per overlay, all
+  // sharing variationId + role + scope='global'. Editing one propagates
+  // to the others via the propagator's storeListen. Each shape's bbox is
+  // scaled from 1024² hero coords to the per-frame dims so headlines land
+  // in the same relative position regardless of aspect.
   if (variation.textOverlays && variation.textOverlays.length > 0) {
-    const targetFrameId = primaryFrameId ?? frameIds[0];
-    if (!targetFrameId) {
+    const targetFrameIds = frameIds.filter((id): id is string => Boolean(id));
+    if (targetFrameIds.length === 0) {
       // No frame to parent to — skip overlays gracefully
     } else {
-      const targetFrame = editor.getShape(targetFrameId as never) as
-        | { props: { w: number; h: number } }
-        | undefined;
-      const fw = targetFrame?.props.w ?? 1080;
-      const fh = targetFrame?.props.h ?? 1080;
+      // Resolve format id per frame so the shape can record it for
+      // provenance ("which frame's overlay was edited"). frame ids are
+      // ordered the same as FORMAT_FRAME_SPECS by ensureFormatFrames.
+      const formatIdForFrame = new Map<string, string>();
+      FORMAT_FRAME_SPECS.forEach((spec, i) => {
+        const fid = frameIds[i];
+        if (fid) formatIdForFrame.set(fid, spec.formatId);
+      });
 
       for (const overlay of variation.textOverlays) {
         const copy =
@@ -341,88 +357,84 @@ export function dropVariationOnCanvas({
         const bbox = overlay.zone.bbox;
         if (!bbox) continue;
 
-        // Scale the bbox from the hero's 1024² coordinate space to the frame
-        const scaleX = fw / 1024;
-        const scaleY = fh / 1024;
+        // Drop one shape per format frame, all carrying the SAME (variationId,
+        // role) so the global propagator treats them as siblings.
+        for (const targetFrameId of targetFrameIds) {
+          const targetFrame = editor.getShape(targetFrameId as never) as
+            | { props: { w: number; h: number } }
+            | undefined;
+          if (!targetFrame) continue;
+          const fw = targetFrame.props.w;
+          const fh = targetFrame.props.h;
 
-        const align: 'start' | 'middle' | 'end' =
-          overlay.textAlign === 'center'
-            ? 'middle'
-            : overlay.textAlign === 'end'
-            ? 'end'
-            : 'start';
+          // Scale the bbox from the hero's 1024² coordinate space to the
+          // per-frame dims. Same relative placement across aspects.
+          const scaleX = fw / 1024;
+          const scaleY = fh / 1024;
+          const w = Math.max(bbox.w * scaleX, 40);
+          const h = Math.max(bbox.h * scaleY, 24);
+          const formatId = formatIdForFrame.get(targetFrameId) ?? '1x1';
 
-        const overlayMeta = {
-          autoModeTextOverlay: true,
-          autoModeTextContent: copy,
-          // 'global' = propagate to all variation frames on edit.
-          // 'local'  = only this frame/cell.
-          scope:
-            overlay.zone.purpose === 'headline' ||
-            overlay.zone.purpose === 'cta'
-              ? 'global'
-              : 'local',
-          zone: overlay.zone.purpose,
-          variationId: variation.id,
-          locale,
-          format: '1x1',
-          role: overlay.zone.purpose,
-        };
+          const overlayMeta = {
+            autoModeTextOverlay: true,
+            autoModeTextContent: copy,
+            // 'global' = propagate to all variation frames on edit.
+            // 'local'  = only this frame/cell.
+            scope:
+              overlay.zone.purpose === 'headline' ||
+              overlay.zone.purpose === 'cta'
+                ? 'global'
+                : 'local',
+            zone: overlay.zone.purpose,
+            variationId: variation.id,
+            locale,
+            format: formatId,
+            role: overlay.zone.purpose,
+          };
 
-        const w = Math.max(bbox.w * scaleX, 40);
-        const h = Math.max(bbox.h * scaleY, 24);
-
-        // Editable text shape only — no rectangle guide. The user explicitly
-        // does NOT want any background panel behind text overlays unless
-        // absolutely necessary. tldraw's stroke + drop shadow on the text
-        // itself carries enough legibility against the photographic hero.
-        // Removed 2026-04-27 (was creating a faint dashed-rectangle guide
-        // that read as a background panel).
-        // Use the custom AetherTextShape — tldraw 3.x rejects `text`
-        // prop on built-in `text` AND `geo` (both moved to `richText`,
-        // a TipTap doc). AetherTextShape is our own custom util that
-        // takes a flat `content` map and renders it directly, with no
-        // background unless backgroundColor is non-empty. Mirrors the
-        // shape created by text-overlay-bridge.tsx so the global-text
-        // propagator there can pick edits up identically.
-        const textId = createShapeId();
-        const textProps: AetherTextShapeProps = {
-          content: overlay.content,
-          bcp47Locale: locale,
-          sourceLocale: locale,
-          w,
-          h,
-          // We don't have a structured AetherTextPlacement at this drop
-          // site — the auto-mode lap stored only a bbox. Pass empty JSON
-          // so the validator accepts it; bridge consumers tolerate this.
-          placement: '',
-          protectedRegions: '[]',
-          wsId,
-          artboardId: targetFrameId as string,
-          textOverlayRowId: '',
-          capabilityRunId: '',
-          fontSize: Math.max(12, Math.round(h * 0.3)),
-          color: '#ffffff',
-          textAlign:
-            overlay.textAlign === 'center'
-              ? 'center'
-              : overlay.textAlign === 'end'
-              ? 'end'
-              : 'start',
-          fontWeight: 600,
-          // No background — explicit user requirement. The shape's
-          // text-shadow / stroke render in the shape util itself.
-          backgroundColor: '',
-        };
-        editor.createShape({
-          id: textId,
-          type: AETHER_TEXT_SHAPE_TYPE as never,
-          parentId: targetFrameId as never,
-          x: bbox.x * scaleX,
-          y: bbox.y * scaleY,
-          props: textProps as never,
-          meta: { ...overlayMeta, shapeRole: 'overlay-text' },
-        } as Parameters<typeof editor.createShape>[0]);
+          // Editable text shape only — no rectangle guide. The user explicitly
+          // does NOT want any background panel behind text overlays unless
+          // absolutely necessary. AetherTextShape's stroke + drop shadow on
+          // the text itself carries enough legibility against the photographic
+          // hero. Mirrors the shape created by text-overlay-bridge.tsx so the
+          // global-text propagator there picks edits up identically.
+          const textId = createShapeId();
+          const textProps: AetherTextShapeProps = {
+            content: overlay.content,
+            bcp47Locale: locale,
+            sourceLocale: locale,
+            w,
+            h,
+            // No structured AetherTextPlacement at this drop site — the
+            // auto-mode lap stored only a bbox. Pass empty JSON so the
+            // validator accepts it; bridge consumers tolerate this.
+            placement: '',
+            protectedRegions: '[]',
+            wsId,
+            artboardId: targetFrameId,
+            textOverlayRowId: '',
+            capabilityRunId: '',
+            fontSize: Math.max(12, Math.round(h * 0.3)),
+            color: '#ffffff',
+            textAlign:
+              overlay.textAlign === 'center'
+                ? 'center'
+                : overlay.textAlign === 'end'
+                ? 'end'
+                : 'start',
+            fontWeight: 600,
+            backgroundColor: '',
+          };
+          editor.createShape({
+            id: textId,
+            type: AETHER_TEXT_SHAPE_TYPE as never,
+            parentId: targetFrameId as never,
+            x: bbox.x * scaleX,
+            y: bbox.y * scaleY,
+            props: textProps as never,
+            meta: { ...overlayMeta, shapeRole: 'overlay-text' },
+          } as Parameters<typeof editor.createShape>[0]);
+        }
       }
     }
   }
