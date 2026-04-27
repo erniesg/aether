@@ -144,7 +144,7 @@ export function CampaignSwitcher({
         aria-haspopup="dialog"
         aria-controls={popoverId}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-md border border-ink-faint/30 bg-surface-bg px-2 py-1 text-xs font-mono text-ink-dim hover:bg-surface-2 hover:text-ink"
+        className="flex items-center gap-2 rounded-md border border-ink-faint/30 bg-surface-bg px-2 py-1 text-xs font-mono text-ink-dim hover:bg-surface-panel-muted hover:text-ink"
         data-taxonomy="metadata"
       >
         {chipStatus ? (
@@ -160,7 +160,7 @@ export function CampaignSwitcher({
           id={popoverId}
           role="dialog"
           aria-label="Campaign switcher"
-          className="absolute left-0 top-full z-50 mt-2 w-[28rem] rounded-md border border-ink-faint/30 bg-surface-panel p-2 shadow-lg"
+          className="absolute left-0 top-full z-[60] mt-2 w-[28rem] rounded-md border border-ink-faint/30 bg-surface-panel p-2 shadow-lg"
           data-taxonomy="metadata"
         >
           <div className="mb-1 flex items-center justify-between px-2 py-1 text-[10px] uppercase tracking-wider text-ink-faint">
@@ -186,8 +186,8 @@ export function CampaignSwitcher({
                     onClick={() => handleSelect(c.id)}
                     className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs ${
                       isActive
-                        ? 'bg-surface-2 text-ink'
-                        : 'text-ink-dim hover:bg-surface-2 hover:text-ink'
+                        ? 'bg-surface-panel-muted text-ink'
+                        : 'text-ink-dim hover:bg-surface-panel-muted hover:text-ink'
                     }`}
                   >
                     <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(c.status)}`} />

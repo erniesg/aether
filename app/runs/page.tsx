@@ -142,7 +142,7 @@ export default function RunsPage() {
                         : undefined
                     }
                     className={
-                      'border-b border-ink-faint/10 align-middle hover:bg-surface-2' +
+                      'border-b border-ink-faint/10 align-middle hover:bg-surface-panel-muted' +
                       (canDropOnCanvas ? ' cursor-pointer' : '')
                     }
                     title={
