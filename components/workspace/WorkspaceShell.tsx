@@ -485,7 +485,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       // Lifted out of the try-block so the catch handler can clear them after
       // an AbortError. Block-scoped lets aren't visible across catch in TS.
-      const STREAM_STALE_MS = 120_000;
+      // "Just let it run" — give long-running gpt-image-2 calls all the
+      // time they need without ever aborting the client stream. Server
+      // /api/generate also sends keepalive comment frames every 20s so
+      // this safety net rarely fires; when it does (true network death),
+      // 30min is a real ceiling rather than a 120s arbitrary chop.
+      const STREAM_STALE_MS = 1_800_000;
       const abortCtrl = new AbortController();
       // Track whether the AbortController was triggered by the stale timer
       // (not a user-initiated cancel). The catch block uses this to choose

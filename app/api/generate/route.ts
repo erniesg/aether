@@ -247,6 +247,24 @@ export async function POST(request: Request) {
             controller.enqueue(encodeGenerateEvent(event));
           };
 
+          // Keepalive: gpt-image-2 /v1/images/edits with multi-MB ref
+          // bytes can run 200-400s with no intermediate signal. Without
+          // a heartbeat the client's stale-stream timer (WorkspaceShell
+          // STREAM_STALE_MS) trips and aborts the stream. Send an SSE
+          // comment line every 20s while the run is in flight; comments
+          // (`:` prefix) are valid SSE that browsers accept and any
+          // resetStaleTimer hook on the client treats as activity.
+          const KEEPALIVE_MS = 20_000;
+          const encoder = new TextEncoder();
+          const keepaliveTimer = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(`: keepalive ${Date.now()}\n\n`));
+            } catch {
+              // Controller already closed (run completed or client aborted).
+            }
+          }, KEEPALIVE_MS);
+          const stopKeepalive = () => clearInterval(keepaliveTimer);
+
           emit({
             type: 'run.started',
             at: Date.now(),
@@ -429,6 +447,7 @@ export async function POST(request: Request) {
                 });
               }
 
+              stopKeepalive();
               controller.close();
               return;
             }
@@ -549,6 +568,7 @@ export async function POST(request: Request) {
               });
             }
 
+            stopKeepalive();
             controller.close();
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -585,6 +605,7 @@ export async function POST(request: Request) {
             }
 
             console.error(`[generate/${reqId}] stream error · ${code} · ${message}`);
+            stopKeepalive();
             controller.close();
           }
         })();
