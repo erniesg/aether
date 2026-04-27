@@ -17,6 +17,18 @@ export interface SegmentationPreviewPayload {
   height: number;
   bbox?: { x: number; y: number; w: number; h: number };
   invertMask?: boolean;
+  /** When the segment call was made with bgInpaint=true, this is the
+   *  source image with the masked region (subject) reconstructed by
+   *  the inpaint provider (default: LAMA). The canvas-approve flow
+   *  drops it as a sibling shape behind the cutout so the creator gets
+   *  two editable layers in one action. Absent when bgInpaint was off
+   *  or the inpaint call failed. */
+  bgInpaintDataUrl?: string;
+  /** Surfaced when bgInpaint=true but the call failed (provider
+   *  missing creds, model timeout). The cutout is still usable; the
+   *  creator can retry from the canvas action. */
+  bgInpaintError?: string;
+  bgInpaintProvider?: { id: string; model: string };
 }
 
 export interface SegmentationPanelProps {

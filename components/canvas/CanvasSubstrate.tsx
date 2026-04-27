@@ -7,6 +7,7 @@ import {
   DefaultColorStyle,
   DefaultFillStyle,
   type IndexKey,
+  createShapeId,
   getIndexBelow,
   getIndexBetween,
 } from 'tldraw';
@@ -711,6 +712,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           box: segmentation.box,
           width: targetImage.intrinsicWidth,
           height: targetImage.intrinsicHeight,
+          // Always ask for the bg-inpainted layer alongside the cutout so
+          // the creator gets two complementary layers in one action.
+          // Server fail-soft: cutout is returned even if inpaint errors.
+          // Skip for `unmask` (mask is already inverted there — the
+          // semantics of "inpaint the kept region" don't match the verb).
+          bgInpaint: segmentation.verb !== 'unmask',
         }),
       });
 
@@ -934,12 +941,66 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     const targetImage = segmentation.target;
 
     const shape = editor.getShape(targetImage.shapeId as never) as
-      | { type: 'image'; meta?: Record<string, unknown> }
+      | { type: 'image'; meta?: Record<string, unknown>; x?: number; y?: number; rotation?: number; props?: Record<string, unknown> }
       | undefined;
     if (!shape || shape.type !== 'image') return;
 
-    const assetId = AssetRecordType.createId();
     editor.markHistoryStoppingPoint('segment image');
+
+    // When bg-inpaint succeeded server-side, drop a second image shape
+    // at the same geometry as the source to act as the "background only"
+    // layer. The cutout image (the existing shape) becomes the top layer
+    // — translucency reveals the inpainted bg behind. Two editable
+    // layers from one segment action; matches the "components + bg
+    // inpainting → diff layers" mental model.
+    const bgUrl = segmentation.preview.bgInpaintDataUrl;
+    if (bgUrl) {
+      const bgAssetId = AssetRecordType.createId();
+      editor.createAssets([
+        {
+          id: bgAssetId,
+          type: 'image',
+          typeName: 'asset',
+          props: {
+            name: `${segmentation.verb} background`,
+            src: bgUrl,
+            w: segmentation.preview.width,
+            h: segmentation.preview.height,
+            mimeType: 'image/png',
+            isAnimated: false,
+          },
+          meta: {
+            aetherRole: 'segmentation-bg',
+            aetherProviderId: segmentation.providerId,
+          },
+        },
+      ]);
+      const bgShapeId = createShapeId();
+      editor.createShape({
+        id: bgShapeId,
+        type: 'image',
+        x: shape.x ?? 0,
+        y: shape.y ?? 0,
+        rotation: shape.rotation ?? 0,
+        props: {
+          assetId: bgAssetId,
+          w: (shape.props?.w as number | undefined) ?? segmentation.preview.width,
+          h: (shape.props?.h as number | undefined) ?? segmentation.preview.height,
+        },
+        meta: {
+          aetherRole: 'segmentation-bg',
+          aetherSourceShapeId: targetImage.shapeId,
+          aetherSourceSrc: targetImage.sourceUrl,
+          aetherSegmentationVerb: segmentation.verb,
+          aetherSegmentationProvider: segmentation.providerId,
+        },
+      } as Parameters<typeof editor.createShape>[0]);
+      // Send the bg shape behind the (still-existing) source shape so the
+      // cutout we're about to swap onto the source reads naturally on top.
+      editor.sendToBack([bgShapeId as never]);
+    }
+
+    const assetId = AssetRecordType.createId();
     editor.createAssets([
       {
         id: assetId,
@@ -972,6 +1033,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         aetherSegmentationVerb: segmentation.verb,
         aetherSegmentationProvider: segmentation.providerId,
         aetherSegmentationPrompt: segmentation.prompt,
+        ...(bgUrl ? { aetherHasBgLayer: true } : {}),
       },
     } as never);
 

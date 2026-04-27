@@ -18,6 +18,11 @@ import {
   buildMaskedImageDataUrl,
   fetchAsDataUrl,
 } from '@/lib/segment/dataUrl';
+import { resolveInpaintProvider } from '@/lib/providers/inpaint/registry';
+import {
+  InpaintError,
+  InpaintUnavailableError,
+} from '@/lib/providers/inpaint/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -128,6 +133,17 @@ export async function POST(request: Request) {
   const points = parsePointPrompts(b.points);
   const width = parsePositiveNumber(b.width);
   const height = parsePositiveNumber(b.height);
+  // bgInpaint=true tells us to ALSO fire the inpaint provider so the
+  // canvas can drop two complementary layers: cutout (subject) on top,
+  // background (subject region filled by LAMA) underneath. Default off
+  // so existing callers / smoke tests keep their existing single-image
+  // response shape. Failure of inpaint is fail-soft — segment still
+  // succeeds and returns the cutout, with bgInpaintError surfaced for UI.
+  const bgInpaint = b.bgInpaint === true;
+  const inpaintProviderId =
+    typeof b.inpaintProviderId === 'string' ? b.inpaintProviderId : undefined;
+  const inpaintModel =
+    typeof b.inpaintModel === 'string' ? b.inpaintModel : undefined;
 
   if (!sourceUrl) {
     return jsonError(400, 'sourceUrl is required');
@@ -190,6 +206,47 @@ export async function POST(request: Request) {
           invertMask: mode === 'unmask',
         });
 
+    // Optional bg inpaint: feed the source + mask into LAMA so the canvas
+    // can drop two layers — subject cutout (top) + reconstructed bg
+    // (bottom). Fail-soft per attempt: a missing REPLICATE_API_TOKEN /
+    // model error must not break the cutout response.
+    let bgInpaintDataUrl: string | undefined;
+    let bgInpaintError: string | undefined;
+    let bgInpaintProvider:
+      | { id: string; model: string }
+      | undefined;
+    if (bgInpaint) {
+      try {
+        const inpaintProvider = resolveInpaintProvider(
+          inpaintProviderId,
+          inpaintModel
+        );
+        const inpaintResult = await inpaintProvider.inpaint(
+          {
+            sourceUrl,
+            maskUrl: result.maskUrl,
+            size: { w: result.width, h: result.height },
+          },
+          { model: inpaintModel ?? inpaintProvider.listModels()[0] ?? inpaintProvider.id }
+        );
+        bgInpaintDataUrl = await fetchAsDataUrl(inpaintResult.imageUrl);
+        bgInpaintProvider = {
+          id: inpaintResult.provider,
+          model: inpaintResult.model,
+        };
+      } catch (err) {
+        if (err instanceof InpaintUnavailableError) {
+          bgInpaintError = err.message;
+        } else if (err instanceof InpaintError) {
+          bgInpaintError = err.message;
+        } else {
+          bgInpaintError = err instanceof Error ? err.message : String(err);
+        }
+        // eslint-disable-next-line no-console
+        console.warn(`[api/segment] bgInpaint failed: ${bgInpaintError}`);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       provider: {
@@ -204,6 +261,9 @@ export async function POST(request: Request) {
         height: result.height,
         bbox: result.bbox,
         invertMask: mode === 'unmask',
+        ...(bgInpaintDataUrl ? { bgInpaintDataUrl } : {}),
+        ...(bgInpaintError ? { bgInpaintError } : {}),
+        ...(bgInpaintProvider ? { bgInpaintProvider } : {}),
       },
       raw: result.raw,
     });
