@@ -1599,7 +1599,7 @@ export function pickHeroForPlatform(
   }
 }
 
-async function scheduleVariationPosts(input: {
+export async function scheduleVariationPosts(input: {
   variations: AutoModeVariationResult[];
   workspaceId?: string;
   baseUrl: string;
@@ -1822,7 +1822,10 @@ function buildLapEndActionRows(input: {
           type: 2 as const,
           style: 5 as const,
           label: `Approve v${v.index}`,
-          url: `${origin}/api/auto-mode/approve?c=${encodeURIComponent(campaignId)}&v=${v.index}`,
+          // /post-now skips the lap-rerun that /approve→/run used to do —
+          // loads the existing variation from Convex and calls
+          // scheduleVariationPosts directly.
+          url: `${origin}/api/auto-mode/post-now?c=${encodeURIComponent(campaignId)}&v=${v.index}`,
           emoji: { name: '✅' },
         },
         {

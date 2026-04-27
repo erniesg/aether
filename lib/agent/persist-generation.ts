@@ -1,14 +1,14 @@
 /**
  * Persist a successful drag-drop / direct generate as a "synthetic" auto-mode
  * campaign so it shows up in /runs alongside real laps, AND fire a Discord
- * ping with a post-now button. Reuses the existing campaign / variation /
- * approve infrastructure so the post-now button just routes through the
- * same /api/auto-mode/approve handler that real laps use.
+ * ping with a post-now button. Reuses the campaign / variation infrastructure
+ * so the post-now button just routes through /api/auto-mode/post-now, which
+ * loads the persisted variation and calls scheduleVariationPosts directly.
  *
  * Design notes:
  *   - One synthetic campaign row per generate, one variation row inside it
  *     carrying the hero image (and optional per-format URLs). The variation
- *     index is always 1 — the existing approve link uses (campaignId, v=1).
+ *     index is always 1 — the post-now link uses (campaignId, v=1).
  *   - Reference images are recorded URL-only (data URLs are stripped to a
  *     short signature so the campaign row stays small).
  *   - Fail-soft: if Convex / Discord is unreachable the generate response
@@ -187,10 +187,11 @@ async function sendDragDropDiscordPing(input: SendPingInput): Promise<boolean> {
           style: 5,
           label: 'Post now to all platforms',
           emoji: { name: '🚀' },
-          // Existing approve handler treats GET clicks as auto-post +
-          // forcePostNow=true, which short-circuits the schedule and
-          // fires every configured publisher immediately.
-          url: `${origin}/api/auto-mode/approve?c=${encodeURIComponent(
+          // /post-now loads the persisted variation from Convex and calls
+          // scheduleVariationPosts directly with forcePostNow=true. Skips
+          // the redundant lap-rerun that the old /approve→/run flow did
+          // just to publish bytes that already existed.
+          url: `${origin}/api/auto-mode/post-now?c=${encodeURIComponent(
             input.campaignId
           )}&v=1`,
         },
