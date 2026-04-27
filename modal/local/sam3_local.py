@@ -185,8 +185,21 @@ def _best_seed_box(state):
 
 
 def _select_device() -> str:
-    """Prefers MPS (Apple Silicon) → CUDA → CPU. SAM3 on CPU is slow."""
+    """Pick the torch device.
+
+    Priority: SAM3_DEVICE env override → MPS (Apple Silicon) → CUDA → CPU.
+
+    On Apple Silicon, the MaximeLglr/sam3-apple-silicon fork still has gaps
+    where some ops run on MPS and others fall back to CPU under
+    PYTORCH_ENABLE_MPS_FALLBACK=1, leading to device-mismatch RuntimeErrors
+    at inference time. Setting SAM3_DEVICE=cpu forces pure CPU mode — slower
+    (~30s+ per call) but stable. Prefer cpu until upstream patches land.
+    """
     import torch
+
+    override = os.environ.get("SAM3_DEVICE", "").strip().lower()
+    if override in {"cpu", "mps", "cuda"}:
+        return override
 
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return "mps"
