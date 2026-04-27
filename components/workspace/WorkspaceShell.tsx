@@ -1321,7 +1321,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       droppedVariationIndices.current.add(variation.index);
       try {
-        dropVariationOnCanvas({ editor, variation });
+        dropVariationOnCanvas({ editor, variation, wsId });
       } catch (err) {
         logError('auto-mode canvas drop failed:', err);
       }

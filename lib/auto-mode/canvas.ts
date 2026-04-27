@@ -24,6 +24,7 @@
 import type { Editor } from 'tldraw';
 import { AssetRecordType, createShapeId } from 'tldraw';
 import type { AutoModeVariationView } from '@/components/rail/sections/AutoModePanel';
+import { AETHER_TEXT_SHAPE_TYPE, type AetherTextShapeProps } from '@/components/canvas/shapes/AetherTextShape';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Standard SG format frame specs
@@ -191,6 +192,9 @@ export interface DropVariationOnCanvasOptions {
   };
   /** Active locale for text overlay content selection. Default: 'en-SG'. */
   locale?: string;
+  /** Workspace id — threaded into the AetherTextShape props so the
+   *  text-overlay bridge can persist edits to the right workspace. */
+  wsId?: string;
 }
 
 /**
@@ -212,6 +216,7 @@ export function dropVariationOnCanvas({
   editor,
   variation,
   locale = 'en-SG',
+  wsId = 'demo-ws',
 }: DropVariationOnCanvasOptions): string | null {
   // Resolution order per format: nativePerFormatUrls[formatId] → atlasUrl →
   // heroImageUrl. If neither atlas nor hero is available AND we have no
@@ -373,39 +378,49 @@ export function dropVariationOnCanvas({
         // itself carries enough legibility against the photographic hero.
         // Removed 2026-04-27 (was creating a faint dashed-rectangle guide
         // that read as a background panel).
-        // tldraw 3.x's built-in `text` shape no longer accepts a flat
-        // `text` prop (it uses `richText`, a TipTap-style doc), so it
-        // throws a ValidationError when we pass `text`. Use `geo` with
-        // the rectangle invisible (no fill, no outline) and the overlay
-        // copy carried as the geo's text label — that label IS valid
-        // and is double-click editable. Net effect: editable text on
-        // canvas, NO background panel. Bug fix 2026-04-27 — replaces
-        // the prior `type: 'text'` drop that crashed canvas-drop.
+        // Use the custom AetherTextShape — tldraw 3.x rejects `text`
+        // prop on built-in `text` AND `geo` (both moved to `richText`,
+        // a TipTap doc). AetherTextShape is our own custom util that
+        // takes a flat `content` map and renders it directly, with no
+        // background unless backgroundColor is non-empty. Mirrors the
+        // shape created by text-overlay-bridge.tsx so the global-text
+        // propagator there can pick edits up identically.
         const textId = createShapeId();
+        const textProps: AetherTextShapeProps = {
+          content: overlay.content,
+          bcp47Locale: locale,
+          sourceLocale: locale,
+          w,
+          h,
+          // We don't have a structured AetherTextPlacement at this drop
+          // site — the auto-mode lap stored only a bbox. Pass empty JSON
+          // so the validator accepts it; bridge consumers tolerate this.
+          placement: '',
+          protectedRegions: '[]',
+          wsId,
+          artboardId: targetFrameId as string,
+          textOverlayRowId: '',
+          capabilityRunId: '',
+          fontSize: Math.max(12, Math.round(h * 0.3)),
+          color: '#ffffff',
+          textAlign:
+            overlay.textAlign === 'center'
+              ? 'center'
+              : overlay.textAlign === 'end'
+              ? 'end'
+              : 'start',
+          fontWeight: 600,
+          // No background — explicit user requirement. The shape's
+          // text-shadow / stroke render in the shape util itself.
+          backgroundColor: '',
+        };
         editor.createShape({
           id: textId,
-          type: 'geo',
+          type: AETHER_TEXT_SHAPE_TYPE as never,
           parentId: targetFrameId as never,
           x: bbox.x * scaleX,
           y: bbox.y * scaleY,
-          props: {
-            geo: 'rectangle',
-            w,
-            h,
-            // Invisible chrome: no fill + dashed outline only at zoom-in.
-            // Using `dash: 'draw'` (sketch-style) at small `size` keeps
-            // the outline subtle; alternative `dash: 'solid'` with `size:
-            // 's'` reads as a faint hairline. Either way, no fill panel.
-            fill: 'none' as const,
-            dash: 'draw' as const,
-            color: 'white' as const,
-            size: 's' as const,
-            verticalAlign: 'middle' as const,
-            align,
-            text: copy,
-            labelColor: 'white' as const,
-            font: 'sans' as const,
-          } as Record<string, unknown>,
+          props: textProps as never,
           meta: { ...overlayMeta, shapeRole: 'overlay-text' },
         } as Parameters<typeof editor.createShape>[0]);
       }
