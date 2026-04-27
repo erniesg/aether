@@ -7,16 +7,18 @@ const GENERATIONS_ENDPOINT = 'https://api.openai.com/v1/images/generations';
 const EDITS_ENDPOINT = 'https://api.openai.com/v1/images/edits';
 const DEFAULT_MODEL = 'gpt-image-2';
 // gpt-image-2 hero renders typically take 100-150s for 1024² with the
-// layout-aware prompt; the prior 120s ceiling clipped renders that landed
-// at 121-126s. Default 240s gives headroom; override per-deployment via
-// OPENAI_IMAGE_TIMEOUT_MS env (positive integer ms).
+// layout-aware prompt, but /v1/images/edits with multiple large refs
+// (e.g. 7MB + 4MB brand PNGs) can exceed 240s — the upload + processing
+// adds significant tail latency. Bumped 240s → 600s default 2026-04-27
+// after observing repeat "request timed out after 240s" failures on
+// the dingman+joe lap (11MB combined refs). Override via env.
 const OPENAI_TIMEOUT_MS = (() => {
   const raw = process.env.OPENAI_IMAGE_TIMEOUT_MS;
   if (raw) {
     const n = Number(raw);
     if (Number.isFinite(n) && n > 0) return n;
   }
-  return 240_000;
+  return 600_000;
 })();
 /**
  * Size string accepted by gpt-image-2's `size` parameter — `"<W>x<H>"` where

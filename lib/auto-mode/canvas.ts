@@ -373,27 +373,38 @@ export function dropVariationOnCanvas({
         // itself carries enough legibility against the photographic hero.
         // Removed 2026-04-27 (was creating a faint dashed-rectangle guide
         // that read as a background panel).
+        // tldraw 3.x's built-in `text` shape no longer accepts a flat
+        // `text` prop (it uses `richText`, a TipTap-style doc), so it
+        // throws a ValidationError when we pass `text`. Use `geo` with
+        // the rectangle invisible (no fill, no outline) and the overlay
+        // copy carried as the geo's text label — that label IS valid
+        // and is double-click editable. Net effect: editable text on
+        // canvas, NO background panel. Bug fix 2026-04-27 — replaces
+        // the prior `type: 'text'` drop that crashed canvas-drop.
         const textId = createShapeId();
         editor.createShape({
           id: textId,
-          type: 'text',
+          type: 'geo',
           parentId: targetFrameId as never,
           x: bbox.x * scaleX,
           y: bbox.y * scaleY,
           props: {
-            // tldraw 3.x text shape — the props the editor recognises are
-            // text + size + color + align + autoSize/w. Use a centered
-            // medium-size white text by default; the creator can re-style
-            // any time.
-            text: copy,
-            size: 'm' as const,
-            color: 'white' as const,
-            font: 'sans' as const,
-            align,
-            // Width hint matches the bbox so wrapping mirrors the layout.
+            geo: 'rectangle',
             w,
-            autoSize: false as const,
-            scale: 1,
+            h,
+            // Invisible chrome: no fill + dashed outline only at zoom-in.
+            // Using `dash: 'draw'` (sketch-style) at small `size` keeps
+            // the outline subtle; alternative `dash: 'solid'` with `size:
+            // 's'` reads as a faint hairline. Either way, no fill panel.
+            fill: 'none' as const,
+            dash: 'draw' as const,
+            color: 'white' as const,
+            size: 's' as const,
+            verticalAlign: 'middle' as const,
+            align,
+            text: copy,
+            labelColor: 'white' as const,
+            font: 'sans' as const,
           } as Record<string, unknown>,
           meta: { ...overlayMeta, shapeRole: 'overlay-text' },
         } as Parameters<typeof editor.createShape>[0]);
