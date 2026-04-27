@@ -160,7 +160,7 @@ export function CampaignSwitcher({
           id={popoverId}
           role="dialog"
           aria-label="Campaign switcher"
-          className="absolute left-0 top-full z-[60] mt-2 w-[28rem] rounded-md border border-ink-faint/30 bg-surface-panel p-2 shadow-lg"
+          className="absolute left-0 top-full z-[1000] mt-2 w-[28rem] rounded-md border border-ink-faint/30 bg-surface-panel p-2 opacity-100 shadow-lg"
           data-taxonomy="metadata"
         >
           <div className="mb-1 flex items-center justify-between px-2 py-1 text-[10px] uppercase tracking-wider text-ink-faint">

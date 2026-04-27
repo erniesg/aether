@@ -84,13 +84,13 @@ export function RailSection({
           aria-label={label}
           data-rail-flyout={id}
           className={cn(
-            // z-[60] clears tldraw's in-canvas shape layers (which can sit
-            // above z-20 when an image asset is mid-drop). Solid bg-surface-panel
-            // ensures the flyout reads as opaque against canvas content
-            // bleeding through. Bug fix 2026-04-27: variation thumbnails on
-            // the canvas were ghost-bleeding through the flyout.
-            'absolute top-0 z-[60] w-80 rounded-md border border-border bg-surface-panel shadow-md',
-            'transition-opacity duration-fast ease-quick',
+            // z-[1000] matches AutoModeToggle / SettingsPopover and clears
+            // tldraw's full canvas-chrome stack. opacity-100 explicit to
+            // override any inherited transition-opacity start state. Solid
+            // bg-surface-panel + shadow keeps the flyout reading as a
+            // discrete panel above any canvas content beneath it. Bug fix
+            // 2026-04-27 — z-[60] still let canvas frames bleed through.
+            'absolute top-0 z-[1000] w-80 rounded-md border border-border bg-surface-panel opacity-100 shadow-md',
             side === 'right' ? 'left-[calc(100%+8px)]' : 'right-[calc(100%+8px)]'
           )}
         >

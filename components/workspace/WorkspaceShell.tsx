@@ -2286,7 +2286,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           role="dialog"
           aria-label="publish preview"
           data-testid="publish-preview-overlay"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-surface-panel/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-surface-panel/70 backdrop-blur-sm"
           onClick={() => setPublishPreviewOpen(false)}
         >
           <div
