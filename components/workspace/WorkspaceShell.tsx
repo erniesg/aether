@@ -5,6 +5,7 @@ import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ViewSwitcher, type ViewId } from '@/components/header/ViewSwitcher';
+import { CampaignSwitcher } from '@/components/header/CampaignSwitcher';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
@@ -2147,6 +2148,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             /
           </span>
           <span className="font-caption text-ink-dim">workspace · {wsId}</span>
+          <CampaignSwitcher
+            workspaceId={wsId}
+            activeCampaignId={inFlightCampaignId}
+            onSelect={(cid) => {
+              setInFlightCampaignId(cid);
+              droppedVariationIndices.current = new Set();
+            }}
+          />
         </div>
         <div className="flex justify-center">
           <ViewSwitcher view={view} onChangeView={setView} />
