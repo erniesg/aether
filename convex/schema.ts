@@ -583,6 +583,17 @@ export default defineSchema({
      *  lap's reference images). Canonical shape: ClusterBundle from
      *  lib/agent/managed/cluster.ts. */
     clusterBundle: v.optional(v.any()),
+    /** Reference images supplied at lap kickoff. Persisted as URL-only
+     *  summary (no data URLs) so the campaign row stays small. The
+     *  /inspect input-references panel reads from here. */
+    referenceImages: v.optional(
+      v.array(
+        v.object({
+          url: v.optional(v.string()),
+          hint: v.optional(v.string()),
+        })
+      )
+    ),
   }).index('by_workspace', ['workspaceId']),
 
   campaignVariation: defineTable({
