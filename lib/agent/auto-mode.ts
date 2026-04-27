@@ -2079,6 +2079,29 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     },
   });
 
+  // Trace log: input refs at the boundary so we can prove what was
+  // supplied to runAutoMode without digging through downstream openai/
+  // edits POSTs. URLs / data-URL signatures only — no full base64.
+  const inboundRefs = req.referenceImages ?? [];
+  // eslint-disable-next-line no-console
+  console.log(
+    `[lap-trace] cid=${campaignId} input-refs=${inboundRefs.length} payload=${
+      JSON.stringify(req.trigger.payload).slice(0, 120)
+    }`
+  );
+  inboundRefs.forEach((r, i) => {
+    const isData = typeof r.dataUrl === 'string' && r.dataUrl.startsWith('data:');
+    const isUrl = typeof r.url === 'string' && !!r.url;
+    let sig = '(empty)';
+    if (isData) {
+      sig = `DATA ${Math.round((r.dataUrl as string).length / 1024)}KB b64`;
+    } else if (isUrl) {
+      sig = `URL ${(r.url as string).slice(0, 100)}`;
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[lap-trace] cid=${campaignId}   ref[${i}] ${sig}${r.hint ? ` hint="${r.hint}"` : ''}`);
+  });
+
   // ─── Multimodal trigger ingestion ──────────────────────────────────────
   // Run once per lap so all variations share the same enriched context.
   // Fail-soft per source: a network/parse error degrades to plain
@@ -2593,6 +2616,20 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
         error: res.reason instanceof Error ? res.reason.message : String(res.reason),
       };
     });
+    // Trace log for parallel branch — sequential logs in its loop already.
+    variations.forEach((v) => {
+      const heroSig = !v.heroImageUrl
+        ? '(no hero)'
+        : v.heroImageUrl.startsWith('data:')
+        ? `data:${v.heroImageUrl.slice(5, 25)}…`
+        : v.heroImageUrl.slice(0, 100);
+      // eslint-disable-next-line no-console
+      console.log(
+        `[lap-trace] cid=${campaignId} v${v.index} status=${v.status} hero=${heroSig} formats=${
+          (v.nativePerFormatRendered ?? []).join(',') || 'none'
+        }${v.error ? ` error="${v.error.slice(0, 120)}"` : ''}`
+      );
+    });
   } else {
     // Sequential: priorMoodNotes feed forward for distinctness.
     variations = [];
@@ -2617,6 +2654,20 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
       });
       if (variation.moodNote) priorMoodNotes.push(variation.moodNote);
       variations.push(variation);
+      // Trace log for sequential branch — symmetric with parallel.
+      {
+        const heroSig = !variation.heroImageUrl
+          ? '(no hero)'
+          : variation.heroImageUrl.startsWith('data:')
+          ? `data:${variation.heroImageUrl.slice(5, 25)}…`
+          : variation.heroImageUrl.slice(0, 100);
+        // eslint-disable-next-line no-console
+        console.log(
+          `[lap-trace] cid=${campaignId} v${variation.index} status=${variation.status} hero=${heroSig} formats=${
+            (variation.nativePerFormatRendered ?? []).join(',') || 'none'
+          }${variation.error ? ` error="${variation.error.slice(0, 120)}"` : ''}`
+        );
+      }
       logLapEvent({
         campaignId,
         variationIndex: variation.index,

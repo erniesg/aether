@@ -73,6 +73,13 @@ export function AutoModeToggle({
   className,
 }: AutoModeToggleProps) {
   const [open, setOpen] = useState(false);
+  // Defer popover-related ids until after mount. React's useId is supposed
+  // to be SSR-stable, but this component sits inside a Surface that gets
+  // re-evaluated by the rail provider, producing different ids server vs
+  // client and a hydration warning. Gating aria-controls on a mounted
+  // flag eliminates the warning without changing render behaviour.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const popoverId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -137,7 +144,7 @@ export function AutoModeToggle({
           setOpen((value) => !value);
         }}
         aria-pressed={config.enabled}
-        aria-controls={popoverId}
+        aria-controls={mounted ? popoverId : undefined}
         aria-expanded={open}
         className="cursor-pointer focus:outline-none"
         title="Auto Mode — drop a URL or files; lap runs automatically. Right-click to configure."

@@ -3,19 +3,18 @@
 /**
  * /runs — historical lap browser.
  *
- * Subscribes to campaigns:listRecent (top 50 across ALL workspaces) so a
- * creator can browse every lap they've ever fired without knowing the
- * workspaceId. Replaces the manual `/tmp/aether-demo-runs/all-runs.md`
- * index with an in-UI history view backed by live Convex data.
+ * List of recent laps; click a row to expand inline (variations + heroes
+ * + status), or use the explicit per-row buttons to jump into the full
+ * /inspect view or load the lap on the workspace canvas.
  *
- * Status dot + relative time + trigger preview per row, with deep links
- * to /inspect/<id> (read-only trace) and /workspace/<wsId>?campaign=<id>
- * (canvas drop). Hard rule #6 compliance: no per-row description copy —
- * the columns carry the meaning.
+ * Two affordances per row, no surprise navigation:
+ *   - inspect ↗ → /inspect/<id> (full trace)
+ *   - workspace ↗ → /workspace/<wsId>?campaign=<id> (canvas drop)
+ * Row click toggles inline expansion only.
  */
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
 import { isConvexEnabled } from '@/lib/convex/client';
@@ -33,26 +32,53 @@ interface CampaignRow {
   startedAt: number;
   finishedAt?: number;
   error?: string;
+  referenceImages?: Array<{ url?: string; hint?: string }>;
+}
+
+interface VariationRow {
+  id: string;
+  index: number;
+  status: 'pending' | 'running' | 'ready' | 'failed';
+  heroImageUrl?: string;
+  caption?: string;
+  hashtags?: string[];
+  moodNote?: string;
+  schedulePlatform?: string;
+  scheduleWhenLocal?: string;
+  error?: string;
+}
+
+interface CampaignDetail {
+  campaign: CampaignRow;
+  variations: VariationRow[];
 }
 
 const campaignsAnyApi = (anyApi as unknown as {
-  campaigns: { listRecent: unknown };
+  campaigns: { listRecent: unknown; get: unknown };
 }).campaigns;
 
-function statusDot(status: CampaignRow['status']): string {
+function statusDot(status: CampaignRow['status'] | VariationRow['status']): string {
   switch (status) {
     case 'running':
       return 'bg-amber-500 animate-pulse';
     case 'completed':
+    case 'ready':
       return 'bg-emerald-500';
     case 'failed':
       return 'bg-rose-500';
+    case 'pending':
+      return 'bg-ink-faint';
+    default:
+      return 'bg-ink-faint';
   }
 }
 
-function statusTone(status: CampaignRow['status']): 'ok' | 'error' | 'neutral' {
-  if (status === 'completed') return 'ok';
+function statusTone(
+  status: CampaignRow['status'] | VariationRow['status']
+): 'ok' | 'error' | 'neutral' | 'warn' {
+  if (status === 'completed' || status === 'ready') return 'ok';
   if (status === 'failed') return 'error';
+  if (status === 'running') return 'warn';
   return 'neutral';
 }
 
@@ -71,12 +97,141 @@ function shortId(id: string): string {
   return id.length <= 14 ? id : `${id.slice(0, 6)}…${id.slice(-3)}`;
 }
 
+function ExpandedRow({ campaignId, wsId }: { campaignId: string; wsId: string }) {
+  const detail = useQuery(
+    campaignsAnyApi.get as never,
+    isConvexEnabled() ? ({ campaignId } as never) : 'skip'
+  ) as CampaignDetail | null | undefined;
+
+  if (detail === undefined) {
+    return <div className="font-caption text-ink-dim p-3">loading…</div>;
+  }
+  if (detail === null) {
+    return (
+      <div className="font-caption text-ink-dim p-3">
+        campaign not found in convex
+      </div>
+    );
+  }
+
+  const { campaign, variations } = detail;
+  const refs = campaign.referenceImages ?? [];
+
+  return (
+    <div className="bg-surface-panel-muted px-4 py-3 text-xs">
+      <div className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 mb-3">
+        <span className="font-caption uppercase text-[10px] text-ink-faint">
+          payload
+        </span>
+        <span className="text-ink whitespace-pre-wrap break-words">
+          {campaign.triggerPayload || '(no payload)'}
+        </span>
+
+        <span className="font-caption uppercase text-[10px] text-ink-faint">
+          input refs
+        </span>
+        <span className="font-mono text-[11px] text-ink-dim">
+          {refs.length === 0
+            ? '(none)'
+            : refs
+                .map((r, i) => `[${i}] ${r.url ? r.url.slice(0, 80) : '(no url)'}`)
+                .join('  ·  ')}
+        </span>
+
+        {campaign.error ? (
+          <>
+            <span className="font-caption uppercase text-[10px] text-ink-faint">
+              error
+            </span>
+            <span className="font-mono text-[11px] text-rose-600 whitespace-pre-wrap break-words">
+              {campaign.error}
+            </span>
+          </>
+        ) : null}
+      </div>
+
+      <div className="border-t border-ink-faint/20 pt-3">
+        <div className="font-caption uppercase text-[10px] text-ink-faint mb-2">
+          {variations.length} variation{variations.length === 1 ? '' : 's'}
+        </div>
+        <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
+          {variations.map((v) => (
+            <div
+              key={v.id}
+              className="rounded border border-ink-faint/15 bg-surface-panel p-2 flex items-start gap-3"
+            >
+              {v.heroImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={v.heroImageUrl}
+                  alt={`v${v.index} hero`}
+                  className="h-16 w-16 rounded-xs object-cover bg-surface-panel-muted shrink-0"
+                />
+              ) : (
+                <div className="h-16 w-16 rounded-xs bg-surface-panel-muted shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="font-mono text-[10px] text-ink-muted">
+                    v{v.index}
+                  </span>
+                  <Chip tone={statusTone(v.status)} size="sm" variant="solid">
+                    {v.status}
+                  </Chip>
+                  {v.schedulePlatform ? (
+                    <Chip tone="neutral" size="sm" variant="ghost">
+                      {v.schedulePlatform}
+                    </Chip>
+                  ) : null}
+                </div>
+                {v.caption ? (
+                  <div className="text-[11px] text-ink leading-snug line-clamp-3">
+                    {v.caption}
+                  </div>
+                ) : null}
+                {v.moodNote ? (
+                  <div className="font-mono text-[10px] text-ink-muted mt-1">
+                    {v.moodNote}
+                  </div>
+                ) : null}
+                {v.error ? (
+                  <div className="font-mono text-[10px] text-rose-600 mt-1 break-words">
+                    {v.error}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 pt-2 border-t border-ink-faint/20 flex items-center justify-end gap-3">
+        <Link
+          href={`/inspect/${campaign.id}`}
+          className="font-caption text-[10px] text-ink-dim hover:text-ink"
+        >
+          full inspect ↗
+        </Link>
+        {wsId !== '—' ? (
+          <Link
+            href={`/workspace/${encodeURIComponent(wsId)}?campaign=${campaign.id}`}
+            className="font-caption text-[10px] text-ink-dim hover:text-ink"
+          >
+            view in workspace ↗
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function RunsPage() {
-  const router = useRouter();
   const campaigns = useQuery(
     campaignsAnyApi.listRecent as never,
     isConvexEnabled() ? ({ limit: 50 } as never) : 'skip'
   ) as CampaignRow[] | undefined;
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-bg">
@@ -114,12 +269,13 @@ export default function RunsPage() {
           <table className="w-full border-collapse text-xs">
             <thead className="font-caption text-[10px] uppercase tracking-wider text-ink-faint">
               <tr className="border-b border-ink-faint/20">
+                <th className="px-2 py-2 text-left w-6"></th>
                 <th className="px-2 py-2 text-left">when</th>
                 <th className="px-2 py-2 text-left">workspace</th>
                 <th className="px-2 py-2 text-left">campaign</th>
                 <th className="px-2 py-2 text-left">status</th>
                 <th className="px-2 py-2 text-left">trigger</th>
-                <th className="px-2 py-2 text-right">links</th>
+                <th className="px-2 py-2 text-right">actions</th>
               </tr>
             </thead>
             <tbody>
@@ -127,67 +283,19 @@ export default function RunsPage() {
                 const wsId = c.workspaceId ?? '—';
                 const inspectHref = `/inspect/${c.id}`;
                 const workspaceHref = `/workspace/${encodeURIComponent(wsId)}?campaign=${c.id}`;
-                const canDropOnCanvas = wsId !== '—';
+                const isExpanded = expandedId === c.id;
                 return (
-                  <tr
+                  <Row
                     key={c.id}
-                    onClick={
-                      canDropOnCanvas
-                        ? (e) => {
-                            // Don't hijack the inner anchor clicks (inspect / workspace links).
-                            const t = e.target as HTMLElement;
-                            if (t.closest('a')) return;
-                            router.push(workspaceHref);
-                          }
-                        : undefined
+                    campaign={c}
+                    wsId={wsId}
+                    inspectHref={inspectHref}
+                    workspaceHref={workspaceHref}
+                    isExpanded={isExpanded}
+                    onToggle={() =>
+                      setExpandedId((current) => (current === c.id ? null : c.id))
                     }
-                    className={
-                      'border-b border-ink-faint/10 align-middle hover:bg-surface-panel-muted' +
-                      (canDropOnCanvas ? ' cursor-pointer' : '')
-                    }
-                    title={
-                      canDropOnCanvas
-                        ? 'click to load this lap on the workspace canvas'
-                        : undefined
-                    }
-                  >
-                    <td className="px-2 py-2 font-caption text-ink-dim tabular-nums">
-                      {relativeTime(c.startedAt)}
-                    </td>
-                    <td className="px-2 py-2 font-mono text-ink-dim">{wsId}</td>
-                    <td className="px-2 py-2 font-mono text-[10px] text-ink-faint tabular-nums">
-                      {shortId(c.id)}
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className="inline-flex items-center gap-2">
-                        <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDot(c.status)}`} />
-                        <Chip tone={statusTone(c.status)} size="sm">
-                          {c.status}
-                        </Chip>
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 max-w-md truncate text-ink-dim">
-                      {(c.triggerPayload || '').trim() || '(no payload)'}
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      <span className="inline-flex gap-3">
-                        <Link
-                          href={inspectHref}
-                          className="font-caption text-[10px] text-ink-dim hover:text-ink"
-                        >
-                          inspect ↗
-                        </Link>
-                        {wsId !== '—' ? (
-                          <Link
-                            href={workspaceHref}
-                            className="font-caption text-[10px] text-ink-dim hover:text-ink"
-                          >
-                            workspace ↗
-                          </Link>
-                        ) : null}
-                      </span>
-                    </td>
-                  </tr>
+                  />
                 );
               })}
             </tbody>
@@ -195,5 +303,89 @@ export default function RunsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function Row({
+  campaign: c,
+  wsId,
+  inspectHref,
+  workspaceHref,
+  isExpanded,
+  onToggle,
+}: {
+  campaign: CampaignRow;
+  wsId: string;
+  inspectHref: string;
+  workspaceHref: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr
+        onClick={(e) => {
+          // Don't hijack the inner anchor clicks (inspect / workspace links).
+          const t = e.target as HTMLElement;
+          if (t.closest('a')) return;
+          onToggle();
+        }}
+        className="border-b border-ink-faint/10 align-middle hover:bg-surface-panel-muted cursor-pointer"
+        title="click to expand inline · use links for full inspect / workspace"
+      >
+        <td className="px-2 py-2 font-mono text-ink-dim text-[10px] select-none">
+          {isExpanded ? '▾' : '▸'}
+        </td>
+        <td className="px-2 py-2 font-caption text-ink-dim tabular-nums">
+          {relativeTime(c.startedAt)}
+        </td>
+        <td className="px-2 py-2 font-mono text-ink-dim">{wsId}</td>
+        <td className="px-2 py-2 font-mono text-[10px] text-ink-faint tabular-nums">
+          {shortId(c.id)}
+        </td>
+        <td className="px-2 py-2">
+          <span className="inline-flex items-center gap-2">
+            <span
+              className={`inline-block h-1.5 w-1.5 rounded-full ${statusDot(
+                c.status
+              )}`}
+            />
+            <Chip tone={statusTone(c.status)} size="sm">
+              {c.status}
+            </Chip>
+          </span>
+        </td>
+        <td className="px-2 py-2 max-w-md truncate text-ink-dim">
+          {(c.triggerPayload || '').trim() || '(no payload)'}
+        </td>
+        <td className="px-2 py-2 text-right">
+          <span className="inline-flex gap-3">
+            <Link
+              href={inspectHref}
+              className="font-caption text-[10px] text-ink-dim hover:text-ink"
+              onClick={(e) => e.stopPropagation()}
+            >
+              inspect ↗
+            </Link>
+            {wsId !== '—' ? (
+              <Link
+                href={workspaceHref}
+                className="font-caption text-[10px] text-ink-dim hover:text-ink"
+                onClick={(e) => e.stopPropagation()}
+              >
+                workspace ↗
+              </Link>
+            ) : null}
+          </span>
+        </td>
+      </tr>
+      {isExpanded ? (
+        <tr>
+          <td colSpan={7} className="p-0">
+            <ExpandedRow campaignId={c.id} wsId={wsId} />
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
