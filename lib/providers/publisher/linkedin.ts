@@ -51,7 +51,15 @@ import {
 
 const PROVIDER_ID = 'linkedin' as const satisfies PublisherProviderId;
 const DEFAULT_API_BASE = 'https://api.linkedin.com';
-const DEFAULT_API_VERSION = '202405';
+// LinkedIn auto-expires API versions after ~12 months. '202405' (May 2024)
+// stopped being active sometime in 2025 and now returns HTTP 426
+// NONEXISTENT_VERSION. Verified 2026-04-27 against /rest/me with the
+// publisher token: 202504 = expired (426), 202509+ = active (got 403
+// ACCESS_DENIED on /rest/me which is a scope issue, not version — and
+// /rest/posts which we actually use only needs w_member_social, which
+// the token has). Pinning to 202509 leaves headroom before the next
+// expiry. Override via LINKEDIN_API_VERSION env when needed.
+const DEFAULT_API_VERSION = '202509';
 
 /** Immediate-post window: post within this ms window without rejecting. */
 const IMMEDIATE_WINDOW_MS = 5 * 60_000;

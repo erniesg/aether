@@ -447,7 +447,11 @@ describe('cancel', () => {
 // ---------------------------------------------------------------------------
 
 describe('LinkedIn-Version header', () => {
-  it('sends the default 202405 version when not overridden', async () => {
+  it('sends the default 202509 version when not overridden', async () => {
+    // Why 202509: 202405 expired (HTTP 426 NONEXISTENT_VERSION as of
+    // 2026-04-27 verification). LinkedIn versions auto-expire after ~12
+    // months; 202509 is in the active window with headroom. Verified
+    // against the publisher token via /rest/me on 2026-04-27.
     const mockFetch = buildHappyFetch();
     const provider = createLinkedInPublisher({
       accessToken: 'li-token',
@@ -464,7 +468,7 @@ describe('LinkedIn-Version header', () => {
         init?.method === 'POST'
     );
     const headers = postCall![1]!.headers as Record<string, string>;
-    expect(headers['LinkedIn-Version']).toBe('202405');
+    expect(headers['LinkedIn-Version']).toBe('202509');
     expect(headers['X-Restli-Protocol-Version']).toBe('2.0.0');
   });
 
