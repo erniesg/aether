@@ -39,6 +39,27 @@ export interface PerFormatRenderInput {
   provider?: ImageGenProvider;
   /** Provider model id; falls back to the provider's first listed model. */
   model?: string;
+  /**
+   * The just-rendered 1:1 hero, as a URL or data URL. When present, it is
+   * prepended to `refs[]` for every per-aspect call AND the per-aspect
+   * prompt switches from "recompose" to "match this hero exactly, only
+   * reframe the canvas / outpaint to this aspect." This anchors the
+   * subjects, styling, lighting across all 4 formats — same magazine
+   * cover at IG / Story / Reel / LinkedIn, not 4 different photoshoots.
+   *
+   * Toggle: AUTO_MODE_HERO_ANCHOR=0 disables (back to free-recompose).
+   *
+   * Implements the user's "1 base image + reframe per aspect" requirement
+   * (2026-04-27 — restoring the Apr 24 magazine-cover behaviour that was
+   * lost when native-per-format added independent recomposition).
+   */
+  heroAnchor?: ImageRef;
+  /**
+   * When false, skip hero anchoring even if heroAnchor is supplied. Used
+   * by the AUTO_MODE_HERO_ANCHOR=0 env toggle and by test fixtures that
+   * want to validate the legacy free-recompose behaviour.
+   */
+  heroAnchorEnabled?: boolean;
 }
 
 export interface PerFormatRenderResult {
@@ -74,11 +95,32 @@ export interface PerFormatRenderResult {
  * subject reframed for each platform's reading habits (close-up for IG
  * feed, full-figure tall for Reels, wide environmental for LinkedIn).
  */
-function withAspectComposition(prompt: string, aspect: AspectRatio): string {
+function withAspectComposition(
+  prompt: string,
+  aspect: AspectRatio,
+  hasHeroAnchor: boolean
+): string {
   const cue = ASPECT_COMPOSITION_CUE[aspect];
   if (!cue) return prompt;
+
   // Append the cue AS A NEW LINE so it reads as a constraint, not a
   // continuation of whatever subject sentence the prompt ends on.
+  if (hasHeroAnchor) {
+    // Hero-anchored mode: the first ref is the canonical 1:1 hero. Tell
+    // the model to PRESERVE the subjects exactly and only reframe / outpaint
+    // the canvas to fill the new aspect. This produces the "same magazine
+    // cover at every format" behaviour the user wants — identical subjects,
+    // identical styling, just more or less environment revealed at the edges.
+    return [
+      prompt.trim(),
+      '',
+      cue,
+      '',
+      'CRITICAL — HERO ANCHORING: The first reference image attached is the canonical hero. PRESERVE its subjects, poses, faces, clothing, styling, lighting, palette, and composition language EXACTLY. Treat this call as outpainting / canvas extension: the visual identity of the hero must carry over verbatim. Only the framing (canvas extent + how much environment is visible at the edges) changes to fit this aspect. Do NOT generate a different shoot, a different model, a different pose, or a different mood.',
+    ].join('\n');
+  }
+
+  // Legacy free-recompose mode (AUTO_MODE_HERO_ANCHOR=0 OR no hero supplied).
   return `${prompt.trim()}\n\n${cue}\n\nRecompose the scene for this aspect — same subject and brand mood, but reframe the composition (subject placement, lens, breathing room) so it reads natively at this canvas size. Do not output the same image at a different crop.`;
 }
 
@@ -121,23 +163,38 @@ export async function renderPerFormatHeroes(
 ): Promise<PerFormatRenderResult> {
   const provider = input.provider ?? resolveProvider();
   const model = input.model ?? provider.listModels()[0];
-  const refs = input.refs ?? [];
+  const baseRefs = input.refs ?? [];
+
+  // Hero anchoring: when the just-rendered 1:1 hero is supplied AND the
+  // toggle is on, prepend it as the FIRST ref for every per-aspect call.
+  // gpt-image-2's /edits endpoint treats refs as visual constraints — with
+  // the hero as the dominant ref + a "preserve identity, only reframe"
+  // prompt cue, all 4 aspects come back as the same shot extended to
+  // different canvas sizes. Default toggle is ON; flip via env in caller.
+  const heroAnchorEnabled = input.heroAnchorEnabled !== false;
+  const heroAnchor =
+    heroAnchorEnabled && input.heroAnchor ? input.heroAnchor : undefined;
+  const effectiveRefs: ImageRef[] = heroAnchor
+    ? [heroAnchor, ...baseRefs]
+    : baseRefs;
 
   const t0 = Date.now();
   const settled = await Promise.allSettled(
     input.aspectRatios.map(async (aspect) => {
-      // Inject an aspect-specific composition cue into the prompt so
-      // gpt-image-2 actually composes for that aspect instead of
-      // generating its default landscape and letterboxing into the
-      // requested size. Without this, the 4:5 / 9:16 / 16:9 outputs
-      // come back with visible gray bars baked into the image — the
-      // user complained about this exact behaviour on 2026-04-27.
-      const composedPrompt = withAspectComposition(input.prompt, aspect);
+      // Inject an aspect-specific composition cue into the prompt. With
+      // hero anchoring on, the cue becomes "preserve subjects exactly;
+      // reframe canvas only" — anchoring identity across all 4 formats.
+      // Without it, the cue tells the model to recompose freely (legacy).
+      const composedPrompt = withAspectComposition(
+        input.prompt,
+        aspect,
+        Boolean(heroAnchor)
+      );
       const out = await provider.generate(
         {
           prompt: composedPrompt,
           aspectRatio: aspect,
-          refs,
+          refs: effectiveRefs,
           n: 1,
         },
         { model }

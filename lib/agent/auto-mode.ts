@@ -1185,13 +1185,28 @@ async function runOneVariation(
         const refs = (input.referenceImages ?? [])
           .map((r) => ({ url: r.url ?? r.dataUrl ?? '' }))
           .filter((r) => r.url.length > 0);
+
+        // Hero anchoring (2026-04-27): pass the agent's just-rendered 1:1
+        // hero as the FIRST ref so the per-aspect calls preserve subjects /
+        // styling / lighting / composition identity. Toggle off via
+        // AUTO_MODE_HERO_ANCHOR=0 to fall back to free-recompose. The hero
+        // URL is the Convex storage URL the agent uploaded; gpt-image-2's
+        // edits endpoint fetches it as image[]. Without this, every aspect
+        // came back as a different shoot — user complained 2026-04-27.
+        const heroAnchorEnabled =
+          process.env.AUTO_MODE_HERO_ANCHOR !== '0';
+        const heroAnchor =
+          heroAnchorEnabled && heroImageUrl ? { url: heroImageUrl } : undefined;
+
         // eslint-disable-next-line no-console
         console.log(
-          `[auto-mode v${input.promptInput.index}] firing renderPerFormatHeroes — ${refs.length} refs, 3 aspects in parallel…`
+          `[auto-mode v${input.promptInput.index}] firing renderPerFormatHeroes — ${refs.length} brand refs + ${heroAnchor ? 'HERO-ANCHORED' : 'free-recompose'}, 3 aspects in parallel…`
         );
         const result = await renderPerFormatHeroes({
           prompt: heroPrompt,
           refs,
+          heroAnchor,
+          heroAnchorEnabled,
           aspectRatios: ['4:5', '9:16', '16:9'] as AspectRatio[],
         });
         // eslint-disable-next-line no-console

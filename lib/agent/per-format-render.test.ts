@@ -121,6 +121,70 @@ describe('renderPerFormatHeroes', () => {
     expect(out.byAspect.get('16:9')).toBeDefined();
   });
 
+  it('hero-anchor: prepends the hero ref + flips prompt to "match identity"', async () => {
+    // Restoration of Apr-24 magazine-cover behaviour: with heroAnchor set,
+    // the per-aspect calls must (1) get the hero as the FIRST ref so
+    // gpt-image-2 /edits anchors on it, and (2) receive a "preserve
+    // identity, only reframe" cue instead of the legacy "recompose freely"
+    // cue. Without this, the model produced 4 different shoots per lap.
+    const calls: any[] = [];
+    const provider = makeFakeProvider(async (req: any) => {
+      calls.push(req);
+      return {
+        provider: 'openai',
+        model: 'fake-model',
+        latencyMs: 1,
+        images: [
+          { url: `https://cdn/${req.aspectRatio}.png`, mimeType: 'image/png', width: 1, height: 1 },
+        ],
+      };
+    });
+    await renderPerFormatHeroes({
+      prompt: 'editorial cover',
+      refs: [{ url: 'https://ref.example/brand.png' }],
+      heroAnchor: { url: 'https://convex.example/hero-1x1.png' },
+      aspectRatios: ['4:5', '9:16'],
+      provider,
+    });
+    for (const call of calls) {
+      // Hero ref FIRST, brand refs after.
+      expect(call.refs[0]).toEqual({ url: 'https://convex.example/hero-1x1.png' });
+      expect(call.refs[1]).toEqual({ url: 'https://ref.example/brand.png' });
+      // Prompt mentions hero anchoring + preserve identity, NOT recompose.
+      expect(call.prompt).toMatch(/HERO ANCHORING/);
+      expect(call.prompt).toMatch(/PRESERVE/);
+      expect(call.prompt).not.toMatch(/Recompose the scene for this aspect/);
+    }
+  });
+
+  it('hero-anchor disabled (heroAnchorEnabled=false) falls back to legacy recompose cue', async () => {
+    const calls: any[] = [];
+    const provider = makeFakeProvider(async (req: any) => {
+      calls.push(req);
+      return {
+        provider: 'openai',
+        model: 'fake-model',
+        latencyMs: 1,
+        images: [
+          { url: `https://cdn/${req.aspectRatio}.png`, mimeType: 'image/png', width: 1, height: 1 },
+        ],
+      };
+    });
+    await renderPerFormatHeroes({
+      prompt: 'editorial cover',
+      heroAnchor: { url: 'https://convex.example/hero-1x1.png' },
+      heroAnchorEnabled: false,
+      aspectRatios: ['4:5'],
+      provider,
+    });
+    expect(calls).toHaveLength(1);
+    // Hero NOT prepended (anchoring disabled).
+    expect(calls[0].refs).toEqual([]);
+    // Legacy recompose cue back in play, no hero-anchor lines.
+    expect(calls[0].prompt).toMatch(/Recompose the scene for this aspect/);
+    expect(calls[0].prompt).not.toMatch(/HERO ANCHORING/);
+  });
+
   it('records total wall time and per-aspect latency', async () => {
     const provider = makeFakeProvider(async (req: any) => {
       await new Promise((r) => setTimeout(r, 30));
