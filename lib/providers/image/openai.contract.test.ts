@@ -169,10 +169,26 @@ describe('openai adapter · contract', () => {
     ).rejects.toThrow(/no images returned/);
   });
 
-  it('ignores non-data-url refs and stays on the plain generations endpoint', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ data: [{ url: 'https://example.com/y.png' }] })
-    );
+  it('https refs are server-side fetched and routed to /v1/images/edits', async () => {
+    // Behaviour change (2026-04-27): the previous adapter silently dropped
+    // any non-data: ref and fell back to /generations, so heroAnchor +
+    // brand refs from the auto-mode lap (Convex storage URLs) never
+    // reached /edits. Now any URL ref is fetched server-side and attached
+    // as multipart bytes — matches OpenAI's /edits API which doesn't pull
+    // URLs.
+    const refBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
+    fetchMock
+      // Step 1: ref fetch GET https://example.com/ref.png returns bytes.
+      .mockResolvedValueOnce(
+        new Response(refBytes.buffer.slice(refBytes.byteOffset, refBytes.byteOffset + refBytes.byteLength), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }) as never
+      )
+      // Step 2: edits endpoint returns the result.
+      .mockResolvedValueOnce(
+        jsonResponse({ data: [{ url: 'https://example.com/y.png' }] })
+      );
     const provider = createOpenAIProvider('sk-test');
     const result = await provider.generate(
       {
@@ -183,13 +199,15 @@ describe('openai adapter · contract', () => {
       { model: 'gpt-image-1' }
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe(GENERATIONS_ENDPOINT);
-    expect(init?.headers).toMatchObject({
-      Authorization: 'Bearer sk-test',
-      'Content-Type': 'application/json',
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // First call: GET the ref bytes.
+    const [refUrl, refInit] = fetchMock.mock.calls[0]!;
+    expect(String(refUrl)).toBe('https://example.com/ref.png');
+    expect(refInit?.method ?? 'GET').toBe('GET');
+    // Second call: POST /edits with multipart body.
+    const [editsUrl, editsInit] = fetchMock.mock.calls[1]!;
+    expect(editsUrl).toBe(EDITS_ENDPOINT);
+    expect(editsInit?.body).toBeInstanceOf(FormData);
     expect(result.images[0]?.url).toBe('https://example.com/y.png');
   });
 

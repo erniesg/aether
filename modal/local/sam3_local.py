@@ -18,6 +18,16 @@ CPU is infeasible for real-time use; expect 30s+ per call.
 Models: SAM3 weights download from HuggingFace on first request. Set
 HF_TOKEN if you have access to facebook/sam3 (it may require gated
 access — check HF first).
+
+SAM3 install on Mac: use MaximeLglr/sam3-apple-silicon (a fork that
+swaps the Triton EDT kernel for an OpenCV-backed implementation). The
+official facebook/sam3 package hard-imports `triton`, which is
+Linux/CUDA-only and won't install on macOS.
+
+  pip install 'git+https://github.com/MaximeLglr/sam3-apple-silicon.git'
+  pip install opencv-python pycocotools
+
+See modal/local/requirements.txt — both are pinned there.
 """
 
 from __future__ import annotations

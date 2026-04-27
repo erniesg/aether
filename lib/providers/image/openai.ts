@@ -154,6 +154,55 @@ function dataUrlToBlob(dataUrl: string): { blob: Blob; ext: string } {
   return { blob: new Blob([buf], { type: mime }), ext };
 }
 
+/**
+ * Fetch any https/http URL and convert the response bytes into a Blob for
+ * multipart upload. OpenAI's /v1/images/edits endpoint does NOT URL-fetch
+ * refs server-side — it expects multipart bytes — so we have to do the
+ * fetch ourselves before submitting.
+ *
+ * Used by the per-format / hero-anchor pipeline to feed Convex storage
+ * URLs (the agent's just-uploaded heroes) into edits as identity-anchors.
+ * Without this path, the previous adapter silently dropped any non-data:
+ * ref, falling through to /generations and losing hero identity. Bug
+ * surfaced 2026-04-27 via "different shoot per aspect" complaints.
+ */
+async function urlToBlob(url: string): Promise<{ blob: Blob; ext: string }> {
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(url, { method: 'GET' }, OPENAI_TIMEOUT_MS);
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new ImageGenError(
+        `ref fetch timed out after ${OPENAI_TIMEOUT_MS / 1000}s: ${url}`,
+        'openai',
+        error
+      );
+    }
+    throw new ImageGenError(
+      `ref fetch failed: ${error instanceof Error ? error.message : String(error)}`,
+      'openai',
+      error
+    );
+  }
+  if (!res.ok) {
+    throw new ImageGenError(
+      `ref fetch returned HTTP ${res.status} for ${url}`,
+      'openai'
+    );
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  const mime = res.headers.get('content-type') ?? 'image/png';
+  const ext = mime.split('/')[1]?.split('+')[0] ?? 'png';
+  return { blob: new Blob([buf], { type: mime }), ext };
+}
+
+async function refToBlob(ref: ImageRef): Promise<{ blob: Blob; ext: string }> {
+  if (isBase64DataUrl(ref.url)) {
+    return dataUrlToBlob(ref.url);
+  }
+  return urlToBlob(ref.url);
+}
+
 async function fetchOpenAI(url: string, init: RequestInit): Promise<Response> {
   try {
     return await fetchWithTimeout(url, init, OPENAI_TIMEOUT_MS);
@@ -195,12 +244,15 @@ export function createOpenAIProvider(
       'openai'
     );
 
-    // OpenAI's edit endpoint only accepts uploaded image files. The composer
-    // sends ad-hoc refs as base64 data URLs, so only those should route to
-    // multipart edits. Any other ref shape is ignored here and the request
-    // falls back to plain text generation instead of crashing on coercion.
+    // OpenAI's edit endpoint accepts uploaded bytes only — no URL pull. We
+    // accept BOTH data: URLs (from the composer / direct fixtures) AND
+    // https/http URLs (from the auto-mode lap, where heroes / brand refs
+    // sit on Convex storage and the lap passes their public URLs). The
+    // refToBlob path inside editWithRefs handles each case. The previous
+    // filter (data: only) silently dropped lap-supplied URL refs and the
+    // call fell through to /generations — losing hero identity anchoring.
     const refs = (req.refs ?? []).filter(
-      (r): r is ImageRef => isBase64DataUrl(r?.url)
+      (r): r is ImageRef => typeof r?.url === 'string' && r.url.length > 0
     );
     if (refs.length > 0) {
       return editWithRefs(req, refs, model, size, width, height, applied.prompt);
@@ -267,8 +319,12 @@ export function createOpenAIProvider(
     form.append('n', String(req.n ?? 1));
     form.append('size', size);
     form.append('quality', 'high');
-    refs.forEach((ref, i) => {
-      const { blob, ext } = dataUrlToBlob(ref.url);
+    // Resolve each ref to bytes — data: URLs decode locally, http/https
+    // URLs (e.g. Convex storage URLs the auto-mode lap passes) get
+    // server-side fetched here. Done in parallel so wall time is bounded
+    // by the slowest fetch, not the sum.
+    const blobs = await Promise.all(refs.map((ref) => refToBlob(ref)));
+    blobs.forEach(({ blob, ext }, i) => {
       form.append('image[]', blob, `ref-${i}.${ext}`);
     });
 
