@@ -75,14 +75,18 @@ d49260a  feat(segment): wire bg-inpainting alongside SAM3 cutout (LAMA via Repli
 - Also: switch panel default provider to SAM2 for `remove bg` (no prompt needed); keep SAM3 only when user wants prompted segmentation.
 - Files: `components/canvas/SegmentationPanel.tsx` (UX), `components/canvas/CanvasSubstrate.tsx` (`handleApproveSegmentation`), `lib/agent/segment-subjects.ts`.
 
-### 4. gpt-image-2 600s+ tail latency ⊕ (NEW)
+### 4. gpt-image-2 600s+ tail latency + Anthropic transient `fetch failed` ⊕ (NEW)
 
-- Sequential Eight Sleep lap from this session: v1 ready in ~5min, v2 failed with `openai: request timed out after 600s` (the bumped ceiling from commit 843935c).
-- gpt-image-2 + 11MB ref bytes occasionally exceeds the 600s ceiling.
-- Options:
-  - Bump `OPENAI_IMAGE_TIMEOUT_MS` to 1200s (20min)
+- Three Eight Sleep laps fired this session (sequential + parallel mixes), every one hit at least one v2 failure:
+  - 1× `openai: request timed out after 600s` (the bumped ceiling from commit 843935c)
+  - 2× `fetch failed` — Anthropic SDK call inside `runMultiAgent` blew up with no further detail (SDK swallows the underlying cause; classic transient)
+- v1 always succeeded; v2 is where it falls apart. Sequential mode means v1's tail latency leaves v2 starting later, when the upstream is more likely to be flaky.
+- Mitigation options:
+  - Bump `OPENAI_IMAGE_TIMEOUT_MS` to 1200s (20min) — addresses the timeout case
   - Resize refs server-side before forwarding to /v1/images/edits (sharp resize to ≤2048 longest edge — keeps identity hints, drops upload+process tail)
+  - Add an Anthropic SDK retry wrapper in `runMultiAgent` for `fetch failed` (one retry with 5s backoff would catch transient blips)
   - Switch provider to Flux+PuLID via Replicate for the slow case (image provider registry already supports this; env-toggle)
+- Net: today's 3-of-3 v2 failure rate on Eight Sleep is unacceptable. This is the next-most-impactful fix after SAM3 grounding fallback.
 
 ### 5. Auto-mode research returns 0/0/0
 
