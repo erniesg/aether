@@ -118,7 +118,12 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
           color: '#ffffff',
           textAlign: placed.proposal.textAlign,
           fontWeight: 600,
-          backgroundColor: 'rgba(0,0,0,0.32)',
+          // No background panel behind text — explicit user requirement
+          // ("i do not want bg color boxes"). AetherTextShape body
+          // falls back to 'transparent' when this is empty. Legibility
+          // against photographic heroes comes from text shadow / weight,
+          // not a translucent panel.
+          backgroundColor: '',
         };
         editor.createShape({
           id: shapeId,
