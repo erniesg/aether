@@ -104,6 +104,15 @@ import {
 } from '@/lib/auto-mode/canvas';
 
 const LOG_TAG = '[aether/generate]';
+
+/**
+ * Recognises a single typed token as a URL for the auto-mode lap router.
+ * Accepts bare hosts ("eightsleep.com", "sub.example.co.uk/path") in addition
+ * to fully-qualified `https?://` URLs so creators can type the way they read
+ * a brand. Multi-token prompts ("eight sleep cooling pillow") fall through to
+ * the regular generate path.
+ */
+const URL_LIKE = /^(?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?$/i;
 const log = (...args: unknown[]) => {
   if (typeof console !== 'undefined') console.log(LOG_TAG, ...args);
 };
@@ -1503,6 +1512,26 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       if (/^\/export\b/i.test(trimmed)) {
         log('onSubmit · /export command');
         await handleExport();
+        return;
+      }
+
+      // When auto-mode is on and the typed prompt is a single URL,
+      // route to the auto-mode lap path (research → cluster → agent →
+      // per-format render → schedule) instead of the direct generate
+      // path. Matches the drop/paste behaviour from the canvas
+      // listener (fireAutoModeLap) so URL submission has one mental
+      // model regardless of how it arrived: paste, drop, or type.
+      // 2026-04-27 — was previously creating "Creator request: …"
+      // synthetic campaigns from URL prompts because handlePrompt
+      // didn't recognise URLs as auto-mode triggers.
+      if (
+        autoModeConfig.enabled &&
+        (options.refs?.length ?? 0) === 0 &&
+        URL_LIKE.test(trimmed)
+      ) {
+        const url = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+        log('onSubmit · auto-mode URL trigger ·', url);
+        await fireAutoModeLap(url);
         return;
       }
 
