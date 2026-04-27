@@ -19,7 +19,11 @@ interface RequestBody {
   variationCount?: number;
   notifyMode?: string;
   concurrency?: string;
+  /** Single reference image (legacy / single-ref clients). */
   referenceImage?: { url?: string; dataUrl?: string; hint?: string };
+  /** Plural reference images for multi-ref clients (e.g. fire-debut-lap.ts).
+   *  Wins over referenceImage when both are supplied. */
+  referenceImages?: Array<{ url?: string; dataUrl?: string; hint?: string }>;
   workspaceId?: string;
   maxIterationsPerVariation?: number;
   /** When true (and notifyMode='auto-post'), override every variation's
@@ -131,6 +135,29 @@ export async function POST(request: Request) {
     );
   }
 
+  // Plural reference images — newer clients pass an array. Each entry runs
+  // through the same validation as the singular field. When both singular
+  // and plural are supplied, plural wins (the lap's internal contract is
+  // already an array). Plural is what fire-debut-lap.ts and any
+  // multi-ref demo / API caller actually needs.
+  let referenceImagesParsed: AutoModeReferenceImage[] = [];
+  if (Array.isArray(body.referenceImages)) {
+    for (let i = 0; i < body.referenceImages.length; i++) {
+      const parsed = parseReferenceImage(body.referenceImages[i]);
+      if (typeof parsed === 'string') {
+        return NextResponse.json(
+          { ok: false, error: `referenceImages[${i}]: ${parsed}` },
+          { status: 400 }
+        );
+      }
+      if (parsed) referenceImagesParsed.push(parsed);
+    }
+  }
+  // Fall back to the singular field if no plural was provided.
+  if (referenceImagesParsed.length === 0 && referenceImageParse) {
+    referenceImagesParsed = [referenceImageParse];
+  }
+
   const url = new URL(request.url);
   const baseUrl = `${url.protocol}//${url.host}`;
 
@@ -144,6 +171,8 @@ export async function POST(request: Request) {
       notifyMode,
       concurrency,
       referenceImage: referenceImageParse ?? undefined,
+      referenceImages:
+        referenceImagesParsed.length > 0 ? referenceImagesParsed : undefined,
       maxIterationsPerVariation:
         typeof body.maxIterationsPerVariation === 'number'
           ? body.maxIterationsPerVariation
