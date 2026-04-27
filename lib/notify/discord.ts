@@ -129,10 +129,7 @@ export function __resetDiscordIdempotency(): void {
   inflight.clear();
 }
 
-async function postWebhook(
-  url: string,
-  input: DiscordNotifyInput
-): Promise<boolean> {
+function buildMessageBody(input: DiscordNotifyInput): Record<string, unknown> {
   const body: Record<string, unknown> = { content: input.content };
   if (input.embeds && input.embeds.length > 0) {
     // Discord caps at 10 embeds per message — silently truncate.
@@ -142,12 +139,18 @@ async function postWebhook(
     // Discord caps at 5 action rows per message.
     body.components = input.components.slice(0, 5);
   }
+  return body;
+}
 
+async function postWebhook(
+  url: string,
+  input: DiscordNotifyInput
+): Promise<boolean> {
   try {
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(buildMessageBody(input)),
     });
     if (!r.ok) {
       console.error(
@@ -158,6 +161,49 @@ async function postWebhook(
     return true;
   } catch (err) {
     console.error(`[notify/discord:${input.tag ?? 'msg'}] webhook post failed`, err);
+    return false;
+  }
+}
+
+/**
+ * Bot-mode POST. Same payload as webhook but goes to
+ * `/channels/{channel_id}/messages` with `Authorization: Bot <token>`.
+ *
+ * Why this exists: incoming-channel webhooks (DISCORD_WEBHOOK_URL where
+ * `application_id` is null) silently drop the `components` action row.
+ * Posting as a bot via the channels endpoint renders real Discord
+ * button affordances. When both DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID
+ * are set, we prefer this path. Webhook stays in place as a fallback
+ * (and for any caller that explicitly passes `webhookUrl` to bypass
+ * bot mode).
+ */
+async function postAsBot(
+  botToken: string,
+  channelId: string,
+  input: DiscordNotifyInput
+): Promise<boolean> {
+  try {
+    const r = await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bot ${botToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(buildMessageBody(input)),
+      }
+    );
+    if (!r.ok) {
+      const text = await r.text().catch(() => r.statusText);
+      console.error(
+        `[notify/discord:${input.tag ?? 'msg'}] bot POST returned ${r.status}: ${text.slice(0, 200)}`
+      );
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[notify/discord:${input.tag ?? 'msg'}] bot POST failed`, err);
     return false;
   }
 }
@@ -177,17 +223,31 @@ export async function notifyDiscord(input: DiscordNotifyInput): Promise<boolean>
     if (existing) return existing;
   }
 
-  const url = input.webhookUrl ?? process.env.DISCORD_WEBHOOK_URL;
-  if (!url) {
+  // Delivery selection. Caller's explicit webhookUrl always wins (used by
+  // tests and rare mocked-channel paths). Otherwise: prefer bot-mode when
+  // both bot env vars are set (so the embed gets real button components),
+  // fall back to webhook (which silently drops components on incoming-
+  // channel webhooks but still renders embeds + inline links).
+  const explicitWebhook = input.webhookUrl;
+  const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
+  const channelId = process.env.DISCORD_CHANNEL_ID?.trim();
+  const fallbackWebhook = process.env.DISCORD_WEBHOOK_URL;
+
+  const useBot = !explicitWebhook && botToken && channelId;
+  const url = explicitWebhook ?? (useBot ? null : fallbackWebhook);
+
+  if (!useBot && !url) {
     console.log(
-      `[notify/discord:${input.tag ?? 'msg'} · DISCORD_WEBHOOK_URL not set, skipping ping]`,
+      `[notify/discord:${input.tag ?? 'msg'} · no delivery configured (need DISCORD_BOT_TOKEN+DISCORD_CHANNEL_ID or DISCORD_WEBHOOK_URL), skipping ping]`,
       `\n${input.content}`
     );
     return false;
   }
 
   const job = (async () => {
-    const ok = await postWebhook(url, input);
+    const ok = useBot
+      ? await postAsBot(botToken!, channelId!, input)
+      : await postWebhook(url!, input);
     if (ok && key) sentKeys.add(key);
     return ok;
   })();
