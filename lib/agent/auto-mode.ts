@@ -2247,6 +2247,58 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     return [];
   })();
 
+  // Ingest brand refs to durable storage so we don't trust upstream URLs
+  // that 404 mid-lap (Eight Sleep / IKEA / Apple all rotate CDN URLs
+  // aggressively). Each non-data-URL ref is fetched once + uploaded to
+  // Convex storage; we use the resulting public URL downstream. Fail-soft
+  // per ref: if a fetch / upload fails, we drop the ref and continue with
+  // whatever survived rather than poisoning the whole lap.
+  //
+  // Primary refs that are already data URLs (e.g. the page's primaryImage
+  // we fetched + base64-encoded earlier, or refs the caller supplied
+  // directly) skip this — they're already durable.
+  const stagedReferenceImages = (
+    await Promise.all(
+      effectiveReferenceImages.map(async (ref) => {
+        if (ref.dataUrl) return ref;
+        if (!ref.url || ref.url.startsWith('data:')) return ref;
+        try {
+          const fetched = await fetch(ref.url);
+          if (!fetched.ok) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[auto-mode/ingest] ref ${ref.url} → HTTP ${fetched.status}, dropping`
+            );
+            return null;
+          }
+          const buf = Buffer.from(await fetched.arrayBuffer());
+          const mime = fetched.headers.get('content-type') ?? 'image/png';
+          const uploaded = await uploadAssetToConvex({
+            source: buf,
+            mime,
+            kind: 'reference',
+            campaignId: campaignId ?? undefined,
+            workspaceId: req.workspaceId,
+            sourceUrl: ref.url,
+          });
+          if (!uploaded) {
+            // Convex not provisioned — keep the original URL and let the
+            // OpenAI adapter's fail-soft fetch take over downstream.
+            return ref;
+          }
+          return { ...ref, url: uploaded.publicUrl };
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[auto-mode/ingest] ref ${ref.url} ingest failed, dropping:`,
+            err instanceof Error ? err.message : String(err)
+          );
+          return null;
+        }
+      })
+    )
+  ).filter((r): r is AutoModeReferenceImage => r !== null);
+
   // Vision-describe up to 2 top reference images so the hero gen knows
   // what's IN them (products, brands, faces, setting). This is the fix
   // for the "didn't find the Pod" gap — when URL Schema.org Product
