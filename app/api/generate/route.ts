@@ -15,6 +15,7 @@ import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/htt
 import { cropHeroToFormats } from '@/lib/canvas/cropToFormat';
 import { pickRenderMode } from '@/lib/canvas/render-mode';
 import type { RenderModeChoice } from '@/lib/canvas/render-mode';
+import { persistGenerateAsCampaign } from '@/lib/agent/persist-generation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -182,6 +183,15 @@ export async function POST(request: Request) {
   const providerId = typeof b.providerId === 'string' ? b.providerId : undefined;
   const model = typeof b.model === 'string' ? b.model : undefined;
   const refs = Array.isArray(b.refs) ? (b.refs as ImageRef[]) : undefined;
+  // When persistRun=true (UI drag-drop sets this), a successful generate
+  // is recorded as a synthetic auto-mode campaign + variation row so it
+  // shows up on /runs and a Discord ping with a "Post now" button fires.
+  // Defaults to false so smoke tests / direct-script callers stay quiet.
+  const persistRun = b.persistRun === true;
+  const workspaceId =
+    typeof b.workspaceId === 'string' && b.workspaceId.trim().length > 0
+      ? b.workspaceId.trim()
+      : undefined;
   const bypassAgent = b.bypassAgent === true;
   const planOnly = b.planOnly === true;
   const clientRunId = typeof b.runId === 'string' ? b.runId : undefined;
@@ -447,6 +457,22 @@ export async function POST(request: Request) {
                 });
               }
 
+              if (persistRun) {
+                // Fire-and-forget: don't block the SSE close on Convex /
+                // Discord round-trips. Errors logged inside the helper.
+                void persistGenerateAsCampaign({
+                  workspaceId,
+                  baseUrl: new URL(request.url).origin,
+                  prompt,
+                  refs,
+                  heroImageUrl: heroImage.url,
+                  provider: planned.provider.id,
+                  model: planned.provider.model,
+                  aspectRatio: planned.plan.aspectRatio,
+                  notifyDiscord: true,
+                });
+              }
+
               stopKeepalive();
               controller.close();
               return;
@@ -565,6 +591,37 @@ export async function POST(request: Request) {
                 imageUrl: firstImage?.url,
                 latencyMs: elapsedMs,
                 error: summaryError,
+              });
+            }
+
+            if (persistRun && successes.length > 0 && firstImage) {
+              // Build per-format URLs map keyed by format id when targets
+              // resolve to known aspects. The synthetic variation row's
+              // hero is the first success; per-format URLs let /inspect
+              // and /runs render every aspect.
+              const aspectToFormatId: Record<string, '1x1' | '4x5' | '9x16' | '16x9'> = {
+                '1:1': '1x1',
+                '4:5': '4x5',
+                '9:16': '9x16',
+                '16:9': '16x9',
+              };
+              const nativePerFormatUrls: Partial<
+                Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+              > = {};
+              for (const s of successes) {
+                const fid = aspectToFormatId[s.frame.aspectRatio];
+                if (fid && s.image?.url) nativePerFormatUrls[fid] = s.image.url;
+              }
+              void persistGenerateAsCampaign({
+                workspaceId,
+                baseUrl: new URL(request.url).origin,
+                prompt,
+                refs,
+                heroImageUrl: firstImage.url,
+                nativePerFormatUrls,
+                provider: planned.provider.id,
+                model: planned.provider.model,
+                notifyDiscord: true,
               });
             }
 

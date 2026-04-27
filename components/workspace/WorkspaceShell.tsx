@@ -636,6 +636,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             targets,
             runId,
             mode: options.mode ?? 'crop',
+            // Drag-drop generations from the workspace persist as a
+            // synthetic auto-mode campaign + variation row so they appear
+            // on /runs, and trigger a Discord ping with a "Post now"
+            // button. Smoke scripts / fire-debut-direct.ts can omit this
+            // to stay quiet.
+            persistRun: true,
+            workspaceId: wsId,
           }),
         });
 
