@@ -178,20 +178,42 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       []
     );
 
-    // Window-level drag-drop capture — the composer is only h-composer (56px)
-    // tall, so a creator dragging a file from desktop usually drops over the
-    // canvas instead. tldraw's own drop handler then intercepts and inserts
-    // the file as a canvas asset, which is the OPPOSITE of what we want. By
-    // capturing dragenter/dragover/drop at the window with `capture:true` and
-    // calling preventDefault on file drags, we route ALL file drops anywhere
-    // on the page into `ingestFiles` — matching creator intent ("attach this
-    // image as a reference").
+    // Window-level drag-drop capture — only intercepts file drags whose
+    // pointer is currently inside the composer's bounding rect. Drops
+    // anywhere ELSE on the page (canvas, rails, header) bubble down to
+    // tldraw's own handler, which inserts the file as an editable image
+    // shape on the canvas (manipulable + segmentable via SAM3). 2026-04-27
+    // — was previously stealing every file drop on the page and routing
+    // it to `refs`, which meant creators couldn't ever drop an image
+    // onto the canvas as its own layer. Now: drop on composer = ref;
+    // drop on canvas = canvas image shape.
     useEffect(() => {
       const hasFiles = (e: DragEvent) =>
         Array.from(e.dataTransfer?.types ?? []).includes('Files');
 
-      const claimFileDrag = (e: DragEvent) => {
+      const overComposer = (e: DragEvent): boolean => {
+        const formEl = (e.target as Element | null)?.closest?.('form');
+        if (formEl && formEl === document.querySelector('form[data-taxonomy="tool"]')) {
+          return true;
+        }
+        // Pointer-position fallback for browsers where event.target points
+        // at an inner element outside our form ref.
+        const composer = document.querySelector(
+          'form[data-taxonomy="tool"]'
+        ) as HTMLElement | null;
+        if (!composer) return false;
+        const rect = composer.getBoundingClientRect();
+        return (
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        );
+      };
+
+      const claimComposerDrag = (e: DragEvent): boolean => {
         if (!hasFiles(e)) return false;
+        if (!overComposer(e)) return false;
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -199,21 +221,21 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       };
 
       const onWindowDragEnter = (e: DragEvent) => {
-        if (!claimFileDrag(e)) return;
+        if (!claimComposerDrag(e)) return;
         dragDepth.current += 1;
         setDragging(true);
       };
       const onWindowDragOver = (e: DragEvent) => {
-        if (!claimFileDrag(e)) return;
+        if (!claimComposerDrag(e)) return;
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
       };
       const onWindowDragLeave = (e: DragEvent) => {
-        if (!claimFileDrag(e)) return;
+        if (!claimComposerDrag(e)) return;
         dragDepth.current = Math.max(0, dragDepth.current - 1);
         if (dragDepth.current === 0) setDragging(false);
       };
       const onWindowDrop = (e: DragEvent) => {
-        if (!claimFileDrag(e)) return;
+        if (!claimComposerDrag(e)) return;
         dragDepth.current = 0;
         setDragging(false);
         const files = e.dataTransfer?.files;
