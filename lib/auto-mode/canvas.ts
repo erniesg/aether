@@ -487,7 +487,12 @@ export function buildGlobalTextPropagator(
 
       for (const [shapeId, [, nextRaw]] of Object.entries(updated)) {
         const next = nextRaw as Record<string, unknown>;
-        if (!next || next.type !== 'geo') continue;
+        // Listen on AetherTextShape (the type the canvas drop creates,
+        // commit d6ff101) AND legacy `geo` (older drops still on canvas).
+        // Filtering only `geo` was breaking global propagation: edits on
+        // aether-text shapes never reached this listener at all. Bug fix
+        // 2026-04-27 — caused "no global edits + no local scope" UX.
+        if (!next || (next.type !== 'aether-text' && next.type !== 'geo')) continue;
 
         const meta = (next.meta ?? {}) as Record<string, unknown>;
         if (!meta.autoModeTextOverlay) continue;
@@ -500,9 +505,16 @@ export function buildGlobalTextPropagator(
 
         if (!variationId || !role) continue;
 
-        // Extract the current text from props
+        // Extract the current text from props. AetherTextShape stores
+        // copy in props.content[locale]; legacy geo carries it as
+        // props.text / props.label.
         const props = (next.props ?? {}) as Record<string, unknown>;
+        const content = props.content as Record<string, string> | undefined;
+        const bcp47Locale =
+          (props.bcp47Locale as string | undefined) ?? locale ?? 'en-SG';
         const currentText =
+          content?.[bcp47Locale] ??
+          content?.['en-SG'] ??
           (props.text as string | undefined) ??
           (props.label as string | undefined) ??
           '';
@@ -514,9 +526,12 @@ export function buildGlobalTextPropagator(
 
         if (scope !== 'global') continue;
 
-        // Fan out to all sibling shapes: same variationId + role
+        // Fan out to all sibling shapes: same variationId + role.
+        // Updates the corresponding locale slot of the sibling's
+        // content map for AetherTextShape; falls back to text/label
+        // for legacy geo shapes.
         const siblings = editor.getCurrentPageShapes().filter((s) => {
-          if (s.id === (shapeId as never)) return false; // skip self
+          if (s.id === (shapeId as never)) return false;
           const sm = (s.meta ?? {}) as Record<string, unknown>;
           return (
             sm.autoModeTextOverlay === true &&
@@ -526,21 +541,40 @@ export function buildGlobalTextPropagator(
         });
 
         for (const sibling of siblings) {
-          editor.updateShape({
-            id: sibling.id as never,
-            type: 'geo',
-            props: {
-              ...((sibling as unknown as { props: Record<string, unknown> }).props ?? {}),
-              text: currentText,
-              label: currentText,
-            },
-          } as Parameters<typeof editor.updateShape>[0]);
+          const sShape = sibling as unknown as {
+            type: string;
+            props: Record<string, unknown>;
+          };
+          if (sibling.type === 'aether-text') {
+            const sContent =
+              (sShape.props.content as Record<string, string> | undefined) ?? {};
+            const sLocale =
+              (sShape.props.bcp47Locale as string | undefined) ?? bcp47Locale;
+            editor.updateShape({
+              id: sibling.id as never,
+              type: 'aether-text',
+              props: {
+                ...sShape.props,
+                content: { ...sContent, [sLocale]: currentText },
+              },
+            } as Parameters<typeof editor.updateShape>[0]);
+          } else {
+            editor.updateShape({
+              id: sibling.id as never,
+              type: 'geo',
+              props: {
+                ...sShape.props,
+                text: currentText,
+                label: currentText,
+              },
+            } as Parameters<typeof editor.updateShape>[0]);
+          }
         }
 
         // Persist to Convex (fire-and-forget; errors logged by caller)
         void onUpdate({
           variationId,
-          locale: locale ?? 'en-SG',
+          locale: locale ?? bcp47Locale,
           format: format ?? '1x1',
           scope: 'global',
           role,
