@@ -188,6 +188,11 @@ export async function POST(request: Request) {
   // shows up on /runs and a Discord ping with a "Post now" button fires.
   // Defaults to false so smoke tests / direct-script callers stay quiet.
   const persistRun = b.persistRun === true;
+  // Drag-drop publishing intent (PromptComposer notify-mode chip). 'review'
+  // is the existing default — synthetic campaign + Discord ping. 'auto-post'
+  // additionally fires scheduleVariationPosts immediately after persist.
+  const persistNotifyMode: 'review' | 'auto-post' =
+    b.notifyMode === 'auto-post' ? 'auto-post' : 'review';
   const workspaceId =
     typeof b.workspaceId === 'string' && b.workspaceId.trim().length > 0
       ? b.workspaceId.trim()
@@ -470,6 +475,7 @@ export async function POST(request: Request) {
                   model: planned.provider.model,
                   aspectRatio: planned.plan.aspectRatio,
                   notifyDiscord: true,
+                  notifyMode: persistNotifyMode,
                 });
               }
 
@@ -622,6 +628,7 @@ export async function POST(request: Request) {
                 provider: planned.provider.id,
                 model: planned.provider.model,
                 notifyDiscord: true,
+                notifyMode: persistNotifyMode,
               });
             }
 

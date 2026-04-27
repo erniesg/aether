@@ -21,6 +21,7 @@ import {
   setCampaignStatus,
   startCampaign,
 } from '@/lib/convex/http';
+import { scheduleVariationPosts } from '@/lib/agent/auto-mode';
 
 export interface PersistGenerationInput {
   workspaceId?: string;
@@ -39,6 +40,11 @@ export interface PersistGenerationInput {
   aspectRatio?: string;
   /** When false / omitted, Discord ping is skipped (campaign still persists). */
   notifyDiscord?: boolean;
+  /** Drag-drop publishing intent. 'review' (default): persist + Discord
+   *  ping with a Post-now button. 'auto-post': persist + immediately fire
+   *  scheduleVariationPosts with forcePostNow=true. The composer's
+   *  notify-mode chip drives this per-fire. */
+  notifyMode?: 'review' | 'auto-post';
 }
 
 export interface PersistGenerationResult {
@@ -65,6 +71,9 @@ export async function persistGenerateAsCampaign(
     .map((r) => ({ url: refSignature(r.url) }))
     .filter((r): r is { url: string } => typeof r.url === 'string');
 
+  const notifyMode: 'review' | 'auto-post' =
+    input.notifyMode === 'auto-post' ? 'auto-post' : 'review';
+
   let campaignId: string | null = null;
   try {
     campaignId = await startCampaign({
@@ -72,7 +81,7 @@ export async function persistGenerateAsCampaign(
       triggerKind: 'text',
       triggerPayload: input.prompt,
       variationCount: 1,
-      notifyMode: 'review',
+      notifyMode,
       referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
     });
   } catch (err) {
@@ -88,8 +97,13 @@ export async function persistGenerateAsCampaign(
     return { campaignId: null, discordSent: false };
   }
 
-  // Insert the variation row carrying the hero. Index 1 so the approve
-  // link `?c=<id>&v=1` matches the existing handler shape.
+  // Insert the variation row carrying the hero. Index 1 so the post-now
+  // link `?c=<id>&v=1` matches the existing handler shape. scheduleWhenLocal
+  // is set to "now" so scheduleVariationPosts (which skips variations
+  // missing it) can fire when notifyMode='auto-post'. For review mode the
+  // value is harmless — the lap-end card uses it as the default schedule
+  // suggestion when the creator opens the schedule picker.
+  const scheduleWhenLocal = new Date().toISOString();
   try {
     await insertCampaignVariation({
       campaignId,
@@ -100,6 +114,7 @@ export async function persistGenerateAsCampaign(
       nativePerFormatUrls: input.nativePerFormatUrls,
       caption: input.prompt,
       schedulePlatform: 'instagram',
+      scheduleWhenLocal,
       agentRunIds: [],
     });
   } catch (err) {
@@ -131,7 +146,41 @@ export async function persistGenerateAsCampaign(
       model: input.model,
       aspectRatio: input.aspectRatio,
       refCount: referenceImages.length,
+      notifyMode,
     });
+  }
+
+  // When the creator picked auto-post on the composer, fire publishers
+  // immediately (T-30s scheduling on direct adapters). Fail-soft — a
+  // publisher error doesn't roll back the persisted campaign.
+  if (notifyMode === 'auto-post' && input.workspaceId) {
+    try {
+      await scheduleVariationPosts({
+        variations: [
+          {
+            index: 1,
+            status: 'ready',
+            heroImageUrl: input.heroImageUrl,
+            nativePerFormatUrls: input.nativePerFormatUrls,
+            caption: input.prompt,
+            schedulePlatform: 'instagram',
+            scheduleWhenLocal,
+            agentSteps: [],
+            agentFinalText: '',
+          },
+        ],
+        workspaceId: input.workspaceId,
+        baseUrl: input.baseUrl,
+        forcePostNow: true,
+        campaignId,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[persist-generation] auto-post scheduleVariationPosts failed:',
+        err instanceof Error ? err.message : String(err)
+      );
+    }
   }
 
   return { campaignId, discordSent };
@@ -146,6 +195,7 @@ interface SendPingInput {
   model?: string;
   aspectRatio?: string;
   refCount: number;
+  notifyMode: 'review' | 'auto-post';
 }
 
 async function sendDragDropDiscordPing(input: SendPingInput): Promise<boolean> {
@@ -164,45 +214,63 @@ async function sendDragDropDiscordPing(input: SendPingInput): Promise<boolean> {
     fields.push({ name: 'aspect', value: input.aspectRatio, inline: true });
   if (input.refCount > 0)
     fields.push({ name: 'refs', value: String(input.refCount), inline: true });
+  fields.push({ name: 'mode', value: input.notifyMode, inline: true });
 
+  const isAutoPost = input.notifyMode === 'auto-post';
   const embed: DiscordEmbed = {
-    title: '🎨 New generation ready',
+    title: isAutoPost
+      ? '🚀 New generation — auto-posting now'
+      : '🎨 New generation ready',
     description:
       input.prompt.length > 280
         ? input.prompt.slice(0, 280) + '…'
         : input.prompt,
-    color: 0x57f287,
+    color: isAutoPost ? 0xfee75c : 0x57f287,
     image: inlineImage,
     fields,
     footer: { text: `campaign ${input.campaignId}` },
     timestamp: new Date().toISOString(),
   };
 
+  // In auto-post mode the per-publish ping (from scheduleVariationPosts)
+  // already surfaces the live link, so the embed only needs the Review
+  // button. In review mode show the explicit Post-now button so the
+  // creator can fire publishers when they're ready.
   const components: DiscordActionRow[] = [
     {
       type: 1,
-      components: [
-        {
-          type: 2,
-          style: 5,
-          label: 'Post now to all platforms',
-          emoji: { name: '🚀' },
-          // /post-now loads the persisted variation from Convex and calls
-          // scheduleVariationPosts directly with forcePostNow=true. Skips
-          // the redundant lap-rerun that the old /approve→/run flow did
-          // just to publish bytes that already existed.
-          url: `${origin}/api/auto-mode/post-now?c=${encodeURIComponent(
-            input.campaignId
-          )}&v=1`,
-        },
-        {
-          type: 2,
-          style: 5,
-          label: 'Review in Aether',
-          emoji: { name: '👁' },
-          url: `${origin}/inspect/${encodeURIComponent(input.campaignId)}`,
-        },
-      ],
+      components: isAutoPost
+        ? [
+            {
+              type: 2,
+              style: 5,
+              label: 'Review in Aether',
+              emoji: { name: '👁' },
+              url: `${origin}/inspect/${encodeURIComponent(input.campaignId)}`,
+            },
+          ]
+        : [
+            {
+              type: 2,
+              style: 5,
+              label: 'Post now to all platforms',
+              emoji: { name: '🚀' },
+              // /post-now loads the persisted variation from Convex and calls
+              // scheduleVariationPosts directly with forcePostNow=true. Skips
+              // the redundant lap-rerun that the old /approve→/run flow did
+              // just to publish bytes that already existed.
+              url: `${origin}/api/auto-mode/post-now?c=${encodeURIComponent(
+                input.campaignId
+              )}&v=1`,
+            },
+            {
+              type: 2,
+              style: 5,
+              label: 'Review in Aether',
+              emoji: { name: '👁' },
+              url: `${origin}/inspect/${encodeURIComponent(input.campaignId)}`,
+            },
+          ],
     },
   ];
 

@@ -455,6 +455,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         targets?: GenerateTargetSpec[];
         /** Render mode to pass to /api/generate. Defaults to 'crop' (responsive). */
         mode?: 'crop' | 'fanout';
+        /** Drag-drop publishing intent — forwarded to persist-generation
+         *  via the /api/generate body. Defaults to 'review' (current
+         *  behavior: synthetic campaign + Discord ping). 'auto-post'
+         *  fires Post-now immediately after the campaign is persisted. */
+        notifyMode?: 'review' | 'auto-post';
       } = {}
     ): Promise<void> => {
       const targets = options.targets ?? [];
@@ -649,9 +654,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             // synthetic auto-mode campaign + variation row so they appear
             // on /runs, and trigger a Discord ping with a "Post now"
             // button. Smoke scripts / fire-debut-direct.ts can omit this
-            // to stay quiet.
+            // to stay quiet. notifyMode=auto-post tells persist-generation
+            // to fire scheduleVariationPosts immediately instead of
+            // waiting for a Post-now click.
             persistRun: true,
             workspaceId: wsId,
+            notifyMode: options.notifyMode ?? 'review',
           }),
         });
 
@@ -1506,7 +1514,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const handlePrompt = useCallback(
     async (
       prompt: string,
-      options: { refs?: string[]; scope: 'all' | 'single'; targetId?: string; renderMode?: 'crop' | 'fanout' }
+      options: {
+        refs?: string[];
+        scope: 'all' | 'single';
+        targetId?: string;
+        renderMode?: 'crop' | 'fanout';
+        notifyMode?: 'review' | 'auto-post';
+      }
     ) => {
       const trimmed = prompt.trim();
       if (/^\/export\b/i.test(trimmed)) {
@@ -1625,6 +1639,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             refs: refs.length > 0 ? refs : undefined,
             targets,
             mode: options.renderMode ?? 'crop',
+            notifyMode: options.notifyMode,
           });
           return;
         }
@@ -1657,6 +1672,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         bypassAgent,
         refs: refs.length > 0 ? refs : undefined,
         targets,
+        notifyMode: options.notifyMode,
       });
     },
     [

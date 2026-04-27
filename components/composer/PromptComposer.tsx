@@ -39,6 +39,21 @@ export type PromptScope = 'all' | 'single';
  */
 export type RenderMode = 'crop' | 'fanout';
 
+/**
+ * Per-fire publishing intent for a drag-drop generation.
+ *   - 'review' (default): persist as a synthetic campaign and ping
+ *      Discord; the creator clicks Post-now in the embed when ready.
+ *   - 'auto-post': persist and immediately fire scheduleVariationPosts
+ *      with forcePostNow=true (T-30s scheduling on direct adapters).
+ *
+ * 'schedule' is intentionally absent — drag-drop has no agent-derived
+ * scheduleWhenLocal, so opening a date picker on the composer is more
+ * cognitive overhead than the variation card's own schedule button.
+ * Use the variation card's schedule action after the campaign appears
+ * on /runs.
+ */
+export type PromptNotifyMode = 'review' | 'auto-post';
+
 export interface PromptSubmitOptions {
   /** Ad-hoc reference images as data URLs, only present when creators drop / paste / pick. */
   refs?: string[];
@@ -48,6 +63,8 @@ export interface PromptSubmitOptions {
   targetId?: string;
   /** How to execute the multi-format render. */
   renderMode: RenderMode;
+  /** Drag-drop publishing intent — see PromptNotifyMode. Defaults to 'review'. */
+  notifyMode: PromptNotifyMode;
 }
 
 export interface PromptFormatOption {
@@ -131,6 +148,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     const [refError, setRefError] = useState<string | null>(null);
     const [scope, setScope] = useState<PromptScope>(defaultScope);
     const [renderMode, setRenderMode] = useState<RenderMode>(defaultRenderMode);
+    const [notifyMode, setNotifyMode] = useState<PromptNotifyMode>('review');
     const activeFormat =
       formats.find((format) => format.id === activeFormatId) ?? formats[0];
     const resolvedActiveFormatId = activeFormat?.id;
@@ -264,6 +282,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
           scope: overrideScope ?? scope,
           targetId: (overrideScope ?? scope) === 'single' ? resolvedActiveFormatId : undefined,
           renderMode,
+          notifyMode,
         });
         setValue('');
         setRefs([]);
@@ -510,6 +529,35 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
                   renderMode === 'crop'
                     ? 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
                     : 'border-accent-secondary/50 bg-accent-secondary/10 text-ink-muted hover:text-ink'
+                )}
+              >
+                {label}
+              </button>
+            );
+          })()}
+
+          {(() => {
+            // Drag-drop publishing intent. 'review' is the default (current
+            // behavior — Discord ping with a manual Post-now button); flipping
+            // to 'auto-post' fires scheduleVariationPosts immediately after the
+            // synthetic campaign is persisted. Chip color matches AutoModeToggle's
+            // notifyMode pill so the two surfaces feel related.
+            const label = notifyMode === 'review' ? 'review' : 'auto-post';
+            const aria = `notify mode · ${label} · click to toggle whether the next generation persists for manual review (default) or fires Post-now immediately`;
+            return (
+              <button
+                type="button"
+                aria-label={aria}
+                title={aria}
+                data-testid="composer-notify-mode-toggle"
+                onClick={() => {
+                  setNotifyMode((current) => (current === 'review' ? 'auto-post' : 'review'));
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+                  notifyMode === 'review'
+                    ? 'border-border-soft bg-surface-panel-muted text-ink-dim hover:text-ink'
+                    : 'border-accent/50 bg-accent/10 text-ink hover:text-ink'
                 )}
               >
                 {label}
