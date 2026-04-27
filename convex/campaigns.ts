@@ -49,6 +49,10 @@ interface CampaignDoc {
    * keep only the URL + hint. Surfaced on /inspect/[campaignId].
    */
   referenceImages?: Array<{ url?: string; hint?: string }>;
+  /** URL ingestion bundle (title, description, og:image, body images,
+   *  brand parse). Persisted so /inspect + /runs can show what was
+   *  scraped from the trigger URL. */
+  urlIngestion?: unknown;
 }
 
 interface CampaignVariationDoc {
@@ -96,6 +100,7 @@ function toCampaign(doc: CampaignDoc) {
     schedulePlan: doc.schedulePlan,
     clusterBundle: doc.clusterBundle,
     referenceImages: doc.referenceImages,
+    urlIngestion: doc.urlIngestion,
   };
 }
 
@@ -355,6 +360,25 @@ export const setCampaignClusterBundle = mutationGeneric({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.campaignId as any, {
       clusterBundle: args.clusterBundle,
+    });
+    return null;
+  },
+});
+
+/**
+ * Persist the URL ingestion bundle on the campaign row so /inspect + /runs
+ * expand can surface exactly what was scraped from the trigger URL —
+ * title, description, og:image, body images, brand parse. The input that
+ * feeds every downstream agent.
+ */
+export const setCampaignUrlIngestion = mutationGeneric({
+  args: {
+    campaignId: v.id('campaign'),
+    urlIngestion: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.campaignId as any, {
+      urlIngestion: args.urlIngestion,
     });
     return null;
   },

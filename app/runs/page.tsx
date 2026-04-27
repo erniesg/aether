@@ -33,6 +33,26 @@ interface CampaignRow {
   finishedAt?: number;
   error?: string;
   referenceImages?: Array<{ url?: string; hint?: string }>;
+  urlIngestion?: {
+    url?: string;
+    title?: string;
+    description?: string;
+    primaryImage?: { url?: string };
+    images?: Array<{ url?: string; alt?: string }>;
+    products?: Array<{ name?: string; price?: string }>;
+    rawHtmlBytes?: number;
+  };
+  clusterBundle?: {
+    clusters: Array<{
+      label: string;
+      rationale?: string;
+      tags?: string[];
+      memberIndexes: number[];
+    }>;
+    unclustered: number[];
+    refs?: Array<{ url?: string }>;
+    usedManagedAgentsApi?: boolean;
+  };
 }
 
 interface VariationRow {
@@ -116,6 +136,15 @@ function ExpandedRow({ campaignId, wsId }: { campaignId: string; wsId: string })
 
   const { campaign, variations } = detail;
   const refs = campaign.referenceImages ?? [];
+  const ingestion = campaign.urlIngestion;
+  const cluster = campaign.clusterBundle;
+  const ingestedImages = ingestion?.images ?? [];
+  // Cluster ref index → URL lookup. Cluster bundle stores either the refs
+  // it was given OR just memberIndexes — fall back to ingestion images
+  // when refs aren't on the bundle.
+  const clusterRefUrls: string[] =
+    cluster?.refs?.map((r) => r.url ?? '').filter(Boolean) as string[]
+    ?? (ingestedImages.map((i) => i.url ?? '').filter(Boolean) as string[]);
 
   return (
     <div className="bg-surface-panel-muted px-4 py-3 text-xs">
@@ -149,6 +178,110 @@ function ExpandedRow({ campaignId, wsId }: { campaignId: string; wsId: string })
           </>
         ) : null}
       </div>
+
+      {ingestion ? (
+        <div className="mb-3 rounded border border-ink-faint/20 bg-surface-panel p-2">
+          <div className="font-caption uppercase text-[10px] text-ink-faint mb-1.5">
+            url ingestion · {ingestedImages.length} image{ingestedImages.length === 1 ? '' : 's'}
+            {ingestion.products && ingestion.products.length > 0
+              ? ` · ${ingestion.products.length} product${ingestion.products.length === 1 ? '' : 's'}`
+              : ''}
+            {typeof ingestion.rawHtmlBytes === 'number'
+              ? ` · ${Math.round(ingestion.rawHtmlBytes / 1024)}KB html`
+              : ''}
+          </div>
+          {ingestion.title ? (
+            <div className="font-caption text-ink mb-0.5 break-words">
+              {ingestion.title}
+            </div>
+          ) : null}
+          {ingestion.description ? (
+            <div className="font-caption text-[11px] text-ink-dim mb-1.5 line-clamp-2">
+              {ingestion.description}
+            </div>
+          ) : null}
+          {ingestedImages.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {ingestedImages.slice(0, 12).map((img, i) =>
+                img.url ? (
+                  <a
+                    key={i}
+                    href={img.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={img.alt ?? img.url}
+                    className="block h-12 w-12 overflow-hidden rounded-xs border border-border-soft bg-surface-panel-muted"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt={img.alt ?? ''} className="h-full w-full object-cover" />
+                  </a>
+                ) : null
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {cluster && cluster.clusters.length > 0 ? (
+        <div className="mb-3 rounded border border-ink-faint/20 bg-surface-panel p-2">
+          <div className="font-caption uppercase text-[10px] text-ink-faint mb-1.5">
+            visual clusters · {cluster.clusters.length} group{cluster.clusters.length === 1 ? '' : 's'}
+            {cluster.unclustered.length > 0
+              ? ` · ${cluster.unclustered.length} unclustered`
+              : ''}
+            {cluster.usedManagedAgentsApi ? ' · managed-agents' : ''}
+          </div>
+          <div className="flex flex-col gap-2">
+            {cluster.clusters.map((c, ci) => (
+              <div key={ci} className="flex items-start gap-2">
+                <div className="min-w-[6rem] shrink-0">
+                  <Chip tone="info" size="sm" variant="solid">
+                    {c.label}
+                  </Chip>
+                  <div className="mt-0.5 font-mono text-[10px] text-ink-faint">
+                    {c.memberIndexes.length} ref{c.memberIndexes.length === 1 ? '' : 's'}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  {c.rationale ? (
+                    <div className="font-caption text-[11px] text-ink-dim line-clamp-2 mb-1">
+                      {c.rationale}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-1">
+                    {c.memberIndexes.slice(0, 8).map((idx) => {
+                      const url = clusterRefUrls[idx];
+                      if (!url) {
+                        return (
+                          <span
+                            key={idx}
+                            className="font-mono text-[10px] text-ink-faint"
+                          >
+                            #{idx}
+                          </span>
+                        );
+                      }
+                      return (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`ref[${idx}] ${url}`}
+                          className="block h-10 w-10 overflow-hidden rounded-xs border border-border-soft"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`ref ${idx}`} className="h-full w-full object-cover" />
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="border-t border-ink-faint/20 pt-3">
         <div className="font-caption uppercase text-[10px] text-ink-faint mb-2">

@@ -594,6 +594,11 @@ export default defineSchema({
         })
       )
     ),
+    /** URL ingestion result (title, description, og:image, body images,
+     *  brand parse). Persisted so /inspect + /runs expand can show
+     *  exactly what was scraped from the trigger URL — the input that
+     *  fed every downstream agent (research, cluster, vision-describe). */
+    urlIngestion: v.optional(v.any()),
   }).index('by_workspace', ['workspaceId']),
 
   campaignVariation: defineTable({

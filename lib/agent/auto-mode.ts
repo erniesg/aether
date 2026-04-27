@@ -6,6 +6,7 @@ import {
   setCampaignResearchBundle,
   setCampaignSchedulePlan,
   setCampaignClusterBundle,
+  setCampaignUrlIngestion,
   startCampaign,
 } from '@/lib/convex/http';
 import { logLapEvent } from './lap-logger';
@@ -2129,6 +2130,20 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
             rawHtmlBytes: urlIngestion.rawHtmlBytes,
           },
         });
+        // Persist the ingestion bundle to the campaign row so /inspect
+        // and /runs can show what was actually scraped from the URL.
+        // Strip rawHtml to keep the payload size sane.
+        if (campaignId) {
+          await setCampaignUrlIngestion(campaignId, {
+            url: urlIngestion.url,
+            title: urlIngestion.title,
+            description: urlIngestion.description,
+            primaryImage: urlIngestion.primaryImage,
+            images: urlIngestion.images,
+            products: urlIngestion.products,
+            rawHtmlBytes: urlIngestion.rawHtmlBytes,
+          });
+        }
       }
     } catch (err) {
       logLapEvent({

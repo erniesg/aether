@@ -208,6 +208,7 @@ const campaignsApi = (anyApi as unknown as {
     setCampaignResearchBundle: unknown;
     setCampaignSchedulePlan: unknown;
     setCampaignClusterBundle: unknown;
+    setCampaignUrlIngestion: unknown;
   };
 }).campaigns;
 
@@ -325,6 +326,30 @@ export async function setCampaignClusterBundle(
     );
   } catch (err) {
     console.error('[convex/http] setCampaignClusterBundle failed', err);
+  }
+}
+
+/**
+ * Persist the URL ingestion bundle on the campaign row so /inspect + /runs
+ * can show what was scraped from the trigger URL (title, description,
+ * og:image, body images, brand parse). Fail-soft.
+ */
+export async function setCampaignUrlIngestion(
+  campaignId: string,
+  urlIngestion: unknown
+): Promise<void> {
+  const client = getHttpClient();
+  if (!client) return;
+  try {
+    await (client as unknown as {
+      mutation: (m: never, a: never) => Promise<unknown>;
+    }).mutation(
+      (campaignsApi as { setCampaignUrlIngestion: unknown })
+        .setCampaignUrlIngestion as never,
+      { campaignId, urlIngestion } as never
+    );
+  } catch (err) {
+    console.error('[convex/http] setCampaignUrlIngestion failed', err);
   }
 }
 
