@@ -191,6 +191,23 @@ export async function segmentSubjects(
     matched += 1;
   }
 
+  // Fallback chain: SAM3 grounding is brittle on photographic heroes
+  // (returns 0 masks for every text prompt). When that happens, fire one
+  // SAM2 (men1scus/birefnet) salient-object call — no prompt needed — so
+  // the planner has SOMETHING to anchor crops + forbidden regions to.
+  if (matched === 0) {
+    const fallback = await runSam2SalientFallback(input, fetchFn);
+    if (fallback) {
+      return {
+        width: input.width,
+        height: input.height,
+        masks: [fallback],
+        matched: 1,
+        prompted: input.prompts.length,
+      };
+    }
+  }
+
   return {
     width: input.width,
     height: input.height,
@@ -198,6 +215,62 @@ export async function segmentSubjects(
     matched,
     prompted: input.prompts.length,
   };
+}
+
+/**
+ * Single salient-object call to /api/segment with providerId='sam2'. Used
+ * silently when the SAM3 fan-out matches nothing — birefnet does NOT take
+ * a text prompt, so we get one mask covering the whole subject region.
+ *
+ * Bbox handling: the Replicate SAM2 provider doesn't currently compute
+ * bbox from the alpha mask, so the response often omits it. When that
+ * happens we synthesise a full-image bbox — useless as a forbidden
+ * region by itself, but it (a) ticks `matched>0` so downstream metrics
+ * are honest about whether segmentation produced any usable signal and
+ * (b) gives the planner a non-empty subject hint instead of silently
+ * dropping back to "treat the whole image as empty space."
+ *
+ * Returns null on any failure — caller keeps the original empty result.
+ */
+async function runSam2SalientFallback(
+  input: SegmentSubjectsInput,
+  fetchFn: typeof fetch
+): Promise<SegmentSubjectsMask | null> {
+  try {
+    const r = await fetchFn(`${input.baseUrl}/api/segment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerId: 'sam2',
+        sourceUrl: input.imageUrl,
+        mode: 'cutout',
+        width: input.width,
+        height: input.height,
+      }),
+    });
+    if (!r.ok) return null;
+    const json = (await r.json()) as Record<string, unknown>;
+    const preview = json.preview as Record<string, unknown> | undefined;
+    const bboxRaw = preview?.bbox as
+      | { x?: number; y?: number; w?: number; h?: number }
+      | undefined;
+    const bbox =
+      bboxRaw &&
+      typeof bboxRaw.x === 'number' &&
+      typeof bboxRaw.y === 'number' &&
+      typeof bboxRaw.w === 'number' &&
+      typeof bboxRaw.h === 'number'
+        ? { x: bboxRaw.x, y: bboxRaw.y, w: bboxRaw.w, h: bboxRaw.h }
+        : { x: 0, y: 0, w: input.width, h: input.height };
+    return {
+      label: 'salient-subject',
+      componentKind: 'subject',
+      bbox,
+      confidence: 1,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

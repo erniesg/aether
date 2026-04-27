@@ -179,6 +179,157 @@ describe('segmentSubjects', () => {
     expect(result.masks.every((m) => m.label === 'face')).toBe(true);
   });
 
+  it('falls back to SAM2 salient-object when SAM3 fan-out returns 0 masks across every prompt', async () => {
+    // Photographic heroes routinely return 0 masks from SAM3 grounding (the
+    // problem the handoff calls out: masksOneShotMatched=0 every lap).
+    // The fallback fires ONE /api/segment call with providerId='sam2',
+    // mode='cutout' (no prompt — birefnet does salient-object detection).
+    const fetchImpl = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}'));
+      // SAM3 fan-out: every prompt returns empty.
+      if (body.providerId !== 'sam2') return buildOk([]);
+      // SAM2 fallback: one mask with a real bbox.
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          provider: { id: 'sam2', model: 'men1scus/birefnet' },
+          preview: {
+            sourceDataUrl: 'data:image/png;base64,AA',
+            maskDataUrl: 'data:image/png;base64,BB',
+            cutoutDataUrl: 'data:image/png;base64,CC',
+            width: 1024,
+            height: 1024,
+            bbox: { x: 200, y: 150, w: 600, h: 720 },
+          },
+        }),
+      } as unknown as Response;
+    });
+
+    const result = await segmentSubjects({
+      imageUrl: 'https://cdn/x.png',
+      prompts: [
+        { prompt: 'face', componentKind: 'face' },
+        { prompt: 'product', componentKind: 'product' },
+      ],
+      baseUrl: 'http://api',
+      width: 1024,
+      height: 1024,
+      fetchImpl,
+    });
+
+    // 2 fan-out prompts + 1 SAM2 fallback POST.
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    const fallbackCall = fetchImpl.mock.calls.find((c) => {
+      const b = JSON.parse(String(c[1]?.body ?? '{}'));
+      return b.providerId === 'sam2';
+    });
+    expect(fallbackCall).toBeDefined();
+    const fallbackBody = JSON.parse(String(fallbackCall![1]?.body));
+    expect(fallbackBody).toMatchObject({
+      providerId: 'sam2',
+      mode: 'cutout',
+      sourceUrl: 'https://cdn/x.png',
+      width: 1024,
+      height: 1024,
+    });
+    // No prompt — birefnet doesn't take one.
+    expect(fallbackBody.prompt).toBeUndefined();
+
+    // matched > 0 (the handoff verification metric) and the single mask is
+    // tagged as a salient subject so the planner treats it as one.
+    expect(result.matched).toBe(1);
+    expect(result.masks).toHaveLength(1);
+    expect(result.masks[0]).toMatchObject({
+      componentKind: 'subject',
+      bbox: { x: 200, y: 150, w: 600, h: 720 },
+    });
+  });
+
+  it('does NOT fire SAM2 fallback when SAM3 already matched at least one prompt', async () => {
+    const fetchImpl = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}'));
+      if (body.prompt === 'face') return buildOk([{ x: 0, y: 0, w: 100, h: 100 }]);
+      return buildOk([]);
+    });
+
+    await segmentSubjects({
+      imageUrl: 'https://cdn/x.png',
+      prompts: [
+        { prompt: 'face', componentKind: 'face' },
+        { prompt: 'logo', componentKind: 'logo' },
+      ],
+      baseUrl: 'http://api',
+      width: 1024,
+      height: 1024,
+      fetchImpl,
+    });
+
+    // No call should have providerId='sam2' — fallback is silent only when needed.
+    const sam2Calls = fetchImpl.mock.calls.filter((c) => {
+      const b = JSON.parse(String(c[1]?.body ?? '{}'));
+      return b.providerId === 'sam2';
+    });
+    expect(sam2Calls).toHaveLength(0);
+  });
+
+  it('uses full-image bbox when SAM2 fallback response omits bbox (still ticks matched>0)', async () => {
+    const fetchImpl = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}'));
+      if (body.providerId !== 'sam2') return buildOk([]);
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          provider: { id: 'sam2', model: 'men1scus/birefnet' },
+          preview: {
+            sourceDataUrl: 'data:image/png;base64,AA',
+            maskDataUrl: 'data:image/png;base64,BB',
+            cutoutDataUrl: 'data:image/png;base64,CC',
+            width: 1024,
+            height: 1024,
+            // bbox missing — Replicate provider doesn't compute it.
+          },
+        }),
+      } as unknown as Response;
+    });
+
+    const result = await segmentSubjects({
+      imageUrl: 'https://cdn/x.png',
+      prompts: [{ prompt: 'face', componentKind: 'face' }],
+      baseUrl: 'http://api',
+      width: 1024,
+      height: 1024,
+      fetchImpl,
+    });
+
+    expect(result.matched).toBe(1);
+    expect(result.masks).toHaveLength(1);
+    expect(result.masks[0].bbox).toEqual({ x: 0, y: 0, w: 1024, h: 1024 });
+  });
+
+  it('returns the original empty result when SAM2 fallback itself errors (no infinite escalation)', async () => {
+    const fetchImpl = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}'));
+      if (body.providerId === 'sam2') {
+        return { ok: false, json: async () => ({}) } as unknown as Response;
+      }
+      return buildOk([]);
+    });
+
+    const result = await segmentSubjects({
+      imageUrl: 'https://cdn/x.png',
+      prompts: [{ prompt: 'face', componentKind: 'face' }],
+      baseUrl: 'http://api',
+      width: 1024,
+      height: 1024,
+      fetchImpl,
+    });
+
+    expect(result.matched).toBe(0);
+    expect(result.masks).toHaveLength(0);
+  });
+
   it('drops masks with malformed bbox shapes', async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,
