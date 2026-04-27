@@ -1016,7 +1016,14 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           src: segmentation.preview.cutoutDataUrl,
           w: segmentation.preview.width,
           h: segmentation.preview.height,
-          mimeType: 'image/svg+xml',
+          // The cutoutDataUrl is a PNG (alpha-cutout from
+          // buildMaskedImageDataUrl or alphaCutoutUrl). It was previously
+          // mis-declared as 'image/svg+xml' which made tldraw use the
+          // SVG render path (preserveAspectRatio defaults) — that
+          // produced visible stretch / compression on shapes whose
+          // display dims didn't match the asset's intrinsic dims, since
+          // SVG sizing semantics differ from raster image sizing.
+          mimeType: 'image/png',
           isAnimated: false,
         },
         meta: {

@@ -146,18 +146,19 @@ export function createR2Storage(
         },
       });
 
-      // Node 18+ undici fetch requires `duplex: 'half'` whenever a body
-      // is provided that could be a stream. aws4fetch passes our
-      // Uint8Array through as-is, but Node's fetch still demands the
-      // option in this code path — same error surfaces the moment IG
-      // tries to stage media here. Cast through any since DOM
-      // RequestInit doesn't expose duplex on its type.
+      // The body passed back from aws.sign() is sometimes wrapped as a
+      // ReadableStream by aws4fetch — undici fetch then either rejects
+      // ("RequestInit: duplex option is required") OR streams it
+      // without setting Content-Length, which R2 rejects with HTTP 411
+      // MissingContentLength. The fix that works in both cases is to
+      // pass the ORIGINAL Uint8Array as the body. aws4fetch's signature
+      // (in `signed.headers` — the SHA256 of the same bytes) is agnostic
+      // to which wrapper we POST so this stays SigV4-correct.
       const res = await fetchImpl(signed.url, {
         method: signed.method,
         headers: signed.headers,
-        body: signed.body,
-        duplex: 'half',
-      } as RequestInit & { duplex: 'half' });
+        body,
+      });
       const latencyMs = Date.now() - t0;
 
       if (!res.ok) {
