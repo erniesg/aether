@@ -1283,11 +1283,20 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   );
 
   // Slice 3 — when a variation becomes 'ready', pop it onto the canvas.
-  useEffect(() => {
+  //
+  // Re-seed race guard (2026-04-27): concurrent Convex sync events can wipe
+  // shapes (TldrawCanvas listens with scope:'document' and re-seeds when
+  // frame count drops to 0). The previously-dropped image children get lost
+  // in that wipe, but the in-memory droppedVariationIndices ref still says
+  // "v1 already dropped" — so this effect would skip and the user sees
+  // empty frames. Fix: don't trust the ref alone; ALSO check the canvas
+  // for an actual image shape tagged with this variation id before
+  // skipping. If shapes were wiped, drop again. AND subscribe to the
+  // editor store so a remote-sync wipe re-triggers the check.
+  const performAutoModeDropCheck = useCallback(() => {
     if (!editor || !autoModeVariations) return;
     for (const variation of autoModeVariations) {
       if (variation.status !== 'ready') continue;
-      if (droppedVariationIndices.current.has(variation.index)) continue;
       const hasAnyUrl =
         Boolean(variation.heroImageUrl) ||
         Boolean(variation.atlasUrl) ||
@@ -1295,6 +1304,20 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           (u) => typeof u === 'string' && u.length > 0
         );
       if (!hasAnyUrl) continue;
+
+      const shapesForVariation = editor
+        .getCurrentPageShapes()
+        .filter(
+          (s) =>
+            (s.meta as Record<string, unknown> | undefined)?.autoModeVariationId ===
+            variation.id
+        );
+      const alreadyOnCanvas = shapesForVariation.length > 0;
+      if (alreadyOnCanvas) {
+        droppedVariationIndices.current.add(variation.index);
+        continue;
+      }
+
       droppedVariationIndices.current.add(variation.index);
       try {
         dropVariationOnCanvas({ editor, variation });
@@ -1303,6 +1326,28 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
     }
   }, [editor, autoModeVariations]);
+
+  useEffect(() => {
+    performAutoModeDropCheck();
+  }, [performAutoModeDropCheck]);
+
+  // Re-fire the drop check after a remote-sync shape wipe. Debounce 250ms so
+  // a burst of store changes during reconciliation only triggers one check.
+  useEffect(() => {
+    if (!editor) return;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = editor.store.listen(
+      () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => performAutoModeDropCheck(), 250);
+      },
+      { scope: 'document' }
+    );
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [editor, performAutoModeDropCheck]);
 
   // Reset the dropped-index tracker when a new campaign starts so we
   // don't carry stale state into the next lap.
