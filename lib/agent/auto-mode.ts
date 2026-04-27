@@ -1118,6 +1118,31 @@ async function runOneVariation(
   let heroImageUrl = rawHeroImageUrl;
   let heroAssetId: string | undefined;
   if (rawHeroImageUrl && rawHeroImageUrl.startsWith('data:')) {
+    // Save a local copy for visual inspection before the upload swap.
+    // Path: /tmp/aether-demo-runs/heroes/v<i>-<ts>.png. Fail-soft.
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const dir = '/tmp/aether-demo-runs/heroes';
+      fs.mkdirSync(dir, { recursive: true });
+      const b64 = rawHeroImageUrl.slice(rawHeroImageUrl.indexOf(',') + 1);
+      const file = path.join(
+        dir,
+        `v${input.promptInput.index}-${new Date()
+          .toISOString()
+          .replace(/[:.]/g, '-')
+          .slice(0, 19)}.png`
+      );
+      fs.writeFileSync(file, Buffer.from(b64, 'base64'));
+      // eslint-disable-next-line no-console
+      console.log(`[auto-mode v${input.promptInput.index}] saved hero → ${file}`);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[auto-mode v${input.promptInput.index}] hero save failed:`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
     const uploaded = await uploadAssetToConvex({
       source: rawHeroImageUrl,
       kind: 'hero',
@@ -1249,6 +1274,31 @@ async function runOneVariation(
           if (bytes) {
             collected[formatId] = bytes;
             nativePerFormatRendered.push(formatId);
+            // Save the per-format render for inspection.
+            try {
+              const fs = await import('node:fs');
+              const path = await import('node:path');
+              const dir = '/tmp/aether-demo-runs/heroes';
+              fs.mkdirSync(dir, { recursive: true });
+              const file = path.join(
+                dir,
+                `v${input.promptInput.index}-${formatId}-${new Date()
+                  .toISOString()
+                  .replace(/[:.]/g, '-')
+                  .slice(0, 19)}.png`
+              );
+              fs.writeFileSync(file, bytes);
+              // eslint-disable-next-line no-console
+              console.log(
+                `[auto-mode v${input.promptInput.index}] saved ${formatId} → ${file}`
+              );
+            } catch (err) {
+              // eslint-disable-next-line no-console
+              console.warn(
+                `[auto-mode v${input.promptInput.index}] save ${formatId} failed:`,
+                err instanceof Error ? err.message : String(err)
+              );
+            }
           } else {
             // eslint-disable-next-line no-console
             console.warn(

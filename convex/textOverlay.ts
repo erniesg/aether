@@ -160,7 +160,7 @@ export async function deleteTextOverlayHandler(
 
 export const createTextOverlay = mutationGeneric({
   args: {
-    wsId: v.id('workspace'),
+    wsId: v.string(),
     artboardId: v.string(),
     content: CONTENT_VALIDATOR,
     activeLanguage: v.string(),

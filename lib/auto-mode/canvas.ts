@@ -367,36 +367,12 @@ export function dropVariationOnCanvas({
         const w = Math.max(bbox.w * scaleX, 40);
         const h = Math.max(bbox.h * scaleY, 24);
 
-        // 1) Dashed rectangle as a positioning guide (helps the creator see
-        //    where the text is supposed to live; non-editable visual aid).
-        const geoId = createShapeId();
-        editor.createShape({
-          id: geoId,
-          type: 'geo',
-          parentId: targetFrameId as never,
-          x: bbox.x * scaleX,
-          y: bbox.y * scaleY,
-          props: {
-            geo: 'rectangle',
-            w,
-            h,
-            fill: 'none' as const,
-            dash: 'dashed' as const,
-            color: 'white' as const,
-            size: 's' as const,
-            verticalAlign: 'middle' as const,
-            align,
-            labelColor: 'white' as const,
-          } as Record<string, unknown>,
-          meta: { ...overlayMeta, shapeRole: 'overlay-guide' },
-        } as Parameters<typeof editor.createShape>[0]);
-
-        // 2) Editable text shape ON TOP of the rectangle. Double-click to
-        //    edit; tldraw's text shape is fully mutable. Bug-fix 2026-04-27:
-        //    the previous flow created only a geo with no text prop at all,
-        //    so text overlays were invisible / non-editable on canvas. The
-        //    text shape carries the same overlay meta so the global-text
-        //    propagator can fan edits across all sibling frames.
+        // Editable text shape only — no rectangle guide. The user explicitly
+        // does NOT want any background panel behind text overlays unless
+        // absolutely necessary. tldraw's stroke + drop shadow on the text
+        // itself carries enough legibility against the photographic hero.
+        // Removed 2026-04-27 (was creating a faint dashed-rectangle guide
+        // that read as a background panel).
         const textId = createShapeId();
         editor.createShape({
           id: textId,

@@ -360,7 +360,11 @@ export default defineSchema({
   // lib/text-overlay/types.ts. Stored as `v.any()` so T4–T9 can evolve the
   // inner shape without a schema migration.
   textOverlay: defineTable({
-    wsId: v.id('workspace'),
+    // Loosened from v.id('workspace') to v.string() (2026-04-27): the app
+    // does not yet provision a Convex workspace document for every
+    // /workspace/:wsId route — wsId arrives as the stable string slug
+    // ("demo-debut-editorial"). Same convention as brandProfile.workspaceId.
+    wsId: v.string(),
     artboardId: v.string(),
     content: v.any(),
     activeLanguage: v.string(),
