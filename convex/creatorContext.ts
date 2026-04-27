@@ -221,10 +221,15 @@ export const addReference = mutationGeneric({
     const key = args.reference.fullUrl ?? args.reference.previewUrl;
     const existing = docs.find((doc: any) => (doc.fullUrl ?? doc.previewUrl) === key);
     if (existing) return String(existing._id);
+    // The mutation accepts a client-side `id` for caller convenience
+    // (so dedupe + audit on the wire is easier) but the table schema
+    // does NOT carry that field — Convex generates the canonical _id
+    // on insert. Strip it here so the row matches the validator.
+    const { id: _clientRefId, ...refWithoutClientId } = args.reference;
     return String(
       await ctx.db.insert('creatorReference', {
         workspaceId: args.workspaceId,
-        ...args.reference,
+        ...refWithoutClientId,
         tags: args.reference.tags ?? [],
         updatedAt: Date.now(),
       })
