@@ -71,6 +71,26 @@ export function createModalSam3Provider(
 
       if (!res.ok) {
         const text = await res.text().catch(() => res.statusText);
+        // 422 from sam3_local means grounding produced no masks for the
+        // supplied text/box prompt. Surface a friendly hint instead of
+        // dumping the raw JSON.
+        if (res.status === 422) {
+          let hint = 'try a different prompt or click a foreground point';
+          try {
+            const parsed = JSON.parse(text) as {
+              detail?: string | { code?: string; message?: string };
+            };
+            const detail = parsed.detail;
+            if (typeof detail === 'object' && detail && typeof detail.message === 'string') {
+              hint = detail.message;
+            } else if (typeof detail === 'string') {
+              hint = detail;
+            }
+          } catch {
+            // fall through to default hint
+          }
+          throw new SegmentationError(`grounding didn't match — ${hint}`, 'sam3');
+        }
         throw new SegmentationError(`${res.status} ${text}`, 'sam3');
       }
 

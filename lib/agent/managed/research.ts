@@ -371,10 +371,23 @@ async function runViaToolUse(
     messages: [{ role: 'user', content: userPrompt }],
   });
 
+  // Diagnostic: when research came back empty (0 competitors / 0 sources)
+  // we need to know whether web_search actually produced hits or whether
+  // it ran but Claude didn't synthesize a final JSON. Log the block-type
+  // distribution + the final-text length so the next run reveals which.
+  const blockCounts: Record<string, number> = {};
+  for (const b of response.content) {
+    const t = (b as { type?: string }).type ?? 'unknown';
+    blockCounts[t] = (blockCounts[t] ?? 0) + 1;
+  }
   const finalText = response.content
     .filter((b): b is { type: 'text'; text: string } => b.type === 'text' && typeof b.text === 'string')
     .map((b) => b.text)
     .join('');
+  // eslint-disable-next-line no-console
+  console.log(
+    `[research/tool-use] brand="${input.brand}" blocks=${JSON.stringify(blockCounts)} finalTextLen=${finalText.length} preview="${finalText.slice(0, 200).replace(/\s+/g, ' ')}"`
+  );
 
   const latencyMs = Date.now() - t0;
 

@@ -44,6 +44,13 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class GroundingFailedError(Exception):
+    """Raised when SAM3 grounding produces no masks for the supplied text/box
+    prompt. The /segment route maps this to a 422 with a refine-prompt hint
+    so the client UX can show "rephrase or click a foreground point" rather
+    than a generic 500."""
+
+
 class SegmentPoint(BaseModel):
     x: float
     y: float
@@ -249,7 +256,16 @@ class Sam3Runner:
             state = self.processor.add_geometric_prompt(normalized_box, True, state)
         masks = state.get("masks")
         if masks is None:
-            raise RuntimeError("sam3 grounding returned no masks")
+            # Grounding produced no masks for the supplied text/box prompt.
+            # Raise a typed exception the route handler converts into a 422
+            # so the client UX can show a refine-prompt hint instead of a
+            # generic 500 stack trace. Common cause: the text prompt
+            # doesn't ground onto anything visible in the image (e.g.
+            # "person holding the product" on an image with no clear
+            # product) — refine with a fg-point click or rephrase.
+            raise GroundingFailedError(
+                f"text prompt '{request.text_prompt or '(none)'}' did not match any region; refine with a foreground point or rephrase"
+            )
         mask = masks.detach().cpu().numpy()
         return mask, _mask_bbox(mask)
 
@@ -337,6 +353,13 @@ def segment(
         raise HTTPException(status_code=503, detail="model not loaded")
     try:
         return runner.segment(request)
+    except GroundingFailedError as exc:
+        # 422 = unprocessable entity. Client UI surfaces a friendlier
+        # refine-prompt hint instead of a generic stack trace.
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "grounding_no_match", "message": str(exc)},
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
