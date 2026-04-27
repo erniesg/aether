@@ -1452,7 +1452,14 @@ async function runOneVariation(
  * Returns null when Convex isn't configured or the upload itself failed —
  * the caller treats that as "atlas unavailable" and the lap continues.
  */
-async function composeAndUploadAtlas(input: {
+/**
+ * Exported so /api/auto-mode/post-now can re-render the atlas from the
+ * latest Convex `textOverlays` rows at post time — keeps the published
+ * preview thumbnail in sync with creator text edits made after the lap
+ * completed. The lap-time caller (runAutoMode) doesn't need that since
+ * the atlas is built once from fresh planner output.
+ */
+export async function composeAndUploadAtlas(input: {
   heroSource: string;
   textOverlays?: ProposedTextOverlay[];
   captionsByLocale?: Partial<Record<LocaleCode, string>>;

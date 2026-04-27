@@ -311,6 +311,27 @@ export const rejectVariation = mutationGeneric({
 });
 
 /**
+ * Swap the atlas URL on a variation without touching anything else. Called
+ * from /api/auto-mode/post-now after re-rendering the atlas against the
+ * creator's latest text edits. The variation is identified by string id so
+ * the post-now route (which holds the variation as a string) can patch
+ * without round-tripping through the typed v.id() form.
+ */
+export const setVariationAtlas = mutationGeneric({
+  args: {
+    variationId: v.string(),
+    atlasUrl: v.string(),
+    atlasAssetId: v.optional(v.id('asset')),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = { atlasUrl: args.atlasUrl };
+    if (args.atlasAssetId !== undefined) patch.atlasAssetId = args.atlasAssetId;
+    await ctx.db.patch(args.variationId as any, patch);
+    return null;
+  },
+});
+
+/**
  * Persist the B2 research bundle on the campaign row. Called from
  * runAutoMode after the research Managed Agent completes, before the
  * variation fan-out. Stored on the campaign so /inspect and the right

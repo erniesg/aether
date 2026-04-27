@@ -20,8 +20,10 @@ import { NextResponse } from 'next/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
 import {
+  composeAndUploadAtlas,
   scheduleVariationPosts,
   type AutoModeVariationResult,
+  type LocaleCode,
 } from '@/lib/agent/auto-mode';
 
 export const runtime = 'nodejs';
@@ -45,16 +47,18 @@ interface ConvexVariation {
   status: string;
   heroImageUrl?: string;
   caption?: string;
+  captionsByLocale?: Partial<Record<LocaleCode, string>>;
   hashtags?: string[];
   schedulePlatform?: string;
   scheduleWhenLocal?: string;
   nativePerFormatUrls?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
   atlasUrl?: string;
+  textOverlays?: unknown;
   agentRunIds?: unknown;
 }
 
 const campaignsAnyApi = (anyApi as unknown as {
-  campaigns: { get: unknown };
+  campaigns: { get: unknown; setVariationAtlas: unknown };
 }).campaigns;
 
 async function loadVariationFromConvex(
@@ -80,6 +84,66 @@ async function loadVariationFromConvex(
     return { campaign: result.campaign, variation };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Re-render the atlas from the variation's current `textOverlays` (which
+ * receive canvas-side edits via `campaigns.updateVariationOverlay`) and
+ * upload the result. Returns the new public URL on success, undefined on
+ * any failure (refresh is best-effort — posting itself shouldn't fail
+ * just because the preview thumbnail couldn't be re-rendered).
+ *
+ * Side-effect: when refresh succeeds, persists the new URL to Convex so
+ * /inspect and any future Discord embed reads see it too.
+ */
+async function maybeRefreshAtlas(
+  variation: ConvexVariation
+): Promise<string | undefined> {
+  if (!variation.heroImageUrl) return undefined;
+  if (variation.heroImageUrl.startsWith('data:')) return undefined;
+
+  const overlays = (variation.textOverlays ?? undefined) as
+    | ReadonlyArray<unknown>
+    | undefined;
+  // No overlays means the original atlas had no creator-supplied text to
+  // begin with — re-rendering would just produce the same composition,
+  // so skip the round trip.
+  if (!overlays || overlays.length === 0) return undefined;
+
+  try {
+    const refreshed = await composeAndUploadAtlas({
+      heroSource: variation.heroImageUrl,
+      textOverlays: overlays as Parameters<typeof composeAndUploadAtlas>[0]['textOverlays'],
+      captionsByLocale: variation.captionsByLocale,
+    });
+    if (!refreshed) return undefined;
+
+    // Persist to Convex so the next /inspect render and any future
+    // Discord ping (which reads variation.atlasUrl) see the fresh URL.
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+    if (convexUrl) {
+      try {
+        const client = new ConvexHttpClient(convexUrl);
+        await client.mutation(campaignsAnyApi.setVariationAtlas as never, {
+          variationId: variation.id,
+          atlasUrl: refreshed.publicUrl,
+          atlasAssetId: refreshed.assetId,
+        } as never);
+      } catch {
+        // Atlas re-render still succeeded; just log-skip persistence.
+        // eslint-disable-next-line no-console
+        console.warn('[post-now] setVariationAtlas mutation failed; in-memory only');
+      }
+    }
+    return refreshed.publicUrl;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[post-now] atlas refresh failed:',
+      err instanceof Error ? err.message : String(err)
+    );
+    return undefined;
   }
 }
 
@@ -164,6 +228,17 @@ export async function POST(request: Request) {
     const url = new URL(request.url);
     const baseUrl = `${url.protocol}//${url.host}`;
     const wsId = workspaceId ?? loaded.campaign.workspaceId;
+
+    // Path A from the canvas-as-source-of-truth handoff: re-render the
+    // atlas against the LATEST Convex `textOverlays` so creator edits
+    // (made after the lap completed) propagate to the published preview
+    // thumbnail. Fail-soft — if compose / upload errors, post anyway with
+    // the stale atlas. Path B (tldraw export of actual canvas frames) is
+    // the real answer for non-text edits and is tracked for follow-up.
+    const refreshedAtlasUrl = await maybeRefreshAtlas(variation);
+    if (refreshedAtlasUrl) {
+      variation.atlasUrl = refreshedAtlasUrl;
+    }
 
     const scheduledPostIds = await scheduleVariationPosts({
       variations: [variationToScheduleInput(variation)],
