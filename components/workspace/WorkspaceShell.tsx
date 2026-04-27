@@ -1683,9 +1683,15 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [autoModeConfig, wsId]
   );
 
-  /** Slice 4 — approve a variation by index. */
+  /** Slice 4 — approve a variation by index. `forcePostNow` short-circuits
+   *  the scheduler so every per-platform publisher fires ~now (handled by
+   *  the approve route forwarding to /api/auto-mode/run). */
   const handleAutoModeApprove = useCallback(
-    async (variationIndex: number, notifyMode: 'review' | 'auto-post') => {
+    async (
+      variationIndex: number,
+      notifyMode: 'review' | 'auto-post',
+      forcePostNow?: boolean
+    ) => {
       if (!inFlightCampaignId) return;
       try {
         await fetch('/api/auto-mode/approve', {
@@ -1696,6 +1702,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             variationIndex,
             notifyMode,
             workspaceId: wsId,
+            ...(forcePostNow ? { forcePostNow: true } : {}),
           }),
         });
       } catch (err) {

@@ -15,6 +15,7 @@
  */
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
 import { isConvexEnabled } from '@/lib/convex/client';
@@ -71,6 +72,7 @@ function shortId(id: string): string {
 }
 
 export default function RunsPage() {
+  const router = useRouter();
   const campaigns = useQuery(
     campaignsAnyApi.listRecent as never,
     isConvexEnabled() ? ({ limit: 50 } as never) : 'skip'
@@ -125,10 +127,29 @@ export default function RunsPage() {
                 const wsId = c.workspaceId ?? '—';
                 const inspectHref = `/inspect/${c.id}`;
                 const workspaceHref = `/workspace/${encodeURIComponent(wsId)}?campaign=${c.id}`;
+                const canDropOnCanvas = wsId !== '—';
                 return (
                   <tr
                     key={c.id}
-                    className="border-b border-ink-faint/10 align-middle hover:bg-surface-2"
+                    onClick={
+                      canDropOnCanvas
+                        ? (e) => {
+                            // Don't hijack the inner anchor clicks (inspect / workspace links).
+                            const t = e.target as HTMLElement;
+                            if (t.closest('a')) return;
+                            router.push(workspaceHref);
+                          }
+                        : undefined
+                    }
+                    className={
+                      'border-b border-ink-faint/10 align-middle hover:bg-surface-2' +
+                      (canDropOnCanvas ? ' cursor-pointer' : '')
+                    }
+                    title={
+                      canDropOnCanvas
+                        ? 'click to load this lap on the workspace canvas'
+                        : undefined
+                    }
                   >
                     <td className="px-2 py-2 font-caption text-ink-dim tabular-nums">
                       {relativeTime(c.startedAt)}

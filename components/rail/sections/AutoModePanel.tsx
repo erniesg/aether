@@ -182,8 +182,15 @@ export interface LapEventView {
 export interface AutoModePanelProps {
   campaign: AutoModeCampaignView | null;
   variations: AutoModeVariationView[];
-  /** Called when the user approves a variation. Passes the variation index. */
-  onApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
+  /** Called when the user approves a variation. The optional `forcePostNow`
+   *  signal is honoured by the auto-post path (the approve endpoint forwards
+   *  it to /api/auto-mode/run, which short-circuits the scheduler so all
+   *  per-platform publishers fire ~now instead of waiting for whenLocal). */
+  onApprove?: (
+    variationIndex: number,
+    notifyMode: 'review' | 'auto-post',
+    forcePostNow?: boolean
+  ) => Promise<void>;
   /** Called when the user rejects a variation. */
   onReject?: (variationIndex: number) => Promise<void>;
   /** B2 research bundle from runAutoMode. When present, a collapsible
@@ -593,7 +600,11 @@ function VariationCard({
 }: {
   variation: AutoModeVariationView;
   campaignId: string;
-  onApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
+  onApprove?: (
+    variationIndex: number,
+    notifyMode: 'review' | 'auto-post',
+    forcePostNow?: boolean
+  ) => Promise<void>;
   onReject?: (variationIndex: number) => Promise<void>;
 }) {
   const [approving, setApproving] = useState(false);
@@ -604,11 +615,11 @@ function VariationCard({
   const [scheduleDate, setScheduleDate] = useState('');
 
   const handleApprove = useCallback(
-    async (notifyMode: 'review' | 'auto-post') => {
+    async (notifyMode: 'review' | 'auto-post', forcePostNow?: boolean) => {
       if (!onApprove || approving || rejecting) return;
       setApproving(true);
       try {
-        await onApprove(variation.index, notifyMode);
+        await onApprove(variation.index, notifyMode, forcePostNow);
         setApproved(true);
       } finally {
         setApproving(false);
@@ -721,6 +732,16 @@ function VariationCard({
                     data-testid={`variation-approve-${variation.index}`}
                   >
                     {approving ? 'approving…' : 'approve'}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={approving || rejecting}
+                    onClick={() => void handleApprove('auto-post', true)}
+                    data-testid={`variation-post-now-${variation.index}`}
+                    title="Post immediately to every configured platform — bypasses the schedule window"
+                  >
+                    {approving ? 'posting…' : 'post now'}
                   </Button>
                   <Button
                     variant="subtle"
