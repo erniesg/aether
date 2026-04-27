@@ -137,6 +137,28 @@ describe('buildFormatSvg', () => {
     });
     expect(svg).toContain('Tamil MN');
   });
+
+  it('strips emoji from text before SVG emission so Pango cannot abort', () => {
+    // Regression guard (2026-04-27): an emoji glyph in caption text caused
+    // Pango to call `g_error()` ("Could not load fallback font, bailing
+    // out") which abort()s the Node process and kills the dev server.
+    // Stripping at the escapeXml layer prevents the codepoint from ever
+    // reaching librsvg → Pango.
+    const svg = buildFormatSvg({
+      format: COMPOSE_FORMATS[0],
+      locale: 'en-SG',
+      headline: 'Win the aircon wars 🌙✨',
+      caption: 'Quiet luxury 👋🏽 debut energy 🇸🇬',
+    });
+    expect(svg).toContain('Win the aircon wars');
+    expect(svg).toContain('Quiet luxury');
+    expect(svg).toContain('debut energy');
+    // No raw emoji codepoints survive into the SVG payload.
+    expect(svg).not.toMatch(/\p{Extended_Pictographic}/u);
+    expect(svg).not.toMatch(/[\u{1F1E6}-\u{1F1FF}]/u);
+    // Skin-tone modifiers (FE0F variation selector, U+1F3FD) gone too.
+    expect(svg).not.toMatch(/[\u{FE0F}\u{200D}]/u);
+  });
 });
 
 describe('cropAndResize', () => {

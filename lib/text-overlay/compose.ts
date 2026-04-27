@@ -57,8 +57,36 @@ const FONT_FALLBACKS: Record<LocaleCode, string> = {
 const TEXT_FILL = '#ffffff';
 const TEXT_STROKE = '#000000';
 
-function escapeXml(s: string): string {
+/**
+ * Strip emoji glyphs and zero-width joiners before SVG rendering. sharp
+ * rasterises SVG text via librsvg → Pango; if the input contains any
+ * Extended_Pictographic codepoint AND no emoji-capable fallback font is
+ * installed, Pango calls `g_error()` ("Could not load fallback font, bailing
+ * out") which `abort()`s the entire Node process — taking the dev server
+ * down with it (regression observed 2026-04-27 on IKEA + Eight Sleep laps).
+ *
+ * We can't rely on every dev box / production runtime to ship Noto Color
+ * Emoji, and the captions / headlines don't need emojis — model output
+ * occasionally smuggles them in (✨, 🌙, 👋 etc.). Strip + collapse the
+ * leftover whitespace so we never feed Pango a glyph it can't shape.
+ *
+ * Stripped:
+ *   - Extended_Pictographic property (covers all standard emoji)
+ *   - Variation selectors (U+FE0F text/emoji presentation switches)
+ *   - Zero-width joiners (U+200D, used in compound emoji)
+ *   - Regional Indicator Symbols (U+1F1E6–1F1FF, used for flag emoji)
+ */
+function stripEmoji(s: string): string {
   return s
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '')
+    .replace(/[\u{FE0F}\u{200D}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function escapeXml(s: string): string {
+  return stripEmoji(s)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
