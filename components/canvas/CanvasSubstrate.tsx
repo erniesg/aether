@@ -834,6 +834,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         if (cancelled) return;
 
         const providers = json.providers;
+        // eslint-disable-next-line no-console
+        console.log(
+          '[segmentation/providers] loaded:',
+          providers.map((p) => `${p.id}=${p.available ? 'AVAILABLE' : `unavailable(${p.unavailableReason ?? '?'})`}`).join(' · ')
+        );
         setSegmentationProviders(providers);
         setSegmentation((current) => {
           if (!current) return current;

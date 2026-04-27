@@ -204,7 +204,7 @@ export function FloatingToolbar({
       aria-label="canvas tools"
       data-taxonomy="tool"
       className={cn(
-        'pointer-events-auto absolute z-10 flex max-w-[calc(100%-16px)] flex-wrap items-center gap-1 rounded-md border border-border bg-surface-panel p-1 shadow-sm',
+        'pointer-events-auto absolute z-[1000] flex max-w-[calc(100%-16px)] flex-wrap items-center gap-1 rounded-md border border-border bg-surface-panel p-1 opacity-100 shadow-sm',
         className
       )}
       style={{ left: pos.x, top: pos.y }}

@@ -124,7 +124,7 @@ export function SegmentationPanel({
     activeProvider?.available === false;
 
   return (
-    <aside className="pointer-events-auto absolute bottom-6 left-6 z-20 w-80 rounded-md border border-border bg-surface-panel p-3 shadow-md">
+    <aside className="pointer-events-auto absolute bottom-6 left-6 z-[1000] w-80 rounded-md border border-border bg-surface-panel p-3 opacity-100 shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="font-caption text-ink-dim">segmentation</span>
