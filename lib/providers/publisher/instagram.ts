@@ -93,6 +93,75 @@ export interface InstagramPublisherOptions {
    * Injected fetch for testing. Defaults to the global `fetch`.
    */
   fetch?: typeof fetch;
+  /**
+   * Optional public-storage adapter used to stage Convex (or any other
+   * non-Meta-fetchable) URLs onto a Meta-friendly public URL before
+   * calling /{ig-user-id}/media. When omitted, we resolve the cached
+   * R2 storage at call time. Tests inject a fake here.
+   */
+  storage?: import('../storage/types').PublicStorageProvider;
+}
+
+/**
+ * Hostnames Meta's media-puller is known to reject. We stage these
+ * via R2 before calling /media. Other hostnames are passed through
+ * unchanged (S3, public CDNs, GitHub raw — already work).
+ */
+const HOSTNAMES_NEEDING_STAGING = [
+  'convex.cloud',
+  'convex.dev',
+];
+
+function needsStaging(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return HOSTNAMES_NEEDING_STAGING.some(
+      (suffix) => u.hostname === suffix || u.hostname.endsWith(`.${suffix}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function maybeStageForMeta(
+  url: string,
+  opts: InstagramPublisherOptions
+): Promise<string> {
+  if (!needsStaging(url)) return url;
+
+  // Lazy-resolve the R2 adapter — caller can override via opts.storage
+  // (tests do this). Production reads R2_* env vars.
+  const storage =
+    opts.storage ??
+    (await import('../storage/r2').then((m) => m.getR2Storage()));
+
+  if (!storage.isAvailable()) {
+    // Fail-soft: we'd rather let Meta produce its own error than throw
+    // here — the lap then logs the actual Meta rejection so the user
+    // knows R2 isn't configured yet.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[ig-publisher] storage adapter unavailable; passing ${url} to Meta unchanged. Set R2_* env vars to enable staging.`
+    );
+    return url;
+  }
+
+  const fetchImpl = opts.fetch ?? globalThis.fetch;
+  const res = await fetchImpl(url);
+  if (!res.ok) {
+    throw new Error(
+      `failed to fetch source media from ${url}: HTTP ${res.status}`
+    );
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  const mimeType = res.headers.get('content-type') ?? 'image/png';
+
+  const staged = await storage.stage({ bytes: buf, mimeType });
+  // eslint-disable-next-line no-console
+  console.log(
+    `[ig-publisher] staged ${url} (${buf.byteLength} bytes) → ${staged.publicUrl} via ${staged.provider} in ${staged.latencyMs}ms`
+  );
+  return staged.publicUrl;
 }
 
 export function isInstagramPublisherConfigured(
@@ -238,8 +307,25 @@ export function createInstagramPublisher(
         throw new PublisherError('mediaUrls required', PROVIDER_ID);
       }
 
-      const imageUrl = post.mediaUrls[0]!;
+      const rawImageUrl = post.mediaUrls[0]!;
       const caption = buildCaption(post);
+
+      // Stage Convex storage URLs via R2 before passing to /media.
+      //
+      // Why: Meta's media-puller refuses Convex URLs ("media URI doesn't
+      // meet our requirements" — error_subcode 2207052) because Convex
+      // sets cache-control: private. R2 staged URLs come back with
+      // cache-control: public, max-age=… — Meta accepts those cleanly.
+      //
+      // Detection is hostname-based: if the URL is a *.convex.cloud
+      // origin OR an explicit override flag is set, fetch the bytes and
+      // re-host on R2. Pass-through for any other hostname (S3, public
+      // CDNs, GitHub raw — all already Meta-fetchable).
+      //
+      // R2 staging is fail-soft: if the storage adapter is unavailable
+      // (no env), we fall back to the original URL and let Meta reject
+      // it with the original error rather than failing here ourselves.
+      const imageUrl = await maybeStageForMeta(rawImageUrl, opts);
 
       // Step 1: Create media container.
       const containerResp = await graphPost<{ id: string }>(

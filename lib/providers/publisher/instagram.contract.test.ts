@@ -119,6 +119,100 @@ describe('InstagramPublisher · contract', () => {
     expect(step3Url).toContain('container_abc');
   });
 
+  it('stages Convex storage URLs through the storage adapter before /media', async () => {
+    // Regression guard (2026-04-27): Meta's media-puller refused Convex
+    // URLs ("media URI doesn't meet our requirements"). The publisher
+    // now detects *.convex.cloud / *.convex.dev hostnames, fetches the
+    // bytes, stages them on R2, and passes the public R2 URL to /media.
+    const stageSpy = vi.fn(async () => ({
+      publicUrl: 'https://pub-test.r2.dev/staged/hero.png',
+      key: 'staged/hero.png',
+      size: 8,
+      provider: 'r2',
+      latencyMs: 12,
+    }));
+    const fakeStorage = {
+      id: 'r2',
+      isAvailable: () => true,
+      stage: stageSpy,
+    } as const;
+
+    const fetchMockFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      // Source bytes fetch (Convex URL).
+      if (href.includes('convex.cloud')) {
+        return new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]).buffer, {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+      }
+      if (href.includes('/media_publish?')) return json({ id: 'media_xyz' });
+      if (href.includes('container_abc?') && href.includes('fields=status_code')) {
+        return json({ status_code: 'FINISHED' });
+      }
+      if (href.includes('/media?')) return json({ id: 'container_abc' });
+      return new Response('unexpected', { status: 500 });
+    });
+    const fetchMock = fetchMockFn as unknown as typeof fetch;
+
+    const { createInstagramPublisher } = await import('./instagram');
+    const publisher = createInstagramPublisher({
+      accessToken: 'tok',
+      igUserId: '12345',
+      fetch: fetchMock,
+      storage: fakeStorage,
+    });
+
+    await publisher.schedule(
+      post({ mediaUrls: ['https://fiery-opossum-632.convex.cloud/api/storage/abc'] })
+    );
+
+    // Storage adapter was invoked with the source bytes.
+    expect(stageSpy).toHaveBeenCalledTimes(1);
+    expect(stageSpy.mock.calls[0]![0].mimeType).toBe('image/png');
+
+    // /media call carries the staged R2 URL, NOT the original Convex URL.
+    const containerCall = (fetchMockFn as Mock).mock.calls.find((c) =>
+      String(c[0]).includes('/12345/media?')
+    );
+    expect(containerCall).toBeDefined();
+    expect(String(containerCall![0])).toContain('pub-test.r2.dev');
+    expect(String(containerCall![0])).not.toContain('convex.cloud');
+  });
+
+  it('passes non-Convex URLs straight through to Meta (no staging)', async () => {
+    const stageSpy = vi.fn();
+    const fakeStorage = {
+      id: 'r2',
+      isAvailable: () => true,
+      stage: stageSpy,
+    } as const;
+
+    const fetchMockFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes('/media_publish?')) return json({ id: 'media_xyz' });
+      if (href.includes('container_abc?') && href.includes('fields=status_code')) {
+        return json({ status_code: 'FINISHED' });
+      }
+      if (href.includes('/media?')) return json({ id: 'container_abc' });
+      return new Response('unexpected', { status: 500 });
+    });
+
+    const { createInstagramPublisher } = await import('./instagram');
+    const publisher = createInstagramPublisher({
+      accessToken: 'tok',
+      igUserId: '12345',
+      fetch: fetchMockFn as unknown as typeof fetch,
+      storage: fakeStorage,
+    });
+
+    await publisher.schedule(
+      post({ mediaUrls: ['https://cdn.example.com/hero.png'] })
+    );
+
+    expect(stageSpy).not.toHaveBeenCalled();
+  });
+
   it('schedule rejects future-scheduled posts with a clear error', async () => {
     const { createInstagramPublisher } = await import('./instagram');
     const publisher = createInstagramPublisher({
