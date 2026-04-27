@@ -42,6 +42,13 @@ interface CampaignDoc {
   researchBundle?: unknown;
   schedulePlan?: unknown;
   clusterBundle?: unknown;
+  /**
+   * Reference images the lap was fired with. Persisted at lap kickoff so
+   * /inspect can confirm what visual identity anchors flowed into the
+   * agent. We strip dataUrl payloads (they're huge — multi-MB base64) and
+   * keep only the URL + hint. Surfaced on /inspect/[campaignId].
+   */
+  referenceImages?: Array<{ url?: string; hint?: string }>;
 }
 
 interface CampaignVariationDoc {
@@ -88,6 +95,7 @@ function toCampaign(doc: CampaignDoc) {
     researchBundle: doc.researchBundle,
     schedulePlan: doc.schedulePlan,
     clusterBundle: doc.clusterBundle,
+    referenceImages: doc.referenceImages,
   };
 }
 
@@ -127,6 +135,16 @@ export const startCampaign = mutationGeneric({
     triggerPayload: v.string(),
     variationCount: v.number(),
     notifyMode: NOTIFY_MODE,
+    /** URL-only ref summary persisted for /inspect visibility. dataUrls
+     *  stripped at the call site to keep the row small. */
+    referenceImages: v.optional(
+      v.array(
+        v.object({
+          url: v.optional(v.string()),
+          hint: v.optional(v.string()),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert('campaign', {
@@ -137,6 +155,7 @@ export const startCampaign = mutationGeneric({
       notifyMode: args.notifyMode,
       status: 'running',
       startedAt: Date.now(),
+      referenceImages: args.referenceImages,
     });
     return String(id);
   },

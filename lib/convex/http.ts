@@ -221,6 +221,9 @@ export interface ServerCampaignStart {
   triggerPayload: string;
   variationCount: number;
   notifyMode: 'notify' | 'review' | 'auto-post';
+  /** URL-only ref summary for /inspect visibility. Caller must strip
+   *  dataUrl payloads before passing — they're multi-MB. */
+  referenceImages?: Array<{ url?: string; hint?: string }>;
 }
 
 export async function startCampaign(

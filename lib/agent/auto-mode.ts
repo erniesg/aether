@@ -1978,12 +1978,27 @@ export async function runAutoMode(req: AutoModeRequest): Promise<AutoModeResult>
     req = { ...req, useManagedAgents: false };
   }
 
+  // URL-only ref summary persisted on the campaign row so /inspect can
+  // confirm what visual identity anchors flowed into the lap. Strip
+  // dataUrl payloads (often multi-MB base64) and replace with a stable
+  // placeholder so the row stays small + reproducible. The `hint` is
+  // surfaced to the agent + carries through.
+  const refSummary: Array<{ url?: string; hint?: string }> | undefined = (
+    req.referenceImages ?? (req.referenceImage ? [req.referenceImage] : [])
+  )
+    .map((r) => ({
+      url: r.url ?? (r.dataUrl ? '(data url)' : undefined),
+      hint: r.hint,
+    }))
+    .filter((r) => r.url || r.hint);
+
   const campaignId = await startCampaign({
     workspaceId: req.workspaceId,
     triggerKind: req.trigger.kind,
     triggerPayload: req.trigger.payload,
     variationCount: req.variationCount,
     notifyMode: req.notifyMode,
+    referenceImages: refSummary && refSummary.length > 0 ? refSummary : undefined,
   });
 
   logLapEvent({

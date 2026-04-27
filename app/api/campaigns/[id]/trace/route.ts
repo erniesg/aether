@@ -280,6 +280,7 @@ export async function GET(
       researchBundle: campaign.researchBundle,
       schedulePlan: campaign.schedulePlan,
       clusterBundle: campaign.clusterBundle,
+      referenceImages: campaign.referenceImages,
     },
     variations: variationTraces,
     scheduledPosts,

@@ -80,6 +80,9 @@ export interface CampaignRow {
   /** Cluster Managed Agent bundle (canonical: ClusterBundle in
    *  lib/agent/managed/cluster.ts). Persisted via setCampaignClusterBundle. */
   clusterBundle?: unknown;
+  /** URL-only ref summary persisted at startCampaign. /inspect uses this
+   *  to show what visual identity anchors flowed into the lap. */
+  referenceImages?: Array<{ url?: string; hint?: string }>;
 }
 
 export interface VariationRow {

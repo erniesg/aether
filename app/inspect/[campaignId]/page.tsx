@@ -135,6 +135,7 @@ interface TraceResponse {
     finishedAt?: number;
     researchBundle?: ResearchBundle;
     schedulePlan?: SchedulePlan;
+    referenceImages?: Array<{ url?: string; hint?: string }>;
   };
   variations?: VariationTrace[];
   scheduledPosts?: Array<{
@@ -501,6 +502,63 @@ export default async function InspectPage({
                 />
               </div>
             </Surface>
+
+            {/* Input reference images — confirms what visual identity
+                anchors flowed into the lap. Empty list means the lap ran
+                text-only (no refs). Persisted at startCampaign time. */}
+            {trace.campaign.referenceImages !== undefined && (
+              <Surface className="mt-4 p-5">
+                <h2 className="font-display text-lg mb-3">
+                  input references{' '}
+                  <span className="font-caption text-ink-faint text-sm">
+                    {trace.campaign.referenceImages.length}
+                  </span>
+                </h2>
+                {trace.campaign.referenceImages.length === 0 ? (
+                  <p className="font-caption text-ink-dim text-sm">
+                    no references — lap ran text-only.
+                  </p>
+                ) : (
+                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {trace.campaign.referenceImages.map((ref, i) => {
+                      const url = ref.url || '';
+                      const isUrl = url.startsWith('http');
+                      return (
+                        <li key={i} className="flex flex-col gap-1">
+                          {isUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={url}
+                              alt={ref.hint || `ref ${i + 1}`}
+                              className="aspect-square w-full rounded border border-border-soft object-cover"
+                            />
+                          ) : (
+                            <div className="flex aspect-square w-full items-center justify-center rounded border border-border-soft bg-surface-panel font-mono text-[10px] text-ink-faint">
+                              {url || '(unknown)'}
+                            </div>
+                          )}
+                          {ref.hint ? (
+                            <p className="font-caption text-[10px] text-ink-dim truncate">
+                              {ref.hint}
+                            </p>
+                          ) : null}
+                          {isUrl ? (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[9px] text-ink-faint hover:text-ink truncate"
+                            >
+                              {url.slice(0, 40)}…
+                            </a>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </Surface>
+            )}
 
             {/* Research signals — only when persisted */}
             {trace.campaign.researchBundle && (
