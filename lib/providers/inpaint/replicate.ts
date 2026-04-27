@@ -15,11 +15,25 @@ import { InpaintError } from './types';
  * RealisticVision, etc.) without a code change.
  */
 
-const DEFAULT_MODEL = 'cjwbw/lama';
-// LAMA model version pinned to a known-working hash. Override via
-// INPAINT_MODEL_VERSION env for a different revision.
+// `cjwbw/lama` was removed from Replicate sometime in 2025 — every
+// bg-inpaint call started returning HTTP 422 "Invalid version or not
+// permitted". Swapped to lucataco/sdxl-inpainting (verified live
+// 2026-04-27): prompt-aware SDXL inpainting that takes the same
+// (image, mask) inputs but lets us bias toward "fill the masked
+// region with natural photographic background" via the prompt.
+//
+// True LAMA-style mask-only fill (no prompt-driven content) doesn't
+// have a reliably-hosted Replicate version anymore — saik0s/lama
+// exists but auto-detects what to remove rather than accepting a mask.
+// Override DEFAULT_MODEL / DEFAULT_VERSION via env if a better fork
+// surfaces.
+const DEFAULT_MODEL = 'lucataco/sdxl-inpainting';
 const DEFAULT_VERSION =
-  '0c4f7c3a1c89e5b5d3a4f84d7b4d5c8b3a2e0d9c3a8e5b7e9d2c1f4a8b6d3e7c';
+  'a5b13068cc81a89a4fbeefeccc774869fcb34df4dbc92c1555e0f2771d49dde7';
+const DEFAULT_BG_FILL_PROMPT =
+  'natural photographic background, seamless continuation of the surrounding scene, no people, no subjects, no text';
+const DEFAULT_NEGATIVE_PROMPT =
+  'people, person, human, face, body, text, watermark, lowres, bad anatomy';
 
 type ReplicatePrediction = {
   id: string;
@@ -67,10 +81,20 @@ export function createReplicateInpaintProvider(
             input: {
               image: req.sourceUrl,
               mask: req.maskUrl,
-              // LAMA accepts an optional `prompt` field on some forks but
-              // the canonical implementation ignores it; pass through for
-              // forward-compat with prompt-aware variants.
-              ...(req.prompt ? { prompt: req.prompt } : {}),
+              // SDXL-inpainting needs a prompt; default to a
+              // bg-continuation phrasing so the masked subject region is
+              // filled with plausible photographic background, not a new
+              // subject. Caller's `req.prompt` wins when supplied.
+              prompt: req.prompt || DEFAULT_BG_FILL_PROMPT,
+              negative_prompt: DEFAULT_NEGATIVE_PROMPT,
+              // strength=1.0 = full destruction of source pixels in the
+              // masked region (we WANT the subject area redrawn). Outside
+              // the mask, the original image is preserved verbatim.
+              strength: 1.0,
+              // Lower guidance keeps the fill closer to the surrounding
+              // pixels rather than over-interpreting the prompt.
+              guidance_scale: 5.0,
+              steps: 25,
             },
           }),
         }
