@@ -47,15 +47,24 @@ export function buildMaskedImageDataUrl(params: {
     ? '<filter id="invertMask"><feColorMatrix type="matrix" values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0" /></filter>'
     : '';
 
+  // preserveAspectRatio="xMidYMid slice" = cover-fit (centered, edges
+  // cropped). Was "none" (stretch). The stretch produced visible
+  // compression / wrong-aspect rendering whenever the source's intrinsic
+  // dims didn't match the requested width/height — common when the
+  // canvas asks for the cutout sized to a frame that differs from the
+  // source aspect (e.g., 4:5 image inside a 1:1 IG frame). Both source
+  // and mask use the same preserveAspectRatio so they stay aligned.
+  const par = 'xMidYMid slice';
+
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${params.width}" height="${params.height}" viewBox="0 0 ${params.width} ${params.height}">`,
     '<defs>',
     filter,
     '<mask id="cutoutMask" maskUnits="userSpaceOnUse">',
-    `<image href="${params.maskDataUrl}" width="${params.width}" height="${params.height}" preserveAspectRatio="none"${params.invertMask ? ' filter="url(#invertMask)"' : ''} />`,
+    `<image href="${params.maskDataUrl}" width="${params.width}" height="${params.height}" preserveAspectRatio="${par}"${params.invertMask ? ' filter="url(#invertMask)"' : ''} />`,
     '</mask>',
     '</defs>',
-    `<image href="${params.sourceDataUrl}" width="${params.width}" height="${params.height}" preserveAspectRatio="none" mask="url(#cutoutMask)" />`,
+    `<image href="${params.sourceDataUrl}" width="${params.width}" height="${params.height}" preserveAspectRatio="${par}" mask="url(#cutoutMask)" />`,
     '</svg>',
   ].join('');
 

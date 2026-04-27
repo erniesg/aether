@@ -958,6 +958,28 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     // — translucency reveals the inpainted bg behind. Two editable
     // layers from one segment action; matches the "components + bg
     // inpainting → diff layers" mental model.
+    // After segmentation, both the cutout (FG) and bg-inpaint (BG) shapes
+    // should be free-floating page-level shapes — NOT children of the
+    // frame they came from. Frames clip their children visually, which
+    // means a cutout subject can't be dragged out into negative-space
+    // composition without re-rendering. Source image's current page
+    // position becomes the spawn point so the layers land where the
+    // user expects.
+    const sourcePageBounds = editor.getShapePageBounds(
+      targetImage.shapeId as never
+    );
+    const spawnX = sourcePageBounds?.x ?? shape.x ?? 0;
+    const spawnY = sourcePageBounds?.y ?? shape.y ?? 0;
+    const spawnW =
+      sourcePageBounds?.w ??
+      (shape.props?.w as number | undefined) ??
+      segmentation.preview.width;
+    const spawnH =
+      sourcePageBounds?.h ??
+      (shape.props?.h as number | undefined) ??
+      segmentation.preview.height;
+    const pageId = editor.getCurrentPageId();
+
     const bgUrl = segmentation.preview.bgInpaintDataUrl;
     if (bgUrl) {
       const bgAssetId = AssetRecordType.createId();
@@ -984,13 +1006,17 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       editor.createShape({
         id: bgShapeId,
         type: 'image',
-        x: shape.x ?? 0,
-        y: shape.y ?? 0,
+        // Explicit page-level parent so the bg layer floats freely and
+        // can be dragged anywhere on the canvas, not clipped to the
+        // frame the source came from.
+        parentId: pageId,
+        x: spawnX,
+        y: spawnY,
         rotation: shape.rotation ?? 0,
         props: {
           assetId: bgAssetId,
-          w: (shape.props?.w as number | undefined) ?? segmentation.preview.width,
-          h: (shape.props?.h as number | undefined) ?? segmentation.preview.height,
+          w: spawnW,
+          h: spawnH,
         },
         meta: {
           aetherRole: 'segmentation-bg',
@@ -1036,9 +1062,17 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         },
       },
     ]);
+    // Reparent the cutout (FG) shape from its frame to the page so the
+    // creator can drag it anywhere — frames clip their children, which
+    // was making post-extraction layers feel "stuck" inside the
+    // original frame. Use page coords from the source's existing page
+    // bounds so the cutout doesn't visually jump on reparent.
     editor.updateShape({
       id: targetImage.shapeId as never,
       type: 'image',
+      parentId: pageId,
+      x: spawnX,
+      y: spawnY,
       props: {
         assetId,
       },
