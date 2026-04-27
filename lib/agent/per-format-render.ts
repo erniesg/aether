@@ -108,15 +108,32 @@ function withAspectComposition(
   if (hasHeroAnchor) {
     // Hero-anchored mode: the first ref is the canonical 1:1 hero. Tell
     // the model to PRESERVE the subjects exactly and only reframe / outpaint
-    // the canvas to fill the new aspect. This produces the "same magazine
-    // cover at every format" behaviour the user wants — identical subjects,
-    // identical styling, just more or less environment revealed at the edges.
+    // the canvas to fill the new aspect.
+    //
+    // 2026-04-27 strengthening: observed real-world failures on 16:9
+    // where the model was CROPPING into the hero (subjects clipped) rather
+    // than zooming out and outpainting. Added per-aspect extension
+    // directive ("LEFTWARD & RIGHTWARD" for landscape, "UPWARD &
+    // DOWNWARD" for portrait) plus explicit "subjects appear SMALLER /
+    // zoomed out" + "do not clip" language.
+    const isLandscape =
+      aspect === '16:9' || aspect === '4:3' || aspect === '3:2';
+    const isPortrait =
+      aspect === '9:16' ||
+      aspect === '4:5' ||
+      aspect === '3:4' ||
+      aspect === '2:3';
+    const extensionDirective = isLandscape
+      ? 'EXTEND the scene LEFTWARD and RIGHTWARD beyond the hero\'s 1:1 frame — reveal more environment / horizon on both sides. The subjects must appear SMALLER in this frame than they do in the hero (zoomed out), never larger or cropped.'
+      : isPortrait
+      ? 'EXTEND the scene UPWARD and DOWNWARD beyond the hero\'s 1:1 frame — reveal more sky / ceiling above and floor / ground below. The subjects keep the same horizontal proportions as the hero; only the vertical environment expands.'
+      : 'Match the hero composition exactly at the new canvas size.';
     return [
       prompt.trim(),
       '',
       cue,
       '',
-      'CRITICAL — HERO ANCHORING: The first reference image attached is the canonical hero. PRESERVE its subjects, poses, faces, clothing, styling, lighting, palette, and composition language EXACTLY. Treat this call as outpainting / canvas extension: the visual identity of the hero must carry over verbatim. Only the framing (canvas extent + how much environment is visible at the edges) changes to fit this aspect. Do NOT generate a different shoot, a different model, a different pose, or a different mood.',
+      `CRITICAL — HERO ANCHORING & ZOOM-OUT: The first reference image attached is the canonical hero. PRESERVE its subjects, poses, faces, clothing, styling, lighting, palette, and composition language EXACTLY. Treat this call as canvas EXTENSION (outpainting), NOT cropping. ${extensionDirective} The ENTIRE hero subject area must remain visible — do NOT clip subjects at the new frame's edges, do NOT produce a tighter crop, do NOT generate a different shoot / model / pose / mood.`,
     ].join('\n');
   }
 
