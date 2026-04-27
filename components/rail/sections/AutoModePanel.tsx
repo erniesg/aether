@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
-import { Button } from '@/components/ui/Button';
+import { VariationActions } from '@/components/rail/VariationActions';
 
 /**
  * AutoModePanel — right-rail body for the in-flight + most-recent Auto Mode
@@ -594,7 +594,7 @@ export function AutoModePanel({
 
 function VariationCard({
   variation,
-  campaignId: _campaignId,
+  campaignId,
   onApprove,
   onReject,
 }: {
@@ -607,37 +607,26 @@ function VariationCard({
   ) => Promise<void>;
   onReject?: (variationIndex: number) => Promise<void>;
 }) {
-  const [approving, setApproving] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
-  const [approved, setApproved] = useState(false);
-  const [rejected, setRejected] = useState(false);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState('');
-
-  const handleApprove = useCallback(
+  // Thin adapters bind the variation index to the parent-shaped callbacks
+  // so VariationActions can call them as (notifyMode, forcePostNow?). Only
+  // forwards forcePostNow when truthy — keeps the parent call shape minimal
+  // for the review/schedule paths and matches the existing test contract.
+  const onApproveBound = useCallback(
     async (notifyMode: 'review' | 'auto-post', forcePostNow?: boolean) => {
-      if (!onApprove || approving || rejecting) return;
-      setApproving(true);
-      try {
-        await onApprove(variation.index, notifyMode, forcePostNow);
-        setApproved(true);
-      } finally {
-        setApproving(false);
+      if (!onApprove) return;
+      if (forcePostNow) {
+        await onApprove(variation.index, notifyMode, true);
+      } else {
+        await onApprove(variation.index, notifyMode);
       }
     },
-    [onApprove, variation.index, approving, rejecting]
+    [onApprove, variation.index]
   );
+  const onRejectBound = useCallback(async () => {
+    if (!onReject) return;
+    await onReject(variation.index);
+  }, [onReject, variation.index]);
 
-  const handleReject = useCallback(async () => {
-    if (!onReject || approving || rejecting) return;
-    setRejecting(true);
-    try {
-      await onReject(variation.index);
-      setRejected(true);
-    } finally {
-      setRejecting(false);
-    }
-  }, [onReject, variation.index, approving, rejecting]);
   const localeKeys = variation.captionsByLocale
     ? (Object.keys(variation.captionsByLocale) as Array<
         keyof NonNullable<AutoModeVariationView['captionsByLocale']>
@@ -719,74 +708,13 @@ function VariationCard({
             <div className="font-mono text-[10px] text-signal-error mt-1">{variation.error}</div>
           ) : null}
 
-          {/* Approve / reject / schedule — shown when status is ready and not yet actioned */}
-          {variation.status === 'ready' && !rejected && (
-            <div className="flex flex-col gap-1.5 mt-2">
-              {!approved ? (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={approving || rejecting}
-                    onClick={() => void handleApprove('review')}
-                    data-testid={`variation-approve-${variation.index}`}
-                  >
-                    {approving ? 'approving…' : 'approve'}
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={approving || rejecting}
-                    onClick={() => void handleApprove('auto-post', true)}
-                    data-testid={`variation-post-now-${variation.index}`}
-                    title="Post immediately to every configured platform — bypasses the schedule window"
-                  >
-                    {approving ? 'posting…' : 'post now'}
-                  </Button>
-                  <Button
-                    variant="subtle"
-                    size="sm"
-                    disabled={approving || rejecting}
-                    onClick={() => setScheduleOpen((prev) => !prev)}
-                    data-testid={`variation-schedule-${variation.index}`}
-                  >
-                    schedule
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={approving || rejecting}
-                    onClick={() => void handleReject()}
-                    data-testid={`variation-reject-${variation.index}`}
-                  >
-                    {rejecting ? 'rejecting…' : 'reject'}
-                  </Button>
-                </div>
-              ) : (
-                <div className="font-mono text-[10px] text-signal-ok mt-1">approved</div>
-              )}
-              {scheduleOpen && !approved && (
-                <div className="flex flex-col gap-1.5 mt-1">
-                  <input
-                    type="datetime-local"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    data-testid={`variation-schedule-input-${variation.index}`}
-                    className="w-full rounded border border-border-soft bg-surface-panel px-2 py-1 font-mono text-[10px] text-ink focus:border-accent focus:outline-none"
-                  />
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={!scheduleDate || approving}
-                    onClick={() => void handleApprove('auto-post')}
-                    data-testid={`variation-schedule-confirm-${variation.index}`}
-                  >
-                    confirm &amp; post
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+          <VariationActions
+            campaignId={campaignId}
+            variationIndex={variation.index}
+            status={variation.status}
+            onApprove={onApprove ? onApproveBound : undefined}
+            onReject={onReject ? onRejectBound : undefined}
+          />
         </div>
       </div>
     </Surface>

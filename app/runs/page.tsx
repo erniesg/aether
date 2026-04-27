@@ -20,6 +20,7 @@ import { anyApi } from 'convex/server';
 import { isConvexEnabled } from '@/lib/convex/client';
 import { Surface } from '@/components/ui/Surface';
 import { Chip } from '@/components/ui/Chip';
+import { VariationActions } from '@/components/rail/VariationActions';
 
 interface CampaignRow {
   id: string;
@@ -332,6 +333,18 @@ function ExpandedRow({ campaignId, wsId }: { campaignId: string; wsId: string })
                     {v.error}
                   </div>
                 ) : null}
+                {/* Self-fetch mode — VariationActions calls /api/auto-mode/post-now
+                    or /approve directly. Reject is hidden in this mode (Convex
+                    mutation needs the variation doc id; we have it but don't
+                    yet plumb it through useQuery here — left for the workspace
+                    rail which already does the right thing). */}
+                <VariationActions
+                  campaignId={campaign.id}
+                  variationIndex={v.index}
+                  workspaceId={campaign.workspaceId}
+                  status={v.status}
+                  density="compact"
+                />
               </div>
             </div>
           ))}
