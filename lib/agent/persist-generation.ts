@@ -270,14 +270,29 @@ async function sendDragDropDiscordPing(input: SendPingInput): Promise<boolean> {
   fields.push({ name: 'mode', value: input.notifyMode, inline: true });
 
   const isAutoPost = input.notifyMode === 'auto-post';
+  // Inline-link fallback. The structured `components` action row below is
+  // dropped silently by Discord when the webhook is an incoming-channel
+  // webhook (most servers' default). Application-owned webhooks render
+  // buttons; incoming webhooks don't. So we ALSO surface the same actions
+  // as markdown links inside the embed description — Discord renders
+  // markdown links in embed descriptions on every webhook type.
+  const postNowLink = `[🚀 Post now to all platforms](${origin}/api/auto-mode/post-now?c=${encodeURIComponent(input.campaignId)}&v=1)`;
+  const reviewLink = `[👁 Review on /runs](${origin}/runs)`;
+  const inspectLink = `[🔍 Full inspect](${origin}/inspect/${encodeURIComponent(input.campaignId)})`;
+  const linksLine = isAutoPost
+    ? `${reviewLink} · ${inspectLink}`
+    : `${postNowLink} · ${reviewLink} · ${inspectLink}`;
+  const promptText =
+    input.prompt.length > 240
+      ? input.prompt.slice(0, 240) + '…'
+      : input.prompt;
+  const description = `${promptText}\n\n${linksLine}`;
+
   const embed: DiscordEmbed = {
     title: isAutoPost
       ? '🚀 New generation — auto-posting now'
       : '🎨 New generation ready',
-    description:
-      input.prompt.length > 280
-        ? input.prompt.slice(0, 280) + '…'
-        : input.prompt,
+    description,
     color: isAutoPost ? 0xfee75c : 0x57f287,
     image: inlineImage,
     fields,

@@ -1950,9 +1950,32 @@ function buildVariationEmbed(input: {
     ? `${baseUrl.replace(/\/+$/, '')}/scheduled/${scheduledPostId}`
     : undefined;
 
+  // Inline-link fallback. Incoming-channel webhooks drop `components` rows
+  // silently; markdown links inside the embed description always render.
+  // We build them here so the lap-end embed shows clickable Post-now /
+  // Reject / Review even when the bot button row doesn't appear.
+  const origin = baseUrl.replace(/\/+$/, '');
+  const linkParts: string[] = [];
+  if (campaignId && isReady) {
+    linkParts.push(
+      `[🚀 Post now](${origin}/api/auto-mode/post-now?c=${encodeURIComponent(campaignId)}&v=${variation.index})`
+    );
+    linkParts.push(
+      `[✖️ Reject](${origin}/api/auto-mode/reject?c=${encodeURIComponent(campaignId)}&v=${variation.index})`
+    );
+  }
+  if (campaignId) {
+    linkParts.push(`[👁 Review on /runs](${origin}/runs)`);
+    linkParts.push(`[🔍 Inspect](${origin}/inspect/${encodeURIComponent(campaignId)})`);
+  }
+  const baseDescription = enCaption ?? variation.moodNote ?? '';
+  const description = linkParts.length > 0
+    ? `${baseDescription}\n\n${linkParts.join(' · ')}`.trim()
+    : baseDescription || undefined;
+
   const embed: DiscordEmbed = {
     title,
-    description: enCaption ?? variation.moodNote ?? undefined,
+    description,
     color,
     fields,
     footer: {
