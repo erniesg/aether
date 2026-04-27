@@ -78,8 +78,11 @@ async function recordCapabilityRun(
     prompt: '',
     inputs,
     outputs,
-    beforeSnapshotRef,
-    afterSnapshotRef: null,
+    // Schema declares both refs as v.optional(v.string()) — null violates
+    // that, so OMIT when we don't have a real snapshot id rather than
+    // explicitly passing null. T1 placeholder until T4/T5/T9 wires real
+    // snapshot capture.
+    ...(typeof beforeSnapshotRef === 'string' ? { beforeSnapshotRef } : {}),
     startedAt: now,
     finishedAt: now,
     status: 'draft-executor',
