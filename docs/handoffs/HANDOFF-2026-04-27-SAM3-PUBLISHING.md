@@ -138,8 +138,8 @@ R2_PUBLIC_BASE_URL=https://pub-<random>.r2.dev   # public bucket URL or custom d
 
 After setting, restart Next dev. IG posts will then route through `lib/providers/storage/r2.ts:maybeStageForMeta`.
 
-**LinkedIn MEMBER_ID**
-The current token has only `w_member_social` (post permission). To call `/v2/userinfo` and resolve the member ID we need `openid profile email` scopes too.
+**LinkedIn MEMBER_ID** ✅ *resolved 2026-04-27 evening — `LINKEDIN_MEMBER_ID=46862439` is in `.env.local`*
+Token however still has only `w_member_social`. For `/v2/userinfo` we need `openid profile email` scopes too. The MEMBER_ID is set so posting can proceed once a fresh token with full scopes is pasted into `LINKEDIN_ACCESS_TOKEN`.
 
 **Two options:**
 
