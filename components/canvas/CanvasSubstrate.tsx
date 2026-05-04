@@ -69,10 +69,15 @@ import {
 } from '@/lib/voice/caption-store';
 import { useTextOverlayBridge } from './text-overlay-bridge';
 import {
+  setActiveLocale,
+  setLocaleViewMode,
+  useActiveLocale,
   useEnabledLocales,
   useLocaleViewMode,
   useTranslateLinkedLocales,
 } from '@/lib/text-overlay/active-locale';
+import { localeShortLabel } from '@/lib/locale/registry';
+import type { BCP47LocaleCode } from '@/lib/text-overlay/types';
 import { useCreatorContext } from '@/lib/context/creator-store';
 import { EyesClosedHandle, type EyesClosedCaptureRequest } from './EyesClosedHandle';
 import { createSketchSnapshotTracker } from '@/lib/canvas/sketchSnapshot';
@@ -356,6 +361,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const creatorContext = useCreatorContext(workspaceId);
   const libraryReferences = useReferences(workspaceId);
   const enabledLocales = useEnabledLocales();
+  const activeLocale = useActiveLocale();
   const localeViewMode = useLocaleViewMode();
   const translateLinkedLocales = useTranslateLinkedLocales();
   const [voiceFormats, setVoiceFormats] = useState<
@@ -1494,6 +1500,12 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         onClusterLensToggle={() => setClusterLensOpen((prev) => !prev)}
       />
 
+      <CanvasLocaleStrip
+        activeLocale={activeLocale}
+        enabledLocales={enabledLocales}
+        localeViewMode={localeViewMode}
+      />
+
       {clusterLensOpen ? (
         <ClusterLens
           workspaceId={workspaceId}
@@ -1616,3 +1628,69 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     </section>
   );
 });
+
+export function CanvasLocaleStrip({
+  activeLocale,
+  enabledLocales,
+  localeViewMode,
+}: {
+  activeLocale: BCP47LocaleCode;
+  enabledLocales: ReadonlyArray<BCP47LocaleCode>;
+  localeViewMode: 'single' | 'multilingual';
+}) {
+  if (enabledLocales.length <= 1) return null;
+  return (
+    <div
+      data-testid="canvas-locale-strip"
+      className={cn(
+        'absolute left-1/2 top-14 z-[1100] flex -translate-x-1/2 items-center gap-1 rounded-sm border border-border-soft',
+        'bg-surface-panel/95 px-1.5 py-1 shadow-sm backdrop-blur'
+      )}
+    >
+      <span className="px-1 font-caption text-[10px] uppercase text-ink-faint">
+        locale
+      </span>
+      {enabledLocales.map((locale) => {
+        const active = locale === activeLocale && localeViewMode === 'single';
+        return (
+          <button
+            key={locale}
+            type="button"
+            data-testid={`canvas-locale-switch-${locale}`}
+            data-active={active ? 'true' : 'false'}
+            aria-pressed={active}
+            aria-label={`view ${localeShortLabel(locale)}`}
+            onClick={() => {
+              setActiveLocale(locale);
+              setLocaleViewMode('single');
+            }}
+            className={cn(
+              'inline-flex h-7 min-w-8 items-center justify-center rounded-xs border px-2 font-mono text-2xs uppercase tracking-wide transition-colors',
+              active
+                ? 'border-accent bg-accent text-white'
+                : 'border-border-soft bg-surface-panel-muted text-ink-dim hover:border-border hover:text-ink'
+            )}
+          >
+            {localeShortLabel(locale)}
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        data-testid="canvas-locale-switch-all"
+        data-active={localeViewMode === 'multilingual' ? 'true' : 'false'}
+        aria-pressed={localeViewMode === 'multilingual'}
+        aria-label="show all locales"
+        onClick={() => setLocaleViewMode('multilingual')}
+        className={cn(
+          'inline-flex h-7 items-center rounded-xs border px-2 font-caption text-2xs transition-colors',
+          localeViewMode === 'multilingual'
+            ? 'border-accent bg-accent/10 text-accent'
+            : 'border-border-soft bg-surface-panel text-ink-dim hover:border-border hover:text-ink'
+        )}
+      >
+        all
+      </button>
+    </div>
+  );
+}
