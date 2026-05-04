@@ -10,6 +10,10 @@ import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
 import {
+  AsyncPushToTalk,
+  type VoiceRunTrace,
+} from '@/components/canvas/AsyncPushToTalk';
+import {
   PromptComposer,
   type ComposerHandle,
   type PromptFormatOption,
@@ -25,9 +29,13 @@ import {
   useWorkspaceProviderPrefs,
   useSaveWorkspaceProviderPrefs,
 } from '@/lib/providers/prefs-store';
-import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
+import {
+  resolveImageModel,
+  resolveImageProviderId,
+  type WorkspaceProviderPrefs,
+} from '@/lib/providers/prefs';
 import { useScheduledPosts, getPreviewPublisher } from '@/lib/publisher/store';
-import { useReferences } from '@/lib/references/store';
+import { addReference, useReferences } from '@/lib/references/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
@@ -82,8 +90,26 @@ import {
   downloadExportPack,
 } from '@/lib/export/client';
 import {
+  renderArtboardJpegBase64FromCanvas,
+  renderArtboardPngBase64FromCanvas,
+  renderArtboardSvgFromCanvas,
+} from '@/lib/export/canvas';
+import {
+  CANVAS_LOCALES,
+  setEnabledLocales,
+  setLocaleViewMode,
+  useActiveLocale,
+  useEnabledLocales,
+  useLocaleViewMode,
+} from '@/lib/text-overlay/active-locale';
+import {
+  voiceCommandRequestsSupportedLocales,
+  type VoiceCreatorCommand,
+} from '@/lib/voice/command';
+import {
   buildCreatorGenerationPrompt,
   countCreatorInputs,
+  filterReferencesForProductScope,
   mergeReferenceUrls,
   visualReferenceUrls,
 } from '@/lib/context/model';
@@ -357,6 +383,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const { editor } = useEditorRef();
   const definitions = useCapabilityDefinitions();
   const runs = useRuns();
+  const exportLocale = useActiveLocale();
+  const exportLocales = useEnabledLocales();
+  const exportLanguageMode = useLocaleViewMode();
   const references = useReferences(wsId);
   const creatorContext = useCreatorContext(wsId);
   const providerPrefs = useWorkspaceProviderPrefs(wsId);
@@ -419,7 +448,6 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     }
     return [];
   }, [runs]);
-  const pinnedReferenceUrls = useMemo(() => visualReferenceUrls(references), [references]);
   const inputCount = useMemo(
     () => countCreatorInputs(creatorContext, references),
     [creatorContext, references]
@@ -442,6 +470,21 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       })),
     [formats]
   );
+  const composerVoiceFormats = useMemo(
+    () =>
+      formats.length > 0
+        ? formats.map((format) => ({
+            id: format.id,
+            label: format.label,
+            aspectRatio: format.aspectRatio,
+          }))
+        : DEFAULT_ARTBOARDS.map((seed, idx) => ({
+            id: seed.preset ?? `artboard-${idx}`,
+            label: seed.name,
+            aspectRatio: seed.aspect,
+          })),
+    [formats]
+  );
 
   const runImageOnCanvas = useCallback(
     async (
@@ -460,6 +503,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
          *  behavior: synthetic campaign + Discord ping). 'auto-post'
          *  fires Post-now immediately after the campaign is persisted. */
         notifyMode?: 'review' | 'auto-post';
+        voiceTrace?: VoiceRunTrace;
       } = {}
     ): Promise<void> => {
       const targets = options.targets ?? [];
@@ -495,6 +539,26 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
               targets.length > 1 ? `${targets.length} formats` : 'single format',
             ].join(' · '),
       });
+      if (options.voiceTrace) {
+        appendRunActivity(runId, {
+          title: 'voice transcript',
+          detail: options.voiceTrace.transcript,
+        });
+        appendRunActivity(runId, {
+          title: 'voice product',
+          detail: options.voiceTrace.productResolution
+            ? `${options.voiceTrace.productResolution.canonicalName} · ${Math.round(options.voiceTrace.productResolution.confidence * 100)}%`
+            : 'unresolved',
+          tone: options.voiceTrace.productResolution ? 'ok' : 'neutral',
+        });
+        appendRunActivity(runId, {
+          title: 'voice references',
+          detail:
+            options.voiceTrace.referenceCandidates.length > 0
+              ? `${options.voiceTrace.selectedRefs.length}/${options.voiceTrace.referenceCandidates.length} kept`
+              : 'none',
+        });
+      }
       stepRun(runId, 'prepared');
 
       // Lifted out of the try-block so the catch handler can clear them after
@@ -660,6 +724,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             persistRun: true,
             workspaceId: wsId,
             notifyMode: options.notifyMode ?? 'review',
+            voiceTrace: options.voiceTrace,
           }),
         });
 
@@ -1483,6 +1548,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           definitionId: def.id,
           name: def.name,
         })),
+        renderArtboardPngBase64: editor
+          ? (board) => renderArtboardPngBase64FromCanvas(editor, board.id)
+          : undefined,
+        renderArtboardJpegBase64: editor
+          ? (board) => renderArtboardJpegBase64FromCanvas(editor, board.id)
+          : undefined,
+        renderArtboardSvg: editor
+          ? (board) => renderArtboardSvgFromCanvas(editor, board.id)
+          : undefined,
+        locale: String(exportLocale),
+        locales: exportLocales.map(String),
+        languageMode: exportLanguageMode,
       });
 
       const resolvedCount = Array.isArray((body as { artboards?: unknown[] }).artboards)
@@ -1501,7 +1578,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
 
       await downloadExportPack(wsId, body);
-      log('export downloaded ·', resolvedCount, 'format(s) · skipped', skipped.length);
+      log('export downloaded ·', resolvedCount, 'format(s) · editable pack · skipped', skipped.length);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logError('export failed:', message);
@@ -1509,7 +1586,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     } finally {
       setExporting(false);
     }
-  }, [exporting, formats, wsId, runs, definitions]);
+  }, [
+    exporting,
+    formats,
+    wsId,
+    runs,
+    definitions,
+    editor,
+    exportLocale,
+    exportLocales,
+    exportLanguageMode,
+  ]);
 
   const handlePrompt = useCallback(
     async (
@@ -1520,6 +1607,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         targetId?: string;
         renderMode?: 'crop' | 'fanout';
         notifyMode?: 'review' | 'auto-post';
+        product?: VoiceCreatorCommand['product'];
+        voiceTrace?: VoiceRunTrace;
       }
     ) => {
       const trimmed = prompt.trim();
@@ -1560,8 +1649,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         options.targetId ?? activeFormatId ?? 'canvas'
       );
       const urlParams = new URLSearchParams(window.location.search);
-      const providerOverride = urlParams.get('provider') ?? undefined;
-      const modelOverride = urlParams.get('model') ?? undefined;
+      const providerOverride =
+        urlParams.get('provider') ?? resolveImageProviderId(providerPrefs);
+      const modelOverride = urlParams.get('model') ?? resolveImageModel(providerPrefs);
       // `?bypass=1` skips the Claude planner and pipes the prompt straight
       // to the provider. Useful when the Anthropic key is rate-limited or
       // out of credits, or to demo the raw provider without Claude's rewrite.
@@ -1625,12 +1715,20 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       if (options.scope === 'all' && editor) {
         if (formats.length > 0) {
           const targets = formats;
+          const promptReferences = filterReferencesForProductScope(
+            references,
+            options.product
+          );
           const contextualPrompt = buildCreatorGenerationPrompt(
             creatorContext,
             prompt,
-            references
+            promptReferences,
+            { product: options.product }
           );
-          const refs = mergeReferenceUrls(options.refs, pinnedReferenceUrls);
+          const refs = mergeReferenceUrls(
+            options.refs,
+            visualReferenceUrls(promptReferences)
+          );
           log('fan-out · frames:', targets.length, '· mode:', options.renderMode ?? 'crop');
           await runImageOnCanvas(contextualPrompt, {
             providerOverride,
@@ -1640,6 +1738,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             targets,
             mode: options.renderMode ?? 'crop',
             notifyMode: options.notifyMode,
+            voiceTrace: options.voiceTrace,
           });
           return;
         }
@@ -1659,12 +1758,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         if (target) targets = [target];
       }
 
+      const promptReferences = filterReferencesForProductScope(
+        references,
+        options.product
+      );
       const contextualPrompt = buildCreatorGenerationPrompt(
         creatorContext,
         prompt,
-        references
+        promptReferences,
+        { product: options.product }
       );
-      const refs = mergeReferenceUrls(options.refs, pinnedReferenceUrls);
+      const refs = mergeReferenceUrls(options.refs, visualReferenceUrls(promptReferences));
 
       await runImageOnCanvas(contextualPrompt, {
         providerOverride,
@@ -1673,6 +1777,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         refs: refs.length > 0 ? refs : undefined,
         targets,
         notifyMode: options.notifyMode,
+        voiceTrace: options.voiceTrace,
       });
     },
     [
@@ -1686,9 +1791,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       formats,
       activeFormatId,
       handleExport,
-      pinnedReferenceUrls,
       references,
       creatorContext,
+      providerPrefs,
     ]
   );
 
@@ -2276,6 +2381,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           onVoiceGenerate={async (prompt, scope) => {
             await handlePrompt(prompt, { scope });
           }}
+          onAsyncVoiceGenerate={async (prompt, options, request) => {
+            await handlePrompt(prompt, {
+              ...options,
+              product: request?.command.product,
+              voiceTrace: request?.trace,
+            });
+          }}
           onMoodboardGenerate={async (prompt) => {
             await handlePrompt(prompt, { scope: 'single' });
           }}
@@ -2301,6 +2413,29 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       <PromptComposer
         ref={composerRef}
         onSubmit={handlePrompt}
+        voiceSlot={
+          <AsyncPushToTalk
+            context={{
+              formats: composerVoiceFormats,
+              locales: exportLocales.map(String),
+              languageMode: exportLanguageMode,
+              workspaceId: wsId,
+            }}
+            onReference={(record) => addReference(record, wsId)}
+            libraryReferences={references}
+            onGenerate={async ({ prompt, options, command, trace }) => {
+              if (voiceCommandRequestsSupportedLocales(command)) {
+                setEnabledLocales(CANVAS_LOCALES);
+                setLocaleViewMode('single');
+              }
+              await handlePrompt(prompt, {
+                ...options,
+                product: command.product,
+                voiceTrace: trace,
+              });
+            }}
+          />
+        }
         activeInputSet={creatorContext.campaign.name}
         inputCount={inputCount}
         formatCount={formats.length > 0 ? formats.length : DEFAULT_ARTBOARDS.length}

@@ -37,6 +37,8 @@ export default defineSchema({
     mime: v.string(),
     /** Optional workspace scope. */
     wsId: v.optional(v.id('workspace')),
+    /** Route-level workspace slug used by the current app shell. */
+    workspaceId: v.optional(v.string()),
     /** Optional campaign cross-link so the right rail can show
      *  "this campaign's heroes" without a separate join table. */
     campaignId: v.optional(v.id('campaign')),
@@ -50,6 +52,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_workspace', ['wsId'])
+    .index('by_workspace_slug', ['workspaceId'])
     .index('by_campaign', ['campaignId'])
     .index('by_storage', ['storageId']),
 
@@ -266,8 +269,59 @@ export default defineSchema({
     tags: v.array(v.string()),
     notes: v.optional(v.string()),
     clusterId: v.optional(v.string()),
+    assetId: v.optional(v.string()),
+    origin: v.optional(
+      v.union(
+        v.literal('ingest'),
+        v.literal('upload'),
+        v.literal('search'),
+        v.literal('generated'),
+        v.literal('manual')
+      )
+    ),
+    sourceRunId: v.optional(v.string()),
+    sourceCampaignId: v.optional(v.string()),
+    sourceFormatId: v.optional(v.string()),
+    productId: v.optional(v.string()),
+    productCanonicalName: v.optional(v.string()),
+    referenceQuery: v.optional(v.string()),
+    relevanceScore: v.optional(v.number()),
+    referenceStatus: v.optional(
+      v.union(
+        v.literal('candidate'),
+        v.literal('selected'),
+        v.literal('rejected')
+      )
+    ),
     updatedAt: v.number(),
-  }).index('by_workspace', ['workspaceId']),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_workspace_product', ['workspaceId', 'productId']),
+
+  // Workspace-scoped product catalog for creator voice/research flows. This
+  // stores canonical product names and transcript/search aliases so later
+  // voice commands can match products before reference search and generation.
+  productCatalog: defineTable({
+    workspaceId: v.string(),
+    productKey: v.string(),
+    id: v.string(),
+    canonicalName: v.string(),
+    brand: v.optional(v.string()),
+    productName: v.optional(v.string()),
+    aliases: v.array(v.string()),
+    description: v.optional(v.string()),
+    officialUrl: v.optional(v.string()),
+    imageSearchQuery: v.optional(v.string()),
+    source: v.union(
+      v.literal('catalog'),
+      v.literal('research'),
+      v.literal('manual')
+    ),
+    confidence: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_workspace_key', ['workspaceId', 'productKey']),
 
   productFact: defineTable({
     wsId: v.id('workspace'),
@@ -516,6 +570,7 @@ export default defineSchema({
   workspaceProviderPrefs: defineTable({
     workspaceId: v.string(),
     imageProviderId: v.optional(v.string()),
+    imageModel: v.optional(v.string()),
     voiceProviderId: v.optional(v.string()),
     voiceModel: v.optional(v.string()),
     segmentationProviderId: v.optional(v.string()),
@@ -639,6 +694,7 @@ export default defineSchema({
      *  _PER_FORMAT renders succeeded and the bytes uploaded. Missing keys
      *  → fall back to atlas → hero in the UI / canvas drop. */
     nativePerFormatUrls: v.optional(v.any()),
+    localizedPerFormatUrls: v.optional(v.any()),
     /** 4-locale × 4-format atlas (Convex storage public URL). Surfaced in
      *  Discord embeds and fallbacks for canvas frames lacking a per-format
      *  native render. Skipped when AUTO_MODE_DISABLE_ATLAS=1 or compose fails. */
@@ -681,6 +737,8 @@ export default defineSchema({
       v.literal('kuaishou'),
       v.literal('pinterest')
     ),
+    locale: v.optional(v.string()),
+    format: v.optional(v.string()),
     mediaUrls: v.array(v.string()),
     caption: v.string(),
     hashtags: v.array(v.string()),

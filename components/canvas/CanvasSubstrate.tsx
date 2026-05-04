@@ -56,6 +56,10 @@ import { failRun, finishRun, startRun, stepRun } from '@/lib/store/runs';
 import { appendRunActivity, initRunDetails, upsertRunFrame } from '@/lib/store/runDetails';
 import { focusFrameAtIndex, getFrameShapes, zoomToAllFrames } from '@/lib/canvas/focusFrame';
 import { VoiceOrb, type VoiceCaptionEvent } from './VoiceOrb';
+import {
+  AsyncPushToTalk,
+  type AsyncVoiceGenerateRequest,
+} from './AsyncPushToTalk';
 import type { VoiceDispatchers } from '@/lib/voice/tools';
 import {
   setVoiceError,
@@ -64,9 +68,15 @@ import {
   setVoiceTranscript,
 } from '@/lib/voice/caption-store';
 import { useTextOverlayBridge } from './text-overlay-bridge';
+import {
+  useEnabledLocales,
+  useLocaleViewMode,
+  useTranslateLinkedLocales,
+} from '@/lib/text-overlay/active-locale';
 import { useCreatorContext } from '@/lib/context/creator-store';
 import { EyesClosedHandle, type EyesClosedCaptureRequest } from './EyesClosedHandle';
 import { createSketchSnapshotTracker } from '@/lib/canvas/sketchSnapshot';
+import { addReference, useReferences } from '@/lib/references/store';
 
 /**
  * Dynamically imported tldraw to keep the workspace route's initial bundle
@@ -107,6 +117,12 @@ export interface CanvasSubstrateProps {
    * duplicating the stream logic here.
    */
   onVoiceGenerate?: (prompt: string, scope: 'single' | 'all') => void | Promise<void>;
+  /** Async local-Whisper voice command path. Reuses the shell prompt pipeline. */
+  onAsyncVoiceGenerate?: (
+    prompt: string,
+    options: AsyncVoiceGenerateRequest['options'],
+    request?: AsyncVoiceGenerateRequest
+  ) => void | Promise<void>;
   /** Runs generation from a canvas lens-authored prompt, using the shell pipeline. */
   onMoodboardGenerate?: (prompt: string) => void | Promise<void>;
   /**
@@ -316,6 +332,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   onVerbPress,
   onSpatializeFromSelection,
   onVoiceGenerate,
+  onAsyncVoiceGenerate,
   onMoodboardGenerate,
   renderVoiceSlot,
   voiceEnabled = true,
@@ -337,6 +354,13 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const { editor } = useEditorRef();
 
   const creatorContext = useCreatorContext(workspaceId);
+  const libraryReferences = useReferences(workspaceId);
+  const enabledLocales = useEnabledLocales();
+  const localeViewMode = useLocaleViewMode();
+  const translateLinkedLocales = useTranslateLinkedLocales();
+  const [voiceFormats, setVoiceFormats] = useState<
+    Array<{ id: string; label?: string; aspectRatio?: string }>
+  >([]);
   // Wire the multilingual text-overlay bridge: listens for image-landed
   // events, calls /api/text-overlay/apply, materialises AetherTextShapes,
   // and persists each overlay to Convex. No-ops when there's no editor.
@@ -347,7 +371,47 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
       offer: creatorContext.offer,
       campaign: creatorContext.campaign,
     },
+    targetLocales: enabledLocales,
+    translateLinkedLocales,
+    editScope: scope,
+    onApplied: (artboardId, result, capabilityRunId) => {
+      if (!capabilityRunId) return;
+      appendRunActivity(capabilityRunId, {
+        title: 'overlay applied',
+        detail: result.ok
+          ? `${artboardId} · ${result.applied.length} layer${result.applied.length === 1 ? '' : 's'}`
+          : `${artboardId} · ${result.error ?? 'failed'}`,
+        tone: result.ok ? 'ok' : 'error',
+      });
+    },
   });
+
+  useEffect(() => {
+    if (!editor) {
+      setVoiceFormats([]);
+      return;
+    }
+    const syncFormats = () => {
+      setVoiceFormats(
+        getFrameShapes(editor).map((frame) => {
+          const f = frame as unknown as {
+            id: string;
+            props?: { name?: string; w?: number; h?: number };
+          };
+          return {
+            id: f.id,
+            label: f.props?.name,
+            aspectRatio:
+              f.props?.w && f.props?.h
+                ? pickAspectRatio(f.props.w, f.props.h)
+                : undefined,
+          };
+        })
+      );
+    };
+    syncFormats();
+    return editor.store.listen(syncFormats);
+  }, [editor]);
 
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
@@ -1328,7 +1392,30 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
   const voiceSlot = voiceEnabled
     ? renderVoiceSlot
       ? renderVoiceSlot(dispatchers)
-      : <VoiceOrb dispatchers={dispatchers} onCaption={handleVoiceCaption} />
+      : (
+          <>
+            <VoiceOrb
+              dispatchers={dispatchers}
+              onCaption={handleVoiceCaption}
+              workspaceId={workspaceId}
+            />
+            {onAsyncVoiceGenerate ? (
+              <AsyncPushToTalk
+                context={{
+                  formats: voiceFormats,
+                  locales: enabledLocales.map(String),
+                  languageMode: localeViewMode,
+                  workspaceId,
+                }}
+                onReference={(record) => addReference(record, workspaceId)}
+                libraryReferences={libraryReferences}
+                onGenerate={async (request) => {
+                  await onAsyncVoiceGenerate(request.prompt, request.options, request);
+                }}
+              />
+            ) : null}
+          </>
+        )
     : null;
 
   // Sketch tracker: captures only the shapes drawn between hold-start and
@@ -1377,6 +1464,7 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
         <EyesClosedHandle
           onCapture={handleEyesClosedCapture}
           getSketchSnapshot={getSketchSnapshot}
+          workspaceId={workspaceId}
         />
       )
     : null;

@@ -1,29 +1,39 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { asBCP47LocaleCode, type BCP47LocaleCode } from './types';
+import {
+  DEFAULT_LOCALE,
+  SUPPORTED_LOCALES,
+  TARGET_TRANSLATION_LOCALES,
+  isSupportedLocaleCode,
+  normalizeSupportedLocale,
+  normalizeSupportedLocaleList,
+} from '@/lib/locale/registry';
+import type { BCP47LocaleCode } from './types';
 
 /**
- * Session-only active-locale store for the multilingual text-overlay layer.
- * The text-apply planner emits one entry per requested locale; the active
- * locale picks which one the canvas renders. Kept outside Convex per hard
- * rule #9 — derived/session state never appears in the persisted payload.
- *
- * The hackathon ships with three demo locales (en · zh-Hans · ja-JP); the
- * list stays open-ended so adding `pt-BR` etc. is a one-line change in the
- * right-rail switcher.
+ * Session-only language state for the multilingual text-overlay layer.
+ * Persisted campaign records carry locale-keyed copy; this store only tracks
+ * the creator's current canvas view and enabled languages in this browser
+ * session.
  */
-export const DEMO_LOCALES: ReadonlyArray<BCP47LocaleCode> = [
-  asBCP47LocaleCode('en'),
-  asBCP47LocaleCode('zh-Hans'),
-  asBCP47LocaleCode('ja-JP'),
+export const CANVAS_LOCALES = SUPPORTED_LOCALES;
+export const DEMO_LOCALES = CANVAS_LOCALES;
+export const TRANSLATION_TARGET_LOCALES = TARGET_TRANSLATION_LOCALES;
+
+export const DEFAULT_ACTIVE_LOCALE: BCP47LocaleCode = DEFAULT_LOCALE;
+const DEFAULT_ENABLED_LOCALES: ReadonlyArray<BCP47LocaleCode> = [
+  DEFAULT_ACTIVE_LOCALE,
 ];
 
-export const DEFAULT_ACTIVE_LOCALE: BCP47LocaleCode = DEMO_LOCALES[0];
+export type LocaleViewMode = 'single' | 'multilingual';
 
 type Listener = () => void;
 
 let current: BCP47LocaleCode = DEFAULT_ACTIVE_LOCALE;
+let enabled: BCP47LocaleCode[] = [...DEFAULT_ENABLED_LOCALES];
+let viewMode: LocaleViewMode = 'single';
+let translateLinked = true;
 const listeners = new Set<Listener>();
 
 function notify(): void {
@@ -45,13 +55,65 @@ function getServerSnapshot(): BCP47LocaleCode {
   return DEFAULT_ACTIVE_LOCALE;
 }
 
+function getEnabledSnapshot(): ReadonlyArray<BCP47LocaleCode> {
+  return enabled;
+}
+
+function getEnabledServerSnapshot(): ReadonlyArray<BCP47LocaleCode> {
+  return DEFAULT_ENABLED_LOCALES;
+}
+
+function getViewModeSnapshot(): LocaleViewMode {
+  return viewMode;
+}
+
+function getViewModeServerSnapshot(): LocaleViewMode {
+  return 'single';
+}
+
+function getTranslateLinkedSnapshot(): boolean {
+  return translateLinked;
+}
+
+function getTranslateLinkedServerSnapshot(): boolean {
+  return true;
+}
+
 export function useActiveLocale(): BCP47LocaleCode {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
+export function useEnabledLocales(): ReadonlyArray<BCP47LocaleCode> {
+  return useSyncExternalStore(
+    subscribe,
+    getEnabledSnapshot,
+    getEnabledServerSnapshot
+  );
+}
+
+export function useLocaleViewMode(): LocaleViewMode {
+  return useSyncExternalStore(
+    subscribe,
+    getViewModeSnapshot,
+    getViewModeServerSnapshot
+  );
+}
+
+export function useTranslateLinkedLocales(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    getTranslateLinkedSnapshot,
+    getTranslateLinkedServerSnapshot
+  );
+}
+
 export function setActiveLocale(locale: BCP47LocaleCode): void {
-  if (current === locale) return;
-  current = locale;
+  const next = normalizeSupportedLocale(locale);
+  if (current === next) return;
+  current = next;
+  if (!enabled.includes(next)) {
+    enabled = [...enabled, next].sort(localeSort);
+  }
   notify();
 }
 
@@ -59,9 +121,69 @@ export function getActiveLocale(): BCP47LocaleCode {
   return current;
 }
 
+export function getEnabledLocales(): ReadonlyArray<BCP47LocaleCode> {
+  return enabled;
+}
+
+export function setEnabledLocales(locales: ReadonlyArray<BCP47LocaleCode>): void {
+  const next = normalizeSupportedLocaleList(locales, { includeDefault: true });
+  if (sameLocaleList(enabled, next)) return;
+  enabled = next;
+  if (!enabled.includes(current)) current = DEFAULT_ACTIVE_LOCALE;
+  if (enabled.length <= 1 && viewMode === 'multilingual') viewMode = 'single';
+  notify();
+}
+
+export function setLocaleEnabled(locale: BCP47LocaleCode, nextEnabled: boolean): void {
+  if (!isSupportedLocaleCode(locale)) return;
+  const hasLocale = enabled.includes(locale);
+  if (nextEnabled && hasLocale) return;
+  if (!nextEnabled && locale === DEFAULT_ACTIVE_LOCALE) return;
+  if (nextEnabled) {
+    setEnabledLocales([...enabled, locale]);
+    return;
+  }
+  setEnabledLocales(enabled.filter((entry) => entry !== locale));
+}
+
+export function getLocaleViewMode(): LocaleViewMode {
+  return viewMode;
+}
+
+export function setLocaleViewMode(mode: LocaleViewMode): void {
+  const next = mode === 'multilingual' && enabled.length <= 1 ? 'single' : mode;
+  if (viewMode === next) return;
+  viewMode = next;
+  notify();
+}
+
+export function getTranslateLinkedLocales(): boolean {
+  return translateLinked;
+}
+
+export function setTranslateLinkedLocales(next: boolean): void {
+  if (translateLinked === next) return;
+  translateLinked = next;
+  notify();
+}
+
 export function resetActiveLocaleForTests(): void {
   current = DEFAULT_ACTIVE_LOCALE;
+  enabled = [...DEFAULT_ENABLED_LOCALES];
+  viewMode = 'single';
+  translateLinked = true;
   notify();
+}
+
+function localeSort(a: BCP47LocaleCode, b: BCP47LocaleCode): number {
+  return SUPPORTED_LOCALES.indexOf(a) - SUPPORTED_LOCALES.indexOf(b);
+}
+
+function sameLocaleList(
+  a: ReadonlyArray<BCP47LocaleCode>,
+  b: ReadonlyArray<BCP47LocaleCode>
+): boolean {
+  return a.length === b.length && a.every((locale, i) => locale === b[i]);
 }
 
 /**

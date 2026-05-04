@@ -63,6 +63,11 @@ export interface CreatorContextModel {
   inputSet: InputSetDraft;
 }
 
+export interface ProductPromptScope {
+  id?: string;
+  canonicalName?: string;
+}
+
 export function describeWorkspaceMode(mode: WorkspaceMode): string {
   return mode === 'venture' ? 'creator-owned venture' : 'multi-brand studio';
 }
@@ -118,12 +123,74 @@ export function mergeReferenceUrls(
   return urls;
 }
 
+function normalizeReferenceText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function referenceMatchesProductScope(
+  ref: ReferenceRecord,
+  product?: ProductPromptScope
+): boolean {
+  if (!product?.id && !product?.canonicalName) return true;
+  if (ref.referenceStatus === 'rejected') return false;
+  if (product.id && ref.productId) return ref.productId === product.id;
+  if (product.canonicalName && ref.productCanonicalName) {
+    return (
+      normalizeReferenceText(ref.productCanonicalName) ===
+      normalizeReferenceText(product.canonicalName)
+    );
+  }
+  if (!product.canonicalName) return false;
+  const haystack = normalizeReferenceText(
+    [
+      ref.title,
+      ref.usageIntent,
+      ref.notes,
+      ref.productCanonicalName,
+      ...(ref.tags ?? []),
+      ref.attribution.source,
+      ref.attribution.author,
+      ref.attribution.url,
+      ref.fullUrl,
+      ref.previewUrl,
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join(' ')
+  );
+  const tokens = normalizeReferenceText(product.canonicalName)
+    .split(' ')
+    .filter((token) => token.length > 2);
+  if (tokens.length === 0) return false;
+  const matched = tokens.filter((token) => haystack.includes(token));
+  return matched.length / tokens.length >= 0.75;
+}
+
+export function filterReferencesForProductScope(
+  references: ReadonlyArray<ReferenceRecord>,
+  product?: ProductPromptScope
+): ReferenceRecord[] {
+  if (!product?.id && !product?.canonicalName) return [...references];
+  return references.filter((ref) => referenceMatchesProductScope(ref, product));
+}
+
 export function buildCreatorGenerationPrompt(
   context: CreatorContextModel,
   creatorPrompt: string,
-  references: ReadonlyArray<ReferenceRecord>
+  references: ReadonlyArray<ReferenceRecord>,
+  options: { product?: ProductPromptScope } = {}
 ): string {
-  const refSummary = references
+  const scopedReferences = filterReferencesForProductScope(
+    references,
+    options.product
+  );
+  const refSummary = scopedReferences
     .slice(0, 6)
     .map((ref) => {
       const author = ref.attribution.author ? ` by ${ref.attribution.author}` : '';
@@ -149,7 +216,7 @@ export function buildCreatorGenerationPrompt(
   ];
 
   if (refSummary) {
-    lines.push(`Pinned references: ${references.length} source${references.length === 1 ? '' : 's'}; ${refSummary}.`);
+    lines.push(`Pinned references: ${scopedReferences.length} source${scopedReferences.length === 1 ? '' : 's'}; ${refSummary}.`);
   }
 
   // Identity anchor cue — only emitted when reference images are present.
@@ -160,7 +227,7 @@ export function buildCreatorGenerationPrompt(
   // hero-anchor cue is stronger ("PRESERVE EXACTLY"); this is the
   // composer-direct equivalent so drag-drop generations don't drift
   // off-identity by default. Bug fix 2026-04-27 — was empty before.
-  if (references.length > 0) {
+  if (scopedReferences.length > 0) {
     lines.push(
       'Reference images are attached. Preserve the EXACT faces, hair, clothing, and brand identity from them — recompose the scene around those subjects, do not substitute different people. Override only if the creator request explicitly asks for a different subject.'
     );

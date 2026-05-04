@@ -7,6 +7,8 @@ import type {
   PublisherProviderId,
   ScheduledPost,
 } from '@/lib/providers/publisher/types';
+import type { ReferenceRecord } from '@/lib/providers/reference/types';
+import type { ProductCatalogEntry } from '@/lib/product/catalog';
 
 /**
  * Convex HTTP client for server-side runtimes (Next.js route handlers).
@@ -50,6 +52,20 @@ const skillsApi = (anyApi as unknown as {
   skills: { insert: unknown; getByName: unknown };
 }).skills;
 
+const creatorContextApi = (anyApi as unknown as {
+  creatorContext: {
+    listReferences: unknown;
+    addReference: unknown;
+  };
+}).creatorContext;
+
+const productCatalogApi = (anyApi as unknown as {
+  productCatalog: {
+    list: unknown;
+    upsert: unknown;
+  };
+}).productCatalog;
+
 export interface ServerRunStart {
   clientRunId: string;
   wsId?: string;
@@ -66,6 +82,7 @@ export interface ServerRunStart {
   definitionId?: string;
   definitionVersion?: number;
   entryRef?: CapabilityEntryRef;
+  inputs?: Record<string, unknown>;
 }
 
 export async function recordRunStart(input: ServerRunStart): Promise<void> {
@@ -144,6 +161,8 @@ export async function recordScheduledPost(input: {
   try {
     return (await client.mutation(publisherApi.schedule as never, {
       platform: input.post.platform,
+      locale: input.post.locale,
+      format: input.post.format,
       mediaUrls: input.post.mediaUrls,
       caption: input.post.caption,
       hashtags: input.post.hashtags,
@@ -194,6 +213,79 @@ export async function recordSkillInsert(
     return id ?? null;
   } catch (err) {
     console.error('[convex/http] recordSkillInsert failed', err);
+    return null;
+  }
+}
+
+export async function listCreatorReferences(
+  workspaceId: string | undefined
+): Promise<ReferenceRecord[]> {
+  if (!workspaceId) return [];
+  const client = getHttpClient();
+  if (!client) return [];
+  try {
+    return (await client.query(creatorContextApi.listReferences as never, {
+      workspaceId,
+    } as never)) as ReferenceRecord[];
+  } catch (err) {
+    console.error('[convex/http] listCreatorReferences failed', err);
+    return [];
+  }
+}
+
+export async function addCreatorReference(input: {
+  workspaceId?: string;
+  reference: ReferenceRecord;
+}): Promise<string | null> {
+  if (!input.workspaceId) return null;
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    return (await client.mutation(creatorContextApi.addReference as never, {
+      workspaceId: input.workspaceId,
+      reference: {
+        ...input.reference,
+        tags: input.reference.tags ?? [],
+      },
+    } as never)) as string;
+  } catch (err) {
+    console.error('[convex/http] addCreatorReference failed', err);
+    return null;
+  }
+}
+
+export async function listWorkspaceProducts(
+  workspaceId: string | undefined
+): Promise<ProductCatalogEntry[]> {
+  if (!workspaceId) return [];
+  const client = getHttpClient();
+  if (!client) return [];
+  try {
+    return (await client.query(productCatalogApi.list as never, {
+      workspaceId,
+    } as never)) as ProductCatalogEntry[];
+  } catch (err) {
+    console.error('[convex/http] listWorkspaceProducts failed', err);
+    return [];
+  }
+}
+
+export async function upsertWorkspaceProduct(input: {
+  workspaceId?: string;
+  product: ProductCatalogEntry;
+  aliases?: string[];
+}): Promise<string | null> {
+  if (!input.workspaceId) return null;
+  const client = getHttpClient();
+  if (!client) return null;
+  try {
+    return (await client.mutation(productCatalogApi.upsert as never, {
+      workspaceId: input.workspaceId,
+      product: input.product,
+      aliases: input.aliases ?? [],
+    } as never)) as string;
+  } catch (err) {
+    console.error('[convex/http] upsertWorkspaceProduct failed', err);
     return null;
   }
 }
@@ -403,6 +495,7 @@ export interface ServerVariationInsert {
   nativePerFormatUrls?: Partial<
     Record<'1x1' | '4x5' | '9x16' | '16x9', string>
   >;
+  localizedPerFormatUrls?: unknown;
   /** 4-locale × 4-format atlas URL (Convex storage). */
   atlasUrl?: string;
   /** Convex asset id of the atlas. */

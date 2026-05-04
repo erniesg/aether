@@ -17,8 +17,13 @@ import {
   type TextOverlayRowInput,
   type PlacedShapeInput,
 } from '@/lib/text-overlay/dispatch-apply';
-import { DEMO_LOCALES, getActiveLocale } from '@/lib/text-overlay/active-locale';
+import {
+  getEnabledLocales,
+  getTranslateLinkedLocales,
+} from '@/lib/text-overlay/active-locale';
 import type { BCP47LocaleCode } from '@/lib/text-overlay/types';
+import { DEFAULT_LOCALE } from '@/lib/locale/registry';
+import { deterministicTranslateContent } from '@/lib/text-overlay/translation';
 import type { CreatorContextModel } from '@/lib/context/model';
 
 export const AETHER_IMAGE_LANDED_EVENT = 'aether:image-landed-on-artboard';
@@ -49,8 +54,8 @@ interface BridgeOptions {
   /** Snapshot of the creator context (read by the helper, not subscribed). */
   creatorContext: Pick<CreatorContextModel, 'brand' | 'offer' | 'campaign'>;
   /**
-   * Locales to translate copy into. Defaults to the demo set
-   * (en · zh-Hans · ja-JP).
+   * Locales enabled on the creator canvas. Defaults to the session language
+   * selection, which starts at en-SG only.
    */
   targetLocales?: ReadonlyArray<BCP47LocaleCode>;
   /** Inject for tests so we don't actually hit `/api/text-overlay/apply`. */
@@ -58,8 +63,16 @@ interface BridgeOptions {
   /** Inject for tests so we don't try to talk to Convex. */
   insertTextOverlay?: (row: TextOverlayRowInput) => Promise<string | null>;
   updateTextOverlay?: (id: string, content: Record<string, string>) => Promise<void>;
+  /** Current toolbar scope for edit actions. Global edits fan out; local
+   *  edits become per-format overrides. */
+  editScope?: 'global' | 'local';
+  translateLinkedLocales?: boolean;
   /** When set, fires after each apply call so callers / tests can observe. */
-  onApplied?: (artboardId: string, result: DispatchTextOverlayApplyResult) => void;
+  onApplied?: (
+    artboardId: string,
+    result: DispatchTextOverlayApplyResult,
+    capabilityRunId?: string
+  ) => void;
 }
 
 /**
@@ -155,8 +168,8 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
             aspectRatio: detail.aspectRatio as never,
           },
           creatorContext: opts.creatorContext,
-          sourceLocale: getActiveLocale(),
-          targetLocales: opts.targetLocales ?? DEMO_LOCALES,
+          sourceLocale: DEFAULT_LOCALE,
+          targetLocales: opts.targetLocales ?? getEnabledLocales(),
           capabilityRunId: detail.capabilityRunId,
         },
         {
@@ -166,7 +179,7 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
         },
         { x: frameShape.x, y: frameShape.y }
       );
-      opts.onApplied?.(detail.artboardId, result);
+      opts.onApplied?.(detail.artboardId, result, detail.capabilityRunId);
     };
 
     window.addEventListener(AETHER_IMAGE_LANDED_EVENT, onLanded as EventListener);
@@ -184,16 +197,87 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
       if (!detail || !editor) return;
 
       const shape = editor.getShape(detail.shapeId as never) as
-        | { type: string; props: AetherTextShapeProps }
+        | { type: string; props: AetherTextShapeProps; meta?: Record<string, unknown> }
         | undefined;
       if (!shape || shape.type !== AETHER_TEXT_SHAPE_TYPE) return;
 
-      const nextContent = { ...shape.props.content, [detail.locale]: detail.text };
+      const meta = (shape.meta ?? {}) as Record<string, unknown>;
+      const requestedScope =
+        opts.editScope ?? (meta.scope === 'global' || meta.scope === 'local'
+          ? meta.scope
+          : 'local');
+      const enabledLocales = opts.targetLocales ?? getEnabledLocales();
+      const shouldTranslate =
+        detail.locale === DEFAULT_LOCALE &&
+        (opts.translateLinkedLocales ?? getTranslateLinkedLocales());
+      const translations = shouldTranslate
+        ? deterministicTranslateContent({
+            sourceText: detail.text,
+            sourceLocale: detail.locale,
+            targetLocales: enabledLocales.map(String),
+          })
+        : {};
+      const nextContent = {
+        ...shape.props.content,
+        [detail.locale]: detail.text,
+        ...filterTranslationsForShape(meta, translations),
+      };
+      const nextMeta =
+        meta.autoModeTextOverlay === true
+          ? {
+              ...meta,
+              scope: requestedScope,
+              localOverride:
+                requestedScope === 'local' ? true : meta.localOverride,
+              localOverridesByLocale:
+                requestedScope === 'local'
+                  ? {
+                      ...(readLocalOverridesByLocale(meta) ?? {}),
+                      [detail.locale]: true,
+                    }
+                  : readLocalOverridesByLocale(meta),
+              translatedFrom:
+                Object.keys(translations).length > 0
+                  ? {
+                      ...readStringMap(meta.translatedFrom),
+                      ...Object.fromEntries(
+                        Object.keys(translations).map((locale) => [
+                          locale,
+                          detail.locale,
+                        ])
+                      ),
+                    }
+                  : meta.translatedFrom,
+            }
+          : meta;
       editor.updateShape({
         id: detail.shapeId as never,
         type: AETHER_TEXT_SHAPE_TYPE as never,
         props: { content: nextContent } as never,
+        meta: nextMeta as never,
       } as never);
+
+      if (meta.autoModeTextOverlay === true) {
+        if (requestedScope === 'global') {
+          fanOutAutoModeTextEdit({
+            editor,
+            sourceShapeId: detail.shapeId,
+            meta,
+            locale: detail.locale,
+            text: detail.text,
+            translations,
+          });
+        }
+        void persistAutoModeTextEdit({
+          fetchImpl: opts.fetchImpl,
+          meta,
+          locale: detail.locale,
+          text: detail.text,
+          scope: requestedScope,
+          translateLinked: shouldTranslate,
+          targetLocales: enabledLocales.map(String),
+        });
+      }
 
       const updater = opts.updateTextOverlay ?? makeConvexUpdateTextOverlay();
       if (detail.textOverlayRowId) {
@@ -212,6 +296,153 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
       );
     };
   }, [editor]);
+}
+
+function readStringMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === 'string') out[key] = entry;
+  }
+  return out;
+}
+
+function readLocalOverridesByLocale(
+  meta: Record<string, unknown>
+): Record<string, boolean> | undefined {
+  const raw = meta.localOverridesByLocale;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, boolean> = {};
+  for (const [locale, enabled] of Object.entries(raw)) {
+    if (enabled === true) out[locale] = true;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function hasLocaleLocalOverride(
+  meta: Record<string, unknown>,
+  locale: string
+): boolean {
+  const localOverrides = readLocalOverridesByLocale(meta);
+  if (localOverrides) return localOverrides[locale] === true;
+  return meta.localOverride === true;
+}
+
+function shouldSkipFanoutForLocale(
+  meta: Record<string, unknown>,
+  locale: string
+): boolean {
+  if (hasLocaleLocalOverride(meta, locale)) return true;
+  return meta.scope === 'local' && !readLocalOverridesByLocale(meta);
+}
+
+function filterTranslationsForShape(
+  meta: Record<string, unknown>,
+  translations: Record<string, string>
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [locale, text] of Object.entries(translations)) {
+    if (hasLocaleLocalOverride(meta, locale)) continue;
+    out[locale] = text;
+  }
+  return out;
+}
+
+function fanOutAutoModeTextEdit(input: {
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>;
+  sourceShapeId: string;
+  meta: Record<string, unknown>;
+  locale: string;
+  text: string;
+  translations?: Record<string, string>;
+}): void {
+  const { editor, sourceShapeId, meta, locale, text, translations = {} } = input;
+  const variationId = meta.variationId as string | undefined;
+  const role = meta.role as string | undefined;
+  if (!variationId || !role) return;
+
+  const siblings = editor.getCurrentPageShapes().filter((shape) => {
+    if (shape.id === (sourceShapeId as never)) return false;
+    const sm = (shape.meta ?? {}) as Record<string, unknown>;
+    return (
+      shape.type === AETHER_TEXT_SHAPE_TYPE &&
+      sm.autoModeTextOverlay === true &&
+      sm.variationId === variationId &&
+      sm.role === role &&
+      !shouldSkipFanoutForLocale(sm, locale)
+    );
+  });
+
+  for (const sibling of siblings) {
+    const s = sibling as unknown as {
+      id: string;
+      props: AetherTextShapeProps;
+      meta?: Record<string, unknown>;
+    };
+    const siblingTranslations = filterTranslationsForShape(s.meta ?? {}, translations);
+    editor.updateShape({
+      id: s.id as never,
+      type: AETHER_TEXT_SHAPE_TYPE as never,
+      props: {
+        content: {
+          ...(s.props.content ?? {}),
+          [locale]: text,
+          ...siblingTranslations,
+        },
+      } as never,
+      meta: {
+        ...(s.meta ?? {}),
+        scope: 'global',
+        translatedFrom:
+          Object.keys(siblingTranslations).length > 0
+            ? {
+                ...readStringMap(s.meta?.translatedFrom),
+                ...Object.fromEntries(
+                  Object.keys(siblingTranslations).map((targetLocale) => [
+                    targetLocale,
+                    locale,
+                  ])
+                ),
+              }
+            : s.meta?.translatedFrom,
+      } as never,
+    } as never);
+  }
+}
+
+async function persistAutoModeTextEdit(input: {
+  fetchImpl?: typeof fetch;
+  meta: Record<string, unknown>;
+  locale: string;
+  text: string;
+  scope: 'global' | 'local';
+  translateLinked?: boolean;
+  targetLocales?: ReadonlyArray<string>;
+}): Promise<void> {
+  const variationId = input.meta.variationId as string | undefined;
+  const role = input.meta.role as string | undefined;
+  const format = input.meta.format as string | undefined;
+  if (!variationId || !role) return;
+
+  try {
+    const fetcher = input.fetchImpl ?? fetch;
+    await fetcher('/api/campaigns/overlay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        variationId,
+        locale: input.locale,
+        format: format ?? '1x1',
+        scope: input.scope,
+        role,
+        text: input.text,
+        translateLinked: input.translateLinked === true,
+        targetLocales: input.targetLocales ?? [],
+      }),
+    });
+  } catch {
+    // best-effort — canvas state is already updated
+  }
 }
 
 function estimateFontSize(boxH: number, purpose: string): number {

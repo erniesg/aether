@@ -69,6 +69,30 @@ const REFERENCE = v.object({
   tags: v.optional(v.array(v.string())),
   notes: v.optional(v.string()),
   clusterId: v.optional(v.string()),
+  assetId: v.optional(v.string()),
+  origin: v.optional(
+    v.union(
+      v.literal('ingest'),
+      v.literal('upload'),
+      v.literal('search'),
+      v.literal('generated'),
+      v.literal('manual')
+    )
+  ),
+  sourceRunId: v.optional(v.string()),
+  sourceCampaignId: v.optional(v.string()),
+  sourceFormatId: v.optional(v.string()),
+  productId: v.optional(v.string()),
+  productCanonicalName: v.optional(v.string()),
+  referenceQuery: v.optional(v.string()),
+  relevanceScore: v.optional(v.number()),
+  referenceStatus: v.optional(
+    v.union(
+      v.literal('candidate'),
+      v.literal('selected'),
+      v.literal('rejected')
+    )
+  ),
 });
 
 async function firstByWorkspace(ctx: any, table: string, workspaceId: string) {
@@ -196,6 +220,16 @@ function toReference(doc: any) {
     tags: doc.tags ?? [],
     notes: doc.notes,
     clusterId: doc.clusterId,
+    assetId: doc.assetId,
+    origin: doc.origin,
+    sourceRunId: doc.sourceRunId,
+    sourceCampaignId: doc.sourceCampaignId,
+    sourceFormatId: doc.sourceFormatId,
+    productId: doc.productId,
+    productCanonicalName: doc.productCanonicalName,
+    referenceQuery: doc.referenceQuery,
+    relevanceScore: doc.relevanceScore,
+    referenceStatus: doc.referenceStatus,
   };
 }
 

@@ -13,13 +13,16 @@ import {
 import {
   resetActiveLocaleForTests,
   setActiveLocale,
-  DEMO_LOCALES,
+  setEnabledLocales,
+  setLocaleViewMode,
 } from '@/lib/text-overlay/active-locale';
+import { SUPPORTED_LOCALES } from '@/lib/locale/registry';
 import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
 
 const CONTENT = {
-  en: 'Slow morning, golden hour',
-  'zh-Hans': '慢早晨，黄金时刻',
+  'en-SG': 'Slow morning, golden hour',
+  'zh-Hans-SG': '慢早晨，黄金时刻',
+  'ms-SG': 'Pagi perlahan, cahaya emas',
   'ja-JP': 'ゆっくりとした朝、ゴールデンアワー',
 };
 
@@ -40,9 +43,9 @@ describe('AetherTextShape · static contract', () => {
     const defaults = util.getDefaultProps();
     // Multilingual content map keyed by BCP-47 locale tag — even on a fresh
     // shape we keep the map shape so downstream readers don't crash.
-    expect(defaults.content).toEqual({ en: '' });
-    expect(defaults.bcp47Locale).toBe('en');
-    expect(defaults.sourceLocale).toBe('en');
+    expect(defaults.content).toEqual({ 'en-SG': '' });
+    expect(defaults.bcp47Locale).toBe('en-SG');
+    expect(defaults.sourceLocale).toBe('en-SG');
     // AetherTextPlacement is JSON-serialized so tldraw's structural validator
     // stays simple. Round-tripping must give back the smart-anchor default.
     const placement = JSON.parse(defaults.placement);
@@ -74,8 +77,8 @@ describe('AetherTextShape · render body', () => {
         artboardId="frame-1"
         textOverlayRowId="row-1"
         content={CONTENT}
-        bcp47Locale="en"
-        sourceLocale="en"
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
         fontSize={48}
         color="#ffffff"
         textAlign="center"
@@ -85,8 +88,8 @@ describe('AetherTextShape · render body', () => {
     );
 
     const editable = screen.getByRole('textbox');
-    expect(editable.textContent).toBe(CONTENT.en);
-    expect(editable.getAttribute('aria-label')).toBe('text overlay (en)');
+    expect(editable.textContent).toBe(CONTENT['en-SG']);
+    expect(editable.getAttribute('aria-label')).toBe('text overlay (en-SG)');
   });
 
   it('renders the locale picked by the activeLocaleOverride prop', () => {
@@ -97,8 +100,8 @@ describe('AetherTextShape · render body', () => {
         artboardId="frame-1"
         textOverlayRowId="row-1"
         content={CONTENT}
-        bcp47Locale="en"
-        sourceLocale="en"
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
         fontSize={48}
         color="#ffffff"
         textAlign="center"
@@ -121,19 +124,46 @@ describe('AetherTextShape · render body', () => {
         wsId="ws-1"
         artboardId="frame-1"
         textOverlayRowId="row-1"
-        content={{ en: CONTENT.en }}
-        bcp47Locale="en"
-        sourceLocale="en"
+        content={{ 'en-SG': CONTENT['en-SG'] }}
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
         fontSize={48}
         color="#ffffff"
         textAlign="center"
         fontWeight={600}
         backgroundColor=""
-        activeLocaleOverride="zh-Hans"
+        activeLocaleOverride="zh-Hans-SG"
       />
     );
 
-    expect(screen.getByRole('textbox').textContent).toBe(CONTENT.en);
+    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['en-SG']);
+  });
+
+  it('does not stack all locale lanes for multilingual voice review by default', () => {
+    render(
+      <AetherTextShapeBody
+        shapeId="shape-voice"
+        wsId="ws-1"
+        artboardId="frame-1"
+        textOverlayRowId="row-1"
+        content={CONTENT}
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
+        fontSize={48}
+        color="#ffffff"
+        textAlign="center"
+        fontWeight={600}
+        backgroundColor=""
+        activeLocaleOverride="zh-Hans-SG"
+        enabledLocales={SUPPORTED_LOCALES.map(String)}
+        localeViewMode="single"
+      />
+    );
+
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['zh-Hans-SG']);
+    expect(screen.queryByText(CONTENT['en-SG'])).not.toBeInTheDocument();
+    expect(screen.queryByText(CONTENT['ms-SG'])).not.toBeInTheDocument();
   });
 
   it('emits aether:text-overlay-edited on blur with the edited text + locale + provenance', async () => {
@@ -150,14 +180,14 @@ describe('AetherTextShape · render body', () => {
         artboardId="frame-1"
         textOverlayRowId="row-1"
         content={CONTENT}
-        bcp47Locale="en"
-        sourceLocale="en"
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
         fontSize={48}
         color="#ffffff"
         textAlign="center"
         fontWeight={600}
         backgroundColor=""
-        activeLocaleOverride="zh-Hans"
+        activeLocaleOverride="zh-Hans-SG"
       />
     );
 
@@ -173,10 +203,43 @@ describe('AetherTextShape · render body', () => {
       shapeId: 'shape-1',
       wsId: 'ws-1',
       artboardId: 'frame-1',
-      locale: 'zh-Hans',
+      locale: 'zh-Hans-SG',
       text: '新副本，慢一点儿',
       textOverlayRowId: 'row-1',
     });
+  });
+
+  it('emits the concrete content locale when the active locale is a language alias', () => {
+    const events: AetherTextOverlayEditedDetail[] = [];
+    const handler = (event: Event) => {
+      events.push((event as CustomEvent<AetherTextOverlayEditedDetail>).detail);
+    };
+    window.addEventListener(AETHER_TEXT_OVERLAY_EDITED_EVENT, handler);
+
+    render(
+      <AetherTextShapeBody
+        shapeId="shape-sg"
+        wsId="ws-1"
+        artboardId="frame-1"
+        textOverlayRowId="row-1"
+        content={{ 'en-SG': 'Singapore launch' }}
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
+        fontSize={48}
+        color="#ffffff"
+        textAlign="center"
+        fontWeight={600}
+        backgroundColor=""
+        activeLocaleOverride="en"
+      />
+    );
+
+    const editable = screen.getByRole('textbox') as HTMLDivElement;
+    editable.textContent = 'Edited Singapore launch';
+    fireEvent.blur(editable);
+    window.removeEventListener(AETHER_TEXT_OVERLAY_EDITED_EVENT, handler);
+
+    expect(events[0]?.locale).toBe('en-SG');
   });
 
   it('does not fire an edit event when the contentEditable blurs without changes', () => {
@@ -193,8 +256,8 @@ describe('AetherTextShape · render body', () => {
         artboardId="frame-1"
         textOverlayRowId="row-1"
         content={CONTENT}
-        bcp47Locale="en"
-        sourceLocale="en"
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
         fontSize={48}
         color="#ffffff"
         textAlign="center"
@@ -212,15 +275,20 @@ describe('AetherTextShape · render body', () => {
 });
 
 describe('AetherTextShape · active-locale store integration', () => {
-  it('demo locales include the three required for the demo arc', () => {
-    const codes = DEMO_LOCALES.map(String);
-    expect(codes).toContain('en');
-    expect(codes).toContain('zh-Hans');
-    expect(codes).toContain('ja-JP');
+  it('supported locales include the campaign languages', () => {
+    const codes = SUPPORTED_LOCALES.map(String);
+    expect(codes).toEqual([
+      'en-SG',
+      'zh-Hans-SG',
+      'ms-SG',
+      'ta-SG',
+      'ja-JP',
+      'ko-KR',
+    ]);
   });
 
   it('setActiveLocale changes which locale store consumers see', () => {
-    setActiveLocale(asBCP47LocaleCode('zh-Hans'));
+    setActiveLocale(asBCP47LocaleCode('zh-Hans-SG'));
     // Re-rendering after the store updates reads the new value via the
     // override path the bridge plumbs through.
     const { rerender } = render(
@@ -230,17 +298,17 @@ describe('AetherTextShape · active-locale store integration', () => {
         artboardId="frame-1"
         textOverlayRowId="row-1"
         content={CONTENT}
-        bcp47Locale="en"
-        sourceLocale="en"
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
         fontSize={48}
         color="#ffffff"
         textAlign="center"
         fontWeight={600}
         backgroundColor=""
-        activeLocaleOverride="zh-Hans"
+        activeLocaleOverride="zh-Hans-SG"
       />
     );
-    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['zh-Hans']);
+    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['zh-Hans-SG']);
 
     setActiveLocale(asBCP47LocaleCode('ja-JP'));
     rerender(
@@ -250,8 +318,8 @@ describe('AetherTextShape · active-locale store integration', () => {
         artboardId="frame-1"
         textOverlayRowId="row-1"
         content={CONTENT}
-        bcp47Locale="en"
-        sourceLocale="en"
+        bcp47Locale="en-SG"
+        sourceLocale="en-SG"
         fontSize={48}
         color="#ffffff"
         textAlign="center"
@@ -269,8 +337,8 @@ describe('AetherTextShape · active-locale store integration', () => {
       type: AETHER_TEXT_SHAPE_TYPE,
       props: {
         content: CONTENT,
-        bcp47Locale: 'en',
-        sourceLocale: 'en',
+        bcp47Locale: 'en-SG',
+        sourceLocale: 'en-SG',
         w: 480,
         h: 96,
         placement: '{}',
@@ -288,16 +356,57 @@ describe('AetherTextShape · active-locale store integration', () => {
     } as unknown as AetherTextShape;
 
     render(<AetherTextShapeLiveBody shape={shape} />);
-    expect(screen.getByRole('textbox').textContent).toBe(CONTENT.en);
+    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['en-SG']);
 
     act(() => {
-      setActiveLocale(asBCP47LocaleCode('zh-Hans'));
+      setActiveLocale(asBCP47LocaleCode('zh-Hans-SG'));
     });
 
-    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['zh-Hans']);
+    expect(screen.getByRole('textbox').textContent).toBe(CONTENT['zh-Hans-SG']);
     expect(screen.getByRole('textbox')).toHaveAttribute(
       'aria-label',
-      'text overlay (zh-Hans)'
+      'text overlay (zh-Hans-SG)'
     );
+  });
+
+  it('renders selected language lanes together in multilingual view', () => {
+    const shape = {
+      id: 'shape-live',
+      type: AETHER_TEXT_SHAPE_TYPE,
+      props: {
+        content: CONTENT,
+        bcp47Locale: 'en-SG',
+        sourceLocale: 'en-SG',
+        w: 480,
+        h: 160,
+        placement: '{}',
+        protectedRegions: '[]',
+        wsId: 'ws-1',
+        artboardId: 'frame-1',
+        textOverlayRowId: 'row-1',
+        capabilityRunId: 'run-1',
+        fontSize: 48,
+        color: '#ffffff',
+        textAlign: 'center',
+        fontWeight: 600,
+        backgroundColor: '',
+      },
+    } as unknown as AetherTextShape;
+
+    act(() => {
+      setEnabledLocales([
+        asBCP47LocaleCode('en-SG'),
+        asBCP47LocaleCode('zh-Hans-SG'),
+        asBCP47LocaleCode('ms-SG'),
+      ]);
+      setLocaleViewMode('multilingual');
+    });
+
+    render(<AetherTextShapeLiveBody shape={shape} />);
+
+    expect(screen.getByText(CONTENT['en-SG'])).toBeInTheDocument();
+    expect(screen.getByText(CONTENT['zh-Hans-SG'])).toBeInTheDocument();
+    expect(screen.getByText(CONTENT['ms-SG'])).toBeInTheDocument();
+    expect(screen.getAllByRole('textbox')).toHaveLength(3);
   });
 });

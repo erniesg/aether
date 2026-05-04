@@ -12,6 +12,8 @@
  */
 
 export type ReferenceKind = 'image' | 'video' | 'embed' | 'template' | 'element';
+export type ReferenceOrigin = 'ingest' | 'upload' | 'search' | 'generated' | 'manual';
+export type ReferenceStatus = 'candidate' | 'selected' | 'rejected';
 
 export interface ReferenceAttribution {
   /** Adapter id ('pinterest' / 'instagram' / 'xhs' / 'tiktok' / 'generic' / 'upload'). */
@@ -42,6 +44,26 @@ export interface ReferenceRecord {
   notes?: string;
   /** Optional shortlist / cluster id once references are grouped. */
   clusterId?: string;
+  /** Convex asset row id when the underlying bytes were stored durably. */
+  assetId?: string;
+  /** How this library item entered the workspace. */
+  origin?: ReferenceOrigin;
+  /** Client run id that produced this asset, when generated in the canvas. */
+  sourceRunId?: string;
+  /** Campaign/lap id that produced this asset, when applicable. */
+  sourceCampaignId?: string;
+  /** Format/artboard identifier for generated multi-format outputs. */
+  sourceFormatId?: string;
+  /** Product scope used by voice/reference search so stale refs do not leak into a new brief. */
+  productId?: string;
+  /** Human-readable product name paired with productId for prompt/debug surfaces. */
+  productCanonicalName?: string;
+  /** Query that discovered this reference candidate. */
+  referenceQuery?: string;
+  /** Normalized 0..1 visual/text relevance score for product-scoped selection. */
+  relevanceScore?: number;
+  /** Candidate lifecycle. Only selected refs are promoted into the active creator library. */
+  referenceStatus?: ReferenceStatus;
 }
 
 export type ReferenceFetcher = typeof fetch;

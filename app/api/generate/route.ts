@@ -208,6 +208,17 @@ export async function POST(request: Request) {
   }
   const composition = resolveComposition(parsedComposition.composition, undefined);
   const modeChoice = parseRenderMode(b.mode);
+  const voiceTrace =
+    b.voiceTrace && typeof b.voiceTrace === 'object' && !Array.isArray(b.voiceTrace)
+      ? (b.voiceTrace as Record<string, unknown>)
+      : undefined;
+  const runInputs: Record<string, unknown> = {
+    prompt,
+    refs: Array.isArray(refs) ? refs.length : 0,
+  };
+  if (model) runInputs.model = model;
+  if (aspectRatioOverride) runInputs.aspectRatio = aspectRatioOverride;
+  if (voiceTrace) runInputs.voiceTrace = voiceTrace;
 
   console.log(
     `[generate/${reqId}] running · provider=${providerId ?? 'auto'} model=${model ?? 'auto'} bypassAgent=${bypassAgent} planOnly=${planOnly} aspect=${aspectRatioOverride ?? 'auto'} promptLen=${prompt.length}`
@@ -221,6 +232,7 @@ export async function POST(request: Request) {
       model: model ?? '',
       prompt,
       aspectRatio: aspectRatioOverride,
+      inputs: runInputs,
     });
   }
 
