@@ -100,6 +100,8 @@ export type GenerateStreamEvent =
         campaignId: string | null;
         variationId: string | null;
         discordSent: boolean;
+        scheduledPostIds?: string[];
+        autoPostError?: string;
       };
     };
 

@@ -67,6 +67,8 @@ export interface PersistGenerationResult {
   campaignId: string | null;
   variationId: string | null;
   discordSent: boolean;
+  scheduledPostIds?: string[];
+  autoPostError?: string;
 }
 
 /** Build a short signature for a possibly-data-URL ref so the campaign
@@ -243,9 +245,11 @@ export async function persistGenerateAsCampaign(
   // staged (Convex-public) URLs so platform pullers (Meta especially)
   // get something they can fetch — the original data: URLs would be
   // unfetchable across origins.
+  let scheduledPostIds: string[] = [];
+  let autoPostError: string | undefined;
   if (notifyMode === 'auto-post' && input.workspaceId) {
     try {
-      await scheduleVariationPosts({
+      scheduledPostIds = await scheduleVariationPosts({
         variations: [
           {
             index: 1,
@@ -267,15 +271,22 @@ export async function persistGenerateAsCampaign(
         targetPlatforms: input.targetPlatforms,
       });
     } catch (err) {
+      autoPostError = err instanceof Error ? err.message : String(err);
       // eslint-disable-next-line no-console
       console.warn(
         '[persist-generation] auto-post scheduleVariationPosts failed:',
-        err instanceof Error ? err.message : String(err)
+        autoPostError
       );
     }
   }
 
-  return { campaignId, variationId, discordSent };
+  return {
+    campaignId,
+    variationId,
+    discordSent,
+    ...(scheduledPostIds.length > 0 ? { scheduledPostIds } : {}),
+    ...(autoPostError ? { autoPostError } : {}),
+  };
 }
 
 async function persistGeneratedLibraryItems(input: {
