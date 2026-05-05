@@ -92,26 +92,57 @@ jobs:
             PR number: #${{ steps.pr_context.outputs.number }}
             PR head branch: ${{ steps.pr_context.outputs.head_ref }}
 
-            Apply STRICT review: red/green TDD compliance, hard rules from
-            docs/AGENT-BRIEFING.md (provider seam, typed provenance, UI
-            taxonomy, restraint, canvas-as-substrate), and the acceptance
-            checklist from the linked issue. Flag any test that is mocked
-            when it should be integration, any hardcoded provider, any UI
-            mixing taxonomy categories.
+            ──── Single source of truth ────
+            Before evaluating the diff, READ these three files in this order:
 
-            Return structured output only. Do not try to post a PR comment
-            yourself; the routing step will post the review comment from your
-            structured output. The `verdict` field must be exactly one of
-            `APPROVE`, `REQUEST_CHANGES`, or `BLOCK`.
+            1. `docs/qa-rubric.md` — what a falsifiable QA plan looks like;
+               banned phrasing; required proof formats.
+            2. `docs/reviewer-personas.md` — the five risk-surface personas,
+               their falsifiable assertions, and the touched-paths routing
+               table.
+            3. The parent issue's `## QA Plan` section. (Look for "Closes #N"
+               in the PR body; fetch with `gh issue view N`.) If the issue
+               has no `## QA Plan` section, return REQUEST_CHANGES asking
+               the author to add one — do not guess.
 
-            Put the human-readable review in the `body` field. The router will
-            append the final VERDICT line.
+            ──── How to evaluate ────
 
-            - APPROVE: all acceptance criteria met, tests green, no hard-rule
-              violations.
+            STEP 1 — Determine which personas fire:
+              Run the auto-routing table in `docs/reviewer-personas.md`
+              against the touched paths in this PR's diff. `correctness`
+              ALWAYS fires. Note which others fire.
+
+            STEP 2 — For each firing persona, walk its assertion checklist
+              and emit PASS / FAIL / UNVERIFIABLE for each. UNVERIFIABLE
+              means the assertion cannot be mechanized AND no proof
+              artifact has been attached to the PR yet. Always provide
+              the `proof` field when you can locate evidence (file:line,
+              test id, screenshot path, JSON path, log line, run URL).
+
+            STEP 3 — Cross-check the QA plan: every `Falsifiable` claim
+              listed in the issue's `## QA Plan` must have corresponding
+              evidence in the diff or a linked artifact. Missing evidence
+              for a claim → REQUEST_CHANGES.
+
+            STEP 4 — Apply falsifiability rules from `docs/qa-rubric.md`:
+              if any QA-plan claim or PR description uses banned phrasing
+              (`should`, `looks good`, `feels right`, `manual review`,
+              `TBD`), return REQUEST_CHANGES asking for rephrasing with a
+              concrete proof location. No "skip with justification."
+
+            STEP 5 — Merge persona verdicts using priority `BLOCK > REQUEST_CHANGES > APPROVE`. The merged result is your top-level `verdict`.
+
+            ──── Verdict semantics ────
+
+            - APPROVE: all acceptance criteria met, every firing persona
+              returned APPROVE, all QA-plan claims have evidence, all
+              required artifacts are attached, no hard-rule violations.
             - REQUEST_CHANGES: fixable code, test, artifact-capture, or harness
               issues; the author agent will be re-dispatched automatically.
               Do not use BLOCK just because a screenshot/artifact is missing.
+              Also use REQUEST_CHANGES when any persona returned
+              REQUEST_CHANGES, when QA plan is absent or incomplete, or
+              when unfalsifiable phrasing appears in PR body or QA plan.
             - BLOCK: only use for architectural, product, or visual ambiguity
               that truly needs Ernie. Include `humanReview` with:
               - `kind`: `visual`, `product`, `architecture`, or `other`
@@ -124,10 +155,23 @@ jobs:
             note. Provide the specific artifacts and clear options. If those
             artifacts are missing, return REQUEST_CHANGES asking the author
             agent to capture them.
+
+            ──── Output ────
+
+            Return structured output only. Do not post a PR comment
+            yourself; the router posts it from your structured output.
+
+            Required fields: `verdict`, `body`.
+            Strongly recommended: `personas[]` with per-persona detail.
+            Conditional: `humanReview` (only when verdict is BLOCK).
+
+            Put the human-readable summary in `body`. The router will
+            append the final VERDICT line and render the persona table
+            from `personas[]`.
           claude_args: |
             --max-turns 120
             --model claude-opus-4-7
-            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","BLOCK"]},"body":{"type":"string","description":"Human-readable PR review summary and findings. Do not include the final VERDICT line."},"humanReview":{"type":"object","properties":{"kind":{"type":"string","enum":["visual","product","architecture","other"]},"reason":{"type":"string","description":"Concise reason a human decision is required."},"options":{"type":"array","minItems":2,"items":{"type":"object","properties":{"label":{"type":"string"},"description":{"type":"string"}},"required":["label","description"],"additionalProperties":false}},"artifactUrls":{"type":"array","items":{"type":"string"},"description":"Evidence links. Required by prompt whenever kind is visual or product."}},"required":["kind","reason","options"],"additionalProperties":false}},"required":["verdict","body"],"additionalProperties":false}'
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","BLOCK"]},"body":{"type":"string","description":"Human-readable PR review summary and findings. Do not include the final VERDICT line."},"personas":{"type":"array","description":"Per-persona detail. Strongly recommended; the router renders a verdict table from this.","items":{"type":"object","properties":{"persona":{"type":"string","enum":["correctness","demo-arc","provenance","ux-restraint","security-cost"]},"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","BLOCK"]},"assertions":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","description":"Assertion id from docs/reviewer-personas.md (e.g. C1, D1, P1, U1, S1)"},"status":{"type":"string","enum":["PASS","FAIL","UNVERIFIABLE"]},"proof":{"type":"string","description":"Required for PASS and FAIL. UNVERIFIABLE without proof signals that the reviewer needs media attached before merge."},"note":{"type":"string","description":"Optional one-line explanation."}},"required":["id","status"],"additionalProperties":false}}},"required":["persona","verdict","assertions"],"additionalProperties":false}},"humanReview":{"type":"object","properties":{"kind":{"type":"string","enum":["visual","product","architecture","other"]},"reason":{"type":"string","description":"Concise reason a human decision is required."},"options":{"type":"array","minItems":2,"items":{"type":"object","properties":{"label":{"type":"string"},"description":{"type":"string"}},"required":["label","description"],"additionalProperties":false}},"artifactUrls":{"type":"array","items":{"type":"string"},"description":"Evidence links. Required by prompt whenever kind is visual or product."}},"required":["kind","reason","options"],"additionalProperties":false}},"required":["verdict","body"],"additionalProperties":false}'
 
       - name: Route verdict
         if: always()
