@@ -16,6 +16,7 @@ import type * as clusters from "../clusters.js";
 import type * as creatorContext from "../creatorContext.js";
 import type * as inboundReply from "../inboundReply.js";
 import type * as lapEvent from "../lapEvent.js";
+import type * as productCatalog from "../productCatalog.js";
 import type * as proposals from "../proposals.js";
 import type * as providerPrefs from "../providerPrefs.js";
 import type * as publisher from "../publisher.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   creatorContext: typeof creatorContext;
   inboundReply: typeof inboundReply;
   lapEvent: typeof lapEvent;
+  productCatalog: typeof productCatalog;
   proposals: typeof proposals;
   providerPrefs: typeof providerPrefs;
   publisher: typeof publisher;

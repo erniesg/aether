@@ -19,6 +19,10 @@ import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
 const EN = asBCP47LocaleCode('en-US');
 const ZH = asBCP47LocaleCode('zh-SG');
 const FR = asBCP47LocaleCode('fr-FR');
+const EN_SG = asBCP47LocaleCode('en-SG');
+const ZH_HANS_SG = asBCP47LocaleCode('zh-Hans-SG');
+const MS_SG = asBCP47LocaleCode('ms-SG');
+const JA_JP = asBCP47LocaleCode('ja-JP');
 
 const COMPONENT: SemanticCreativeComponent = {
   hero: { description: 'a single ripe persimmon, golden hour, satin skin' },
@@ -211,12 +215,34 @@ describe('applyTextOverlay', () => {
     expect(out.layers).toHaveLength(2);
     expect(out.layers[0].zone.purpose).toBe('headline');
     expect(out.layers[0].content[EN]).toBe('Solstice Skin');
-    // Target locale mirrors source on fallback
-    expect(out.layers[0].content[ZH]).toBe('Solstice Skin');
+    // Target locale is not invented on fallback; publish/review must request
+    // real localized copy before non-English output.
+    expect(out.layers[0].content[ZH]).toBeUndefined();
     expect(out.layers[1].zone.purpose).toBe('cta');
     // Aggressive offer → urgent CTA placeholder
     expect(out.layers[1].content[EN]).toBe('Shop now');
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('does not generate draft-suffix fallback copy for selected target locales', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    const out = await applyTextOverlay({
+      component: COMPONENT,
+      sourceLocale: EN_SG,
+      targetLocales: [ZH_HANS_SG, MS_SG, JA_JP],
+      brand: { name: 'Solstice Skin' },
+    });
+
+    expect(out.provenance.sourceLocale).toBe('en-SG');
+    expect(out.provenance.targetLocales.map(String)).toEqual([
+      'zh-Hans-SG',
+      'ms-SG',
+      'ja-JP',
+    ]);
+    expect(out.layers[0].content[EN_SG]).toBe('Solstice Skin');
+    expect(out.layers[0].content[ZH_HANS_SG]).toBeUndefined();
+    expect(out.layers[0].content[MS_SG]).toBeUndefined();
+    expect(out.layers[0].content[JA_JP]).toBeUndefined();
   });
 
   it('falls back when Anthropic returns a billing/credit error', async () => {
@@ -277,7 +303,7 @@ describe('applyTextOverlay', () => {
     expect(out.layers[1].zone.purpose).toBe('cta');
   });
 
-  it('falls back per-locale to source text when Claude skips a target', async () => {
+  it('leaves target locale missing when Claude skips a translation', async () => {
     mockResponse({
       overlays: [
         {
@@ -302,8 +328,8 @@ describe('applyTextOverlay', () => {
       targetLocales: [ZH],
     });
     expect(out.layers[0].content[EN]).toBe('Slow morning drop');
-    // missing zh-SG falls back to source
-    expect(out.layers[0].content[ZH]).toBe('Slow morning drop');
+    // missing zh-SG is not replaced with English fallback copy
+    expect(out.layers[0].content[ZH]).toBeUndefined();
     // cta has both, normal path
     expect(out.layers[1].content[ZH]).toBe('立即选购');
   });

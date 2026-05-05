@@ -23,6 +23,10 @@ import {
 import { cn } from '@/lib/utils/cn';
 import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
 import type { VoiceProviderId } from '@/lib/voice/types';
+import {
+  defaultImageModelForProvider,
+  imageModelOptionsForProvider,
+} from '@/lib/providers/image/model-catalog';
 
 // ─── static option lists ─────────────────────────────────────────────────────
 
@@ -44,6 +48,13 @@ const SEGMENTATION_OPTIONS: Array<{ value: string; label: string }> = [
 ];
 
 const GEMINI_LIVE_MODEL_DEFAULT = 'gemini-3.1-flash-live-preview';
+const OPENAI_REALTIME_MODEL_DEFAULT = 'gpt-realtime';
+
+function defaultVoiceModel(providerId: VoiceProviderId): string {
+  return providerId === 'gemini-live'
+    ? GEMINI_LIVE_MODEL_DEFAULT
+    : OPENAI_REALTIME_MODEL_DEFAULT;
+}
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -112,11 +123,7 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
       const next: WorkspaceProviderPrefs = {
         ...local,
         voiceProviderId,
-        // reset model to default when switching to gemini-live
-        voiceModel:
-          voiceProviderId === 'gemini-live'
-            ? local.voiceModel ?? GEMINI_LIVE_MODEL_DEFAULT
-            : undefined,
+        voiceModel: defaultVoiceModel(voiceProviderId),
       };
       await commit(next);
     },
@@ -136,9 +143,22 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
 
   const handleImageChange = useCallback(
     async (e: ChangeEvent<HTMLSelectElement>) => {
+      const imageProviderId = e.target.value || undefined;
       const next: WorkspaceProviderPrefs = {
         ...local,
-        imageProviderId: e.target.value || undefined,
+        imageProviderId,
+        imageModel: imageProviderId ? defaultImageModelForProvider(imageProviderId) : undefined,
+      };
+      await commit(next);
+    },
+    [local, commit]
+  );
+
+  const handleImageModelChange = useCallback(
+    async (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const next: WorkspaceProviderPrefs = {
+        ...local,
+        imageModel: e.target.value || undefined,
       };
       await commit(next);
     },
@@ -157,7 +177,11 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
   );
 
   const effectiveVoice = local.voiceProviderId ?? 'gemini-live';
-  const showModelField = effectiveVoice === 'gemini-live';
+  const effectiveVoiceModel =
+    local.voiceModel ?? defaultVoiceModel(effectiveVoice);
+  const imageModelOptions = imageModelOptionsForProvider(local.imageProviderId);
+  const effectiveImageModel =
+    local.imageModel ?? defaultImageModelForProvider(local.imageProviderId) ?? '';
 
   return (
     <div className={cn('relative', className)}>
@@ -232,20 +256,17 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
             </select>
           </Row>
 
-          {/* Model field — gemini-live only */}
-          {showModelField ? (
-            <Row label="model" htmlFor="wp-voice-model">
-              <input
-                id="wp-voice-model"
-                aria-label="model"
-                type="text"
-                value={local.voiceModel ?? GEMINI_LIVE_MODEL_DEFAULT}
-                onChange={handleModelChange}
-                className={inputCls}
-                spellCheck={false}
-              />
-            </Row>
-          ) : null}
+          <Row label="voice model" htmlFor="wp-voice-model">
+            <input
+              id="wp-voice-model"
+              aria-label="voice model"
+              type="text"
+              value={effectiveVoiceModel}
+              onChange={handleModelChange}
+              className={inputCls}
+              spellCheck={false}
+            />
+          </Row>
 
           {/* Image row */}
           <Row label="image" htmlFor="wp-image">
@@ -263,6 +284,35 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
                 </option>
               ))}
             </select>
+          </Row>
+
+          {/* Image model row */}
+          <Row label="image model" htmlFor="wp-image-model">
+            {imageModelOptions.length > 0 ? (
+              <select
+                id="wp-image-model"
+                aria-label="image model"
+                value={effectiveImageModel}
+                onChange={handleImageModelChange}
+                className={selectCls}
+              >
+                {imageModelOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="wp-image-model"
+                aria-label="image model"
+                type="text"
+                value={effectiveImageModel}
+                onChange={handleImageModelChange}
+                className={inputCls}
+                spellCheck={false}
+              />
+            )}
           </Row>
 
           {/* Segmentation row */}

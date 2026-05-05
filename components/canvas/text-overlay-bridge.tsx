@@ -13,7 +13,10 @@ import {
 } from './shapes/AetherTextShape';
 import {
   dispatchTextOverlayApply,
+  fetchTextOverlayApplyPlan,
   type DispatchTextOverlayApplyResult,
+  type DispatchTextOverlayApplyInput,
+  type TextOverlayApplyPlan,
   type TextOverlayRowInput,
   type PlacedShapeInput,
 } from '@/lib/text-overlay/dispatch-apply';
@@ -39,6 +42,8 @@ export interface AetherImageLandedDetail {
   aspectRatio?: string;
   /** Capability run id for provenance, when known. */
   capabilityRunId?: string;
+  heroDirectionId?: string;
+  heroDirectionLabel?: string;
 }
 
 const textOverlayApi = (anyApi as unknown as {
@@ -47,6 +52,9 @@ const textOverlayApi = (anyApi as unknown as {
     updateTextOverlay: unknown;
   };
 }).textOverlay;
+
+const canonicalApplyPlans = new Map<string, Promise<TextOverlayApplyPlan>>();
+const canonicalOverlayPersistKeys = new Set<string>();
 
 interface BridgeOptions {
   /** Workspace id required to filter incoming events. */
@@ -106,7 +114,13 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
       if (detail.wsId !== opts.workspaceId) return;
 
       const frameShape = editor.getShape(detail.artboardId as never) as
-        | { x: number; y: number; type: string; props: { w: number; h: number } }
+        | {
+            x: number;
+            y: number;
+            type: string;
+            props: { w: number; h: number };
+            meta?: Record<string, unknown>;
+          }
         | undefined;
       if (!frameShape || frameShape.type !== 'frame') return;
 
@@ -115,8 +129,23 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
 
       const insertCanvasShape = (placed: PlacedShapeInput): string => {
         const shapeId = createShapeId();
+        const frameFormat = readFrameFormat(frameShape, detail.aspectRatio);
+        const variationId =
+          readMappedVariationId(placed.capabilityRunId || detail.capabilityRunId) ??
+          (placed.capabilityRunId ||
+            detail.capabilityRunId ||
+            `${placed.wsId}:direct-generation`);
+        const heroDirectionId = detail.heroDirectionId;
+        const role = placed.proposal.zone.purpose;
+        const canonicalContent = resolveCanonicalLinkedContent({
+          editor,
+          variationId,
+          heroDirectionId,
+          role,
+          proposedContent: placed.proposal.content,
+        });
         const props: AetherTextShapeProps = {
-          content: placed.proposal.content,
+          content: canonicalContent,
           bcp47Locale: placed.sourceLocale,
           sourceLocale: placed.sourceLocale,
           w: placed.w,
@@ -144,10 +173,22 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
           x: placed.x,
           y: placed.y,
           props: props as never,
-          meta: {
+          meta: jsonSafeMeta({
             aetherKind: 'text-overlay',
             aetherArtboardId: placed.artboardId,
-          },
+            autoModeTextOverlay: true,
+            autoModeTextContent: placed.proposal.content,
+            scope: defaultScopeForTextRole(placed.proposal.zone.purpose),
+            zone: placed.proposal.zone.purpose,
+            variationId,
+            heroDirectionId,
+            heroDirectionLabel: detail.heroDirectionLabel,
+            locale: placed.sourceLocale,
+            format: frameFormat,
+            role,
+            shapeRole: 'overlay-text',
+            canonicalCopyModel: 'role-locale',
+          }),
         } as never);
         // Parent under the frame so the overlay moves with the artboard.
         try {
@@ -155,11 +196,19 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
         } catch {
           // best-effort — older snapshots may not have the frame any more
         }
+        queueCanonicalOverlayPersist({
+          fetchImpl: opts.fetchImpl,
+          variationId,
+          runId: placed.capabilityRunId || detail.capabilityRunId,
+          heroDirectionId,
+          role,
+          format: frameFormat,
+          content: canonicalContent,
+        });
         return shapeId;
       };
 
-      const result = await dispatchTextOverlayApply(
-        {
+      const applyInput: DispatchTextOverlayApplyInput = {
           wsId: opts.workspaceId,
           frame: {
             id: detail.artboardId,
@@ -171,11 +220,25 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
           sourceLocale: DEFAULT_LOCALE,
           targetLocales: opts.targetLocales ?? getEnabledLocales(),
           capabilityRunId: detail.capabilityRunId,
-        },
+        };
+      let precomputedPlan: TextOverlayApplyPlan | undefined;
+      try {
+        precomputedPlan = await getCanonicalApplyPlan({
+          input: applyInput,
+          fetchImpl: opts.fetchImpl,
+          heroDirectionId: detail.heroDirectionId,
+        });
+      } catch {
+        precomputedPlan = undefined;
+      }
+
+      const result = await dispatchTextOverlayApply(
+        applyInput,
         {
           fetchImpl: opts.fetchImpl,
           insertTextOverlay,
           insertCanvasShape,
+          precomputedPlan,
         },
         { x: frameShape.x, y: frameShape.y }
       );
@@ -217,10 +280,26 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
             targetLocales: enabledLocales.map(String),
           })
         : {};
+      let persistedTranslations: Record<string, string> = {};
+      if (meta.autoModeTextOverlay === true) {
+        persistedTranslations = await persistAutoModeTextEdit({
+          fetchImpl: opts.fetchImpl,
+          meta,
+          locale: detail.locale,
+          text: detail.text,
+          scope: requestedScope,
+          translateLinked: shouldTranslate,
+          targetLocales: enabledLocales.map(String),
+        });
+      }
+      const resolvedTranslations = {
+        ...translations,
+        ...persistedTranslations,
+      };
       const nextContent = {
         ...shape.props.content,
         [detail.locale]: detail.text,
-        ...filterTranslationsForShape(meta, translations),
+        ...filterTranslationsForShape(meta, resolvedTranslations),
       };
       const nextMeta =
         meta.autoModeTextOverlay === true
@@ -237,11 +316,11 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
                     }
                   : readLocalOverridesByLocale(meta),
               translatedFrom:
-                Object.keys(translations).length > 0
+                Object.keys(resolvedTranslations).length > 0
                   ? {
                       ...readStringMap(meta.translatedFrom),
                       ...Object.fromEntries(
-                        Object.keys(translations).map((locale) => [
+                        Object.keys(resolvedTranslations).map((locale) => [
                           locale,
                           detail.locale,
                         ])
@@ -254,7 +333,7 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
         id: detail.shapeId as never,
         type: AETHER_TEXT_SHAPE_TYPE as never,
         props: { content: nextContent } as never,
-        meta: nextMeta as never,
+        meta: jsonSafeMeta(nextMeta) as never,
       } as never);
 
       if (meta.autoModeTextOverlay === true) {
@@ -265,18 +344,9 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
             meta,
             locale: detail.locale,
             text: detail.text,
-            translations,
+            translations: resolvedTranslations,
           });
         }
-        void persistAutoModeTextEdit({
-          fetchImpl: opts.fetchImpl,
-          meta,
-          locale: detail.locale,
-          text: detail.text,
-          scope: requestedScope,
-          translateLinked: shouldTranslate,
-          targetLocales: enabledLocales.map(String),
-        });
       }
 
       const updater = opts.updateTextOverlay ?? makeConvexUpdateTextOverlay();
@@ -296,6 +366,114 @@ export function useTextOverlayBridge(options: BridgeOptions): void {
       );
     };
   }, [editor]);
+}
+
+function resolveCanonicalLinkedContent(input: {
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>;
+  variationId: string;
+  heroDirectionId?: string;
+  role: string;
+  proposedContent: Record<string, string>;
+}): Record<string, string> {
+  const { editor, variationId, heroDirectionId, role, proposedContent } = input;
+  const canonical: Record<string, string> = { ...proposedContent };
+  const siblings = editor.getCurrentPageShapes().filter((shape) => {
+    const meta = (shape.meta ?? {}) as Record<string, unknown>;
+    return (
+      shape.type === AETHER_TEXT_SHAPE_TYPE &&
+      meta.autoModeTextOverlay === true &&
+      meta.variationId === variationId &&
+      (meta.heroDirectionId ?? undefined) === (heroDirectionId ?? undefined) &&
+      meta.role === role &&
+      meta.localOverride !== true &&
+      meta.scope !== 'local'
+    );
+  }) as unknown as Array<{ props?: AetherTextShapeProps }>;
+
+  for (const sibling of siblings) {
+    const content = sibling.props?.content ?? {};
+    for (const [locale, text] of Object.entries(content)) {
+      if (text.trim()) canonical[locale] = text;
+    }
+  }
+  return canonical;
+}
+
+async function getCanonicalApplyPlan(input: {
+  input: DispatchTextOverlayApplyInput;
+  fetchImpl?: typeof fetch;
+  heroDirectionId?: string;
+}): Promise<TextOverlayApplyPlan> {
+  const capabilityRunId = input.input.capabilityRunId ?? 'direct';
+  const key = [
+    input.input.wsId,
+    capabilityRunId,
+    input.heroDirectionId ?? 'default',
+  ].join('::');
+  const existing = canonicalApplyPlans.get(key);
+  if (existing) return existing;
+
+  const promise = fetchTextOverlayApplyPlan(input.input, {
+    fetchImpl: input.fetchImpl,
+  }).then((result) => {
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+    return result.plan;
+  });
+  canonicalApplyPlans.set(
+    key,
+    promise.catch((err) => {
+      canonicalApplyPlans.delete(key);
+      throw err;
+    })
+  );
+  return promise;
+}
+
+function readMappedVariationId(runId: string | undefined): string | undefined {
+  if (!runId || typeof window === 'undefined') return undefined;
+  const map = (window as unknown as {
+    __aetherRunVariationMap?: Record<string, string>;
+  }).__aetherRunVariationMap;
+  return map?.[runId];
+}
+
+function jsonSafeMeta(meta: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(meta)) as Record<string, unknown>;
+}
+
+function defaultScopeForTextRole(role: string): 'global' | 'local' {
+  return role === 'headline' || role === 'cta' ? 'global' : 'local';
+}
+
+function readFrameFormat(
+  frameShape: { props?: { w?: number; h?: number }; meta?: Record<string, unknown> },
+  aspectRatio?: string
+): string {
+  const fromMeta = frameShape.meta?.formatId;
+  if (typeof fromMeta === 'string' && fromMeta.trim()) return fromMeta;
+  switch (aspectRatio) {
+    case '1:1':
+      return '1x1';
+    case '4:5':
+      return '4x5';
+    case '9:16':
+      return '9x16';
+    case '16:9':
+      return '16x9';
+    default:
+      break;
+  }
+  const w = frameShape.props?.w;
+  const h = frameShape.props?.h;
+  if (!w || !h) return '1x1';
+  const ratio = w / h;
+  if (Math.abs(ratio - 1) < 0.04) return '1x1';
+  if (Math.abs(ratio - 0.8) < 0.04) return '4x5';
+  if (Math.abs(ratio - 0.5625) < 0.04) return '9x16';
+  if (Math.abs(ratio - 1.7778) < 0.04) return '16x9';
+  return '1x1';
 }
 
 function readStringMap(value: unknown): Record<string, string> {
@@ -343,6 +521,7 @@ function filterTranslationsForShape(
   const out: Record<string, string> = {};
   for (const [locale, text] of Object.entries(translations)) {
     if (hasLocaleLocalOverride(meta, locale)) continue;
+    if (!text.trim()) continue;
     out[locale] = text;
   }
   return out;
@@ -358,6 +537,7 @@ function fanOutAutoModeTextEdit(input: {
 }): void {
   const { editor, sourceShapeId, meta, locale, text, translations = {} } = input;
   const variationId = meta.variationId as string | undefined;
+  const heroDirectionId = meta.heroDirectionId as string | undefined;
   const role = meta.role as string | undefined;
   if (!variationId || !role) return;
 
@@ -368,6 +548,7 @@ function fanOutAutoModeTextEdit(input: {
       shape.type === AETHER_TEXT_SHAPE_TYPE &&
       sm.autoModeTextOverlay === true &&
       sm.variationId === variationId &&
+      (sm.heroDirectionId as string | undefined) === heroDirectionId &&
       sm.role === role &&
       !shouldSkipFanoutForLocale(sm, locale)
     );
@@ -390,7 +571,7 @@ function fanOutAutoModeTextEdit(input: {
           ...siblingTranslations,
         },
       } as never,
-      meta: {
+      meta: jsonSafeMeta({
         ...(s.meta ?? {}),
         scope: 'global',
         translatedFrom:
@@ -405,8 +586,70 @@ function fanOutAutoModeTextEdit(input: {
                 ),
               }
             : s.meta?.translatedFrom,
-      } as never,
+      }) as never,
     } as never);
+  }
+}
+
+function queueCanonicalOverlayPersist(input: {
+  fetchImpl?: typeof fetch;
+  variationId?: string;
+  runId?: string;
+  heroDirectionId?: string;
+  role: string;
+  format: string;
+  content: Record<string, string>;
+}): void {
+  const sourceText = input.content[DEFAULT_LOCALE]?.trim();
+  if (!sourceText) return;
+  const key = [
+    input.runId ?? input.variationId ?? 'direct',
+    input.heroDirectionId ?? 'default',
+    input.role,
+  ].join('::');
+  if (canonicalOverlayPersistKeys.has(key)) return;
+  canonicalOverlayPersistKeys.add(key);
+
+  const translations = Object.fromEntries(
+    Object.entries(input.content).filter(
+      ([locale, text]) => locale !== DEFAULT_LOCALE && text.trim().length > 0
+    )
+  );
+  const targetLocales = [DEFAULT_LOCALE, ...Object.keys(translations)];
+
+  const attempt = (remaining: number) => {
+    const mappedVariationId =
+      readMappedVariationId(input.runId) ??
+      (input.variationId && input.variationId !== input.runId
+        ? input.variationId
+        : undefined);
+    if (!mappedVariationId) {
+      if (remaining > 0) {
+        window.setTimeout(() => attempt(remaining - 1), 1000);
+      }
+      return;
+    }
+    const fetcher = input.fetchImpl ?? fetch;
+    void fetcher('/api/campaigns/overlay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        variationId: mappedVariationId,
+        heroDirectionId: input.heroDirectionId,
+        locale: DEFAULT_LOCALE,
+        format: input.format,
+        scope: 'global',
+        role: input.role,
+        text: sourceText,
+        translateLinked: Object.keys(translations).length > 0,
+        targetLocales,
+        translations,
+      }),
+    }).catch(() => {});
+  };
+
+  if (typeof window !== 'undefined') {
+    window.setTimeout(() => attempt(720), 0);
   }
 }
 
@@ -418,19 +661,21 @@ async function persistAutoModeTextEdit(input: {
   scope: 'global' | 'local';
   translateLinked?: boolean;
   targetLocales?: ReadonlyArray<string>;
-}): Promise<void> {
+}): Promise<Record<string, string>> {
   const variationId = input.meta.variationId as string | undefined;
+  const heroDirectionId = input.meta.heroDirectionId as string | undefined;
   const role = input.meta.role as string | undefined;
   const format = input.meta.format as string | undefined;
-  if (!variationId || !role) return;
+  if (!variationId || !role) return {};
 
   try {
     const fetcher = input.fetchImpl ?? fetch;
-    await fetcher('/api/campaigns/overlay', {
+    const response = await fetcher('/api/campaigns/overlay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         variationId,
+        heroDirectionId,
         locale: input.locale,
         format: format ?? '1x1',
         scope: input.scope,
@@ -440,8 +685,13 @@ async function persistAutoModeTextEdit(input: {
         targetLocales: input.targetLocales ?? [],
       }),
     });
+    const json = (await response.json().catch(() => null)) as
+      | { translations?: Record<string, string> }
+      | null;
+    return readStringMap(json?.translations);
   } catch {
     // best-effort — canvas state is already updated
+    return {};
   }
 }
 

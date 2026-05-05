@@ -42,6 +42,7 @@ export function createVolcengineProvider(
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
+        signal: opts.signal,
         body: JSON.stringify({
           model,
           prompt: applied.prompt,

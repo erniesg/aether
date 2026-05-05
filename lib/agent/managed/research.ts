@@ -21,6 +21,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { recordRunStart, recordRunFinish, recordRunFail } from '@/lib/convex/http';
 import type { UrlIngestion } from '@/lib/ingest/url';
+import { SUPPORTED_LOCALES } from '@/lib/locale/registry';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -36,7 +37,7 @@ export interface ResearchSource {
 }
 
 export interface LocaleInsight {
-  locale: 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+  locale: string;
   /** Market signal or copy adaptation insight for this locale. */
   insight: string;
 }
@@ -164,7 +165,7 @@ function parseResearchBundle(
 
   const pickLocaleInsights = (v: unknown): LocaleInsight[] => {
     if (!Array.isArray(v)) return [];
-    const VALID_LOCALES = new Set(['en-SG', 'zh-Hans-SG', 'ms-SG', 'ta-SG']);
+    const VALID_LOCALES = new Set(SUPPORTED_LOCALES.map(String));
     return v
       .map((item): LocaleInsight | null => {
         if (!item || typeof item !== 'object') return null;
@@ -209,6 +210,8 @@ async function runViaManagedAgentsApi(
   const ingestionContext = input.ingestion
     ? `\nPage title: ${input.ingestion.title}\nDescription: ${input.ingestion.description}\nProducts: ${input.ingestion.products.map((p) => p.name).join(', ')}`
     : '';
+  const localeList = SUPPORTED_LOCALES.map(String).join(', ');
+  const localeEnum = SUPPORTED_LOCALES.map(String).join('|');
 
   const userMessage = [
     `Research brand "${input.brand}" (${input.url}) for a Singapore social media campaign.${ingestionContext}`,
@@ -216,13 +219,13 @@ async function runViaManagedAgentsApi(
     'Using web_search, find:',
     '1. Top 3 direct competitors in Singapore + their recent campaign styles',
     '2. Any recent Eight Sleep or brand campaigns (last 6 months)',
-    '3. Locale-specific insights for en-SG, zh-Hans-SG, ms-SG, ta-SG (copy tone, platform preferences)',
+    `3. Locale-specific insights for ${localeList} (copy tone, platform preferences)`,
     '',
     'Return ONLY a JSON object with this shape:',
     '{',
     '  "competitors": ["<name>", ...],',
     '  "recentCampaigns": ["<description>", ...],',
-    '  "localeInsights": [{ "locale": "en-SG|zh-Hans-SG|ms-SG|ta-SG", "insight": "<copy tone advice>" }],',
+    `  "localeInsights": [{ "locale": "${localeEnum}", "insight": "<copy tone advice>" }],`,
     '  "sources": [{ "url": "<url>", "snippet": "<excerpt>", "retrievedAt": "<ISO8601>" }],',
     '  "summary": "<2-3 sentence brief>"',
     '}',
@@ -332,17 +335,19 @@ async function runViaToolUse(
   const ingestionContext = input.ingestion
     ? `\nPage title: ${input.ingestion.title}\nDescription: ${input.ingestion.description}`
     : '';
+  const localeList = SUPPORTED_LOCALES.map(String).join(' / ');
+  const localeEnum = SUPPORTED_LOCALES.map(String).join('|');
 
   const userPrompt = [
     `Research brand "${input.brand}" (${input.url}) for a Singapore social media campaign.${ingestionContext}`,
     '',
-    'Search for: (1) top competitors in SG, (2) recent campaigns in the last 6 months, (3) locale copy insights for en-SG / zh-Hans-SG / ms-SG / ta-SG.',
+    `Search for: (1) top competitors in SG, (2) recent campaigns in the last 6 months, (3) locale copy insights for ${localeList}.`,
     '',
     'Return ONLY a JSON object:',
     '{',
     '  "competitors": ["<name>", ...],',
     '  "recentCampaigns": ["<description>", ...],',
-    '  "localeInsights": [{ "locale": "en-SG|zh-Hans-SG|ms-SG|ta-SG", "insight": "<copy tone advice>" }],',
+    `  "localeInsights": [{ "locale": "${localeEnum}", "insight": "<copy tone advice>" }],`,
     '  "sources": [{ "url": "<url>", "snippet": "<excerpt>", "retrievedAt": "<ISO8601>" }],',
     '  "summary": "<2-3 sentence brief>"',
     '}',

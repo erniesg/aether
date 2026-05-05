@@ -3,11 +3,13 @@ import { CLAUDE_MODEL, planGenerate } from '@/lib/agent/generate';
 import { encodeGenerateEvent } from '@/lib/generate/stream';
 import { resolveComposition } from '@/lib/providers/image/composition';
 import { listAvailableProviders, resolveProvider } from '@/lib/providers/image/registry';
+import { normalizeImageModelId } from '@/lib/providers/image/model-catalog';
 import type {
   AspectRatio,
   ImageComposition,
   ImageConstraintToken,
   ImageGenResult,
+  ImageGenProvider,
   ImageRef,
 } from '@/lib/providers/image/types';
 import { ImageGenError, ProviderUnavailableError } from '@/lib/providers/image/types';
@@ -16,6 +18,22 @@ import { cropHeroToFormats } from '@/lib/canvas/cropToFormat';
 import { pickRenderMode } from '@/lib/canvas/render-mode';
 import type { RenderModeChoice } from '@/lib/canvas/render-mode';
 import { persistGenerateAsCampaign } from '@/lib/agent/persist-generation';
+import {
+  buildChildFormatPrompt,
+  buildHeroSeedPrompt,
+  clampHeroCount,
+  planHeroDirections,
+  selectChildGenerationRefs,
+  type HeroDirection,
+} from '@/lib/generate/hero-directions';
+import {
+  runVisualGridQa,
+  type VisualQaResult,
+} from '@/lib/generate/visual-qa';
+import {
+  PUBLISH_PLATFORMS,
+  type PublishPlatform,
+} from '@/lib/providers/publisher/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,6 +71,7 @@ interface StreamFrameSuccess {
     total: number;
     aspectRatio: AllowedAspectRatio;
   };
+  provider: PlannedProviderInfo;
   result: ImageGenResult;
   image: {
     url: string;
@@ -60,6 +79,7 @@ interface StreamFrameSuccess {
     height: number;
     mimeType: string;
   };
+  visualQa?: VisualQaResult;
 }
 
 function parseAspectRatio(value: unknown): AllowedAspectRatio | undefined {
@@ -85,6 +105,17 @@ function parseTargets(value: unknown): GenerateTarget[] | null {
     });
   }
   return targets;
+}
+
+function parsePublishPlatforms(value: unknown): PublishPlatform[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const platforms = value.filter(
+    (platform): platform is PublishPlatform =>
+      typeof platform === 'string' &&
+      (PUBLISH_PLATFORMS as readonly string[]).includes(platform)
+  );
+  const unique = Array.from(new Set(platforms));
+  return unique.length > 0 ? unique : undefined;
 }
 
 function parseComposition(value: unknown):
@@ -137,14 +168,163 @@ const RATIO_PIXELS: Record<AllowedAspectRatio, { w: number; h: number }> = {
   '3:2':  { w: 1536, h: 1024 },
 };
 
+type PublishFormatId = '1x1' | '4x5' | '9x16' | '16x9';
+
+const ASPECT_TO_FORMAT_ID: Partial<Record<AllowedAspectRatio, PublishFormatId>> = {
+  '1:1': '1x1',
+  '4:5': '4x5',
+  '9:16': '9x16',
+  '16:9': '16x9',
+};
+
 function parseRenderMode(value: unknown): RenderModeChoice {
-  if (value === 'crop' || value === 'fanout' || value === 'auto') return value;
+  if (
+    value === 'crop' ||
+    value === 'fanout' ||
+    value === 'hero-seeded-fanout' ||
+    value === 'auto'
+  ) {
+    return value;
+  }
   // Default: crop (demo thesis — one render, many crops).
   return 'crop';
 }
 
+function shouldRetryImageGeneration(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /(?:abort|aborted|timeout|timed out|terminated|socket hang up|ECONNRESET|ETIMEDOUT|fetch failed|poll failed 5\d\d|429|visual QA rejected)/i.test(
+    message
+  );
+}
+
+function providerRetryAttempts(): number {
+  const raw = Number(process.env.AETHER_IMAGE_PROVIDER_RETRIES ?? 2);
+  if (!Number.isFinite(raw)) return 2;
+  return Math.max(1, Math.min(Math.trunc(raw), 3));
+}
+
+const DEFAULT_FRAME_TIMEOUT_MS = 12 * 60_000;
+
+class FrameGenerationTimeoutError extends ImageGenError {
+  constructor(providerId: string, frameId: string, timeoutMs: number) {
+    super(
+      `frame ${frameId} timed out after ${Math.round(timeoutMs / 1000)}s`,
+      providerId
+    );
+    this.name = 'FrameGenerationTimeoutError';
+  }
+}
+
+function providerFrameTimeoutMs(): number {
+  const raw = Number(process.env.AETHER_IMAGE_FRAME_TIMEOUT_MS ?? DEFAULT_FRAME_TIMEOUT_MS);
+  if (!Number.isFinite(raw)) return DEFAULT_FRAME_TIMEOUT_MS;
+  return Math.max(1, Math.min(Math.trunc(raw), 30 * 60_000));
+}
+
+async function withFrameTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  input: { providerId: string; frameId: string; timeoutMs: number }
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      run(controller.signal),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(
+            new FrameGenerationTimeoutError(
+              input.providerId,
+              input.frameId,
+              input.timeoutMs
+            )
+          );
+        }, input.timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function jsonError(status: number, error: string, code?: string) {
   return NextResponse.json(code ? { ok: false, error, code } : { ok: false, error }, { status });
+}
+
+type PlannedProviderInfo = {
+  id: string;
+  displayName: string;
+  model: string;
+};
+
+type ProviderCandidate = {
+  provider: ImageGenProvider;
+  info: PlannedProviderInfo;
+};
+
+function availableProviderId(
+  value: ReturnType<typeof listAvailableProviders>[number] | string
+): string | undefined {
+  if (typeof value === 'string') return value;
+  return typeof value.id === 'string' ? value.id : undefined;
+}
+
+function firstAvailableModel(
+  value: ReturnType<typeof listAvailableProviders>[number] | string,
+  provider: ImageGenProvider
+): string | undefined {
+  if (typeof value !== 'string' && Array.isArray(value.models) && value.models[0]) {
+    return value.models[0];
+  }
+  return provider.listModels()[0];
+}
+
+function resolveProviderCandidates(
+  primary: PlannedProviderInfo,
+  allowFallback: boolean
+): ProviderCandidate[] {
+  const provider = resolveProvider(primary.id, primary.model);
+  const primaryModel = normalizeImageModelId(provider.id, primary.model || provider.listModels()[0]);
+  if (!primaryModel) {
+    throw new ProviderUnavailableError(primary.id, 'provider has no configured models');
+  }
+
+  const candidates: ProviderCandidate[] = [
+    {
+      provider,
+      info: {
+        id: provider.id,
+        displayName: provider.displayName,
+        model: primaryModel,
+      },
+    },
+  ];
+  if (!allowFallback) return candidates;
+
+  const seen = new Set([provider.id]);
+  for (const available of listAvailableProviders()) {
+    const id = availableProviderId(available);
+    if (!id || seen.has(id)) continue;
+    try {
+      const fallbackProvider = resolveProvider(id);
+      const fallbackModel = firstAvailableModel(available, fallbackProvider);
+      if (!fallbackModel) continue;
+      seen.add(fallbackProvider.id);
+      candidates.push({
+        provider: fallbackProvider,
+        info: {
+          id: fallbackProvider.id,
+          displayName: fallbackProvider.displayName,
+          model: fallbackModel,
+        },
+      });
+    } catch {
+      // Availability changed between list and resolve; keep the primary path.
+    }
+  }
+
+  return candidates;
 }
 
 export async function GET() {
@@ -180,8 +360,15 @@ export async function POST(request: Request) {
     return jsonError(400, 'prompt is required');
   }
 
-  const providerId = typeof b.providerId === 'string' ? b.providerId : undefined;
-  const model = typeof b.model === 'string' ? b.model : undefined;
+  const providerId =
+    typeof b.providerId === 'string' && b.providerId.trim().length > 0
+      ? b.providerId.trim()
+      : undefined;
+  const model =
+    typeof b.model === 'string' && b.model.trim().length > 0
+      ? b.model.trim()
+      : undefined;
+  const allowProviderFallback = b.allowProviderFallback === true;
   const refs = Array.isArray(b.refs) ? (b.refs as ImageRef[]) : undefined;
   // When persistRun=true (UI drag-drop sets this), a successful generate
   // is recorded as a synthetic auto-mode campaign + variation row so it
@@ -193,6 +380,7 @@ export async function POST(request: Request) {
   // additionally fires scheduleVariationPosts immediately after persist.
   const persistNotifyMode: 'review' | 'auto-post' =
     b.notifyMode === 'auto-post' ? 'auto-post' : 'review';
+  const targetPlatforms = parsePublishPlatforms(b.targetPlatforms);
   const workspaceId =
     typeof b.workspaceId === 'string' && b.workspaceId.trim().length > 0
       ? b.workspaceId.trim()
@@ -208,6 +396,13 @@ export async function POST(request: Request) {
   }
   const composition = resolveComposition(parsedComposition.composition, undefined);
   const modeChoice = parseRenderMode(b.mode);
+  const heroCount = clampHeroCount(b.heroCount ?? b.directionCount ?? 1);
+  const includeProductIdentityRef = b.includeProductIdentityRef === true;
+  const heroDirectionPlan = planHeroDirections({
+    prompt,
+    count: heroCount,
+    strategy: typeof b.directionStrategy === 'string' ? b.directionStrategy : undefined,
+  });
   const voiceTrace =
     b.voiceTrace && typeof b.voiceTrace === 'object' && !Array.isArray(b.voiceTrace)
       ? (b.voiceTrace as Record<string, unknown>)
@@ -291,17 +486,31 @@ export async function POST(request: Request) {
             }
           }, KEEPALIVE_MS);
           const stopKeepalive = () => clearInterval(keepaliveTimer);
+          const runStartedFrameTotal =
+            modeChoice === 'hero-seeded-fanout' && requestedTargets?.length
+              ? (requestedTargets.some((target) => target.aspectRatio === '1:1')
+                  ? requestedTargets.length
+                  : requestedTargets.length + 1) * heroDirectionPlan.directions.length
+              : requestedTargets?.length ?? 1;
 
           emit({
             type: 'run.started',
             at: Date.now(),
             mode:
               requestedTargets && requestedTargets.length > 1
-                ? (modeChoice === 'fanout' ? 'fanout' : 'crop')
+                ? modeChoice === 'hero-seeded-fanout'
+                  ? 'hero-seeded-fanout'
+                  : modeChoice === 'fanout'
+                    ? 'fanout'
+                    : 'crop'
                 : 'single',
             frames: {
-              total: requestedTargets?.length ?? 1,
+              total: runStartedFrameTotal,
             },
+            heroDirections:
+              modeChoice === 'hero-seeded-fanout'
+                ? heroDirectionPlan.directions
+                : undefined,
           });
 
           if (!bypassAgent) {
@@ -335,7 +544,10 @@ export async function POST(request: Request) {
               toolCall: planned.debug.toolCall,
             });
 
-            const provider = resolveProvider(planned.provider.id, planned.provider.model);
+            const providerCandidates = resolveProviderCandidates(
+              planned.provider,
+              allowProviderFallback
+            );
             const targets =
               requestedTargets && requestedTargets.length > 0
                 ? requestedTargets
@@ -363,6 +575,435 @@ export async function POST(request: Request) {
             });
             const nonHeroTargets = targets.filter((t) => t !== heroTarget);
 
+            async function generateFrameWithFallback(
+              frame: {
+                id: string;
+                label?: string;
+                index: number;
+                total: number;
+                aspectRatio: AllowedAspectRatio;
+                sourceFrameId?: string;
+                formatId?: PublishFormatId;
+                heroDirectionId?: string;
+                heroDirectionLabel?: string;
+                heroDirectionIndex?: number;
+                role?: 'hero-seed' | 'child-format';
+              },
+              aspectRatio: AllowedAspectRatio,
+              overrides: {
+                prompt?: string;
+                refs?: ImageRef[];
+                runVisualQa?: boolean;
+              } = {}
+            ): Promise<{
+              result: ImageGenResult;
+              provider: PlannedProviderInfo;
+              visualQa?: VisualQaResult;
+            }> {
+              let lastError: unknown;
+              const attempts = providerRetryAttempts();
+              const timeoutMs = providerFrameTimeoutMs();
+              for (const candidate of providerCandidates) {
+                for (let attempt = 1; attempt <= attempts; attempt++) {
+                  emit({
+                    type: 'frame.started',
+                    at: Date.now(),
+                    frame,
+                    provider: candidate.info,
+                  });
+
+                  try {
+                    const result = await withFrameTimeout(
+                      (signal) =>
+                        candidate.provider.generate(
+                          {
+                            prompt: overrides.prompt ?? planned.plan.rewrittenPrompt,
+                            refs: overrides.refs ?? refs,
+                            aspectRatio,
+                            seed: planned.plan.seed,
+                            composition,
+                          },
+                          { model: candidate.info.model, signal }
+                        ),
+                      {
+                        providerId: candidate.info.id,
+                        frameId: frame.id,
+                        timeoutMs,
+                      }
+                    );
+                    const first = result.images[0];
+                    let visualQa: VisualQaResult | undefined;
+                    if (overrides.runVisualQa && first?.url) {
+                      try {
+                        visualQa = await runVisualGridQa(first.url);
+                      } catch (qaErr) {
+                        visualQa = {
+                          status: 'needs-human-review',
+                          reasons: [
+                            qaErr instanceof Error
+                              ? qaErr.message
+                              : String(qaErr),
+                          ],
+                          metrics: {
+                            width: first.width,
+                            height: first.height,
+                            verticalLineCount: 0,
+                            horizontalLineCount: 0,
+                            edgeDensity: 0,
+                            gridScore: 0,
+                          },
+                        };
+                      }
+                      if (visualQa.status === 'fail') {
+                        throw new ImageGenError(
+                          `visual QA rejected possible collage/contact sheet: ${visualQa.reasons.join('; ')}`,
+                          candidate.info.id
+                        );
+                      }
+                    }
+                    return { result, provider: candidate.info, visualQa };
+                  } catch (err) {
+                    lastError = err;
+                    const message = err instanceof Error ? err.message : String(err);
+                    const canRetry =
+                      !(err instanceof FrameGenerationTimeoutError) &&
+                      attempt < attempts &&
+                      shouldRetryImageGeneration(err);
+                    if (canRetry) {
+                      console.warn(
+                        `[generate/${reqId}] frame retry ${attempt}/${attempts} · ${frame.id} · ${message}`
+                      );
+                      continue;
+                    }
+                    emit({
+                      type: 'frame.failed',
+                      at: Date.now(),
+                      frame,
+                      provider: candidate.info,
+                      error: message,
+                      code:
+                        err instanceof ProviderUnavailableError
+                          ? 'provider_unavailable'
+                          : err instanceof FrameGenerationTimeoutError
+                          ? 'image_gen_timeout'
+                          : err instanceof ImageGenError
+                          ? 'image_gen_failed'
+                          : 'unknown_error',
+                    });
+                    break;
+                  }
+                }
+              }
+              throw lastError ?? new ImageGenError('all provider attempts failed', 'auto');
+            }
+
+            function heroFrameForTarget(input: {
+              target: GenerateTarget;
+              direction: HeroDirection;
+              directionIndex: number;
+              targetIndex: number;
+              perDirectionTotal: number;
+              role: 'hero-seed' | 'child-format';
+            }) {
+              const { target, direction, directionIndex, targetIndex, perDirectionTotal, role } =
+                input;
+              const isSingleHero = heroDirectionPlan.directions.length === 1;
+              return {
+                id: isSingleHero ? target.id : `${direction.id}:${target.id}`,
+                sourceFrameId: isSingleHero ? undefined : target.id,
+                label: isSingleHero
+                  ? target.label
+                  : `${direction.label} · ${target.label ?? target.id}`,
+                index: directionIndex * perDirectionTotal + targetIndex + 1,
+                total: heroDirectionPlan.directions.length * perDirectionTotal,
+                aspectRatio: target.aspectRatio,
+                formatId: ASPECT_TO_FORMAT_ID[target.aspectRatio],
+                heroDirectionId: direction.id,
+                heroDirectionLabel: direction.label,
+                heroDirectionIndex: directionIndex,
+                role,
+              } as const;
+            }
+
+            // ── Hero-seeded fanout: N hero seeds → native child formats ─────
+            if (resolvedMode === 'hero-seeded-fanout' && targets.length > 1) {
+              const seedTarget =
+                targets.find((target) => target.aspectRatio === '1:1') ?? {
+                  id: 'hero-seed',
+                  label: 'Hero seed',
+                  aspectRatio: '1:1' as AllowedAspectRatio,
+                };
+              const childTargets = targets.filter((target) => target.aspectRatio !== '1:1');
+              const perDirectionTotal = 1 + childTargets.length;
+              const nativePerFormatUrlsByHero: Record<
+                string,
+                Partial<Record<PublishFormatId, string>>
+              > = {};
+              const visualQaByFrame: Record<string, VisualQaResult> = {};
+
+              const directionRuns = await Promise.all(
+                heroDirectionPlan.directions.map(async (direction, directionIndex) => {
+                  const successes: StreamFrameSuccess[] = [];
+                  let failed = 0;
+                  let resolvedProvider = planned.provider;
+                  const seedFrame = heroFrameForTarget({
+                    target: seedTarget,
+                    direction,
+                    directionIndex,
+                    targetIndex: 0,
+                    perDirectionTotal,
+                    role: 'hero-seed',
+                  });
+
+                  let seedImage:
+                    | {
+                        url: string;
+                        width: number;
+                        height: number;
+                        mimeType: string;
+                      }
+                    | undefined;
+
+                  try {
+                    const seedAttempt = await generateFrameWithFallback(
+                      seedFrame,
+                      '1:1',
+                      {
+                        prompt: buildHeroSeedPrompt({
+                          rewrittenPrompt: planned.plan.rewrittenPrompt,
+                          direction,
+                        }),
+                        refs,
+                        runVisualQa: true,
+                      }
+                    );
+                    resolvedProvider = seedAttempt.provider;
+                    const first = seedAttempt.result.images[0];
+                    if (!first) throw new Error('provider returned no images for hero seed');
+                    seedImage = first;
+                    if (seedAttempt.visualQa) {
+                      visualQaByFrame[seedFrame.id] = seedAttempt.visualQa;
+                    }
+                    const seedFormat = ASPECT_TO_FORMAT_ID[seedFrame.aspectRatio];
+                    if (seedFormat) {
+                      nativePerFormatUrlsByHero[direction.id] = {
+                        ...(nativePerFormatUrlsByHero[direction.id] ?? {}),
+                        [seedFormat]: first.url,
+                      };
+                    }
+                    emit({
+                      type: 'frame.completed',
+                      at: Date.now(),
+                      frame: seedFrame,
+                      provider: resolvedProvider,
+                      latencyMs: seedAttempt.result.latencyMs,
+                      image: {
+                        url: first.url,
+                        width: first.width,
+                        height: first.height,
+                        mimeType: first.mimeType,
+                      },
+                      visualQa: seedAttempt.visualQa,
+                    });
+                    successes.push({
+                      frame: seedFrame,
+                      provider: resolvedProvider,
+                      result: seedAttempt.result,
+                      image: first,
+                      visualQa: seedAttempt.visualQa,
+                    });
+                  } catch (err) {
+                    failed += 1 + childTargets.length;
+                    const message = err instanceof Error ? err.message : String(err);
+                    for (let childIdx = 0; childIdx < childTargets.length; childIdx += 1) {
+                      const child = childTargets[childIdx]!;
+                      emit({
+                        type: 'frame.failed',
+                        at: Date.now(),
+                        frame: heroFrameForTarget({
+                          target: child,
+                          direction,
+                          directionIndex,
+                          targetIndex: childIdx + 1,
+                          perDirectionTotal,
+                          role: 'child-format',
+                        }),
+                        provider: resolvedProvider,
+                        error: `hero seed failed: ${message}`,
+                        code: 'image_gen_failed',
+                      });
+                    }
+                    return { successes, failed, provider: resolvedProvider };
+                  }
+
+                  const heroSeed = seedImage;
+                  if (!heroSeed) {
+                    return { successes, failed: failed + childTargets.length, provider: resolvedProvider };
+                  }
+
+                  const childRefs = selectChildGenerationRefs({
+                    heroSeedUrl: heroSeed.url,
+                    originalRefs: refs,
+                    includeProductIdentityRef,
+                  });
+
+                  const childSettled = await Promise.allSettled(
+                    childTargets.map(async (target, childIdx) => {
+                      const childFrame = heroFrameForTarget({
+                        target,
+                        direction,
+                        directionIndex,
+                        targetIndex: childIdx + 1,
+                        perDirectionTotal,
+                        role: 'child-format',
+                      });
+                      const childAttempt = await generateFrameWithFallback(
+                        childFrame,
+                        target.aspectRatio,
+                        {
+                          prompt: buildChildFormatPrompt({
+                            rewrittenPrompt: planned.plan.rewrittenPrompt,
+                            direction,
+                            aspectRatio: target.aspectRatio,
+                            label: target.label,
+                          }),
+                          refs: childRefs,
+                          runVisualQa: true,
+                        }
+                      );
+                      const first = childAttempt.result.images[0];
+                      if (!first) throw new Error('provider returned no images for child format');
+                      if (childAttempt.visualQa) {
+                        visualQaByFrame[childFrame.id] = childAttempt.visualQa;
+                      }
+                      const format = ASPECT_TO_FORMAT_ID[target.aspectRatio];
+                      if (format) {
+                        nativePerFormatUrlsByHero[direction.id] = {
+                          ...(nativePerFormatUrlsByHero[direction.id] ?? {}),
+                          [format]: first.url,
+                        };
+                      }
+                      emit({
+                        type: 'frame.completed',
+                        at: Date.now(),
+                        frame: childFrame,
+                        provider: childAttempt.provider,
+                        latencyMs: childAttempt.result.latencyMs,
+                        image: {
+                          url: first.url,
+                          width: first.width,
+                          height: first.height,
+                          mimeType: first.mimeType,
+                        },
+                        visualQa: childAttempt.visualQa,
+                      });
+                      return {
+                        frame: childFrame,
+                        provider: childAttempt.provider,
+                        result: childAttempt.result,
+                        image: first,
+                        visualQa: childAttempt.visualQa,
+                      } satisfies StreamFrameSuccess;
+                    })
+                  );
+
+                  for (const item of childSettled) {
+                    if (item.status === 'fulfilled') {
+                      successes.push(item.value);
+                      resolvedProvider = item.value.provider;
+                    } else {
+                      failed += 1;
+                    }
+                  }
+
+                  return { successes, failed, provider: resolvedProvider };
+                })
+              );
+
+              const successes = directionRuns.flatMap((run) => run.successes);
+              const failed = directionRuns.reduce((sum, run) => sum + run.failed, 0);
+              const firstImage = successes[0]?.image;
+              const runProvider = successes[0]?.provider ?? planned.provider;
+              const runStatus =
+                failed === 0 ? 'ok' : successes.length === 0 ? 'error' : 'partial';
+              const elapsedMs = Date.now() - startedAt;
+              const summaryError =
+                failed > 0
+                  ? `${failed} of ${heroDirectionPlan.directions.length * perDirectionTotal} frame${failed === 1 ? '' : 's'} failed`
+                  : undefined;
+
+              let persistedCampaign:
+                | {
+                    campaignId: string | null;
+                    variationId: string | null;
+                    discordSent: boolean;
+                  }
+                | undefined;
+              if (persistRun && successes.length > 0 && firstImage) {
+                const firstDirection = heroDirectionPlan.directions.find(
+                  (direction) => nativePerFormatUrlsByHero[direction.id]
+                );
+                const firstHeroUrls =
+                  firstDirection ? nativePerFormatUrlsByHero[firstDirection.id] : undefined;
+                persistedCampaign = await persistGenerateAsCampaign({
+                  workspaceId,
+                  baseUrl: new URL(request.url).origin,
+                  prompt,
+                  refs,
+                  heroImageUrl: firstHeroUrls?.['1x1'] ?? firstImage.url,
+                  heroDirectionId: firstDirection?.id,
+                  nativePerFormatUrls: firstHeroUrls,
+                  provider: runProvider.id,
+                  model: runProvider.model,
+                  sourceRunId: clientRunId,
+                  notifyDiscord: true,
+                  notifyMode: persistNotifyMode,
+                  targetPlatforms,
+                });
+              }
+
+              emit({
+                type: 'run.completed',
+                at: Date.now(),
+                status: runStatus,
+                mode: 'hero-seeded-fanout',
+                frames: {
+                  total: heroDirectionPlan.directions.length * perDirectionTotal,
+                  completed: successes.length,
+                  failed,
+                },
+                provider: runProvider,
+                rewrittenPrompt: planned.plan.rewrittenPrompt,
+                rationale: planned.plan.rationale,
+                aspectRatio: planned.plan.aspectRatio as AspectRatio,
+                firstImageUrl: firstImage?.url,
+                elapsedMs,
+                error: summaryError,
+                heroDirections: heroDirectionPlan.directions,
+                nativePerFormatUrlsByHero,
+                visualQa: visualQaByFrame,
+                persistedCampaign,
+              });
+
+              if (clientRunId) {
+                await recordRunFinish(clientRunId, {
+                  status: runStatus === 'ok' ? 'ok' : 'error',
+                  provider: runProvider.id,
+                  model: runProvider.model,
+                  rewrittenPrompt: planned.plan.rewrittenPrompt,
+                  rationale: planned.plan.rationale,
+                  aspectRatio: planned.plan.aspectRatio,
+                  imageUrl: firstImage?.url,
+                  latencyMs: elapsedMs,
+                  error: summaryError,
+                });
+              }
+
+              stopKeepalive();
+              controller.close();
+              return;
+            }
+
             // ── Crop path: one render → N crops ──────────────────────────────
             if (resolvedMode === 'crop' && targets.length > 1) {
               // Step 1: generate the hero.
@@ -374,20 +1015,15 @@ export async function POST(request: Request) {
                 aspectRatio: heroTarget.aspectRatio,
               } as const;
 
-              emit({ type: 'frame.started', at: Date.now(), frame: heroFrame, provider: planned.provider });
-
               let heroImage: { url: string; width: number; height: number; mimeType: string };
+              let resolvedProvider = planned.provider;
               try {
-                const heroResult = await provider.generate(
-                  {
-                    prompt: planned.plan.rewrittenPrompt,
-                    refs,
-                    aspectRatio: heroTarget.aspectRatio,
-                    seed: planned.plan.seed,
-                    composition,
-                  },
-                  { model: planned.provider.model }
+                const heroAttempt = await generateFrameWithFallback(
+                  heroFrame,
+                  heroTarget.aspectRatio
                 );
+                const heroResult = heroAttempt.result;
+                resolvedProvider = heroAttempt.provider;
                 const heroFirst = heroResult.images[0];
                 if (!heroFirst) throw new Error('provider returned no images for hero');
                 heroImage = heroFirst;
@@ -396,20 +1032,11 @@ export async function POST(request: Request) {
                   type: 'frame.completed',
                   at: Date.now(),
                   frame: heroFrame,
-                  provider: planned.provider,
+                  provider: resolvedProvider,
                   latencyMs: heroResult.latencyMs,
                   image: { url: heroFirst.url, width: heroFirst.width, height: heroFirst.height, mimeType: heroFirst.mimeType },
                 });
               } catch (err) {
-                const message = err instanceof Error ? err.message : String(err);
-                emit({
-                  type: 'frame.failed',
-                  at: Date.now(),
-                  frame: heroFrame,
-                  provider: planned.provider,
-                  error: message,
-                  code: err instanceof ProviderUnavailableError ? 'provider_unavailable' : err instanceof ImageGenError ? 'image_gen_failed' : 'unknown_error',
-                });
                 throw err;
               }
 
@@ -436,14 +1063,49 @@ export async function POST(request: Request) {
                   aspectRatio: target.aspectRatio,
                 } as const;
 
-                emit({ type: 'frame.started', at: Date.now(), frame, provider: planned.provider });
                 emit({
                   type: 'frame.completed',
                   at: Date.now(),
                   frame,
-                  provider: planned.provider,
+                  provider: resolvedProvider,
                   latencyMs: 0,
                   image: { url: heroImage.url, width: cropped.w, height: cropped.h, mimeType: heroImage.mimeType },
+                });
+              }
+
+              let persistedCampaign:
+                | {
+                    campaignId: string | null;
+                    variationId: string | null;
+                    discordSent: boolean;
+                  }
+                | undefined;
+              if (persistRun) {
+                const aspectToFormatId: Record<string, '1x1' | '4x5' | '9x16' | '16x9'> = {
+                  '1:1': '1x1',
+                  '4:5': '4x5',
+                  '9:16': '9x16',
+                  '16:9': '16x9',
+                };
+                const nativePerFormatUrls: Partial<
+                  Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+                > = {};
+                const heroFormatId = aspectToFormatId[heroTarget.aspectRatio];
+                if (heroFormatId) nativePerFormatUrls[heroFormatId] = heroImage.url;
+                persistedCampaign = await persistGenerateAsCampaign({
+                  workspaceId,
+                  baseUrl: new URL(request.url).origin,
+                  prompt,
+                  refs,
+                  heroImageUrl: heroImage.url,
+                  nativePerFormatUrls,
+                  provider: resolvedProvider.id,
+                  model: resolvedProvider.model,
+                  sourceRunId: clientRunId,
+                  aspectRatio: planned.plan.aspectRatio,
+                  notifyDiscord: true,
+                  notifyMode: persistNotifyMode,
+                  targetPlatforms,
                 });
               }
 
@@ -453,41 +1115,25 @@ export async function POST(request: Request) {
                 status: 'ok',
                 mode: 'crop',
                 frames: { total: targets.length, completed: targets.length, failed: 0 },
-                provider: planned.provider,
+                provider: resolvedProvider,
                 rewrittenPrompt: planned.plan.rewrittenPrompt,
                 rationale: planned.plan.rationale,
                 aspectRatio: planned.plan.aspectRatio as AspectRatio,
                 firstImageUrl: heroImage.url,
                 elapsedMs: Date.now() - startedAt,
+                persistedCampaign,
               });
 
               if (clientRunId) {
                 await recordRunFinish(clientRunId, {
                   status: 'ok',
-                  provider: planned.provider.id,
-                  model: planned.provider.model,
+                  provider: resolvedProvider.id,
+                  model: resolvedProvider.model,
                   rewrittenPrompt: planned.plan.rewrittenPrompt,
                   rationale: planned.plan.rationale,
                   aspectRatio: planned.plan.aspectRatio,
                   imageUrl: heroImage.url,
                   latencyMs: Date.now() - startedAt,
-                });
-              }
-
-              if (persistRun) {
-                // Fire-and-forget: don't block the SSE close on Convex /
-                // Discord round-trips. Errors logged inside the helper.
-                void persistGenerateAsCampaign({
-                  workspaceId,
-                  baseUrl: new URL(request.url).origin,
-                  prompt,
-                  refs,
-                  heroImageUrl: heroImage.url,
-                  provider: planned.provider.id,
-                  model: planned.provider.model,
-                  aspectRatio: planned.plan.aspectRatio,
-                  notifyDiscord: true,
-                  notifyMode: persistNotifyMode,
                 });
               }
 
@@ -507,24 +1153,12 @@ export async function POST(request: Request) {
                   aspectRatio: target.aspectRatio,
                 } as const;
 
-                emit({
-                  type: 'frame.started',
-                  at: Date.now(),
-                  frame,
-                  provider: planned.provider,
-                });
-
                 try {
-                  const result = await provider.generate(
-                    {
-                      prompt: planned.plan.rewrittenPrompt,
-                      refs,
-                      aspectRatio: target.aspectRatio,
-                      seed: planned.plan.seed,
-                      composition,
-                    },
-                    { model: planned.provider.model }
+                  const attempt = await generateFrameWithFallback(
+                    frame,
+                    target.aspectRatio
                   );
+                  const result = attempt.result;
 
                   const first = result.images[0];
                   if (!first) throw new Error('provider returned no images');
@@ -533,7 +1167,7 @@ export async function POST(request: Request) {
                     type: 'frame.completed',
                     at: Date.now(),
                     frame,
-                    provider: planned.provider,
+                    provider: attempt.provider,
                     latencyMs: result.latencyMs,
                     image: {
                       url: first.url,
@@ -545,24 +1179,11 @@ export async function POST(request: Request) {
 
                   return {
                     frame,
+                    provider: attempt.provider,
                     result,
                     image: first,
                   };
                 } catch (err) {
-                  const message = err instanceof Error ? err.message : String(err);
-                  emit({
-                    type: 'frame.failed',
-                    at: Date.now(),
-                    frame,
-                    provider: planned.provider,
-                    error: message,
-                    code:
-                      err instanceof ProviderUnavailableError
-                        ? 'provider_unavailable'
-                        : err instanceof ImageGenError
-                        ? 'image_gen_failed'
-                        : 'unknown_error',
-                  });
                   throw err;
                 }
               })
@@ -573,45 +1194,20 @@ export async function POST(request: Request) {
             );
             const failed = settled.length - successes.length;
             const firstImage = successes[0]?.image;
+            const runProvider = successes[0]?.provider ?? planned.provider;
             const elapsedMs = Date.now() - startedAt;
             const runStatus =
               failed === 0 ? 'ok' : successes.length === 0 ? 'error' : 'partial';
             const summaryError =
               failed > 0 ? `${failed} of ${targets.length} frame${failed === 1 ? '' : 's'} failed` : undefined;
 
-            emit({
-              type: 'run.completed',
-              at: Date.now(),
-              status: runStatus,
-              mode: targets.length > 1 ? 'fanout' : undefined,
-              frames: {
-                total: targets.length,
-                completed: successes.length,
-                failed,
-              },
-              provider: planned.provider,
-              rewrittenPrompt: planned.plan.rewrittenPrompt,
-              rationale: planned.plan.rationale,
-              aspectRatio: planned.plan.aspectRatio as AspectRatio,
-              firstImageUrl: firstImage?.url,
-              elapsedMs,
-              error: summaryError,
-            });
-
-            if (clientRunId) {
-              await recordRunFinish(clientRunId, {
-                status: runStatus === 'ok' ? 'ok' : 'error',
-                provider: planned.provider.id,
-                model: planned.provider.model,
-                rewrittenPrompt: planned.plan.rewrittenPrompt,
-                rationale: planned.plan.rationale,
-                aspectRatio: planned.plan.aspectRatio,
-                imageUrl: firstImage?.url,
-                latencyMs: elapsedMs,
-                error: summaryError,
-              });
-            }
-
+            let persistedCampaign:
+              | {
+                  campaignId: string | null;
+                  variationId: string | null;
+                  discordSent: boolean;
+                }
+              | undefined;
             if (persistRun && successes.length > 0 && firstImage) {
               // Build per-format URLs map keyed by format id when targets
               // resolve to known aspects. The synthetic variation row's
@@ -630,17 +1226,53 @@ export async function POST(request: Request) {
                 const fid = aspectToFormatId[s.frame.aspectRatio];
                 if (fid && s.image?.url) nativePerFormatUrls[fid] = s.image.url;
               }
-              void persistGenerateAsCampaign({
+              persistedCampaign = await persistGenerateAsCampaign({
                 workspaceId,
                 baseUrl: new URL(request.url).origin,
                 prompt,
                 refs,
                 heroImageUrl: firstImage.url,
                 nativePerFormatUrls,
-                provider: planned.provider.id,
-                model: planned.provider.model,
+                provider: runProvider.id,
+                model: runProvider.model,
+                sourceRunId: clientRunId,
                 notifyDiscord: true,
                 notifyMode: persistNotifyMode,
+                targetPlatforms,
+              });
+            }
+
+            emit({
+              type: 'run.completed',
+              at: Date.now(),
+              status: runStatus,
+              mode: targets.length > 1 ? 'fanout' : undefined,
+              frames: {
+                total: targets.length,
+                completed: successes.length,
+                failed,
+              },
+              provider: runProvider,
+              rewrittenPrompt: planned.plan.rewrittenPrompt,
+              rationale: planned.plan.rationale,
+              aspectRatio: planned.plan.aspectRatio as AspectRatio,
+              firstImageUrl: firstImage?.url,
+              elapsedMs,
+              error: summaryError,
+              persistedCampaign,
+            });
+
+            if (clientRunId) {
+              await recordRunFinish(clientRunId, {
+                status: runStatus === 'ok' ? 'ok' : 'error',
+                provider: runProvider.id,
+                model: runProvider.model,
+                rewrittenPrompt: planned.plan.rewrittenPrompt,
+                rationale: planned.plan.rationale,
+                aspectRatio: planned.plan.aspectRatio,
+                imageUrl: firstImage?.url,
+                latencyMs: elapsedMs,
+                error: summaryError,
               });
             }
 
@@ -660,9 +1292,9 @@ export async function POST(request: Request) {
               at: Date.now(),
               status: 'error',
               frames: {
-                total: requestedTargets?.length ?? 1,
+                total: runStartedFrameTotal,
                 completed: 0,
-                failed: requestedTargets?.length ?? 1,
+                failed: runStartedFrameTotal,
               },
               elapsedMs: Date.now() - startedAt,
               error: message,

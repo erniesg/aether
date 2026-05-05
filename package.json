@@ -4,7 +4,8 @@
   "private": true,
   "description": "Canvas-native creative system. Built with Claude Opus 4.7.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-next.mjs",
+    "dev:local": "node scripts/dev-local-stack.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -20,6 +21,7 @@
     "deploy:stg": "node scripts/require-tldraw-license.mjs && convex deploy --yes --typecheck disable --codegen disable --cmd 'opennextjs-cloudflare build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL && wrangler deploy --env staging",
     "deploy:prod": "node scripts/require-tldraw-license.mjs && convex deploy --yes --typecheck disable --codegen disable --cmd 'opennextjs-cloudflare build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL && wrangler deploy --env production",
     "convex:dev": "convex dev",
+    "convex:dev:local": "convex dev --local",
     "convex:deploy": "convex deploy",
     "provision:managed-agents": "tsx scripts/provision-managed-agents.ts"
   },

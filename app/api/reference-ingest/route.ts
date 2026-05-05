@@ -3,6 +3,7 @@ import { ingestReferenceUrl } from '@/lib/providers/reference/registry';
 import { genReferenceId } from '@/lib/providers/reference/og';
 import type { ReferenceRecord } from '@/lib/providers/reference/types';
 import { MAX_REF_BYTES } from '@/lib/refs/limits';
+import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,10 +29,8 @@ function jsonError(status: number, error: string, code?: string) {
 export async function POST(request: Request) {
   const contentType = request.headers.get('content-type') ?? '';
   try {
-    if (contentType.includes('multipart/form-data')) {
-      return handleFile(request);
-    }
-    return handleUrl(request);
+    if (contentType.includes('application/json')) return handleUrl(request);
+    return handleFile(request);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonError(500, message);
@@ -80,26 +79,49 @@ async function handleUrl(request: Request): Promise<Response> {
 async function handleFile(request: Request): Promise<Response> {
   const form = await request.formData();
   const file = form.get('file');
-  if (!(file instanceof File)) {
+  if (
+    !file ||
+    typeof file !== 'object' ||
+    typeof (file as File).arrayBuffer !== 'function'
+  ) {
     return jsonError(400, 'file field required');
   }
-  if (!file.type.startsWith('image/')) {
+  const uploadFile = file as File;
+  if (!uploadFile.type.startsWith('image/')) {
     return jsonError(400, 'file must be an image');
   }
-  if (file.size > MAX_REF_BYTES) {
+  if (uploadFile.size > MAX_REF_BYTES) {
     return jsonError(400, 'file exceeds 20 MB limit');
   }
-  const buf = Buffer.from(await file.arrayBuffer());
-  const dataUrl = `data:${file.type};base64,${buf.toString('base64')}`;
+  const buf = Buffer.from(await uploadFile.arrayBuffer());
+  const workspaceId =
+    typeof form.get('workspaceId') === 'string'
+      ? String(form.get('workspaceId')).trim() || undefined
+      : undefined;
+  const uploaded = await uploadAssetToConvex({
+    source: buf,
+    kind: 'reference',
+    mime: uploadFile.type,
+    workspaceId,
+    sourceUrl: uploadFile.name,
+  });
+  const previewUrl =
+    uploaded?.publicUrl ?? `data:${uploadFile.type};base64,${buf.toString('base64')}`;
   const record: ReferenceRecord = {
     id: genReferenceId('ref_up'),
     kind: 'image',
-    previewUrl: dataUrl,
+    previewUrl,
+    fullUrl: uploaded?.publicUrl,
     attribution: {
       source: 'upload',
-      url: file.name,
+      url: uploadFile.name,
     },
     capturedAt: new Date().toISOString(),
+    title: uploadFile.name.replace(/\.[^.]+$/, ''),
+    usageIntent: 'visual anchor',
+    tags: ['upload'],
+    assetId: uploaded?.id,
+    origin: 'upload',
   };
   return NextResponse.json({
     ok: true,

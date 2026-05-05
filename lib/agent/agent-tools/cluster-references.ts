@@ -1,11 +1,10 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { AgentTool } from './types';
 
-const tool: Anthropic.Messages.Tool = {
+const tool: AgentTool['tool'] = {
   name: 'cluster_references',
   description:
     'Embed a batch of image URLs with CLIP ViT-B/32 and cluster with HDBSCAN + UMAP. Use after search_signals to group references into visual themes.',
-  input_schema: {
+  inputSchema: {
     type: 'object',
     properties: {
       images: {
@@ -25,7 +24,7 @@ const tool: Anthropic.Messages.Tool = {
       },
     },
     required: ['images'],
-  } as unknown as Anthropic.Messages.Tool['input_schema'],
+  },
 };
 
 export const clusterReferences: AgentTool = {

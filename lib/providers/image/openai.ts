@@ -168,10 +168,13 @@ function dataUrlToBlob(dataUrl: string): { blob: Blob; ext: string } {
  * ref, falling through to /generations and losing hero identity. Bug
  * surfaced 2026-04-27 via "different shoot per aspect" complaints.
  */
-async function urlToBlob(url: string): Promise<{ blob: Blob; ext: string }> {
+async function urlToBlob(
+  url: string,
+  signal?: AbortSignal
+): Promise<{ blob: Blob; ext: string }> {
   let res: Response;
   try {
-    res = await fetchWithTimeout(url, { method: 'GET' }, OPENAI_TIMEOUT_MS);
+    res = await fetchWithTimeout(url, { method: 'GET', signal }, OPENAI_TIMEOUT_MS);
   } catch (error) {
     if (isAbortError(error)) {
       throw new ImageGenError(
@@ -198,11 +201,14 @@ async function urlToBlob(url: string): Promise<{ blob: Blob; ext: string }> {
   return { blob: new Blob([buf], { type: mime }), ext };
 }
 
-async function refToBlob(ref: ImageRef): Promise<{ blob: Blob; ext: string }> {
+async function refToBlob(
+  ref: ImageRef,
+  signal?: AbortSignal
+): Promise<{ blob: Blob; ext: string }> {
   if (isBase64DataUrl(ref.url)) {
     return dataUrlToBlob(ref.url);
   }
-  return urlToBlob(ref.url);
+  return urlToBlob(ref.url, signal);
 }
 
 async function fetchOpenAI(url: string, init: RequestInit): Promise<Response> {
@@ -236,7 +242,10 @@ export function createOpenAIProvider(
     listModels: () => ['gpt-image-2'],
   };
 
-  async function generate(req: ImageGenRequest, opts: { model: string }): Promise<ImageGenResult> {
+  async function generate(
+    req: ImageGenRequest,
+    opts: { model: string; signal?: AbortSignal }
+  ): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
     const model = opts.model || DEFAULT_MODEL;
     const { size, width, height } = pickOpenAISize(req);
@@ -269,10 +278,10 @@ export function createOpenAIProvider(
       console.log(`[openai/generate]   ref[${i}] ${isData ? 'DATA' : 'URL'} → ${sig}`);
     });
     if (refs.length > 0) {
-      return editWithRefs(req, refs, model, size, width, height, applied.prompt);
+      return editWithRefs(req, refs, model, size, width, height, applied.prompt, opts.signal);
     }
 
-    return generateWithoutRefs(req, model, size, width, height, applied.prompt);
+    return generateWithoutRefs(req, model, size, width, height, applied.prompt, opts.signal);
   }
 
   async function generateWithoutRefs(
@@ -281,7 +290,8 @@ export function createOpenAIProvider(
     size: OpenAISize,
     width: number,
     height: number,
-    prompt: string = req.prompt
+    prompt: string = req.prompt,
+    signal?: AbortSignal
   ): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
     const elapsed = mark();
@@ -291,6 +301,7 @@ export function createOpenAIProvider(
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      signal,
       body: JSON.stringify({
         model,
         prompt,
@@ -335,7 +346,8 @@ export function createOpenAIProvider(
     size: OpenAISize,
     width: number,
     height: number,
-    prompt: string = req.prompt
+    prompt: string = req.prompt,
+    signal?: AbortSignal
   ): Promise<ImageGenResult> {
     if (!apiKey) throw new ImageGenError('OPENAI_API_KEY not set', 'openai');
 
@@ -359,7 +371,7 @@ export function createOpenAIProvider(
     // succeeded with the other refs. If ALL refs fail, fall back to plain
     // /generations (no edits) instead of crashing.
     const settled = await Promise.allSettled(
-      refs.map((ref) => refToBlob(ref))
+      refs.map((ref) => refToBlob(ref, signal))
     );
     const usable: Array<{ blob: Blob; ext: string }> = [];
     settled.forEach((r, i) => {
@@ -382,7 +394,7 @@ export function createOpenAIProvider(
       // Fall through by re-issuing as a generations call. We synthesize the
       // minimal generations request here so we don't need a method-level
       // recursion guard.
-      return generateWithoutRefs(req, model, size, width, height, prompt);
+      return generateWithoutRefs(req, model, size, width, height, prompt, signal);
     }
     usable.forEach(({ blob, ext }, i) => {
       form.append('image[]', blob, `ref-${i}.${ext}`);
@@ -397,6 +409,7 @@ export function createOpenAIProvider(
     const res = await fetchOpenAI(EDITS_ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal,
       body: form,
     });
     if (!res.ok) {

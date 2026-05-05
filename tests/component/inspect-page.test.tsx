@@ -21,7 +21,7 @@ afterEach(cleanup);
 // ─── Types (mirrors page.tsx) ─────────────────────────────────────────────────
 
 interface LocaleInsight {
-  locale: 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+  locale: string;
   insight: string;
 }
 

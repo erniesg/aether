@@ -41,6 +41,8 @@ export interface EyesClosedHandleProps {
   provider?: VoiceProvider;
   /** Override the session endpoint when not using the default. */
   sessionEndpoint?: string;
+  /** Workspace slug used for provider preference resolution. */
+  workspaceId?: string;
   /**
    * Called on release with the joined creator transcript + sketch snapshot.
    * Skipped when both are empty.
@@ -67,6 +69,7 @@ const PROCESSING_LABEL = 'eyes-closed · dispatching capture';
 export function EyesClosedHandle({
   provider,
   sessionEndpoint,
+  workspaceId,
   onCapture,
   getSketchSnapshot,
   onTranscript,
@@ -103,11 +106,11 @@ export function EyesClosedHandle({
       return { provider };
     }
     const endpoint = sessionEndpoint ?? '/api/voice/session';
-    const credentials = await fetchVoiceSession(endpoint);
+    const credentials = await fetchVoiceSession(endpoint, { workspaceId });
     const next = createVoiceProvider(credentials.provider);
     setActiveProvider(next);
     return { provider: next, credentials };
-  }, [activeProvider, provider, sessionEndpoint]);
+  }, [activeProvider, provider, sessionEndpoint, workspaceId]);
 
   const transcriptCb = useRef(onTranscript);
   transcriptCb.current = onTranscript;
@@ -152,14 +155,14 @@ export function EyesClosedHandle({
     try {
       const { provider: active, credentials } = await ensureProvider();
       if (!active.isConnected()) {
-        await active.connect({ sessionEndpoint, credentials });
+        await active.connect({ sessionEndpoint, credentials, workspaceId });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       setRecording(false);
     }
-  }, [ensureProvider, processing, recording, sessionEndpoint]);
+  }, [ensureProvider, processing, recording, sessionEndpoint, workspaceId]);
 
   const finishCapture = useCallback(async () => {
     if (!recording) return;

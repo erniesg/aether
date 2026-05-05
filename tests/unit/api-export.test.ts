@@ -80,6 +80,10 @@ describe('POST /api/export', () => {
             provider: 'openai',
             model: 'gpt-image-1',
             pngBase64: TINY_PNG_B64,
+            svg: '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><text x="24" y="64" fill="#111111" font-size="32">Editable headline</text></svg>',
+            locale: 'en-SG',
+            locales: ['en-SG'],
+            languageMode: 'single',
           },
           {
             id: 'story',
@@ -103,9 +107,15 @@ describe('POST /api/export', () => {
 
     const archive = await JSZip.loadAsync(await res.arrayBuffer());
     expect(Object.keys(archive.files).sort()).toEqual([
+      'ig-post.jpg',
+      'ig-post.pdf',
       'ig-post.png',
+      'ig-post.svg',
       'manifest.json',
+      'story.jpg',
+      'story.pdf',
       'story.png',
+      'story.svg',
     ]);
 
     const manifest = manifestSchema.parse(
@@ -114,6 +124,13 @@ describe('POST /api/export', () => {
     expect(manifest.workspaceId).toBe('demo-ws');
     expect(manifest.formats.map((f) => f.id)).toEqual(['ig-post', 'story']);
     expect(manifest.formats[0]?.filename).toBe('ig-post.png');
+    expect(manifest.formats[0]?.locale).toBe('en-SG');
+    expect(manifest.formats[0]?.assets?.map((asset) => asset.kind)).toEqual([
+      'png',
+      'jpeg',
+      'svg',
+      'pdf',
+    ]);
     expect(manifest.pinnedSkills).toEqual([
       { definitionId: 'cap_1', name: 'neon drench' },
     ]);
@@ -121,5 +138,7 @@ describe('POST /api/export', () => {
 
     const pngBytes = await archive.file('ig-post.png')!.async('uint8array');
     expect(pngBytes.slice(0, 8)).toEqual(TINY_PNG.slice(0, 8));
+    const svg = await archive.file('ig-post.svg')!.async('string');
+    expect(svg).toContain('Editable headline');
   });
 });

@@ -81,11 +81,57 @@ describe('VoiceOrb provider selection', () => {
     );
 
     await waitFor(() => {
-      expect(fetchVoiceSession).toHaveBeenCalledWith('/api/voice/session');
+      expect(fetchVoiceSession).toHaveBeenCalledWith('/api/voice/session', {
+        workspaceId: undefined,
+      });
       expect(createVoiceProvider).toHaveBeenCalledWith('gemini-live');
       expect(stub.connect).toHaveBeenCalledWith({
         sessionEndpoint: '/api/voice/session',
         credentials,
+        workspaceId: undefined,
+      });
+    });
+  });
+
+  it('passes workspaceId through session minting so provider prefs apply', async () => {
+    const credentials: VoiceSessionCredentials = {
+      sessionId: 'sess-openai',
+      clientSecret: 'ek-openai',
+      expiresAt: Date.now() + 60_000,
+      model: 'gpt-realtime',
+      voice: 'marin',
+      provider: 'openai-realtime',
+    };
+    const stub = createStubProvider();
+    fetchVoiceSession.mockResolvedValue(credentials);
+    createVoiceProvider.mockReturnValue(stub.provider);
+
+    render(
+      <VoiceOrb
+        dispatchers={{
+          focus_format: vi.fn(),
+          pan_zoom: vi.fn(),
+          remove_background: vi.fn(),
+          run_capability: vi.fn(),
+          run_generate: vi.fn(),
+        }}
+        sessionEndpoint="/api/voice/session"
+        workspaceId="demo-ws"
+      />
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /voice · idle · click to talk/i })
+    );
+
+    await waitFor(() => {
+      expect(fetchVoiceSession).toHaveBeenCalledWith('/api/voice/session', {
+        workspaceId: 'demo-ws',
+      });
+      expect(stub.connect).toHaveBeenCalledWith({
+        sessionEndpoint: '/api/voice/session',
+        credentials,
+        workspaceId: 'demo-ws',
       });
     });
   });

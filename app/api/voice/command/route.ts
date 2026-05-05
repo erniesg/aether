@@ -148,5 +148,12 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, command });
+  return NextResponse.json({
+    ok: true,
+    command,
+    planner: command.commandPlanner ?? {
+      provider: command.source,
+      status: command.source === 'heuristic' ? 'heuristic-fallback' : 'llm',
+    },
+  });
 }

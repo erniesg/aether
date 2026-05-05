@@ -11,7 +11,22 @@ describe('manifestSchema', () => {
           id: 'ig-post',
           label: 'IG Post',
           aspectRatio: '4:5',
+          format: '4x5',
+          locale: 'en-SG',
+          locales: ['en-SG'],
+          languageMode: 'single',
+          platforms: ['instagram', 'pinterest'],
           filename: 'ig-post.png',
+          assets: [
+            {
+              kind: 'svg',
+              filename: 'ig-post.svg',
+              mimeType: 'image/svg+xml',
+              editable: true,
+              preservesText: true,
+              preservesVector: true,
+            },
+          ],
           capabilityRunIds: ['run_1'],
           prompt: 'neon product portrait',
           provider: 'openai',
@@ -24,6 +39,7 @@ describe('manifestSchema', () => {
 
     expect(parsed.workspaceId).toBe('demo-ws');
     expect(parsed.formats).toHaveLength(1);
+    expect(parsed.formats[0]?.assets?.[0]?.kind).toBe('svg');
     expect(parsed.pinnedSkills[0]?.name).toBe('neon drench');
     expect(parsed.brandTokens.palette).toContain('#dd4a1e');
   });

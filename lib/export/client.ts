@@ -7,6 +7,22 @@ export interface ExportArtboardSpec {
   id: string;
   label: string;
   aspectRatio: string;
+  format?: string;
+  platform?: string;
+  platforms?: string[];
+}
+
+export interface ExportTextLayerMetadata {
+  role: string;
+  locale: string;
+  text: string;
+  format?: string;
+  heroDirectionId?: string;
+  scope?: string;
+  sourceLocale?: string;
+  localOverride?: boolean;
+  localOverridesByLocale?: Record<string, boolean>;
+  translatedFrom?: Record<string, string>;
 }
 
 export interface ExportRequestPayload {
@@ -16,17 +32,48 @@ export interface ExportRequestPayload {
   runDetails: RunDetailsRecord[];
   pinnedSkills: Array<{ definitionId: string; name: string }>;
   brandTokens?: { palette: string[]; typography: string[] };
+  /**
+   * Optional live-canvas renderer. When present, export uses the current
+   * artboard raster instead of the provider's last raw image URL, so edits
+   * made on canvas are present in the final pack.
+   */
+  renderArtboardPngBase64?: (
+    artboard: ExportArtboardSpec
+  ) => Promise<string | null>;
+  renderArtboardJpegBase64?: (
+    artboard: ExportArtboardSpec
+  ) => Promise<string | null>;
+  renderArtboardSvg?: (
+    artboard: ExportArtboardSpec
+  ) => Promise<{ svg: string; width?: number; height?: number } | null>;
+  collectTextLayers?: (
+    artboard: ExportArtboardSpec
+  ) => ExportTextLayerMetadata[];
+  locale?: string;
+  locales?: string[];
+  languageMode?: 'single' | 'multilingual';
 }
 
 interface ResolvedArtboardPayload {
   id: string;
   label: string;
   aspectRatio: string;
+  format?: string;
+  locale?: string;
+  locales?: string[];
+  languageMode?: 'single' | 'multilingual';
+  platform?: string;
+  platforms?: string[];
   prompt: string;
   capabilityRunIds: string[];
   provider: string;
   model: string;
   pngBase64: string;
+  jpegBase64?: string;
+  svg?: string;
+  width?: number;
+  height?: number;
+  textLayers?: ExportTextLayerMetadata[];
 }
 
 export interface BuildExportRequestBodyResult {
@@ -123,20 +170,54 @@ export async function buildExportRequestBody(
       skipped.push(board.id);
       continue;
     }
-    const pngBase64 = await fetchAsBase64(match.frame.imageUrl!);
+    let canvasPngBase64: string | null = null;
+    try {
+      canvasPngBase64 = (await args.renderArtboardPngBase64?.(board)) ?? null;
+    } catch {
+      canvasPngBase64 = null;
+    }
+    const pngBase64 = canvasPngBase64 ?? (await fetchAsBase64(match.frame.imageUrl!));
     if (!pngBase64) {
       skipped.push(board.id);
       continue;
+    }
+    let jpegBase64: string | null = null;
+    let svgExport: { svg: string; width?: number; height?: number } | null = null;
+    try {
+      jpegBase64 = (await args.renderArtboardJpegBase64?.(board)) ?? null;
+    } catch {
+      jpegBase64 = null;
+    }
+    try {
+      svgExport = (await args.renderArtboardSvg?.(board)) ?? null;
+    } catch {
+      svgExport = null;
     }
     resolved.push({
       id: board.id,
       label: board.label,
       aspectRatio: board.aspectRatio,
+      format: board.format ?? formatFromAspectRatio(board.aspectRatio),
+      locale: args.languageMode === 'multilingual' ? 'multilingual' : args.locale,
+      locales:
+        args.languageMode === 'multilingual'
+          ? args.locales
+          : args.locale
+            ? [args.locale]
+            : undefined,
+      languageMode: args.languageMode,
+      platform: board.platform,
+      platforms: board.platforms ?? platformsFromAspectRatio(board.aspectRatio),
       prompt: match.run.rewrittenPrompt ?? match.run.prompt,
       capabilityRunIds: allRunIdsFor(args.runs, detailsIndex, board.id),
       provider: match.run.provider,
       model: match.run.model,
       pngBase64,
+      jpegBase64: jpegBase64 ?? undefined,
+      svg: svgExport?.svg,
+      width: svgExport?.width,
+      height: svgExport?.height,
+      textLayers: args.collectTextLayers?.(board),
     });
   }
 
@@ -150,6 +231,32 @@ export async function buildExportRequestBody(
     },
     skipped,
   };
+}
+
+function formatFromAspectRatio(aspectRatio: string): string {
+  switch (aspectRatio) {
+    case '4:5':
+      return '4x5';
+    case '9:16':
+      return '9x16';
+    case '16:9':
+      return '16x9';
+    default:
+      return '1x1';
+  }
+}
+
+function platformsFromAspectRatio(aspectRatio: string): string[] {
+  switch (aspectRatio) {
+    case '4:5':
+      return ['instagram', 'pinterest'];
+    case '9:16':
+      return ['tiktok', 'youtube-shorts', 'douyin', 'kuaishou'];
+    case '16:9':
+      return ['linkedin', 'x', 'bilibili'];
+    default:
+      return ['instagram'];
+  }
 }
 
 /**

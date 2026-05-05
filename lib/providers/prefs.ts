@@ -19,6 +19,7 @@ import type { VoiceProviderId } from '@/lib/voice/types';
 
 export interface WorkspaceProviderPrefs {
   imageProviderId?: string;
+  imageModel?: string;
   voiceProviderId?: VoiceProviderId;
   voiceModel?: string;
   segmentationProviderId?: string;
@@ -27,6 +28,7 @@ export interface WorkspaceProviderPrefs {
 // ─── Code defaults (per provider mandate) ───────────────────────────────────
 const VOICE_CODE_DEFAULT: VoiceProviderId = 'gemini-live';
 const GEMINI_LIVE_MODEL_DEFAULT = 'gemini-3.1-flash-live-preview';
+const OPENAI_REALTIME_MODEL_DEFAULT = 'gpt-realtime';
 
 // ─── Voice ──────────────────────────────────────────────────────────────────
 
@@ -72,7 +74,7 @@ export function resolveVoiceProvider(
       ? (typeof process !== 'undefined'
           ? process.env.GEMINI_LIVE_MODEL ?? process.env.VOICE_MODEL
           : undefined) ?? GEMINI_LIVE_MODEL_DEFAULT
-      : envModel ?? '') ??
+      : envModel ?? OPENAI_REALTIME_MODEL_DEFAULT) ??
     '';
 
   return { providerId, model };
@@ -91,6 +93,20 @@ export function resolveImageProviderId(
   return (
     prefs?.imageProviderId ??
     (typeof process !== 'undefined' ? process.env.IMAGE_GEN_PROVIDER : undefined)
+  );
+}
+
+/**
+ * Resolve which image model to prefer for the chosen provider.
+ * Returns undefined when neither pref nor env is set; the provider adapter
+ * then uses its own first listed model.
+ */
+export function resolveImageModel(
+  prefs: WorkspaceProviderPrefs | null | undefined
+): string | undefined {
+  return (
+    prefs?.imageModel ??
+    (typeof process !== 'undefined' ? process.env.IMAGE_GEN_MODEL : undefined)
   );
 }
 

@@ -118,4 +118,35 @@ describe('/api/publish/schedule', () => {
       error: 'posts with mediaUrls are required',
     });
   });
+
+  it('preserves locale/platform/format mapping in schedule results', async () => {
+    const { POST } = await import('@/app/api/publish/schedule/route');
+
+    const res = await POST(
+      request({
+        workspaceId: 'ws_demo',
+        posts: [
+          {
+            ...post(),
+            locale: 'zh-Hans-SG',
+            format: '4x5',
+            caption: '中文发布',
+          },
+        ],
+      })
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      ok: true,
+      results: [
+        {
+          platform: 'instagram',
+          locale: 'zh-Hans-SG',
+          format: '4x5',
+          status: 'preview-only',
+        },
+      ],
+    });
+  });
 });

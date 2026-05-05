@@ -30,6 +30,11 @@ describe('voice command parsing', () => {
         'generate socials for new matcha latte and auto publish'
       ).publishMode
     ).toBe('auto-post');
+    expect(
+      parseVoiceCommandHeuristically(
+        'generate socials for new matcha latte and publish it automatically'
+      ).publishMode
+    ).toBe('auto-post');
 
     const ambiguous = parseVoiceCommandHeuristically(
       'generate socials for new matcha latte and publish it'
@@ -49,9 +54,25 @@ describe('voice command parsing', () => {
       referenceSearchQuery: 'Terra Coffee',
       scope: 'all',
       publishMode: 'auto-post',
+      targetPlatforms: ['x'],
       needsPublishClarification: false,
     });
     expect(command.prompt).toContain('Terra Coffee');
+  });
+
+  it('keeps X-only auto-publish scope when local Whisper hears extra words', () => {
+    const command = parseVoiceCommandHeuristically(
+      'January will campaign for the big sleeping part in different formats and languages and auto publish to X Tony.'
+    );
+
+    expect(command).toMatchObject({
+      action: 'generate-socials',
+      brief: 'Eight Sleep Pod',
+      publishMode: 'auto-post',
+      targetPlatforms: ['x'],
+      scope: 'all',
+    });
+    expect(voiceCommandRequestsSupportedLocales(command)).toBe(true);
   });
 
   it('normalizes common Eight Sleep Pod transcription slips', () => {
@@ -199,7 +220,7 @@ describe('voice command parsing', () => {
         source: 'catalog',
       },
     });
-    expect(command.prompt).toContain('if none are relevant, generate from the brief');
+    expect(command.prompt).toContain('If none are relevant, generate from the brief');
   });
 
   it('can enrich unknown products through a provider-agnostic research adapter', async () => {
@@ -268,7 +289,8 @@ describe('voice command parsing', () => {
 
     expect(plan.options).toEqual({
       scope: 'all',
-      renderMode: 'crop',
+      renderMode: 'hero-seeded-fanout',
+      heroCount: 2,
       notifyMode: 'review',
       refs: ['https://img.example/ref.png'],
     });
@@ -276,9 +298,31 @@ describe('voice command parsing', () => {
       expect.arrayContaining([
         { label: 'intent', value: 'generate socials' },
         { label: 'formats', value: '2' },
+        { label: 'heroes', value: '2' },
         { label: 'languages', value: 'ja-JP, ko-KR' },
         { label: 'publish', value: 'review' },
       ])
+    );
+  });
+
+  it('threads explicit publish platforms into the generation plan', () => {
+    const command = parseVoiceCommandHeuristically(
+      'generate socials for Eight Sleep Pod and auto publish to x only'
+    );
+    const plan = buildVoiceGenerationPlan(command, {
+      formats: [{ id: 'frame-1', label: 'X banner', aspectRatio: '16:9' }],
+      locales: ['en-SG'],
+      languageMode: 'single',
+    });
+
+    expect(plan.options).toEqual(
+      expect.objectContaining({
+        notifyMode: 'auto-post',
+        targetPlatforms: ['x'],
+      })
+    );
+    expect(plan.statusChips).toEqual(
+      expect.arrayContaining([{ label: 'platforms', value: 'x' }])
     );
   });
 });

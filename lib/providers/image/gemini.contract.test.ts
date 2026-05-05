@@ -106,7 +106,7 @@ describe('gemini (imagen) adapter · contract', () => {
     });
   });
 
-  it("applies composition textStrategy='none' — populates parameters.negativePrompt", async () => {
+  it("applies composition textStrategy='none' in the prompt without unsupported negativePrompt params", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ predictions: [{ bytesBase64Encoded: 'YQ==', mimeType: 'image/png' }] })
     );
@@ -120,9 +120,7 @@ describe('gemini (imagen) adapter · contract', () => {
     const body = JSON.parse(init?.body as string);
     expect(body.instances[0].prompt).toContain('No text, no typography.');
     expect(body.instances[0].prompt).toContain('sunset cityscape');
-    expect(typeof body.parameters.negativePrompt).toBe('string');
-    expect(body.parameters.negativePrompt.toLowerCase()).toContain('text');
-    expect(body.parameters.negativePrompt.toLowerCase()).toContain('typography');
+    expect(body.parameters).not.toHaveProperty('negativePrompt');
   });
 
   it('throws ImageGenError on non-200 response', async () => {

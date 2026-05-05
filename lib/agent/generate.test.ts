@@ -54,6 +54,7 @@ const FAKE_IMAGE_RESULT = {
 
 describe('agent · runGenerate', () => {
   const originalKey = process.env.ANTHROPIC_API_KEY;
+  const originalImageModel = process.env.IMAGE_GEN_MODEL;
 
   beforeEach(() => {
     mocks.messagesCreate.mockReset();
@@ -63,11 +64,14 @@ describe('agent · runGenerate', () => {
     mocks.resolveProvider.mockClear();
     mocks.resolveProvider.mockReturnValue(mocks.fakeProvider);
     process.env.ANTHROPIC_API_KEY = 'ant_test';
+    delete process.env.IMAGE_GEN_MODEL;
   });
 
   afterEach(() => {
     if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = originalKey;
+    if (originalImageModel === undefined) delete process.env.IMAGE_GEN_MODEL;
+    else process.env.IMAGE_GEN_MODEL = originalImageModel;
   });
 
   it('plans via Claude tool-use, forwards rewrittenPrompt + aspectRatio to provider', async () => {
@@ -273,6 +277,23 @@ describe('agent · runGenerate', () => {
     await runGenerate({ prompt: 'bar', model: 'dall-e-3' });
     const [, opts] = mocks.providerGenerate.mock.calls[0]!;
     expect(opts.model).toBe('dall-e-3');
+  });
+
+  it('uses IMAGE_GEN_MODEL when no per-request model is supplied', async () => {
+    process.env.IMAGE_GEN_MODEL = 'gpt-image-2';
+    mocks.messagesCreate.mockResolvedValueOnce({
+      content: [
+        {
+          type: 'tool_use',
+          name: 'generate_image',
+          id: 'tu_env_model',
+          input: { prompt: 'bar', aspectRatio: '1:1' },
+        },
+      ],
+    });
+    await runGenerate({ prompt: 'bar' });
+    const [, opts] = mocks.providerGenerate.mock.calls[0]!;
+    expect(opts.model).toBe('gpt-image-2');
   });
 
   it('rejects a tool response with invalid aspectRatio', async () => {

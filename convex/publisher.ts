@@ -49,12 +49,16 @@ interface ScheduledPostDoc {
   status: 'draft' | 'scheduled' | 'published' | 'cancelled';
   provider?: string;
   externalId?: string;
+  locale?: string;
+  format?: string;
 }
 
 function toRecord(doc: ScheduledPostDoc) {
   return {
     id: String(doc._id),
     platform: doc.platform,
+    locale: doc.locale,
+    format: doc.format,
     mediaUrls: doc.mediaUrls,
     caption: doc.caption,
     hashtags: doc.hashtags,
@@ -85,6 +89,8 @@ export const schedule = mutationGeneric({
   args: {
     wsId: v.optional(v.id('workspace')),
     platform: PLATFORM_VALIDATOR,
+    locale: v.optional(v.string()),
+    format: v.optional(v.string()),
     mediaUrls: v.array(v.string()),
     caption: v.string(),
     hashtags: v.array(v.string()),
@@ -100,6 +106,8 @@ export const schedule = mutationGeneric({
     const id = await ctx.db.insert('scheduledPost', {
       wsId: args.wsId,
       platform: args.platform,
+      locale: args.locale,
+      format: args.format,
       mediaUrls: args.mediaUrls,
       caption: args.caption,
       hashtags: args.hashtags,

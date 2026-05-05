@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type {
   ClipboardEvent as ReactClipboardEvent,
   DragEvent as ReactDragEvent,
@@ -36,8 +37,9 @@ export type PromptScope = 'all' | 'single';
  * How multiple format variants are rendered.
  *   crop    — one hero render, geometric crop to every format (default / "responsive")
  *   fanout  — N separate renders, one per format ("variants")
+ *   hero-seeded-fanout — clean hero seed first, then native child formats
  */
-export type RenderMode = 'crop' | 'fanout';
+export type RenderMode = 'crop' | 'fanout' | 'hero-seeded-fanout';
 
 /**
  * Per-fire publishing intent for a drag-drop generation.
@@ -63,6 +65,7 @@ export interface PromptSubmitOptions {
   targetId?: string;
   /** How to execute the multi-format render. */
   renderMode: RenderMode;
+  heroCount?: number;
   /** Drag-drop publishing intent — see PromptNotifyMode. Defaults to 'review'. */
   notifyMode: PromptNotifyMode;
 }
@@ -97,6 +100,8 @@ export interface PromptComposerProps {
   /** Invoked with the prompt string and a submit-options bundle
    * (refs + scope) on submit. */
   onSubmit?: (prompt: string, options: PromptSubmitOptions) => void | Promise<void>;
+  /** Optional compact voice command affordance rendered beside composer actions. */
+  voiceSlot?: ReactNode;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -132,6 +137,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
       onRenderModeChange,
       onOpenInputSet,
       onSubmit,
+      voiceSlot,
       placeholder = 'describe the generation…',
       className,
       disabled,
@@ -148,6 +154,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
     const [refError, setRefError] = useState<string | null>(null);
     const [scope, setScope] = useState<PromptScope>(defaultScope);
     const [renderMode, setRenderMode] = useState<RenderMode>(defaultRenderMode);
+    const [heroCount, setHeroCount] = useState(1);
     const [notifyMode, setNotifyMode] = useState<PromptNotifyMode>('review');
     const activeFormat =
       formats.find((format) => format.id === activeFormatId) ?? formats[0];
@@ -282,6 +289,7 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
           scope: overrideScope ?? scope,
           targetId: (overrideScope ?? scope) === 'single' ? resolvedActiveFormatId : undefined,
           renderMode,
+          heroCount: renderMode === 'hero-seeded-fanout' ? heroCount : undefined,
           notifyMode,
         });
         setValue('');
@@ -512,15 +520,25 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
             // C2: unified "variants" naming — "crop" (one hero, geometric crop)
             // vs "variants" (N separate renders, one per format). No "responsive"
             // terminology — that was ambiguous with CSS responsive breakpoints.
-            const label = renderMode === 'crop' ? 'crop' : 'variants';
-            const aria = `render mode · ${label} · click to toggle between crop (one render, cropped to each format) and variants (separate render per format)`;
+            const label =
+              renderMode === 'crop'
+                ? 'crop'
+                : renderMode === 'fanout'
+                  ? 'variants'
+                  : 'seeded';
+            const aria = `render mode · ${label} · click to cycle crop, variants, and seeded hero fanout`;
             return (
               <button
                 type="button"
                 aria-label={aria}
                 title={aria}
                 onClick={() => {
-                  const next: RenderMode = renderMode === 'crop' ? 'fanout' : 'crop';
+                  const next: RenderMode =
+                    renderMode === 'crop'
+                      ? 'fanout'
+                      : renderMode === 'fanout'
+                        ? 'hero-seeded-fanout'
+                        : 'crop';
                   setRenderMode(next);
                   onRenderModeChange?.(next);
                 }}
@@ -535,6 +553,19 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
               </button>
             );
           })()}
+
+          {renderMode === 'hero-seeded-fanout' ? (
+            <button
+              type="button"
+              aria-label={`hero directions · ${heroCount} · click to change`}
+              title="hero directions · click to cycle 1-3"
+              data-testid="composer-hero-count-toggle"
+              onClick={() => setHeroCount((current) => (current >= 3 ? 1 : current + 1))}
+              className="inline-flex items-center gap-1 rounded-pill border border-accent-secondary/50 bg-accent-secondary/10 px-2 py-0.5 font-mono text-2xs uppercase tracking-wide text-ink-muted transition-colors duration-fast ease-quick hover:text-ink"
+            >
+              {heroCount} hero{heroCount === 1 ? '' : 'es'}
+            </button>
+          ) : null}
 
           {(() => {
             // Drag-drop publishing intent. 'review' is the default (current
@@ -606,6 +637,12 @@ export const PromptComposer = forwardRef<ComposerHandle, PromptComposerProps>(
               'focus:outline-none disabled:cursor-not-allowed disabled:opacity-50'
             )}
           />
+
+          {voiceSlot ? (
+            <div className="shrink-0" data-testid="composer-voice-slot">
+              {voiceSlot}
+            </div>
+          ) : null}
 
           <button
             type="button"

@@ -33,6 +33,7 @@ interface AssetDoc {
   kind: string;
   mime: string;
   wsId?: unknown;
+  workspaceId?: string;
   campaignId?: unknown;
   sourceUrl?: string;
   width?: number;
@@ -56,6 +57,7 @@ export const recordUploadedAsset = mutationGeneric({
     kind: KIND_VALIDATOR,
     mime: v.string(),
     wsId: v.optional(v.id('workspace')),
+    workspaceId: v.optional(v.string()),
     campaignId: v.optional(v.id('campaign')),
     sourceUrl: v.optional(v.string()),
     width: v.optional(v.number()),
@@ -75,6 +77,7 @@ export const recordUploadedAsset = mutationGeneric({
       kind: args.kind,
       mime: args.mime,
       wsId: args.wsId,
+      workspaceId: args.workspaceId,
       campaignId: args.campaignId,
       sourceUrl: args.sourceUrl,
       width: args.width,
@@ -99,6 +102,7 @@ export const getAsset = queryGeneric({
       kind: doc.kind,
       mime: doc.mime,
       wsId: doc.wsId ? String(doc.wsId) : undefined,
+      workspaceId: doc.workspaceId,
       campaignId: doc.campaignId ? String(doc.campaignId) : undefined,
       sourceUrl: doc.sourceUrl,
       width: doc.width,
@@ -124,6 +128,31 @@ export const listByWorkspace = queryGeneric({
       publicUrl: r.publicUrl,
       kind: r.kind,
       mime: r.mime,
+      workspaceId: r.workspaceId,
+      sourceUrl: r.sourceUrl,
+      width: r.width,
+      height: r.height,
+      createdAt: r.createdAt,
+    }));
+  },
+});
+
+/** All assets for a route-level workspace slug, newest first. */
+export const listByWorkspaceSlug = queryGeneric({
+  args: { workspaceId: v.string() },
+  handler: async (ctx, args) => {
+    const rows = (await ctx.db
+      .query('asset')
+      .withIndex('by_workspace_slug', (q: any) => q.eq('workspaceId', args.workspaceId))
+      .order('desc')
+      .take(200)) as AssetDoc[];
+    return rows.map((r) => ({
+      id: String(r._id),
+      storageId: r.storageId,
+      publicUrl: r.publicUrl,
+      kind: r.kind,
+      mime: r.mime,
+      workspaceId: r.workspaceId,
       sourceUrl: r.sourceUrl,
       width: r.width,
       height: r.height,

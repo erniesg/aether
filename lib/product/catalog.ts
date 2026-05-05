@@ -47,6 +47,7 @@ export const DEFAULT_PRODUCT_CATALOG: readonly ProductCatalogEntry[] = [
       'aid sleeping pod',
       'aid sleeping part',
       'aide sleeping part',
+      'big sleeping part',
       'eight sleep part',
       'eight sleeping part',
       '8 sleeping part',

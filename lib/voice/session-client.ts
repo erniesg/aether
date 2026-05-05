@@ -1,9 +1,23 @@
 import type { VoiceSessionCredentials } from './types';
 
+export interface FetchVoiceSessionOptions {
+  workspaceId?: string;
+}
+
 export async function fetchVoiceSession(
-  endpoint: string
+  endpoint: string,
+  options: FetchVoiceSessionOptions = {}
 ): Promise<VoiceSessionCredentials> {
-  const res = await fetch(endpoint, { method: 'POST' });
+  const workspaceId = options.workspaceId?.trim();
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    ...(workspaceId
+      ? {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId }),
+        }
+      : {}),
+  });
   if (!res.ok) {
     throw new Error(`voice: session endpoint returned ${res.status}`);
   }

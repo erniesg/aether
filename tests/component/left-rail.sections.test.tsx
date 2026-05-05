@@ -82,7 +82,7 @@ describe('LeftRail · stable context first, research feeds references', () => {
     expect(text).toContain('active input set');
   });
 
-  it('references section exposes images · templates · elements tabs', async () => {
+  it('references section exposes images · generated · templates · elements tabs', async () => {
     const { container } = render(<LeftRail />);
 
     const referencesTrigger = container.querySelector<HTMLButtonElement>(
@@ -93,7 +93,7 @@ describe('LeftRail · stable context first, research feeds references', () => {
 
     const tabs = screen.getAllByRole('tab');
     const labels = tabs.map((t) => (t.textContent ?? '').trim().toLowerCase());
-    expect(labels).toEqual(['images', 'templates', 'elements']);
+    expect(labels).toEqual(['images', 'generated', 'templates', 'elements']);
   });
 
   it('research section exposes seed, source, target, and scout controls', async () => {

@@ -2,16 +2,16 @@
  * Agent-tools registry types (slice #4).
  *
  * Each agent tool is one file in `lib/agent/agent-tools/`. The file exports
- * an `AgentTool` shape carrying the Anthropic SDK Tool spec, the dispatch
+ * an `AgentTool` shape carrying a provider-neutral tool definition, the dispatch
  * spec the runMultiAgent loop uses to actually run the tool, and an optional
- * output summarizer that compacts large payloads before Claude re-reads them
+ * output summarizer that compacts large payloads before the planner re-reads them
  * (image bytes, embedding vectors).
  *
  * Adding a tool: drop a file in this directory exporting an AgentTool, then
  * add it to `listAgentTools()` in `index.ts`. No edit to multi.ts required.
  */
 
-import type Anthropic from '@anthropic-ai/sdk';
+import type { CommandToolDefinition } from '@/lib/providers/llm/types';
 
 export interface ToolDispatchSpec {
   /** Local id used by the registry + provenance ledger. */
@@ -35,12 +35,12 @@ export interface ToolDispatchSpec {
 }
 
 export interface AgentTool {
-  /** Anthropic SDK Tool spec — included in `tools` for messages.create. */
-  tool: Anthropic.Messages.Tool;
-  /** Dispatch spec — how the loop runs the tool when Claude calls it. */
+  /** Provider-neutral Tool spec — adapters translate it to API-specific shape. */
+  tool: CommandToolDefinition;
+  /** Dispatch spec — how the loop runs the tool when the planner calls it. */
   dispatch: ToolDispatchSpec;
   /**
-   * Optional output compaction before re-sending to Claude. Drops heavy
+   * Optional output compaction before re-sending to the planner. Drops heavy
    * byte streams (image bytes, embedding vectors) so the conversation
    * doesn't blow the context window. Defaults to JSON.stringify.
    */

@@ -10,9 +10,9 @@
  * The hero render stays text-free — copy lives in editable overlay layers.
  * Multilingual is achieved through Claude translation, not image regeneration.
  *
- * Falls back to brand-aware placeholder copy (source locale only, target
- * locales mirror source) when Anthropic is unreachable, so the rest of the
- * canvas pipeline stays demoable.
+ * Falls back to brand-aware source-locale placeholder copy when Anthropic is
+ * unreachable. Target locales are only populated when a real translation is
+ * available, so review/publish validation can block missing localized copy.
  *
  * The agent stays pure — it returns proposed overlays plus provenance. The
  * canvas / Convex hydration layer (executeTextApply in lib/text-overlay)
@@ -26,6 +26,7 @@ import type {
   SemanticCreativeComponent,
 } from '@/lib/types/semantic-component';
 import type { BCP47LocaleCode, ForbiddenRegion } from '@/lib/text-overlay/types';
+import { deterministicTranslateText } from '@/lib/text-overlay/translation';
 
 export const CLAUDE_MODEL = 'claude-opus-4-7';
 
@@ -51,7 +52,7 @@ export type ProposedTextAlign = 'start' | 'center' | 'end';
 export interface ProposedTextOverlay {
   zone: SafeZone;
   /** Locale-keyed copy. Source locale always present; target locales present
-   *  on success, mirror source on fallback. */
+   *  when generated or translated, never as draft-suffix placeholders. */
   content: Record<BCP47LocaleCode, string>;
   textAlign: ProposedTextAlign;
 }
@@ -64,6 +65,7 @@ const SYSTEM_PROMPT = [
   'Mental model:',
   '- The hero render carries the visual; copy lives in editable overlay layers.',
   '- One copy block per text-bearing safeZone, in the same order the safeZones arrive.',
+  '- For each block, write the source-locale English copy first. Treat it as canonical for that hero direction and role; then translate that exact meaning into target locales.',
   '- For each block, emit a content array — one entry per locale, source locale first, then target locales in input order.',
   '- Translations are idiomatic, not literal. Match register and cultural rhythm of each locale; preserve brand voice.',
   '',
@@ -517,8 +519,9 @@ function parseContentArray(
     map[locale as BCP47LocaleCode] = text;
   }
 
-  // Source locale must be present. Target locales fall back to source if
-  // Claude skipped them — better to render same-language than blank.
+  // Source locale must be present. Target locales are filled only when the
+  // deterministic sentinel helper knows a real phrase translation; otherwise
+  // publish/review validation should treat them as missing localized copy.
   const source = localeOrder[0];
   if (!(source in map)) {
     throw new Error(
@@ -527,7 +530,12 @@ function parseContentArray(
   }
   for (const locale of localeOrder) {
     if (!(locale in map)) {
-      map[locale] = map[source];
+      const translated = deterministicTranslateText({
+        text: map[source],
+        sourceLocale: source,
+        targetLocale: locale,
+      });
+      if (translated.trim()) map[locale] = translated;
     }
   }
   return map;
@@ -539,8 +547,8 @@ function parseTextAlign(raw: unknown): ProposedTextAlign {
 
 /**
  * Brand-aware fallback. Source locale gets a placeholder shaped by purpose +
- * brand voice; target locales mirror source so downstream code can still
- * render something on every artboard.
+ * brand voice; target locales are populated only when the deterministic
+ * sentinel dictionary has a real translation.
  */
 function fallbackLayers(
   textZones: ReadonlyArray<SafeZone>,
@@ -551,7 +559,18 @@ function fallbackLayers(
     const purpose = zone.purpose;
     const placeholder = fallbackText(purpose, input);
     const content: Record<BCP47LocaleCode, string> = {} as Record<BCP47LocaleCode, string>;
-    for (const locale of localeOrder) content[locale] = placeholder;
+    for (const locale of localeOrder) {
+      if (locale === localeOrder[0]) {
+        content[locale] = placeholder;
+        continue;
+      }
+      const translated = deterministicTranslateText({
+        text: placeholder,
+        sourceLocale: localeOrder[0],
+        targetLocale: locale,
+      });
+      if (translated.trim()) content[locale] = translated;
+    }
     const budget = PURPOSE_BUDGETS[purpose as keyof typeof PURPOSE_BUDGETS];
     return {
       zone,

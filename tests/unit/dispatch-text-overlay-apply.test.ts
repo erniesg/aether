@@ -246,6 +246,40 @@ describe('dispatchTextOverlayApply', () => {
     expect(insertedShapes).toHaveLength(2);
     expect(insertedShapes[0]!.textOverlayRowId).toBe('');
   });
+
+  it('does not block canvas insertion when optional persistence hangs', async () => {
+    const fetchSpy = vi.fn(async () =>
+      new Response(JSON.stringify(PLANNER_RESPONSE), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    const insertedShapes: PlacedShapeInput[] = [];
+
+    const result = await dispatchTextOverlayApply(
+      {
+        wsId: 'ws-1',
+        frame: FRAME,
+        creatorContext: DEMO_CREATOR_CONTEXT,
+        sourceLocale: asBCP47LocaleCode('en'),
+        targetLocales: [asBCP47LocaleCode('zh-Hans')],
+      },
+      {
+        fetchImpl: fetchSpy as unknown as typeof fetch,
+        insertTextOverlay: () => new Promise(() => undefined),
+        insertTextOverlayTimeoutMs: 5,
+        insertCanvasShape: (placed) => {
+          insertedShapes.push(placed);
+          return `shape-${insertedShapes.length}`;
+        },
+      },
+      { x: 0, y: 0 }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(insertedShapes).toHaveLength(2);
+    expect(insertedShapes[0]!.textOverlayRowId).toBe('');
+  });
 });
 
 describe('normalizeLocaleList', () => {

@@ -14,13 +14,13 @@ describe('listAgentTools', () => {
     expect(names).toContain('get_current_datetime');
   });
 
-  it('every tool exposes a non-empty Anthropic SDK Tool shape', () => {
+  it('every tool exposes a non-empty provider-neutral tool shape', () => {
     for (const t of listAgentTools()) {
       expect(typeof t.tool.name).toBe('string');
       expect(t.tool.name.length).toBeGreaterThan(0);
       expect(typeof t.tool.description).toBe('string');
       expect(t.tool.description!.length).toBeGreaterThan(0);
-      expect(t.tool.input_schema).toBeDefined();
+      expect(t.tool.inputSchema).toBeDefined();
     }
   });
 

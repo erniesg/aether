@@ -7,7 +7,7 @@
  * - Shows "saved" indicator after save
  * - Closes on outside click (via Escape key and backdrop)
  * - Dropdown options reflect available providers only
- * - Model field appears only for gemini-live voice selection
+ * - Model fields follow the selected voice/image providers
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -49,8 +49,8 @@ describe('SettingsPopover', () => {
   it('shows three provider rows: voice, image, segmentation', async () => {
     render(<SettingsPopover prefs={DEFAULT_PREFS} onSave={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
-    expect(screen.getByLabelText(/voice/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/image/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^voice$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^image$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/segmentation/i)).toBeInTheDocument();
   });
 
@@ -64,7 +64,7 @@ describe('SettingsPopover', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
 
-    const voiceSelect = screen.getByLabelText(/voice/i) as HTMLSelectElement;
+    const voiceSelect = screen.getByLabelText(/^voice$/i) as HTMLSelectElement;
     await userEvent.selectOptions(voiceSelect, 'openai-realtime');
 
     await waitFor(() => {
@@ -84,17 +84,64 @@ describe('SettingsPopover', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
 
-    const imageSelect = screen.getByLabelText(/image/i) as HTMLSelectElement;
+    const imageSelect = screen.getByLabelText(/^image$/i) as HTMLSelectElement;
     await userEvent.selectOptions(imageSelect, 'gemini');
 
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith(
-        expect.objectContaining({ imageProviderId: 'gemini' })
+        expect.objectContaining({
+          imageProviderId: 'gemini',
+          imageModel: 'imagen-4.0-generate-001',
+        })
       );
     });
   });
 
-  it('shows model input when gemini-live is the voice provider', async () => {
+  it('defaults replicate image model to seedream 5 lite when selected', async () => {
+    const onSave = vi.fn();
+    render(<SettingsPopover prefs={{ imageProviderId: 'openai' }} onSave={onSave} />);
+    await userEvent.click(screen.getByRole('button', { name: /settings/i }));
+
+    const imageSelect = screen.getByLabelText(/^image$/i) as HTMLSelectElement;
+    await userEvent.selectOptions(imageSelect, 'replicate');
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          imageProviderId: 'replicate',
+          imageModel: 'bytedance/seedream-5-lite',
+        })
+      );
+    });
+  });
+
+  it('persists a selected replicate image model', async () => {
+    const onSave = vi.fn();
+    render(
+      <SettingsPopover
+        prefs={{
+          imageProviderId: 'replicate',
+          imageModel: 'bytedance/seedream-5-lite',
+        }}
+        onSave={onSave}
+      />
+    );
+    await userEvent.click(screen.getByRole('button', { name: /settings/i }));
+
+    const modelSelect = screen.getByLabelText(/image model/i) as HTMLSelectElement;
+    await userEvent.selectOptions(modelSelect, 'google/nano-banana-pro');
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          imageProviderId: 'replicate',
+          imageModel: 'google/nano-banana-pro',
+        })
+      );
+    });
+  });
+
+  it('shows voice model input when gemini-live is the voice provider', async () => {
     render(
       <SettingsPopover
         prefs={{ voiceProviderId: 'gemini-live', voiceModel: 'gemini-3.1-flash-live-preview' }}
@@ -102,11 +149,11 @@ describe('SettingsPopover', () => {
       />
     );
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
-    expect(screen.getByLabelText(/model/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/model/i)).toHaveValue('gemini-3.1-flash-live-preview');
+    expect(screen.getByLabelText(/voice model/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/voice model/i)).toHaveValue('gemini-3.1-flash-live-preview');
   });
 
-  it('hides model input when openai-realtime is the voice provider', async () => {
+  it('shows the OpenAI realtime default model when openai-realtime is the voice provider', async () => {
     render(
       <SettingsPopover
         prefs={{ voiceProviderId: 'openai-realtime' }}
@@ -114,7 +161,8 @@ describe('SettingsPopover', () => {
       />
     );
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
-    expect(screen.queryByLabelText(/model/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/voice model/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/voice model/i)).toHaveValue('gpt-realtime');
   });
 
   it('shows a "saved" indicator after onSave resolves', async () => {
@@ -127,7 +175,7 @@ describe('SettingsPopover', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
 
-    const voiceSelect = screen.getByLabelText(/voice/i);
+    const voiceSelect = screen.getByLabelText(/^voice$/i);
     await userEvent.selectOptions(voiceSelect, 'openai-realtime');
 
     await waitFor(() => {
@@ -166,7 +214,7 @@ describe('SettingsPopover', () => {
     render(<SettingsPopover prefs={DEFAULT_PREFS} onSave={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
 
-    const voiceSelect = screen.getByLabelText(/voice/i) as HTMLSelectElement;
+    const voiceSelect = screen.getByLabelText(/^voice$/i) as HTMLSelectElement;
     const options = Array.from(voiceSelect.options).map((o) => o.value);
     expect(options).toContain('gemini-live');
     expect(options).toContain('openai-realtime');
@@ -176,7 +224,7 @@ describe('SettingsPopover', () => {
     render(<SettingsPopover prefs={DEFAULT_PREFS} onSave={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
 
-    const imageSelect = screen.getByLabelText(/image/i) as HTMLSelectElement;
+    const imageSelect = screen.getByLabelText(/^image$/i) as HTMLSelectElement;
     const options = Array.from(imageSelect.options).map((o) => o.value);
     expect(options).toContain('openai');
     expect(options).toContain('gemini');
@@ -207,8 +255,9 @@ describe('SettingsPopover', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
 
-    expect(screen.getByLabelText<HTMLSelectElement>(/voice/i).value).toBe('openai-realtime');
-    expect(screen.getByLabelText<HTMLSelectElement>(/image/i).value).toBe('replicate');
+    expect(screen.getByLabelText<HTMLSelectElement>(/^voice$/i).value).toBe('openai-realtime');
+    expect(screen.getByLabelText<HTMLSelectElement>(/^image$/i).value).toBe('replicate');
+    expect(screen.getByLabelText<HTMLSelectElement>(/image model/i).value).toBe('bytedance/seedream-5-lite');
     expect(screen.getByLabelText<HTMLSelectElement>(/segmentation/i).value).toBe('sam2');
   });
 

@@ -1,7 +1,9 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { cn } from '@/lib/utils/cn';
+import { localeShortLabel } from '@/lib/locale/registry';
 import type {
   PublishPlatform,
   ScheduledPost,
@@ -39,26 +41,8 @@ function formatScheduled(iso: string): string {
   }
 }
 
-function mediaIndexForPlatform(platform: PublishPlatform): number {
-  switch (platform) {
-    case 'tiktok':
-    case 'youtube-shorts':
-    case 'douyin':
-      return 1;
-    case 'x':
-    case 'linkedin':
-      return 3;
-    case 'instagram':
-    case 'xhs':
-    case 'pinterest':
-    default:
-      return 0;
-  }
-}
-
 function selectHeroMedia(post: ScheduledPost): string | undefined {
-  const preferred = mediaIndexForPlatform(post.platform);
-  return post.mediaUrls[preferred] ?? post.mediaUrls[0];
+  return post.mediaUrls[0];
 }
 
 export interface PublishPreviewProps {
@@ -94,12 +78,288 @@ export function PublishPreview({
   }
 
   return (
+    <PublishPreviewWithPosts
+      posts={posts}
+      onCancel={onCancel}
+      className={className}
+    />
+  );
+}
+
+function PublishPreviewWithPosts({
+  posts,
+  onCancel,
+  className,
+}: PublishPreviewProps) {
+  const localeGroups = useMemo(() => groupPostsByLocale(posts), [posts]);
+  const locales = Object.keys(localeGroups);
+  const [activeLocale, setActiveLocale] = useState<string>(() =>
+    locales.length > 1 ? 'all' : locales[0] ?? 'all'
+  );
+  const heroOptions = useMemo(() => collectHeroOptions(posts), [posts]);
+  const formatOptions = useMemo(() => collectFormatOptions(posts), [posts]);
+  const [activeHero, setActiveHero] = useState<string>('all');
+  const [activeFormat, setActiveFormat] = useState<string>('all');
+  const viewMode =
+    activeLocale === 'all' || !localeGroups[activeLocale] ? 'all' : 'single';
+  const visibleGroups =
+    viewMode === 'all'
+      ? locales.map((locale) => [locale, localeGroups[locale] ?? []] as const)
+      : [[activeLocale, localeGroups[activeLocale] ?? []] as const];
+
+  return (
     <div
       data-testid="publish-preview"
       className={cn('flex flex-col gap-3', className)}
     >
-      {posts.map((post) => (
-        <PublishPreviewCard key={post.id} post={post} onCancel={onCancel} />
+      {locales.length > 1 ? (
+        <LocaleTabs
+          locales={locales}
+          activeLocale={activeLocale}
+          onSelect={setActiveLocale}
+        />
+      ) : null}
+      {heroOptions.length > 1 ? (
+        <ValueTabs
+          testIdPrefix="publish-preview-hero"
+          label="hero"
+          values={heroOptions}
+          activeValue={activeHero}
+          allLabel="all heroes"
+          onSelect={setActiveHero}
+        />
+      ) : null}
+      {formatOptions.length > 1 ? (
+        <ValueTabs
+          testIdPrefix="publish-preview-format"
+          label="format"
+          values={formatOptions}
+          activeValue={activeFormat}
+          allLabel="all formats"
+          onSelect={setActiveFormat}
+        />
+      ) : null}
+      {visibleGroups.map(([locale, localePosts]) => (
+        <section
+          key={locale}
+          data-testid={`publish-preview-locale-row-${locale}`}
+          data-locale={locale}
+          className="flex flex-col gap-2"
+        >
+          {viewMode === 'all' ? (
+            <header className="flex items-center gap-2">
+              <Chip tone="secondary" size="sm">
+                {localeShortLabel(locale)}
+              </Chip>
+              <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+                {
+                  filterPosts(localePosts, activeHero, activeFormat).length
+                } format{filterPosts(localePosts, activeHero, activeFormat).length === 1 ? '' : 's'}
+              </span>
+            </header>
+          ) : null}
+          <div className="grid gap-2">
+            {groupPostsByHero(
+              filterPosts(localePosts, activeHero, activeFormat)
+            ).map((group) =>
+              group.id === 'default' && heroOptions.length <= 1 ? (
+                group.posts.map((post) => (
+                  <PublishPreviewCard key={post.id} post={post} onCancel={onCancel} />
+                ))
+              ) : (
+                <section
+                  key={group.id}
+                  data-testid={`publish-preview-hero-row-${group.id}`}
+                  data-hero-direction-id={group.id}
+                  className="flex flex-col gap-2 rounded-sm border border-border-soft bg-surface-panel-muted p-2"
+                >
+                  <header className="flex items-center gap-2">
+                    <Chip tone="info" size="sm">
+                      {group.label}
+                    </Chip>
+                    <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+                      {group.posts.length} format{group.posts.length === 1 ? '' : 's'}
+                    </span>
+                  </header>
+                  <div className="grid gap-2">
+                    {group.posts.map((post) => (
+                      <PublishPreviewCard key={post.id} post={post} onCancel={onCancel} />
+                    ))}
+                  </div>
+                </section>
+              )
+            )}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function groupPostsByLocale(posts: ScheduledPost[]): Record<string, ScheduledPost[]> {
+  const groups: Record<string, ScheduledPost[]> = {};
+  for (const post of posts) {
+    const locale = post.locale || 'unlocalized';
+    groups[locale] = groups[locale] ?? [];
+    groups[locale].push(post);
+  }
+  return groups;
+}
+
+function filterPosts(
+  posts: ScheduledPost[],
+  activeHero: string,
+  activeFormat: string
+): ScheduledPost[] {
+  return posts.filter((post) => {
+    if (activeHero !== 'all' && (post.heroDirectionId ?? 'default') !== activeHero) {
+      return false;
+    }
+    if (activeFormat !== 'all' && post.format !== activeFormat) return false;
+    return true;
+  });
+}
+
+function collectHeroOptions(posts: ScheduledPost[]): Array<{ value: string; label: string }> {
+  const seen = new Map<string, string>();
+  for (const post of posts) {
+    const id = post.heroDirectionId ?? 'default';
+    if (id === 'default') continue;
+    if (!seen.has(id)) seen.set(id, post.heroDirectionLabel ?? id);
+  }
+  return Array.from(seen, ([value, label]) => ({ value, label }));
+}
+
+function collectFormatOptions(posts: ScheduledPost[]): Array<{ value: string; label: string }> {
+  const seen = new Set<string>();
+  for (const post of posts) {
+    if (post.format) seen.add(post.format);
+  }
+  return Array.from(seen, (value) => ({ value, label: value }));
+}
+
+function groupPostsByHero(posts: ScheduledPost[]): Array<{
+  id: string;
+  label: string;
+  posts: ScheduledPost[];
+}> {
+  const groups = new Map<string, { id: string; label: string; posts: ScheduledPost[] }>();
+  for (const post of posts) {
+    const id = post.heroDirectionId ?? 'default';
+    const group = groups.get(id) ?? {
+      id,
+      label: post.heroDirectionLabel ?? 'Hero',
+      posts: [],
+    };
+    group.posts.push(post);
+    groups.set(id, group);
+  }
+  return Array.from(groups.values());
+}
+
+function LocaleTabs({
+  locales,
+  activeLocale,
+  onSelect,
+}: {
+  locales: string[];
+  activeLocale: string;
+  onSelect: (locale: string) => void;
+}) {
+  return (
+    <div
+      aria-label="publish preview locale"
+      data-testid="publish-preview-locale-tabs"
+      className="flex flex-wrap items-center gap-1 rounded-sm border border-border-soft bg-surface-panel-muted p-1"
+    >
+      <span className="px-2 font-caption text-xs text-ink-dim">locale</span>
+      {locales.map((locale) => (
+        <button
+          key={locale}
+          type="button"
+          data-testid={`publish-preview-locale-${locale}`}
+          aria-pressed={activeLocale === locale}
+          onClick={() => onSelect(locale)}
+          className={cn(
+            'rounded-sm border px-2 py-1 font-caption text-xs transition-colors',
+            activeLocale === locale
+              ? 'border-accent bg-accent text-ink-on-accent'
+              : 'border-border-soft bg-surface-panel text-ink-muted hover:border-border'
+          )}
+        >
+          {localeShortLabel(locale)}
+        </button>
+      ))}
+      <button
+        type="button"
+        data-testid="publish-preview-locale-all"
+        aria-pressed={activeLocale === 'all'}
+        onClick={() => onSelect('all')}
+        className={cn(
+          'rounded-sm border px-2 py-1 font-caption text-xs transition-colors',
+          activeLocale === 'all'
+            ? 'border-accent bg-accent text-ink-on-accent'
+            : 'border-border-soft bg-surface-panel text-ink-muted hover:border-border'
+        )}
+      >
+        all
+      </button>
+    </div>
+  );
+}
+
+function ValueTabs({
+  testIdPrefix,
+  label,
+  values,
+  activeValue,
+  allLabel,
+  onSelect,
+}: {
+  testIdPrefix: string;
+  label: string;
+  values: Array<{ value: string; label: string }>;
+  activeValue: string;
+  allLabel: string;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <div
+      aria-label={`publish preview ${label}`}
+      data-testid={`${testIdPrefix}-tabs`}
+      className="flex flex-wrap items-center gap-1 rounded-sm border border-border-soft bg-surface-panel-muted p-1"
+    >
+      <span className="px-2 font-caption text-xs text-ink-dim">{label}</span>
+      <button
+        type="button"
+        data-testid={`${testIdPrefix}-all`}
+        aria-pressed={activeValue === 'all'}
+        onClick={() => onSelect('all')}
+        className={cn(
+          'rounded-sm border px-2 py-1 font-caption text-xs transition-colors',
+          activeValue === 'all'
+            ? 'border-accent bg-accent text-ink-on-accent'
+            : 'border-border-soft bg-surface-panel text-ink-muted hover:border-border'
+        )}
+      >
+        {allLabel}
+      </button>
+      {values.map((item) => (
+        <button
+          key={item.value}
+          type="button"
+          data-testid={`${testIdPrefix}-${item.value}`}
+          aria-pressed={activeValue === item.value}
+          onClick={() => onSelect(item.value)}
+          className={cn(
+            'rounded-sm border px-2 py-1 font-caption text-xs transition-colors',
+            activeValue === item.value
+              ? 'border-accent bg-accent text-ink-on-accent'
+              : 'border-border-soft bg-surface-panel text-ink-muted hover:border-border'
+          )}
+        >
+          {item.label}
+        </button>
       ))}
     </div>
   );
@@ -118,6 +378,9 @@ function PublishPreviewCard({ post, onCancel }: PublishPreviewCardProps) {
     <article
       data-testid="publish-preview-card"
       data-platform={post.platform}
+      data-format={post.format ?? ''}
+      data-hero-direction-id={post.heroDirectionId ?? ''}
+      data-media-url={hero ?? ''}
       data-post-id={post.id}
       className="flex flex-col gap-2 rounded-sm border border-border-soft bg-surface-panel p-3"
     >
@@ -126,6 +389,11 @@ function PublishPreviewCard({ post, onCancel }: PublishPreviewCardProps) {
           <Chip tone="secondary" size="sm">
             {meta.label}
           </Chip>
+          {post.locale ? (
+            <Chip tone="info" size="sm">
+              {localeShortLabel(post.locale)}
+            </Chip>
+          ) : null}
           <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
             {meta.hint}
           </span>

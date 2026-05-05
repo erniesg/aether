@@ -1,11 +1,10 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { AgentTool } from './types';
 
-const tool: Anthropic.Messages.Tool = {
+const tool: AgentTool['tool'] = {
   name: 'generate_image',
   description:
     'Render one hero image. The provider (OpenAI / Gemini / Replicate / Volcengine Seedream) is selected at runtime from env.',
-  input_schema: {
+  inputSchema: {
     type: 'object',
     properties: {
       prompt: {
@@ -21,7 +20,7 @@ const tool: Anthropic.Messages.Tool = {
       },
     },
     required: ['prompt', 'aspectRatio'],
-  } as unknown as Anthropic.Messages.Tool['input_schema'],
+  },
 };
 
 export const generateImage: AgentTool = {

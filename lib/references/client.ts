@@ -32,6 +32,31 @@ export async function ingestUrlViaApi(url: string): Promise<IngestClientResult> 
   };
 }
 
+export async function ingestFileViaApi(
+  file: File,
+  workspaceId?: string
+): Promise<IngestClientResult> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  if (workspaceId) form.append('workspaceId', workspaceId);
+  const res = await fetch('/api/reference-ingest', {
+    method: 'POST',
+    body: form,
+  });
+  const json = (await res.json()) as Partial<IngestClientResult> & {
+    ok?: boolean;
+    error?: string;
+  };
+  if (!res.ok || !json.ok || !json.record) {
+    throw new Error(json.error ?? `ingest failed: ${res.status}`);
+  }
+  return {
+    record: json.record,
+    fallback: Boolean(json.fallback),
+    providerId: json.providerId,
+  };
+}
+
 /** Read a local File as a data URL — used when pasting clipboard image bytes. */
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

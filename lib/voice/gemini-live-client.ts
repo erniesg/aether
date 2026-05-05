@@ -6,7 +6,7 @@ import type {
   Schema,
 } from '@google/genai/web';
 import { VOICE_TOOL_DEFINITIONS } from './tools';
-import { fetchVoiceSession } from './session-client';
+import { fetchVoiceSession, type FetchVoiceSessionOptions } from './session-client';
 import type {
   VoiceConnectOptions,
   VoiceFunctionCallEvent,
@@ -70,7 +70,10 @@ interface GeminiAudioPlayer {
 }
 
 export interface GeminiLiveClientDeps {
-  fetchSession?: (endpoint: string) => Promise<VoiceSessionCredentials>;
+  fetchSession?: (
+    endpoint: string,
+    options?: FetchVoiceSessionOptions
+  ) => Promise<VoiceSessionCredentials>;
   connectLiveSession?: (
     credentials: VoiceSessionCredentials,
     callbacks: LiveCallbacks
@@ -456,7 +459,10 @@ export class GeminiLiveClient implements VoiceProvider {
     if (this.connected) return;
     const endpoint = options.sessionEndpoint ?? '/api/voice/session';
     const credentials =
-      options.credentials ?? (await this.deps.fetchSession(endpoint));
+      options.credentials ??
+      (await this.deps.fetchSession(endpoint, {
+        workspaceId: options.workspaceId,
+      }));
 
     if (credentials.provider !== 'gemini-live') {
       throw new Error(

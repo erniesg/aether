@@ -17,6 +17,7 @@
 import { NextResponse } from 'next/server';
 import { applyTextOverlay, type ApplyTextOverlayInput } from '@/lib/agent/text-apply';
 import { asBCP47LocaleCode, type BCP47LocaleCode, type ForbiddenRegion } from '@/lib/text-overlay/types';
+import { isSupportedLocaleCode } from '@/lib/locale/registry';
 import type {
   NormalizedBBox,
   SafeZone,
@@ -48,10 +49,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function parseLocale(raw: unknown): BCP47LocaleCode | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
-  // BCP-47 minimal shape: at least one alpha block, optional region/script.
-  return /^[a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,8})*$/.test(raw.trim())
-    ? asBCP47LocaleCode(raw.trim())
-    : null;
+  const locale = asBCP47LocaleCode(raw.trim());
+  return isSupportedLocaleCode(locale) ? locale : null;
 }
 
 function parseLocaleList(raw: unknown): BCP47LocaleCode[] {
@@ -204,7 +203,7 @@ export async function POST(request: Request) {
 
   const sourceLocale = parseLocale(body.sourceLocale);
   if (!sourceLocale) {
-    return jsonError(400, 'sourceLocale is required and must be a BCP-47 tag (e.g. en-US)');
+    return jsonError(400, 'sourceLocale is required and must be a supported locale');
   }
 
   const targetLocales = parseLocaleList(body.targetLocales);

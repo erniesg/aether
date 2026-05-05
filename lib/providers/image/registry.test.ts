@@ -12,6 +12,7 @@ const PROVIDER_ENV_KEYS = [
   'REPLICATE_API_TOKEN',
   'VOLCENGINE_ARK_API_KEY',
   'IMAGE_GEN_PROVIDER',
+  'IMAGE_GEN_MODEL',
 ] as const;
 
 describe('image provider registry', () => {
@@ -61,6 +62,13 @@ describe('image provider registry', () => {
     process.env.GOOGLE_GEMINI_API_KEY = 'gk';
     process.env.IMAGE_GEN_PROVIDER = 'openai';
     expect(resolveProvider('gemini').id).toBe('gemini');
+  });
+
+  it('routes Replicate model aliases through the Replicate adapter', () => {
+    process.env.OPENAI_API_KEY = 'sk';
+    process.env.REPLICATE_API_TOKEN = 'r8_test';
+    expect(resolveProvider(undefined, 'nano banana pro').id).toBe('replicate');
+    expect(resolveProvider(undefined, 'openai/gpt-image-2').id).toBe('replicate');
   });
 
   it('falls through an unavailable preferred id to the next available provider', () => {

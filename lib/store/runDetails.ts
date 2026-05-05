@@ -17,6 +17,11 @@ export interface RunFrameRecord {
   id: string;
   label?: string;
   aspectRatio?: string;
+  formatId?: string;
+  sourceFrameId?: string;
+  heroDirectionId?: string;
+  heroDirectionLabel?: string;
+  heroDirectionIndex?: number;
   status: RunFrameStatus;
   startedAt?: number;
   updatedAt: number;
@@ -134,7 +139,7 @@ export function appendRunActivity(
   };
   state.set(runId, {
     ...current,
-    activities: [...current.activities, next].slice(-12),
+    activities: [...current.activities, next],
   });
   notify();
 }

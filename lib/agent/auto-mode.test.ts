@@ -166,6 +166,7 @@ vi.mock('./managed/cluster', () => ({
 import {
   parseAgentEnvelope,
   pickHeroImageUrl,
+  resolveLocalesForVariation,
   runAutoMode,
 } from './auto-mode';
 
@@ -276,6 +277,56 @@ describe('pickHeroImageUrl', () => {
       { index: 0, name: 'generate_image', input: {}, ok: false, errorMessage: 'x', ms: 1 },
     ]);
     expect(url).toBeUndefined();
+  });
+});
+
+describe('resolveLocalesForVariation', () => {
+  afterEach(() => {
+    delete process.env.AUTO_MODE_LOCALES;
+  });
+
+  it('defaults scheduled publishing to English even when generated overlays include every locale', () => {
+    delete process.env.AUTO_MODE_LOCALES;
+
+    const locales = resolveLocalesForVariation({
+      index: 1,
+      status: 'ready',
+      heroImageUrl: 'https://cdn/hero.png',
+      scheduleWhenLocal: '2026-04-27T19:00:00+08:00',
+      textOverlays: [
+        {
+          zone: { role: 'headline' },
+          content: {
+            'en-SG': 'Sale',
+            'zh-Hans-SG': '促销',
+            'ms-SG': 'Jualan',
+            'ta-SG': 'விற்பனை',
+            'ja-JP': 'セール',
+            'ko-KR': '세일',
+          },
+          textAlign: 'center',
+        } as any,
+      ],
+      agentSteps: [],
+      agentFinalText: '',
+    });
+
+    expect(locales).toEqual(['en-SG']);
+  });
+
+  it('uses explicit AUTO_MODE_LOCALES for multilingual auto scheduling', () => {
+    process.env.AUTO_MODE_LOCALES = 'zh-Hans-SG,ms-SG,not-a-locale';
+
+    const locales = resolveLocalesForVariation({
+      index: 1,
+      status: 'ready',
+      heroImageUrl: 'https://cdn/hero.png',
+      scheduleWhenLocal: '2026-04-27T19:00:00+08:00',
+      agentSteps: [],
+      agentFinalText: '',
+    });
+
+    expect(locales).toEqual(['en-SG', 'zh-Hans-SG', 'ms-SG']);
   });
 });
 

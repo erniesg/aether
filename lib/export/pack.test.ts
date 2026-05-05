@@ -28,11 +28,23 @@ function artboard(overrides: Partial<ExportArtboardInput> = {}): ExportArtboardI
 }
 
 describe('buildExportPack', () => {
-  it('writes one PNG per artboard plus manifest.json at the archive root', async () => {
+  it('writes raster and editable files per artboard plus manifest.json', async () => {
     const result = await buildExportPack({
       workspaceId: 'demo-ws',
       artboards: [
-        artboard({ id: 'ig-post', label: 'IG Post', aspectRatio: '4:5' }),
+        artboard({
+          id: 'ig-post',
+          label: 'IG Post',
+          aspectRatio: '4:5',
+          format: '4x5',
+          locale: 'zh-Hans-SG',
+          locales: ['en-SG', 'zh-Hans-SG'],
+          languageMode: 'single',
+          platforms: ['instagram', 'pinterest'],
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="100" height="40" fill="#111111"/><text x="24" y="64" fill="#ffffff" font-size="32"><tspan x="24" dy="0">Launch copy</tspan></text></svg>',
+          width: 1080,
+          height: 1350,
+        }),
         artboard({
           id: 'story',
           label: 'Story',
@@ -45,7 +57,17 @@ describe('buildExportPack', () => {
       now: new Date('2026-04-23T00:00:00Z'),
     });
 
-    expect(result.filenames).toEqual(['ig-post.png', 'story.png', 'manifest.json']);
+    expect(result.filenames).toEqual([
+      'ig-post.png',
+      'ig-post.jpg',
+      'ig-post.svg',
+      'ig-post.pdf',
+      'story.png',
+      'story.jpg',
+      'story.svg',
+      'story.pdf',
+      'manifest.json',
+    ]);
     expect(result.manifest.generatedAt).toBe('2026-04-23T00:00:00.000Z');
     expect(result.manifest.workspaceId).toBe('demo-ws');
     expect(result.manifest.formats.map((f) => f.filename)).toEqual([
@@ -54,12 +76,27 @@ describe('buildExportPack', () => {
     ]);
     expect(result.manifest.pinnedSkills[0]?.name).toBe('neon drench');
     expect(result.manifest.brandTokens.palette).toEqual(['#dd4a1e']);
+    expect(result.manifest.formats[0]?.format).toBe('4x5');
+    expect(result.manifest.formats[0]?.locale).toBe('zh-Hans-SG');
+    expect(result.manifest.formats[0]?.platforms).toEqual(['instagram', 'pinterest']);
+    expect(result.manifest.formats[0]?.assets?.map((asset) => asset.kind)).toEqual([
+      'png',
+      'jpeg',
+      'svg',
+      'pdf',
+    ]);
 
     const archive = await JSZip.loadAsync(result.zip);
     expect(Object.keys(archive.files).sort()).toEqual([
+      'ig-post.jpg',
+      'ig-post.pdf',
       'ig-post.png',
+      'ig-post.svg',
       'manifest.json',
+      'story.jpg',
+      'story.pdf',
       'story.png',
+      'story.svg',
     ]);
 
     const manifestJson = await archive.file('manifest.json')!.async('string');
@@ -69,6 +106,10 @@ describe('buildExportPack', () => {
 
     const pngBytes = await archive.file('ig-post.png')!.async('uint8array');
     expect(pngBytes.slice(0, 8)).toEqual(TINY_PNG.slice(0, 8));
+    const svg = await archive.file('ig-post.svg')!.async('string');
+    expect(svg).toContain('<text');
+    const pdfBytes = await archive.file('ig-post.pdf')!.async('uint8array');
+    expect(Buffer.from(pdfBytes.slice(0, 8)).toString('latin1')).toBe('%PDF-1.7');
   });
 
   it('slugifies ids and dedupes collisions', async () => {

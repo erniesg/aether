@@ -9,18 +9,48 @@ ANTHROPIC_API_KEY=sk-ant-...
 # tokens for the browser. Gemini Live uses GOOGLE_GEMINI_API_KEY server-side
 # to mint short-lived auth tokens for the browser.
 VOICE_PROVIDER=openai-realtime
-VOICE_MODEL=gpt-4o-realtime-preview
-VOICE_VOICE=alloy
-OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview
-OPENAI_REALTIME_VOICE=alloy
+VOICE_MODEL=gpt-realtime
+VOICE_VOICE=marin
+OPENAI_REALTIME_MODEL=gpt-realtime
+OPENAI_REALTIME_VOICE=marin
 GEMINI_LIVE_MODEL=gemini-live-2.5-flash-native-audio
 GEMINI_LIVE_VOICE=Kore
+
+# Async push-to-talk voice commands. This path records in the browser, sends
+# audio to a local Whisper sidecar, interprets the transcript, then reuses the
+# existing canvas generation flow. Unset LOCAL_WHISPER_URL to disable it
+# gracefully.
+LOCAL_WHISPER_URL=http://127.0.0.1:9000/transcribe
+LOCAL_WHISPER_TOKEN=
+# Apple Silicon uses MLX/Metal by default; Linux/CUDA can use faster-whisper.
+LOCAL_WHISPER_BACKEND=mlx
+LOCAL_WHISPER_MODEL=mlx-community/whisper-small-mlx
+# Optional command planner. Default behavior is heuristic parsing; set this to
+# deepseek to use the official DeepSeek API for transcript intent parsing.
+AETHER_COMMAND_PROVIDER=
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+AETHER_COMMAND_MODEL=deepseek-v4-flash
+
+# Optional local embedding / CLIP reranker for voice reference searches.
+# The endpoint receives { query, imageUrls, limit } and returns either
+# { ranked: [{ url, score }] } or { urls: [...] }. Search itself still uses
+# SERPAPI_KEY when configured, then this local model reorders the candidates.
+SERPAPI_KEY=
+LOCAL_EMBEDDING_RERANK_URL=http://127.0.0.1:8002/rerank
+# Can reuse CLIP_MODAL_TOKEN for the local /rerank server.
+LOCAL_EMBEDDING_TOKEN=
 
 # Image gen providers (pick any subset — provider is selected at runtime)
 OPENAI_API_KEY=sk-...
 GOOGLE_GEMINI_API_KEY=...
 REPLICATE_API_TOKEN=r8_...
 VOLCENGINE_ARK_API_KEY=...
+
+# Local all-in-one stack:
+#   npm run dev:local
+# Starts local Convex, Next, and the local Whisper/SAM3/CLIP sidecars.
+# Set AETHER_SKIP_LOCAL_MODELS=1 to run only Convex + Next.
 
 # Segmentation providers
 # `sam2` uses REPLICATE_API_TOKEN.

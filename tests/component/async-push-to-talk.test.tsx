@@ -4,7 +4,10 @@ import { AsyncPushToTalk } from '@/components/canvas/AsyncPushToTalk';
 import type { VoiceCreatorCommand } from '@/lib/voice/command';
 import type { ReferenceRecord } from '@/lib/providers/reference/types';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function command(overrides: Partial<VoiceCreatorCommand> = {}): VoiceCreatorCommand {
   return {
@@ -82,7 +85,8 @@ describe('AsyncPushToTalk', () => {
         prompt: 'Generate social creative for Eight Sleep.',
         options: {
           scope: 'all',
-          renderMode: 'crop',
+          renderMode: 'hero-seeded-fanout',
+          heroCount: 2,
           notifyMode: 'review',
           refs: ['https://cdn.example/ref.png'],
         },
@@ -144,7 +148,8 @@ describe('AsyncPushToTalk', () => {
         prompt: 'Generate social creative for launch.',
         options: {
           scope: 'all',
-          renderMode: 'crop',
+          renderMode: 'hero-seeded-fanout',
+          heroCount: 2,
           notifyMode: 'review',
         },
         command: expect.objectContaining({ brief: 'launch' }),
@@ -152,6 +157,195 @@ describe('AsyncPushToTalk', () => {
           selectedRefs: [],
         }),
       });
+    });
+  });
+
+  it('passes explicit voice publish platforms through generation options and trace', async () => {
+    const onGenerate = vi.fn();
+    const deps = {
+      createRecorder: vi.fn(() => ({
+        start: vi.fn(),
+        stop: vi.fn(async () => new Blob(['audio'], { type: 'audio/webm' })),
+      })),
+      transcribe: vi.fn(async () => ({
+        text: 'generate socials for Eight Sleep Pod and auto publish to X only',
+      })),
+      interpret: vi.fn(async () =>
+        command({
+          transcript: 'generate socials for Eight Sleep Pod and auto publish to X only',
+          publishMode: 'auto-post',
+          targetPlatforms: ['x'],
+          needsPublishClarification: false,
+        })
+      ),
+      findReferences: vi.fn(async () => ({
+        references: [],
+        records: [],
+        status: 'empty' as const,
+      })),
+    };
+
+    render(
+      <AsyncPushToTalk
+        context={{
+          formats: [{ id: 'frame-1', label: 'X banner', aspectRatio: '16:9' }],
+          locales: ['en-SG'],
+          languageMode: 'single',
+        }}
+        onGenerate={onGenerate}
+        deps={deps}
+      />
+    );
+
+    const button = screen.getByRole('button', {
+      name: /voice command · hold to speak/i,
+    });
+    fireEvent.pointerDown(button);
+    await screen.findByText(/listening/i);
+    fireEvent.pointerUp(button);
+
+    await waitFor(() => {
+      expect(onGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            notifyMode: 'auto-post',
+            targetPlatforms: ['x'],
+          }),
+          trace: expect.objectContaining({
+            publishMode: 'auto-post',
+            targetPlatforms: ['x'],
+          }),
+        })
+      );
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: /show voice command details/i })
+    );
+    expect(screen.getByText('x')).toBeInTheDocument();
+  });
+
+  it('expands "different formats and languages" voice requests to all supported locales', async () => {
+    const onGenerate = vi.fn();
+    const deps = {
+      createRecorder: vi.fn(() => ({
+        start: vi.fn(),
+        stop: vi.fn(async () => new Blob(['audio'], { type: 'audio/webm' })),
+      })),
+      transcribe: vi.fn(async () => ({
+        text: 'January will campaign for the big sleeping part in different formats and languages and auto publish to X Tony.',
+      })),
+      interpret: vi.fn(async () =>
+        command({
+          transcript:
+            'January will campaign for the big sleeping part in different formats and languages and auto publish to X Tony.',
+          brief: 'Eight Sleep Pod',
+          publishMode: 'auto-post',
+          targetPlatforms: ['x'],
+          needsPublishClarification: false,
+        })
+      ),
+      findReferences: vi.fn(async () => ({
+        references: [],
+        records: [],
+        status: 'empty' as const,
+      })),
+    };
+
+    render(
+      <AsyncPushToTalk
+        context={{
+          formats: [
+            { id: 'frame-1', label: 'IG Post', aspectRatio: '4:5' },
+            { id: 'frame-2', label: 'Story', aspectRatio: '9:16' },
+            { id: 'frame-3', label: 'X banner', aspectRatio: '16:9' },
+            { id: 'frame-4', label: 'Square', aspectRatio: '1:1' },
+          ],
+          locales: ['en-SG'],
+          languageMode: 'single',
+        }}
+        onGenerate={onGenerate}
+        deps={deps}
+      />
+    );
+
+    const button = screen.getByRole('button', {
+      name: /voice command · hold to speak/i,
+    });
+    fireEvent.pointerDown(button);
+    await screen.findByText(/listening/i);
+    fireEvent.pointerUp(button);
+
+    await waitFor(() => {
+      expect(onGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            notifyMode: 'auto-post',
+            targetPlatforms: ['x'],
+          }),
+        })
+      );
+    });
+    expect(
+      screen.getByText('en-SG, zh-Hans-SG, ms-SG, ta-SG, ja-JP, ko-KR')
+    ).toBeInTheDocument();
+  });
+
+  it('keeps ambiguous publish clarification inside the voice UI', async () => {
+    const onGenerate = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    const deps = {
+      createRecorder: vi.fn(() => ({
+        start: vi.fn(),
+        stop: vi.fn(async () => new Blob(['audio'], { type: 'audio/webm' })),
+      })),
+      transcribe: vi.fn(async () => ({ text: 'generate socials and publish it' })),
+      interpret: vi.fn(async () =>
+        command({
+          transcript: 'generate socials and publish it',
+          publishMode: 'ask',
+          needsPublishClarification: true,
+          referenceSearchQuery: undefined,
+        })
+      ),
+      findReferences: vi.fn(),
+    };
+
+    render(
+      <AsyncPushToTalk
+        context={{
+          formats: [{ id: 'frame-1', label: 'X banner', aspectRatio: '16:9' }],
+          locales: ['en-SG'],
+          languageMode: 'single',
+        }}
+        onGenerate={onGenerate}
+        deps={deps}
+      />
+    );
+
+    const button = screen.getByRole('button', {
+      name: /voice command · hold to speak/i,
+    });
+    fireEvent.pointerDown(button);
+    await screen.findByText(/listening/i);
+    fireEvent.pointerUp(button);
+
+    await screen.findByTestId('async-voice-publish-ready');
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.getByText(/assets are not ready yet/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /post after generation/i }));
+
+    await waitFor(() => {
+      expect(onGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            notifyMode: 'auto-post',
+          }),
+          trace: expect.objectContaining({
+            publishMode: 'auto-post',
+          }),
+        })
+      );
     });
   });
 

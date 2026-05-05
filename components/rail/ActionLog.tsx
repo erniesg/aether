@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pin } from 'lucide-react';
 import { AssetRecordType, createShapeId } from 'tldraw';
 import { useRuns, STALE_ABORT_ERROR, type CapabilityRunRecord } from '@/lib/store/runs';
+import { useRunDetails } from '@/lib/store/runDetails';
 import { useEditorRef } from '@/lib/store/editor-ref';
 import { cn } from '@/lib/utils/cn';
 
@@ -26,6 +27,82 @@ function relativeTime(ts: number): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+function RunDetailHistory({ runId }: { runId: string }) {
+  const details = useRunDetails(runId);
+  if (!details || (details.activities.length === 0 && details.frames.length === 0)) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 border-t border-border-soft pt-2">
+      {details.frames.length > 0 ? (
+        <section className="flex flex-col gap-1">
+          <span className="font-caption text-[10px] uppercase text-ink-faint">
+            formats
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {details.frames.map((frame) => (
+              <span
+                key={frame.id}
+                className={cn(
+                  'rounded-pill border px-1.5 py-0.5 font-caption text-2xs',
+                  frame.status === 'placed' && 'border-signal-ok/30 bg-signal-ok/5 text-signal-ok',
+                  frame.status === 'error' && 'border-signal-error/30 bg-signal-error/5 text-signal-error',
+                  frame.status !== 'placed' &&
+                    frame.status !== 'error' &&
+                    'border-border-soft bg-surface-panel text-ink-dim'
+                )}
+                title={frame.error ?? `${frame.label ?? frame.id} · ${frame.status}`}
+              >
+                {frame.label ?? frame.id} · {frame.status}
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {details.activities.length > 0 ? (
+        <section className="flex flex-col gap-1">
+          <span className="font-caption text-[10px] uppercase text-ink-faint">
+            steps
+          </span>
+          <ol className="flex max-h-64 flex-col gap-1 overflow-auto pr-1">
+            {details.activities.map((activity) => (
+              <li
+                key={activity.id}
+                className={cn(
+                  'rounded-xs border border-border-soft bg-surface-panel px-2 py-1',
+                  activity.tone === 'ok' && 'border-signal-ok/20',
+                  activity.tone === 'error' && 'border-signal-error/25 bg-signal-error/5'
+                )}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span
+                    className={cn(
+                      'font-caption text-[11px]',
+                      activity.tone === 'error' ? 'text-signal-error' : 'text-ink'
+                    )}
+                  >
+                    {activity.title}
+                  </span>
+                  <span className="shrink-0 font-caption text-[10px] text-ink-faint">
+                    {relativeTime(activity.at)}
+                  </span>
+                </div>
+                {activity.detail ? (
+                  <p className="mt-0.5 whitespace-pre-wrap break-words font-caption text-[11px] text-ink-dim">
+                    {activity.detail}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+    </div>
+  );
 }
 
 export interface ActionLogProps {
@@ -260,6 +337,8 @@ export function ActionLog({ onPin }: ActionLogProps = {}) {
                     </>
                   ) : null}
                 </div>
+
+                <RunDetailHistory runId={run.id} />
 
                 {run.imageUrl && editor ? (
                   <div className="mt-2 flex items-center gap-2 border-t border-border-soft pt-2">

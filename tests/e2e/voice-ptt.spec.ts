@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
  *   - RTCPeerConnection + the realtime data channel (so scripted events drive
  *     the orb state machine without a real network)
  *   - getUserMedia (so the test doesn't need an actual mic permission)
- *   - the SDP fetch to api.openai.com/v1/realtime
+ *   - the SDP fetch to api.openai.com/v1/realtime/calls
  *
  * Assertions: PTT chip moves idle → listening → thinking → idle, and a
  * scripted transcript fragment `"remove background"` causes the
@@ -30,8 +30,8 @@ test.describe('voice mode — phase 1', () => {
             sessionId: 'sess_stub',
             clientSecret: 'ek_stub',
             expiresAt: Date.now() + 60_000,
-            model: 'gpt-4o-realtime-preview',
-            voice: 'alloy',
+            model: 'gpt-realtime',
+            voice: 'marin',
             provider: 'openai-realtime',
           },
         }),
@@ -135,7 +135,7 @@ test.describe('voice mode — phase 1', () => {
         init?: RequestInit
       ): Promise<Response> => {
         const url = typeof input === 'string' ? input : input.toString();
-        if (url.includes('api.openai.com/v1/realtime')) {
+        if (url.includes('api.openai.com/v1/realtime/calls')) {
           return new Response('v=0\r\n answer', { status: 200 });
         }
         return realFetch(input, init);

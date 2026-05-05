@@ -35,6 +35,8 @@ export interface UploadAssetInput {
   mime?: string;
   /** Optional workspace doc id (NOT a free string — must be Convex _id). */
   wsId?: string;
+  /** Route-level workspace slug used by the current app shell. */
+  workspaceId?: string;
   /** Optional campaign doc id for cross-link. */
   campaignId?: string;
   /** Free-form lineage hint — what this asset was derived from
@@ -150,6 +152,7 @@ export async function uploadAssetToConvex(
       kind: input.kind,
       mime,
       wsId: sanitizedWsId,
+      workspaceId: input.workspaceId,
       campaignId: input.campaignId,
       sourceUrl: input.sourceUrl,
       width: input.width,

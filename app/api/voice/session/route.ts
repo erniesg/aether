@@ -8,13 +8,16 @@ import type {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const OPENAI_DEFAULT_MODEL = 'gpt-4o-realtime-preview';
-const OPENAI_DEFAULT_VOICE = 'alloy';
+const OPENAI_DEFAULT_MODEL = 'gpt-realtime';
+const OPENAI_DEFAULT_VOICE = 'marin';
 // Per the provider mandate: Gemini is the voice layer for aether. Default to
 // the current Live preview model; env override via GEMINI_LIVE_MODEL.
 const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 const GEMINI_DEFAULT_VOICE = 'Kore';
-const OPENAI_SESSIONS_URL = 'https://api.openai.com/v1/realtime/sessions';
+const OPENAI_CLIENT_SECRETS_URL =
+  'https://api.openai.com/v1/realtime/client_secrets';
+const VOICE_INSTRUCTIONS =
+  "You are aether's voice companion. Keep replies brief. Call the provided tools eagerly rather than narrating.";
 
 interface SessionIssuerDeps {
   apiKey?: string;
@@ -131,6 +134,84 @@ async function defaultIssueGeminiToken({
   });
 }
 
+function openAIRealtimeTools() {
+  return VOICE_TOOL_DEFINITIONS.map((t) => ({
+    type: 'function',
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
+  }));
+}
+
+function buildOpenAIRealtimeSessionConfig(model: string, voice: string) {
+  return {
+    session: {
+      type: 'realtime',
+      model,
+      instructions: VOICE_INSTRUCTIONS,
+      output_modalities: ['audio'],
+      audio: {
+        input: {
+          turn_detection: { type: 'server_vad' },
+          transcription: { model: 'whisper-1' },
+        },
+        output: { voice },
+      },
+      tools: openAIRealtimeTools(),
+      tool_choice: 'auto',
+    },
+  };
+}
+
+type OpenAIClientSecretResponse = {
+  id?: string;
+  value?: string;
+  expires_at?: number;
+  client_secret?: { value?: string; expires_at?: number };
+  session?: {
+    id?: string;
+    model?: string;
+    voice?: string;
+    client_secret?: { value?: string; expires_at?: number };
+    audio?: { output?: { voice?: unknown } };
+  };
+  model?: string;
+  voice?: string;
+};
+
+function parseOpenAIClientSecretResponse(
+  json: OpenAIClientSecretResponse,
+  fallback: { model: string; voice: string }
+) {
+  const clientSecret =
+    json.value ??
+    json.client_secret?.value ??
+    json.session?.client_secret?.value;
+  if (!clientSecret) {
+    throw new Error('voice: OpenAI session returned no client_secret');
+  }
+
+  const expiresAt =
+    (json.expires_at ??
+      json.client_secret?.expires_at ??
+      json.session?.client_secret?.expires_at ??
+      0) * 1000 || Date.now() + 60_000;
+
+  const outputVoice = json.session?.audio?.output?.voice;
+
+  return {
+    sessionId: json.session?.id ?? json.id ?? '',
+    clientSecret,
+    expiresAt,
+    model: json.session?.model ?? json.model ?? fallback.model,
+    voice:
+      (typeof outputVoice === 'string' ? outputVoice : undefined) ??
+      json.session?.voice ??
+      json.voice ??
+      fallback.voice,
+  };
+}
+
 async function issueGeminiLiveSession(
   deps: SessionIssuerDeps = {}
 ): Promise<VoiceSessionCredentials> {
@@ -194,26 +275,13 @@ export async function issueVoiceSession(
   const voice = resolveVoice(provider, deps.voice);
   const fetchImpl = deps.fetchImpl ?? fetch;
 
-  const res = await fetchImpl(OPENAI_SESSIONS_URL, {
+  const res = await fetchImpl(OPENAI_CLIENT_SECRETS_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model,
-      voice,
-      modalities: ['audio', 'text'],
-      tools: VOICE_TOOL_DEFINITIONS.map((t) => ({
-        type: 'function',
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      })),
-      tool_choice: 'auto',
-      instructions:
-        "You are aether's voice companion. Keep replies brief. Call the provided tools eagerly rather than narrating.",
-    }),
+    body: JSON.stringify(buildOpenAIRealtimeSessionConfig(model, voice)),
   });
 
   if (!res.ok) {
@@ -223,29 +291,17 @@ export async function issueVoiceSession(
     );
   }
 
-  const json = (await res.json()) as {
-    id?: string;
-    model?: string;
-    voice?: string;
-    expires_at?: number;
-    client_secret?: { value?: string; expires_at?: number };
-  };
-
-  const clientSecret = json.client_secret?.value;
-  if (!clientSecret) {
-    throw new Error('voice: OpenAI session returned no client_secret');
-  }
-
-  const expiresAt =
-    (json.client_secret?.expires_at ?? json.expires_at ?? 0) * 1000 ||
-    Date.now() + 60_000;
+  const parsed = parseOpenAIClientSecretResponse(
+    (await res.json()) as OpenAIClientSecretResponse,
+    { model, voice }
+  );
 
   return {
-    sessionId: json.id ?? '',
-    clientSecret,
-    expiresAt,
-    model: json.model ?? model,
-    voice: json.voice ?? voice,
+    sessionId: parsed.sessionId,
+    clientSecret: parsed.clientSecret,
+    expiresAt: parsed.expiresAt,
+    model: parsed.model,
+    voice: parsed.voice,
     provider,
   };
 }
@@ -257,7 +313,10 @@ export async function POST(request?: Request) {
     if (request) {
       try {
         const body = await request.clone().json().catch(() => ({})) as Record<string, unknown>;
-        if (typeof body.workspaceId === 'string') workspaceId = body.workspaceId;
+        if (typeof body.workspaceId === 'string') {
+          const trimmed = body.workspaceId.trim();
+          if (trimmed) workspaceId = trimmed;
+        }
       } catch {
         // no body / invalid JSON — fine, proceed with env defaults
       }

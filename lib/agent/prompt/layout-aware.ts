@@ -14,6 +14,7 @@ import type {
   SafeZone,
   SemanticCreativeComponent,
 } from '@/lib/types/semantic-component';
+import { HERO_SEED_PROMPT_REQUIREMENT } from '@/lib/generate/hero-directions';
 
 export interface BuildLayoutAwarePromptOptions {
   /**
@@ -86,7 +87,8 @@ export function buildLayoutAwarePrompt(
   }
 
   lines.push(
-    'Do not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.'
+    'Do not render any text, logos, or watermarks in the image; all copy will be added as a separate editable overlay.',
+    HERO_SEED_PROMPT_REQUIREMENT
   );
 
   return lines.join('\n');

@@ -43,6 +43,13 @@ export type PublishStatus = 'draft' | 'scheduled' | 'published' | 'cancelled';
 export interface ScheduledPost {
   id: string;
   platform: PublishPlatform;
+  /** Locale-specific publish row. One language × platform × format. */
+  locale?: string;
+  /** Export format/aspect this post should carry (for example 4x5, 9x16). */
+  format?: string;
+  /** Creator-facing hero direction selected for this post. */
+  heroDirectionId?: string;
+  heroDirectionLabel?: string;
   /** From the multiformat export pack — ordered, platform-native list. */
   mediaUrls: string[];
   caption: string;

@@ -27,8 +27,16 @@ import {
 
 export type { ScheduledPost };
 
+function isPublisherConvexStorageEnabled(): boolean {
+  return (
+    isConvexEnabled() &&
+    process.env.NEXT_PUBLIC_PUBLISHER_CONVEX_STORAGE === '1'
+  );
+}
+
 function pickStorage(): ScheduledPostStorage {
-  return isConvexEnabled() ? createConvexStorage() : createMemoryStorage();
+  if (!isPublisherConvexStorageEnabled()) return createMemoryStorage();
+  return createFailSoftStorage(createConvexStorage(), createMemoryStorage());
 }
 
 export function getPreviewPublisher(workspaceId: string): PublisherProvider {
@@ -42,8 +50,9 @@ export function getPreviewPublisher(workspaceId: string): PublisherProvider {
 
 export function useScheduledPosts(workspaceId: string): ScheduledPost[] {
   /* eslint-disable react-hooks/rules-of-hooks */
-  if (isConvexEnabled()) return useScheduledPostsConvex(workspaceId);
-  return useScheduledPostsMemory(workspaceId);
+  const memoryPosts = useScheduledPostsMemory(workspaceId);
+  if (!isPublisherConvexStorageEnabled()) return memoryPosts;
+  return mergeScheduledPosts(useScheduledPostsConvex(workspaceId), memoryPosts);
   /* eslint-enable react-hooks/rules-of-hooks */
 }
 
@@ -51,6 +60,8 @@ export interface PublisherScheduleRouteResult {
   providerId: string;
   results: Array<{
     platform: ScheduledPost['platform'];
+    locale?: string;
+    format?: string;
     status: 'scheduled' | 'preview-only' | 'skipped' | 'failed';
     previewUrl?: string;
     externalId?: string;
@@ -84,6 +95,75 @@ export function rememberScheduledPost(
   workspaceId: string,
   post: ScheduledPost
 ): void {
-  if (isConvexEnabled()) return;
   rememberScheduledPostForClient(workspaceId, post);
+}
+
+const CONVEX_PREVIEW_TIMEOUT_MS =
+  process.env.NODE_ENV === 'test' ? 25 : 1_500;
+
+function createFailSoftStorage(
+  primary: ScheduledPostStorage,
+  fallback: ScheduledPostStorage
+): ScheduledPostStorage {
+  return {
+    insert(workspaceId, post) {
+      return withFallback(
+        primary.insert(workspaceId, post),
+        () => fallback.insert(workspaceId, post)
+      );
+    },
+    list(workspaceId) {
+      return withFallback(
+        primary.list(workspaceId),
+        () => fallback.list(workspaceId)
+      );
+    },
+    cancel(id) {
+      return withFallback(
+        primary.cancel(id),
+        () => fallback.cancel(id)
+      );
+    },
+  };
+}
+
+function withFallback<T>(
+  primary: Promise<T>,
+  fallback: () => Promise<T>
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settleWithFallback = () => {
+      if (settled) return;
+      settled = true;
+      fallback().then(resolve, reject);
+    };
+    const timer = setTimeout(settleWithFallback, CONVEX_PREVIEW_TIMEOUT_MS);
+    primary.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        settleWithFallback();
+      }
+    );
+  });
+}
+
+function mergeScheduledPosts(
+  primary: ScheduledPost[],
+  fallback: ScheduledPost[]
+): ScheduledPost[] {
+  const seen = new Set<string>();
+  const out: ScheduledPost[] = [];
+  for (const post of [...fallback, ...primary]) {
+    if (post.id && seen.has(post.id)) continue;
+    if (post.id) seen.add(post.id);
+    out.push(post);
+  }
+  return out;
 }

@@ -6,6 +6,7 @@ import {
   composeVariantSet,
   COMPOSE_FORMATS,
   COMPOSE_LOCALES,
+  pickLocaleTextForFormat,
 } from './compose';
 import type { ProposedTextOverlay } from '@/lib/agent/text-apply';
 import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
@@ -78,6 +79,8 @@ const SAMPLE_OVERLAYS: ProposedTextOverlay[] = [
       'zh-Hans-SG': '沉睡，比城市更深',
       'ms-SG': 'Tidur lebih dalam dari kota',
       'ta-SG': 'நகரத்தை விட ஆழ்ந்த உறக்கம்',
+      'ja-JP': '街より深く眠る',
+      'ko-KR': '도시보다 깊은 잠',
     }),
     textAlign: 'center',
   },
@@ -92,6 +95,8 @@ const SAMPLE_OVERLAYS: ProposedTextOverlay[] = [
       'zh-Hans-SG': 'Pod 4 Ultra 自动调温，记录每次呼吸。',
       'ms-SG': 'Pod 4 Ultra menyejuk, memanas, menjejak setiap nafas.',
       'ta-SG': 'Pod 4 Ultra குளிர்விக்கும், சூடேற்றும்.',
+      'ja-JP': 'Pod 4 Ultraが温度と呼吸を見守ります。',
+      'ko-KR': 'Pod 4 Ultra가 온도와 호흡을 살핍니다.',
     }),
     textAlign: 'center',
   },
@@ -136,6 +141,23 @@ describe('buildFormatSvg', () => {
       headline: 'நகரம்',
     });
     expect(svg).toContain('Tamil MN');
+  });
+
+  it('uses Japanese and Korean font stacks for ja-JP and ko-KR', () => {
+    expect(
+      buildFormatSvg({
+        format: COMPOSE_FORMATS[0],
+        locale: 'ja-JP',
+        headline: '深く眠る',
+      })
+    ).toContain('Noto Sans JP');
+    expect(
+      buildFormatSvg({
+        format: COMPOSE_FORMATS[0],
+        locale: 'ko-KR',
+        headline: '깊은 잠',
+      })
+    ).toContain('Noto Sans KR');
   });
 
   it('strips emoji from text before SVG emission so Pango cannot abort', () => {
@@ -188,15 +210,14 @@ describe('cropAndResize', () => {
 });
 
 describe('composeVariantSet', () => {
-  it('produces 16 tiles (4 formats × 4 locales) and one atlas', async () => {
+  it('produces one tile per format and supported locale plus one atlas', async () => {
     const hero = await makeSyntheticHero();
     const out = await composeVariantSet({
       heroBytes: hero,
       textOverlays: SAMPLE_OVERLAYS,
     });
 
-    // 4 formats × 4 locales = 16 keys.
-    expect(out.tiles.size).toBe(16);
+    expect(out.tiles.size).toBe(COMPOSE_FORMATS.length * COMPOSE_LOCALES.length);
     for (const format of COMPOSE_FORMATS) {
       for (const locale of COMPOSE_LOCALES) {
         const key = `${format.id}-${locale}`;
@@ -241,9 +262,11 @@ describe('composeVariantSet', () => {
         'zh-Hans-SG': '宜家新加坡可持续家具',
         'ms-SG': 'Perabot mampan IKEA SG',
         'ta-SG': 'IKEA SG நீடித்த தளபாடங்கள்',
+        'ja-JP': 'IKEA SGのサステナブル家具',
+        'ko-KR': 'IKEA SG 지속가능 가구',
       },
     });
-    expect(out.tiles.size).toBe(16);
+    expect(out.tiles.size).toBe(COMPOSE_FORMATS.length * COMPOSE_LOCALES.length);
     expect(out.atlas.length).toBeGreaterThan(0);
   });
 
@@ -256,16 +279,45 @@ describe('composeVariantSet', () => {
         textAlign: 'center',
       },
     ];
-    // Should not throw. Tiles for ms-SG / ta-SG / zh-Hans-SG should still
+    // Should not throw. Tiles for target locales should still
     // compose (using en-SG fallback).
     const out = await composeVariantSet({
       heroBytes: hero,
       textOverlays: partial,
     });
-    expect(out.tiles.size).toBe(16);
+    expect(out.tiles.size).toBe(COMPOSE_FORMATS.length * COMPOSE_LOCALES.length);
   });
 
-  it('runs all 16 tile composes concurrently (timing sanity check)', async () => {
+  it('prefers formatContent when composing a local override tile', async () => {
+    const hero = await makeSyntheticHero();
+    const localOverride = [
+      {
+        zone: SAMPLE_OVERLAYS[0].zone,
+        content: makeContent({ 'en-SG': 'Global headline' }),
+        formatContent: { '9x16': { 'en-SG': 'Story-only headline' } },
+        textAlign: 'center',
+      },
+    ] as unknown as ProposedTextOverlay[];
+
+    expect(pickLocaleTextForFormat(localOverride, 'en-SG', '1x1')).toEqual({
+      headline: 'Global headline',
+      caption: undefined,
+    });
+    expect(pickLocaleTextForFormat(localOverride, 'en-SG', '9x16')).toEqual({
+      headline: 'Story-only headline',
+      caption: undefined,
+    });
+
+    const out = await composeVariantSet({
+      heroBytes: hero,
+      textOverlays: localOverride,
+    });
+
+    expect(out.tiles.get('1x1-en-SG')!.length).toBeGreaterThan(0);
+    expect(out.tiles.get('9x16-en-SG')!.length).toBeGreaterThan(0);
+  });
+
+  it('runs tile composes concurrently (timing sanity check)', async () => {
     const hero = await makeSyntheticHero();
     const t0 = Date.now();
     await composeVariantSet({
@@ -273,7 +325,7 @@ describe('composeVariantSet', () => {
       textOverlays: SAMPLE_OVERLAYS,
     });
     const elapsed = Date.now() - t0;
-    // 16 tiles, each ~50-150ms sequentially would be 800-2400ms; with
+    // Every format-locale tile composes independently; with
     // Promise.all we expect well under that on modern hardware. Generous
     // upper bound to keep CI stable.
     expect(elapsed).toBeLessThan(8000);

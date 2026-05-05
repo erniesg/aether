@@ -54,6 +54,23 @@ class ClusterResponse(BaseModel):
     n_noise: int
 
 
+class RerankRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+    imageUrls: list[str] = Field(default_factory=list)
+    limit: int = Field(default=4, ge=1, le=32)
+
+
+class RerankItem(BaseModel):
+    url: str
+    score: float
+
+
+class RerankResponse(BaseModel):
+    ranked: list[RerankItem]
+
+
 def _decode_image_bytes(image_url: str) -> bytes:
     if image_url.startswith("data:"):
         header, _, payload = image_url.partition(",")
@@ -105,6 +122,7 @@ class ClipClusterRunner:
         model.eval()
         self.model = model
         self.preprocess = preprocess
+        self.tokenizer = open_clip.get_tokenizer(CLIP_MODEL_NAME)
         # Persist the torch import on the instance so methods can re-use it.
         self.torch = torch
         print(f"[clip-local] ready on {self.device}")
@@ -115,6 +133,15 @@ class ClipClusterRunner:
         batch = self.torch.stack([self.preprocess(image) for image in images]).to(self.device)
         with self.torch.no_grad():
             features = self.model.encode_image(batch)
+            features = features / features.norm(dim=-1, keepdim=True)
+        return features.detach().cpu().numpy().astype(np.float32)
+
+    def _embed_text(self, texts: list[str]):
+        import numpy as np
+
+        tokens = self.tokenizer(texts).to(self.device)
+        with self.torch.no_grad():
+            features = self.model.encode_text(tokens)
             features = features / features.norm(dim=-1, keepdim=True)
         return features.detach().cpu().numpy().astype(np.float32)
 
@@ -194,6 +221,42 @@ class ClipClusterRunner:
             n_noise=n_noise,
         )
 
+    def rerank(self, request: RerankRequest) -> RerankResponse:
+        if not request.imageUrls:
+            return RerankResponse(ranked=[])
+        query = request.query.strip()
+        if not query:
+            return RerankResponse(
+                ranked=[
+                    RerankItem(url=image_url, score=0.0)
+                    for image_url in request.imageUrls[: request.limit]
+                ]
+            )
+
+        loaded = []
+        for image_url in request.imageUrls:
+            try:
+                loaded.append((image_url, _load_image(image_url)))
+            except Exception as exc:  # noqa: BLE001
+                print(f"[clip-local] skipping rerank image {image_url}: {exc}")
+        if not loaded:
+            return RerankResponse(ranked=[])
+
+        images = [image for _, image in loaded]
+        image_embeddings = self._embed(images)
+        query_embedding = self._embed_text([query])[0]
+        scores = image_embeddings @ query_embedding
+        ranked_indexes = scores.argsort()[::-1][: request.limit]
+        return RerankResponse(
+            ranked=[
+                RerankItem(
+                    url=loaded[int(index)][0],
+                    score=float(scores[int(index)]),
+                )
+                for index in ranked_indexes
+            ]
+        )
+
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -232,6 +295,20 @@ def cluster(
         raise HTTPException(status_code=503, detail="model not loaded")
     try:
         return runner.cluster(request)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/rerank", response_model=RerankResponse)
+def rerank(
+    request: RerankRequest,
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+) -> RerankResponse:
+    _require_bearer_token(authorization)
+    if runner is None:
+        raise HTTPException(status_code=503, detail="model not loaded")
+    try:
+        return runner.rerank(request)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

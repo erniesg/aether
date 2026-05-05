@@ -24,6 +24,7 @@ import {
   researchSectionSummary,
 } from './sections/ResearchSection';
 import {
+  ReferencesGeneratedTab,
   ReferencesImagesTab,
   ReferencesManualTab,
 } from './sections/ReferencesImagesTab';
@@ -41,12 +42,13 @@ type SectionSpec = {
   body: React.ReactNode;
 };
 
-type ReferencesTabId = 'images' | 'templates' | 'elements';
+type ReferencesTabId = 'images' | 'generated' | 'templates' | 'elements';
 
 function ReferencesBody({ workspaceId }: { workspaceId?: string }) {
   const [tab, setTab] = useState<ReferencesTabId>('images');
   const tabs: Array<{ id: ReferencesTabId; label: string }> = [
     { id: 'images', label: 'images' },
+    { id: 'generated', label: 'generated' },
     { id: 'templates', label: 'templates' },
     { id: 'elements', label: 'elements' },
   ];
@@ -78,6 +80,8 @@ function ReferencesBody({ workspaceId }: { workspaceId?: string }) {
       </div>
       {tab === 'images' ? (
         <ReferencesImagesTab workspaceId={workspaceId} />
+      ) : tab === 'generated' ? (
+        <ReferencesGeneratedTab workspaceId={workspaceId} />
       ) : tab === 'templates' ? (
         <ReferencesManualTab kind="template" workspaceId={workspaceId} />
       ) : (

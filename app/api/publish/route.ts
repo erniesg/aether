@@ -18,6 +18,12 @@ import {
   type PublisherProviderId,
   type ScheduledPost,
 } from '@/lib/providers/publisher/types';
+import {
+  hasPlaceholderLocaleSuffix,
+  isAtlasLikePublishMediaUrl,
+  isValidPublishCaptionForLocale,
+  sanitizePublicCaption,
+} from '@/lib/publisher/payload';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +42,8 @@ const platformSchema = z.enum(
 const scheduledPostSchema = z.object({
   id: z.string().optional().default(''),
   platform: platformSchema,
+  locale: z.string().optional(),
+  format: z.string().optional(),
   mediaUrls: z.array(z.string().min(1)).min(1),
   caption: z.string().default(''),
   hashtags: z.array(z.string()).default([]),
@@ -101,7 +109,21 @@ export async function POST(request: Request) {
   const post: ScheduledPost = {
     ...parsed.data.post,
     id: parsed.data.post.id ?? '',
+    mediaUrls: parsed.data.post.mediaUrls.filter(
+      (url) => !isAtlasLikePublishMediaUrl(url)
+    ),
+    caption: sanitizePublicCaption(parsed.data.post.caption),
   };
+  if (post.mediaUrls.length === 0) {
+    return jsonError(400, 'publish media must be a native per-format asset');
+  }
+  if (
+    post.locale &&
+    (!isValidPublishCaptionForLocale(post.locale, post.caption) ||
+      hasPlaceholderLocaleSuffix(post.caption))
+  ) {
+    return jsonError(400, 'publish caption must be final localized copy');
+  }
 
   try {
     const publisher = resolvePublisherForPost({

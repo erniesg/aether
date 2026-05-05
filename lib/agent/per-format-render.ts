@@ -21,6 +21,10 @@
  */
 
 import { resolveProvider } from '@/lib/providers/image/registry';
+import {
+  CHILD_FORMAT_PROMPT_REQUIREMENT,
+  selectChildGenerationRefs,
+} from '@/lib/generate/hero-directions';
 import type {
   AspectRatio,
   ImageGenProvider,
@@ -60,6 +64,7 @@ export interface PerFormatRenderInput {
    * want to validate the legacy free-recompose behaviour.
    */
   heroAnchorEnabled?: boolean;
+  includeProductIdentityRef?: boolean;
 }
 
 export interface PerFormatRenderResult {
@@ -133,6 +138,8 @@ function withAspectComposition(
       '',
       cue,
       '',
+      CHILD_FORMAT_PROMPT_REQUIREMENT,
+      '',
       `CRITICAL — HERO ANCHORING & ZOOM-OUT: The first reference image attached is the canonical hero. PRESERVE its subjects, poses, faces, clothing, styling, lighting, palette, and composition language EXACTLY. Treat this call as canvas EXTENSION (outpainting), NOT cropping. ${extensionDirective} The ENTIRE hero subject area must remain visible — do NOT clip subjects at the new frame's edges, do NOT produce a tighter crop, do NOT generate a different shoot / model / pose / mood.`,
     ].join('\n');
   }
@@ -192,7 +199,11 @@ export async function renderPerFormatHeroes(
   const heroAnchor =
     heroAnchorEnabled && input.heroAnchor ? input.heroAnchor : undefined;
   const effectiveRefs: ImageRef[] = heroAnchor
-    ? [heroAnchor, ...baseRefs]
+    ? selectChildGenerationRefs({
+        heroSeedUrl: heroAnchor.url,
+        originalRefs: baseRefs,
+        includeProductIdentityRef: input.includeProductIdentityRef === true,
+      })
     : baseRefs;
 
   const t0 = Date.now();

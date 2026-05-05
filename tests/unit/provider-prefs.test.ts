@@ -10,6 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
 import {
+  resolveImageModel,
   resolveImageProviderId,
   resolveSegmentationProviderId,
   resolveVoiceProvider,
@@ -22,6 +23,8 @@ describe('resolveVoiceProvider', () => {
     // ensure clean env for every test
     delete process.env.VOICE_PROVIDER;
     delete process.env.GEMINI_LIVE_MODEL;
+    delete process.env.OPENAI_REALTIME_MODEL;
+    delete process.env.VOICE_MODEL;
   });
 
   afterEach(() => {
@@ -75,6 +78,12 @@ describe('resolveVoiceProvider', () => {
     const result = resolveVoiceProvider(prefs);
     expect(result.model).toBe('gemini-live-2.5-flash-native-audio');
   });
+
+  it('uses gpt-realtime as the OpenAI realtime code default', () => {
+    const prefs: WorkspaceProviderPrefs = { voiceProviderId: 'openai-realtime' };
+    const result = resolveVoiceProvider(prefs);
+    expect(result.model).toBe('gpt-realtime');
+  });
 });
 
 describe('resolveImageProviderId', () => {
@@ -108,6 +117,31 @@ describe('resolveImageProviderId', () => {
     process.env.IMAGE_GEN_PROVIDER = 'openai';
     const prefs: WorkspaceProviderPrefs = { imageProviderId: 'replicate' };
     expect(resolveImageProviderId(prefs)).toBe('replicate');
+  });
+});
+
+describe('resolveImageModel', () => {
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it('returns workspace image model when set — overrides env', () => {
+    process.env.IMAGE_GEN_MODEL = 'openai/gpt-image-2';
+    const prefs: WorkspaceProviderPrefs = {
+      imageProviderId: 'replicate',
+      imageModel: 'google/nano-banana-pro',
+    };
+    expect(resolveImageModel(prefs)).toBe('google/nano-banana-pro');
+  });
+
+  it('falls back to env when no workspace image model exists', () => {
+    process.env.IMAGE_GEN_MODEL = 'bytedance/seedream-5-lite';
+    expect(resolveImageModel(null)).toBe('bytedance/seedream-5-lite');
+  });
+
+  it('returns undefined when neither pref nor env is set', () => {
+    delete process.env.IMAGE_GEN_MODEL;
+    expect(resolveImageModel({ imageProviderId: 'replicate' })).toBeUndefined();
   });
 });
 

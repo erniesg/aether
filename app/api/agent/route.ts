@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runMultiAgent } from '@/lib/agent/multi';
+import { normalizeCommandProviderId } from '@/lib/providers/llm/registry';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,8 @@ interface RequestBody {
   prompt?: string;
   maxIterations?: number;
   wsId?: string;
+  providerId?: string;
+  model?: string;
 }
 
 export async function POST(request: Request) {
@@ -31,6 +34,11 @@ export async function POST(request: Request) {
       baseUrl,
       maxIterations: body.maxIterations,
       wsId: typeof body.wsId === 'string' ? body.wsId : undefined,
+      providerId:
+        typeof body.providerId === 'string'
+          ? normalizeCommandProviderId(body.providerId)
+          : undefined,
+      model: typeof body.model === 'string' ? body.model : undefined,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

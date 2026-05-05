@@ -87,6 +87,20 @@ describe('PromptComposer · format-scope chip', () => {
     expect(inputSetChip).toHaveTextContent(/moody/i);
   });
 
+  it('renders an optional voice slot beside composer actions', () => {
+    render(
+      <PromptComposer
+        formatCount={4}
+        voiceSlot={<button type="button">hold to speak</button>}
+      />
+    );
+
+    expect(screen.getByTestId('composer-voice-slot')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /hold to speak/i })
+    ).toBeInTheDocument();
+  });
+
   it('onSubmit receives scope="all" by default on plain Enter', async () => {
     const onSubmit = vi.fn();
     render(<PromptComposer formatCount={4} onSubmit={onSubmit} />);

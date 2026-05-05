@@ -20,7 +20,7 @@
  * both from the same import path.
  */
 
-export type RenderMode = 'crop' | 'fanout';
+export type RenderMode = 'crop' | 'fanout' | 'hero-seeded-fanout';
 export type RenderModeChoice = RenderMode | 'auto';
 
 export interface FormatAspect {
@@ -62,7 +62,9 @@ export function pickRenderMode(
   choice: RenderModeChoice = 'auto',
   options: PickRenderModeOptions = {}
 ): RenderMode {
-  if (choice === 'crop' || choice === 'fanout') return choice;
+  if (choice === 'crop' || choice === 'fanout' || choice === 'hero-seeded-fanout') {
+    return choice;
+  }
 
   // Single render and zero-format cases have nothing to fan out to.
   if (formats.length <= 1) return 'crop';
@@ -122,6 +124,9 @@ export function explainRenderMode(
   }
   if (choice === 'fanout') {
     return { mode: 'fanout', spread: aspectSpread(formats), threshold, reason: 'override-fanout' };
+  }
+  if (choice === 'hero-seeded-fanout') {
+    return { mode: 'hero-seeded-fanout', spread: aspectSpread(formats), threshold, reason: 'override-fanout' };
   }
   if (formats.length <= 1) {
     return { mode: 'crop', spread: 1, threshold, reason: 'single-format' };

@@ -163,6 +163,9 @@ npm install
 cp .env.local.example .env.local        # fill keys (OPENAI/ANTHROPIC/CONVEX/DISCORD/SAM3 minimum)
 npm run dev                              # http://localhost:3000
 
+# local Convex + canvas + local Whisper/SAM3/CLIP sidecars
+npm run dev:local
+
 # trigger a lap
 open http://localhost:3000/auto-mode
 

@@ -475,6 +475,7 @@ export interface ServerVariationInsert {
   workspaceId?: string;
   index: number;
   status: 'pending' | 'running' | 'ready' | 'failed';
+  heroDirectionId?: string;
   heroImageUrl?: string;
   /** Convex `asset` doc id when the hero was uploaded to storage. */
   heroAssetId?: string;

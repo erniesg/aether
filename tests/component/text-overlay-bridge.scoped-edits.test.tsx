@@ -1,6 +1,7 @@
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  AETHER_IMAGE_LANDED_EVENT,
   useTextOverlayBridge,
 } from '@/components/canvas/text-overlay-bridge';
 import {
@@ -96,7 +97,13 @@ function makeEditor(initialShapes: TestShape[]) {
     _shapes: shapes,
     getShape: vi.fn((id: string) => shapes.find((shape) => shape.id === id)),
     getCurrentPageShapes: vi.fn(() => shapes),
-    createShape: vi.fn(),
+    createShape: vi.fn((shape: TestShape) => {
+      shapes.push({
+        ...shape,
+        props: { ...shape.props, content: { ...shape.props.content } },
+        meta: shape.meta ? { ...shape.meta } : undefined,
+      });
+    }),
     reparentShapes: vi.fn(),
     updateShape: vi.fn((patch: {
       id: string;
@@ -183,6 +190,158 @@ afterEach(() => {
 });
 
 describe('useTextOverlayBridge scoped text edits', () => {
+  it('tags direct fan-out overlays as linked publishable canvas text', async () => {
+    const editor = makeEditor([
+      {
+        id: 'frame-post',
+        type: 'frame',
+        x: 120,
+        y: 80,
+        props: {
+          ...makeProps({}),
+          w: 1080,
+          h: 1350,
+        },
+        meta: { formatId: '4x5' },
+      },
+    ]);
+    editorState.editor = editor;
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          plannerMode: 'fallback',
+          rationale: 'mocked',
+          layers: [
+            {
+              zone: {
+                purpose: 'headline',
+                bbox: { x: 0.08, y: 0.62, w: 0.84, h: 0.12 },
+              },
+              content: {
+                'en-SG': 'Sleep cooler tonight',
+                'zh-Hans-SG': '今晚清凉好眠',
+              },
+              textAlign: 'center',
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+
+    render(<BridgeHarness editScope="global" fetchImpl={fetchImpl} />);
+    window.dispatchEvent(
+      new CustomEvent(AETHER_IMAGE_LANDED_EVENT, {
+        detail: {
+          wsId: 'ws-1',
+          artboardId: 'frame-post',
+          w: 1080,
+          h: 1350,
+          aspectRatio: '4:5',
+          capabilityRunId: 'run-direct',
+        },
+      })
+    );
+
+    await waitFor(() => expect(editor.createShape).toHaveBeenCalledTimes(1));
+    const created = editor.createShape.mock.calls[0]![0] as TestShape;
+
+    expect(created.type).toBe(AETHER_TEXT_SHAPE_TYPE);
+    expect(created.meta).toMatchObject({
+      autoModeTextOverlay: true,
+      variationId: 'run-direct',
+      role: 'headline',
+      zone: 'headline',
+      format: '4x5',
+      scope: 'global',
+      shapeRole: 'overlay-text',
+    });
+    expect(created.props.content['en-SG']).toBe('Sleep cooler tonight');
+    expect(editor.reparentShapes).toHaveBeenCalledWith(
+      [created.id],
+      'frame-post'
+    );
+  });
+
+  it('uses canonical role+locale copy from linked sibling formats on new drops', async () => {
+    const editor = makeEditor([
+      makeTextShape(
+        'existing-square',
+        {
+          'en-SG': 'Canonical headline',
+          'zh-Hans-SG': '规范标题',
+        },
+        autoModeMeta({ variationId: 'run-direct', format: '1x1' }),
+        'frame-square'
+      ),
+      {
+        id: 'frame-story',
+        type: 'frame',
+        x: 120,
+        y: 80,
+        props: {
+          ...makeProps({}),
+          w: 1080,
+          h: 1920,
+        },
+        meta: { formatId: '9x16' },
+      },
+    ]);
+    editorState.editor = editor;
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          plannerMode: 'fallback',
+          rationale: 'mocked',
+          layers: [
+            {
+              zone: {
+                purpose: 'headline',
+                bbox: { x: 0.08, y: 0.62, w: 0.84, h: 0.12 },
+              },
+              content: {
+                'en-SG': 'Format-specific story headline',
+                'zh-Hans-SG': '竖屏格式标题',
+              },
+              textAlign: 'center',
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+
+    render(<BridgeHarness editScope="global" fetchImpl={fetchImpl} />);
+    window.dispatchEvent(
+      new CustomEvent(AETHER_IMAGE_LANDED_EVENT, {
+        detail: {
+          wsId: 'ws-1',
+          artboardId: 'frame-story',
+          w: 1080,
+          h: 1920,
+          aspectRatio: '9:16',
+          capabilityRunId: 'run-direct',
+        },
+      })
+    );
+
+    await waitFor(() => expect(editor.createShape).toHaveBeenCalledTimes(1));
+    const created = editor.createShape.mock.calls[0]![0] as TestShape;
+
+    expect(created.props.content).toMatchObject({
+      'en-SG': 'Canonical headline',
+      'zh-Hans-SG': '规范标题',
+    });
+    expect(created.meta).toMatchObject({
+      variationId: 'run-direct',
+      role: 'headline',
+      format: '9x16',
+      canonicalCopyModel: 'role-locale',
+    });
+  });
+
   it('fans out global edits to linked formats while preserving local overrides', async () => {
     const editor = makeEditor([
       makeTextShape('source', { 'en-SG': 'Old headline' }),
@@ -226,17 +385,13 @@ describe('useTextOverlayBridge scoped text edits', () => {
     const linkedCta = editor._shapes.find((shape) => shape.id === 'linked-cta')!;
 
     expect(source.props.content['en-SG']).toBe('Cooler sleep starts tonight');
-    expect(source.props.content['zh-Hans-SG']).toBe(
-      'Cooler sleep starts tonight (中文草稿)'
-    );
+    expect(source.props.content['zh-Hans-SG']).toBe('今晚开始清凉好眠');
     expect(source.meta?.scope).toBe('global');
 
     expect(linkedPost.props.content['en-SG']).toBe(
       'Cooler sleep starts tonight'
     );
-    expect(linkedPost.props.content['zh-Hans-SG']).toBe(
-      'Cooler sleep starts tonight (中文草稿)'
-    );
+    expect(linkedPost.props.content['zh-Hans-SG']).toBe('今晚开始清凉好眠');
     expect(linkedPost.meta?.scope).toBe('global');
 
     expect(localStory.props.content['en-SG']).toBe('Story-only headline');
@@ -280,9 +435,7 @@ describe('useTextOverlayBridge scoped text edits', () => {
     const linkedPost = editor._shapes.find((shape) => shape.id === 'linked-post')!;
 
     expect(source.props.content['en-SG']).toBe('Square-only headline');
-    expect(source.props.content['zh-Hans-SG']).toBe(
-      'Square-only headline (中文草稿)'
-    );
+    expect(source.props.content['zh-Hans-SG']).toBeUndefined();
     expect(source.meta).toMatchObject({
       scope: 'local',
       localOverride: true,
@@ -301,6 +454,49 @@ describe('useTextOverlayBridge scoped text edits', () => {
       text: 'Square-only headline',
       translateLinked: true,
       targetLocales: ['en-SG', 'zh-Hans-SG'],
+    });
+  });
+
+  it('does not fan out global edits across hero directions', async () => {
+    const editor = makeEditor([
+      makeTextShape(
+        'source',
+        { 'en-SG': 'Hero A old headline' },
+        autoModeMeta({ heroDirectionId: 'hero-a', format: '1x1' })
+      ),
+      makeTextShape(
+        'hero-a-post',
+        { 'en-SG': 'Hero A post headline' },
+        autoModeMeta({ heroDirectionId: 'hero-a', format: '4x5' }),
+        'frame-post-a'
+      ),
+      makeTextShape(
+        'hero-b-post',
+        { 'en-SG': 'Hero B post headline' },
+        autoModeMeta({ heroDirectionId: 'hero-b', format: '4x5' }),
+        'frame-post-b'
+      ),
+    ]);
+    editorState.editor = editor;
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    render(<BridgeHarness editScope="global" fetchImpl={fetchImpl} />);
+    dispatchEdit({});
+
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
+
+    const heroAPost = editor._shapes.find((shape) => shape.id === 'hero-a-post')!;
+    const heroBPost = editor._shapes.find((shape) => shape.id === 'hero-b-post')!;
+    expect(heroAPost.props.content['en-SG']).toBe('Cooler sleep starts tonight');
+    expect(heroBPost.props.content['en-SG']).toBe('Hero B post headline');
+    const request = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      variationId: 'variation-1',
+      heroDirectionId: 'hero-a',
+      scope: 'global',
+      role: 'headline',
     });
   });
 });

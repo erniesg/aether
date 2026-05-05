@@ -1,11 +1,10 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { AgentTool } from './types';
 
-const tool: Anthropic.Messages.Tool = {
+const tool: AgentTool['tool'] = {
   name: 'search_signals',
   description:
     'Scrape Pinterest / Instagram / TikTok / Xiaohongshu for visual references matching a creative brief. Returns the URL and metadata of each found post.',
-  input_schema: {
+  inputSchema: {
     type: 'object',
     properties: {
       seedText: {
@@ -27,7 +26,7 @@ const tool: Anthropic.Messages.Tool = {
       },
     },
     required: ['seedText'],
-  } as unknown as Anthropic.Messages.Tool['input_schema'],
+  },
 };
 
 export const searchSignals: AgentTool = {

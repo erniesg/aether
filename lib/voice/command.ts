@@ -1,5 +1,6 @@
 import { resolveCommandLlmProvider } from '@/lib/providers/llm/registry';
 import type { CommandLlmProviderId } from '@/lib/providers/llm/types';
+import type { PublishPlatform } from '@/lib/providers/publisher/types';
 import { SUPPORTED_LOCALES } from '@/lib/locale/registry';
 import {
   DEFAULT_PRODUCT_CATALOG,
@@ -17,6 +18,18 @@ export type VoiceCommandAction = 'generate-socials' | 'generate' | 'unknown';
 export type VoiceCommandPublishMode = 'review' | 'auto-post' | 'ask';
 export type VoiceCommandScope = 'all' | 'single';
 export type VoiceCommandSource = 'heuristic' | CommandLlmProviderId;
+export type VoiceCommandPlannerStatus = 'llm' | 'heuristic-fallback';
+
+export interface VoiceCommandPlannerMetadata {
+  provider: VoiceCommandSource;
+  model?: string;
+  status: VoiceCommandPlannerStatus;
+  requestedProvider?: CommandLlmProviderId;
+  requestedModel?: string;
+  attemptedProvider?: CommandLlmProviderId;
+  attemptedModel?: string;
+  error?: string;
+}
 
 export interface VoiceCommandFormat {
   id: string;
@@ -39,9 +52,11 @@ export interface VoiceCreatorCommand {
   scope: VoiceCommandScope;
   referenceSearchQuery?: string;
   publishMode: VoiceCommandPublishMode;
+  targetPlatforms?: PublishPlatform[];
   needsPublishClarification: boolean;
   confidence: number;
   source: VoiceCommandSource;
+  commandPlanner?: VoiceCommandPlannerMetadata;
   product?: VoiceCommandProductMatch;
 }
 
@@ -61,14 +76,18 @@ export interface VoiceCommandProductMatch {
 export interface VoiceGenerationPlanContext extends VoiceCommandContext {
   referenceUrls?: string[];
   publishMode?: Exclude<VoiceCommandPublishMode, 'ask'>;
+  targetPlatforms?: PublishPlatform[];
+  heroCount?: number;
 }
 
 export interface VoiceGenerationPlan {
   prompt: string;
   options: {
     scope: VoiceCommandScope;
-    renderMode: 'crop' | 'fanout';
+    renderMode: 'crop' | 'fanout' | 'hero-seeded-fanout';
+    heroCount?: number;
     notifyMode: 'review' | 'auto-post';
+    targetPlatforms?: PublishPlatform[];
     refs?: string[];
   };
   statusChips: Array<{ label: string; value: string }>;
@@ -79,12 +98,28 @@ const LEADING_VERBS =
 const SOCIAL_WORDS =
   /\b(?:socials?|social posts?|posts?|creative|assets?|ads?|campaign|variants?)\b/i;
 const AUTO_POST_WORDS =
-  /\b(?:auto[-\s]?publish|auto[-\s]?post|post now|publish now|schedule now|go live)\b/i;
+  /\b(?:auto[-\s]?publish|auto[-\s]?post|post now|publish now|publish(?:\s+it)?\s+automatically|schedule now|go live)\b/i;
 const REVIEW_WORDS =
   /\b(?:hold for review|send for review|for review|approval|approve first|confirm first|ask me|draft only|do not publish|don't publish)\b/i;
 const PUBLISH_WORDS = /\b(?:publish|post|schedule|go live)\b/i;
 const SUPPORTED_LANGUAGE_WORDS =
-  /\b(?:(?:all|all supported|supported|various|multiple|different)\s+languages?|languages?\s+(?:we\s+support|supported|available))\b/i;
+  /\b(?:(?:all|all supported|supported|various|multiple|different)\s+languages?|(?:all|various|multiple|different)\s+(?:formats?|sizes?|dimensions?|targets?)(?:\s+and\s+(?:formats?|sizes?|dimensions?|targets?))*\s+and\s+languages?|languages?\s+(?:we\s+support|supported|available))\b/i;
+
+const PUBLISH_PLATFORM_PATTERNS: ReadonlyArray<{
+  platform: PublishPlatform;
+  pattern: RegExp;
+}> = [
+  { platform: 'x', pattern: /\b(?:x|twitter)\b/i },
+  { platform: 'linkedin', pattern: /\blinked\s?in\b/i },
+  { platform: 'instagram', pattern: /\b(?:instagram|ig)\b/i },
+  { platform: 'tiktok', pattern: /\btik\s?tok\b/i },
+  { platform: 'pinterest', pattern: /\bpinterest\b/i },
+  { platform: 'youtube-shorts', pattern: /\b(?:youtube\s+shorts?|yt\s+shorts?)\b/i },
+  { platform: 'xhs', pattern: /\b(?:xhs|xiaohongshu|little\s+red\s+book)\b/i },
+  { platform: 'douyin', pattern: /\bdouyin\b/i },
+  { platform: 'bilibili', pattern: /\bbilibili\b/i },
+  { platform: 'kuaishou', pattern: /\bkuaishou\b/i },
+];
 
 function trimCommandNoise(value: string): string {
   return value
@@ -128,6 +163,30 @@ function resolvePublishMode(transcript: string): {
   return { publishMode: 'review', needsPublishClarification: false };
 }
 
+function uniquePlatforms(platforms: PublishPlatform[]): PublishPlatform[] {
+  return Array.from(new Set(platforms));
+}
+
+export function extractPublishTargetPlatforms(
+  transcript: string
+): PublishPlatform[] | undefined {
+  const platforms = PUBLISH_PLATFORM_PATTERNS
+    .filter(({ pattern }) => pattern.test(transcript))
+    .map(({ platform }) => platform);
+  const unique = uniquePlatforms(platforms);
+  return unique.length > 0 ? unique : undefined;
+}
+
+function normalizePublishTargetPlatforms(value: unknown): PublishPlatform[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const platforms = value.filter((platform): platform is PublishPlatform =>
+    typeof platform === 'string' &&
+    PUBLISH_PLATFORM_PATTERNS.some((entry) => entry.platform === platform)
+  );
+  const unique = uniquePlatforms(platforms);
+  return unique.length > 0 ? unique : undefined;
+}
+
 export function parseVoiceCommandHeuristically(
   transcript: string
 ): VoiceCreatorCommand {
@@ -142,9 +201,10 @@ export function parseVoiceCommandHeuristically(
       : 'generate';
   const scope: VoiceCommandScope = action === 'generate-socials' ? 'all' : 'single';
   const { publishMode, needsPublishClarification } = resolvePublishMode(cleaned);
+  const targetPlatforms = extractPublishTargetPlatforms(cleaned);
   const prompt =
     action === 'generate-socials' && brief
-      ? `Generate social creative for ${brief}. Use selected references when relevant; keep the raster free of baked text so editable overlays can carry copy.`
+      ? `Generate social creative for ${brief}. Use selected references when relevant. Keep raster free of baked text so editable overlays carry copy. Preserve brand/product identity and the referenced scene/subjects unless the creator asks otherwise.`
       : normalizeKnownProductText(cleaned);
   const product = resolveKnownProductMention(`${brief} ${cleaned}`);
 
@@ -157,9 +217,11 @@ export function parseVoiceCommandHeuristically(
     referenceSearchQuery:
       action === 'generate-socials' && brief ? brief : undefined,
     publishMode,
+    ...(targetPlatforms ? { targetPlatforms } : {}),
     needsPublishClarification,
     confidence: action === 'unknown' ? 0.2 : isSocial ? 0.82 : 0.6,
     source: 'heuristic',
+    commandPlanner: { provider: 'heuristic', status: 'heuristic-fallback' },
     ...(product ? { product: productMatchFromResolution(product) } : {}),
   };
 }
@@ -180,6 +242,9 @@ export function normalizeLlmCommand(
     parsedPublishMode === 'ask' && !fallback.needsPublishClarification
       ? fallback.publishMode
       : parsedPublishMode;
+  const targetPlatforms =
+    normalizePublishTargetPlatforms(parsed.targetPlatforms) ??
+    fallback.targetPlatforms;
   const parsedAction =
     parsed.action === 'generate-socials' ||
     parsed.action === 'generate' ||
@@ -225,6 +290,7 @@ export function normalizeLlmCommand(
           : fallback.scope,
     referenceSearchQuery,
     publishMode,
+    ...(targetPlatforms ? { targetPlatforms } : {}),
     needsPublishClarification:
       publishMode === 'ask' ||
       (parsed.needsPublishClarification === true &&
@@ -311,6 +377,32 @@ export async function interpretVoiceTranscript(input: {
   productResearch?: ProductResearcher | null;
 }): Promise<VoiceCreatorCommand> {
   const fallback = parseVoiceCommandHeuristically(input.transcript);
+  const attemptedModelFor = (
+    provider?: Pick<ReturnType<typeof resolveCommandLlmProvider>, 'listModels'>
+  ) =>
+    input.model ||
+    process.env.AETHER_COMMAND_MODEL ||
+    provider?.listModels()[0];
+  const fallbackWithPlanner = (
+    err?: unknown,
+    attemptedProvider?: CommandLlmProviderId,
+    attemptedModel?: string
+  ): VoiceCreatorCommand => ({
+    ...fallback,
+    commandPlanner: {
+      provider: 'heuristic',
+      status: 'heuristic-fallback',
+      ...(input.providerId ? { requestedProvider: input.providerId } : {}),
+      ...(input.model ? { requestedModel: input.model } : {}),
+      ...(attemptedProvider ? { attemptedProvider } : {}),
+      ...(attemptedModel ? { attemptedModel } : {}),
+      ...(err instanceof Error
+        ? { error: err.message }
+        : err
+          ? { error: String(err) }
+          : {}),
+    },
+  });
   const enrich = (command: VoiceCreatorCommand) =>
     enrichVoiceCommandWithProduct({
       command,
@@ -321,8 +413,10 @@ export async function interpretVoiceTranscript(input: {
   let provider;
   try {
     provider = resolveCommandLlmProvider(input.providerId);
-  } catch {
-    return enrich(fallback);
+  } catch (err) {
+    return enrich(
+      fallbackWithPlanner(err, input.providerId, attemptedModelFor())
+    );
   }
 
   try {
@@ -331,8 +425,9 @@ export async function interpretVoiceTranscript(input: {
       temperature: 0,
       system: [
         'Interpret a creator voice command for aether, a creator-first canvas tool.',
-        'Return only JSON with keys: action, brief, prompt, scope, referenceSearchQuery, publishMode, needsPublishClarification, confidence.',
+        'Return only JSON with keys: action, brief, prompt, scope, referenceSearchQuery, publishMode, targetPlatforms, needsPublishClarification, confidence.',
         'publishMode must be review, auto-post, or ask. Use ask only when the user mentions publishing but does not say auto-publish or review/approval.',
+        'targetPlatforms is optional. When the user names publish destinations, return an array using only: x, linkedin, instagram, tiktok, pinterest, youtube-shorts, xhs, douyin, bilibili, kuaishou.',
         'Use scope=all for social creative or multi-format requests.',
       ].join('\n'),
       user: JSON.stringify({
@@ -341,10 +436,21 @@ export async function interpretVoiceTranscript(input: {
       }),
     });
     return enrich(
-      normalizeLlmCommand(input.transcript, result.json, result.provider.id)
+      {
+        ...normalizeLlmCommand(input.transcript, result.json, result.provider.id),
+        commandPlanner: {
+          provider: result.provider.id,
+          ...(result.provider.model ? { model: result.provider.model } : {}),
+          status: 'llm',
+          ...(input.providerId ? { requestedProvider: input.providerId } : {}),
+          ...(input.model ? { requestedModel: input.model } : {}),
+        },
+      }
     );
-  } catch {
-    return enrich(fallback);
+  } catch (err) {
+    return enrich(
+      fallbackWithPlanner(err, provider.id, attemptedModelFor(provider))
+    );
   }
 }
 
@@ -416,7 +522,7 @@ function socialPromptForProduct(
   const description = resolution.description
     ? ` Use product facts from this research note: ${resolution.description}`
     : '';
-  return `Generate social creative for ${productFocus}.${description} Use selected references when relevant; if none are relevant, generate from the brief. Keep the raster free of baked text so editable overlays can carry copy.`;
+  return `Generate social creative for ${productFocus}.${description} Use selected references when relevant. If none are relevant, generate from the brief. Keep raster free of baked text so editable overlays carry copy. Preserve brand/product identity and the referenced scene/subjects unless the creator asks otherwise.`;
 }
 
 export function buildVoiceGenerationPlan(
@@ -426,14 +532,23 @@ export function buildVoiceGenerationPlan(
   const publishMode =
     context.publishMode ??
     (command.publishMode === 'auto-post' ? 'auto-post' : 'review');
+  const targetPlatforms = context.targetPlatforms ?? command.targetPlatforms;
   const refs = context.referenceUrls?.filter(Boolean) ?? [];
   const languages = resolvePlanLocales(command, context);
+  const renderMode =
+    command.scope === 'all' ? 'hero-seeded-fanout' : 'crop';
+  const heroCount =
+    renderMode === 'hero-seeded-fanout'
+      ? Math.max(1, Math.min(3, Math.round(context.heroCount ?? 2)))
+      : undefined;
   return {
     prompt: command.prompt,
     options: {
       scope: command.scope,
-      renderMode: 'crop',
+      renderMode,
+      ...(heroCount ? { heroCount } : {}),
       notifyMode: publishMode,
+      ...(targetPlatforms?.length ? { targetPlatforms } : {}),
       ...(refs.length > 0 ? { refs } : {}),
     },
     statusChips: [
@@ -446,7 +561,11 @@ export function buildVoiceGenerationPlan(
       },
       { label: 'refs', value: String(refs.length) },
       { label: 'formats', value: String(context.formats.length) },
+      ...(heroCount ? [{ label: 'heroes', value: String(heroCount) }] : []),
       { label: 'languages', value: languages.join(', ') || 'none' },
+      ...(targetPlatforms?.length
+        ? [{ label: 'platforms', value: targetPlatforms.join(', ') }]
+        : []),
       { label: 'publish', value: publishMode },
     ],
   };

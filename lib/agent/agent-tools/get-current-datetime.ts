@@ -1,11 +1,10 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { AgentTool } from './types';
 
-const tool: Anthropic.Messages.Tool = {
+const tool: AgentTool['tool'] = {
   name: 'get_current_datetime',
   description:
     'Return the current datetime in ISO8601 along with the IANA timezone (default Asia/Singapore). Use this when scheduling, freshness checks, or any reasoning that depends on "now". Cheap and synchronous — call freely.',
-  input_schema: {
+  inputSchema: {
     type: 'object',
     properties: {
       timezone: {
@@ -15,7 +14,7 @@ const tool: Anthropic.Messages.Tool = {
       },
     },
     required: [],
-  } as unknown as Anthropic.Messages.Tool['input_schema'],
+  },
 };
 
 export const getCurrentDatetime: AgentTool = {

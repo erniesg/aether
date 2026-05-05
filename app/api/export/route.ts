@@ -11,7 +11,7 @@ function jsonError(status: number, error: string): Response {
   });
 }
 
-function decodePngBase64(value: string): Uint8Array {
+function decodeBase64(value: string): Uint8Array {
   const payload = value.startsWith('data:')
     ? value.split(',').slice(1).join(',')
     : value;
@@ -58,11 +58,22 @@ export async function POST(request: Request): Promise<Response> {
           id: input.id,
           label: input.label,
           aspectRatio: input.aspectRatio,
+          format: input.format,
+          locale: input.locale,
+          locales: input.locales,
+          languageMode: input.languageMode,
+          platform: input.platform,
+          platforms: input.platforms,
           prompt: input.prompt,
           capabilityRunIds: input.capabilityRunIds,
           provider: input.provider,
           model: input.model,
-          png: decodePngBase64(input.pngBase64),
+          png: decodeBase64(input.pngBase64),
+          jpeg: input.jpegBase64 ? decodeBase64(input.jpegBase64) : undefined,
+          svg: input.svg,
+          width: input.width,
+          height: input.height,
+          textLayers: input.textLayers,
           // Prefer the human label (e.g. "IG Post") for the slug; tldraw ids
           // like "shape:abc123" slugify to noise. Builder falls back to id if
           // the label is empty / all-whitespace.

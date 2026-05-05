@@ -1,4 +1,6 @@
 import type { AspectRatio, GeneratedImage } from '@/lib/providers/image/types';
+import type { HeroDirection } from '@/lib/generate/hero-directions';
+import type { VisualQaResult } from '@/lib/generate/visual-qa';
 
 export interface GenerateStreamFrameRef {
   id: string;
@@ -6,6 +8,12 @@ export interface GenerateStreamFrameRef {
   index: number;
   total: number;
   aspectRatio: AspectRatio;
+  sourceFrameId?: string;
+  formatId?: '1x1' | '4x5' | '9x16' | '16x9';
+  heroDirectionId?: string;
+  heroDirectionLabel?: string;
+  heroDirectionIndex?: number;
+  role?: 'hero-seed' | 'child-format';
 }
 
 export interface GenerateStreamProviderRef {
@@ -18,8 +26,9 @@ export type GenerateStreamEvent =
   | {
       type: 'run.started';
       at: number;
-      mode: 'single' | 'fanout' | 'crop';
+      mode: 'single' | 'fanout' | 'crop' | 'hero-seeded-fanout';
       frames: { total: number };
+      heroDirections?: HeroDirection[];
     }
   | {
       type: 'planner.started';
@@ -57,6 +66,7 @@ export type GenerateStreamEvent =
       provider: GenerateStreamProviderRef;
       latencyMs: number;
       image: Pick<GeneratedImage, 'url' | 'width' | 'height' | 'mimeType'>;
+      visualQa?: VisualQaResult;
     }
   | {
       type: 'frame.failed';
@@ -79,7 +89,18 @@ export type GenerateStreamEvent =
       elapsedMs: number;
       error?: string;
       /** Which execution mode was used — present when the generate route ran multi-format. */
-      mode?: 'crop' | 'fanout';
+      mode?: 'crop' | 'fanout' | 'hero-seeded-fanout';
+      heroDirections?: HeroDirection[];
+      nativePerFormatUrlsByHero?: Record<
+        string,
+        Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>
+      >;
+      visualQa?: Record<string, VisualQaResult>;
+      persistedCampaign?: {
+        campaignId: string | null;
+        variationId: string | null;
+        discordSent: boolean;
+      };
     };
 
 const encoder = new TextEncoder();

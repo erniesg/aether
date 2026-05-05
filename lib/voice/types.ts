@@ -14,7 +14,7 @@ export type VoiceOrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
 export interface VoiceSessionCredentials {
   /**
    * Provider-specific session id. For OpenAI, the session returned from
-   * `/v1/realtime/sessions`.
+   * `/v1/realtime/client_secrets`.
    */
   sessionId: string;
   /**
@@ -71,6 +71,11 @@ export interface VoiceConnectOptions {
   credentials?: VoiceSessionCredentials;
   /** Optional abort signal to cancel the connection handshake. */
   signal?: AbortSignal;
+  /**
+   * Workspace slug used by the server route to resolve per-workspace provider
+   * preferences before minting credentials.
+   */
+  workspaceId?: string;
 }
 
 export interface VoiceFunctionResult {

@@ -1,6 +1,6 @@
 /**
  * Variant atlas composer: turn one hero render + per-locale text overlays
- * into 16 composed PNGs (4 formats × 4 SG locales) plus a 4×4 atlas image
+ * into composed PNGs (formats × selected supported locales) plus an atlas image
  * suitable for a Discord embed.
  *
  * This is the library port of `scripts/compose-eightsleep-mockup.mjs` so the
@@ -23,15 +23,19 @@
 import sharp from 'sharp';
 import type { ProposedTextOverlay } from '@/lib/agent/text-apply';
 import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
+import { looksLikeDeterministicFallbackDraft } from './translation';
+import {
+  DEFAULT_LOCALE,
+  SUPPORTED_LOCALES,
+  localeShortLabel,
+  requireLocaleDefinition,
+  type SupportedLocaleCode,
+} from '@/lib/locale/registry';
 
-export type LocaleCode = 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+export type LocaleCode = SupportedLocaleCode;
 
-export const COMPOSE_LOCALES: readonly LocaleCode[] = [
-  'en-SG',
-  'zh-Hans-SG',
-  'ms-SG',
-  'ta-SG',
-] as const;
+export const COMPOSE_LOCALES: readonly LocaleCode[] =
+  SUPPORTED_LOCALES.map((locale) => String(locale) as LocaleCode);
 
 export interface ComposeFormat {
   id: '1x1' | '4x5' | '9x16' | '16x9';
@@ -45,14 +49,6 @@ export const COMPOSE_FORMATS: readonly ComposeFormat[] = [
   { id: '9x16', w: 1080, h: 1920 },
   { id: '16x9', w: 1920, h: 1080 },
 ] as const;
-
-const FONT_FALLBACKS: Record<LocaleCode, string> = {
-  'en-SG': "'Helvetica Neue','Helvetica',Arial,sans-serif",
-  'zh-Hans-SG':
-    "'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif",
-  'ms-SG': "'Helvetica Neue','Helvetica',Arial,sans-serif",
-  'ta-SG': "'Tamil MN','Latha','Noto Sans Tamil',sans-serif",
-};
 
 const TEXT_FILL = '#ffffff';
 const TEXT_STROKE = '#000000';
@@ -112,19 +108,7 @@ function escapeXml(s: string): string {
  * compound words and Tamil grapheme clusters across line breaks.
  */
 function localeForWrap(locale: LocaleCode): string {
-  // Intl.Segmenter understands the bare BCP-47 tag. Map our SG locales
-  // to the language's primary segmentation profile.
-  switch (locale) {
-    case 'zh-Hans-SG':
-      return 'zh-Hans';
-    case 'ms-SG':
-      return 'ms';
-    case 'ta-SG':
-      return 'ta';
-    case 'en-SG':
-    default:
-      return 'en';
-  }
+  return requireLocaleDefinition(locale).wrapLocale;
 }
 
 function isWhitespace(seg: string): boolean {
@@ -233,8 +217,8 @@ interface BuildSvgInput {
  */
 export function buildFormatSvg(input: BuildSvgInput): string {
   const { format, locale, headline, caption } = input;
-  const fontStack = FONT_FALLBACKS[locale] ?? FONT_FALLBACKS['en-SG'];
-  const isCjk = locale === 'zh-Hans-SG';
+  const fontStack = requireLocaleDefinition(locale).fontStack;
+  const isCjk = locale === 'zh-Hans-SG' || locale === 'ja-JP' || locale === 'ko-KR';
   const els: string[] = [];
 
   const headlineFs = Math.round(format.h * 0.056);
@@ -350,26 +334,53 @@ export async function cropAndResize(
  * requested locale is missing — keeps the atlas dense even when the
  * translator partially failed.
  */
-function pickLocaleText(
-  overlays: ProposedTextOverlay[] | undefined,
+type ComposableTextOverlay = ProposedTextOverlay & {
+  formatContent?: Record<string, Record<string, string>>;
+};
+
+function readOverlayText(
+  layer: ComposableTextOverlay | undefined,
+  locale: LocaleCode,
+  formatId: ComposeFormat['id']
+): string | undefined {
+  if (!layer) return undefined;
+  const localeKey = asBCP47LocaleCode(locale);
+  const picked =
+    layer.formatContent?.[formatId]?.[localeKey] ??
+    layer.content?.[localeKey] ??
+    undefined;
+  if (!picked || looksLikeDeterministicFallbackDraft(picked)) return undefined;
+  return picked;
+}
+
+function readFallbackCaption(
+  captions: Partial<Record<LocaleCode, string>> | undefined,
   locale: LocaleCode
+): string | undefined {
+  const picked = captions?.[locale]?.trim();
+  if (!picked || looksLikeDeterministicFallbackDraft(picked)) return undefined;
+  if (locale !== DEFAULT_LOCALE) {
+    const english = captions?.[DEFAULT_LOCALE as LocaleCode]?.trim();
+    if (english && picked.toLocaleLowerCase() === english.toLocaleLowerCase()) {
+      return undefined;
+    }
+  }
+  return picked;
+}
+
+export function pickLocaleTextForFormat(
+  overlays: ProposedTextOverlay[] | undefined,
+  locale: LocaleCode,
+  formatId: ComposeFormat['id']
 ): { headline?: string; caption?: string } {
   if (!overlays || overlays.length === 0) return {};
-  // ProposedTextOverlay.content is keyed by branded BCP47LocaleCode. Both
-  // `locale` (raw string) and 'en-SG' need branding before indexing — the
-  // brand is a structural cast at runtime so this is safe.
-  const localeKey = asBCP47LocaleCode(locale);
-  const enKey = asBCP47LocaleCode('en-SG');
-  const headlineLayer = overlays.find((l) => l.zone.purpose === 'headline');
-  const captionLayer = overlays.find((l) => l.zone.purpose === 'caption');
-  const headline =
-    headlineLayer?.content?.[localeKey] ??
-    headlineLayer?.content?.[enKey] ??
-    undefined;
-  const caption =
-    captionLayer?.content?.[localeKey] ??
-    captionLayer?.content?.[enKey] ??
-    undefined;
+  const typed = overlays as ComposableTextOverlay[];
+  const headlineLayer = typed.find((l) => l.zone.purpose === 'headline');
+  const captionLayer = typed.find((l) =>
+    ['caption', 'subhead', 'body'].includes(l.zone.purpose)
+  );
+  const headline = readOverlayText(headlineLayer, locale, formatId);
+  const caption = readOverlayText(captionLayer, locale, formatId);
   return { headline, caption };
 }
 
@@ -415,7 +426,7 @@ export interface ComposeVariantSetInput {
 export interface ComposeVariantSetOutput {
   /** key: `${format.id}-${locale}` → composed PNG bytes. */
   tiles: Map<string, Buffer>;
-  /** 4×4 atlas — 4 formats (rows) × 4 locales (cols). Each cell is a
+  /** Atlas — 4 formats (rows) × supported locales (cols). Each cell is a
    *  label band stacked above the rendered image so the label never
    *  occludes the headline / caption inside the frame. Row image heights
    *  match the format aspect (9x16 rows are tall, 16x9 rows are short)
@@ -438,8 +449,8 @@ export interface ComposeVariantSetOutput {
 }
 
 /**
- * Compose 16 (format × locale) PNGs from one hero + textOverlays, plus a
- * 4×4 atlas. All 16 composes run in parallel via Promise.all.
+ * Compose format × locale PNGs from one hero + textOverlays, plus an atlas.
+ * Tile composes run in parallel via Promise.all.
  */
 export async function composeVariantSet(
   input: ComposeVariantSetInput
@@ -467,18 +478,18 @@ export async function composeVariantSet(
     { format: ComposeFormat; bytes: Buffer }
   >(cropEntries);
 
-  // 2) Compose every (format, locale) tile in parallel — 16 sharp composites.
+  // 2) Compose every (format, locale) tile in parallel.
   const tileEntries = await Promise.all(
     COMPOSE_FORMATS.flatMap((format) =>
       COMPOSE_LOCALES.map(async (locale) => {
         const key = `${format.id}-${locale}`;
         const cropEntry = cropped.get(format.id);
         if (!cropEntry) return [key, Buffer.alloc(0)] as const;
-        const layerText = pickLocaleText(input.textOverlays, locale);
+        const layerText = pickLocaleTextForFormat(input.textOverlays, locale, format.id);
         // Fallback: when textOverlays is absent or empty, use the
         // captionsByLocale string for both headline + caption so the atlas
         // is still informative.
-        const fallback = input.fallbackCaptions?.[locale];
+        const fallback = readFallbackCaption(input.fallbackCaptions, locale);
         const headline = layerText.headline ?? fallback;
         const caption = layerText.caption ?? fallback;
         const svg = buildFormatSvg({ format, locale, headline, caption });
@@ -497,7 +508,7 @@ export async function composeVariantSet(
   );
   const tiles = new Map<string, Buffer>(tileEntries);
 
-  // 3) Atlas: 4 formats (rows) × 4 locales (cols). Column width is uniform;
+  // 3) Atlas: 4 formats (rows) × supported locales (cols). Column width is uniform;
   //    row image height is derived from the format aspect so 9x16 rows are
   //    tall, 16x9 rows are short. Native renders fill the cell at their
   //    real aspect — no square-crop, no letterbox bars. This replaces the
@@ -539,7 +550,7 @@ export async function composeVariantSet(
         const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${colW}" height="${labelH}">
   <rect x="0" y="0" width="${colW}" height="${labelH}" fill="black"/>
   <text x="${colW / 2}" y="${Math.round(labelH * 0.68)}" font-family="Menlo,Consolas,monospace" font-size="22" font-weight="700"
-        fill="white" text-anchor="middle">${format.id} · ${locale}</text>
+        fill="white" text-anchor="middle">${format.id} · ${localeShortLabel(locale)}</text>
 </svg>`;
         if (!png || png.length === 0) {
           return sharp({

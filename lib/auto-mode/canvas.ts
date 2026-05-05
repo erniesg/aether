@@ -473,8 +473,8 @@ export interface VariationOverlayUpdate {
  * Wire up a tldraw store.listen callback that fans out edits to global-scoped
  * text overlay shapes to all sibling shapes in the same variation + role.
  *
- * - `global` → update all sibling shapes with matching `meta.variationId` and
- *   `meta.role` (regardless of locale or format). Calls the Convex mutation.
+ * - `global` → update sibling shapes with matching `meta.variationId`,
+ *   `meta.role`, and locale across linked formats. Calls the Convex mutation.
  * - `local` → no fan-out; shape stays isolated.
  *
  * Returns an unsubscribe function. The caller (WorkspaceShell) should call it
@@ -499,12 +499,11 @@ export function buildGlobalTextPropagator(
 
       for (const [shapeId, [, nextRaw]] of Object.entries(updated)) {
         const next = nextRaw as Record<string, unknown>;
-        // Listen on AetherTextShape (the type the canvas drop creates,
-        // commit d6ff101) AND legacy `geo` (older drops still on canvas).
-        // Filtering only `geo` was breaking global propagation: edits on
-        // aether-text shapes never reached this listener at all. Bug fix
-        // 2026-04-27 — caused "no global edits + no local scope" UX.
-        if (!next || (next.type !== 'aether-text' && next.type !== 'geo')) continue;
+        // Live aether-text edits are handled from the explicit
+        // aether:text-overlay-edited DOM event in text-overlay-bridge.tsx so
+        // they can read the toolbar scope at blur time. This store listener
+        // remains for legacy geo overlays already present in older snapshots.
+        if (!next || next.type !== 'geo') continue;
 
         const meta = (next.meta ?? {}) as Record<string, unknown>;
         if (!meta.autoModeTextOverlay) continue;
@@ -538,17 +537,21 @@ export function buildGlobalTextPropagator(
 
         if (scope !== 'global') continue;
 
-        // Fan out to all sibling shapes: same variationId + role.
+        // Fan out to sibling shapes: same variationId + role + locale.
         // Updates the corresponding locale slot of the sibling's
         // content map for AetherTextShape; falls back to text/label
         // for legacy geo shapes.
         const siblings = editor.getCurrentPageShapes().filter((s) => {
           if (s.id === (shapeId as never)) return false;
           const sm = (s.meta ?? {}) as Record<string, unknown>;
+          const siblingLocale = (sm.locale as string | undefined) ?? bcp47Locale;
           return (
             sm.autoModeTextOverlay === true &&
             sm.variationId === variationId &&
-            sm.role === role
+            sm.role === role &&
+            siblingLocale === (locale ?? bcp47Locale) &&
+            sm.scope !== 'local' &&
+            sm.localOverride !== true
           );
         });
 

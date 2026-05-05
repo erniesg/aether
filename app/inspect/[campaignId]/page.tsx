@@ -60,7 +60,7 @@ interface TextOverlay {
 }
 
 interface LocaleInsight {
-  locale: 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+  locale: string;
   insight: string;
 }
 

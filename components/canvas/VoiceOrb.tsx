@@ -31,6 +31,8 @@ export interface VoiceOrbProps {
   provider?: VoiceProvider;
   /** Override the session endpoint (tests / e2e with a mocked route). */
   sessionEndpoint?: string;
+  /** Workspace slug used for provider preference resolution. */
+  workspaceId?: string;
   className?: string;
   /** Long-press threshold in ms before the orb switches to continuous mode. */
   longPressMs?: number;
@@ -48,6 +50,7 @@ export function VoiceOrb({
   onCaption,
   provider,
   sessionEndpoint,
+  workspaceId,
   className,
   longPressMs = 400,
 }: VoiceOrbProps) {
@@ -76,11 +79,11 @@ export function VoiceOrb({
     }
 
     const endpoint = sessionEndpoint ?? '/api/voice/session';
-    const credentials = await fetchVoiceSession(endpoint);
+    const credentials = await fetchVoiceSession(endpoint, { workspaceId });
     const next = createVoiceProvider(credentials.provider);
     setActiveProvider(next);
     return { provider: next, credentials };
-  }, [activeProvider, provider, sessionEndpoint]);
+  }, [activeProvider, provider, sessionEndpoint, workspaceId]);
 
   useEffect(() => {
     return () => {
@@ -152,7 +155,7 @@ export function VoiceOrb({
     try {
       const { provider: active, credentials } = await ensureProvider();
       if (active.isConnected()) return active;
-      await active.connect({ sessionEndpoint, credentials });
+      await active.connect({ sessionEndpoint, credentials, workspaceId });
       return active;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -162,7 +165,7 @@ export function VoiceOrb({
     } finally {
       setConnecting(false);
     }
-  }, [ensureProvider, onCaption, sessionEndpoint]);
+  }, [ensureProvider, onCaption, sessionEndpoint, workspaceId]);
 
   const handleToggle = useCallback(async () => {
     const active = activeProvider ?? provider;

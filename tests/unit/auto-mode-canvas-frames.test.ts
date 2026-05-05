@@ -30,12 +30,17 @@ import {
 
 let _idCounter = 0;
 
-vi.mock('tldraw', () => ({
-  createShapeId: vi.fn(() => `shape-${++_idCounter}`),
-  AssetRecordType: {
-    createId: vi.fn(() => `asset-${++_idCounter}`),
-  },
-}));
+vi.mock('tldraw', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('tldraw')>();
+  return {
+    ...actual,
+    createShapeId: vi.fn(() => `shape-${++_idCounter}`),
+    AssetRecordType: {
+      ...actual.AssetRecordType,
+      createId: vi.fn(() => `asset-${++_idCounter}`),
+    },
+  };
+});
 
 beforeEach(() => {
   _idCounter = 0;
@@ -303,7 +308,7 @@ describe('dropVariationOnCanvas — text overlay meta enrichment', () => {
     dropVariationOnCanvas({ editor: editor as unknown as import('tldraw').Editor, variation });
 
     const overlays = editor._shapes.filter(
-      (s) => s.type === 'geo' && s.meta.autoModeTextOverlay
+      (s) => s.type === 'aether-text' && s.meta.autoModeTextOverlay
     );
     expect(overlays.length).toBeGreaterThan(0);
     for (const o of overlays) {
@@ -329,7 +334,7 @@ describe('dropVariationOnCanvas — text overlay meta enrichment', () => {
     });
 
     const overlays = editor._shapes.filter(
-      (s) => s.type === 'geo' && s.meta.autoModeTextOverlay
+      (s) => s.type === 'aether-text' && s.meta.autoModeTextOverlay
     );
     for (const o of overlays) {
       expect(o.meta.locale).toBe('en-SG');
@@ -350,7 +355,7 @@ describe('dropVariationOnCanvas — text overlay meta enrichment', () => {
     dropVariationOnCanvas({ editor: editor as unknown as import('tldraw').Editor, variation });
 
     const ctaOverlay = editor._shapes.find(
-      (s) => s.type === 'geo' && s.meta.role === 'cta'
+      (s) => s.type === 'aether-text' && s.meta.role === 'cta'
     );
     expect(ctaOverlay).toBeDefined();
   });
@@ -369,7 +374,7 @@ describe('dropVariationOnCanvas — text overlay meta enrichment', () => {
     dropVariationOnCanvas({ editor: editor as unknown as import('tldraw').Editor, variation });
 
     const overlays = editor._shapes.filter(
-      (s) => s.type === 'geo' && s.meta.autoModeTextOverlay
+      (s) => s.type === 'aether-text' && s.meta.autoModeTextOverlay
     );
     for (const o of overlays) {
       expect(typeof o.meta.format).toBe('string');
@@ -444,27 +449,27 @@ describe('buildGlobalTextPropagator', () => {
     expect(mutationSpy).not.toHaveBeenCalled();
   });
 
-  it('fans out changes for global-scoped text shapes to all siblings of same variation+role', () => {
+  it('fans out global changes within the same locale and role only', () => {
     const preloaded: ShapeRecord[] = [
       {
-        id: 'text-global-en',
+        id: 'text-global-zh-square',
         type: 'geo',
         x: 0,
         y: 0,
-        props: { text: 'original', label: 'original', labelColor: 'white' },
+        props: { text: '原版', label: '原版', labelColor: 'white' },
         meta: {
           autoModeTextOverlay: true,
           scope: 'global',
           variationId: 'var-1',
           zone: 'headline',
-          locale: 'en-SG',
+          locale: 'zh-Hans-SG',
           format: '1:1',
           role: 'headline',
-          autoModeTextContent: 'original',
+          autoModeTextContent: '原版',
         },
       },
       {
-        id: 'text-global-zh',
+        id: 'text-global-zh-story',
         type: 'geo',
         x: 0,
         y: 0,
@@ -481,20 +486,20 @@ describe('buildGlobalTextPropagator', () => {
         },
       },
       {
-        id: 'text-different-variation',
+        id: 'text-global-en',
         type: 'geo',
         x: 0,
         y: 0,
-        props: { text: 'other var' },
+        props: { text: 'original', label: 'original' },
         meta: {
           autoModeTextOverlay: true,
           scope: 'global',
-          variationId: 'var-2',
+          variationId: 'var-1',
           zone: 'headline',
           locale: 'en-SG',
-          format: '1:1',
+          format: '4:5',
           role: 'headline',
-          autoModeTextContent: 'other var',
+          autoModeTextContent: 'original',
         },
       },
     ];
@@ -502,16 +507,56 @@ describe('buildGlobalTextPropagator', () => {
     const mutationSpy = vi.fn().mockResolvedValue(undefined);
     buildGlobalTextPropagator(editor as unknown as import('tldraw').Editor, mutationSpy);
 
-    // Simulate user editing the en-SG global shape
-    editor._simulateTextEdit('text-global-en', 'new headline');
+    editor._simulateTextEdit('text-global-zh-square', '新的中文标题');
 
-    // zh-Hans-SG sibling (same variation + role) should be updated
-    const zhSibling = editor._shapes.find((s) => s.id === 'text-global-zh');
-    expect(zhSibling?.props.text).toBe('new headline');
+    const zhSibling = editor._shapes.find((s) => s.id === 'text-global-zh-story');
+    expect(zhSibling?.props.text).toBe('新的中文标题');
 
-    // Different variation should not be affected
-    const otherVar = editor._shapes.find((s) => s.id === 'text-different-variation');
-    expect(otherVar?.props.text).toBe('other var');
+    const enSibling = editor._shapes.find((s) => s.id === 'text-global-en');
+    expect(enSibling?.props.text).toBe('original');
+  });
+
+  it('does not overwrite local override siblings when a global shape changes', () => {
+    const preloaded: ShapeRecord[] = [
+      {
+        id: 'text-global-en',
+        type: 'geo',
+        x: 0,
+        y: 0,
+        props: { text: 'original', label: 'original' },
+        meta: {
+          autoModeTextOverlay: true,
+          scope: 'global',
+          variationId: 'var-1',
+          locale: 'en-SG',
+          format: '1x1',
+          role: 'headline',
+        },
+      },
+      {
+        id: 'text-local-override',
+        type: 'geo',
+        x: 0,
+        y: 0,
+        props: { text: 'local only', label: 'local only' },
+        meta: {
+          autoModeTextOverlay: true,
+          scope: 'local',
+          localOverride: true,
+          variationId: 'var-1',
+          locale: 'en-SG',
+          format: '9x16',
+          role: 'headline',
+        },
+      },
+    ];
+    const editor = makeMockEditor(preloaded);
+    buildGlobalTextPropagator(editor as unknown as import('tldraw').Editor, async () => {});
+
+    editor._simulateTextEdit('text-global-en', 'new global');
+
+    const local = editor._shapes.find((s) => s.id === 'text-local-override');
+    expect(local?.props.text).toBe('local only');
   });
 
   it('calls the Convex mutation on global text change', async () => {

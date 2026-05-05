@@ -108,7 +108,7 @@ export default function AutoModePage() {
             One trigger fans out into N variations. Each variation produces a
             1024² hero, native renders for 4:5 / 9:16 / 16:9 (with
             <code className="mx-1 font-mono text-xs">AUTO_MODE_NATIVE_PER_FORMAT=1</code>),
-            and a 4×4 atlas across 4 SG locales. Lap takes 6–8 minutes.
+            and a format × language atlas. Lap takes 6–8 minutes.
           </p>
         </div>
 

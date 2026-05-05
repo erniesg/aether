@@ -38,19 +38,20 @@ import {
   type ClusterCard,
 } from '@/lib/clusters/store';
 import {
-  DEMO_LOCALES,
+  CANVAS_LOCALES,
   setActiveLocale,
+  setLocaleEnabled,
+  setLocaleViewMode,
+  setTranslateLinkedLocales,
   useActiveLocale,
+  useEnabledLocales,
+  useLocaleViewMode,
+  useTranslateLinkedLocales,
 } from '@/lib/text-overlay/active-locale';
 import type { BCP47LocaleCode } from '@/lib/text-overlay/types';
+import { DEFAULT_LOCALE, localeShortLabel } from '@/lib/locale/registry';
 import { cn } from '@/lib/utils/cn';
 import { useDemoMode } from '@/lib/demo/context';
-
-const LOCALE_LABELS: Record<string, string> = {
-  en: 'EN',
-  'zh-Hans': '中文',
-  'ja-JP': '日本語',
-};
 
 type SectionSpec = {
   id: string;
@@ -83,35 +84,93 @@ function PlaceholderBody({ hint }: { hint: string }) {
  */
 function LocaleSwitcher() {
   const active = useActiveLocale();
+  const enabled = useEnabledLocales();
+  const viewMode = useLocaleViewMode();
+  const translateLinked = useTranslateLinkedLocales();
+  const enabledSet = new Set(enabled);
   return (
     <section
-      className="flex flex-col gap-1.5"
-      aria-label="locale"
+      className="flex flex-col gap-2"
+      aria-label="languages"
       data-testid="focus-locale-switcher"
     >
-      <span className="font-caption text-ink-dim">locale</span>
-      <div className="flex flex-wrap gap-1">
-        {DEMO_LOCALES.map((locale) => {
+      <header className="flex items-center justify-between gap-2">
+        <span className="font-caption text-ink-dim">languages</span>
+        <button
+          type="button"
+          data-testid="locale-view-mode-toggle"
+          aria-pressed={viewMode === 'multilingual'}
+          disabled={enabled.length <= 1}
+          onClick={() =>
+            setLocaleViewMode(viewMode === 'multilingual' ? 'single' : 'multilingual')
+          }
+          className={cn(
+            'rounded-sm border px-1.5 py-0.5 font-caption text-2xs transition-colors',
+            viewMode === 'multilingual'
+              ? 'border-accent bg-accent/10 text-accent'
+              : 'border-border-soft bg-surface-panel text-ink-dim hover:border-border',
+            enabled.length <= 1 && 'opacity-40'
+          )}
+        >
+          all
+        </button>
+      </header>
+      <div className="flex flex-wrap gap-1" data-testid="enabled-language-picker">
+        {CANVAS_LOCALES.map((locale) => {
           const isActive = locale === active;
+          const isEnabled = enabledSet.has(locale);
+          const isDefault = locale === DEFAULT_LOCALE;
           return (
             <button
               key={locale}
               type="button"
               data-testid={`locale-switch-${locale}`}
               data-active={isActive ? 'true' : 'false'}
-              onClick={() => setActiveLocale(locale as BCP47LocaleCode)}
+              data-enabled={isEnabled ? 'true' : 'false'}
+              aria-pressed={isEnabled}
+              aria-label={
+                !isEnabled
+                  ? `show ${localeShortLabel(locale)}`
+                  : isActive && !isDefault
+                    ? `hide ${localeShortLabel(locale)}`
+                    : `view ${localeShortLabel(locale)}`
+              }
+              onClick={() => {
+                if (!isEnabled) {
+                  setLocaleEnabled(locale as BCP47LocaleCode, true);
+                  setActiveLocale(locale as BCP47LocaleCode);
+                  return;
+                }
+                if (isActive && !isDefault) {
+                  setLocaleEnabled(locale as BCP47LocaleCode, false);
+                  return;
+                }
+                setActiveLocale(locale as BCP47LocaleCode);
+              }}
               className={cn(
                 'inline-flex h-7 items-center gap-1 rounded-sm border px-2 font-mono text-2xs uppercase tracking-wide transition-colors',
                 isActive
                   ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-border-soft bg-surface-panel text-ink hover:border-border'
+                  : isEnabled
+                    ? 'border-border bg-surface-panel text-ink hover:border-accent/50'
+                    : 'border-border-soft bg-surface-panel-muted text-ink-faint hover:border-border'
               )}
             >
-              {LOCALE_LABELS[locale] ?? locale}
+              {localeShortLabel(locale)}
             </button>
           );
         })}
       </div>
+      <label className="flex items-center gap-2 font-caption text-xs text-ink-dim">
+        <input
+          type="checkbox"
+          checked={translateLinked}
+          onChange={(event) => setTranslateLinkedLocales(event.currentTarget.checked)}
+          data-testid="translate-linked-toggle"
+          className="h-3 w-3 accent-current"
+        />
+        translate from EN
+      </label>
     </section>
   );
 }
@@ -382,6 +441,10 @@ function RightRailInner({
   safeZonesVisible,
   workspaceId,
   heroMediaUrls,
+  heroMediaByFormat,
+  heroMediaByDirectionFormat,
+  canvasCopyByLocaleFormat,
+  canvasCopyByHeroLocaleFormat,
   onOpenPublishPreview,
   autoModeCampaign,
   autoModeVariations,
@@ -397,6 +460,16 @@ function RightRailInner({
   safeZonesVisible: boolean;
   workspaceId: string;
   heroMediaUrls?: string[];
+  heroMediaByFormat?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+  heroMediaByDirectionFormat?: Record<
+    string,
+    {
+      label: string;
+      mediaByFormat: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+    }
+  >;
+  canvasCopyByLocaleFormat?: Record<string, Record<string, string>>;
+  canvasCopyByHeroLocaleFormat?: Record<string, Record<string, Record<string, string>>>;
   onOpenPublishPreview?: (postId: string) => void;
   autoModeCampaign?: AutoModeCampaignView | null;
   autoModeVariations?: AutoModeVariationView[];
@@ -448,7 +521,7 @@ function RightRailInner({
       }}
       disabled={exportDisabled}
       aria-label="export"
-      title="export pack · PNGs + manifest.json"
+      title="export pack · PNG/JPEG + editable SVG/PDF"
       data-testid="rail-export-button"
       className={cn(
         'inline-flex h-6 items-center gap-1 rounded-sm border border-border-soft bg-surface-panel px-2 font-mono text-2xs uppercase tracking-wide text-ink',
@@ -541,6 +614,10 @@ function RightRailInner({
         <PublishSection
           workspaceId={workspaceId}
           heroMediaUrls={heroMediaUrls}
+          heroMediaByFormat={heroMediaByFormat}
+          heroMediaByDirectionFormat={heroMediaByDirectionFormat}
+          canvasCopyByLocaleFormat={canvasCopyByLocaleFormat}
+          canvasCopyByHeroLocaleFormat={canvasCopyByHeroLocaleFormat}
           onOpenPreview={onOpenPublishPreview}
         />
       ),
@@ -590,6 +667,16 @@ export interface RightRailProps {
    * lens. Empty when nothing has been generated — the lens falls back to a
    * 1x1 placeholder so the flow still works for demo. */
   heroMediaUrls?: string[];
+  heroMediaByFormat?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+  heroMediaByDirectionFormat?: Record<
+    string,
+    {
+      label: string;
+      mediaByFormat: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+    }
+  >;
+  canvasCopyByLocaleFormat?: Record<string, Record<string, string>>;
+  canvasCopyByHeroLocaleFormat?: Record<string, Record<string, Record<string, string>>>;
   onOpenPublishPreview?: (postId: string) => void;
   /** Auto-Mode lap that is currently in-flight or most recently completed. */
   autoModeCampaign?: AutoModeCampaignView | null;
@@ -610,6 +697,10 @@ export function RightRail({
   safeZonesVisible = true,
   workspaceId = 'demo-ws',
   heroMediaUrls,
+  heroMediaByFormat,
+  heroMediaByDirectionFormat,
+  canvasCopyByLocaleFormat,
+  canvasCopyByHeroLocaleFormat,
   onOpenPublishPreview,
   autoModeCampaign,
   autoModeVariations,
@@ -636,6 +727,10 @@ export function RightRail({
         safeZonesVisible={safeZonesVisible}
         workspaceId={workspaceId}
         heroMediaUrls={heroMediaUrls}
+        heroMediaByFormat={heroMediaByFormat}
+        heroMediaByDirectionFormat={heroMediaByDirectionFormat}
+        canvasCopyByLocaleFormat={canvasCopyByLocaleFormat}
+        canvasCopyByHeroLocaleFormat={canvasCopyByHeroLocaleFormat}
         onOpenPublishPreview={onOpenPublishPreview}
         autoModeCampaign={effectiveCampaign}
         autoModeVariations={effectiveVariations}

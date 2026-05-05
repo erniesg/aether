@@ -2,16 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   ingestReferenceUrl: vi.fn(),
+  uploadAssetToConvex: vi.fn(),
 }));
 
 vi.mock('@/lib/providers/reference/registry', () => ({
   ingestReferenceUrl: mocks.ingestReferenceUrl,
 }));
 
+vi.mock('@/lib/storage/convexAsset', () => ({
+  uploadAssetToConvex: mocks.uploadAssetToConvex,
+}));
+
 describe('/api/reference-ingest', () => {
   afterEach(() => {
     vi.resetModules();
     mocks.ingestReferenceUrl.mockReset();
+    mocks.uploadAssetToConvex.mockReset();
   });
 
   it('accepts a URL JSON body and returns the record from the registry', async () => {
@@ -132,6 +138,55 @@ describe('/api/reference-ingest', () => {
       })
     );
     expect(res.status).toBe(400);
+  });
+
+  it('uploads image files through the asset store and returns a durable reference when available', async () => {
+    mocks.uploadAssetToConvex.mockResolvedValueOnce({
+      id: 'asset_doc_1',
+      publicUrl: 'https://convex.cdn/ref.png',
+      storageId: 'sid_1',
+      bytes: 12,
+      mime: 'image/png',
+    });
+
+    const file = {
+      name: 'pod.png',
+      type: 'image/png',
+      size: 9,
+      arrayBuffer: async () => new TextEncoder().encode('png-bytes').buffer,
+    };
+    const form = {
+      get: (key: string) => (key === 'workspaceId' ? 'demo-ws' : key === 'file' ? file : null),
+    };
+
+    const { POST } = await import('@/app/api/reference-ingest/route');
+    const request = {
+      headers: new Headers({ 'Content-Type': 'multipart/form-data; boundary=test' }),
+      formData: async () => form,
+    } as unknown as Request;
+    const res = await POST(request);
+
+    const json = (await res.json()) as {
+      ok: boolean;
+      error?: string;
+      record: { previewUrl: string; fullUrl?: string; assetId?: string; origin?: string };
+    };
+    expect(res.status, json.error).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.record).toMatchObject({
+      previewUrl: 'https://convex.cdn/ref.png',
+      fullUrl: 'https://convex.cdn/ref.png',
+      assetId: 'asset_doc_1',
+      origin: 'upload',
+    });
+    expect(mocks.uploadAssetToConvex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'reference',
+        mime: 'image/png',
+        workspaceId: 'demo-ws',
+        sourceUrl: 'pod.png',
+      })
+    );
   });
 
 });

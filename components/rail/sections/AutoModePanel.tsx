@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { VariationActions } from '@/components/rail/VariationActions';
+import { localeShortLabel } from '@/lib/locale/registry';
 
 /**
  * AutoModePanel — right-rail body for the in-flight + most-recent Auto Mode
@@ -41,7 +42,7 @@ export interface AutoModeVariationView {
   index: number;
   status: 'pending' | 'running' | 'ready' | 'failed' | 'rejected';
   heroImageUrl?: string;
-  /** Atlas URL (4 formats × 4 locales). Preferred over heroImageUrl for display. */
+  /** Atlas URL (formats × locales). Preferred over heroImageUrl for display. */
   atlasUrl?: string;
   textOverlays?: Array<{
     zone: {
@@ -61,9 +62,7 @@ export interface AutoModeVariationView {
    */
   nativePerFormatUrls?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
   caption?: string;
-  captionsByLocale?: Partial<
-    Record<'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG', string>
-  >;
+  captionsByLocale?: Partial<Record<string, string>>;
   hashtags?: string[];
   moodNote?: string;
   schedulePlatform?: string;
@@ -157,7 +156,7 @@ export interface ResearchBundleView {
   competitors: string[];
   recentCampaigns: string[];
   localeInsights: Array<{
-    locale: 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+    locale: string;
     insight: string;
   }>;
   sources: Array<{ url: string; snippet: string; retrievedAt: string }>;
@@ -204,13 +203,6 @@ export interface AutoModePanelProps {
    *  leaving the workspace. Empty array hides the section. */
   events?: LapEventView[];
 }
-
-const LOCALE_LABEL: Record<string, string> = {
-  'en-SG': 'EN',
-  'zh-Hans-SG': '中',
-  'ms-SG': 'MS',
-  'ta-SG': 'த',
-};
 
 const STATUS_TONE: Record<
   AutoModeVariationView['status'] | AutoModeCampaignView['status'],
@@ -319,7 +311,7 @@ function ResearchSignalsSection({ bundle }: { bundle: ResearchBundleView }) {
                   className="font-mono text-[10px] text-ink-muted"
                 >
                   <span className="text-ink-faint">
-                    {LOCALE_LABEL[li.locale] ?? li.locale}
+                    {localeShortLabel(li.locale)}
                   </span>{' '}
                   {li.insight}
                 </div>
@@ -687,7 +679,7 @@ function VariationCard({
             <div className="flex gap-1 mt-2 flex-wrap">
               {localeKeys.map((locale) => (
                 <Chip key={locale} tone="info" size="sm" variant="ghost" title={String(locale)}>
-                  {LOCALE_LABEL[String(locale)] ?? String(locale)}
+                  {localeShortLabel(String(locale))}
                 </Chip>
               ))}
               {formats.map((f) => (

@@ -8,6 +8,11 @@ import {
   PUBLISH_PLATFORMS,
   PublisherUnavailableError,
 } from '@/lib/providers/publisher/types';
+import {
+  isAtlasLikePublishMediaUrl,
+  isValidPublishCaptionForLocale,
+  sanitizePublicCaption,
+} from '@/lib/publisher/payload';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +21,8 @@ type PublishScheduleStatus = 'scheduled' | 'preview-only' | 'skipped' | 'failed'
 
 interface PublishScheduleResult {
   platform: PublishPlatform;
+  locale?: string;
+  format?: string;
   status: PublishScheduleStatus;
   previewUrl?: string;
   externalId?: string;
@@ -42,8 +49,15 @@ function parsePost(value: unknown): ScheduledPost | null {
   if (typeof value !== 'object' || value === null) return null;
   const b = value as Record<string, unknown>;
   if (!isPlatform(b.platform)) return null;
-  const mediaUrls = stringArray(b.mediaUrls).filter(Boolean);
+  const mediaUrls = stringArray(b.mediaUrls).filter(
+    (url) => Boolean(url) && !isAtlasLikePublishMediaUrl(url)
+  );
   if (mediaUrls.length === 0) return null;
+  const caption = sanitizePublicCaption(
+    typeof b.caption === 'string' ? b.caption : ''
+  );
+  const locale = typeof b.locale === 'string' ? b.locale : undefined;
+  if (locale && !isValidPublishCaptionForLocale(locale, caption)) return null;
   const scheduledAt =
     typeof b.scheduledAt === 'string' && b.scheduledAt
       ? b.scheduledAt
@@ -51,8 +65,10 @@ function parsePost(value: unknown): ScheduledPost | null {
   return {
     id: typeof b.id === 'string' ? b.id : '',
     platform: b.platform,
+    locale,
+    format: typeof b.format === 'string' ? b.format : undefined,
     mediaUrls,
-    caption: typeof b.caption === 'string' ? b.caption : '',
+    caption,
     hashtags: stringArray(b.hashtags).map((tag) => tag.replace(/^#+/, '')),
     scheduledAt,
     accountId: typeof b.accountId === 'string' ? b.accountId : undefined,
@@ -101,6 +117,8 @@ export async function POST(request: Request): Promise<Response> {
         providerId: 'preview',
         results: posts.map((post): PublishScheduleResult => ({
           platform: post.platform,
+          locale: post.locale,
+          format: post.format,
           status: 'preview-only',
           error: err.message,
         })),
@@ -116,6 +134,8 @@ export async function POST(request: Request): Promise<Response> {
       providerId: publisher.id,
       results: posts.map((post): PublishScheduleResult => ({
         platform: post.platform,
+        locale: post.locale,
+        format: post.format,
         status: 'preview-only',
       })),
     });
@@ -126,6 +146,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!publisher.canPublish(post)) {
       results.push({
         platform: post.platform,
+        locale: post.locale,
+        format: post.format,
         status: 'skipped',
         error: `${publisher.id} is not configured for ${post.platform}`,
       });
@@ -135,13 +157,21 @@ export async function POST(request: Request): Promise<Response> {
       const result = await publisher.schedule(post);
       results.push({
         platform: post.platform,
+        locale: post.locale,
+        format: post.format,
         status: 'scheduled',
         previewUrl: result.previewUrl,
         externalId: result.externalId,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      results.push({ platform: post.platform, status: 'failed', error: message });
+      results.push({
+        platform: post.platform,
+        locale: post.locale,
+        format: post.format,
+        status: 'failed',
+        error: message,
+      });
     }
   }
 

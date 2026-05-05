@@ -11,6 +11,7 @@ import {
   type VoiceGenerationPlan,
   type VoiceCommandPublishMode,
 } from '@/lib/voice/command';
+import type { PublishPlatform } from '@/lib/providers/publisher/types';
 import type { VoiceReferenceSearchResult } from '@/lib/voice/reference-search';
 import { cn } from '@/lib/utils/cn';
 
@@ -48,6 +49,10 @@ type VoiceReviewState = {
   reason: string;
 };
 
+type VoicePublishClarificationState = {
+  command: VoiceCreatorCommand;
+};
+
 export interface VoiceRunTrace {
   transcript: string;
   interpretedCommand: VoiceCreatorCommand;
@@ -61,6 +66,7 @@ export interface VoiceRunTrace {
   selectedRefs: Array<{ url: string; score?: number; productId?: string }>;
   finalGeneratePrompt: string;
   publishMode: Exclude<VoiceCommandPublishMode, 'ask'>;
+  targetPlatforms?: PublishPlatform[];
 }
 
 export interface AsyncVoiceRecorder {
@@ -230,15 +236,6 @@ function compactLibraryReferences(
     }));
 }
 
-function defaultClarifyPublishMode(): 'review' | 'auto-post' {
-  if (typeof window === 'undefined') return 'review';
-  return window.confirm(
-    'This voice command mentioned publishing. Auto-publish now? Cancel holds it for review.'
-  )
-    ? 'auto-post'
-    : 'review';
-}
-
 const STATE_LABEL: Record<AsyncVoiceState, string> = {
   idle: 'hold to speak',
   listening: 'listening',
@@ -344,11 +341,16 @@ export function AsyncPushToTalk({
   const [history, setHistory] = useState<VoiceHistoryItem[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [review, setReview] = useState<VoiceReviewState | null>(null);
+  const [publishClarification, setPublishClarification] =
+    useState<VoicePublishClarificationState | null>(null);
   const recorderRef = useRef<AsyncVoiceRecorder | null>(null);
   const processingRef = useRef(false);
   const reviewResolverRef = useRef<((decision: VoiceReviewDecision) => void) | null>(
     null
   );
+  const publishResolverRef = useRef<
+    ((decision: Exclude<VoiceCommandPublishMode, 'ask'>) => void) | null
+  >(null);
 
   const icon = useMemo(() => {
     if (state === 'error') return <MicOff size={14} strokeWidth={1.75} />;
@@ -399,6 +401,29 @@ export function AsyncPushToTalk({
     resolve?.(decision);
   }, []);
 
+  const askForPublishMode = useCallback((command: VoiceCreatorCommand) => {
+    setState('reviewing');
+    setExpanded(true);
+    setPublishClarification({ command });
+    setHistory((items) => [
+      ...items,
+      { label: 'publish', value: 'needs timing choice' },
+    ]);
+    return new Promise<Exclude<VoiceCommandPublishMode, 'ask'>>((resolve) => {
+      publishResolverRef.current = resolve;
+    });
+  }, []);
+
+  const resolvePublishClarification = useCallback(
+    (decision: Exclude<VoiceCommandPublishMode, 'ask'>) => {
+      const resolve = publishResolverRef.current;
+      publishResolverRef.current = null;
+      setPublishClarification(null);
+      resolve?.(decision);
+    },
+    []
+  );
+
   const stop = useCallback(async () => {
     if (state !== 'listening' || processingRef.current) return;
     processingRef.current = true;
@@ -448,13 +473,18 @@ export function AsyncPushToTalk({
       let publishMode: Exclude<VoiceCommandPublishMode, 'ask'> =
         command.publishMode === 'auto-post' ? 'auto-post' : 'review';
       if (command.publishMode === 'ask') {
-        publishMode = await (clarifyPublishMode ?? defaultClarifyPublishMode)(command);
+        publishMode = await (clarifyPublishMode ?? askForPublishMode)(command);
       }
       setHistory((items) => [
         ...items,
         {
           label: 'publish',
-          value: publishMode === 'auto-post' ? 'auto-publish' : 'hold for review',
+          value:
+            publishMode === 'auto-post'
+              ? command.targetPlatforms?.length
+                ? `post after generation · ${command.targetPlatforms.join(', ')}`
+                : 'post after generation'
+              : 'hold for review after generation',
         },
       ]);
 
@@ -541,6 +571,7 @@ export function AsyncPushToTalk({
         })),
         finalGeneratePrompt: plan.prompt,
         publishMode,
+        targetPlatforms: command.targetPlatforms,
       };
       setChips(plan.statusChips);
       setHistory((items) => [
@@ -556,7 +587,19 @@ export function AsyncPushToTalk({
             context.locales[0] ??
             'default',
         },
-        { label: 'generation', value: 'sent to canvas', tone: 'ok' },
+        ...(plan.statusChips.find((chip) => chip.label === 'platforms')
+          ? [
+              {
+                label: 'platforms',
+                value: plan.statusChips.find((chip) => chip.label === 'platforms')!.value,
+              },
+            ]
+          : []),
+        {
+          label: 'generation',
+          value: 'sent to canvas · first frames usually take 2-3 min',
+          tone: 'ok',
+        },
       ]);
       setState('dispatching');
       await onGenerate({ prompt: plan.prompt, options: plan.options, command, trace });
@@ -575,6 +618,7 @@ export function AsyncPushToTalk({
     }
   }, [
     clarifyPublishMode,
+    askForPublishMode,
     context,
     deps,
     libraryReferences,
@@ -654,11 +698,56 @@ export function AsyncPushToTalk({
           <List size={13} strokeWidth={1.75} />
         </button>
       ) : null}
+      {publishClarification ? (
+        <div
+          data-async-voice-publish
+          data-testid="async-voice-publish-ready"
+          className="absolute bottom-[calc(100%+8px)] right-0 z-[1000] w-[min(420px,calc(100vw-32px))] rounded-sm border border-border-soft bg-surface-panel p-2 opacity-100 shadow-lg"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="font-caption text-[10px] uppercase text-ink-faint">
+                publish check
+              </div>
+              <div className="mt-0.5 truncate font-caption text-xs text-ink">
+                {publishClarification.command.brief || 'voice generation'}
+              </div>
+              <div className="mt-0.5 font-caption text-[11px] text-ink-dim">
+                Assets are not ready yet. Choose what should happen after the canvas finishes.
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label="hold publish for review"
+              onClick={() => resolvePublishClarification('review')}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-border-soft text-ink-dim hover:border-border hover:text-ink"
+            >
+              <X size={13} strokeWidth={1.75} />
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => resolvePublishClarification('review')}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink-dim hover:border-border hover:text-ink"
+            >
+              hold for review
+            </button>
+            <button
+              type="button"
+              onClick={() => resolvePublishClarification('auto-post')}
+              className="rounded-sm border border-accent bg-accent px-2 py-1 font-caption text-xs text-white hover:bg-accent/90"
+            >
+              post after generation
+            </button>
+          </div>
+        </div>
+      ) : null}
       {review ? (
         <div
           data-async-voice-review
           data-testid="async-voice-review-ready"
-          className="absolute bottom-[calc(100%+8px)] right-0 z-50 w-[min(460px,calc(100vw-32px))] rounded-sm border border-border-soft bg-surface-panel p-2 shadow-lg"
+          className="absolute bottom-[calc(100%+8px)] right-0 z-[1000] w-[min(460px,calc(100vw-32px))] rounded-sm border border-border-soft bg-surface-panel p-2 opacity-100 shadow-lg"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -698,7 +787,7 @@ export function AsyncPushToTalk({
                     aria-label={`${selected ? 'remove' : 'keep'} reference ${scoreLabel(candidate.score)}`}
                     onClick={() => toggleReviewUrl(candidate.url)}
                     className={cn(
-                      'group relative overflow-hidden rounded-sm border bg-surface-panel-muted text-left transition-colors',
+                      'group relative overflow-hidden rounded-sm border bg-surface-panel-muted opacity-100 text-left transition-colors',
                       selected
                         ? 'border-accent ring-1 ring-accent/35'
                         : 'border-border-soft hover:border-border'
@@ -766,10 +855,10 @@ export function AsyncPushToTalk({
           </div>
         </div>
       ) : null}
-      {expanded && history.length > 0 && !review ? (
+      {expanded && history.length > 0 && !review && !publishClarification ? (
         <div
           data-async-voice-history
-          className="absolute bottom-[calc(100%+8px)] right-0 z-50 w-[min(380px,calc(100vw-32px))] rounded-sm border border-border-soft bg-surface-panel p-2 shadow-lg"
+          className="absolute bottom-[calc(100%+8px)] right-0 z-[1000] w-[min(380px,calc(100vw-32px))] rounded-sm border border-border-soft bg-surface-panel p-2 opacity-100 shadow-lg"
         >
           <div className="mb-1 flex items-center justify-between">
             <span className="font-caption text-[10px] uppercase text-ink-faint">

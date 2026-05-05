@@ -4,6 +4,7 @@ import { createGeminiProvider } from './gemini';
 import { createOpenAIProvider } from './openai';
 import { createReplicateProvider } from './replicate';
 import { createVolcengineProvider } from './volcengine';
+import { normalizeImageModelId } from './model-catalog';
 
 /**
  * Every known image adapter lives here. The map is by id; `resolveProvider`
@@ -52,7 +53,8 @@ export function resolveProvider(
   if (modelHint && !preferredId) {
     for (const id of KNOWN_PROVIDER_IDS) {
       const p = REGISTRY[id]();
-      if (p.isAvailable() && p.listModels().includes(modelHint)) {
+      const normalizedModel = normalizeImageModelId(id, modelHint);
+      if (normalizedModel && p.isAvailable() && p.listModels().includes(normalizedModel)) {
         modelHintedId = id;
         break;
       }

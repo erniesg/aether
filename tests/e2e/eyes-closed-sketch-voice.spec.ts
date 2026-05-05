@@ -14,7 +14,7 @@ import { expect, test } from '@playwright/test';
  *   - `RTCPeerConnection` + the realtime data channel (so scripted transcript
  *     events drive the orb state machine without a real network)
  *   - `getUserMedia`
- *   - the SDP fetch to OpenAI's realtime endpoint (in case the OpenAI fallback
+ *   - the SDP fetch to OpenAI's realtime calls endpoint (in case the OpenAI fallback
  *     adapter wins the race)
  *
  * Assertions: holding the spacebar pulses the eyes-closed chip; releasing it
@@ -36,8 +36,8 @@ test.describe('eyes-closed sketch + voice', () => {
             sessionId: 'sess_stub',
             clientSecret: 'ek_stub',
             expiresAt: Date.now() + 60_000,
-            model: 'gpt-4o-realtime-preview',
-            voice: 'alloy',
+            model: 'gpt-realtime',
+            voice: 'marin',
             provider: 'openai-realtime',
           },
         }),
@@ -184,7 +184,7 @@ test.describe('eyes-closed sketch + voice', () => {
         init?: RequestInit
       ): Promise<Response> => {
         const url = typeof input === 'string' ? input : input.toString();
-        if (url.includes('api.openai.com/v1/realtime')) {
+        if (url.includes('api.openai.com/v1/realtime/calls')) {
           return new Response('v=0\r\n answer', { status: 200 });
         }
         return realFetch(input, init);

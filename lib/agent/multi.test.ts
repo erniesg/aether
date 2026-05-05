@@ -9,31 +9,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * group steps by tool. Provider/model attribution is best-known at start
  * time and refined on finish from the route's response payload.
  *
- * These tests mock the Anthropic SDK + `fetch` + the ledger recorders and
+ * These tests mock the command LLM provider + `fetch` + the ledger recorders and
  * assert: the recorder is invoked once per tool call with the registry
  * entryRef; the finish patch carries the refined provider/model when the
  * route's response surfaced them.
  */
 
 const mocks = vi.hoisted(() => {
-  const messagesCreate = vi.fn();
-  const AnthropicCtor = vi.fn(function () {
-    return { messages: { create: messagesCreate } };
-  });
+  const completeToolCall = vi.fn();
+  const resolveCommandLlmProvider = vi.fn();
   const recordRunStart = vi.fn();
   const recordRunFinish = vi.fn();
   const recordRunFail = vi.fn();
   return {
-    messagesCreate,
-    AnthropicCtor,
+    completeToolCall,
+    resolveCommandLlmProvider,
     recordRunStart,
     recordRunFinish,
     recordRunFail,
   };
 });
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: mocks.AnthropicCtor,
+vi.mock('@/lib/providers/llm/registry', () => ({
+  resolveCommandLlmProvider: mocks.resolveCommandLlmProvider,
 }));
 
 vi.mock('@/lib/convex/http', () => ({
@@ -44,30 +42,42 @@ vi.mock('@/lib/convex/http', () => ({
 
 import { runMultiAgent } from './multi';
 
-function toolUseBlock(name: string, input: unknown) {
+function toolCall(name: string, input: unknown) {
   return {
-    type: 'tool_use' as const,
     id: `toolu_${name}_${Math.random().toString(36).slice(2, 8)}`,
     name,
     input,
   };
 }
 
-function textBlock(text: string) {
-  return { type: 'text' as const, text };
-}
-
-function fakeMessage(content: Array<{ type: string }>, stop_reason: string) {
-  return { content, stop_reason };
+function fakeToolResult(
+  toolCalls: Array<{ id: string; name: string; input: unknown }>,
+  stopReason = toolCalls.length > 0 ? 'tool_calls' : 'stop',
+  text = ''
+) {
+  return {
+    text,
+    toolCalls,
+    stopReason,
+    provider: { id: 'deepseek', model: 'deepseek-v4-flash' },
+  };
 }
 
 describe('runMultiAgent · runs ledger provenance', () => {
-  const originalKey = process.env.ANTHROPIC_API_KEY;
   let originalFetch: typeof fetch;
 
   beforeEach(() => {
-    process.env.ANTHROPIC_API_KEY = 'test-key';
-    mocks.messagesCreate.mockReset();
+    mocks.completeToolCall.mockReset();
+    mocks.resolveCommandLlmProvider.mockReset();
+    mocks.resolveCommandLlmProvider.mockReturnValue({
+      id: 'deepseek',
+      displayName: 'DeepSeek',
+      isAvailable: () => true,
+      getAvailabilityIssue: () => undefined,
+      listModels: () => ['deepseek-v4-flash'],
+      completeJson: vi.fn(),
+      completeToolCall: mocks.completeToolCall,
+    });
     mocks.recordRunStart.mockReset();
     mocks.recordRunFinish.mockReset();
     mocks.recordRunFail.mockReset();
@@ -75,20 +85,16 @@ describe('runMultiAgent · runs ledger provenance', () => {
   });
 
   afterEach(() => {
-    process.env.ANTHROPIC_API_KEY = originalKey;
     global.fetch = originalFetch;
   });
 
   it('writes start + finish for a successful search_signals tool call with the registry entryRef', async () => {
-    mocks.messagesCreate
+    mocks.completeToolCall
       .mockResolvedValueOnce(
-        fakeMessage(
-          [toolUseBlock('search_signals', { seedText: 'streetwear' })],
-          'tool_use'
-        )
+        fakeToolResult([toolCall('search_signals', { seedText: 'streetwear' })])
       )
       .mockResolvedValueOnce(
-        fakeMessage([textBlock('done — 3 references found')], 'end_turn')
+        fakeToolResult([], 'stop', 'done — 3 references found')
       );
 
     const fetchMock = vi.fn().mockResolvedValue(
@@ -127,20 +133,19 @@ describe('runMultiAgent · runs ledger provenance', () => {
   });
 
   it('refines provider/model on finish for analyze_video using the response payload', async () => {
-    mocks.messagesCreate
+    mocks.completeToolCall
       .mockResolvedValueOnce(
-        fakeMessage(
+        fakeToolResult(
           [
-            toolUseBlock('analyze_video', {
+            toolCall('analyze_video', {
               videoUrl: 'https://example.com/v.mp4',
               task: 'summarize',
             }),
-          ],
-          'tool_use'
+          ]
         )
       )
       .mockResolvedValueOnce(
-        fakeMessage([textBlock('done — short clip described')], 'end_turn')
+        fakeToolResult([], 'stop', 'done — short clip described')
       );
 
     const fetchMock = vi.fn().mockResolvedValue(
@@ -177,15 +182,12 @@ describe('runMultiAgent · runs ledger provenance', () => {
   });
 
   it('emits recordRunFail with the http status when a tool route returns non-2xx', async () => {
-    mocks.messagesCreate
+    mocks.completeToolCall
       .mockResolvedValueOnce(
-        fakeMessage(
-          [toolUseBlock('cluster_references', { images: [] })],
-          'tool_use'
-        )
+        fakeToolResult([toolCall('cluster_references', { images: [] })])
       )
       .mockResolvedValueOnce(
-        fakeMessage([textBlock('cluster failed; stopping')], 'end_turn')
+        fakeToolResult([], 'stop', 'cluster failed; stopping')
       );
 
     const fetchMock = vi.fn().mockResolvedValue(
@@ -211,14 +213,11 @@ describe('runMultiAgent · runs ledger provenance', () => {
   });
 
   it('parses /api/generate SSE stream and extracts the hero image url', async () => {
-    mocks.messagesCreate
+    mocks.completeToolCall
       .mockResolvedValueOnce(
-        fakeMessage(
-          [toolUseBlock('generate_image', { prompt: 'rain', aspectRatio: '1:1' })],
-          'tool_use'
-        )
+        fakeToolResult([toolCall('generate_image', { prompt: 'rain', aspectRatio: '1:1' })])
       )
-      .mockResolvedValueOnce(fakeMessage([textBlock('done')], 'end_turn'));
+      .mockResolvedValueOnce(fakeToolResult([], 'stop', 'done'));
 
     const sseFrames = [
       `event: generate\ndata: ${JSON.stringify({
@@ -281,14 +280,11 @@ describe('runMultiAgent · runs ledger provenance', () => {
   });
 
   it('returns generate_image error when SSE stream ends without a frame', async () => {
-    mocks.messagesCreate
+    mocks.completeToolCall
       .mockResolvedValueOnce(
-        fakeMessage(
-          [toolUseBlock('generate_image', { prompt: 'x', aspectRatio: '1:1' })],
-          'tool_use'
-        )
+        fakeToolResult([toolCall('generate_image', { prompt: 'x', aspectRatio: '1:1' })])
       )
-      .mockResolvedValueOnce(fakeMessage([textBlock('done')], 'end_turn'));
+      .mockResolvedValueOnce(fakeToolResult([], 'stop', 'done'));
 
     const sseFrames = `event: generate\ndata: ${JSON.stringify({
       type: 'frame.failed',
@@ -324,15 +320,12 @@ describe('runMultiAgent · runs ledger provenance', () => {
   });
 
   it('attaches referenceImage as refs[0] in the generate_image body', async () => {
-    mocks.messagesCreate
+    mocks.completeToolCall
       .mockResolvedValueOnce(
-        fakeMessage(
-          [toolUseBlock('generate_image', { prompt: 'rain', aspectRatio: '1:1' })],
-          'tool_use'
-        )
+        fakeToolResult([toolCall('generate_image', { prompt: 'rain', aspectRatio: '1:1' })])
       )
       .mockResolvedValueOnce(
-        fakeMessage([textBlock('done')], 'end_turn')
+        fakeToolResult([], 'stop', 'done')
       );
 
     const fetchMock = vi.fn().mockResolvedValue(
@@ -355,15 +348,12 @@ describe('runMultiAgent · runs ledger provenance', () => {
   });
 
   it('does not attach refs to non-generate_image tools', async () => {
-    mocks.messagesCreate
+    mocks.completeToolCall
       .mockResolvedValueOnce(
-        fakeMessage(
-          [toolUseBlock('search_signals', { seedText: 'x' })],
-          'tool_use'
-        )
+        fakeToolResult([toolCall('search_signals', { seedText: 'x' })])
       )
       .mockResolvedValueOnce(
-        fakeMessage([textBlock('done')], 'end_turn')
+        fakeToolResult([], 'stop', 'done')
       );
 
     const fetchMock = vi.fn().mockResolvedValue(
@@ -383,9 +373,9 @@ describe('runMultiAgent · runs ledger provenance', () => {
     expect(sentBody.refs).toBeUndefined();
   });
 
-  it('does not write to the ledger when no tool is called (Claude answered directly)', async () => {
-    mocks.messagesCreate.mockResolvedValueOnce(
-      fakeMessage([textBlock('I can answer that without tools.')], 'end_turn')
+  it('does not write to the ledger when no tool is called (planner answered directly)', async () => {
+    mocks.completeToolCall.mockResolvedValueOnce(
+      fakeToolResult([], 'stop', 'I can answer that without tools.')
     );
 
     const fetchMock = vi.fn();
@@ -401,5 +391,31 @@ describe('runMultiAgent · runs ledger provenance', () => {
     expect(mocks.recordRunStart).not.toHaveBeenCalled();
     expect(mocks.recordRunFinish).not.toHaveBeenCalled();
     expect(mocks.recordRunFail).not.toHaveBeenCalled();
+  });
+
+  it('passes requested provider and model through the provider-agnostic planner', async () => {
+    mocks.completeToolCall.mockResolvedValueOnce(
+      fakeToolResult([], 'stop', 'direct answer')
+    );
+
+    await runMultiAgent({
+      prompt: 'what is 2+2',
+      baseUrl: 'http://localhost:3000',
+      providerId: 'openai',
+      model: 'gpt-4.1-mini',
+    });
+
+    expect(mocks.resolveCommandLlmProvider).toHaveBeenCalledWith('openai');
+    expect(mocks.completeToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'gpt-4.1-mini',
+        tools: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'search_signals',
+            inputSchema: expect.any(Object),
+          }),
+        ]),
+      })
+    );
   });
 });

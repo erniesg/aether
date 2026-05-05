@@ -1,10 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { recordRunFail, recordRunFinish, recordRunStart } from '@/lib/convex/http';
+import { resolveCommandLlmProvider } from '@/lib/providers/llm/registry';
+import type {
+  CommandLlmMessage,
+  CommandLlmProviderId,
+  CommandToolDefinition,
+} from '@/lib/providers/llm/types';
 import { resolveToolEntryRef } from '@/lib/tool/registry';
 import { listAgentTools, type AgentTool, type ToolDispatchSpec } from './agent-tools';
 
 /**
- * Multi-tool agent loop. Claude Opus 4.7 picks among aether's capabilities
+ * Multi-tool agent loop. A configured command LLM picks among aether's capabilities
  * (search_signals, cluster_references, generate_image, analyze_video,
  * get_current_datetime) and orchestrates them to answer a creator's intent.
  *
@@ -19,15 +24,10 @@ import { listAgentTools, type AgentTool, type ToolDispatchSpec } from './agent-t
  * the ledger to best-effort and the agent loop keeps running.
  *
  * The loop is intentionally short (max 6 iterations). Cost-aware: forced
- * tool-use is OFF — Claude can answer directly when no tool is needed.
+ * tool-use is OFF — the planner can answer directly when no tool is needed.
  */
-
-export const CLAUDE_MODEL = 'claude-opus-4-7';
-
-type Tool = Anthropic.Messages.Tool;
-
 const REGISTERED_TOOLS: AgentTool[] = listAgentTools();
-const ALL_TOOLS: Tool[] = REGISTERED_TOOLS.map((t) => t.tool);
+const ALL_TOOLS: CommandToolDefinition[] = REGISTERED_TOOLS.map((t) => t.tool);
 const TOOL_SPECS: Record<string, ToolDispatchSpec> = Object.fromEntries(
   REGISTERED_TOOLS.map((t) => [t.tool.name, t.dispatch])
 );
@@ -76,6 +76,10 @@ export interface MultiAgentParams {
   referenceImages?: Array<{ url?: string; dataUrl?: string }>;
   /** @deprecated — use referenceImages. Kept for back-compat. */
   referenceImage?: { url?: string; dataUrl?: string };
+  /** Optional command-planner provider. Env AETHER_COMMAND_PROVIDER is used when absent. */
+  providerId?: CommandLlmProviderId;
+  /** Optional command-planner model. Env AETHER_COMMAND_MODEL is used when absent. */
+  model?: string;
 }
 
 export interface MultiAgentToolStep {
@@ -388,7 +392,7 @@ async function readGenerateSse(
 }
 
 /**
- * Compact a tool output before sending it back to Claude — large payloads
+ * Compact a tool output before sending it back to the planner — large payloads
  * (image bytes, embedding vectors) eat tokens fast. Each tool's
  * `summarizeOutput` (registered in lib/agent/agent-tools/) drops the heavy
  * parts. Tools without one fall through to JSON.stringify.
@@ -400,15 +404,14 @@ function summarizeToolOutput(name: string, output: unknown): string {
 }
 
 export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgentResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  const client = new Anthropic({ apiKey });
+  const provider = resolveCommandLlmProvider(params.providerId);
+  if (!provider.completeToolCall) {
+    throw new Error(`${provider.displayName} does not support tool calling`);
+  }
 
   const maxIter = params.maxIterations ?? 6;
   const steps: MultiAgentToolStep[] = [];
-  const messages: Anthropic.Messages.MessageParam[] = [
-    { role: 'user', content: [{ type: 'text', text: params.prompt }] },
-  ];
+  const messages: CommandLlmMessage[] = [{ role: 'user', content: params.prompt }];
 
   let iter = 0;
   let lastStopReason: string | null = null;
@@ -416,27 +419,27 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
 
   while (iter < maxIter) {
     iter += 1;
-    const msg = await client.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 2048,
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    const msg = await provider.completeToolCall({
+      model: params.model,
+      maxTokens: 2048,
+      temperature: 0,
+      system: SYSTEM_PROMPT,
       tools: ALL_TOOLS,
       messages,
     });
-    lastStopReason = msg.stop_reason ?? null;
-
-    const toolUses = msg.content.filter(
-      (b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use'
-    );
-    const textBlocks = msg.content.filter(
-      (b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text'
-    );
+    lastStopReason = msg.stopReason ?? null;
+    const toolUses = msg.toolCalls;
 
     // Append assistant turn to history.
-    messages.push({ role: 'assistant', content: msg.content });
+    messages.push({
+      role: 'assistant',
+      content: msg.text,
+      toolCalls: msg.toolCalls,
+      reasoningContent: msg.reasoningContent,
+    });
 
     if (toolUses.length === 0) {
-      finalText = textBlocks.map((t) => t.text).join('\n').trim();
+      finalText = msg.text.trim();
       break;
     }
 
@@ -447,7 +450,6 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
       ...(params.referenceImages ?? []),
       ...(params.referenceImage ? [params.referenceImage] : []),
     ];
-    const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
     for (const block of toolUses) {
       const t0 = Date.now();
       const dispatch = await dispatchTool(
@@ -468,9 +470,10 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
           ms,
           clientRunId: dispatch.clientRunId,
         });
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
+        messages.push({
+          role: 'tool',
+          toolCallId: block.id,
+          name: block.name,
           content: summarizeToolOutput(block.name, dispatch.output),
         });
       } else {
@@ -483,15 +486,15 @@ export async function runMultiAgent(params: MultiAgentParams): Promise<MultiAgen
           ms,
           clientRunId: dispatch.clientRunId,
         });
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
+        messages.push({
+          role: 'tool',
+          toolCallId: block.id,
+          name: block.name,
           content: `ERROR: ${dispatch.errorMessage}`,
-          is_error: true,
+          isError: true,
         });
       }
     }
-    messages.push({ role: 'user', content: toolResults });
   }
 
   if (!finalText && lastStopReason !== 'end_turn') {

@@ -10,7 +10,7 @@ import {
   type FormEvent,
 } from 'react';
 import { Plus, X } from 'lucide-react';
-import { fileToDataUrl, ingestUrlViaApi } from '@/lib/references/client';
+import { ingestFileViaApi, ingestUrlViaApi } from '@/lib/references/client';
 import {
   addReference,
   removeReference,
@@ -19,6 +19,11 @@ import {
 } from '@/lib/references/store';
 import { genReferenceId } from '@/lib/providers/reference/og';
 import type { ReferenceKind, ReferenceRecord } from '@/lib/providers/reference/types';
+import {
+  isGeneratedReference,
+  rankLibraryReferences,
+  referenceOrigin,
+} from '@/lib/asset-library/search';
 import { cn } from '@/lib/utils/cn';
 import { MAX_REF_BYTES, formatRefSizeError } from '@/lib/refs/limits';
 
@@ -41,9 +46,14 @@ type ZoneStatus =
 const URL_RE = /^https?:\/\/\S+$/i;
 
 export function ReferencesImagesTab({ workspaceId }: { workspaceId?: string }) {
-  const records = useReferences(workspaceId).filter(
-    (record) =>
-      record.kind === 'image' || record.kind === 'video' || record.kind === 'embed'
+  const [query, setQuery] = useState('');
+  const records = filterRecordsForQuery(
+    useReferences(workspaceId).filter(
+      (record) =>
+        !isGeneratedReference(record) &&
+        (record.kind === 'image' || record.kind === 'video' || record.kind === 'embed')
+    ),
+    query
   );
   const [status, setStatus] = useState<ZoneStatus>({ kind: 'idle' });
   const [draft, setDraft] = useState('');
@@ -89,18 +99,8 @@ export function ReferencesImagesTab({ workspaceId }: { workspaceId?: string }) {
       return;
     }
     try {
-      const dataUrl = await fileToDataUrl(file);
-      const record: ReferenceRecord = {
-        id: genReferenceId('ref_up'),
-        kind: 'image',
-        previewUrl: dataUrl,
-        attribution: { source: 'upload', url: file.name },
-        capturedAt: new Date().toISOString(),
-        title: file.name.replace(/\.[^.]+$/, ''),
-        usageIntent: 'visual anchor',
-        tags: [],
-      };
-      addReference(record, workspaceId);
+      const outcome = await ingestFileViaApi(file, workspaceId);
+      addReference(withReferenceDefaults(outcome.record), workspaceId);
       setStatus({ kind: 'idle' });
     } catch (err) {
       setStatus({
@@ -236,9 +236,16 @@ export function ReferencesImagesTab({ workspaceId }: { workspaceId?: string }) {
           </div>
         ) : null}
       </div>
+      <input
+        aria-label="search references"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="search saved material"
+        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+      />
       {records.length === 0 ? (
         <span className="font-caption text-xs text-ink-faint">
-          drop or paste reference images to pin
+          {query.trim() ? 'no matching references' : 'drop or paste reference images to pin'}
         </span>
       ) : (
         <ul
@@ -266,6 +273,13 @@ function withReferenceDefaults(record: ReferenceRecord): ReferenceRecord {
       'reference',
     usageIntent: record.usageIntent ?? (record.kind === 'embed' ? 'source note' : 'visual anchor'),
     tags: record.tags ?? [],
+    origin:
+      record.origin ??
+      (record.attribution.source === 'upload'
+        ? 'upload'
+        : record.attribution.source === 'image-search'
+          ? 'search'
+          : 'ingest'),
   };
 }
 
@@ -313,7 +327,7 @@ function ReferenceChip({ record }: { record: ReferenceRecord }) {
           className="truncate font-mono text-2xs uppercase tracking-wide text-ink-dim"
           title={label}
         >
-          {record.attribution.source}
+          {referenceOrigin(record)}
         </span>
         <button
           type="button"
@@ -326,6 +340,13 @@ function ReferenceChip({ record }: { record: ReferenceRecord }) {
       </div>
     </li>
   );
+}
+
+function filterRecordsForQuery(records: ReferenceRecord[], query: string): ReferenceRecord[] {
+  const q = query.trim();
+  if (!q) return records;
+  const ranked = rankLibraryReferences(q, records, { visualOnly: false });
+  return ranked.map((entry) => entry.record);
 }
 
 function ReferenceMetadataList({ records }: { records: ReferenceRecord[] }) {
@@ -405,6 +426,9 @@ function ReferenceMetadataCard({
         <option value="layout cue">layout cue</option>
         <option value="product truth">product truth</option>
         <option value="texture">texture</option>
+        <option value="key visual">key visual</option>
+        <option value="format variant">format variant</option>
+        <option value="voice reference">voice reference</option>
         <option value="avoid">avoid</option>
       </select>
       <input
@@ -465,6 +489,7 @@ export function ReferencesManualTab({
         title: cleanTitle,
         usageIntent: kind === 'template' ? 'layout cue' : 'visual anchor',
         tags: [],
+        origin: 'manual',
       },
       workspaceId
     );
@@ -509,6 +534,46 @@ export function ReferencesManualTab({
       ) : (
         <span className="font-caption text-xs text-ink-faint">
           saved {label}s become reusable canvas material
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function ReferencesGeneratedTab({ workspaceId }: { workspaceId?: string }) {
+  const [query, setQuery] = useState('');
+  const records = filterRecordsForQuery(
+    useReferences(workspaceId).filter(
+      (record) => isGeneratedReference(record) && record.kind === 'image'
+    ),
+    query
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        aria-label="search generated assets"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="search generated assets"
+        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+      />
+      {records.length > 0 ? (
+        <>
+          <ul
+            data-testid="generated-assets-grid"
+            className="grid grid-cols-3 gap-1.5"
+            role="list"
+          >
+            {records.map((record) => (
+              <ReferenceChip key={record.id} record={record} />
+            ))}
+          </ul>
+          <ReferenceMetadataList records={records} />
+        </>
+      ) : (
+        <span className="font-caption text-xs text-ink-faint">
+          generated canvas outputs will collect here
         </span>
       )}
     </div>

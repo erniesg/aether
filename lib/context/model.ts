@@ -229,7 +229,7 @@ export function buildCreatorGenerationPrompt(
   // off-identity by default. Bug fix 2026-04-27 — was empty before.
   if (scopedReferences.length > 0) {
     lines.push(
-      'Reference images are attached. Preserve the EXACT faces, hair, clothing, and brand identity from them — recompose the scene around those subjects, do not substitute different people. Override only if the creator request explicitly asks for a different subject.'
+      'Use selected references when relevant. Keep raster free of baked text so editable overlays carry copy. Preserve brand/product identity and the referenced scene/subjects unless the creator asks otherwise.'
     );
   }
 

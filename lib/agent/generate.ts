@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AspectRatio, ImageGenResult, ImageRef } from '@/lib/providers/image/types';
 import { resolveProvider } from '@/lib/providers/image/registry';
+import { normalizeImageModelId } from '@/lib/providers/image/model-catalog';
 
 /**
  * Phase 4 agent loop: Claude Opus 4.7 plans the generation, calls the
@@ -165,8 +166,12 @@ function resolveGenerateContext(params: GenerateParams): {
 } {
   // Thread `params.model` as a hint so `?model=gpt-image-2` routes to
   // whichever provider lists that model when no provider is specified.
-  const provider = resolveProvider(params.providerId, params.model);
-  const model = params.model ?? provider.listModels()[0];
+  const modelHint = params.model ?? process.env.IMAGE_GEN_MODEL;
+  const provider = resolveProvider(params.providerId, modelHint);
+  const model = normalizeImageModelId(provider.id, modelHint ?? provider.listModels()[0]);
+  if (!model) {
+    throw new Error(`image provider ${provider.id} has no configured model`);
+  }
   return {
     provider,
     providerInfo: { id: provider.id, displayName: provider.displayName, model },

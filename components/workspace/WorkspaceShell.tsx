@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createShapeId } from 'tldraw';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
@@ -52,10 +53,15 @@ import {
   type AetherImageLandedDetail,
 } from '@/components/canvas/text-overlay-bridge';
 import {
+  AETHER_TEXT_OVERLAY_EDITED_EVENT,
+  AETHER_TEXT_SHAPE_TYPE,
+} from '@/components/canvas/shapes/AetherTextShape';
+import {
   readGenerateStream,
   type GenerateStreamEvent,
 } from '@/lib/generate/stream';
 import type { AspectRatio } from '@/lib/providers/image/types';
+import type { PublishPlatform } from '@/lib/providers/publisher/types';
 import type { SpatialFormat, SpatialQuality } from '@/lib/providers/spatial/types';
 import {
   abortStuckRuns,
@@ -88,6 +94,7 @@ import { placeSpatialPreviewOnCanvas } from '@/lib/spatial/canvas';
 import {
   buildExportRequestBody,
   downloadExportPack,
+  type ExportTextLayerMetadata,
 } from '@/lib/export/client';
 import {
   renderArtboardJpegBase64FromCanvas,
@@ -347,7 +354,27 @@ interface RunCompletedEvent {
   firstImageUrl?: string;
   elapsedMs: number;
   error?: string;
+  mode?: 'crop' | 'fanout' | 'hero-seeded-fanout';
+  heroDirections?: Array<{
+    id: string;
+    label: string;
+    rationale?: string;
+  }>;
+  nativePerFormatUrlsByHero?: Record<
+    string,
+    Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>
+  >;
+  persistedCampaign?: {
+    campaignId: string | null;
+    variationId: string | null;
+    discordSent: boolean;
+  };
 }
+
+type GenerateFrameForCanvas = Extract<
+  GenerateStreamEvent,
+  { type: 'frame.completed' }
+>['frame'];
 
 function compactFrameLabel(value?: string): string | undefined {
   if (!value) return undefined;
@@ -376,6 +403,357 @@ function resolveTargetFrame(
     label: parent.props.name,
     aspectRatio: pickAspectRatio(parent.props.w, parent.props.h),
   };
+}
+
+function ensureGeneratedFrameForEvent(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>,
+  frame: GenerateFrameForCanvas
+): string {
+  const existing = editor.getShape(frame.id as never) as
+    | { id: string; type: string }
+    | undefined;
+  if (existing?.type === 'frame') return existing.id;
+
+  const source = frame.sourceFrameId
+    ? (editor.getShape(frame.sourceFrameId as never) as
+        | {
+            id: string;
+            type: string;
+            x: number;
+            y: number;
+            props?: { w?: number; h?: number; name?: string };
+            meta?: Record<string, unknown>;
+          }
+        | undefined)
+    : undefined;
+  const sourceW = source?.props?.w;
+  const sourceH = source?.props?.h;
+  const ratio = ARTBOARD_DIMS[frame.aspectRatio] ?? {
+    w: 1024,
+    h: 1024,
+  };
+  const w = sourceW ?? ratio.w;
+  const h = sourceH ?? ratio.h;
+  const row = Math.max(0, frame.heroDirectionIndex ?? 0);
+  const id = createShapeId();
+  editor.createShape({
+    id,
+    type: 'frame',
+    x: source?.x ?? row * 160,
+    y: (source?.y ?? 0) + (row + 1) * 2300,
+    props: {
+      w,
+      h,
+      name: frame.heroDirectionLabel
+        ? `${frame.heroDirectionLabel} · ${frame.label ?? frame.formatId ?? frame.aspectRatio}`
+        : frame.label ?? frame.id,
+    },
+    meta: {
+      ...(source?.meta ?? {}),
+      aetherGeneratedHeroFrame: true,
+      sourceFrameId: frame.sourceFrameId,
+      heroDirectionId: frame.heroDirectionId,
+      heroDirectionLabel: frame.heroDirectionLabel,
+      heroDirectionIndex: frame.heroDirectionIndex,
+      formatId: frame.formatId ?? aspectToPublishFormat(frame.aspectRatio),
+      aspect: frame.aspectRatio,
+    },
+  } as never);
+  return id as string;
+}
+
+const PUBLISH_ROLE_ORDER = ['headline', 'subhead', 'caption', 'body', 'cta'];
+
+function normalizePublishFormat(value: unknown): string {
+  if (typeof value !== 'string') return '1x1';
+  return value.replace(':', 'x');
+}
+
+function aspectToPublishFormat(
+  value: string | undefined
+): '1x1' | '4x5' | '9x16' | '16x9' | undefined {
+  switch (value) {
+    case '1:1':
+    case '1x1':
+      return '1x1';
+    case '4:5':
+    case '4x5':
+      return '4x5';
+    case '9:16':
+    case '9x16':
+      return '9x16';
+    case '16:9':
+    case '16x9':
+      return '16x9';
+    default:
+      return undefined;
+  }
+}
+
+function collectCanvasMedia(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>
+): {
+  urls: string[];
+  byFormat: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+  byDirection: Record<
+    string,
+    {
+      label: string;
+      mediaByFormat: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+    }
+  >;
+} {
+  const urls: string[] = [];
+  const byFormat: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>> = {};
+  const byDirection: Record<
+    string,
+    {
+      label: string;
+      mediaByFormat: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+    }
+  > = {};
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== 'image') continue;
+    const meta = (shape.meta ?? {}) as Record<string, unknown>;
+    if (meta.aetherGeneratedImage !== true) continue;
+    const imageUrl = typeof meta.imageUrl === 'string' ? meta.imageUrl : undefined;
+    if (!imageUrl) continue;
+    const format =
+      aspectToPublishFormat(typeof meta.formatId === 'string' ? meta.formatId : undefined) ??
+      aspectToPublishFormat(typeof meta.aspect === 'string' ? meta.aspect : undefined);
+    if (!urls.includes(imageUrl)) urls.push(imageUrl);
+    if (format && !byFormat[format]) byFormat[format] = imageUrl;
+    const heroDirectionId =
+      typeof meta.heroDirectionId === 'string' ? meta.heroDirectionId : undefined;
+    if (format && heroDirectionId) {
+      byDirection[heroDirectionId] = byDirection[heroDirectionId] ?? {
+        label:
+          typeof meta.heroDirectionLabel === 'string'
+            ? meta.heroDirectionLabel
+            : heroDirectionId,
+        mediaByFormat: {},
+      };
+      byDirection[heroDirectionId]!.mediaByFormat[format] = imageUrl;
+    }
+  }
+  return { urls, byFormat, byDirection };
+}
+
+function collectCanvasPublishCopy(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>,
+  preferredLocales: ReadonlyArray<string>
+): {
+  byLocaleFormat: Record<string, Record<string, string>>;
+  byHeroLocaleFormat: Record<string, Record<string, Record<string, string>>>;
+} {
+  const localeSet = new Set(preferredLocales.length > 0 ? preferredLocales : ['en-SG']);
+  const buckets: Record<
+    string,
+    Record<string, Record<string, string>>
+  > = {};
+  const heroBuckets: Record<
+    string,
+    Record<string, Record<string, Record<string, string>>>
+  > = {};
+
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== AETHER_TEXT_SHAPE_TYPE) continue;
+    const meta = (shape.meta ?? {}) as Record<string, unknown>;
+    if (meta.autoModeTextOverlay !== true) continue;
+    const props = (shape as unknown as { props?: { content?: Record<string, string> } }).props;
+    const content = props?.content ?? {};
+    for (const locale of Object.keys(content)) localeSet.add(locale);
+  }
+
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== AETHER_TEXT_SHAPE_TYPE) continue;
+    const meta = (shape.meta ?? {}) as Record<string, unknown>;
+    if (meta.autoModeTextOverlay !== true) continue;
+    const role =
+      typeof meta.role === 'string'
+        ? meta.role
+        : typeof meta.zone === 'string'
+          ? meta.zone
+          : 'caption';
+    const format = normalizePublishFormat(meta.format);
+    const heroDirectionId =
+      typeof meta.heroDirectionId === 'string' ? meta.heroDirectionId : 'default';
+    const props = (shape as unknown as {
+      props?: { content?: Record<string, string>; sourceLocale?: string };
+    }).props;
+    const content = props?.content ?? {};
+    const sourceLocale = props?.sourceLocale ?? 'en-SG';
+
+    for (const locale of localeSet) {
+      const text = resolveCanvasCopyForLocale(content, locale, sourceLocale);
+      if (!text.trim()) continue;
+      buckets[locale] = buckets[locale] ?? {};
+      buckets[locale][format] = buckets[locale][format] ?? {};
+      buckets[locale][format][role] = text.trim();
+      heroBuckets[heroDirectionId] = heroBuckets[heroDirectionId] ?? {};
+      heroBuckets[heroDirectionId][locale] = heroBuckets[heroDirectionId][locale] ?? {};
+      heroBuckets[heroDirectionId][locale][format] =
+        heroBuckets[heroDirectionId][locale][format] ?? {};
+      heroBuckets[heroDirectionId][locale][format][role] = text.trim();
+    }
+  }
+
+  return {
+    byLocaleFormat: collapseRoleBuckets(buckets),
+    byHeroLocaleFormat: Object.fromEntries(
+      Object.entries(heroBuckets).map(([heroId, localeBuckets]) => [
+        heroId,
+        collapseRoleBuckets(localeBuckets),
+      ])
+    ),
+  };
+}
+
+function resolveCanvasCopyForLocale(
+  content: Record<string, string>,
+  locale: string,
+  sourceLocale: string
+): string {
+  if (content[locale]?.trim()) return content[locale]!;
+  if (locale === 'en-SG') {
+    return content['en-SG'] ?? content[sourceLocale] ?? Object.values(content)[0] ?? '';
+  }
+  return '';
+}
+
+function collapseRoleBuckets(
+  buckets: Record<string, Record<string, Record<string, string>>>
+): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {};
+  for (const [locale, formats] of Object.entries(buckets)) {
+    out[locale] = {};
+    for (const [format, roles] of Object.entries(formats)) {
+      const ordered = PUBLISH_ROLE_ORDER.flatMap((role) =>
+        roles[role] ? [roles[role]] : []
+      );
+      const remaining = Object.keys(roles)
+        .filter((role) => !PUBLISH_ROLE_ORDER.includes(role))
+        .sort()
+        .map((role) => roles[role]);
+      const text = [...ordered, ...remaining].join('\n').trim();
+      if (text) out[locale][format] = text;
+    }
+  }
+  return out;
+}
+
+function collectArtboardTextLayers(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>,
+  artboardId: string
+): ExportTextLayerMetadata[] {
+  const layers: ExportTextLayerMetadata[] = [];
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== AETHER_TEXT_SHAPE_TYPE) continue;
+    const meta = (shape.meta ?? {}) as Record<string, unknown>;
+    const belongsToArtboard =
+      meta.aetherArtboardId === artboardId ||
+      meta.aetherArtboardId === String(artboardId) ||
+      (shape as unknown as { parentId?: string }).parentId === artboardId;
+    if (!belongsToArtboard) continue;
+    const props = (shape as unknown as {
+      props?: {
+        content?: Record<string, string>;
+        sourceLocale?: string;
+      };
+    }).props;
+    const content = props?.content ?? {};
+    const role =
+      typeof meta.role === 'string'
+        ? meta.role
+        : typeof meta.zone === 'string'
+          ? meta.zone
+          : 'caption';
+    for (const [locale, text] of Object.entries(content)) {
+      if (!text.trim()) continue;
+      layers.push({
+        role,
+        locale,
+        text,
+        format: typeof meta.format === 'string' ? meta.format : undefined,
+        heroDirectionId:
+          typeof meta.heroDirectionId === 'string'
+            ? meta.heroDirectionId
+            : undefined,
+        scope: typeof meta.scope === 'string' ? meta.scope : undefined,
+        sourceLocale: props?.sourceLocale,
+        localOverride: meta.localOverride === true ? true : undefined,
+        localOverridesByLocale: readBooleanMap(meta.localOverridesByLocale),
+        translatedFrom: readStringMap(meta.translatedFrom),
+      });
+    }
+  }
+  return layers;
+}
+
+function readBooleanMap(value: unknown): Record<string, boolean> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const out: Record<string, boolean> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === true) out[key] = true;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function readStringMap(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === 'string') out[key] = entry;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function rememberPersistedGenerationVariation(input: {
+  runId: string;
+  variationId?: string | null;
+}): void {
+  if (!input.variationId || typeof window === 'undefined') return;
+  const w = window as unknown as {
+    __aetherRunVariationMap?: Record<string, string>;
+  };
+  w.__aetherRunVariationMap = {
+    ...(w.__aetherRunVariationMap ?? {}),
+    [input.runId]: input.variationId,
+  };
+}
+
+function patchPersistedGenerationTextShapes(
+  editor: NonNullable<ReturnType<typeof useEditorRef>['editor']>,
+  input: {
+    runId: string;
+    campaignId?: string | null;
+    variationId?: string | null;
+  }
+): void {
+  if (!input.variationId) return;
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== AETHER_TEXT_SHAPE_TYPE) continue;
+    const props = (shape as unknown as {
+      props?: { capabilityRunId?: string };
+    }).props;
+    const meta = (shape.meta ?? {}) as Record<string, unknown>;
+    const belongsToRun =
+      props?.capabilityRunId === input.runId || meta.variationId === input.runId;
+    if (!belongsToRun) continue;
+    const nextMeta: Record<string, unknown> = {
+      ...meta,
+      variationId: input.variationId,
+    };
+    const campaignId = input.campaignId ?? meta.campaignId;
+    if (campaignId !== undefined && campaignId !== null) {
+      nextMeta.campaignId = campaignId;
+    }
+    editor.updateShape({
+      id: shape.id as never,
+      type: AETHER_TEXT_SHAPE_TYPE as never,
+      meta: nextMeta as never,
+    } as never);
+  }
 }
 
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
@@ -435,7 +813,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     if (params.has('publishPreview')) setPublishPreviewOpen(true);
   }, []);
   const scheduledPosts = useScheduledPosts(wsId);
+  const [canvasTextVersion, setCanvasTextVersion] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const bump = () => setCanvasTextVersion((version) => version + 1);
+    window.addEventListener(AETHER_TEXT_OVERLAY_EDITED_EVENT, bump);
+    return () => {
+      window.removeEventListener(AETHER_TEXT_OVERLAY_EDITED_EVENT, bump);
+    };
+  }, []);
   const heroMediaUrls = useMemo(() => {
+    const canvasMedia = editor ? collectCanvasMedia(editor) : null;
     for (const run of runs.filter((r) => r.status === 'ok')) {
       const details = getAllRunDetailsSnapshot().find((entry) => entry.runId === run.id);
       const frameUrls =
@@ -446,8 +834,61 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       if (frameUrls.length > 0) return frameUrls;
       if (run.imageUrl) return [run.imageUrl];
     }
+    if (canvasMedia?.urls.length) return canvasMedia.urls;
     return [];
-  }, [runs]);
+  }, [editor, runs]);
+  const heroMediaByFormat = useMemo(() => {
+    const canvasMedia = editor ? collectCanvasMedia(editor) : null;
+    const out: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>> = {};
+    for (const run of runs.filter((r) => r.status === 'ok')) {
+      const details = getAllRunDetailsSnapshot().find((entry) => entry.runId === run.id);
+      for (const frame of details?.frames ?? []) {
+        if (frame.status === 'error' || !frame.imageUrl) continue;
+        const format = aspectToPublishFormat(frame.aspectRatio);
+        if (format && !out[format]) out[format] = frame.imageUrl;
+      }
+      if (run.imageUrl && !out['1x1']) out['1x1'] = run.imageUrl;
+      if (Object.keys(out).length > 0) return out;
+    }
+    return Object.keys(out).length > 0 ? out : canvasMedia?.byFormat ?? out;
+  }, [editor, runs]);
+  const heroMediaByDirectionFormat = useMemo(() => {
+    const canvasMedia = editor ? collectCanvasMedia(editor) : null;
+    const out: Record<
+      string,
+      {
+        label: string;
+        mediaByFormat: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+      }
+    > = {};
+    for (const run of runs.filter((r) => r.status === 'ok')) {
+      const details = getAllRunDetailsSnapshot().find((entry) => entry.runId === run.id);
+      for (const frame of details?.frames ?? []) {
+        if (frame.status === 'error' || !frame.imageUrl || !frame.heroDirectionId) continue;
+        const format =
+          (frame.formatId as '1x1' | '4x5' | '9x16' | '16x9' | undefined) ??
+          aspectToPublishFormat(frame.aspectRatio);
+        if (!format) continue;
+        out[frame.heroDirectionId] = out[frame.heroDirectionId] ?? {
+          label: frame.heroDirectionLabel ?? frame.heroDirectionId,
+          mediaByFormat: {},
+        };
+        out[frame.heroDirectionId]!.mediaByFormat[format] = frame.imageUrl;
+      }
+      if (Object.keys(out).length > 0) return out;
+    }
+    return Object.keys(out).length > 0 ? out : canvasMedia?.byDirection ?? out;
+  }, [editor, runs]);
+  const canvasCopy = useMemo(() => {
+    if (!editor) {
+      return {
+        byLocaleFormat: {},
+        byHeroLocaleFormat: {},
+      };
+    }
+    void canvasTextVersion;
+    return collectCanvasPublishCopy(editor, exportLocales.map(String));
+  }, [editor, canvasTextVersion, exportLocales, autoModeVariations]);
   const inputCount = useMemo(
     () => countCreatorInputs(creatorContext, references),
     [creatorContext, references]
@@ -497,12 +938,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         refs?: string[];
         targets?: GenerateTargetSpec[];
         /** Render mode to pass to /api/generate. Defaults to 'crop' (responsive). */
-        mode?: 'crop' | 'fanout';
+        mode?: 'crop' | 'fanout' | 'hero-seeded-fanout';
+        heroCount?: number;
         /** Drag-drop publishing intent — forwarded to persist-generation
          *  via the /api/generate body. Defaults to 'review' (current
          *  behavior: synthetic campaign + Discord ping). 'auto-post'
          *  fires Post-now immediately after the campaign is persisted. */
         notifyMode?: 'review' | 'auto-post';
+        targetPlatforms?: PublishPlatform[];
         voiceTrace?: VoiceRunTrace;
       } = {}
     ): Promise<void> => {
@@ -714,6 +1157,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             targets,
             runId,
             mode: options.mode ?? 'crop',
+            heroCount: options.heroCount,
             // Drag-drop generations from the workspace persist as a
             // synthetic auto-mode campaign + variation row so they appear
             // on /runs, and trigger a Discord ping with a "Post now"
@@ -724,6 +1168,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             persistRun: true,
             workspaceId: wsId,
             notifyMode: options.notifyMode ?? 'review',
+            targetPlatforms: options.targetPlatforms,
             voiceTrace: options.voiceTrace,
           }),
         });
@@ -829,6 +1274,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                 id: event.frame.id,
                 label: event.frame.label,
                 aspectRatio: event.frame.aspectRatio,
+                heroDirectionId: event.frame.heroDirectionId,
+                heroDirectionLabel: event.frame.heroDirectionLabel,
+                heroDirectionIndex: event.frame.heroDirectionIndex,
+                sourceFrameId: event.frame.sourceFrameId,
+                formatId: event.frame.formatId,
                 status: 'running',
                 startedAt: event.at,
                 updatedAt: event.at,
@@ -854,6 +1304,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                 id: event.frame.id,
                 label: event.frame.label,
                 aspectRatio: event.frame.aspectRatio,
+                heroDirectionId: event.frame.heroDirectionId,
+                heroDirectionLabel: event.frame.heroDirectionLabel,
+                heroDirectionIndex: event.frame.heroDirectionIndex,
+                sourceFrameId: event.frame.sourceFrameId,
+                formatId: event.frame.formatId,
                 status: 'returned',
                 startedAt: event.at - event.latencyMs,
                 updatedAt: event.at,
@@ -883,7 +1338,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                       label: resolvedPrompt,
                     });
                   } else {
-                    const placed = dropImageInFrame(editor, event.frame.id, {
+                    const artboardId = ensureGeneratedFrameForEvent(editor, event.frame);
+                    const placed = dropImageInFrame(editor, artboardId, {
                       url: event.image.url,
                       width: event.image.width,
                       height: event.image.height,
@@ -891,6 +1347,35 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                       label: resolvedPrompt,
                     });
                     if (!placed) throw new Error('target frame missing');
+                    const imageShape = editor.getShape(placed as never) as
+                      | { meta?: Record<string, unknown> }
+                      | undefined;
+                    const generatedImageMeta: Record<string, unknown> = {
+                      ...(imageShape?.meta ?? {}),
+                      aetherGeneratedImage: true,
+                      aetherArtboardId: artboardId,
+                      imageUrl: event.image.url,
+                      aspect: event.frame.aspectRatio,
+                    };
+                    const generatedFormatId =
+                      event.frame.formatId ??
+                      aspectToPublishFormat(event.frame.aspectRatio);
+                    if (generatedFormatId) generatedImageMeta.formatId = generatedFormatId;
+                    if (event.frame.heroDirectionId) {
+                      generatedImageMeta.heroDirectionId = event.frame.heroDirectionId;
+                    }
+                    if (event.frame.heroDirectionLabel) {
+                      generatedImageMeta.heroDirectionLabel = event.frame.heroDirectionLabel;
+                    }
+                    if (typeof event.frame.heroDirectionIndex === 'number') {
+                      generatedImageMeta.heroDirectionIndex =
+                        event.frame.heroDirectionIndex;
+                    }
+                    editor.updateShape({
+                      id: placed,
+                      type: 'image',
+                      meta: generatedImageMeta,
+                    } as never);
                     // Notify the canvas text-overlay bridge so it can ask
                     // the multilingual planner for editable copy and drop
                     // AetherTextShape instances onto this artboard. The
@@ -898,11 +1383,13 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                     if (typeof window !== 'undefined') {
                       const detail: AetherImageLandedDetail = {
                         wsId,
-                        artboardId: event.frame.id,
+                        artboardId,
                         w: event.image.width,
                         h: event.image.height,
                         aspectRatio: event.frame.aspectRatio,
                         capabilityRunId: runId,
+                        heroDirectionId: event.frame.heroDirectionId,
+                        heroDirectionLabel: event.frame.heroDirectionLabel,
                       };
                       window.dispatchEvent(
                         new CustomEvent<AetherImageLandedDetail>(
@@ -926,6 +1413,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                   id: event.frame.id,
                   label: event.frame.label,
                   aspectRatio: event.frame.aspectRatio,
+                  heroDirectionId: event.frame.heroDirectionId,
+                  heroDirectionLabel: event.frame.heroDirectionLabel,
+                  heroDirectionIndex: event.frame.heroDirectionIndex,
+                  sourceFrameId: event.frame.sourceFrameId,
+                  formatId: event.frame.formatId,
                   status: 'error',
                   startedAt: event.at - event.latencyMs,
                   updatedAt: Date.now(),
@@ -942,6 +1434,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                   id: event.frame.id,
                   label: event.frame.label,
                   aspectRatio: event.frame.aspectRatio,
+                  heroDirectionId: event.frame.heroDirectionId,
+                  heroDirectionLabel: event.frame.heroDirectionLabel,
+                  heroDirectionIndex: event.frame.heroDirectionIndex,
+                  sourceFrameId: event.frame.sourceFrameId,
+                  formatId: event.frame.formatId,
                   status: 'placed',
                   startedAt: event.at - event.latencyMs,
                   updatedAt: Date.now(),
@@ -961,6 +1458,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
                 id: event.frame.id,
                 label: event.frame.label,
                 aspectRatio: event.frame.aspectRatio,
+                heroDirectionId: event.frame.heroDirectionId,
+                heroDirectionLabel: event.frame.heroDirectionLabel,
+                heroDirectionIndex: event.frame.heroDirectionIndex,
+                sourceFrameId: event.frame.sourceFrameId,
+                formatId: event.frame.formatId,
                 status: 'error',
                 startedAt: event.at,
                 updatedAt: event.at,
@@ -987,6 +1489,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         if (!completedEvent) {
           failRun(runId, 'stream ended before completion');
           return;
+        }
+        rememberPersistedGenerationVariation({
+          runId,
+          variationId: completedEvent.persistedCampaign?.variationId,
+        });
+        if (editor) {
+          patchPersistedGenerationTextShapes(editor, {
+            runId,
+            campaignId: completedEvent.persistedCampaign?.campaignId,
+            variationId: completedEvent.persistedCampaign?.variationId,
+          });
         }
 
         const finalError =
@@ -1557,6 +2070,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         renderArtboardSvg: editor
           ? (board) => renderArtboardSvgFromCanvas(editor, board.id)
           : undefined,
+        collectTextLayers: editor
+          ? (board) => collectArtboardTextLayers(editor, board.id)
+          : undefined,
         locale: String(exportLocale),
         locales: exportLocales.map(String),
         languageMode: exportLanguageMode,
@@ -1605,8 +2121,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         refs?: string[];
         scope: 'all' | 'single';
         targetId?: string;
-        renderMode?: 'crop' | 'fanout';
+        renderMode?: 'crop' | 'fanout' | 'hero-seeded-fanout';
+        heroCount?: number;
         notifyMode?: 'review' | 'auto-post';
+        targetPlatforms?: PublishPlatform[];
         product?: VoiceCreatorCommand['product'];
         voiceTrace?: VoiceRunTrace;
       }
@@ -1737,7 +2255,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             refs: refs.length > 0 ? refs : undefined,
             targets,
             mode: options.renderMode ?? 'crop',
+            heroCount: options.heroCount,
             notifyMode: options.notifyMode,
+            targetPlatforms: options.targetPlatforms,
             voiceTrace: options.voiceTrace,
           });
           return;
@@ -1777,6 +2297,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         refs: refs.length > 0 ? refs : undefined,
         targets,
         notifyMode: options.notifyMode,
+        targetPlatforms: options.targetPlatforms,
         voiceTrace: options.voiceTrace,
       });
     },
@@ -2382,6 +2903,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             await handlePrompt(prompt, { scope });
           }}
           onAsyncVoiceGenerate={async (prompt, options, request) => {
+            if (request?.command && voiceCommandRequestsSupportedLocales(request.command)) {
+              setEnabledLocales(CANVAS_LOCALES);
+              setLocaleViewMode('single');
+            }
             await handlePrompt(prompt, {
               ...options,
               product: request?.command.product,
@@ -2400,6 +2925,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           safeZonesVisible={safeZonesVisible}
           workspaceId={wsId}
           heroMediaUrls={heroMediaUrls}
+          heroMediaByFormat={heroMediaByFormat}
+          heroMediaByDirectionFormat={heroMediaByDirectionFormat}
+          canvasCopyByLocaleFormat={canvasCopy.byLocaleFormat}
+          canvasCopyByHeroLocaleFormat={canvasCopy.byHeroLocaleFormat}
           onOpenPublishPreview={() => setPublishPreviewOpen(true)}
           autoModeCampaign={autoModeCampaign}
           autoModeVariations={autoModeVariations}
@@ -2473,7 +3002,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           role="dialog"
           aria-label="publish preview"
           data-testid="publish-preview-overlay"
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-surface-panel/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-surface-panel/70 backdrop-blur-sm"
           onClick={() => setPublishPreviewOpen(false)}
         >
           <div

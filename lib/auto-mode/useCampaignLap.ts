@@ -177,7 +177,7 @@ function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
       status: 'pending' | 'running' | 'ready' | 'failed';
       heroImageUrl?: string;
       caption?: string;
-      captionsByLocale?: Partial<Record<'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG', string>>;
+      captionsByLocale?: Partial<Record<string, string>>;
       hashtags?: string[];
       moodNote?: string;
       schedulePlatform?: string;
@@ -294,7 +294,7 @@ interface TraceVariation {
   status: string;
   heroImageUrl?: string;
   caption?: string;
-  captionsByLocale?: Partial<Record<'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG', string>>;
+  captionsByLocale?: Partial<Record<string, string>>;
   hashtags?: string[];
   moodNote?: string;
   schedulePlatform?: string;

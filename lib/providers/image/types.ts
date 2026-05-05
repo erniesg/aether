@@ -100,8 +100,14 @@ export interface ImageGenProvider {
   isAvailable(): boolean;
   /** Optionally list known model ids this adapter can invoke. */
   listModels(): string[];
-  generate(req: ImageGenRequest, opts: { model: string }): Promise<ImageGenResult>;
-  edit?(req: ImageEditRequest, opts: { model: string }): Promise<ImageGenResult>;
+  generate(
+    req: ImageGenRequest,
+    opts: { model: string; signal?: AbortSignal }
+  ): Promise<ImageGenResult>;
+  edit?(
+    req: ImageEditRequest,
+    opts: { model: string; signal?: AbortSignal }
+  ): Promise<ImageGenResult>;
 }
 
 export class ProviderUnavailableError extends Error {

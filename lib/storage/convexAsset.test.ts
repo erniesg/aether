@@ -67,6 +67,21 @@ describe('uploadAssetToConvex · wsId sanitisation', () => {
     expect(recordArgs.wsId).toBeUndefined();
   });
 
+  it('forwards route-level workspaceId separately from Convex wsId', async () => {
+    const { mutation, fakeClient, fetchImpl } = makeMocks();
+    await uploadAssetToConvex({
+      source: PNG_DATA_URL,
+      kind: 'reference',
+      wsId: 'demo-eightsleep-fresh',
+      workspaceId: 'demo-eightsleep-fresh',
+      client: fakeClient,
+      fetchImpl,
+    });
+    const recordArgs = mutation.mock.calls[1][1] as Record<string, unknown>;
+    expect(recordArgs.wsId).toBeUndefined();
+    expect(recordArgs.workspaceId).toBe('demo-eightsleep-fresh');
+  });
+
   it('forwards a doc-id-shaped wsId unchanged', async () => {
     const { mutation, fakeClient, fetchImpl } = makeMocks();
     await uploadAssetToConvex({

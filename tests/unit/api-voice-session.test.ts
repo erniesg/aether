@@ -17,18 +17,20 @@ describe('/api/voice/session', () => {
     process.env.VOICE_PROVIDER = 'openai-realtime';
 
     const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(url)).toContain('/v1/realtime/sessions');
+      expect(String(url)).toContain('/v1/realtime/client_secrets');
       expect(init?.headers).toMatchObject({
         Authorization: 'Bearer sk-primary-must-not-leak',
       });
       return new Response(
         JSON.stringify({
-          id: 'sess_ephemeral',
-          model: 'gpt-4o-realtime-preview',
-          voice: 'alloy',
-          client_secret: {
-            value: 'ek_short_lived_abc',
-            expires_at: Math.floor(Date.now() / 1000) + 60,
+          value: 'ek_short_lived_abc',
+          expires_at: Math.floor(Date.now() / 1000) + 60,
+          session: {
+            id: 'sess_ephemeral',
+            model: 'gpt-realtime',
+            audio: {
+              output: { voice: 'marin' },
+            },
           },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -64,8 +66,11 @@ describe('/api/voice/session', () => {
     process.env.OPENAI_API_KEY = 'sk-test';
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
-      expect(body.tools).toHaveLength(5);
-      expect(body.tools.map((t: { name: string }) => t.name)).toEqual([
+      expect(body.session.type).toBe('realtime');
+      expect(body.session.output_modalities).toEqual(['audio']);
+      expect(body.session.audio.output.voice).toBe('marin');
+      expect(body.session.tools).toHaveLength(5);
+      expect(body.session.tools.map((t: { name: string }) => t.name)).toEqual([
         'focus_format',
         'pan_zoom',
         'remove_background',
@@ -74,8 +79,9 @@ describe('/api/voice/session', () => {
       ]);
       return new Response(
         JSON.stringify({
-          id: 'sess',
-          client_secret: { value: 'ek', expires_at: Math.floor(Date.now() / 1000) + 60 },
+          value: 'ek',
+          expires_at: Math.floor(Date.now() / 1000) + 60,
+          session: { id: 'sess', model: 'gpt-realtime' },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
@@ -233,8 +239,9 @@ describe('/api/voice/session', () => {
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
       new Response(
         JSON.stringify({
-          id: 'sess_pref',
-          client_secret: { value: 'ek_pref_override', expires_at: Math.floor(Date.now() / 1000) + 60 },
+          value: 'ek_pref_override',
+          expires_at: Math.floor(Date.now() / 1000) + 60,
+          session: { id: 'sess_pref', model: 'gpt-realtime' },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )

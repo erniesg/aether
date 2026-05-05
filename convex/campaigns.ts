@@ -61,6 +61,7 @@ interface CampaignVariationDoc {
   workspaceId?: string;
   index: number;
   status: 'pending' | 'running' | 'ready' | 'failed' | 'rejected';
+  heroDirectionId?: string;
   heroImageUrl?: string;
   heroAssetId?: unknown;
   caption?: string;
@@ -79,6 +80,7 @@ interface CampaignVariationDoc {
   nativePerFormatUrls?: Partial<
     Record<'1x1' | '4x5' | '9x16' | '16x9', string>
   >;
+  localizedPerFormatUrls?: unknown;
   error?: string;
   startedAt: number;
   finishedAt?: number;
@@ -111,6 +113,7 @@ function toVariation(doc: CampaignVariationDoc) {
     workspaceId: doc.workspaceId,
     index: doc.index,
     status: doc.status,
+    heroDirectionId: doc.heroDirectionId,
     heroImageUrl: doc.heroImageUrl,
     heroAssetId: doc.heroAssetId ? String(doc.heroAssetId) : undefined,
     caption: doc.caption,
@@ -126,6 +129,7 @@ function toVariation(doc: CampaignVariationDoc) {
     textOverlayWarnings: doc.textOverlayWarnings,
     nativePerFormatRendered: doc.nativePerFormatRendered,
     nativePerFormatUrls: doc.nativePerFormatUrls,
+    localizedPerFormatUrls: doc.localizedPerFormatUrls,
     agentRunIds: doc.agentRunIds,
     error: doc.error,
     startedAt: doc.startedAt,
@@ -187,6 +191,7 @@ export const insertVariation = mutationGeneric({
     workspaceId: v.optional(v.string()),
     index: v.number(),
     status: VARIATION_STATUS,
+    heroDirectionId: v.optional(v.string()),
     heroImageUrl: v.optional(v.string()),
     heroAssetId: v.optional(v.id('asset')),
     caption: v.optional(v.string()),
@@ -199,6 +204,7 @@ export const insertVariation = mutationGeneric({
     masksOneShot: v.optional(v.any()),
     masksVisionGuided: v.optional(v.any()),
     nativePerFormatUrls: v.optional(v.any()),
+    localizedPerFormatUrls: v.optional(v.any()),
     atlasUrl: v.optional(v.string()),
     atlasAssetId: v.optional(v.id('asset')),
     textOverlays: v.optional(v.any()),
@@ -214,6 +220,7 @@ export const insertVariation = mutationGeneric({
       workspaceId: args.workspaceId,
       index: args.index,
       status: args.status,
+      heroDirectionId: args.heroDirectionId,
       heroImageUrl: args.heroImageUrl,
       heroAssetId: args.heroAssetId,
       caption: args.caption,
@@ -226,6 +233,7 @@ export const insertVariation = mutationGeneric({
       masksOneShot: args.masksOneShot,
       masksVisionGuided: args.masksVisionGuided,
       nativePerFormatUrls: args.nativePerFormatUrls,
+      localizedPerFormatUrls: args.localizedPerFormatUrls,
       atlasUrl: args.atlasUrl,
       atlasAssetId: args.atlasAssetId,
       textOverlays: args.textOverlays,
@@ -331,6 +339,29 @@ export const setVariationAtlas = mutationGeneric({
   },
 });
 
+export const setVariationRenderedMedia = mutationGeneric({
+  args: {
+    variationId: v.string(),
+    atlasUrl: v.optional(v.string()),
+    atlasAssetId: v.optional(v.id('asset')),
+    nativePerFormatUrls: v.optional(v.any()),
+    localizedPerFormatUrls: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = {};
+    if (args.atlasUrl !== undefined) patch.atlasUrl = args.atlasUrl;
+    if (args.atlasAssetId !== undefined) patch.atlasAssetId = args.atlasAssetId;
+    if (args.nativePerFormatUrls !== undefined) {
+      patch.nativePerFormatUrls = args.nativePerFormatUrls;
+    }
+    if (args.localizedPerFormatUrls !== undefined) {
+      patch.localizedPerFormatUrls = args.localizedPerFormatUrls;
+    }
+    if (Object.keys(patch).length > 0) await ctx.db.patch(args.variationId as any, patch);
+    return null;
+  },
+});
+
 /**
  * Persist the B2 research bundle on the campaign row. Called from
  * runAutoMode after the research Managed Agent completes, before the
@@ -405,6 +436,202 @@ export const setCampaignUrlIngestion = mutationGeneric({
   },
 });
 
+const DEFAULT_TEXT_LOCALE = 'en-SG';
+
+type VariationTextOverlayRecord = {
+  zone: { purpose: string; bbox?: unknown };
+  content: Record<string, string>;
+  formatContent?: Record<string, Record<string, string>>;
+  textAlign?: string;
+  scope?: string;
+  metadata?: {
+    sourceLocale?: string;
+    translatedFrom?: Record<string, string>;
+    translationProvider?: Record<string, string>;
+    updatedAt?: number;
+    provenance?: Record<string, unknown>;
+    localOverrides?: Record<string, Record<string, boolean>>;
+    heroDirectionId?: string;
+  };
+};
+
+function deterministicTextTranslation(text: string, targetLocale: string): string {
+  void text;
+  void targetLocale;
+  return '';
+}
+
+function cloneFormatContent(
+  input: Record<string, Record<string, string>> | undefined
+): Record<string, Record<string, string>> | undefined {
+  if (!input) return undefined;
+  const out: Record<string, Record<string, string>> = {};
+  for (const [format, content] of Object.entries(input)) out[format] = { ...content };
+  return out;
+}
+
+function cloneOverlayMetadata(
+  metadata: VariationTextOverlayRecord['metadata']
+): NonNullable<VariationTextOverlayRecord['metadata']> {
+  return {
+    ...(metadata ?? {}),
+    translatedFrom: metadata?.translatedFrom ? { ...metadata.translatedFrom } : undefined,
+    translationProvider: metadata?.translationProvider
+      ? { ...metadata.translationProvider }
+      : undefined,
+    provenance: metadata?.provenance ? { ...metadata.provenance } : undefined,
+    localOverrides: metadata?.localOverrides
+      ? Object.fromEntries(
+          Object.entries(metadata.localOverrides).map(([format, locales]) => [
+            format,
+            { ...locales },
+          ])
+        )
+      : undefined,
+  };
+}
+
+function markOverlayLocalOverride(
+  metadata: NonNullable<VariationTextOverlayRecord['metadata']>,
+  format: string,
+  locale: string
+) {
+  metadata.localOverrides = {
+    ...(metadata.localOverrides ?? {}),
+    [format]: {
+      ...(metadata.localOverrides?.[format] ?? {}),
+      [locale]: true,
+    },
+  };
+}
+
+function clearOverlayLocalOverride(
+  metadata: NonNullable<VariationTextOverlayRecord['metadata']>,
+  format: string,
+  locale: string
+) {
+  if (!metadata.localOverrides?.[format]?.[locale]) return;
+  const nextFormat = { ...metadata.localOverrides[format] };
+  delete nextFormat[locale];
+  const next = { ...metadata.localOverrides };
+  if (Object.keys(nextFormat).length > 0) next[format] = nextFormat;
+  else delete next[format];
+  metadata.localOverrides = Object.keys(next).length > 0 ? next : undefined;
+}
+
+function hasExplicitOverlayOverride(
+  overlay: VariationTextOverlayRecord,
+  format: string,
+  locale: string
+): boolean {
+  if (overlay.metadata?.localOverrides?.[format]?.[locale] === true) return true;
+  if (overlay.formatContent?.[format]?.[locale] === undefined) return false;
+  return overlay.metadata?.translatedFrom?.[locale] !== DEFAULT_TEXT_LOCALE;
+}
+
+function applyVariationOverlayUpdate(
+  overlay: VariationTextOverlayRecord,
+  args: {
+    variationId: string;
+    heroDirectionId?: string;
+    locale: string;
+    format: string;
+    scope: 'global' | 'local';
+    role: string;
+    text: string;
+    translateLinked?: boolean;
+    targetLocales?: string[];
+    translations?: Record<string, string>;
+    overwriteTranslations?: boolean;
+  }
+): VariationTextOverlayRecord {
+  const metadata = cloneOverlayMetadata(overlay.metadata);
+  metadata.sourceLocale = args.locale;
+  if (args.heroDirectionId) metadata.heroDirectionId = args.heroDirectionId;
+  metadata.updatedAt = Date.now();
+  metadata.provenance = {
+    ...(metadata.provenance ?? {}),
+    kind: 'canvas-text-edit',
+    variationId: args.variationId,
+    heroDirectionId: args.heroDirectionId,
+    role: args.role,
+    locale: args.locale,
+    format: args.format,
+    scope: args.scope,
+  };
+  const next: VariationTextOverlayRecord = {
+    ...overlay,
+    content: { ...(overlay.content ?? {}) },
+    formatContent: cloneFormatContent(overlay.formatContent),
+    metadata,
+  };
+
+  if (args.scope === 'local') {
+    next.formatContent = {
+      ...(next.formatContent ?? {}),
+      [args.format]: {
+        ...(next.formatContent?.[args.format] ?? {}),
+        [args.locale]: args.text,
+      },
+    };
+    markOverlayLocalOverride(metadata, args.format, args.locale);
+    delete metadata.translatedFrom?.[args.locale];
+    delete metadata.translationProvider?.[args.locale];
+    next.scope = 'global';
+  } else {
+    next.content[args.locale] = args.text;
+    clearOverlayLocalOverride(metadata, args.format, args.locale);
+    if (next.formatContent?.[args.format]) {
+      delete next.formatContent[args.format][args.locale];
+      if (Object.keys(next.formatContent[args.format]).length === 0) {
+        delete next.formatContent[args.format];
+      }
+    }
+    if (next.formatContent && Object.keys(next.formatContent).length === 0) {
+      delete next.formatContent;
+    }
+  }
+
+  if (args.locale === DEFAULT_TEXT_LOCALE && args.translateLinked) {
+    for (const targetLocale of args.targetLocales ?? []) {
+      if (targetLocale === args.locale) continue;
+      const translated =
+        args.translations?.[targetLocale]?.trim() ??
+        deterministicTextTranslation(args.text, targetLocale);
+      if (!translated) continue;
+      if (args.scope === 'local') {
+        if (
+          !args.overwriteTranslations &&
+          hasExplicitOverlayOverride(next, args.format, targetLocale)
+        ) {
+          continue;
+        }
+        next.formatContent = {
+          ...(next.formatContent ?? {}),
+          [args.format]: {
+            ...(next.formatContent?.[args.format] ?? {}),
+            [targetLocale]: translated,
+          },
+        };
+      } else {
+        next.content[targetLocale] = translated;
+      }
+      metadata.translatedFrom = {
+        ...(metadata.translatedFrom ?? {}),
+        [targetLocale]: args.locale,
+      };
+      metadata.translationProvider = {
+        ...(metadata.translationProvider ?? {}),
+        [targetLocale]: args.translations?.[targetLocale]
+          ? 'agent'
+          : 'deterministic-fallback',
+      };
+    }
+  }
+
+  return next;
+}
+
 /**
  * Persist a text overlay edit from the canvas (Lane A).
  *
@@ -432,6 +659,11 @@ export const updateVariationOverlay = mutationGeneric({
     role: v.string(),
     /** New text content after the edit. */
     text: v.string(),
+    translateLinked: v.optional(v.boolean()),
+    targetLocales: v.optional(v.array(v.string())),
+    translations: v.optional(v.record(v.string(), v.string())),
+    overwriteTranslations: v.optional(v.boolean()),
+    heroDirectionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Best-effort patch: locate the variation row and update its textOverlays.
@@ -440,38 +672,45 @@ export const updateVariationOverlay = mutationGeneric({
     if (!variation) return null;
 
     // Merge the new text into the existing textOverlays structure (any[]).
-    const existingOverlays = (variation.textOverlays ?? []) as Array<{
-      zone: { purpose: string; bbox?: unknown };
-      content: Record<string, string>;
-      textAlign?: string;
-      scope?: string;
-    }>;
+    const existingOverlays = (variation.textOverlays ?? []) as VariationTextOverlayRecord[];
 
     const updated = existingOverlays.map((ov) => {
       if (ov.zone.purpose !== args.role) return ov;
-      return {
-        ...ov,
-        content: {
-          ...(ov.content ?? {}),
-          // When global: update all locale entries to the new text.
-          // When local: update only the specific locale.
-          ...(args.scope === 'global'
-            ? Object.fromEntries(
-                Object.keys(ov.content ?? { [args.locale]: '' }).map((loc) => [loc, args.text])
-              )
-            : { [args.locale]: args.text }),
-        },
-      };
+      if (
+        args.heroDirectionId &&
+        ov.metadata?.heroDirectionId &&
+        ov.metadata.heroDirectionId !== args.heroDirectionId
+      ) {
+        return ov;
+      }
+      return applyVariationOverlayUpdate(ov, args);
     });
 
     // If no matching overlay was found (e.g. first edit), append a new entry.
-    const hasMatch = existingOverlays.some((ov) => ov.zone.purpose === args.role);
+    const hasMatch = existingOverlays.some((ov) => {
+      if (ov.zone.purpose !== args.role) return false;
+      if (
+        args.heroDirectionId &&
+        ov.metadata?.heroDirectionId &&
+        ov.metadata.heroDirectionId !== args.heroDirectionId
+      ) {
+        return false;
+      }
+      return true;
+    });
     if (!hasMatch) {
       updated.push({
         zone: { purpose: args.role },
-        content: { [args.locale]: args.text },
+        content: args.scope === 'global' ? { [args.locale]: args.text } : {},
+        ...(args.scope === 'local'
+          ? { formatContent: { [args.format]: { [args.locale]: args.text } } }
+          : {}),
         scope: args.scope,
-      });
+      } as VariationTextOverlayRecord);
+      updated[updated.length - 1] = applyVariationOverlayUpdate(
+        updated[updated.length - 1],
+        args
+      );
     }
 
     await ctx.db.patch(args.variationId as any, {

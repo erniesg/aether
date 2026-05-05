@@ -85,7 +85,9 @@ describe('OpenAIRealtimeClient', () => {
   let sdpExchange: Mock<
     (offerSdp: string, credentials: VoiceSessionCredentials) => Promise<string>
   >;
-  let fetchSession: Mock<(endpoint: string) => Promise<VoiceSessionCredentials>>;
+  let fetchSession: Mock<
+    (endpoint: string, options?: { workspaceId?: string }) => Promise<VoiceSessionCredentials>
+  >;
 
   beforeEach(() => {
     pc = new FakePeerConnection();
@@ -94,8 +96,8 @@ describe('OpenAIRealtimeClient', () => {
       sessionId: 'sess_1',
       clientSecret: 'ek_client',
       expiresAt: Date.now() + 60_000,
-      model: 'gpt-4o-realtime-preview',
-      voice: 'alloy',
+      model: 'gpt-realtime',
+      voice: 'marin',
       provider: 'openai-realtime',
     });
   });
@@ -115,7 +117,9 @@ describe('OpenAIRealtimeClient', () => {
     });
 
     await client.connect();
-    expect(fetchSession).toHaveBeenCalledWith('/api/voice/session');
+    expect(fetchSession).toHaveBeenCalledWith('/api/voice/session', {
+      workspaceId: undefined,
+    });
     expect(sdpExchange).toHaveBeenCalledTimes(1);
     const [, credentials] = sdpExchange.mock.calls[0];
     expect(credentials.clientSecret).toBe('ek_client');
@@ -140,6 +144,8 @@ describe('OpenAIRealtimeClient', () => {
     expect(pc.dc!.sent.length).toBeGreaterThan(0);
     const sessionUpdate = JSON.parse(pc.dc!.sent[0]);
     expect(sessionUpdate.type).toBe('session.update');
+    expect(sessionUpdate.session.type).toBe('realtime');
+    expect(sessionUpdate.session.output_modalities).toEqual(['audio']);
     expect(sessionUpdate.session.tools.map((t: { name: string }) => t.name)).toEqual([
       'focus_format',
       'pan_zoom',
@@ -207,8 +213,8 @@ describe('OpenAIRealtimeClient', () => {
     // session.update just fired with state=idle
     client.__injectEventForTests({ type: 'input_audio_buffer.speech_started' });
     client.__injectEventForTests({ type: 'input_audio_buffer.speech_stopped' });
-    client.__injectEventForTests({ type: 'response.audio.delta' });
-    client.__injectEventForTests({ type: 'response.done' });
+    client.__injectEventForTests({ type: 'output_audio_buffer.started' });
+    client.__injectEventForTests({ type: 'output_audio_buffer.stopped' });
 
     expect(states).toEqual(['idle', 'listening', 'thinking', 'speaking', 'idle']);
   });

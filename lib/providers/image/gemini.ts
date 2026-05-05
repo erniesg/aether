@@ -56,13 +56,13 @@ export function createGeminiProvider(
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: opts.signal,
           body: JSON.stringify({
             instances: [{ prompt: applied.prompt }],
             parameters: {
               sampleCount: count,
               aspectRatio: aspectForProvider,
               seed: req.seed,
-              negativePrompt: applied.negativePrompt,
               outputMimeType: 'image/png',
             },
           }),

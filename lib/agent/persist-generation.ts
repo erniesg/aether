@@ -17,12 +17,20 @@
 
 import { notifyDiscord, type DiscordActionRow, type DiscordEmbed } from '@/lib/notify/discord';
 import {
+  addCreatorReference,
   insertCampaignVariation,
   setCampaignStatus,
   startCampaign,
 } from '@/lib/convex/http';
 import { scheduleVariationPosts } from '@/lib/agent/auto-mode';
 import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
+import { genReferenceId } from '@/lib/providers/reference/og';
+import type { ReferenceRecord } from '@/lib/providers/reference/types';
+import {
+  buildDiscordPublishChoiceRow,
+  buildDiscordPublishLinks,
+} from '@/lib/publisher/discord-actions';
+import type { PublishPlatform } from '@/lib/providers/publisher/types';
 
 export interface PersistGenerationInput {
   workspaceId?: string;
@@ -30,6 +38,9 @@ export interface PersistGenerationInput {
   prompt: string;
   refs?: ReadonlyArray<{ url?: string }>;
   heroImageUrl: string;
+  /** Selected hero direction for publish/export resolution when a single
+   *  generated campaign contains linked multi-hero artboards. */
+  heroDirectionId?: string;
   /** Optional per-format URLs (keyed by format id). When supplied the
    *  variation row carries nativePerFormatUrls so /inspect + /runs can
    *  show every aspect, not just the hero. */
@@ -38,6 +49,7 @@ export interface PersistGenerationInput {
   >;
   provider?: string;
   model?: string;
+  sourceRunId?: string;
   aspectRatio?: string;
   /** When false / omitted, Discord ping is skipped (campaign still persists). */
   notifyDiscord?: boolean;
@@ -46,10 +58,14 @@ export interface PersistGenerationInput {
    *  scheduleVariationPosts with forcePostNow=true. The composer's
    *  notify-mode chip drives this per-fire. */
   notifyMode?: 'review' | 'auto-post';
+  /** Optional publish platform scope from creator voice/prompt intent.
+   *  When omitted, the persisted/env publish plan is used. */
+  targetPlatforms?: PublishPlatform[];
 }
 
 export interface PersistGenerationResult {
   campaignId: string | null;
+  variationId: string | null;
   discordSent: boolean;
 }
 
@@ -91,11 +107,11 @@ export async function persistGenerateAsCampaign(
       '[persist-generation] startCampaign failed (drag-drop persistence disabled this run):',
       err instanceof Error ? err.message : String(err)
     );
-    return { campaignId: null, discordSent: false };
+    return { campaignId: null, variationId: null, discordSent: false };
   }
 
   if (!campaignId) {
-    return { campaignId: null, discordSent: false };
+    return { campaignId: null, variationId: null, discordSent: false };
   }
 
   // Insert the variation row carrying the hero. Index 1 so the post-now
@@ -111,20 +127,21 @@ export async function persistGenerateAsCampaign(
   // directly into a `campaignVariation.heroImageUrl` row fails with
   // "Value is too large". Stage data URLs through Convex File Storage
   // first — the resulting publicUrl is a short string. Same for each
-  // entry in nativePerFormatUrls. wsId is intentionally NOT passed:
-  // the asset table validates it as v.id('workspace') (doc id), but
-  // workspaceId here is a slug like 'demo-dingman-joe' that doesn't
-  // round-trip. Asset rows persist without ws scoping in this path —
-  // the campaign+variation already carry the slug.
+  // entry in nativePerFormatUrls. We pass the route-level workspace slug
+  // separately from Convex's legacy wsId so generated assets can rejoin
+  // the creator library without requiring a workspace doc id.
   let persistedHeroUrl = input.heroImageUrl;
+  let heroAssetId: string | undefined;
   if (persistedHeroUrl.startsWith('data:')) {
     const uploaded = await uploadAssetToConvex({
       source: persistedHeroUrl,
       kind: 'hero',
+      workspaceId: input.workspaceId,
       sourceUrl: `drag-drop generation · ${input.prompt.slice(0, 60)}`,
     });
     if (uploaded) {
       persistedHeroUrl = uploaded.publicUrl;
+      heroAssetId = uploaded.id;
     } else {
       // eslint-disable-next-line no-console
       console.warn(
@@ -136,6 +153,9 @@ export async function persistGenerateAsCampaign(
   // Same staging dance for per-format URLs. Build the staged map in
   // parallel since uploads are independent. Keeps order stable.
   let persistedPerFormatUrls = input.nativePerFormatUrls;
+  const perFormatAssetIds: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+  > = {};
   if (input.nativePerFormatUrls) {
     const entries = await Promise.all(
       Object.entries(input.nativePerFormatUrls).map(async ([fid, url]) => {
@@ -144,20 +164,26 @@ export async function persistGenerateAsCampaign(
         const uploaded = await uploadAssetToConvex({
           source: url,
           kind: 'hero',
+          workspaceId: input.workspaceId,
           sourceUrl: `drag-drop generation · ${fid} · ${input.prompt.slice(0, 60)}`,
         });
+        if (uploaded?.id) {
+          perFormatAssetIds[fid as keyof typeof perFormatAssetIds] = uploaded.id;
+        }
         return [fid, uploaded?.publicUrl ?? url] as const;
       })
     );
     persistedPerFormatUrls = Object.fromEntries(entries) as typeof input.nativePerFormatUrls;
   }
 
+  let variationId: string | null = null;
   try {
-    await insertCampaignVariation({
+    variationId = await insertCampaignVariation({
       campaignId,
       workspaceId: input.workspaceId,
       index: 1,
       status: 'ready',
+      heroDirectionId: input.heroDirectionId,
       heroImageUrl: persistedHeroUrl,
       nativePerFormatUrls: persistedPerFormatUrls,
       caption: input.prompt,
@@ -172,6 +198,17 @@ export async function persistGenerateAsCampaign(
       err instanceof Error ? err.message : String(err)
     );
   }
+
+  await persistGeneratedLibraryItems({
+    workspaceId: input.workspaceId,
+    campaignId,
+    prompt: input.prompt,
+    heroUrl: persistedHeroUrl,
+    heroAssetId,
+    perFormatUrls: persistedPerFormatUrls,
+    perFormatAssetIds,
+    sourceRunId: input.sourceRunId,
+  });
 
   try {
     await setCampaignStatus(campaignId, 'completed');
@@ -213,6 +250,7 @@ export async function persistGenerateAsCampaign(
           {
             index: 1,
             status: 'ready',
+            heroDirectionId: input.heroDirectionId,
             heroImageUrl: persistedHeroUrl,
             nativePerFormatUrls: persistedPerFormatUrls,
             caption: input.prompt,
@@ -226,6 +264,7 @@ export async function persistGenerateAsCampaign(
         baseUrl: input.baseUrl,
         forcePostNow: true,
         campaignId,
+        targetPlatforms: input.targetPlatforms,
       });
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -236,7 +275,72 @@ export async function persistGenerateAsCampaign(
     }
   }
 
-  return { campaignId, discordSent };
+  return { campaignId, variationId, discordSent };
+}
+
+async function persistGeneratedLibraryItems(input: {
+  workspaceId?: string;
+  campaignId: string;
+  prompt: string;
+  heroUrl: string;
+  heroAssetId?: string;
+  perFormatUrls?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+  perFormatAssetIds?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+  sourceRunId?: string;
+}) {
+  if (!input.workspaceId) return;
+  const capturedAt = new Date().toISOString();
+  const titleBase =
+    input.prompt.length > 72 ? `${input.prompt.slice(0, 72)}…` : input.prompt;
+  const records: ReferenceRecord[] = [
+    {
+      id: genReferenceId('ref_gen'),
+      kind: 'image',
+      previewUrl: input.heroUrl,
+      fullUrl: input.heroUrl,
+      attribution: { source: 'generated', url: input.heroUrl },
+      capturedAt,
+      title: titleBase || 'generated asset',
+      usageIntent: 'key visual',
+      tags: ['generated', 'hero'],
+      assetId: input.heroAssetId,
+      origin: 'generated',
+      sourceRunId: input.sourceRunId,
+      sourceCampaignId: input.campaignId,
+    },
+  ];
+
+  for (const [formatId, url] of Object.entries(input.perFormatUrls ?? {})) {
+    if (!url || url === input.heroUrl) continue;
+    records.push({
+      id: genReferenceId('ref_gen'),
+      kind: 'image',
+      previewUrl: url,
+      fullUrl: url,
+      attribution: { source: 'generated', url },
+      capturedAt,
+      title: `${titleBase || 'generated asset'} · ${formatId}`,
+      usageIntent: 'format variant',
+      tags: ['generated', 'variant', formatId],
+      assetId:
+        input.perFormatAssetIds?.[
+          formatId as '1x1' | '4x5' | '9x16' | '16x9'
+        ],
+      origin: 'generated',
+      sourceRunId: input.sourceRunId,
+      sourceCampaignId: input.campaignId,
+      sourceFormatId: formatId,
+    });
+  }
+
+  await Promise.all(
+    records.map((reference) =>
+      addCreatorReference({
+        workspaceId: input.workspaceId,
+        reference,
+      })
+    )
+  );
 }
 
 interface SendPingInput {
@@ -276,12 +380,17 @@ async function sendDragDropDiscordPing(input: SendPingInput): Promise<boolean> {
   // buttons; incoming webhooks don't. So we ALSO surface the same actions
   // as markdown links inside the embed description — Discord renders
   // markdown links in embed descriptions on every webhook type.
-  const postNowLink = `[🚀 Post now to all platforms](${origin}/api/auto-mode/post-now?c=${encodeURIComponent(input.campaignId)}&v=1)`;
+  const publishLinks = buildDiscordPublishLinks({
+    baseUrl: origin,
+    campaignId: input.campaignId,
+    variationIndex: 1,
+    availableLocales: ['en-SG'],
+  });
   const reviewLink = `[👁 Review on /runs](${origin}/runs)`;
   const inspectLink = `[🔍 Full inspect](${origin}/inspect/${encodeURIComponent(input.campaignId)})`;
   const linksLine = isAutoPost
     ? `${reviewLink} · ${inspectLink}`
-    : `${postNowLink} · ${reviewLink} · ${inspectLink}`;
+    : `${publishLinks.join(' · ')} · ${reviewLink} · ${inspectLink}`;
   const promptText =
     input.prompt.length > 240
       ? input.prompt.slice(0, 240) + '…'
@@ -304,41 +413,27 @@ async function sendDragDropDiscordPing(input: SendPingInput): Promise<boolean> {
   // already surfaces the live link, so the embed only needs the Review
   // button. In review mode show the explicit Post-now button so the
   // creator can fire publishers when they're ready.
+  const publishChoiceRow = isAutoPost
+    ? null
+    : buildDiscordPublishChoiceRow({
+        baseUrl: origin,
+        campaignId: input.campaignId,
+        variationIndex: 1,
+        availableLocales: ['en-SG'],
+      });
   const components: DiscordActionRow[] = [
+    ...(publishChoiceRow ? [publishChoiceRow] : []),
     {
       type: 1,
-      components: isAutoPost
-        ? [
-            {
-              type: 2,
-              style: 5,
-              label: 'Review in Aether',
-              emoji: { name: '👁' },
-              url: `${origin}/inspect/${encodeURIComponent(input.campaignId)}`,
-            },
-          ]
-        : [
-            {
-              type: 2,
-              style: 5,
-              label: 'Post now to all platforms',
-              emoji: { name: '🚀' },
-              // /post-now loads the persisted variation from Convex and calls
-              // scheduleVariationPosts directly with forcePostNow=true. Skips
-              // the redundant lap-rerun that the old /approve→/run flow did
-              // just to publish bytes that already existed.
-              url: `${origin}/api/auto-mode/post-now?c=${encodeURIComponent(
-                input.campaignId
-              )}&v=1`,
-            },
-            {
-              type: 2,
-              style: 5,
-              label: 'Review in Aether',
-              emoji: { name: '👁' },
-              url: `${origin}/inspect/${encodeURIComponent(input.campaignId)}`,
-            },
-          ],
+      components: [
+        {
+          type: 2,
+          style: 5,
+          label: 'Review in Aether',
+          emoji: { name: '👁' },
+          url: `${origin}/inspect/${encodeURIComponent(input.campaignId)}`,
+        },
+      ],
     },
   ];
 

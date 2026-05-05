@@ -18,7 +18,7 @@ const STUB_OUTPUT = {
   layers: [],
   plannerMode: 'noop' as const,
   provenance: {
-    sourceLocale: 'en-US',
+    sourceLocale: 'en-SG',
     targetLocales: [],
   },
 };
@@ -31,7 +31,7 @@ const MINIMAL_BODY = {
     cropPriorities: { primary: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } },
     formats: [{ id: 'ig-post', w: 1080, h: 1350 }],
   },
-  sourceLocale: 'en-US',
+  sourceLocale: 'en-SG',
 };
 
 function postRequest(body: unknown) {
@@ -63,7 +63,7 @@ describe('POST /api/text-overlay/apply', () => {
 
   it('returns 400 when component is missing', async () => {
     const { POST } = await import('@/app/api/text-overlay/apply/route');
-    const res = await POST(postRequest({ sourceLocale: 'en-US' }));
+    const res = await POST(postRequest({ sourceLocale: 'en-SG' }));
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.ok).toBe(false);

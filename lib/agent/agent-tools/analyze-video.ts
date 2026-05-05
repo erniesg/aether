@@ -1,11 +1,10 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { AgentTool } from './types';
 
-const tool: Anthropic.Messages.Tool = {
+const tool: AgentTool['tool'] = {
   name: 'analyze_video',
   description:
     'Send a video URL to Gemini for understanding. Use task=summarize for a quick brief, transcribe for spoken dialogue, extract-moments for visual peaks, describe-shots for camera work.',
-  input_schema: {
+  inputSchema: {
     type: 'object',
     properties: {
       videoUrl: {
@@ -29,7 +28,7 @@ const tool: Anthropic.Messages.Tool = {
       },
     },
     required: ['videoUrl'],
-  } as unknown as Anthropic.Messages.Tool['input_schema'],
+  },
 };
 
 export const analyzeVideo: AgentTool = {

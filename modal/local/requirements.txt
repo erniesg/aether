@@ -7,6 +7,7 @@
 fastapi>=0.115,<1
 uvicorn[standard]>=0.32,<1
 pydantic>=2.9,<3
+python-multipart>=0.0.18,<1
 
 # CLIP stack
 torch>=2.5,<3            # MPS support for SAM3 lands in 2.5+; pin lower bound
@@ -17,6 +18,12 @@ umap-learn>=0.5.7,<1
 scikit-learn>=1.5,<2
 numpy>=1.26,<2
 pillow>=10.4,<12
+
+# Whisper transcription for async push-to-talk.
+faster-whisper>=1.1,<2
+# Apple Silicon GPU transcription path. `faster-whisper` is CTranslate2 and
+# does not use MPS/Metal on Macs, so the local sidecar defaults to MLX there.
+mlx-whisper>=0.4,<1
 
 # SAM3 — Mac-friendly fork that swaps the Triton EDT kernel for OpenCV.
 # The official facebook/sam3 hard-imports `triton`, which is Linux/CUDA only

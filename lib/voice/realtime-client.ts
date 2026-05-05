@@ -7,7 +7,7 @@
  *
  * The client never talks to the OpenAI primary key. It pulls an ephemeral
  * `client_secret` from /api/voice/session and uses it as the bearer token
- * for the SDP handshake at `https://api.openai.com/v1/realtime`.
+ * for the SDP handshake at `https://api.openai.com/v1/realtime/calls`.
  *
  * Gemini Live is implemented as a sibling module behind the same
  * VoiceProvider surface; this file stays OpenAI-specific beyond the SDP
@@ -15,7 +15,7 @@
  */
 
 import { GeminiLiveClient, type GeminiLiveClientOptions } from './gemini-live-client';
-import { fetchVoiceSession } from './session-client';
+import { fetchVoiceSession, type FetchVoiceSessionOptions } from './session-client';
 import { VOICE_TOOL_DEFINITIONS } from './tools';
 import type {
   VoiceConnectOptions,
@@ -28,7 +28,7 @@ import type {
   VoiceTranscriptEvent,
 } from './types';
 
-const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime';
+const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 
 interface Listeners {
   transcript: Set<(event: VoiceTranscriptEvent) => void>;
@@ -60,7 +60,10 @@ export interface RealtimeClientDeps {
   /** Constructs a peer connection. Default: `new RTCPeerConnection()`. */
   createPeerConnection?: () => RTCPeerConnection;
   /** Fetches ephemeral creds from the Next.js route. */
-  fetchSession?: (endpoint: string) => Promise<VoiceSessionCredentials>;
+  fetchSession?: (
+    endpoint: string,
+    options?: FetchVoiceSessionOptions
+  ) => Promise<VoiceSessionCredentials>;
   /** Performs the SDP exchange with the realtime endpoint. */
   sdpExchange?: (
     offerSdp: string,
@@ -102,7 +105,10 @@ export class OpenAIRealtimeClient implements VoiceProvider {
     if (this.connected) return;
     const endpoint = options.sessionEndpoint ?? '/api/voice/session';
     const credentials =
-      options.credentials ?? (await this.deps.fetchSession(endpoint));
+      options.credentials ??
+      (await this.deps.fetchSession(endpoint, {
+        workspaceId: options.workspaceId,
+      }));
 
     if (options.signal?.aborted) {
       throw new DOMException('voice connect aborted', 'AbortError');
@@ -226,11 +232,16 @@ export class OpenAIRealtimeClient implements VoiceProvider {
     this.sendEvent({
       type: 'session.update',
       session: {
-        modalities: ['audio', 'text'],
+        type: 'realtime',
+        output_modalities: ['audio'],
         instructions:
           "You are aether's voice companion. Keep replies brief and call tools eagerly rather than narrating.",
-        turn_detection: { type: 'server_vad' },
-        input_audio_transcription: { model: 'whisper-1' },
+        audio: {
+          input: {
+            turn_detection: { type: 'server_vad' },
+            transcription: { model: 'whisper-1' },
+          },
+        },
         tools: VOICE_TOOL_DEFINITIONS.map((t) => ({
           type: 'function',
           name: t.name,
@@ -263,18 +274,23 @@ export class OpenAIRealtimeClient implements VoiceProvider {
       case 'response.created':
         this.emitState('thinking');
         return;
+      case 'output_audio_buffer.started':
       case 'response.audio.delta':
       case 'response.output_audio.delta':
         this.emitState('speaking');
         return;
+      case 'output_audio_buffer.stopped':
       case 'response.done':
       case 'response.output_audio.done':
         this.emitState('idle');
         return;
 
       case 'conversation.item.input_audio_transcription.completed':
+      case 'conversation.item.input_audio_transcription.delta':
       case 'response.audio_transcript.delta':
       case 'response.audio_transcript.done':
+      case 'response.output_audio_transcript.delta':
+      case 'response.output_audio_transcript.done':
       case 'response.output_text.delta':
       case 'response.output_text.done': {
         const text =
@@ -286,9 +302,8 @@ export class OpenAIRealtimeClient implements VoiceProvider {
             ? payload.text
             : '';
         if (!text) return;
-        const speaker: VoiceTranscriptEvent['speaker'] = type.startsWith(
-          'response.'
-        )
+        const speaker: VoiceTranscriptEvent['speaker'] =
+          type.startsWith('response.') || type.startsWith('output_audio_buffer.')
           ? 'assistant'
           : 'user';
         const kind: VoiceTranscriptEvent['kind'] = type.endsWith('.done')
@@ -385,10 +400,7 @@ async function defaultSdpExchange(
   offerSdp: string,
   credentials: VoiceSessionCredentials
 ): Promise<string> {
-  const url = `${OPENAI_REALTIME_SDP_URL}?model=${encodeURIComponent(
-    credentials.model
-  )}`;
-  const res = await fetch(url, {
+  const res = await fetch(OPENAI_REALTIME_SDP_URL, {
     method: 'POST',
     body: offerSdp,
     headers: {

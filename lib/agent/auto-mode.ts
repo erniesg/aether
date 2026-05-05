@@ -22,8 +22,15 @@ import {
 import {
   PUBLISH_PLATFORMS,
   type PublishPlatform,
-  type ScheduledPost,
 } from '@/lib/providers/publisher/types';
+import {
+  composePublishPostsForVariation,
+  type PublishFormatId,
+} from '@/lib/publisher/payload';
+import {
+  buildDiscordPublishChoiceRow,
+  buildDiscordPublishLinks,
+} from '@/lib/publisher/discord-actions';
 import {
   cropHeroToFormats,
   type CroppedFormat,
@@ -36,6 +43,11 @@ import type {
   SemanticCreativeComponent,
 } from '@/lib/types/semantic-component';
 import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
+import {
+  SUPPORTED_LOCALES,
+  TARGET_TRANSLATION_LOCALES,
+  type SupportedLocaleCode,
+} from '@/lib/locale/registry';
 import { buildLayoutAwarePrompt } from './prompt/layout-aware';
 import {
   ONE_SHOT_PROMPTS,
@@ -193,13 +205,16 @@ export interface AutoModeFormatCrop {
 export interface AutoModeVariationResult {
   index: number;
   status: 'ready' | 'failed';
+  /** Selected hero direction for publish/export copy resolution when a
+   *  single variation contains linked multi-hero artboards. */
+  heroDirectionId?: string;
   heroImageUrl?: string;
   /** Convex asset doc id when the hero was uploaded to Convex storage
    *  (i.e. the data URL was successfully migrated). Lets the UI fetch the
    *  source bytes for re-segmentation / variant fork-off. */
   heroAssetId?: string;
   caption?: string;
-  /** Captions across the 4 SG locales. Filled by the agent's JSON envelope
+  /** Captions across supported campaign locales. Filled by the agent's JSON envelope
    *  (Claude translates inline) plus, when text-overlay/apply runs, the
    *  authored copy per locale from the planner. */
   captionsByLocale?: Partial<Record<LocaleCode, string>>;
@@ -214,7 +229,7 @@ export interface AutoModeVariationResult {
    *  text-bearing safe zone × locale. Position is segmentation-aware
    *  (faces/products/logos forbidden). */
   textOverlays?: ProposedTextOverlay[];
-  /** Convex public URL of the 4×4 atlas (formats × locales) — one
+  /** Convex public URL of the format × locale atlas — one
    *  concatenated thumbnail per variation that the Discord embed surfaces
    *  so the user can review every variant before posts fire. Absent when
    *  the hero never produced bytes or the atlas compose failed. */
@@ -234,6 +249,11 @@ export interface AutoModeVariationResult {
    * fall back to atlas → hero. Undefined when the variation has no hero.
    */
   nativePerFormatUrls?: Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>;
+  /** Locale-specific composed publish assets, refreshed at post time after
+   *  text edits. Keyed by locale then format id. */
+  localizedPerFormatUrls?: Partial<
+    Record<LocaleCode, Partial<Record<'1x1' | '4x5' | '9x16' | '16x9', string>>>
+  >;
   /** Per-aspect provider error messages from native-per-format render
    *  (when any aspect rejected). Useful for surfacing in /inspect. */
   nativePerFormatErrors?: Record<string, string>;
@@ -688,7 +708,9 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
     '    "en-SG":      "<same caption>",',
     '    "zh-Hans-SG": "<natural-sounding Singaporean Mandarin translation, equivalent length>",',
     '    "ms-SG":      "<natural-sounding Bahasa Singapura translation, equivalent length>",',
-    '    "ta-SG":      "<natural-sounding Singaporean Tamil translation, equivalent length>"',
+    '    "ta-SG":      "<natural-sounding Singaporean Tamil translation, equivalent length>",',
+    '    "ja-JP":      "<natural-sounding Japanese translation, equivalent length>",',
+    '    "ko-KR":      "<natural-sounding Korean translation, equivalent length>"',
     '  },',
     '  "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5"],',
     '  "platform": "instagram",',
@@ -701,14 +723,10 @@ const VARIATION_SYSTEM_NOTE = (input: VariationPromptInput): string => {
   return lines.join('\n');
 };
 
-export type LocaleCode = 'en-SG' | 'zh-Hans-SG' | 'ms-SG' | 'ta-SG';
+export type LocaleCode = SupportedLocaleCode;
 
-export const SG_LOCALES: readonly LocaleCode[] = [
-  'en-SG',
-  'zh-Hans-SG',
-  'ms-SG',
-  'ta-SG',
-] as const;
+export const SG_LOCALES: readonly LocaleCode[] =
+  SUPPORTED_LOCALES.map((locale) => String(locale) as LocaleCode);
 
 export interface ParsedAgentEnvelope {
   caption?: string;
@@ -1054,11 +1072,7 @@ async function runPostHeroPipeline(input: {
     const overlay = await applyTextOverlay({
       component,
       sourceLocale: asBCP47LocaleCode('en-SG'),
-      targetLocales: [
-        asBCP47LocaleCode('zh-Hans-SG'),
-        asBCP47LocaleCode('ms-SG'),
-        asBCP47LocaleCode('ta-SG'),
-      ],
+      targetLocales: TARGET_TRANSLATION_LOCALES,
       creatorIntent: input.caption,
       forbiddenRegions,
       wsId: input.workspaceId,
@@ -1370,7 +1384,7 @@ async function runOneVariation(
     nativePerFormatUrls = urls;
   }
 
-  // Variant atlas — 4 formats × 4 SG locales composed into one PNG so
+  // Variant atlas — formats × supported locales composed into one PNG so
   // Discord shows every (aspect ratio, language) at-a-glance per variation
   // before posts fire. Failures are fail-soft: a missing atlas just means
   // the embed falls back to the 1:1 hero. Skipped entirely on failed
@@ -1447,7 +1461,7 @@ async function runOneVariation(
 }
 
 /**
- * Fetch the hero PNG bytes (data URL or remote), compose the 4×4 atlas
+ * Fetch the hero PNG bytes (data URL or remote), compose the locale atlas
  * with the per-locale text overlays, and upload to Convex storage.
  * Returns null when Convex isn't configured or the upload itself failed —
  * the caller treats that as "atlas unavailable" and the lap continues.
@@ -1487,7 +1501,7 @@ export async function composeAndUploadAtlas(input: {
     source: composed.atlas,
     kind: 'other',
     mime: 'image/png',
-    sourceUrl: 'auto-mode variant atlas (4 formats × 4 SG locales)',
+    sourceUrl: 'auto-mode variant atlas (formats × supported locales)',
     width: composed.atlasWidth,
     height: composed.atlasHeight,
   });
@@ -1606,6 +1620,70 @@ export function pickHeroForPlatform(
   }
 }
 
+export function formatForPublishPlatform(platform: PublishPlatform): PublishFormatId {
+  switch (platform) {
+    case 'instagram':
+    case 'pinterest':
+      return '4x5';
+    case 'tiktok':
+    case 'youtube-shorts':
+    case 'douyin':
+    case 'kuaishou':
+      return '9x16';
+    case 'linkedin':
+    case 'x':
+    case 'bilibili':
+      return '16x9';
+    default:
+      return '1x1';
+  }
+}
+
+export function resolveLocalesForVariation(
+  variation: AutoModeVariationResult
+): LocaleCode[] {
+  const envList = process.env.AUTO_MODE_LOCALES?.trim();
+  const rawLocales = envList
+    ? envList.split(',').map((locale) => locale.trim())
+    // Generated overlays can contain every locale for canvas review. Publishing
+    // only fans out when a caller explicitly opts in.
+    : ['en-SG'];
+  const seen = new Set<string>();
+  const out: LocaleCode[] = [];
+  for (const locale of ['en-SG', ...rawLocales]) {
+    if (!SG_LOCALES.includes(locale as LocaleCode)) continue;
+    if (seen.has(locale)) continue;
+    seen.add(locale);
+    out.push(locale as LocaleCode);
+  }
+  return out.length > 0 ? out : ['en-SG'];
+}
+
+function pickCaptionForLocale(
+  variation: AutoModeVariationResult,
+  locale: LocaleCode
+): string {
+  return (
+    variation.captionsByLocale?.[locale] ??
+    variation.captionsByLocale?.['en-SG'] ??
+    variation.caption ??
+    ''
+  );
+}
+
+function pickHeroForLocalePlatform(
+  variation: AutoModeVariationResult,
+  locale: LocaleCode,
+  platform: PublishPlatform
+): { url?: string; format: PublishFormatId } {
+  const format = formatForPublishPlatform(platform);
+  const localized = variation.localizedPerFormatUrls?.[locale]?.[format];
+  return {
+    format,
+    url: localized ?? pickHeroForPlatform(variation, platform),
+  };
+}
+
 export async function scheduleVariationPosts(input: {
   variations: AutoModeVariationResult[];
   workspaceId?: string;
@@ -1617,6 +1695,10 @@ export async function scheduleVariationPosts(input: {
   /** Campaign id for Discord ping idempotency. `null` when running in
    *  local-only mode (no Convex) — those laps don't dedupe. */
   campaignId?: string | null;
+  /** Optional Discord/canvas scoped selection. When omitted, the variation's
+   *  persisted/env publish plan is used. */
+  targetPlatforms?: PublishPlatform[];
+  targetLocales?: LocaleCode[];
 }): Promise<string[]> {
   const ids: string[] = [];
   if (!input.workspaceId) return ids;
@@ -1631,108 +1713,115 @@ export async function scheduleVariationPosts(input: {
     // one. Each platform gets its format-appropriate hero (IG → 4:5,
     // LinkedIn → 16:9, X → 16:9, TT → 9:16). Set
     // AUTO_MODE_PLATFORMS=instagram,linkedin,x to enable.
-    const targetPlatforms = resolvePlatformsForVariation(variation);
+    const targetPlatforms =
+      input.targetPlatforms && input.targetPlatforms.length > 0
+        ? input.targetPlatforms
+        : resolvePlatformsForVariation(variation);
     if (targetPlatforms.length === 0) continue;
 
-    for (const platform of targetPlatforms) {
-      const hero = pickHeroForPlatform(variation, platform);
-      if (!hero) continue;
+    const targetLocales =
+      input.targetLocales && input.targetLocales.length > 0
+        ? input.targetLocales
+        : resolveLocalesForVariation(variation);
 
+    for (const locale of targetLocales) {
+      for (const platform of targetPlatforms) {
       // forcePostNow overrides the agent's whenLocal so X/IG/TT direct
       // adapters don't reject for being too far in the future. Stagger
       // platforms by 5s each so we don't fire 3 simultaneous publishes.
-      const platformOffset = targetPlatforms.indexOf(platform) * 5_000;
-      const scheduledAt = input.forcePostNow
-        ? new Date(Date.now() + 30_000 + platformOffset).toISOString()
-        : normalizeScheduledAt(variation.scheduleWhenLocal);
-      if (!scheduledAt) continue;
+        const platformOffset = targetPlatforms.indexOf(platform) * 5_000;
+        const scheduledAt = input.forcePostNow
+          ? new Date(Date.now() + 30_000 + platformOffset).toISOString()
+          : normalizeScheduledAt(variation.scheduleWhenLocal);
+        if (!scheduledAt) continue;
 
-      const post: ScheduledPost = {
-        id: '',
-        platform,
-        mediaUrls: [hero],
-        caption: variation.caption ?? '',
-        hashtags: variation.hashtags ?? [],
-        scheduledAt,
-      };
+        const [post] = composePublishPostsForVariation({
+          variation,
+          platforms: [platform],
+          locales: [locale],
+          scheduledAt,
+        });
+        if (!post) continue;
+        const caption = post.caption;
 
     // Per-post resolution so X posts route to X, IG posts to IG, TT to
     // postiz/social-auto-upload, with preview as the always-available
     // fallback. The previous "preview-only" wiring meant we never hit a
     // real adapter even when X creds were present.
-    let publisher;
-    try {
-      publisher = resolvePublisherForPost({
-        workspaceId: input.workspaceId,
-        baseUrl: input.baseUrl,
-        post,
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(
-        `[auto-mode] scheduleVariationPosts: no publisher for ${platform}:`,
-        err instanceof Error ? err.message : String(err)
-      );
-      continue;
-    }
+        let publisher;
+        try {
+          publisher = resolvePublisherForPost({
+            workspaceId: input.workspaceId,
+            baseUrl: input.baseUrl,
+            post,
+          });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `[auto-mode] scheduleVariationPosts: no publisher for ${platform}:`,
+            err instanceof Error ? err.message : String(err)
+          );
+          continue;
+        }
 
-    try {
-      const result = await publisher.schedule(post);
-      const persistedId = await recordScheduledPost({
-        workspaceId: input.workspaceId,
-        post,
-        provider: publisher.id,
-        externalId: result.externalId,
-      });
-      const id =
-        persistedId ??
-        extractPreviewIdFromUrl(result.previewUrl) ??
-        result.externalId ??
-        `pub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-      ids.push(id);
+        try {
+          const result = await publisher.schedule(post);
+          const persistedId = await recordScheduledPost({
+            workspaceId: input.workspaceId,
+            post,
+            provider: publisher.id,
+            externalId: result.externalId,
+          });
+          const id =
+            persistedId ??
+            extractPreviewIdFromUrl(result.previewUrl) ??
+            result.externalId ??
+            `pub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+          ids.push(id);
 
       // Per-publish Discord ping with the live link so Ernie sees the
       // post URL the moment it goes live, instead of digging through
       // /inspect or the platform's app. Skips preview/postiz which
       // don't return a clickable platform url.
-      const isReal =
-        publisher.id !== 'preview' && publisher.id !== 'postiz';
-      if (isReal) {
-        await notifyDiscord({
-          campaignId: input.campaignId ?? undefined,
-          // Variation index in the tag so each (campaign, platform, variation)
-          // dedupes independently — multiple variations posting to the same
-          // platform must all fire.
-          tag: `publish-${platform}-v${variation.index}`,
-          content: [
-            `🟢 Posted to ${platform.toUpperCase()} — v${variation.index}`,
-            `link: ${result.previewUrl ?? '(no preview url)'}`,
-            result.externalId ? `id: ${result.externalId}` : '',
-            variation.caption
-              ? `caption: ${variation.caption.slice(0, 120)}${variation.caption.length > 120 ? '…' : ''}`
-              : '',
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        });
+          const isReal =
+            publisher.id !== 'preview' && publisher.id !== 'postiz';
+          if (isReal) {
+            await notifyDiscord({
+              campaignId: input.campaignId ?? undefined,
+              // Variation index in the tag so each (campaign, platform, variation)
+              // dedupes independently — multiple variations posting to the same
+              // platform must all fire.
+              tag: `publish-${platform}-${locale}-v${variation.index}`,
+              content: [
+                `🟢 Posted to ${platform.toUpperCase()} — ${locale} · v${variation.index}`,
+                `link: ${result.previewUrl ?? '(no preview url)'}`,
+                result.externalId ? `id: ${result.externalId}` : '',
+                caption
+                  ? `caption: ${caption.slice(0, 120)}${caption.length > 120 ? '…' : ''}`
+                  : '',
+              ]
+                .filter(Boolean)
+                .join('\n'),
+            });
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `[auto-mode] scheduleVariationPosts: variation ${variation.index} (${platform}, ${locale}) failed:`,
+            err instanceof Error ? err.message : String(err)
+          );
+          // Notify on failure too — Ernie wants to see when something
+          // didn't publish so he can act, not just when it did.
+          await notifyDiscord({
+            campaignId: input.campaignId ?? undefined,
+            tag: `publish-fail-${platform}-${locale}-v${variation.index}`,
+            content: [
+              `🔴 Publish to ${platform.toUpperCase()} failed — ${locale} · v${variation.index}`,
+              `error: ${err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200)}`,
+            ].join('\n'),
+          });
+        }
       }
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(
-        `[auto-mode] scheduleVariationPosts: variation ${variation.index} (${platform}) failed:`,
-        err instanceof Error ? err.message : String(err)
-      );
-      // Notify on failure too — Ernie wants to see when something
-      // didn't publish so he can act, not just when it did.
-      await notifyDiscord({
-        campaignId: input.campaignId ?? undefined,
-        tag: `publish-fail-${platform}-v${variation.index}`,
-        content: [
-          `🔴 Publish to ${platform.toUpperCase()} failed — v${variation.index}`,
-          `error: ${err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200)}`,
-        ].join('\n'),
-      });
-    }
     }
   }
 
@@ -1795,6 +1884,28 @@ const EMBED_COLOR_GREEN = 0x57f287; // ready
 const EMBED_COLOR_YELLOW = 0xfee75c; // review / pending
 const EMBED_COLOR_RED = 0xed4245; // failed
 
+function resolveDiscordActionLocales(
+  variation: AutoModeVariationResult
+): LocaleCode[] {
+  const seen = new Set<string>();
+  const locales: LocaleCode[] = [];
+  const add = (locale: string | undefined) => {
+    if (!locale) return;
+    if (!SG_LOCALES.includes(locale as LocaleCode)) return;
+    if (seen.has(locale)) return;
+    seen.add(locale);
+    locales.push(locale as LocaleCode);
+  };
+
+  add('en-SG');
+  for (const locale of Object.keys(variation.captionsByLocale ?? {})) add(locale);
+  for (const locale of Object.keys(variation.localizedPerFormatUrls ?? {})) add(locale);
+  for (const overlay of variation.textOverlays ?? []) {
+    for (const locale of Object.keys(overlay.content ?? {})) add(locale);
+  }
+  return locales.length > 0 ? locales : ['en-SG'];
+}
+
 /**
  * Build the action-row link buttons that go on the lap-end Discord
  * message. Approve/Reject pairs per ready variation in review mode;
@@ -1819,31 +1930,18 @@ function buildLapEndActionRows(input: {
   const rows: DiscordActionRow[] = [];
 
   if (notifyMode === 'review' || notifyMode === 'notify') {
-    // Approve/Reject pair per ready variation. Discord caps each row at 5
-    // buttons; with up to 4 variations × 2 buttons = 8 we may spill into a
-    // second row.
-    for (let i = 0; i < ready.length; i += 2) {
-      const slice = ready.slice(i, i + 2);
-      const components = slice.flatMap((v) => [
-        {
-          type: 2 as const,
-          style: 5 as const,
-          label: `Approve v${v.index}`,
-          // /post-now skips the lap-rerun that /approve→/run used to do —
-          // loads the existing variation from Convex and calls
-          // scheduleVariationPosts directly.
-          url: `${origin}/api/auto-mode/post-now?c=${encodeURIComponent(campaignId)}&v=${v.index}`,
-          emoji: { name: '✅' },
-        },
-        {
-          type: 2 as const,
-          style: 5 as const,
-          label: `Reject v${v.index}`,
-          url: `${origin}/api/auto-mode/reject?c=${encodeURIComponent(campaignId)}&v=${v.index}`,
-          emoji: { name: '✖️' },
-        },
-      ]);
-      if (components.length > 0) rows.push({ type: 1, components });
+    // One compact publish-choice row per ready variation. Each link carries a
+    // typed platform + locale selection into /post-now, so Discord can choose
+    // X, LinkedIn, or both without opening a separate console.
+    for (const v of ready) {
+      const row = buildDiscordPublishChoiceRow({
+        campaignId,
+        variationIndex: v.index,
+        baseUrl: origin,
+        availableLocales: resolveDiscordActionLocales(v),
+        rejectUrl: `${origin}/api/auto-mode/reject?c=${encodeURIComponent(campaignId)}&v=${v.index}`,
+      });
+      if (row) rows.push(row);
     }
   }
 
@@ -1907,7 +2005,7 @@ function buildVariationEmbed(input: {
       ? variation.moodNote.slice(0, 60)
       : `Variation ${variation.index}`;
 
-  // Embed image: prefer the variant atlas (4 formats × 4 SG locales) so
+  // Embed image: prefer the variant atlas (formats × supported locales) so
   // Ernie can review every aspect ratio and language at-a-glance before
   // posts fire. Falls back to the 1:1 hero when atlas is unavailable
   // (compose failure, no Convex storage). Skip data URLs either way —
@@ -1958,7 +2056,12 @@ function buildVariationEmbed(input: {
   const linkParts: string[] = [];
   if (campaignId && isReady) {
     linkParts.push(
-      `[🚀 Post now](${origin}/api/auto-mode/post-now?c=${encodeURIComponent(campaignId)}&v=${variation.index})`
+      ...buildDiscordPublishLinks({
+        baseUrl: origin,
+        campaignId,
+        variationIndex: variation.index,
+        availableLocales: resolveDiscordActionLocales(variation),
+      })
     );
     linkParts.push(
       `[✖️ Reject](${origin}/api/auto-mode/reject?c=${encodeURIComponent(campaignId)}&v=${variation.index})`

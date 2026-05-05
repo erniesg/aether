@@ -666,6 +666,9 @@ export default defineSchema({
       v.literal('ready'),
       v.literal('failed')
     ),
+    /** Selected hero direction for publish/export copy/media resolution
+     *  when one variation carries linked multi-hero artboards. */
+    heroDirectionId: v.optional(v.string()),
     heroImageUrl: v.optional(v.string()),
     /** Convex `asset` doc id when the hero was uploaded to storage
      *  (data-URL → public CDN URL conversion). */

@@ -81,11 +81,27 @@ export interface DispatchTextOverlayApplyResult {
   rationale?: string;
 }
 
+export interface TextOverlayApplyPlan {
+  layers: ProposedTextOverlay[];
+  plannerMode: ApplyTextOverlayOutput['plannerMode'];
+  rationale?: string;
+  provenance?: ApplyTextOverlayOutput['provenance'];
+}
+
 export interface DispatchDeps {
   fetchImpl?: typeof fetch;
+  /**
+   * Canonical model output to reuse for this frame. Supplying a plan skips the
+   * `/api/text-overlay/apply` request, but still persists rows and creates
+   * editable canvas shapes for the destination artboard.
+   */
+  precomputedPlan?: TextOverlayApplyPlan;
   /** Inserts a `textOverlay` row, returning its id. Returns null when Convex
    *  is unavailable (demo mode). */
   insertTextOverlay?: (row: TextOverlayRowInput) => Promise<string | null>;
+  /** Upper bound for optional persistence. Canvas insertion must stay
+   *  responsive when local Convex is configured but offline. */
+  insertTextOverlayTimeoutMs?: number;
   /** Inserts an `AetherTextShape` into the canvas, returning the new shape
    *  id. Implemented by the canvas bridge in `useTextOverlayBridge`. */
   insertCanvasShape: (placement: PlacedShapeInput) => string;
@@ -205,17 +221,20 @@ export function buildPlacementFromZone(zone: SafeZone): AetherTextPlacement {
 }
 
 const APPLY_ENDPOINT = '/api/text-overlay/apply';
+const DEFAULT_INSERT_TIMEOUT_MS = 1_500;
 
-export async function dispatchTextOverlayApply(
+export async function fetchTextOverlayApplyPlan(
   input: DispatchTextOverlayApplyInput,
-  deps: DispatchDeps,
-  framePosition: { x: number; y: number }
-): Promise<DispatchTextOverlayApplyResult> {
-  const fetchImpl = deps.fetchImpl ?? (typeof fetch !== 'undefined' ? fetch : undefined);
+  deps: Pick<DispatchDeps, 'fetchImpl'> = {}
+): Promise<
+  | { ok: true; plan: TextOverlayApplyPlan }
+  | { ok: false; plannerMode: 'http-error'; error: string }
+> {
+  const fetchImpl =
+    deps.fetchImpl ?? (typeof fetch !== 'undefined' ? fetch : undefined);
   if (!fetchImpl) {
     return {
       ok: false,
-      applied: [],
       plannerMode: 'http-error',
       error: 'fetch is not available in this environment',
     };
@@ -249,7 +268,6 @@ export async function dispatchTextOverlayApply(
   } catch (err) {
     return {
       ok: false,
-      applied: [],
       plannerMode: 'http-error',
       error: err instanceof Error ? err.message : String(err),
     };
@@ -261,7 +279,6 @@ export async function dispatchTextOverlayApply(
   } catch (err) {
     return {
       ok: false,
-      applied: [],
       plannerMode: 'http-error',
       error: err instanceof Error ? err.message : String(err),
     };
@@ -270,13 +287,42 @@ export async function dispatchTextOverlayApply(
   if (!res.ok || json.ok === false) {
     return {
       ok: false,
-      applied: [],
       plannerMode: 'http-error',
       error: typeof json.error === 'string' ? json.error : `HTTP ${res.status}`,
     };
   }
 
-  const layers = json.layers ?? [];
+  return {
+    ok: true,
+    plan: {
+      layers: json.layers ?? [],
+      plannerMode: json.plannerMode ?? 'noop',
+      rationale: json.rationale,
+      provenance: json.provenance,
+    },
+  };
+}
+
+export async function dispatchTextOverlayApply(
+  input: DispatchTextOverlayApplyInput,
+  deps: DispatchDeps,
+  framePosition: { x: number; y: number }
+): Promise<DispatchTextOverlayApplyResult> {
+  const planResult = deps.precomputedPlan
+    ? ({ ok: true, plan: deps.precomputedPlan } as const)
+    : await fetchTextOverlayApplyPlan(input, { fetchImpl: deps.fetchImpl });
+
+  if (!planResult.ok) {
+    return {
+      ok: false,
+      applied: [],
+      plannerMode: planResult.plannerMode,
+      error: planResult.error,
+    };
+  }
+
+  const plan = planResult.plan;
+  const layers = plan.layers;
   const applied: AppliedTextOverlay[] = [];
 
   for (const proposal of layers) {
@@ -291,16 +337,19 @@ export async function dispatchTextOverlayApply(
     let textOverlayRowId: string | null = null;
     if (deps.insertTextOverlay) {
       try {
-        textOverlayRowId = await deps.insertTextOverlay({
-          wsId: input.wsId,
-          artboardId: input.frame.id,
-          content: proposal.content,
-          activeLanguage: input.sourceLocale,
-          style: { textAlign: proposal.textAlign },
-          placement,
-          smartPlacement: true,
-          protectedElementIds: [],
-        });
+        textOverlayRowId = await withTimeout(
+          deps.insertTextOverlay({
+            wsId: input.wsId,
+            artboardId: input.frame.id,
+            content: proposal.content,
+            activeLanguage: input.sourceLocale,
+            style: { textAlign: proposal.textAlign },
+            placement,
+            smartPlacement: true,
+            protectedElementIds: [],
+          }),
+          deps.insertTextOverlayTimeoutMs ?? DEFAULT_INSERT_TIMEOUT_MS
+        );
       } catch {
         textOverlayRowId = null;
       }
@@ -317,7 +366,8 @@ export async function dispatchTextOverlayApply(
       protectedRegions: input.forbiddenRegions ?? [],
       wsId: input.wsId,
       textOverlayRowId: textOverlayRowId ?? '',
-      capabilityRunId: input.capabilityRunId ?? json.provenance?.capabilityRunId ?? '',
+      capabilityRunId:
+        input.capabilityRunId ?? plan.provenance?.capabilityRunId ?? '',
       sourceLocale: input.sourceLocale,
     });
 
@@ -332,9 +382,29 @@ export async function dispatchTextOverlayApply(
   return {
     ok: true,
     applied,
-    plannerMode: json.plannerMode ?? 'noop',
-    rationale: json.rationale,
+    plannerMode: plan.plannerMode,
+    rationale: plan.rationale,
   };
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number
+): Promise<T | null> {
+  if (timeoutMs <= 0) return promise.catch(() => null);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      }
+    );
+  });
 }
 
 /** Convenience helper used by the canvas bridge — converts an array of

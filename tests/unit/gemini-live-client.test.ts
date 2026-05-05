@@ -91,7 +91,9 @@ describe('GeminiLiveClient', () => {
     client.__injectMessageForTests({ setupComplete: {} });
     harness.emitMicChunk();
 
-    expect(harness.fetchSession).toHaveBeenCalledWith('/api/voice/session');
+    expect(harness.fetchSession).toHaveBeenCalledWith('/api/voice/session', {
+      workspaceId: undefined,
+    });
     expect(harness.connectLiveSession).toHaveBeenCalledWith(
       harness.credentials,
       expect.objectContaining({
@@ -105,6 +107,24 @@ describe('GeminiLiveClient', () => {
     });
     expect(states).toEqual(['idle', 'listening']);
     expect(client.isConnected()).toBe(true);
+  });
+
+  it('passes workspaceId when it needs to mint fresh credentials', async () => {
+    const harness = createHarness();
+    const client = new GeminiLiveClient({
+      deps: {
+        fetchSession: harness.fetchSession,
+        connectLiveSession: harness.connectLiveSession,
+        createRecorder: harness.createRecorder,
+        createPlayer: harness.createPlayer,
+      },
+    });
+
+    await client.connect({ workspaceId: 'demo-ws' });
+
+    expect(harness.fetchSession).toHaveBeenCalledWith('/api/voice/session', {
+      workspaceId: 'demo-ws',
+    });
   });
 
   it('sends typed creator turns through sendClientContent', async () => {
