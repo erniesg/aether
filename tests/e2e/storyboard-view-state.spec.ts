@@ -296,9 +296,14 @@ test.describe('storyboard lens state preservation', () => {
     });
     await page.getByTestId('view-switch-storyboard').click();
     await expect(page.getByTestId('storyboard-lens')).toBeVisible();
+    await expect(page.getByTestId('storyboard-slide-card')).toHaveCount(4);
+    await expect(
+      page.getByTestId('storyboard-slide-card').filter({ hasText: 'Why Now' })
+    ).toBeVisible();
     await expect(page.getByTestId('async-voice-review-ready')).toBeVisible();
 
-    await page.getByTestId('view-switch-canvas').click();
+    await page.getByTestId('storyboard-close').click();
+    await expect(page.getByTestId('storyboard-lens')).toHaveCount(0);
     await expect(page.getByTestId('async-voice-review-ready')).toBeVisible();
     await page.getByRole('button', { name: /keep reference/i }).click();
     await page.getByRole('button', { name: /use selected/i }).click();
@@ -313,27 +318,31 @@ test.describe('storyboard lens state preservation', () => {
     });
 
     await page.getByTestId('view-switch-storyboard').click();
-    await expect(page.getByTestId('storyboard-run').first()).toHaveAttribute(
-      'data-run-status',
-      'running',
-      { timeout: 10_000 }
-    );
+    await expect(page.getByTestId('storyboard-lens')).toBeVisible();
+    await page.getByTestId('storyboard-slide-card').filter({ hasText: 'Aether for socials' }).click();
+    await expect(page.getByTestId('storyboard-zoom-stage')).toBeVisible();
+    await page.getByTestId('storyboard-close').click();
+    await expect(page.getByTestId('storyboard-lens')).toHaveCount(0);
 
-    await expect(page.getByText(/placed 4\/4 formats/i)).toBeVisible({
-      timeout: 20_000,
-    });
+    const canvas = page.getByTestId('canvas');
+    await expect(
+      canvas.locator('.tl-frame-label').filter({ hasText: 'IG Square · 1080×1080' })
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      canvas.locator('.tl-frame-label').filter({ hasText: 'IG Post · 1080×1350' })
+    ).toBeVisible();
+    await expect(
+      canvas.locator('.tl-frame-label').filter({ hasText: 'Story / Reel · 1080×1920' })
+    ).toBeVisible();
+    await expect(
+      canvas.locator('.tl-frame-label').filter({ hasText: 'LinkedIn · 1920×1080' })
+    ).toBeVisible();
     await expect
-      .poll(async () => page.getByTestId('storyboard-run-frame').count(), {
+      .poll(async () => page.getByRole('textbox', { name: /text overlay \(en-SG\)/i }).count(), {
         timeout: 10_000,
       })
       .toBeGreaterThanOrEqual(4);
-    await expect
-      .poll(async () => page.getByTestId('storyboard-locale-chip').count(), {
-        timeout: 10_000,
-      })
-      .toBeGreaterThanOrEqual(6);
 
-    await page.getByTestId('view-switch-canvas').click();
     await page
       .getByTestId('composer-voice-slot')
       .getByRole('button', { name: /show voice command details/i })
@@ -354,11 +363,22 @@ test.describe('storyboard lens state preservation', () => {
     await overlay.getByTestId('publish-preview-close').click();
 
     await page.getByTestId('view-switch-storyboard').click();
-    await expect(page.getByTestId('storyboard-publish-post')).toHaveAttribute(
-      'data-platform',
-      'x'
+    await expect(page.getByTestId('storyboard-lens')).toBeVisible();
+    await expect(page.getByTestId('storyboard-slide-card')).toHaveCount(4);
+    await page.getByTestId('storyboard-close').click();
+    await expect(page.locator('[data-rail-section="scheduled"]')).toHaveAttribute(
+      'aria-label',
+      /publish · 1 scheduled/i
     );
-    await expect(page.getByTestId('storyboard-reference')).toHaveCount(1);
+    await page.locator('[data-rail-section="scheduled"]').click();
+    const reopenedPublishFlyout = page.locator('[data-rail-flyout="scheduled"]');
+    await expect(reopenedPublishFlyout).toBeVisible();
+    const scheduledRows = reopenedPublishFlyout.locator('[data-scheduled-post-id]');
+    await expect(scheduledRows).toHaveCount(1);
+    await expect(scheduledRows.first()).toHaveAttribute('data-scheduled-post-platform', 'x');
+    await expect(scheduledRows.first()).toHaveAttribute('data-scheduled-post-locale', 'en-SG');
+    await expect(scheduledRows.first()).toHaveAttribute('data-scheduled-post-format', '16x9');
+    await expect(scheduledRows.first()).toContainText('Sleep cooler tonight with Eight Sleep Pod.');
 
     await page.screenshot({
       path: testInfo.outputPath('storyboard-state-preserved.png'),
