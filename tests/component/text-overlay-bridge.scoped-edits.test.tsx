@@ -187,6 +187,8 @@ function dispatchEdit(detail: Partial<AetherTextOverlayEditedDetail>) {
 afterEach(() => {
   cleanup();
   editorState.editor = null;
+  delete (window as unknown as { __aetherRunVariationMap?: unknown })
+    .__aetherRunVariationMap;
 });
 
 describe('useTextOverlayBridge scoped text edits', () => {
@@ -339,6 +341,98 @@ describe('useTextOverlayBridge scoped text edits', () => {
       role: 'headline',
       format: '9x16',
       canonicalCopyModel: 'role-locale',
+    });
+  });
+
+  it('persists initial subhead overlays as local scope', async () => {
+    const editor = makeEditor([
+      {
+        id: 'frame-post',
+        type: 'frame',
+        x: 120,
+        y: 80,
+        props: {
+          ...makeProps({}),
+          w: 1080,
+          h: 1350,
+        },
+        meta: { formatId: '4x5' },
+      },
+    ]);
+    editorState.editor = editor;
+    (window as unknown as {
+      __aetherRunVariationMap?: Record<string, string>;
+    }).__aetherRunVariationMap = {
+      'run-local-persist': 'variation-1',
+    };
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === '/api/campaigns/overlay') {
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true, persisted: true }), {
+            status: 200,
+          })
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            plannerMode: 'fallback',
+            rationale: 'mocked',
+            layers: [
+              {
+                zone: {
+                  purpose: 'subhead',
+                  bbox: { x: 0.08, y: 0.76, w: 0.84, h: 0.1 },
+                },
+                content: {
+                  'en-SG': 'Quiet recovery that stays with you.',
+                  'zh-Hans-SG': '伴你整晚的静谧恢复。',
+                },
+                textAlign: 'center',
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      );
+    }) as typeof fetch;
+
+    render(<BridgeHarness editScope="global" fetchImpl={fetchImpl} />);
+    window.dispatchEvent(
+      new CustomEvent(AETHER_IMAGE_LANDED_EVENT, {
+        detail: {
+          wsId: 'ws-1',
+          artboardId: 'frame-post',
+          w: 1080,
+          h: 1350,
+          aspectRatio: '4:5',
+          capabilityRunId: 'run-local-persist',
+        },
+      })
+    );
+
+    await waitFor(() => expect(editor.createShape).toHaveBeenCalledTimes(1));
+    const created = editor.createShape.mock.calls[0]![0] as TestShape;
+    expect(created.meta).toMatchObject({
+      role: 'subhead',
+      scope: 'local',
+    });
+
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
+    const overlayCall = fetchImpl.mock.calls.find(
+      ([input]) => String(input) === '/api/campaigns/overlay'
+    );
+    expect(overlayCall).toBeDefined();
+    const body = JSON.parse(
+      String((overlayCall?.[1] as RequestInit | undefined)?.body)
+    );
+    expect(body).toMatchObject({
+      variationId: 'variation-1',
+      role: 'subhead',
+      scope: 'local',
+      format: '4x5',
+      text: 'Quiet recovery that stays with you.',
     });
   });
 

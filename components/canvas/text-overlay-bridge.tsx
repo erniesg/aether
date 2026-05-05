@@ -638,7 +638,7 @@ function queueCanonicalOverlayPersist(input: {
         heroDirectionId: input.heroDirectionId,
         locale: DEFAULT_LOCALE,
         format: input.format,
-        scope: 'global',
+        scope: defaultScopeForTextRole(input.role),
         role: input.role,
         text: sourceText,
         translateLinked: Object.keys(translations).length > 0,
