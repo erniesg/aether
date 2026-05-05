@@ -2,7 +2,14 @@
 
 import { cn } from '@/lib/utils/cn';
 
-export type ViewId = 'canvas' | 'focus' | 'timeline' | 'graph' | 'mood' | 'chat';
+export type ViewId =
+  | 'canvas'
+  | 'storyboard'
+  | 'focus'
+  | 'timeline'
+  | 'graph'
+  | 'mood'
+  | 'chat';
 
 type ViewDef = {
   id: ViewId;
@@ -13,6 +20,7 @@ type ViewDef = {
 
 const VIEWS: ReadonlyArray<ViewDef> = [
   { id: 'canvas', label: 'canvas', live: true },
+  { id: 'storyboard', label: 'storyboard', live: true },
   { id: 'focus', label: 'focus', live: true },
   { id: 'timeline', label: 'timeline', live: false },
   { id: 'graph', label: 'graph', live: false },
@@ -50,6 +58,7 @@ export function ViewSwitcher({ view, onChangeView, className }: ViewSwitcherProp
             key={v.id}
             type="button"
             role="tab"
+            data-testid={`view-switch-${v.id}`}
             aria-current={active ? 'page' : undefined}
             aria-selected={active}
             disabled={!v.live}

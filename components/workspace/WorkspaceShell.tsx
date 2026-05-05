@@ -10,6 +10,7 @@ import { CampaignSwitcher } from '@/components/header/CampaignSwitcher';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
+import { StoryboardLens } from '@/components/canvas/lenses/StoryboardLens';
 import {
   AsyncPushToTalk,
   type VoiceRunTrace,
@@ -2775,7 +2776,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     if (view === 'focus') {
       const resolved = focusFrameAtIndex(editor, focusIdx);
       if (resolved !== null && resolved !== focusIdx) setFocusIdx(resolved);
-    } else {
+    } else if (view === 'canvas') {
       zoomToAllFrames(editor);
     }
   }, [view, focusIdx, editor]);
@@ -2885,39 +2886,50 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       <div className="flex flex-1 overflow-hidden">
         <LeftRail workspaceId={wsId} />
-        <CanvasSubstrate
-          workspaceId={wsId}
-          composerRef={composerRef}
-          safeZonesVisible={safeZonesVisible}
-          onSafeZonesToggle={setSafeZonesVisible}
-          pinnedCapabilities={pinnedCapabilities}
-          onCapabilityPress={handleCapabilityPress}
-          onVerbPress={handleVerbPress}
-          onSpatializeFromSelection={async ({ prompt, format, quality }) => {
-            await runSpatialOnCanvas(prompt, {
-              formatOverride: format,
-              qualityOverride: quality,
-            });
-          }}
-          onVoiceGenerate={async (prompt, scope) => {
-            await handlePrompt(prompt, { scope });
-          }}
-          onAsyncVoiceGenerate={async (prompt, options, request) => {
-            if (request?.command && voiceCommandRequestsSupportedLocales(request.command)) {
-              setEnabledLocales(CANVAS_LOCALES);
-              setLocaleViewMode('single');
-            }
-            await handlePrompt(prompt, {
-              ...options,
-              product: request?.command.product,
-              voiceTrace: request?.trace,
-            });
-          }}
-          onMoodboardGenerate={async (prompt) => {
-            await handlePrompt(prompt, { scope: 'single' });
-          }}
-          onEyesClosedCapture={handleEyesClosedCapture}
-        />
+        <div className="relative flex min-w-0 flex-1 overflow-hidden">
+          <CanvasSubstrate
+            workspaceId={wsId}
+            composerRef={composerRef}
+            safeZonesVisible={safeZonesVisible}
+            onSafeZonesToggle={setSafeZonesVisible}
+            pinnedCapabilities={pinnedCapabilities}
+            onCapabilityPress={handleCapabilityPress}
+            onVerbPress={handleVerbPress}
+            onSpatializeFromSelection={async ({ prompt, format, quality }) => {
+              await runSpatialOnCanvas(prompt, {
+                formatOverride: format,
+                qualityOverride: quality,
+              });
+            }}
+            onVoiceGenerate={async (prompt, scope) => {
+              await handlePrompt(prompt, { scope });
+            }}
+            onAsyncVoiceGenerate={async (prompt, options, request) => {
+              if (request?.command && voiceCommandRequestsSupportedLocales(request.command)) {
+                setEnabledLocales(CANVAS_LOCALES);
+                setLocaleViewMode('single');
+              }
+              await handlePrompt(prompt, {
+                ...options,
+                product: request?.command.product,
+                voiceTrace: request?.trace,
+              });
+            }}
+            onMoodboardGenerate={async (prompt) => {
+              await handlePrompt(prompt, { scope: 'single' });
+            }}
+            onEyesClosedCapture={handleEyesClosedCapture}
+          />
+          <StoryboardLens
+            open={view === 'storyboard'}
+            onClose={() => setView('canvas')}
+            runs={runs}
+            references={references}
+            formats={formats}
+            scheduledPosts={scheduledPosts}
+            canvasCopyByLocaleFormat={canvasCopy.byLocaleFormat}
+          />
+        </div>
         <RightRail
           onPin={handlePin}
           onExport={handleExport}
