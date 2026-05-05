@@ -30,6 +30,7 @@ loadLocalDevVars();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // This repo is often checked out beside other aether worktrees under a
   // parent directory that also has a lockfile. Pin the project root so Next
   // serves dev chunks from this app instead of inferring the parent workspace.

@@ -15,6 +15,7 @@ scripts/recordings/out/
 
 # next.js
 .next
+.next-*
 out
 next-env.d.ts
 

@@ -114,48 +114,15 @@ export function StoryboardLens({ open = true, onClose }: StoryboardLensProps = {
   const [mode, setMode] = useState<StoryboardMode>('overview');
   const [activeId, setActiveId] = useState<StoryboardSlideId>('problem');
   const [aspect, setAspect] = useState<StoryboardAspect>('16:9');
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-  const [elementEditingEnabled, setElementEditingEnabled] = useState(false);
-  const [showColorCodes, setShowColorCodes] = useState(false);
-  const [slideDrafts, setSlideDrafts] = useState<Record<StoryboardSlideId, StoryboardSlide>>(() =>
-    slides.reduce(
-      (acc, slide) => {
-        acc[slide.id] = slide;
-        return acc;
-      },
-      {} as Record<StoryboardSlideId, StoryboardSlide>
-    )
-  );
-  const storyboardSlides = useMemo(
-    () => slides.map((slide) => slideDrafts[slide.id] ?? slide),
-    [slideDrafts]
-  );
   const activeSlide = useMemo(
-    () => storyboardSlides.find((slide) => slide.id === activeId) ?? storyboardSlides[0],
-    [activeId, storyboardSlides]
+    () => slides.find((slide) => slide.id === activeId) ?? slides[0],
+    [activeId]
   );
-
-  useEffect(() => {
-    const hasSelection = activeSlide.elements.some((element) => element.id === selectedElementId);
-    if (!hasSelection) {
-      setSelectedElementId(activeSlide.elements[0]?.id ?? null);
-    }
-  }, [activeSlide, selectedElementId]);
 
   function selectSlide(slide: StoryboardSlide, nextMode: StoryboardMode = mode) {
     setActiveId(slide.id);
     setAspect(slide.aspect);
     setMode(nextMode);
-    if (nextMode !== 'zoom') {
-      setElementEditingEnabled(false);
-    }
-  }
-
-  function updateSlide(slideId: StoryboardSlideId, patch: Partial<StoryboardSlide>) {
-    setSlideDrafts((current) => ({
-      ...current,
-      [slideId]: { ...(current[slideId] ?? slides.find((slide) => slide.id === slideId)!), ...patch },
-    }));
   }
 
   const isShareMode = mode === 'share';
@@ -231,25 +198,17 @@ export function StoryboardLens({ open = true, onClose }: StoryboardLensProps = {
       ) : null}
 
       {mode === 'overview' ? (
-        <OverviewMode slides={storyboardSlides} onSelect={selectSlide} />
+        <OverviewMode slides={slides} onSelect={selectSlide} />
       ) : mode === 'zoom' ? (
         <ZoomMode
-          slides={storyboardSlides}
+          slides={slides}
           activeSlide={activeSlide}
           aspect={aspect}
-          selectedElementId={selectedElementId}
-          elementEditingEnabled={elementEditingEnabled}
-          showColorCodes={showColorCodes}
-          onAspectChange={setAspect}
           onSelect={selectSlide}
-          onSelectElement={setSelectedElementId}
-          onElementEditingChange={setElementEditingEnabled}
-          onShowColorCodesChange={setShowColorCodes}
-          onSlideChange={updateSlide}
         />
       ) : (
         <ShareMode
-          slides={storyboardSlides}
+          slides={slides}
           activeSlide={activeSlide}
           aspect={aspect}
           onAspectChange={setAspect}
@@ -305,44 +264,15 @@ function ZoomMode({
   slides: storyboardSlides,
   activeSlide,
   aspect,
-  selectedElementId,
-  elementEditingEnabled,
-  showColorCodes,
-  onAspectChange,
   onSelect,
-  onSelectElement,
-  onElementEditingChange,
-  onShowColorCodesChange,
-  onSlideChange,
 }: {
   slides: StoryboardSlide[];
   activeSlide: StoryboardSlide;
   aspect: StoryboardAspect;
-  selectedElementId: string | null;
-  elementEditingEnabled: boolean;
-  showColorCodes: boolean;
-  onAspectChange: (aspect: StoryboardAspect) => void;
   onSelect: (slide: StoryboardSlide, mode?: StoryboardMode) => void;
-  onSelectElement: (elementId: string | null) => void;
-  onElementEditingChange: (enabled: boolean) => void;
-  onShowColorCodesChange: (show: boolean) => void;
-  onSlideChange: (slideId: StoryboardSlideId, patch: Partial<StoryboardSlide>) => void;
 }) {
-  const selectedElement =
-    activeSlide.elements.find((element) => element.id === selectedElementId) ??
-    activeSlide.elements[0] ??
-    null;
-
-  function updateElement(elementId: string, patch: Partial<StoryboardElement>) {
-    onSlideChange(activeSlide.id, {
-      elements: activeSlide.elements.map((element) =>
-        element.id === elementId ? { ...element, ...patch } : element
-      ),
-    });
-  }
-
   return (
-    <main className="relative z-10 grid h-[calc(100%-4rem)] grid-cols-[220px_minmax(0,1fr)_340px] gap-5 p-5">
+    <main className="relative z-10 grid h-[calc(100%-4rem)] grid-cols-[220px_minmax(0,1fr)] gap-5 p-5">
       <aside className="flex flex-col gap-2 overflow-auto">
         {storyboardSlides.map((slide) => {
           const active = slide.id === activeSlide.id;
@@ -381,207 +311,9 @@ function ZoomMode({
             aspect === '1:1' ? 'max-h-[min(100%,720px)]' : ''
           )}
         >
-          <SlideClip
-            slide={activeSlide}
-            aspect={aspect}
-            editable={elementEditingEnabled}
-            selectedElementId={selectedElement?.id ?? null}
-            onSelectElement={onSelectElement}
-            onElementChange={updateElement}
-          />
+          <SlideClip slide={activeSlide} aspect={aspect} />
         </div>
       </section>
-
-      <aside className="max-h-full self-center overflow-auto rounded-md border border-border bg-surface-panel/90 p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div className="font-caption text-xs text-ink-dim">slide script</div>
-          <button
-            type="button"
-            onClick={() => {
-              const next = !elementEditingEnabled;
-              onElementEditingChange(next);
-              if (!next) {
-                onSelectElement(null);
-                onShowColorCodesChange(false);
-              }
-            }}
-            className={cn(
-              'h-8 rounded-md border px-3 font-mono text-[10px] uppercase tracking-wide',
-              elementEditingEnabled
-                ? 'border-ink bg-ink text-white'
-                : 'border-border bg-surface-canvas text-ink-muted hover:border-ink/50'
-            )}
-          >
-            {elementEditingEnabled ? 'done editing' : 'edit elements'}
-          </button>
-        </div>
-        <label className="mt-3 block">
-          <span className="font-caption text-[10px] text-ink-faint">heading</span>
-          <input
-            value={activeSlide.title}
-            onChange={(event) => onSlideChange(activeSlide.id, { title: event.target.value })}
-            className="mt-1 h-10 w-full rounded-md border border-border bg-surface-canvas px-3 font-display text-xl font-semibold text-ink outline-none focus:border-ink"
-          />
-        </label>
-        <label className="mt-3 block">
-          <span className="font-caption text-[10px] text-ink-faint">line</span>
-          <input
-            value={activeSlide.kicker}
-            onChange={(event) => onSlideChange(activeSlide.id, { kicker: event.target.value })}
-            className="mt-1 h-9 w-full rounded-md border border-border bg-surface-canvas px-3 font-mono text-xs text-ink-muted outline-none focus:border-ink"
-          />
-        </label>
-        <div className="mt-4">
-          <div className="font-caption text-[10px] text-ink-faint">aspect</div>
-          <div className="mt-2 grid grid-cols-4 gap-1.5">
-            {(['16:9', '4:5', '9:16', '1:1'] as StoryboardAspect[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => {
-                  onAspectChange(item);
-                  onSlideChange(activeSlide.id, { aspect: item });
-                }}
-                className={cn(
-                  'h-8 rounded-md border font-mono text-[10px]',
-                  aspect === item
-                    ? 'border-ink bg-ink text-white'
-                    : 'border-border bg-surface-canvas text-ink-muted hover:border-ink/50'
-                )}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-4">
-          <div className="font-caption text-[10px] text-ink-faint">theme</div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            {(['aether', 'codex'] as StoryboardTheme[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => onSlideChange(activeSlide.id, { theme: item })}
-                className={cn(
-                  'h-8 rounded-md border font-mono text-[10px] uppercase',
-                  activeSlide.theme === item
-                    ? 'border-ink bg-ink text-white'
-                    : 'border-border bg-surface-canvas text-ink-muted hover:border-ink/50'
-                )}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-        {elementEditingEnabled ? (
-          <div className="mt-4 border-t border-border-soft pt-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="font-caption text-[10px] text-ink-faint">elements</div>
-            <label className="flex items-center gap-2 font-mono text-[10px] text-ink-muted">
-              <input
-                type="checkbox"
-                checked={showColorCodes}
-                onChange={(event) => onShowColorCodesChange(event.target.checked)}
-              />
-              color codes
-            </label>
-          </div>
-          <div className="mt-2 grid max-h-28 gap-1 overflow-auto">
-            {activeSlide.elements.length > 0 ? (
-              activeSlide.elements.map((element) => (
-              <button
-                key={element.id}
-                type="button"
-                onClick={() => onSelectElement(element.id)}
-                className={cn(
-                  'flex h-8 items-center justify-between rounded-md border px-2 text-left font-mono text-[10px]',
-                  selectedElement?.id === element.id
-                    ? 'border-ink bg-ink text-white'
-                    : 'border-border bg-surface-canvas text-ink-muted hover:border-ink/50'
-                )}
-              >
-                <span className="truncate">{element.label}</span>
-                <span className="uppercase opacity-60">{element.kind}</span>
-              </button>
-              ))
-            ) : (
-              <div className="rounded-md border border-border-soft bg-surface-canvas px-3 py-2 font-mono text-[10px] text-ink-faint">
-                no overlay elements
-              </div>
-            )}
-          </div>
-          {showColorCodes ? (
-            <div className="mt-2 grid grid-cols-3 gap-1.5 font-mono text-[9px] text-ink-faint">
-              {(activeSlide.theme === 'codex'
-                ? ['#f7f9ff', '#0b0c0f', '#dbe8ff']
-                : ['#050507', '#f7d66b', '#faf6ef']
-              ).map((color) => (
-                <div key={color} className="flex items-center gap-1">
-                  <span className="size-3 rounded-sm border border-border" style={{ background: color }} />
-                  {color}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {selectedElement ? (
-          <div className="mt-4 rounded-md border border-border-soft bg-surface-canvas/80 p-3">
-            <div className="font-caption text-[10px] text-ink-faint">selected element</div>
-            {selectedElement.kind === 'text' ? (
-              <label className="mt-2 block">
-                <span className="font-caption text-[10px] text-ink-faint">text</span>
-                <textarea
-                  value={selectedElement.text ?? ''}
-                  onChange={(event) => updateElement(selectedElement.id, { text: event.target.value })}
-                  className="mt-1 min-h-16 w-full resize-none rounded-md border border-border bg-surface-panel px-2 py-1 font-mono text-[11px] leading-relaxed text-ink-muted outline-none focus:border-ink"
-                />
-              </label>
-            ) : null}
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label>
-                <span className="font-caption text-[10px] text-ink-faint">color</span>
-                <input
-                  type="color"
-                  value={selectedElement.color ?? '#ffffff'}
-                  onChange={(event) => updateElement(selectedElement.id, { color: event.target.value })}
-                  className="mt-1 h-8 w-full rounded-md border border-border bg-surface-panel"
-                />
-              </label>
-              <label>
-                <span className="font-caption text-[10px] text-ink-faint">fill</span>
-                <input
-                  type="color"
-                  value={selectedElement.fill ?? '#111827'}
-                  onChange={(event) => updateElement(selectedElement.id, { fill: event.target.value })}
-                  className="mt-1 h-8 w-full rounded-md border border-border bg-surface-panel"
-                />
-              </label>
-            </div>
-            {showColorCodes ? (
-              <div className="mt-2 font-mono text-[10px] text-ink-faint">
-                {selectedElement.color ?? 'no color'} · {selectedElement.fill ?? 'no fill'}
-              </div>
-            ) : null}
-          </div>
-          ) : null}
-        </div>
-        ) : null}
-        <label className="mt-4 block">
-          <span className="font-caption text-[10px] text-ink-faint">voiceover</span>
-          <textarea
-            value={activeSlide.voiceover}
-            onChange={(event) => onSlideChange(activeSlide.id, { voiceover: event.target.value })}
-            className="mt-1 min-h-28 w-full resize-none rounded-md border border-border bg-surface-canvas px-3 py-2 font-mono text-xs leading-relaxed text-ink-muted outline-none focus:border-ink"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => onSelect(activeSlide, 'share')}
-          className="mt-6 inline-flex h-10 w-full items-center justify-center rounded-md bg-ink px-3 font-mono text-xs uppercase tracking-wide text-white"
-        >
-          enter 100% share
-        </button>
-      </aside>
     </main>
   );
 }
