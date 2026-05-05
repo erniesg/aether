@@ -22,6 +22,7 @@ export interface StoryboardLensProps {
   formats: StoryboardFormat[];
   scheduledPosts: ScheduledPost[];
   canvasCopyByLocaleFormat: Record<string, Record<string, string>>;
+  enabledLocales: string[];
   className?: string;
 }
 
@@ -33,6 +34,7 @@ export function StoryboardLens({
   formats,
   scheduledPosts,
   canvasCopyByLocaleFormat,
+  enabledLocales,
   className,
 }: StoryboardLensProps) {
   if (!open) return null;
@@ -44,9 +46,10 @@ export function StoryboardLens({
   const referenceItems =
     selectedReferences.length > 0 ? selectedReferences : references.slice(0, 6);
   const locales = Object.keys(canvasCopyByLocaleFormat);
+  const visibleLocales = locales.length > 0 ? locales : enabledLocales;
   const activeLocaleCount =
-    locales.length > 0
-      ? locales.length
+    visibleLocales.length > 0
+      ? visibleLocales.length
       : new Set(scheduledPosts.map((post) => post.locale).filter(Boolean)).size;
   const visiblePosts = scheduledPosts.slice(0, 6);
 
@@ -146,9 +149,9 @@ export function StoryboardLens({
             </StoryboardPanel>
 
             <StoryboardPanel title="copy" empty="Editable overlays appear after generation.">
-              {locales.length > 0 ? (
+              {visibleLocales.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
-                  {locales.map((locale) => (
+                  {visibleLocales.map((locale) => (
                     <span
                       key={locale}
                       data-testid="storyboard-locale-chip"

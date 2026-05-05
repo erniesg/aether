@@ -77,13 +77,28 @@ export function CampaignSwitcher({
   activeCampaignId,
   onSelect,
 }: CampaignSwitcherProps) {
+  if (!isConvexEnabled()) return null;
+  return (
+    <CampaignSwitcherEnabled
+      workspaceId={workspaceId}
+      activeCampaignId={activeCampaignId}
+      onSelect={onSelect}
+    />
+  );
+}
+
+function CampaignSwitcherEnabled({
+  workspaceId,
+  activeCampaignId,
+  onSelect,
+}: CampaignSwitcherProps) {
   const popoverId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
 
   const campaigns = useQuery(
     campaignsAnyApi.listByWorkspace as never,
-    isConvexEnabled() && workspaceId ? ({ workspaceId } as never) : 'skip'
+    workspaceId ? ({ workspaceId } as never) : 'skip'
   ) as CampaignRow[] | undefined;
 
   // Close on outside click — minimum-viable popover (matches AutoModeToggle).
@@ -105,9 +120,8 @@ export function CampaignSwitcher({
 
   const list = campaigns ?? [];
 
-  // Hide the chip entirely if Convex isn't enabled OR there are no campaigns
-  // — no point in offering a switcher with nothing to switch to.
-  if (!isConvexEnabled()) return null;
+  // Hide the chip entirely if there are no campaigns — no point in offering a
+  // switcher with nothing to switch to.
   if (list.length === 0) return null;
 
   const chipLabel = active

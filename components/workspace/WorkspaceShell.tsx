@@ -2928,6 +2928,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             formats={formats}
             scheduledPosts={scheduledPosts}
             canvasCopyByLocaleFormat={canvasCopy.byLocaleFormat}
+            enabledLocales={exportLocales.map(String)}
           />
         </div>
         <RightRail
