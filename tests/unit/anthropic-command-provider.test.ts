@@ -46,6 +46,7 @@ describe('Anthropic command provider', () => {
     });
 
     const call = create.mock.calls[0][0];
+    expect(call).not.toHaveProperty('temperature');
     expect(call.tools).toEqual([
       {
         name: 'search_signals',
@@ -63,6 +64,51 @@ describe('Anthropic command provider', () => {
       provider: { id: 'anthropic', model: 'claude-opus-4-7' },
       toolCalls: [{ id: 'toolu_1', name: 'search_signals', input: { seedText: 'tea' } }],
     });
+  });
+
+  it('omits temperature for Claude Opus 4.7 JSON completions', async () => {
+    const create = vi.fn().mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: '{"ok":true}' }],
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+    const provider = createAnthropicCommandProvider({
+      apiKey: 'anthropic-test',
+      client,
+    });
+
+    const result = await provider.completeJson<{ ok: boolean }>({
+      system: 'json only',
+      user: 'return ok',
+      model: 'claude-opus-4-7',
+      temperature: 0,
+    });
+
+    const call = create.mock.calls[0][0];
+    expect(call).not.toHaveProperty('temperature');
+    expect(result.json).toEqual({ ok: true });
+  });
+
+  it('keeps temperature for Claude models that support it', async () => {
+    const create = vi.fn().mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: '{"ok":true}' }],
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+    const provider = createAnthropicCommandProvider({
+      apiKey: 'anthropic-test',
+      client,
+    });
+
+    await provider.completeJson({
+      system: 'json only',
+      user: 'return ok',
+      model: 'claude-sonnet-4-5',
+      temperature: 0.2,
+    });
+
+    const call = create.mock.calls[0][0];
+    expect(call.temperature).toBe(0.2);
   });
 
   it('groups generic tool results back into Claude user tool_result content', async () => {

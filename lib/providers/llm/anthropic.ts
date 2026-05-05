@@ -18,6 +18,10 @@ export const ANTHROPIC_COMMAND_MODELS = [
   'claude-sonnet-4-5',
 ] as const;
 
+function supportsTemperature(model: string): boolean {
+  return model !== 'claude-opus-4-7';
+}
+
 interface AnthropicProviderOptions {
   apiKey?: string;
   model?: string;
@@ -138,7 +142,9 @@ export function createAnthropicCommandProvider(
         msg = await client.messages.create({
           model,
           max_tokens: 2048,
-          temperature: request.temperature ?? 0,
+          ...(supportsTemperature(model)
+            ? { temperature: request.temperature ?? 0 }
+            : {}),
           system: request.system,
           messages: [
             {
@@ -178,7 +184,9 @@ export function createAnthropicCommandProvider(
         msg = await client.messages.create({
           model,
           max_tokens: request.maxTokens ?? 2048,
-          temperature: request.temperature ?? 0,
+          ...(supportsTemperature(model)
+            ? { temperature: request.temperature ?? 0 }
+            : {}),
           system: [
             {
               type: 'text',
