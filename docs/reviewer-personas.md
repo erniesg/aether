@@ -27,7 +27,7 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 | C3 | Every new exported symbol in `lib/` has at least one test in a sibling `*.test.ts` file | grep diff for `^export ` and check for matching test descriptions | `lib/<file>.ts:N` ↔ `<file>.test.ts:M` |
 | C4 | No `// TODO`, `// XXX`, `// FIXME`, or `console.log` left in shipped non-test code | grep diff | grep output |
 | C5 | No `.only` or `.skip` left in test diffs | grep diff | grep output |
-| C6 | Diff includes red→green commits OR a clear in-issue justification for why TDD was skipped | git log between merge-base and HEAD | commit shas |
+| C6 | Diff includes red→green commits for new behavior (failing test commit before implementation commit) | git log between merge-base and HEAD; reviewer scans the order of test-prefixed vs feat/fix-prefixed commits | commit shas (the test commit must precede the implementation commit) |
 
 ---
 
@@ -39,27 +39,29 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 
 | ID | Assertion | Verification | Proof format |
 |----|-----------|--------------|--------------|
-| D1 | The demo path in `docs/DEMO.md` runs end-to-end without manual steps | E2E test `tests/e2e/demo-arc.spec.ts` | playwright run id + trace path |
-| D2 | Demo trace ends with the expected hero asset on canvas (matches `docs/DEMO.md` reference snapshot) | Convex snapshot diff | `convex-snapshot:<id>` |
-| D3 | No unexpected prompts, modals, or system dialogs appear during the arc | Playwright `expect(page).not.toHaveDialog()` between scripted steps | screenshot path |
-| D4 | Cold-start demo completes within 3 minutes wall-clock | Playwright timing assertion | log line `demo.duration_ms=<n>` |
-| D5 | Every fan-out variant (4:5, 9:16, 16:9) renders without manual re-prompt | E2E assertion + visual snapshot per format | screenshot paths |
+| D1 | The demo path in `docs/DEMO.md` continues to run end-to-end on staging without manual intervention | Manual rehearsal on `aether-stg.berlayar.ai` recorded as a video; or `tests/e2e/demo-arc.spec.ts` if the e2e fixture exists. **Note: the e2e is the goal — until it lands (tracked in tech-debt), recorded manual rehearsal is acceptable proof.** | video path + final screenshot path; or playwright run id once the e2e exists |
+| D2 | Demo final canvas state matches the reference described in `docs/DEMO.md` (hero + variants present, brand tokens applied) | Visual diff against reference screenshot; or convex snapshot diff once the e2e lands | screenshot path or `convex-snapshot:<id>` |
+| D3 | No unexpected prompts, modals, or system dialogs appear during the arc | Manual rehearsal observation, or Playwright `expect(page).not.toHaveDialog()` once e2e exists | screenshot path |
+| D4 | Cold-start demo completes within 3 minutes wall-clock | Stopwatched manual rehearsal; or timing assertion in e2e | rehearsal log entry or `demo.duration_ms=<n>` |
+| D5 | Every fan-out variant (4:5, 9:16, 16:9) renders without manual re-prompt | Visual snapshot per format (manual or e2e) | screenshot paths |
 
 ---
 
 ## provenance
 
-**Risk surface**: every canvas mutation records a typed `ToolRef` / `SkillRef` / `WorkflowRef` with `inputs`, `outputs`, `beforeSnapshotRef`, `afterSnapshotRef`. (CLAUDE.md hard rule #8.)
-**Auto-fire**: when any file in `lib/agent/**`, `lib/capability/**`, `lib/provenance/**`, or `convex/` changes; or when a new tool/skill is added.
-**Author obligation**: any new mutation MUST emit a typed action record. Mutations that bypass the record path are blocked.
+**Risk surface**: every canvas mutation records a `capabilityRun` row in convex carrying inputs, outputs, and enough state to inspect/replay. (CLAUDE.md hard rule #8 — typed provenance.)
+**Auto-fire**: when any file in `lib/agent/**`, `lib/capability/**`, or `convex/**` changes; or when a new tool/skill is added under `lib/agent/skills/**`.
+**Author obligation**: any new mutation MUST emit a `capabilityRun` row through the existing capability factory path (`lib/capability/`). Mutations that bypass it are blocked.
+
+> **v1 status — read this before applying P1–P5**: CLAUDE.md describes a typed `ToolRef` / `SkillRef` / `WorkflowRef` abstraction with `beforeSnapshotRef` / `afterSnapshotRef` fields. That abstraction is **aspirational** — the implementation today calls these `capabilityRun` rows and the snapshot-diff fields aren't typed. Assertions below reference the real paths (`lib/capability/factory.ts`, `lib/agent/skills/`). When the typed `ToolRef` form lands (tracked in tech-debt), this persona will be updated to require the typed shape.
 
 | ID | Assertion | Verification | Proof format |
 |----|-----------|--------------|--------------|
-| P1 | New mutations call `recordToolRef()` / `recordSkillRef()` / `recordWorkflowRef()` | grep diff for state-mutating Convex mutations without a record call | grep output |
-| P2 | Records carry both `beforeSnapshotRef` and `afterSnapshotRef` | type-level check on the record builder | `lib/provenance/types.ts:N` |
-| P3 | Tool/skill registry includes the new entry | check `lib/agent/agent-tools/registry.ts` | file diff |
-| P4 | A test exists asserting the mutation produced a record | grep test file for record assertion | test id |
-| P5 | New tools declare their `inputs` and `outputs` schemas in the typed registry | type check + grep | type definition path |
+| P1 | New state-mutating Convex mutations record a `capabilityRun` row through `lib/capability/factory.ts` (or `proposeCapability`) | grep diff for `convex/*.ts` mutations + check for the factory call | file:line of the factory invocation |
+| P2 | The recorded row carries inputs, outputs, and replay-relevant state | inspect the row's fields in the relevant `convex/*.ts` schema | schema diff or test fixture |
+| P3 | New tool/skill registry entries appear under `lib/agent/skills/` with a manifest | check `lib/agent/skills/loader.ts` + `persistManifest.ts` | file diff |
+| P4 | A test exists asserting the mutation produced a `capabilityRun` (or equivalent `text-apply`-style) record | grep test files for `capabilityRunId` / `capabilityRun` assertions | test id |
+| P5 | New tools declare their schemas via `lib/agent/skills/types.ts` | type check + grep | type definition path |
 
 ---
 
@@ -108,7 +110,7 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 |--------------|--------------------|
 | (always) | `correctness` |
 | `app/workspace/**`, `components/canvas/**`, `lib/agent/auto-mode*` | + `demo-arc` |
-| `lib/agent/**`, `lib/capability/**`, `lib/provenance/**`, `convex/**` | + `provenance` |
+| `lib/agent/**`, `lib/capability/**`, `convex/**` | + `provenance` |
 | `components/**`, `app/**` (non-API) | + `ux-restraint` |
 | `lib/providers/**`, `convex/**`, `app/api/**`, `.env*`, new LLM/image/video adapter | + `security-cost` |
 

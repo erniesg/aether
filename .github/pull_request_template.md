@@ -17,15 +17,15 @@ Closes #<issue>
 - [ ] Every `Proof artifacts required` checkbox is satisfied.
 - [ ] Phrases banned by `docs/qa-rubric.md` (should / looks good / feels right / manual review / TBD) do not appear in this PR description or the issue body.
 
-## Personas firing
+## Personas firing (auto-detected — reference only)
 
-<!-- Auto-detected by reviewer; listed here for author awareness. Tick which apply: -->
+Read-only reference list. The reviewer determines which personas fire based on the touched paths in the diff; ticking these boxes does not change which assertions get applied.
 
-- [ ] `correctness` (always)
-- [ ] `demo-arc` — touches `app/workspace/**`, `components/canvas/**`, or `lib/agent/auto-mode*`
-- [ ] `provenance` — touches `lib/agent/**`, `lib/capability/**`, `lib/provenance/**`, or `convex/**`
-- [ ] `ux-restraint` — touches `components/**` or `app/**` (non-API)
-- [ ] `security-cost` — touches `lib/providers/**`, `convex/**`, `app/api/**`, `.env*`, or adds an LLM/image/video adapter
+- `correctness` — fires on every PR
+- `demo-arc` — fires when the diff touches `app/workspace/**`, `components/canvas/**`, or `lib/agent/auto-mode*`
+- `provenance` — fires when the diff touches `lib/agent/**`, `lib/capability/**`, or `convex/**`
+- `ux-restraint` — fires when the diff touches `components/**` or `app/**` (non-API)
+- `security-cost` — fires when the diff touches `lib/providers/**`, `convex/**`, `app/api/**`, `.env*`, or adds an LLM/image/video adapter
 
 ## Verification
 
