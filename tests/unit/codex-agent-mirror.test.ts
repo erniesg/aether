@@ -59,6 +59,15 @@ describe('codex.yml dual-agent mirror', () => {
     expect(codexWorkflow).toContain('PLACEHOLDER');
     expect(codexWorkflow).toContain('TODO: wire to actual action');
   });
+
+  it('only fires on codex-relevant events (label / @codex / codex branch)', () => {
+    // Without this guard, the token-missing fail-fast exits 1 on every PR
+    // opened against main, polluting the check list. The job-level if
+    // filter keeps the runner cold for non-codex events.
+    expect(codexWorkflow).toContain("contains(github.event.issue.labels.*.name, 'codex-run')");
+    expect(codexWorkflow).toContain("contains(github.event.comment.body, '@codex')");
+    expect(codexWorkflow).toContain("startsWith(github.event.pull_request.head.ref, 'codex/issue-')");
+  });
 });
 
 describe('cross-review pattern (claude-review handles both author agents)', () => {

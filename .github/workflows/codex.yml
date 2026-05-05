@@ -37,6 +37,20 @@ on:
 
 jobs:
   codex:
+    # Only spin up the runner when this is actually a codex-relevant event.
+    # Without this guard, the token-missing fail-fast exits 1 on every PR
+    # opened against main, polluting the check list. The check is at the
+    # job level so claude.yml-style label_trigger / trigger_phrase logic
+    # can stay inside the agent step (when one is wired).
+    if: |
+      (github.event_name == 'issues' &&
+        contains(github.event.issue.labels.*.name, 'codex-run')) ||
+      (github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '@codex')) ||
+      (github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, '@codex')) ||
+      (github.event_name == 'pull_request' &&
+        startsWith(github.event.pull_request.head.ref, 'codex/issue-'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
