@@ -281,22 +281,21 @@ function stripVerdictLines(body) {
 
 function formatPersonaTable(personas) {
   if (!personas || personas.length === 0) return '';
-  const verdictGlyph = {
-    APPROVE: '✓',
-    REQUEST_CHANGES: '⚠',
-    BLOCK: '⛔',
-  };
-  const statusGlyph = {
-    PASS: '✓',
-    FAIL: '✗',
-    UNVERIFIABLE: '?',
-  };
-  const lines = ['', '### Persona verdicts', '', '| Persona | Verdict | Assertions |', '| --- | --- | --- |'];
+  // Plain ASCII status tags. CLAUDE.md prohibits emojis in code output;
+  // the reviewer harness must follow the same rule it enforces.
+  const lines = [
+    '',
+    '### Persona verdicts',
+    '',
+    '| Persona | Verdict | Assertions |',
+    '| --- | --- | --- |',
+  ];
   for (const p of personas) {
-    const summary = p.assertions
-      .map((a) => `${statusGlyph[a.status]} \`${a.id}\``)
-      .join(' · ') || '(none emitted)';
-    lines.push(`| \`${p.persona}\` | ${verdictGlyph[p.verdict]} ${p.verdict} | ${summary} |`);
+    const summary =
+      p.assertions
+        .map((a) => `[${a.status}] \`${a.id}\``)
+        .join(' · ') || '(none emitted)';
+    lines.push(`| \`${p.persona}\` | ${p.verdict} | ${summary} |`);
   }
   return lines.join('\n');
 }
