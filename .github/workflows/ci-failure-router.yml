@@ -1,0 +1,111 @@
+name: ci-failure-router
+
+# When ci.yml fails on an agent branch, post a compact failure packet to the
+# linked PR + issue, increment a retry counter, and either re-fire the agent
+# or escalate to Ernie via Discord.
+#
+# This is the "self-heal loop" for context failures: the agent shipped code
+# that broke typecheck/test/lint, the diff is on the agent branch, the agent
+# can read its own failure and try again. If it fails twice in a row the
+# router stops trying and asks Ernie.
+#
+# Retry budget lives on the linked issue as a counter of bot-authored comments
+# matching `<!-- ci-failure-attempt:N -->`. The router increments and reads
+# this rather than maintaining external state.
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+# Only one router invocation per workflow run. Concurrent runs would race on
+# the retry counter. The cancel-in-progress is safe because each ci.yml run
+# has a unique conclusion event.
+concurrency:
+  group: ci-failure-router-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  route:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      actions: read
+    steps:
+      - name: Checkout (for the router script)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve PR + issue context
+        id: ctx
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -u
+          # Only fire for agent-authored branches. Human PRs use codex+ernie review.
+          if [[ ! "$BRANCH" =~ ^(claude|codex)/issue-[0-9]+ ]]; then
+            echo "::notice::CI failure on non-agent branch ${BRANCH}; skipping router."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PR_JSON="$(gh pr list \
+            --head "$BRANCH" \
+            --state open \
+            --json number,body,headRefName \
+            -q '.[0] // empty')"
+          if [ -z "$PR_JSON" ]; then
+            echo "::notice::No open PR for ${BRANCH}; nothing to route."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PR_NUMBER="$(printf '%s' "$PR_JSON" | jq -r '.number')"
+          PR_BODY="$(printf '%s' "$PR_JSON" | jq -r '.body')"
+          # Source issue lives in `Closes #N` (or `Fixes #N`). First match wins.
+          ISSUE_NUMBER="$(printf '%s' "$PR_BODY" | grep -ioE '(closes|fixes|resolves) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
+          # Fallback: extract from `claude/issue-<N>-...` branch name.
+          if [ -z "${ISSUE_NUMBER:-}" ]; then
+            ISSUE_NUMBER="$(echo "$BRANCH" | sed -nE 's|^(claude\|codex)/issue-([0-9]+)-.*$|\2|p')"
+          fi
+          {
+            echo "skip=false"
+            echo "pr_number=${PR_NUMBER}"
+            echo "issue_number=${ISSUE_NUMBER:-}"
+            echo "branch=${BRANCH}"
+            echo "run_id=${RUN_ID}"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice::CI failure router: PR #${PR_NUMBER}, issue #${ISSUE_NUMBER:-<unknown>}, branch ${BRANCH}"
+
+      - name: Capture failure log (last 200 lines)
+        if: steps.ctx.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.ctx.outputs.run_id }}
+        run: |
+          set -u
+          mkdir -p /tmp/ci-failure
+          # `gh run view --log-failed` returns logs of failed steps only —
+          # exactly the signal the agent needs to self-heal.
+          gh run view "$RUN_ID" --log-failed 2>/dev/null \
+            | tail -200 > /tmp/ci-failure/log.txt \
+            || echo "(failed to fetch log)" > /tmp/ci-failure/log.txt
+
+      - name: Route failure (post packet, increment retry, re-fire or escalate)
+        if: steps.ctx.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.ctx.outputs.pr_number }}
+          ISSUE_NUMBER: ${{ steps.ctx.outputs.issue_number }}
+          BRANCH: ${{ steps.ctx.outputs.branch }}
+          RUN_ID: ${{ steps.ctx.outputs.run_id }}
+          REPO: ${{ github.repository }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          MAX_RETRIES: '2'
+        run: node .github/scripts/route-ci-failure.mjs /tmp/ci-failure/log.txt
