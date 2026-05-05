@@ -1,8 +1,12 @@
 name: claude-review
 
 # Fresh-context reviewer agent. Fires on PRs opened against `main` whose head
-# branch matches `claude/issue-*` (author-agent PRs). Human-authored PRs are
-# intentionally NOT reviewed here — they go through Codex + Ernie.
+# branch matches `claude/issue-*` OR `codex/issue-*`. The cross-review pattern
+# means Claude reviews Codex-authored PRs and vice versa — mutual second
+# opinion without re-implementing the reviewer for each agent.
+#
+# Human-authored PRs are intentionally NOT reviewed here — they go through
+# Codex + Ernie via a different path.
 #
 # Independence from the author comes from TWO things:
 #   1. This is a separate Claude invocation with a fresh `/review --strict`
@@ -35,11 +39,15 @@ on:
 
 jobs:
   review:
-    # Only review agent-authored branches. Human PRs, and PRs opened by the
-    # reviewer agent itself (it never pushes branches, but belt-and-braces),
-    # are skipped.
+    # Only review agent-authored branches. Match BOTH `claude/issue-*` and
+    # `codex/issue-*` so the cross-review pattern works (Claude reviews
+    # Codex PRs and vice versa). Human PRs, and PRs opened by the reviewer
+    # agent itself (it never pushes branches, but belt-and-braces), are
+    # skipped.
     if: |
-      (github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'claude/issue-')) ||
+      (github.event_name == 'pull_request' &&
+        (startsWith(github.event.pull_request.head.ref, 'claude/issue-') ||
+         startsWith(github.event.pull_request.head.ref, 'codex/issue-'))) ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
