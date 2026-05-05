@@ -80,10 +80,13 @@ function makeMockEditor() {
 // are imported as side-effects from the tldraw package. In the test
 // environment we generate deterministic ids using a counter.
 let _idCounter = 0;
-vi.mock('tldraw', () => {
+vi.mock('tldraw', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('tldraw')>();
   return {
+    ...actual,
     createShapeId: vi.fn(() => `shape-${++_idCounter}`),
     AssetRecordType: {
+      ...actual.AssetRecordType,
       createId: vi.fn(() => `asset-${++_idCounter}`),
     },
   };
@@ -212,7 +215,7 @@ describe('dropVariationOnCanvas', () => {
     expect(srcByFormat.get('16x9')).toBe('https://cdn.test/atlas.png');
   });
 
-  it('creates a geo overlay shape for each text overlay that has a bbox', () => {
+  it('creates editable overlay text shapes in each format frame for overlays with a bbox', () => {
     const editor = makeMockEditor();
     dropVariationOnCanvas({
       editor: editor as unknown as import('tldraw').Editor,
@@ -232,12 +235,18 @@ describe('dropVariationOnCanvas', () => {
       }),
     });
 
-    const geoShapes = editor._shapes.filter((s) => s.type === 'geo');
-    expect(geoShapes.length).toBe(2);
+    const overlayShapes = editor._shapes.filter(
+      (s) => s.meta.autoModeTextOverlay === true
+    );
+    expect(overlayShapes.length).toBe(8);
 
     // Verify the text content is stored in meta
-    expect(geoShapes[0].meta.autoModeTextContent).toBe('Buy now');
-    expect(geoShapes[1].meta.autoModeTextContent).toBe('Great product');
+    expect(
+      overlayShapes.filter((s) => s.meta.autoModeTextContent === 'Buy now')
+    ).toHaveLength(4);
+    expect(
+      overlayShapes.filter((s) => s.meta.autoModeTextContent === 'Great product')
+    ).toHaveLength(4);
   });
 
   it('skips text overlays without a bbox', () => {
@@ -259,9 +268,11 @@ describe('dropVariationOnCanvas', () => {
       }),
     });
 
-    const geoShapes = editor._shapes.filter((s) => s.type === 'geo');
-    expect(geoShapes.length).toBe(1);
-    expect(geoShapes[0].meta.autoModeTextContent).toBe('Shop now');
+    const overlayShapes = editor._shapes.filter(
+      (s) => s.meta.autoModeTextOverlay === true
+    );
+    expect(overlayShapes.length).toBe(4);
+    expect(overlayShapes[0].meta.autoModeTextContent).toBe('Shop now');
   });
 
   it('assigns global scope to headline and cta zones', () => {
@@ -287,10 +298,12 @@ describe('dropVariationOnCanvas', () => {
       }),
     });
 
-    const geoShapes = editor._shapes.filter((s) => s.type === 'geo');
-    const headlineShape = geoShapes.find((s) => s.meta.zone === 'headline');
-    const ctaShape = geoShapes.find((s) => s.meta.zone === 'cta');
-    const bodyShape = geoShapes.find((s) => s.meta.zone === 'body');
+    const overlayShapes = editor._shapes.filter(
+      (s) => s.meta.autoModeTextOverlay === true
+    );
+    const headlineShape = overlayShapes.find((s) => s.meta.zone === 'headline');
+    const ctaShape = overlayShapes.find((s) => s.meta.zone === 'cta');
+    const bodyShape = overlayShapes.find((s) => s.meta.zone === 'body');
 
     expect(headlineShape?.meta.scope).toBe('global');
     expect(ctaShape?.meta.scope).toBe('global');
@@ -313,9 +326,11 @@ describe('dropVariationOnCanvas', () => {
       locale: 'ms-SG', // neither locale in content map
     });
 
-    const geoShapes = editor._shapes.filter((s) => s.type === 'geo');
+    const overlayShapes = editor._shapes.filter(
+      (s) => s.meta.autoModeTextOverlay === true
+    );
     // Falls back to first available: 'zh-Hans-SG'
-    expect(geoShapes[0].meta.autoModeTextContent).toBe('购买');
+    expect(overlayShapes[0].meta.autoModeTextContent).toBe('购买');
   });
 
   it('calls zoomToSelection after dropping variation assets', () => {
