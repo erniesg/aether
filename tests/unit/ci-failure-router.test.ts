@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { summarizeFailure, formatPacket } from '../../.github/scripts/route-ci-failure.mjs';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  summarizeFailure,
+  formatPacket,
+  countPriorAttempts,
+  runOrchestration,
+  __setGhImpl,
+  __setGhStdinImpl,
+} from '../../.github/scripts/route-ci-failure.mjs';
 
 const routeScript = readFileSync(
   resolve(process.cwd(), '.github/scripts/route-ci-failure.mjs'),
@@ -70,9 +77,14 @@ describe('route-ci-failure script contract', () => {
     expect(routeScript).toContain('notifyDiscord');
   });
 
-  it('refreshes claude-run by removing + re-adding the label', () => {
-    expect(routeScript).toContain("'--remove-label', 'claude-run'");
-    expect(routeScript).toContain("'--add-label', 'claude-run'");
+  it('refreshes the right agent label (claude-run for claude/issue-*, codex-run for codex/issue-*)', () => {
+    // Branch-aware: pickAgentLabel chooses the label based on branch prefix.
+    expect(routeScript).toContain('function pickAgentLabel');
+    expect(routeScript).toContain("'codex/issue-'");
+    expect(routeScript).toContain("'codex-run'");
+    expect(routeScript).toContain("'claude-run'");
+    // refreshClaudeRun threads the branch through.
+    expect(routeScript).toMatch(/function refreshClaudeRun\(issueNumber, branch\)/);
   });
 
   it('extracts issue number from "Closes/Fixes/Resolves #N" then falls back to branch slug', () => {
@@ -95,8 +107,12 @@ describe('route-ci-failure script contract', () => {
     expect(routeScript).toContain('**Lint**');
   });
 
-  it('caps each section at 8 entries to keep the packet compact', () => {
-    expect(routeScript).toContain('.slice(0, 8)');
+  it('caps each section at SECTION_LIMIT (= 8) with a "… N more" indicator (symmetric across categories)', () => {
+    expect(routeScript).toContain('const SECTION_LIMIT = 8');
+    expect(routeScript).toContain('.slice(0, SECTION_LIMIT)');
+    expect(routeScript).toContain('summary.typecheck.length - SECTION_LIMIT');
+    expect(routeScript).toContain('summary.tests.length - SECTION_LIMIT');
+    expect(routeScript).toContain('summary.lint.length - SECTION_LIMIT');
   });
 
   it('falls back to raw log tail when no structured signals match', () => {
@@ -201,5 +217,204 @@ describe('formatPacket', () => {
     // 8 entries + "… 4 more"
     expect(out.match(/`f\d+\.ts:/g)?.length).toBe(8);
     expect(out).toContain('… 4 more');
+  });
+
+  it('emits "… N more" for lint too (symmetric with typecheck/tests)', () => {
+    const lint = Array.from({ length: 11 }, (_, i) => ({
+      file: `f${i}.ts`,
+      line: i + 1,
+      col: 1,
+      severity: 'error',
+      msg: 'x',
+      rule: 'foo/bar',
+    }));
+    const out = formatPacket({
+      summary: { typecheck: [], tests: [], lint, totalSignals: 11 },
+      log: '',
+      runUrl: 'https://example/run',
+    });
+    expect(out.match(/`f\d+\.ts:/g)?.length).toBe(8);
+    expect(out).toContain('… 3 more');
+  });
+});
+
+describe('runOrchestration retry-budget gate', () => {
+  function withFakeGh(impl: (args: string[]) => { ok: boolean; stdout: string; error?: string }) {
+    __setGhImpl(impl);
+    __setGhStdinImpl(() => {
+      // No-op: tests don't care about post*Comment side effects here.
+    });
+  }
+
+  afterEach(() => {
+    __setGhImpl(null);
+    __setGhStdinImpl(null);
+  });
+
+  it('attempt 1 → re-fires the agent label on the issue', async () => {
+    const calls: string[][] = [];
+    withFakeGh((args) => {
+      calls.push(args);
+      if (args[0] === 'issue' && args[1] === 'view') return { ok: true, stdout: '' };
+      return { ok: true, stdout: '' };
+    });
+    const result = await runOrchestration({
+      logPath: '/dev/null',
+      prNumber: '999',
+      issueNumber: '500',
+      branch: 'claude/issue-500-x',
+      runId: 'run-abc',
+      repo: 'erniesg/aether',
+      maxRetries: 2,
+      discordWebhook: '',
+    });
+    expect(result.action).toBe('re-fired');
+    expect(result.attemptNumber).toBe(1);
+    const labelEdits = calls.filter((c) => c[0] === 'issue' && c[1] === 'edit');
+    // Look for the sequential pair `--add-label claude-run`, not just the
+    // substrings appearing anywhere in the args (e.g. `--remove-label claude-run`
+    // would otherwise produce a false positive).
+    const addedClaudeRun = labelEdits.some((c) => {
+      for (let i = 0; i < c.length - 1; i++) {
+        if (c[i] === '--add-label' && c[i + 1] === 'claude-run') return true;
+      }
+      return false;
+    });
+    expect(addedClaudeRun).toBe(true);
+  });
+
+  it('attempt > MAX_RETRIES → escalates and does NOT re-fire claude-run', async () => {
+    const calls: string[][] = [];
+    withFakeGh((args) => {
+      calls.push(args);
+      if (args[0] === 'issue' && args[1] === 'view') {
+        return {
+          ok: true,
+          stdout: ['<!-- ci-failure-attempt:1 -->', '<!-- ci-failure-attempt:2 -->'].join('\n'),
+        };
+      }
+      return { ok: true, stdout: '' };
+    });
+    const result = await runOrchestration({
+      logPath: '/dev/null',
+      prNumber: '999',
+      issueNumber: '500',
+      branch: 'claude/issue-500-x',
+      runId: 'run-abc',
+      repo: 'erniesg/aether',
+      maxRetries: 2,
+      discordWebhook: '',
+    });
+    expect(result.action).toBe('escalated');
+    expect(result.attemptNumber).toBe(3);
+    const labelEdits = calls.filter((c) => c[0] === 'issue' && c[1] === 'edit');
+    // Helper: find a call where the args contain `--add-label X` (sequential
+    // pair, not just both substrings present anywhere).
+    function hasAddLabelOf(args: string[], label: string): boolean {
+      for (let i = 0; i < args.length - 1; i++) {
+        if (args[i] === '--add-label' && args[i + 1] === label) return true;
+      }
+      return false;
+    }
+    const escalation = labelEdits.find((c) => hasAddLabelOf(c, 'needs-human-review'));
+    expect(escalation).toBeDefined();
+    // Must NOT have re-added claude-run after escalating.
+    const claudeRunRefresh = labelEdits.find((c) => hasAddLabelOf(c, 'claude-run'));
+    expect(claudeRunRefresh).toBeUndefined();
+  });
+
+  it('gh failure during prior-attempts read → aborts (does NOT loop infinitely)', async () => {
+    withFakeGh((args) => {
+      if (args[0] === 'issue' && args[1] === 'view') {
+        return { ok: false, stdout: '', error: 'rate limited' };
+      }
+      return { ok: true, stdout: '' };
+    });
+    const result = await runOrchestration({
+      logPath: '/dev/null',
+      prNumber: '999',
+      issueNumber: '500',
+      branch: 'claude/issue-500-x',
+      runId: 'run-abc',
+      repo: 'erniesg/aether',
+      maxRetries: 2,
+      discordWebhook: '',
+    });
+    expect(result.action).toBe('aborted');
+    expect(result.reason).toBe('gh-call-failed');
+    expect(result.error).toBe('rate limited');
+  });
+
+  it('codex/issue-* branch → re-fires codex-run (NOT claude-run)', async () => {
+    const calls: string[][] = [];
+    withFakeGh((args) => {
+      calls.push(args);
+      if (args[0] === 'issue' && args[1] === 'view') return { ok: true, stdout: '' };
+      return { ok: true, stdout: '' };
+    });
+    const result = await runOrchestration({
+      logPath: '/dev/null',
+      prNumber: '999',
+      issueNumber: '500',
+      branch: 'codex/issue-500-y',
+      runId: 'run-abc',
+      repo: 'erniesg/aether',
+      maxRetries: 2,
+      discordWebhook: '',
+    });
+    expect(result.action).toBe('re-fired');
+    const labelEdits = calls.filter((c) => c[0] === 'issue' && c[1] === 'edit');
+    function hasAddLabelOf(args: string[], label: string): boolean {
+      for (let i = 0; i < args.length - 1; i++) {
+        if (args[i] === '--add-label' && args[i + 1] === label) return true;
+      }
+      return false;
+    }
+    const codexRefire = labelEdits.find((c) => hasAddLabelOf(c, 'codex-run'));
+    const claudeRefire = labelEdits.find((c) => hasAddLabelOf(c, 'claude-run'));
+    expect(codexRefire).toBeDefined();
+    expect(claudeRefire).toBeUndefined();
+  });
+
+  it('no issue number → returns no-issue-no-refire (cannot re-fire without an issue)', async () => {
+    withFakeGh(() => ({ ok: true, stdout: '' }));
+    const result = await runOrchestration({
+      logPath: '/dev/null',
+      prNumber: '999',
+      issueNumber: '',
+      branch: 'fix/something',
+      runId: 'run-abc',
+      repo: 'erniesg/aether',
+      maxRetries: 2,
+      discordWebhook: '',
+    });
+    expect(result.action).toBe('no-issue-no-refire');
+  });
+});
+
+describe('countPriorAttempts (return-shape contract)', () => {
+  afterEach(() => {
+    __setGhImpl(null);
+  });
+
+  it('returns { ok: true, count: 0 } when issue number is empty', () => {
+    const result = countPriorAttempts('');
+    expect(result).toEqual({ ok: true, count: 0 });
+  });
+
+  it('returns { ok: true, count: N } when gh succeeds, counting markers', () => {
+    __setGhImpl(() => ({
+      ok: true,
+      stdout: '<!-- ci-failure-attempt:1 -->\n<!-- ci-failure-attempt:2 -->\nblah',
+    }));
+    const result = countPriorAttempts('500');
+    expect(result).toEqual({ ok: true, count: 2 });
+  });
+
+  it('returns { ok: false, error } when gh fails (caller must abort, not silently zero)', () => {
+    __setGhImpl(() => ({ ok: false, stdout: '', error: 'rate limited' }));
+    const result = countPriorAttempts('500');
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('rate limited');
   });
 });
