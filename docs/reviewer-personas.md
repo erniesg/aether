@@ -1,0 +1,155 @@
+# Reviewer personas
+
+Five risk-surface personas. Each fires by touched-paths routing (see the auto-routing table at the bottom). Each persona emits structured verdicts with PASS / FAIL / UNVERIFIABLE per falsifiable assertion, every assertion backed by locatable proof.
+
+Personas exist for the reviewer agent, not for humans. They map to **risk surfaces**, not to job titles or process roles. Adding a sixth persona requires identifying a concrete failure mode the existing five cannot catch.
+
+## Falsifiability rules (apply to every persona)
+
+1. Every assertion must answer **"what file/line/output proves this?"**
+2. Phrasing rejected as unfalsifiable: `should`, `might`, `could`, `looks good`, `feels right`, `is intuitive`, `is performant`, `is clean`. The reviewer marks these `UNVERIFIABLE` and requests rephrasing.
+3. Proof format must be one of: file path with line number, test id, screenshot path, JSON path, structured log line, video timestamp range, GitHub Actions run URL.
+4. `UNVERIFIABLE` without `proof` attached → reviewer requests media in a PR comment; PR is blocked from merging until the proof lands. **No "skip with justification" escape hatch** — that becomes the loophole.
+5. The reviewer never modifies code. It only emits verdicts and requests artifacts.
+
+---
+
+## correctness
+
+**Risk surface**: types pass, tests pass, contracts honored, no silent regression.
+**Auto-fire**: always.
+**Author obligation**: keep the build green. Failing tests must be on the diff or referenced in a `Fixes #N` line.
+
+| ID | Assertion | Verification | Proof format |
+|----|-----------|--------------|--------------|
+| C1 | `npm run typecheck` exits 0 | CI step `verify` | actions run URL |
+| C2 | `npm test` exits 0 | CI step `verify` | actions run URL |
+| C3 | Every new exported symbol in `lib/` has at least one test in a sibling `*.test.ts` file | grep diff for `^export ` and check for matching test descriptions | `lib/<file>.ts:N` ↔ `<file>.test.ts:M` |
+| C4 | No `// TODO`, `// XXX`, `// FIXME`, or `console.log` left in shipped non-test code | grep diff | grep output |
+| C5 | No `.only` or `.skip` left in test diffs | grep diff | grep output |
+| C6 | Diff includes red→green commits OR a clear in-issue justification for why TDD was skipped | git log between merge-base and HEAD | commit shas |
+
+---
+
+## demo-arc
+
+**Risk surface**: the hero flow described in `docs/DEMO.md` continues to complete end-to-end without manual steps. The demo is the product; if it breaks, nothing else matters.
+**Auto-fire**: when `app/workspace/**`, `components/canvas/**`, `lib/agent/auto-mode*`, or anything imported by the demo path changes.
+**Author obligation**: if a demo step now requires manual intervention, surface it as a `BLOCK` decision packet — do not silently weaken the assertion.
+
+| ID | Assertion | Verification | Proof format |
+|----|-----------|--------------|--------------|
+| D1 | The demo path in `docs/DEMO.md` runs end-to-end without manual steps | E2E test `tests/e2e/demo-arc.spec.ts` | playwright run id + trace path |
+| D2 | Demo trace ends with the expected hero asset on canvas (matches `docs/DEMO.md` reference snapshot) | Convex snapshot diff | `convex-snapshot:<id>` |
+| D3 | No unexpected prompts, modals, or system dialogs appear during the arc | Playwright `expect(page).not.toHaveDialog()` between scripted steps | screenshot path |
+| D4 | Cold-start demo completes within 3 minutes wall-clock | Playwright timing assertion | log line `demo.duration_ms=<n>` |
+| D5 | Every fan-out variant (4:5, 9:16, 16:9) renders without manual re-prompt | E2E assertion + visual snapshot per format | screenshot paths |
+
+---
+
+## provenance
+
+**Risk surface**: every canvas mutation records a typed `ToolRef` / `SkillRef` / `WorkflowRef` with `inputs`, `outputs`, `beforeSnapshotRef`, `afterSnapshotRef`. (CLAUDE.md hard rule #8.)
+**Auto-fire**: when any file in `lib/agent/**`, `lib/capability/**`, `lib/provenance/**`, or `convex/` changes; or when a new tool/skill is added.
+**Author obligation**: any new mutation MUST emit a typed action record. Mutations that bypass the record path are blocked.
+
+| ID | Assertion | Verification | Proof format |
+|----|-----------|--------------|--------------|
+| P1 | New mutations call `recordToolRef()` / `recordSkillRef()` / `recordWorkflowRef()` | grep diff for state-mutating Convex mutations without a record call | grep output |
+| P2 | Records carry both `beforeSnapshotRef` and `afterSnapshotRef` | type-level check on the record builder | `lib/provenance/types.ts:N` |
+| P3 | Tool/skill registry includes the new entry | check `lib/agent/agent-tools/registry.ts` | file diff |
+| P4 | A test exists asserting the mutation produced a record | grep test file for record assertion | test id |
+| P5 | New tools declare their `inputs` and `outputs` schemas in the typed registry | type check + grep | type definition path |
+
+---
+
+## ux-restraint
+
+**Risk surface**: layout, density, labels, and panel taxonomy match `AGENTS.md` (left = `input`, right = `output` + `metadata`, canvas chrome = `tool`, header = `navigation`, composer at bottom with scope chip). Restraint is a load-bearing product property.
+**Auto-fire**: when `components/**` or `app/**` (non-API) changes.
+**Author obligation**: do not mix taxonomy categories in one panel; do not add subtitles or per-item descriptions; default panel state is icon + chip with the body expanding on click.
+
+| ID | Assertion | Verification | Proof format |
+|----|-----------|--------------|--------------|
+| U1 | New rail-panel default state shows icon + chip only (≤ 1 line) | Playwright visual snapshot of collapsed state | screenshot path |
+| U2 | No `<p>` or text node > 80 characters added inside `components/rail/` | grep diff | grep output |
+| U3 | No new toolbar created outside `components/canvas/` (single primary palette) | grep new `<Toolbar>` / `<FloatingToolbar>` instances in diff | grep output |
+| U4 | Composer scope chip renders as exactly `global` or `local` | RTL test | test id |
+| U5 | Rail item labels are ≤ 4 words and contain no descriptions | grep diff inside `components/rail/` | grep output |
+| U6 | Diff does not introduce paper-texture / mono-font / monochrome rule violations | visual diff vs reference | screenshot path |
+
+---
+
+## security-cost
+
+**Risk surface**:
+- No leaked credentials in code or commits.
+- No new public API endpoints without auth.
+- No API-budget-burning loops in autopilot paths (subscription-backed agents only).
+- No hardcoded provider or model in code paths (CLAUDE.md hard rule #7).
+
+**Auto-fire**: when `lib/providers/**`, `convex/**`, `app/api/**`, `.env*`, or any new LLM / image / video / audio call is added.
+**Author obligation**: subscription-backed token paths only for autopilot work. Any pay-per-token API call must be (a) user-initiated, (b) bounded by an explicit token/cost cap, (c) gated by a config flag with a default that is off in autopilot.
+
+| ID | Assertion | Verification | Proof format |
+|----|-----------|--------------|--------------|
+| S1 | No secret-looking strings in diff (GitGuardian + internal regex) | grep `(?i)(api[_-]?key\|secret\|token\|password)\s*=\s*['\"][^'\"]{16,}` | grep output |
+| S2 | New `app/api/**` endpoints are auth-gated | grep `requireAuth\|getSession\|verifyToken` in handler | handler file:line |
+| S3 | New LLM / image / video calls go through `ImageGenProvider`, `VideoGenProvider`, `getAgentClient()` — not direct SDK | grep direct SDK imports (`from '@anthropic-ai/sdk'`, `from 'openai'`, `from '@google/generative-ai'`) in diff | grep output |
+| S4 | Autopilot agent invocations use OAuth/subscription token paths, not pay-per-token API keys | grep `OPENAI_API_KEY\|ANTHROPIC_API_KEY\|GOOGLE_GEMINI_API_KEY` in autopilot code | grep output + path |
+| S5 | Any retry loop has explicit `maxAttempts` and `timeoutMs` | grep `while\|for\|setInterval` in retry-shaped code | file:line |
+| S6 | Default model / provider choice lives in env or config, never inline | grep diff for hardcoded model strings (`gpt-4`, `claude-`, `gemini-`, `seedream-`, etc.) | grep output |
+
+---
+
+## Auto-routing table
+
+| Touched path | Personas that fire |
+|--------------|--------------------|
+| (always) | `correctness` |
+| `app/workspace/**`, `components/canvas/**`, `lib/agent/auto-mode*` | + `demo-arc` |
+| `lib/agent/**`, `lib/capability/**`, `lib/provenance/**`, `convex/**` | + `provenance` |
+| `components/**`, `app/**` (non-API) | + `ux-restraint` |
+| `lib/providers/**`, `convex/**`, `app/api/**`, `.env*`, new LLM/image/video adapter | + `security-cost` |
+
+Multiple personas can fire on the same PR. Each emits its own structured verdict; the `route-verdict` step merges them with this priority:
+
+```
+BLOCK > REQUEST_CHANGES > APPROVE
+```
+
+If any persona returns `BLOCK`, the merged verdict is `BLOCK` and the human-review packet is forwarded to Discord with all flagged assertions.
+
+## Output contract per persona
+
+```json
+{
+  "persona": "correctness",
+  "verdict": "APPROVE | REQUEST_CHANGES | BLOCK",
+  "assertions": [
+    {
+      "id": "C1",
+      "status": "PASS | FAIL | UNVERIFIABLE",
+      "proof": "https://github.com/erniesg/aether/actions/runs/<id>",
+      "note": "optional one-line explanation"
+    }
+  ],
+  "humanReview": null
+}
+```
+
+When `verdict` is `BLOCK`, `humanReview` follows the schema in `.github/workflows/claude-review.yml`:
+
+```json
+{
+  "kind": "visual | product | architecture | other",
+  "reason": "one concise sentence",
+  "options": [
+    { "label": "...", "description": "..." },
+    { "label": "...", "description": "..." }
+  ],
+  "artifactUrls": ["..."]
+}
+```
+
+`UNVERIFIABLE` assertions without a `proof` field cause the reviewer to leave a PR comment requesting the missing artifact (typically a screenshot, video, or JSON dump). The PR is blocked from merge until the artifact lands. There is no "justify and skip" path.
