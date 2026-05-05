@@ -25,7 +25,6 @@ export default function Home() {
             AI-driven actions as reusable capabilities; fan one hero scene out to linked
             multiformat variants.
           </p>
-          <p className="mt-3 font-caption text-ink-dim">built with claude opus 4.7</p>
         </div>
 
         <Link href="/workspace/demo-ws" className="inline-flex">
