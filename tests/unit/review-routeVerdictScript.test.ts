@@ -180,4 +180,27 @@ describe('route-verdict persona enrichment', () => {
     expect(routeScript).toContain("if (verdict === 'REQUEST_CHANGES')");
     expect(routeScript).toContain("if (verdict === 'BLOCK')");
   });
+
+  it('does not emit emojis in PR comments (CLAUDE.md hard rule)', () => {
+    // The reviewer harness must follow the same no-emojis rule it
+    // enforces against author agents. Plain ASCII status tags only.
+    const formatBlock = routeScript.slice(
+      routeScript.indexOf('function formatPersonaTable'),
+      routeScript.indexOf('function formatReviewComment')
+    );
+    for (const glyph of ['✓', '✗', '⛔', '⚠']) {
+      expect(formatBlock).not.toContain(glyph);
+    }
+    // Status tags use brackets, not glyphs.
+    expect(routeScript).toContain('[${a.status}]');
+  });
+
+  it('grants the reviewer agent gh issue view so it can fetch the parent QA Plan', () => {
+    // Without this, the prompt's instruction to read the parent issue's
+    // `## QA Plan` silently fails — the reviewer can't call gh issue
+    // view, skips the QA-plan check, and may approve PRs with missing
+    // plans.
+    expect(workflow).toContain('--allowedTools');
+    expect(workflow).toContain('Bash(gh issue view:*)');
+  });
 });
