@@ -22,7 +22,10 @@ import {
   setCampaignStatus,
   startCampaign,
 } from '@/lib/convex/http';
-import { scheduleVariationPosts } from '@/lib/agent/auto-mode';
+import {
+  buildAutoModeComponent,
+  scheduleVariationPosts,
+} from '@/lib/agent/auto-mode';
 import { uploadAssetToConvex } from '@/lib/storage/convexAsset';
 import { genReferenceId } from '@/lib/providers/reference/og';
 import type { ReferenceRecord } from '@/lib/providers/reference/types';
@@ -31,6 +34,15 @@ import {
   buildDiscordPublishLinks,
 } from '@/lib/publisher/discord-actions';
 import type { PublishPlatform } from '@/lib/providers/publisher/types';
+import { applyTextOverlay, type ProposedTextOverlay } from '@/lib/agent/text-apply';
+import {
+  COMPOSE_FORMATS,
+  COMPOSE_LOCALES,
+  composeVariantSet,
+  type LocaleCode as ComposeLocaleCode,
+} from '@/lib/text-overlay/compose';
+import { asBCP47LocaleCode } from '@/lib/text-overlay/types';
+import { TARGET_TRANSLATION_LOCALES } from '@/lib/locale/registry';
 
 export interface PersistGenerationInput {
   workspaceId?: string;
@@ -61,6 +73,11 @@ export interface PersistGenerationInput {
   /** Optional publish platform scope from creator voice/prompt intent.
    *  When omitted, the persisted/env publish plan is used. */
   targetPlatforms?: PublishPlatform[];
+  /** Scene-aware prompt produced by the layout planner — preferred over
+   *  `prompt` (orchestration template) when seeding the text-overlay
+   *  pipeline so multilingual headlines/captions describe the actual hero
+   *  scene, not the boilerplate instruction. */
+  rewrittenPrompt?: string;
 }
 
 export interface PersistGenerationResult {
@@ -79,6 +96,163 @@ function refSignature(url?: string): string | undefined {
     return `data:${url.slice(5, 25)}…(${Math.round(url.length / 1024)}KB b64)`;
   }
   return url;
+}
+
+async function fetchMediaBytes(url: string): Promise<Buffer | null> {
+  if (!url) return null;
+  try {
+    if (url.startsWith('data:')) {
+      const comma = url.indexOf(',');
+      if (comma < 0) return null;
+      return Buffer.from(url.slice(comma + 1), 'base64');
+    }
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+function deriveCaptionsByLocale(
+  layers: ReadonlyArray<ProposedTextOverlay>
+): Record<string, string> {
+  const captionLayer = layers.find((l) => l.zone.purpose === 'caption');
+  const headlineLayer = layers.find((l) => l.zone.purpose === 'headline');
+  const out: Record<string, string> = {};
+  const seenLocales = new Set<string>();
+  for (const layer of layers) {
+    for (const locale of Object.keys(layer.content ?? {})) {
+      seenLocales.add(locale);
+    }
+  }
+  for (const locale of seenLocales) {
+    const branded = asBCP47LocaleCode(locale);
+    const c = captionLayer?.content?.[branded];
+    const h = headlineLayer?.content?.[branded];
+    const text = c && c.trim() ? c.trim() : h && h.trim() ? h.trim() : '';
+    if (text) out[locale] = text;
+  }
+  return out;
+}
+
+interface OverlayPipelineResult {
+  layers: ProposedTextOverlay[];
+  captionsByLocale: Record<string, string>;
+  localizedPerFormatUrls: Record<string, Record<string, string>>;
+  atlasUrl?: string;
+  atlasAssetId?: string;
+}
+
+/**
+ * Run text-overlay → composeVariantSet → tile/atlas upload synchronously
+ * before the variation is persisted. Without this the voice / drag-drop
+ * generate flow lands a variation with empty `captionsByLocale` and
+ * `localizedPerFormatUrls`, and `auto-post` then publishes a bare image
+ * with whatever caption fallback the publisher can find. Fail-soft —
+ * any step that breaks returns null and the caller persists what it has.
+ */
+async function runOverlayPipeline(input: {
+  workspaceId?: string;
+  heroUrl: string;
+  nativePerFormatUrls?: Partial<
+    Record<'1x1' | '4x5' | '9x16' | '16x9', string>
+  >;
+  sceneDescription: string;
+  creatorIntent?: string;
+}): Promise<OverlayPipelineResult | null> {
+  if (process.env.AETHER_OVERLAY_ON_GEN === '0') return null;
+  try {
+    const component = buildAutoModeComponent({
+      rewrittenPromptOrCaption: input.sceneDescription,
+    });
+    const overlay = await applyTextOverlay({
+      component,
+      sourceLocale: asBCP47LocaleCode('en-SG'),
+      targetLocales: [...TARGET_TRANSLATION_LOCALES],
+      creatorIntent: input.creatorIntent,
+      wsId: input.workspaceId,
+    });
+    if (!overlay.layers || overlay.layers.length === 0) return null;
+
+    const heroBytes = await fetchMediaBytes(input.heroUrl);
+    if (!heroBytes) return null;
+
+    const nativePerFormatBytes: Partial<
+      Record<'1x1' | '4x5' | '9x16' | '16x9', Buffer>
+    > = {};
+    if (input.nativePerFormatUrls) {
+      await Promise.all(
+        Object.entries(input.nativePerFormatUrls).map(async ([fid, url]) => {
+          if (!url) return;
+          const bytes = await fetchMediaBytes(url);
+          if (bytes) {
+            nativePerFormatBytes[fid as '1x1' | '4x5' | '9x16' | '16x9'] = bytes;
+          }
+        })
+      );
+    }
+
+    const captionsByLocale = deriveCaptionsByLocale(overlay.layers);
+
+    const composed = await composeVariantSet({
+      heroBytes,
+      textOverlays: overlay.layers,
+      fallbackCaptions: captionsByLocale as Partial<
+        Record<ComposeLocaleCode, string>
+      >,
+      nativePerFormatBytes,
+    });
+
+    const atlasUploaded = await uploadAssetToConvex({
+      source: composed.atlas,
+      kind: 'other',
+      mime: 'image/png',
+      sourceUrl: 'voice generate variant atlas',
+      width: composed.atlasWidth,
+      height: composed.atlasHeight,
+      workspaceId: input.workspaceId,
+    });
+
+    const localizedPerFormatUrls: Record<string, Record<string, string>> = {};
+    await Promise.all(
+      COMPOSE_FORMATS.flatMap((format) =>
+        COMPOSE_LOCALES.map(async (locale) => {
+          const tile = composed.tiles.get(`${format.id}-${locale}`);
+          if (!tile) return;
+          const uploaded = await uploadAssetToConvex({
+            source: tile,
+            kind: 'hero',
+            mime: 'image/png',
+            sourceUrl: `voice generate ${format.id} ${locale}`,
+            width: format.w,
+            height: format.h,
+            workspaceId: input.workspaceId,
+          });
+          if (!uploaded?.publicUrl) return;
+          if (!localizedPerFormatUrls[locale]) {
+            localizedPerFormatUrls[locale] = {};
+          }
+          localizedPerFormatUrls[locale][format.id] = uploaded.publicUrl;
+        })
+      )
+    );
+
+    return {
+      layers: overlay.layers,
+      captionsByLocale,
+      localizedPerFormatUrls,
+      atlasUrl: atlasUploaded?.publicUrl,
+      atlasAssetId: atlasUploaded?.id as string | undefined,
+    };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[persist-generation] runOverlayPipeline failed:',
+      err instanceof Error ? err.message : String(err)
+    );
+    return null;
+  }
 }
 
 export async function persistGenerateAsCampaign(
@@ -178,6 +352,19 @@ export async function persistGenerateAsCampaign(
     persistedPerFormatUrls = Object.fromEntries(entries) as typeof input.nativePerFormatUrls;
   }
 
+  // Run text-overlay + locale render synchronously so the variation lands
+  // with captionsByLocale + localizedPerFormatUrls populated. Without this
+  // auto-post fires with bare images and an empty caption fallback chain.
+  // Fail-soft: returns null on any step failure; the variation persists
+  // with whatever it has and the schedule still completes.
+  const overlay = await runOverlayPipeline({
+    workspaceId: input.workspaceId,
+    heroUrl: persistedHeroUrl,
+    nativePerFormatUrls: persistedPerFormatUrls,
+    sceneDescription: input.rewrittenPrompt ?? input.prompt,
+    creatorIntent: input.prompt.slice(0, 240),
+  });
+
   let variationId: string | null = null;
   try {
     variationId = await insertCampaignVariation({
@@ -188,7 +375,19 @@ export async function persistGenerateAsCampaign(
       heroDirectionId: input.heroDirectionId,
       heroImageUrl: persistedHeroUrl,
       nativePerFormatUrls: persistedPerFormatUrls,
-      caption: input.prompt,
+      // Top-level caption stays empty by design — pickCaptionForLocale
+      // prefers captionsByLocale[locale] first.
+      ...(overlay?.captionsByLocale && Object.keys(overlay.captionsByLocale).length > 0
+        ? { captionsByLocale: overlay.captionsByLocale }
+        : {}),
+      ...(overlay?.localizedPerFormatUrls &&
+      Object.keys(overlay.localizedPerFormatUrls).length > 0
+        ? { localizedPerFormatUrls: overlay.localizedPerFormatUrls }
+        : {}),
+      ...(overlay?.layers && overlay.layers.length > 0
+        ? { textOverlays: overlay.layers }
+        : {}),
+      ...(overlay?.atlasUrl ? { atlasUrl: overlay.atlasUrl } : {}),
       schedulePlatform: 'instagram',
       scheduleWhenLocal,
       agentRunIds: [],
@@ -248,35 +447,53 @@ export async function persistGenerateAsCampaign(
   let scheduledPostIds: string[] = [];
   let autoPostError: string | undefined;
   if (notifyMode === 'auto-post' && input.workspaceId) {
-    try {
-      scheduledPostIds = await scheduleVariationPosts({
-        variations: [
-          {
-            index: 1,
-            status: 'ready',
-            heroDirectionId: input.heroDirectionId,
-            heroImageUrl: persistedHeroUrl,
-            nativePerFormatUrls: persistedPerFormatUrls,
-            caption: input.prompt,
-            schedulePlatform: 'instagram',
-            scheduleWhenLocal,
-            agentSteps: [],
-            agentFinalText: '',
-          },
-        ],
-        workspaceId: input.workspaceId,
-        baseUrl: input.baseUrl,
-        forcePostNow: true,
-        campaignId,
-        targetPlatforms: input.targetPlatforms,
-      });
-    } catch (err) {
-      autoPostError = err instanceof Error ? err.message : String(err);
+    if (process.env.AETHER_AUTOPOST_DRY_RUN === '1') {
       // eslint-disable-next-line no-console
       console.warn(
-        '[persist-generation] auto-post scheduleVariationPosts failed:',
-        autoPostError
+        '[persist-generation] AETHER_AUTOPOST_DRY_RUN=1 — skipping scheduleVariationPosts'
       );
+    } else {
+      try {
+        scheduledPostIds = await scheduleVariationPosts({
+          variations: [
+            {
+              index: 1,
+              status: 'ready',
+              heroDirectionId: input.heroDirectionId,
+              heroImageUrl: persistedHeroUrl,
+              nativePerFormatUrls: persistedPerFormatUrls,
+              ...(overlay?.captionsByLocale &&
+              Object.keys(overlay.captionsByLocale).length > 0
+                ? { captionsByLocale: overlay.captionsByLocale as never }
+                : {}),
+              ...(overlay?.localizedPerFormatUrls &&
+              Object.keys(overlay.localizedPerFormatUrls).length > 0
+                ? { localizedPerFormatUrls: overlay.localizedPerFormatUrls as never }
+                : {}),
+              ...(overlay?.layers && overlay.layers.length > 0
+                ? { textOverlays: overlay.layers }
+                : {}),
+              caption: undefined,
+              schedulePlatform: 'instagram',
+              scheduleWhenLocal,
+              agentSteps: [],
+              agentFinalText: '',
+            },
+          ],
+          workspaceId: input.workspaceId,
+          baseUrl: input.baseUrl,
+          forcePostNow: true,
+          campaignId,
+          targetPlatforms: input.targetPlatforms,
+        });
+      } catch (err) {
+        autoPostError = err instanceof Error ? err.message : String(err);
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[persist-generation] auto-post scheduleVariationPosts failed:',
+          autoPostError
+        );
+      }
     }
   }
 

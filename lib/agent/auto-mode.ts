@@ -825,7 +825,7 @@ export function pickHeroImageUrl(steps: MultiAgentToolStep[]): string | undefine
 
 // ───── Post-hero pipeline (multi-format + adaptive multilingual text) ────
 
-const STANDARD_FORMATS: ReadonlyArray<FormatTarget> = [
+export const STANDARD_FORMATS: ReadonlyArray<FormatTarget> = [
   { id: '1x1', w: 1024, h: 1024, label: 'Hero · Square' },
   { id: '4x5', w: 1080, h: 1350, label: 'IG Portrait' },
   { id: '9x16', w: 1080, h: 1920, label: 'Story / Reel' },
@@ -839,7 +839,7 @@ const STANDARD_FORMATS: ReadonlyArray<FormatTarget> = [
  * `mustSurviveAllCrops` so cropHeroToFormats preserves them across
  * 4:5 / 9:16 / 16:9.
  */
-const DEFAULT_TEXT_SAFE_ZONES: ReadonlyArray<SafeZone> = [
+export const DEFAULT_TEXT_SAFE_ZONES: ReadonlyArray<SafeZone> = [
   {
     purpose: 'headline',
     bbox: { x: 0.05, y: 0.05, w: 0.9, h: 0.18 },
@@ -852,7 +852,7 @@ const DEFAULT_TEXT_SAFE_ZONES: ReadonlyArray<SafeZone> = [
   },
 ];
 
-function buildAutoModeComponent(input: {
+export function buildAutoModeComponent(input: {
   rewrittenPromptOrCaption: string;
   moodNote?: string;
 }): SemanticCreativeComponent {
