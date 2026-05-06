@@ -128,7 +128,7 @@ describe('agent context bundle assembly', () => {
       issue: {
         number: 153,
         title: 'Missing doc context',
-        body: 'Read docs/handoffs/MISSING.md before coding.',
+        body: 'Review docs/handoffs, then read docs/handoffs/MISSING.md before coding.',
         labels: [],
         comments: [],
       },
