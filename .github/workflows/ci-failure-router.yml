@@ -1,0 +1,41 @@
+name: ci-failure-router
+
+on:
+  workflow_run:
+    workflows: ['ci']
+    types: [completed]
+
+jobs:
+  route:
+    if: |
+      github.event.workflow_run.conclusion == 'failure' ||
+      github.event.workflow_run.conclusion == 'timed_out' ||
+      github.event.workflow_run.conclusion == 'cancelled' ||
+      github.event.workflow_run.conclusion == 'action_required'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+      pull-requests: write
+    env:
+      CI_FAILURE_RETRY_LIMIT: ${{ vars.CI_FAILURE_RETRY_LIMIT || '3' }}
+      CI_FAILURE_RETRY_BACKOFF_SECONDS: ${{ vars.CI_FAILURE_RETRY_BACKOFF_SECONDS || '30' }}
+      CI_FAILURE_MAX_BACKOFF_SECONDS: ${{ vars.CI_FAILURE_MAX_BACKOFF_SECONDS || '300' }}
+    steps:
+      - name: Checkout router from default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          persist-credentials: false
+
+      - name: Route failed CI back to author agent
+        run: node .github/scripts/ci-failure-router.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_RUN_PULL_REQUESTS: ${{ toJson(github.event.workflow_run.pull_requests) }}

@@ -75,9 +75,11 @@ The reviewer is always Claude in v1. We rely on the fresh-context invocation + t
 
 A `codex-review.yml` mirror (Codex-as-reviewer) is a future option if we want bidirectional cross-review. Not needed in v1 since the reviewer's job is rubric enforcement, which is agent-agnostic.
 
-## Self-heal arc (reuse across agents)
+## Self-heal arc
 
-The CI failure router (`.github/workflows/ci-failure-router.yml`) fires on `ci.yml` failures for **either** `claude/issue-*` or `codex/issue-*` branches. The router posts a structured failure packet, increments a retry counter, and either re-fires the corresponding `*-run` label or escalates to Discord. Both agents share the same retry budget mechanism.
+The CI failure router (`.github/workflows/ci-failure-router.yml`) fires on `ci.yml` failures for `claude/issue-*` branches. The router posts a structured failure packet, increments a retry counter, refreshes `claude-run` on the source issue, and explicitly dispatches `claude.yml` so the retry does not depend on `GITHUB_TOKEN` label events. If the source issue is missing or the retry budget is exhausted, it labels `route-human` and explicitly dispatches the human-review notification workflow.
+
+Local Codex-authored branches receive normal CI and reviewer checks, but the router does not pretend GitHub can remotely repair them through subscription OAuth. A failed `codex/issue-*` PR needs a local Codex patch relay follow-up until an approved remote Codex authoring boundary exists.
 
 ## Budget guardrails
 
@@ -87,7 +89,7 @@ Hard limits per workflow run:
 |---|---|---|
 | Max agent turns | 250 (Claude) / local session limit (Codex) | `claude_args` / local Codex session |
 | Max wall-clock | 60 min | `timeout-minutes` in workflow |
-| CI failure retries | 2 | `MAX_RETRIES` in `ci-failure-router.yml` |
+| CI failure retries | 3 | `CI_FAILURE_RETRY_LIMIT` repo variable, defaulted in `ci-failure-router.yml` |
 
 Beyond these, the route-review-verdict + ci-failure-router escalate to Ernie via Discord. There is no automated escape past `needs-human-review`.
 

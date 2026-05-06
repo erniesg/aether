@@ -1,9 +1,48 @@
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 function readEventPayload() {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath || !fs.existsSync(eventPath)) return {};
   return JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+}
+
+function gh(args, { parseJson = false } = {}) {
+  const out = execFileSync('gh', args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: process.env,
+  });
+  return parseJson ? JSON.parse(out) : out.trim();
+}
+
+function loadManualTarget() {
+  const number = process.env.HUMAN_REVIEW_TARGET_NUMBER;
+  const type = process.env.HUMAN_REVIEW_TARGET_TYPE;
+  if (!number || !type) return {};
+  if (type === 'pr') {
+    const pr = gh(['pr', 'view', number, '--json', 'number,title,url,headRefName'], {
+      parseJson: true,
+    });
+    return {
+      pullRequest: {
+        number: pr.number,
+        title: pr.title,
+        url: pr.url,
+        branch: pr.headRefName,
+      },
+    };
+  }
+  const issue = gh(['issue', 'view', number, '--json', 'number,title,url'], {
+    parseJson: true,
+  });
+  return {
+    issue: {
+      number: issue.number,
+      title: issue.title,
+      url: issue.url,
+    },
+  };
 }
 
 // Colors picked to be distinctive on Discord's dark theme.
@@ -93,21 +132,23 @@ async function main() {
   }
 
   const payload = readEventPayload();
-  const issue = payload.issue
+  const manualTarget = loadManualTarget();
+  const issue = manualTarget.issue || payload.issue
     ? {
-        number: payload.issue.number,
-        title: payload.issue.title,
-        url: payload.issue.html_url,
+        number: (manualTarget.issue || payload.issue).number,
+        title: (manualTarget.issue || payload.issue).title,
+        url: (manualTarget.issue || payload.issue).url || payload.issue?.html_url,
       }
     : undefined;
-  const pullRequest = payload.pull_request
+  const pullRequest = manualTarget.pullRequest || payload.pull_request
     ? {
-        number: payload.pull_request.number,
-        title: payload.pull_request.title,
-        url: payload.pull_request.html_url,
+        number: (manualTarget.pullRequest || payload.pull_request).number,
+        title: (manualTarget.pullRequest || payload.pull_request).title,
+        url: (manualTarget.pullRequest || payload.pull_request).url || payload.pull_request?.html_url,
       }
     : undefined;
   const branch =
+    manualTarget.pullRequest?.branch ||
     process.env.GITHUB_HEAD_REF ||
     payload.pull_request?.head?.ref ||
     process.env.GITHUB_REF_NAME ||
