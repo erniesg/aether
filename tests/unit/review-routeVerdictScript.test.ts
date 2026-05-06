@@ -110,4 +110,97 @@ describe('claude-review structured output contract', () => {
     expect(workflow).toContain('author agent will be re-dispatched automatically');
     expect(workflow).toContain('Do not use BLOCK just because a screenshot/artifact is missing');
   });
+
+  it('grounds the reviewer in the rubric + personas + parent issue QA plan', () => {
+    // The reviewer agent should not improvise. Make sure the prompt
+    // names the three load-bearing inputs and tells the agent to fetch
+    // the parent issue's `## QA Plan` section.
+    expect(workflow).toContain('docs/qa-rubric.md');
+    expect(workflow).toContain('docs/reviewer-personas.md');
+    expect(workflow).toContain('## QA Plan');
+    expect(workflow).toContain('Closes #N');
+    expect(workflow).toContain('gh issue view');
+  });
+
+  it('routes personas by touched paths and merges their verdicts', () => {
+    expect(workflow).toContain('auto-routing table');
+    expect(workflow).toContain('correctness');
+    expect(workflow).toContain('demo-arc');
+    expect(workflow).toContain('provenance');
+    expect(workflow).toContain('ux-restraint');
+    expect(workflow).toContain('security-cost');
+    expect(workflow).toContain('BLOCK > REQUEST_CHANGES > APPROVE');
+  });
+
+  it('rejects unfalsifiable phrasing with REQUEST_CHANGES (no escape hatch)', () => {
+    expect(workflow).toContain('banned phrasing');
+    expect(workflow).toMatch(/\bshould\b/);
+    expect(workflow).toContain('looks good');
+    expect(workflow).toContain('No "skip with justification."');
+  });
+
+  it('declares an optional personas[] schema with the five enumerated risk surfaces', () => {
+    expect(workflow).toContain('"personas"');
+    expect(workflow).toContain('"correctness"');
+    expect(workflow).toContain('"demo-arc"');
+    expect(workflow).toContain('"provenance"');
+    expect(workflow).toContain('"ux-restraint"');
+    expect(workflow).toContain('"security-cost"');
+    expect(workflow).toContain('"PASS"');
+    expect(workflow).toContain('"FAIL"');
+    expect(workflow).toContain('"UNVERIFIABLE"');
+  });
+});
+
+describe('route-verdict persona enrichment', () => {
+  it('parses a personas[] array off the structured output and normalizes assertions', () => {
+    expect(routeScript).toContain('function normalizePersonas');
+    expect(routeScript).toContain('PERSONA_IDS');
+    expect(routeScript).toContain('ASSERTION_STATUSES');
+    expect(routeScript).toContain('personas: normalizePersonas(parsed.personas)');
+  });
+
+  it('surfaces UNVERIFIABLE-without-proof as a blocking artifact request', () => {
+    expect(routeScript).toContain('function unverifiableWithoutProof');
+    expect(routeScript).toContain('Unverifiable assertions — proof required before merge');
+    expect(routeScript).toContain('formatUnverifiableBlock');
+  });
+
+  it('renders a per-persona verdict table in the PR comment', () => {
+    expect(routeScript).toContain('function formatPersonaTable');
+    expect(routeScript).toContain('### Persona verdicts');
+    expect(routeScript).toContain('| Persona | Verdict | Assertions |');
+  });
+
+  it('keeps personas[] additive — the merged verdict still drives routing', () => {
+    // Sanity-check: the persona functions should not introduce a new
+    // top-level verdict path. The existing verdict-driven routing is
+    // unchanged; personas[] is for richer reporting only.
+    expect(routeScript).toContain("if (verdict === 'APPROVE')");
+    expect(routeScript).toContain("if (verdict === 'REQUEST_CHANGES')");
+    expect(routeScript).toContain("if (verdict === 'BLOCK')");
+  });
+
+  it('does not emit emojis in PR comments (CLAUDE.md hard rule)', () => {
+    // The reviewer harness must follow the same no-emojis rule it
+    // enforces against author agents. Plain ASCII status tags only.
+    const formatBlock = routeScript.slice(
+      routeScript.indexOf('function formatPersonaTable'),
+      routeScript.indexOf('function formatReviewComment')
+    );
+    for (const glyph of ['✓', '✗', '⛔', '⚠']) {
+      expect(formatBlock).not.toContain(glyph);
+    }
+    // Status tags use brackets, not glyphs.
+    expect(routeScript).toContain('[${a.status}]');
+  });
+
+  it('grants the reviewer agent gh issue view so it can fetch the parent QA Plan', () => {
+    // Without this, the prompt's instruction to read the parent issue's
+    // `## QA Plan` silently fails — the reviewer can't call gh issue
+    // view, skips the QA-plan check, and may approve PRs with missing
+    // plans.
+    expect(workflow).toContain('--allowedTools');
+    expect(workflow).toContain('Bash(gh issue view:*)');
+  });
 });

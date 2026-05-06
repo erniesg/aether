@@ -160,6 +160,64 @@ function parseVerdict(body) {
 
 const REVIEW_VERDICTS = new Set(['APPROVE', 'REQUEST_CHANGES', 'BLOCK']);
 
+// Persona output (optional, additive). The reviewer prompt now asks the
+// agent to walk per-persona checklists from docs/reviewer-personas.md and
+// emit a personas[] array. We treat it as enrichment only — the merged
+// `verdict` field still drives routing.
+const PERSONA_IDS = new Set([
+  'correctness',
+  'demo-arc',
+  'provenance',
+  'ux-restraint',
+  'security-cost',
+]);
+const ASSERTION_STATUSES = new Set(['PASS', 'FAIL', 'UNVERIFIABLE']);
+
+function normalizePersonas(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((p) => {
+      if (!p || typeof p !== 'object') return null;
+      const id = typeof p.persona === 'string' ? p.persona.trim() : '';
+      if (!PERSONA_IDS.has(id)) return null;
+      const verdict = REVIEW_VERDICTS.has(p.verdict) ? p.verdict : null;
+      if (!verdict) return null;
+      const assertions = Array.isArray(p.assertions)
+        ? p.assertions
+            .map((a) => {
+              if (!a || typeof a !== 'object') return null;
+              const aid = typeof a.id === 'string' ? a.id.trim() : '';
+              const status = ASSERTION_STATUSES.has(a.status) ? a.status : null;
+              if (!aid || !status) return null;
+              return {
+                id: aid,
+                status,
+                proof: typeof a.proof === 'string' ? a.proof.trim() : '',
+                note: typeof a.note === 'string' ? a.note.trim() : '',
+              };
+            })
+            .filter(Boolean)
+        : [];
+      return { persona: id, verdict, assertions };
+    })
+    .filter(Boolean);
+}
+
+// UNVERIFIABLE without a `proof` field is the unique signal that the
+// reviewer wants media attached before merge. We surface that in the
+// PR comment so authors know what's blocking them.
+function unverifiableWithoutProof(personas) {
+  const out = [];
+  for (const p of personas) {
+    for (const a of p.assertions) {
+      if (a.status === 'UNVERIFIABLE' && !a.proof) {
+        out.push({ persona: p.persona, id: a.id, note: a.note });
+      }
+    }
+  }
+  return out;
+}
+
 function parseStructuredReview(raw) {
   if (!raw || !raw.trim()) return null;
   try {
@@ -173,6 +231,7 @@ function parseStructuredReview(raw) {
       verdict,
       body: typeof parsed.body === 'string' ? parsed.body : '',
       humanReview: normalizeHumanReview(parsed.humanReview),
+      personas: normalizePersonas(parsed.personas),
     };
   } catch (err) {
     console.warn(`could not parse reviewer structured output: ${err.message}`);
@@ -220,12 +279,52 @@ function stripVerdictLines(body) {
     .trim();
 }
 
+function formatPersonaTable(personas) {
+  if (!personas || personas.length === 0) return '';
+  // Plain ASCII status tags. CLAUDE.md prohibits emojis in code output;
+  // the reviewer harness must follow the same rule it enforces.
+  const lines = [
+    '',
+    '### Persona verdicts',
+    '',
+    '| Persona | Verdict | Assertions |',
+    '| --- | --- | --- |',
+  ];
+  for (const p of personas) {
+    const summary =
+      p.assertions
+        .map((a) => `[${a.status}] \`${a.id}\``)
+        .join(' · ') || '(none emitted)';
+    lines.push(`| \`${p.persona}\` | ${p.verdict} | ${summary} |`);
+  }
+  return lines.join('\n');
+}
+
+function formatUnverifiableBlock(personas) {
+  const blocking = unverifiableWithoutProof(personas);
+  if (blocking.length === 0) return '';
+  const lines = [
+    '',
+    '### Unverifiable assertions — proof required before merge',
+    '',
+    'The reviewer cannot mechanize these checks. Attach the missing artifact (screenshot, video, JSON dump, or convex snapshot id) as a PR comment and the reviewer will re-run.',
+    '',
+  ];
+  for (const item of blocking) {
+    const note = item.note ? ` — ${item.note}` : '';
+    lines.push(`- \`${item.persona}\` / \`${item.id}\`${note}`);
+  }
+  return lines.join('\n');
+}
+
 function formatReviewComment(review) {
   const body = stripVerdictLines(review.body);
   const summary =
     body ||
     'Reviewer agent returned a structured verdict without a written summary.';
-  return `${summary}\n\nVERDICT: ${review.verdict}`;
+  const personaTable = formatPersonaTable(review.personas);
+  const unverifiable = formatUnverifiableBlock(review.personas);
+  return `${summary}${personaTable}${unverifiable}\n\nVERDICT: ${review.verdict}`;
 }
 
 function extractIssueNumberFromBranch(ref) {
