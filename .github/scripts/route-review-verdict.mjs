@@ -229,8 +229,8 @@ function formatReviewComment(review) {
 }
 
 function extractIssueNumberFromBranch(ref) {
-  // claude/issue-<n>-<slug>
-  const m = /^claude\/issue-(\d+)(?:-|$)/.exec(ref);
+  // claude/issue-<n>-<slug> OR codex/issue-<n>-<slug>
+  const m = /^(?:claude|codex)\/issue-(\d+)(?:-|$)/.exec(ref);
   return m ? Number(m[1]) : null;
 }
 

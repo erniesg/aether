@@ -1,0 +1,42 @@
+name: codex-subscription-preflight
+
+# Manual readiness check for the self-hosted Codex subscription runner.
+# This workflow intentionally does NOT invoke Codex and does NOT send repo or
+# issue context to ChatGPT. It only proves the runner boundary and local
+# credential shape are sane before any future authoring harness is enabled.
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_credential:
+        description: Fail if the local runner credential file is missing.
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  preflight:
+    runs-on: [self-hosted, codex-subscription]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Show runner boundary
+        run: |
+          node --version
+          echo "RUNNER_NAME=${RUNNER_NAME:-}"
+          echo "RUNNER_ENVIRONMENT=${RUNNER_ENVIRONMENT:-}"
+          echo "GITHUB_WORKSPACE=${GITHUB_WORKSPACE:-}"
+
+      - name: Syntax check Codex subscription scripts
+        run: |
+          node --check scripts/codex-subscription-adapter.mjs
+          node --check scripts/codex-subscription-preflight.mjs
+
+      - name: Codex subscription preflight
+        run: npm run codex:subscription:preflight -- --self-hosted-only --json ${{ inputs.require_credential && '--require-credential' || '' }}
