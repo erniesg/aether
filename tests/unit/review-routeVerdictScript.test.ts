@@ -116,6 +116,7 @@ describe('claude-review structured output contract', () => {
 
   it('skips Claude reviewer cleanly when the reviewer workflow changes itself', () => {
     expect(workflow).toContain('Detect reviewer workflow self-change');
+    expect(workflow).toContain('pulls/${PR_NUMBER}/files');
     expect(workflow).toContain("grep -Fxq '.github/workflows/claude-review.yml'");
     expect(workflow).toContain("claude-code-action requires the workflow to match the default branch");
     expect(workflow).toContain("if: steps.review_workflow_guard.outputs.skip != 'true'");
