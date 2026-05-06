@@ -217,3 +217,35 @@ jobs:
             --body "${BODY}" \
             --base main \
             --head "${BRANCH}"
+
+      # GitHub does NOT trigger workflows when GITHUB_TOKEN-authored events
+      # create PRs (anti-recursion guard). Without this step, ci.yml and
+      # claude-review.yml never fire on fresh agent PRs — see #137 / #138
+      # which only surfaced GitGuardian. We dispatch explicitly so the
+      # PR has a verifiable signal from the moment it opens.
+      - name: Dispatch CI + reviewer for fresh agent PRs
+        if: always() && github.event_name == 'issues' && github.event.action == 'labeled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -u
+          # Find the most recent open PR whose head matches this issue's
+          # agent-branch convention. Idempotent: if no open PR exists
+          # (existing PR was already merged, or agent push silently no-op'd)
+          # we exit cleanly.
+          PR_JSON="$(gh pr list \
+            --state open \
+            --json number,headRefName \
+            --jq "[.[] | select(.headRefName | startswith(\"claude/issue-${ISSUE_NUMBER}-\"))] | sort_by(.number) | reverse | .[0] // empty")"
+          if [ -z "${PR_JSON:-}" ]; then
+            echo "::notice::No open PR for issue #${ISSUE_NUMBER}; nothing to dispatch."
+            exit 0
+          fi
+          PR_BRANCH="$(printf '%s' "${PR_JSON}" | jq -r '.headRefName')"
+          PR_NUMBER="$(printf '%s' "${PR_JSON}" | jq -r '.number')"
+          echo "::notice::Dispatching ci.yml + claude-review.yml for PR #${PR_NUMBER} on ${PR_BRANCH}"
+          gh workflow run ci.yml --ref "${PR_BRANCH}" \
+            || echo "::warning::ci.yml dispatch failed (workflow may not exist on this branch)"
+          gh workflow run claude-review.yml --ref "${PR_BRANCH}" -f "pr_number=${PR_NUMBER}" \
+            || echo "::warning::claude-review.yml dispatch failed"
