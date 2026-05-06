@@ -204,15 +204,9 @@ describe('route-verdict persona enrichment', () => {
     expect(workflow).toContain('Bash(gh issue view:*)');
   });
 
-  it('requires the stable artifact capture manifest before approving UI/product PRs', () => {
-    expect(workflow).toContain('aether-artifact-capture:v1');
-    expect(workflow).toContain('aether.artifact-capture.v1');
-    expect(workflow).toContain('gh pr view #${{ steps.pr_context.outputs.number }} --comments');
-    expect(workflow).toMatch(/Missing, failed,\s+malformed, or upload-less artifact capture is REQUEST_CHANGES/);
-  });
-
   it('overrides APPROVE when required artifact proof is missing', () => {
     expect(routeScript).toContain("const ARTIFACT_CAPTURE_MARKER = '<!-- aether-artifact-capture:v1 -->'");
+    expect(routeScript).toContain("const ARTIFACT_CAPTURE_SCHEMA = 'aether.artifact-capture.v1'");
     expect(routeScript).toContain('function waitForArtifactGate');
     expect(routeScript).toContain("if (verdict === 'APPROVE')");
     expect(routeScript).toContain("verdict = 'REQUEST_CHANGES'");

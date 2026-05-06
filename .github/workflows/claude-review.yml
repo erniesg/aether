@@ -101,7 +101,7 @@ jobs:
             PR head branch: ${{ steps.pr_context.outputs.head_ref }}
 
             ──── Single source of truth ────
-            Before evaluating the diff, READ these inputs in this order:
+            Before evaluating the diff, READ these three files in this order:
 
             1. `docs/qa-rubric.md` — what a falsifiable QA plan looks like;
                banned phrasing; required proof formats.
@@ -112,10 +112,6 @@ jobs:
                in the PR body; fetch with `gh issue view N`.) If the issue
                has no `## QA Plan` section, return REQUEST_CHANGES asking
                the author to add one — do not guess.
-            4. The latest PR comment containing
-               `<!-- aether-artifact-capture:v1 -->`. This is the stable
-               media-proof manifest from `.github/workflows/artifact-capture.yml`.
-               Read it with `gh pr view #${{ steps.pr_context.outputs.number }} --comments`.
 
             ──── How to evaluate ────
 
@@ -123,15 +119,6 @@ jobs:
               Run the auto-routing table in `docs/reviewer-personas.md`
               against the touched paths in this PR's diff. `correctness`
               ALWAYS fires. Note which others fire.
-
-            STEP 1B — Enforce artifact capture before approval:
-              If this PR touches UI/product paths (`app/`, `components/`,
-              `convex/`, `lib/providers/`, `lib/research/`, `lib/store/`,
-              `lib/video/`, `tests/e2e/`, or `tests/artifacts/`), the PR
-              must have a successful `aether.artifact-capture.v1` manifest
-              with at least one screenshot or video file. Missing, failed,
-              malformed, or upload-less artifact capture is REQUEST_CHANGES.
-              Do not route to BLOCK or human just because media is missing.
 
             STEP 2 — For each firing persona, walk its assertion checklist
               and emit PASS / FAIL / UNVERIFIABLE for each. UNVERIFIABLE
