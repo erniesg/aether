@@ -12,6 +12,7 @@ const reviewWorkflow = readFileSync(
 describe('claude author workflow branch targeting', () => {
   it('resolves an existing PR branch before checkout for issue re-dispatches', () => {
     expect(workflow).toContain('name: Resolve agent target branch');
+    expect(workflow).toContain('[ "${EVENT_NAME}" = "workflow_dispatch" ]');
     expect(workflow).toContain("startswith(\\\"claude/issue-${ISSUE_NUMBER}-\\\")");
     expect(workflow).toContain('checkout_ref=${checkout_ref}');
     expect(workflow).toContain('existing_pr_branch=${existing_pr_branch}');
