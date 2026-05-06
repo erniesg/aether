@@ -137,6 +137,8 @@ Artifacts are uploaded through the approved GitHub artifact fallback in v1. The 
 
 The reviewer prompt reads that manifest, and `route-review-verdict.mjs` enforces it fail-closed: an APPROVE on a UI/product PR is downgraded to REQUEST_CHANGES when the manifest is missing, failed, malformed, upload-less, or contains no screenshot/video media. Missing media stays inside the automated loop instead of becoming a vague `route-human` escalation.
 
+Reviewer workflow bootstrap guard: when a PR changes `.github/workflows/claude-review.yml`, `claude-review.yml` skips the Claude reviewer agent because `anthropics/claude-code-action` requires that workflow file to match the default branch before it exchanges an app token. CI, artifact capture, and GitGuardian still run, and the changed reviewer workflow takes effect after merge.
+
 ## Self-heal arc
 
 The CI failure router (`.github/workflows/ci-failure-router.yml`) fires on `ci.yml` failures for `claude/issue-*` branches. The router posts a structured failure packet, increments a retry counter, refreshes `claude-run` on the source issue, and explicitly dispatches `claude.yml` so the retry does not depend on `GITHUB_TOKEN` label events. If the source issue is missing or the retry budget is exhausted, it labels `route-human` and explicitly dispatches the human-review notification workflow.
