@@ -38,6 +38,39 @@ By default public GitHub writes use `AETHER_PUBLIC_WRITE_POLICY=after-hours-sgt`
 
 ## Routing rules
 
+### Queue controller
+
+[`queue-controller.yml`](../.github/workflows/queue-controller.yml) keeps queue state in GitHub labels. It does not create a dashboard or a separate operator surface.
+
+Canonical state labels:
+
+| State | Label | Dispatch behavior |
+|---|---|---|
+| queued | `queue-queued` | Eligible for scheduled/manual drain when an agent trigger label is present. |
+| running | `queue-running` | Author workflow has been dispatched or an agent branch exists. |
+| awaiting-review | `queue-awaiting-review` | Agent PR exists; CI, artifact capture, or reviewer gate is pending. |
+| ready-for-human | `queue-ready-human` plus `ready-for-ernie` or `route-human` | Waiting for Ernie ack, clarification, or product/architecture decision. |
+| blocked | `queue-blocked`, `blocked`, `depends-on-pr`, or `depends-on:pr-*` | Not dispatchable. Dependency blockers are reversible; terminal `blocked` is not. |
+| paused | `queue-paused` | Not dispatchable. Agent trigger labels are stripped. |
+| deferred | `queue-deferred` | Not dispatchable until explicitly acknowledged. |
+| done | `queue-done` or closed issue | Completed/closed. |
+
+The controller normalizes contradictory state labels so each issue has one queue state. It also removes `claude-run` / `codex-run` from paused, deferred, blocked, human-ready, and awaiting-review items so stale trigger labels do not keep re-firing.
+
+Priority is label-first: `priority:p0`, `priority:p1`, `priority:p2`, then `priority:p3`. If no priority label exists, the controller falls back to `P0`...`P3` in the issue title, then treats the issue as normal/lowest priority. Scheduled drains respect `QUEUE_MAX_CONCURRENT` and `QUEUE_MAX_HIGH_RISK_CONCURRENT` so multiple UI/product changes do not collide.
+
+Stale run handling is separate from ordinary CI self-heal:
+
+- stale Claude issue with retry budget left -> refresh `claude-run`, post a queue stale-run packet, and dispatch `claude.yml`;
+- stale Claude issue past `QUEUE_RETRY_LIMIT` -> remove agent triggers, add `route-human` + `queue-ready-human`;
+- stale Codex issue -> route human, because Codex subscription work is local-only and GitHub cannot self-heal it remotely.
+
+Human decision semantics:
+
+- acknowledge -> remove human/deferred/paused state and re-open the queue with the selected agent trigger;
+- defer -> add `queue-deferred`, strip agent triggers;
+- reject/block -> add `blocked` + `queue-blocked`, strip agent triggers.
+
 ### When the harness adds the label
 
 If neither label is present when an issue opens, the **harness adds `claude-run` by default** for primary work. `codex-run` is added only by:
@@ -60,9 +93,9 @@ If both labels are on the same issue, both workflows fire in parallel. The first
 
 This is intentional: it gives the maintainer an explicit way to A/B authoring strategies on a single ticket, at the cost of duplicate compute.
 
-### Mutual exclusion is NOT enforced
+### Author-agent mutual exclusion is NOT enforced
 
-We don't enforce a label mutex because the labels are user intent, not workflow state. If a maintainer wants both agents to compete, that's a valid choice. Future tooling (a queue controller) can layer concurrency limits on top — see the `tech-debt` issues.
+We do not enforce a `claude-run` / `codex-run` mutex because the labels are user intent, not queue state. If a maintainer wants both agents to compete, that is a valid choice. The queue controller only enforces the state-label mutex and the concurrency caps.
 
 ## Cross-review
 
