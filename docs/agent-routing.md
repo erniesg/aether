@@ -75,6 +75,16 @@ The reviewer is always Claude in v1. We rely on the fresh-context invocation + t
 
 A `codex-review.yml` mirror (Codex-as-reviewer) is a future option if we want bidirectional cross-review. Not needed in v1 since the reviewer's job is rubric enforcement, which is agent-agnostic.
 
+## Artifact capture gate
+
+`artifact-capture.yml` runs on agent-authored PRs before review evidence is considered complete. It plans from the PR diff, skips docs/config-only changes, and requires proof for UI/product paths such as `app/`, `components/`, `convex/`, product-facing `lib/*` modules, `tests/e2e/`, and `tests/artifacts/`.
+
+For required captures, the workflow prefers `tests/artifacts/issue-<n>.spec.ts` and falls back to `tests/artifacts/generic.spec.ts`. If `AETHER_ARTIFACT_BASE_URL` is set, Playwright captures that preview URL. If it is unset, `playwright.artifacts.config.ts` starts a local preview fallback so agents still produce evidence without a deployed preview.
+
+Artifacts are uploaded through the approved GitHub artifact fallback in v1. The workflow posts or updates a PR comment marked with `<!-- aether-artifact-capture:v1 -->`; the JSON manifest inside that comment uses schema `aether.artifact-capture.v1` and lists the spec, capture outcome, upload URL, and captured screenshot/video files.
+
+The reviewer prompt reads that manifest, and `route-review-verdict.mjs` enforces it fail-closed: an APPROVE on a UI/product PR is downgraded to REQUEST_CHANGES when the manifest is missing, failed, malformed, upload-less, or contains no screenshot/video media. Missing media stays inside the automated loop instead of becoming a vague `route-human` escalation.
+
 ## Self-heal arc
 
 The CI failure router (`.github/workflows/ci-failure-router.yml`) fires on `ci.yml` failures for `claude/issue-*` branches. The router posts a structured failure packet, increments a retry counter, refreshes `claude-run` on the source issue, and explicitly dispatches `claude.yml` so the retry does not depend on `GITHUB_TOKEN` label events. If the source issue is missing or the retry budget is exhausted, it labels `route-human` and explicitly dispatches the human-review notification workflow.
