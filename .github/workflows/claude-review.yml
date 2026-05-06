@@ -77,10 +77,11 @@ jobs:
         id: review_workflow_guard
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr_context.outputs.number }}
         run: |
           set -euo pipefail
-          if gh pr diff "${PR_NUMBER}" --name-only | grep -Fxq '.github/workflows/claude-review.yml'; then
+          if gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename' | grep -Fxq '.github/workflows/claude-review.yml'; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
             echo "::notice::Skipping Claude reviewer because this PR changes claude-review.yml; claude-code-action requires the workflow to match the default branch for app-token exchange."
           else
