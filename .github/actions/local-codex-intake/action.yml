@@ -1,0 +1,34 @@
+name: Local Codex Intake
+description: Intake locally-authored codex/issue branches without invoking a remote coding agent.
+
+inputs:
+  mode:
+    description: resolve, refresh, intake, open-pr, dispatch, or drain
+    required: true
+
+outputs:
+  checkout_ref:
+    description: Branch/ref the intake resolved for the Codex work.
+    value: ${{ steps.intake.outputs.checkout_ref }}
+  base_branch:
+    description: Base branch to use when no Codex PR branch exists.
+    value: ${{ steps.intake.outputs.base_branch }}
+  existing_pr_branch:
+    description: Existing open Codex PR branch, when one exists.
+    value: ${{ steps.intake.outputs.existing_pr_branch }}
+  existing_pr_number:
+    description: Existing open Codex PR number, when one exists.
+    value: ${{ steps.intake.outputs.existing_pr_number }}
+  issue_number:
+    description: Issue number inferred from the event or codex/issue branch.
+    value: ${{ steps.intake.outputs.issue_number }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run local Codex intake
+      id: intake
+      shell: bash
+      env:
+        LOCAL_CODEX_INTAKE_MODE: ${{ inputs.mode }}
+      run: node "${GITHUB_ACTION_PATH}/../../scripts/local-codex-intake.mjs"

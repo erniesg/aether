@@ -21,6 +21,9 @@
     "deploy:prod": "node scripts/require-tldraw-license.mjs && convex deploy --yes --typecheck disable --codegen disable --cmd 'opennextjs-cloudflare build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL && wrangler deploy --env production",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",
+    "codex:subscription": "node scripts/codex-subscription-adapter.mjs",
+    "codex:issue-context": "node scripts/codex-issue-context.mjs",
+    "codex:subscription:preflight": "node scripts/codex-subscription-preflight.mjs",
     "provision:managed-agents": "tsx scripts/provision-managed-agents.ts"
   },
   "dependencies": {
