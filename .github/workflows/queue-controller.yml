@@ -1,0 +1,63 @@
+name: queue-controller
+
+# Label-state controller for the autonomous author queue.
+#
+# Issue and PR events normalize state labels only. Schedule/manual runs also
+# drain queued work in priority order with concurrency caps, using explicit
+# workflow_dispatch calls so GITHUB_TOKEN label edits do not rely on recursive
+# label-trigger behavior.
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled, reopened, closed]
+  pull_request:
+    types: [opened, reopened, closed, synchronize, ready_for_review, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the queue plan without mutating labels or dispatching agents.
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      dispatch:
+        description: Drain queued work in priority order.
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+  schedule:
+    # Same public-write window as codex.yml: after Singapore working hours.
+    - cron: '12,42 10-15 * * 1-5'
+    - cron: '12,42 * * * 0,6'
+
+jobs:
+  queue-controller:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      actions: write
+    env:
+      AETHER_PUBLIC_WRITE_POLICY: ${{ vars.AETHER_PUBLIC_WRITE_POLICY || 'after-hours-sgt' }}
+      QUEUE_STALE_AFTER_HOURS: ${{ vars.QUEUE_STALE_AFTER_HOURS || '4' }}
+      QUEUE_RETRY_LIMIT: ${{ vars.QUEUE_RETRY_LIMIT || '3' }}
+      QUEUE_MAX_CONCURRENT: ${{ vars.QUEUE_MAX_CONCURRENT || '2' }}
+      QUEUE_MAX_HIGH_RISK_CONCURRENT: ${{ vars.QUEUE_MAX_HIGH_RISK_CONCURRENT || '1' }}
+      QUEUE_CONTROLLER_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      QUEUE_CONTROLLER_DISPATCH: ${{ github.event.inputs.dispatch || '' }}
+    steps:
+      - name: Checkout queue controller
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref || github.event.repository.default_branch || 'main' }}
+          persist-credentials: false
+
+      - name: Normalize and drain autonomous queue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+        run: node .github/scripts/queue-controller.mjs
