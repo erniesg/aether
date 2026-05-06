@@ -508,6 +508,20 @@ function refreshLabel(target, label) {
   addLabels(target, [label]);
 }
 
+function dispatchWorkflow(workflow, fields = {}) {
+  const defaultBranch = process.env.DEFAULT_BRANCH || process.env.GITHUB_DEFAULT_BRANCH || 'main';
+  const args = ['workflow', 'run', workflow, '--ref', defaultBranch];
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null || value === '') continue;
+    args.push('-f', `${key}=${String(value)}`);
+  }
+  gh(args);
+}
+
+function dispatchClaude(issueNumber) {
+  dispatchWorkflow('claude.yml', { issue_number: issueNumber });
+}
+
 function addIssueComment(issueTarget, body) {
   gh(['issue', 'comment', String(issueTarget.number), '--body', body]);
   console.log(`posted handoff comment on issue #${issueTarget.number}`);
@@ -719,6 +733,7 @@ function buildRedispatchHandoff({ pr, verdict, reason, reviewBody }) {
     `Repair instruction: ${reason}`,
     '',
     'The router is refreshing `claude-run` so the next agent can continue without a human relay.',
+    'The next author context bundle at `.agent-context/author-context.md` will include this reviewer handoff; the author agent must read it before editing.',
   ];
 
   if (reviewBody) {
@@ -732,6 +747,7 @@ function redispatchIssue(issueTarget, reason, handoffBody) {
   console.log(`${reason} — refreshing \`claude-run\` on issue #${issueTarget.number}`);
   if (handoffBody) addIssueComment(issueTarget, handoffBody);
   refreshLabel(issueTarget, 'claude-run');
+  dispatchClaude(issueTarget.number);
 }
 
 async function routeUnrecoverableHuman({ prTarget, pr, commonFields, description }) {

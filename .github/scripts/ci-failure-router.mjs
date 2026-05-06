@@ -261,6 +261,9 @@ function buildRepairComment(plan) {
     '',
     'Next action:',
     nextAction,
+    '',
+    'Context bundle:',
+    'The next author context bundle at `.agent-context/author-context.md` will include this repair packet; the author agent must read it before editing.',
   ].join('\n');
 }
 

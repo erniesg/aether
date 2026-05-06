@@ -43,6 +43,9 @@ describe('route-review-verdict harness contract', () => {
     expect(routeScript).toContain('### Automated reviewer handoff');
     expect(routeScript).toContain("gh(['issue', 'comment'");
     expect(routeScript).toContain('The router is refreshing `claude-run`');
+    expect(routeScript).toContain("dispatchWorkflow('claude.yml'");
+    expect(routeScript).toContain('dispatchClaude(issueTarget.number)');
+    expect(workflow).toContain('actions: write');
   });
 
   it('requires a decision packet before sending BLOCK to a human', () => {

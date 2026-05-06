@@ -60,7 +60,7 @@ jobs:
             checkout_ref="$(gh api "repos/${GH_REPO}/pulls/${ISSUE_NUMBER}" --jq '.head.ref')"
             existing_pr_branch="${checkout_ref}"
             existing_pr_number="${ISSUE_NUMBER}"
-          elif [ "${EVENT_NAME}" = "issues" ] && [ -n "${ISSUE_NUMBER:-}" ]; then
+          elif [ -n "${ISSUE_NUMBER:-}" ] && { [ "${EVENT_NAME}" = "issues" ] || [ "${EVENT_NAME}" = "workflow_dispatch" ]; }; then
             match="$(gh pr list \
               --state open \
               --json number,headRefName,updatedAt \
@@ -129,6 +129,30 @@ jobs:
             echo "::warning::Could not auto-merge origin/main into ${TARGET_BRANCH}; Claude will see the existing PR branch state."
           fi
 
+      - name: Build author context bundle
+        id: context_bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || '' }}
+          ISSUE_IS_PR: ${{ github.event.issue.pull_request && 'true' || 'false' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || steps.agent_target.outputs.existing_pr_number || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .agent-context
+          SOURCE_ISSUE_NUMBER="${ISSUE_NUMBER:-}"
+          if [ "${ISSUE_IS_PR:-false}" = "true" ]; then
+            SOURCE_ISSUE_NUMBER=""
+          fi
+
+          args=(--output .agent-context/author-context.md --post-missing-comment)
+          if [ -n "${SOURCE_ISSUE_NUMBER:-}" ]; then
+            args+=(--issue-number "${SOURCE_ISSUE_NUMBER}")
+          fi
+          if [ -n "${PR_NUMBER:-}" ]; then
+            args+=(--pr-number "${PR_NUMBER}")
+          fi
+          node .github/scripts/agent-context-bundle.mjs author "${args[@]}"
+
       - name: Run Claude Code agent
         id: agent
         continue-on-error: true
@@ -141,6 +165,9 @@ jobs:
           label_trigger: "claude-run"
           base_branch: ${{ steps.agent_target.outputs.base_branch }}
           prompt: >-
+            Read the context bundle first before editing; it is generated at `${{ steps.context_bundle.outputs.path }}` and separates trusted instructions from untrusted issue/PR/comment/log data.
+            ${{ steps.context_bundle.outputs.prompt }}
+
             ${{ github.event_name == 'workflow_dispatch' && format('Continue issue #{0} from the latest automated handoff. First read the issue comments and linked PR comments, especially the latest CI failure repair packet; then fix the failing CI without asking for human help unless the packet says the retry budget is exhausted or the issue needs a product/architecture decision.', inputs.issue_number) || '' }}
           claude_args: |
             --max-turns 250
