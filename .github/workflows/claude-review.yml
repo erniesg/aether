@@ -73,13 +73,29 @@ jobs:
             echo "head_sha=$(printf '%s' "${pr}" | jq -r '.headRefOid')"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: Detect reviewer workflow self-change
+        id: review_workflow_guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr_context.outputs.number }}
+        run: |
+          set -euo pipefail
+          if gh pr diff "${PR_NUMBER}" --name-only | grep -Fxq '.github/workflows/claude-review.yml'; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Skipping Claude reviewer because this PR changes claude-review.yml; claude-code-action requires the workflow to match the default branch for app-token exchange."
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Checkout PR head
+        if: steps.review_workflow_guard.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ steps.pr_context.outputs.head_sha }}
 
       - name: Build reviewer context bundle
+        if: steps.review_workflow_guard.outputs.skip != 'true'
         id: context_bundle
         env:
           GH_TOKEN: ${{ github.token }}
@@ -95,6 +111,7 @@ jobs:
           node .github/scripts/agent-context-bundle.mjs reviewer --pr-number "${PR_NUMBER}" --output .agent-context/reviewer-context.md --post-missing-comment
 
       - name: Run reviewer agent
+        if: steps.review_workflow_guard.outputs.skip != 'true'
         id: reviewer
         uses: anthropics/claude-code-action@v1
         with:
@@ -203,7 +220,7 @@ jobs:
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","BLOCK"]},"body":{"type":"string","description":"Human-readable PR review summary and findings. Do not include the final VERDICT line."},"personas":{"type":"array","description":"Per-persona detail. Strongly recommended; the router renders a verdict table from this.","items":{"type":"object","properties":{"persona":{"type":"string","enum":["correctness","demo-arc","provenance","ux-restraint","security-cost"]},"verdict":{"type":"string","enum":["APPROVE","REQUEST_CHANGES","BLOCK"]},"assertions":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","description":"Assertion id from docs/reviewer-personas.md (e.g. C1, D1, P1, U1, S1)"},"status":{"type":"string","enum":["PASS","FAIL","UNVERIFIABLE"]},"proof":{"type":"string","description":"Required for PASS and FAIL. UNVERIFIABLE without proof signals that the reviewer needs media attached before merge."},"note":{"type":"string","description":"Optional one-line explanation."}},"required":["id","status"],"additionalProperties":false}}},"required":["persona","verdict","assertions"],"additionalProperties":false}},"humanReview":{"type":"object","properties":{"kind":{"type":"string","enum":["visual","product","architecture","other"]},"reason":{"type":"string","description":"Concise reason a human decision is required."},"options":{"type":"array","minItems":2,"items":{"type":"object","properties":{"label":{"type":"string"},"description":{"type":"string"}},"required":["label","description"],"additionalProperties":false}},"artifactUrls":{"type":"array","items":{"type":"string"},"description":"Evidence links. Required by prompt whenever kind is visual or product."}},"required":["kind","reason","options"],"additionalProperties":false}},"required":["verdict","body"],"additionalProperties":false}'
 
       - name: Route verdict
-        if: always()
+        if: always() && steps.review_workflow_guard.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.pr_context.outputs.number }}

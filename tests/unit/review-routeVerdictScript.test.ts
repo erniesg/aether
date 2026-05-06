@@ -114,6 +114,14 @@ describe('claude-review structured output contract', () => {
     expect(workflow).toContain('Do not use BLOCK just because a screenshot/artifact is missing');
   });
 
+  it('skips Claude reviewer cleanly when the reviewer workflow changes itself', () => {
+    expect(workflow).toContain('Detect reviewer workflow self-change');
+    expect(workflow).toContain("grep -Fxq '.github/workflows/claude-review.yml'");
+    expect(workflow).toContain("claude-code-action requires the workflow to match the default branch");
+    expect(workflow).toContain("if: steps.review_workflow_guard.outputs.skip != 'true'");
+    expect(workflow).toContain("if: always() && steps.review_workflow_guard.outputs.skip != 'true'");
+  });
+
   it('grounds the reviewer in the rubric + personas + parent issue QA plan', () => {
     // The reviewer agent should not improvise. Make sure the prompt
     // names the three load-bearing inputs and tells the agent to fetch
