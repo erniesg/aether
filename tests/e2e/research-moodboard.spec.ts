@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedDemoCreatorContext } from './helpers/demo-creator-context';
 
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZwkmBYAAAAASUVORK5CYII=';
@@ -206,6 +207,7 @@ test.describe('research to moodboard', () => {
 
   test('scout research -> cluster -> tweak moodboard -> generate', async ({ page }) => {
     const generateRequests: Array<Record<string, unknown>> = [];
+    await seedDemoCreatorContext(page);
     await installMocks(page, generateRequests);
 
     await page.goto('/workspace/demo-ws?provider=openai&model=gpt-image-1&bypass=1');
