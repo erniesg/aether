@@ -23,6 +23,7 @@
     "convex:deploy": "convex deploy",
     "codex:subscription": "node scripts/codex-subscription-adapter.mjs",
     "codex:issue-context": "node scripts/codex-issue-context.mjs",
+    "codex:apply-patch": "node scripts/codex-apply-patch.mjs",
     "codex:subscription:preflight": "node scripts/codex-subscription-preflight.mjs",
     "provision:managed-agents": "tsx scripts/provision-managed-agents.ts"
   },
