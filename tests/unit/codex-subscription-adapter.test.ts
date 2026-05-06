@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 const adapterPath = resolve(process.cwd(), 'scripts/codex-subscription-adapter.mjs');
 const issueContextPath = resolve(process.cwd(), 'scripts/codex-issue-context.mjs');
+const codexApplyPatchPath = resolve(process.cwd(), 'scripts/codex-apply-patch.mjs');
 const preflightPath = resolve(process.cwd(), 'scripts/codex-subscription-preflight.mjs');
 const adapterSource = readFileSync(adapterPath, 'utf8');
 const issueContextSource = readFileSync(issueContextPath, 'utf8');
+const codexApplyPatchSource = readFileSync(codexApplyPatchPath, 'utf8');
 const preflightSource = readFileSync(preflightPath, 'utf8');
 const codexWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/codex.yml'), 'utf8');
 const preflightWorkflow = readFileSync(
@@ -277,5 +279,53 @@ describe('Codex subscription adapter', () => {
     expect(issueContextSource).not.toContain('requestCodexText');
     expect(issueContextSource).not.toContain('git push');
     expect(issueContextSource).not.toContain('pr create');
+  });
+
+  it('keeps Codex patch application as a local relay instead of a remote authoring bridge', async () => {
+    const patchRelay = await import(pathToFileURL(codexApplyPatchPath).href);
+    const diff = patchRelay.extractUnifiedDiff(`
+Use this patch:
+
+\`\`\`diff
+diff --git a/README.md b/README.md
+index 1111111..2222222 100644
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-old
++new
+\`\`\`
+`);
+
+    expect(diff).toContain('diff --git a/README.md b/README.md');
+    expect(diff.trim().endsWith('+new')).toBe(true);
+    expect(patchRelay.extractPatchPaths(diff)).toEqual(['README.md']);
+    expect(
+      patchRelay.branchForIssue({
+        number: 144,
+        title: 'Build Codex adapter',
+      })
+    ).toBe('codex/issue-144-build-codex-adapter');
+    expect(patchRelay.runVerification('skip')).toEqual({
+      ok: true,
+      output: 'verification skipped',
+    });
+    expect(patchRelay.runVerification('npm run typecheck')).toMatchObject({ ok: false });
+    expect(
+      patchRelay.buildVerificationEnv({
+        PATH: '/usr/bin',
+        HOME: '/tmp/home',
+        OPENAI_API_KEY: 'secret',
+        GH_TOKEN: 'secret',
+      })
+    ).toEqual({
+      PATH: '/usr/bin',
+      HOME: '/tmp/home',
+    });
+    expect(codexApplyPatchSource).not.toContain("git(['add', '-A'])");
+    expect(codexApplyPatchSource).not.toContain("git(['checkout', '-B'");
+    expect(codexApplyPatchSource).not.toContain('requestCodexText');
+    expect(codexApplyPatchSource).not.toContain('CODEX_RESPONSES_URL');
+    expect(codexApplyPatchSource).not.toContain('chatgpt.com/backend-api/codex/responses');
   });
 });
