@@ -59,6 +59,19 @@ const AUTO_MERGE_SAFELIST = [
   /^convex\/_generated\//,
 ];
 
+const ARTIFACT_CAPTURE_MARKER = '<!-- aether-artifact-capture:v1 -->';
+const ARTIFACT_CAPTURE_SCHEMA = 'aether.artifact-capture.v1';
+const ARTIFACT_REQUIRED_PATHS = [
+  /^app\//,
+  /^components\//,
+  /^convex\//,
+  /^lib\/(?:agent|brand|capability|context|providers|research|route-human|skill|store|types|video)\//,
+  /^tests\/e2e\//,
+  /^tests\/artifacts\//,
+  /^playwright\.config\.ts$/,
+  /^playwright\.artifacts\.config\.ts$/,
+];
+
 function listPrFiles(prNumber) {
   try {
     const out = gh(
@@ -80,6 +93,109 @@ function isPrSafeForAutoMerge(prNumber, labels) {
   return files.every((p) =>
     AUTO_MERGE_SAFELIST.some((re) => re.test(p))
   );
+}
+
+function prRequiresArtifactProof(files) {
+  if (!Array.isArray(files) || files.length === 0) return false;
+  return files.some((file) =>
+    ARTIFACT_REQUIRED_PATHS.some((pattern) => pattern.test(file))
+  );
+}
+
+function parseArtifactCaptureComment(body) {
+  if (!body || !body.includes(ARTIFACT_CAPTURE_MARKER)) return null;
+  const jsonMatch = body.match(/```json\s*([\s\S]*?)```/);
+  if (!jsonMatch) return { status: 'missing-json', manifest: null, mediaCount: 0 };
+  try {
+    const manifest = JSON.parse(jsonMatch[1]);
+    const mediaCount = Array.isArray(manifest.files)
+      ? manifest.files.filter((file) => file.kind === 'screenshot' || file.kind === 'video').length
+      : 0;
+    return {
+      status: manifest.capture?.outcome || 'unknown',
+      manifest,
+      mediaCount,
+      uploadUrl: manifest.upload?.artifactUrl || '',
+    };
+  } catch {
+    return { status: 'invalid-json', manifest: null, mediaCount: 0 };
+  }
+}
+
+function findLatestArtifactCapture(comments) {
+  const captures = comments
+    .map((comment) => ({
+      createdAt: comment.created_at,
+      parsed: parseArtifactCaptureComment(comment.body),
+    }))
+    .filter((item) => item.parsed);
+  captures.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return captures[0]?.parsed ?? null;
+}
+
+function artifactCaptureSatisfied(capture) {
+  return (
+    capture?.manifest?.schema === ARTIFACT_CAPTURE_SCHEMA &&
+    capture.status === 'success' &&
+    capture.mediaCount > 0 &&
+    Boolean(capture.uploadUrl)
+  );
+}
+
+function loadIssueComments(prNumber) {
+  return gh(['api', `repos/${process.env.GITHUB_REPOSITORY}/issues/${prNumber}/comments`, '--paginate'], {
+    parseJson: true,
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForArtifactGate({ prNumber, files, comments }) {
+  const required = prRequiresArtifactProof(files);
+  let capture = findLatestArtifactCapture(comments);
+  if (!required || artifactCaptureSatisfied(capture)) {
+    return { required, capture, satisfied: !required || artifactCaptureSatisfied(capture) };
+  }
+
+  const waitSeconds = Number(process.env.ARTIFACT_CAPTURE_WAIT_SECONDS || '90');
+  const deadline = Date.now() + Math.max(0, waitSeconds) * 1000;
+  while (Date.now() < deadline) {
+    await sleep(10_000);
+    capture = findLatestArtifactCapture(loadIssueComments(prNumber));
+    if (artifactCaptureSatisfied(capture)) {
+      return { required, capture, satisfied: true };
+    }
+  }
+
+  return { required, capture, satisfied: false };
+}
+
+function formatArtifactGateComment({ files, capture }) {
+  const proofPaths = files
+    .filter((file) => ARTIFACT_REQUIRED_PATHS.some((pattern) => pattern.test(file)))
+    .slice(0, 8)
+    .map((file) => `- \`${file}\``)
+    .join('\n');
+  const captureStatus = capture
+    ? `Latest artifact capture status: \`${capture.status}\`, media files: ${capture.mediaCount}.`
+    : 'No artifact capture manifest comment was found.';
+
+  return [
+    '### Artifact capture required',
+    '',
+    'This PR touches UI/product paths but does not have a successful artifact capture manifest with screenshot or video evidence.',
+    '',
+    'Proof-required paths:',
+    proofPaths || '- (unable to list changed paths)',
+    '',
+    captureStatus,
+    '',
+    'Run `.github/workflows/artifact-capture.yml`, fix capture failures, or attach the missing screenshot/video evidence through the stable artifact capture comment.',
+    '',
+    'VERDICT: REQUEST_CHANGES',
+  ].join('\n');
 }
 
 function mergePr(prNumber, method = 'squash') {
@@ -664,6 +780,7 @@ async function main() {
 
   const prTarget = { type: 'pr', number: pr.number };
   const issueTarget = issueNumber ? { type: 'issue', number: issueNumber } : null;
+  const prFiles = listPrFiles(pr.number);
 
   const commonFields = [
     { name: 'branch', value: `\`${pr.headRefName}\``, inline: true },
@@ -675,6 +792,24 @@ async function main() {
       value: `[#${issueNumber}](https://github.com/${process.env.GITHUB_REPOSITORY}/issues/${issueNumber})`,
       inline: true,
     });
+  }
+
+  if (verdict === 'APPROVE') {
+    const artifactGate = await waitForArtifactGate({
+      prNumber: pr.number,
+      files: prFiles,
+      comments,
+    });
+    if (artifactGate.required && !artifactGate.satisfied) {
+      const body = formatArtifactGateComment({
+        files: prFiles,
+        capture: artifactGate.capture,
+      });
+      gh(['pr', 'comment', PR_NUMBER, '--body', body]);
+      verdict = 'REQUEST_CHANGES';
+      activeReview = { verdict, body, humanReview: null };
+      console.log('overrode APPROVE because required artifact capture proof is missing');
+    }
   }
 
   if (verdict === 'APPROVE') {
