@@ -1,6 +1,7 @@
 import { expect, test, type Download, type Page } from '@playwright/test';
 import JSZip from 'jszip';
 import { readFile } from 'node:fs/promises';
+import { seedDemoCreatorContext } from './helpers/demo-creator-context';
 
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZwkmBYAAAAASUVORK5CYII=';
@@ -207,6 +208,7 @@ test.describe('creator loop', () => {
     page,
   }) => {
     const generateRequests: Array<Record<string, unknown>> = [];
+    await seedDemoCreatorContext(page);
     await installCreatorLoopMocks(page, generateRequests);
 
     await page.goto('/workspace/demo-ws?provider=openai&model=gpt-image-1&bypass=1');
@@ -224,7 +226,7 @@ test.describe('creator loop', () => {
     }
     await expect(refsFlyout.locator('[data-testid="reference-chip"]')).toHaveCount(2);
     await expect(
-      page.getByRole('button', { name: /input set .*slow morning drop.*7 pinned/i })
+      page.getByRole('button', { name: /input set .*slow morning drop.*5 pinned/i })
     ).toBeVisible();
 
     await page.keyboard.press('Escape');

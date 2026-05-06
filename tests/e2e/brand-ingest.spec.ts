@@ -81,6 +81,7 @@ test.describe('Q1 — brand auto-ingest', () => {
     await expect(flyout).toBeVisible();
 
     await flyout.getByLabel('brand name').fill('Tong');
+    await flyout.getByRole('button', { name: /^colour$/i }).click();
     await flyout.getByLabel('hex colour 1').fill('#ef3340');
     // brand type became a list of indexed entries; scope to role+name to avoid
     // matching the adjacent "remove brand type N" buttons.
