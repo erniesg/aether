@@ -5,10 +5,28 @@ on:
     types: [opened, labeled]
   pull_request:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      target_type:
+        description: issue or pr
+        required: true
+        type: choice
+        options:
+          - issue
+          - pr
+      target_number:
+        description: Issue or PR number to notify.
+        required: true
+        type: string
+      reason:
+        description: Human review reason.
+        required: false
+        type: string
 
 jobs:
   notify:
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'route-human') ||
       (github.event_name == 'issues' && github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'route-human')) ||
       (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'route-human')
@@ -27,7 +45,10 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_CHANNEL_ID: '1496938045876731955'
+          GH_TOKEN: ${{ github.token }}
+          HUMAN_REVIEW_TARGET_TYPE: ${{ github.event.inputs.target_type || '' }}
+          HUMAN_REVIEW_TARGET_NUMBER: ${{ github.event.inputs.target_number || '' }}
           CAPABILITY_LABEL: capability authoring
           HUMAN_REVIEW_ACTION: review the capability authoring result and decide whether to merge
-          HUMAN_REVIEW_REASON: aether item was explicitly labeled route-human
+          HUMAN_REVIEW_REASON: ${{ github.event.inputs.reason || 'aether item was explicitly labeled route-human' }}
         run: node .github/scripts/notify-discord-human-review.mjs
