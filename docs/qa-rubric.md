@@ -37,6 +37,11 @@ The reason it lives in the issue (not a separate file) is that the spec must tra
 - [ ] <artifact 1>: <where it must land>
 - [ ] <artifact 2>: <where it must land>
 
+### Media proof
+- route / surface: <workspace route, API endpoint, job, or cron>
+- interaction: <static state, click path, drag/drop, generate, edit, fan-out, export, approve>
+- proof: <screenshot path, video timestamp range, Playwright trace, JSON dump, or Actions URL>
+
 ### Personas firing (auto-detected, listed for clarity)
 - correctness, demo-arc, provenance, ux-restraint, security-cost
 ```
@@ -79,10 +84,22 @@ Authors list every artifact the reviewer agent expects to see attached to the PR
 Common artifacts:
 
 - **Visual change**: before/after screenshot of the affected surface, at the breakpoint(s) the design exists for.
+- **Key route or multi-step interaction**: video or Playwright trace covering the full click path, plus the final-state screenshot. The proof must name the route and include a timestamp range for the changed behavior.
 - **New API endpoint**: a sample `curl` command + 200 response in the PR description, plus a contract test in the diff.
-- **Demo-arc-touching change**: full Playwright trace + final-state screenshot.
+- **Demo-arc-touching change**: full Playwright trace or video recording + final-state screenshot.
 - **New provider adapter**: contract test against the live provider (or recorded fixture if the provider rate-limits) + cost ceiling note in the PR description.
 - **New mutation/tool/skill**: a screenshot or JSON dump of the resulting `ToolRef` / `SkillRef` record from Convex.
+
+## Media proof bar
+
+Screenshots prove a static state. They do not prove sequencing, drag/drop, generation progress, retry behavior, handoff prompts, or export/approval flows. Any PR touching those behaviors must attach a video or Playwright trace with the exact timestamp range where the changed behavior is visible.
+
+The reviewer rejects media proof when:
+
+1. The route or workspace id is unnamed.
+2. The changed interaction is not visible in the recording or trace.
+3. The final state is hidden behind a debug drawer, devtools pane, loading spinner, or raw payload view.
+4. The media only covers an API response while the PR claims a creator-facing route or canvas behavior changed.
 
 ## How the reviewer enforces this
 

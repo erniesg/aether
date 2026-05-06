@@ -9,8 +9,9 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 1. Every assertion must answer **"what file/line/output proves this?"**
 2. Phrasing rejected as unfalsifiable: `should`, `might`, `could`, `looks good`, `feels right`, `is intuitive`, `is performant`, `is clean`. The reviewer marks these `UNVERIFIABLE` and requests rephrasing.
 3. Proof format must be one of: file path with line number, test id, screenshot path, JSON path, structured log line, video timestamp range, GitHub Actions run URL.
-4. `UNVERIFIABLE` without `proof` attached → reviewer requests media in a PR comment; PR is blocked from merging until the proof lands. **No "skip with justification" escape hatch** — that becomes the loophole.
-5. The reviewer never modifies code. It only emits verdicts and requests artifacts.
+4. Proof media must match the behavior being claimed: screenshots for static state, video or Playwright trace for multi-step interactions, JSON/log proof for non-UI contracts.
+5. `UNVERIFIABLE` without `proof` attached → reviewer requests media in a PR comment; PR is blocked from merging until the proof lands. **No "skip with justification" escape hatch** — that becomes the loophole.
+6. The reviewer never modifies code. It only emits verdicts and requests artifacts.
 
 ---
 
@@ -44,6 +45,7 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 | D3 | No unexpected prompts, modals, or system dialogs appear during the arc | Manual rehearsal observation, or Playwright `expect(page).not.toHaveDialog()` once e2e exists | screenshot path |
 | D4 | Cold-start demo completes within 3 minutes wall-clock | Stopwatched manual rehearsal; or timing assertion in e2e | rehearsal log entry or `demo.duration_ms=<n>` |
 | D5 | Every fan-out variant (4:5, 9:16, 16:9) renders without manual re-prompt | Visual snapshot per format (manual or e2e) | screenshot paths |
+| D6 | Any changed key route or multi-step creator interaction is visible in a recording or Playwright trace, not inferred from static screenshots | inspect attached media for route name, timestamp range, and final canvas state | video path + timestamp range, or Playwright trace URL |
 
 ---
 
@@ -79,6 +81,7 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 | U4 | Composer scope chip renders as exactly `global` or `local` | RTL test | test id |
 | U5 | Rail item labels are ≤ 4 words and contain no descriptions | grep diff inside `components/rail/` | grep output |
 | U6 | Diff does not introduce paper-texture / mono-font / monochrome rule violations | visual diff vs reference | screenshot path |
+| U7 | Interaction-heavy UI changes include media that shows the full creator path without devtools, raw payloads, or debug-only surfaces in the primary view | review PR media proof against `docs/qa-rubric.md#media-proof-bar` | video timestamp range or Playwright trace URL |
 
 ---
 

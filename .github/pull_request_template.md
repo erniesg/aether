@@ -33,6 +33,15 @@ Read-only reference list. The reviewer determines which personas fire based on t
 - [ ] `npm test` exits 0 — proof: <actions run URL or local terminal output>
 - [ ] E2E test for the affected journey passes — proof: <test id + actions run URL>
 - [ ] Visual proof attached for any UI change — proof: <screenshot path or comment URL>
+- [ ] Rich media proof attached for any key route or multi-step interaction — proof: <video/trace path + timestamp range>
+
+## Media proof
+
+List every route and interaction that changed. Static visual changes need screenshots; multi-step canvas, rail, composer, generation, fan-out, export, or approval flows need video or Playwright trace proof.
+
+- route / surface: </workspace/... or api/job name>
+- media: <screenshot, video, trace, JSON dump>
+- proof: <path/comment URL + timestamp range when video>
 
 ## Notes for reviewer
 
@@ -40,4 +49,4 @@ Read-only reference list. The reviewer determines which personas fire based on t
 
 ---
 
-🤖 If this PR was opened by Claude Code, the agent's TDD log lives on the linked issue as a sticky comment.
+If this PR was opened by Claude Code, the agent's TDD log lives on the linked issue as a sticky comment.
