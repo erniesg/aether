@@ -43,6 +43,9 @@ describe('route-review-verdict harness contract', () => {
     expect(routeScript).toContain('### Automated reviewer handoff');
     expect(routeScript).toContain("gh(['issue', 'comment'");
     expect(routeScript).toContain('The router is refreshing `claude-run`');
+    expect(routeScript).toContain("dispatchWorkflow('claude.yml'");
+    expect(routeScript).toContain('dispatchClaude(issueTarget.number)');
+    expect(workflow).toContain('actions: write');
   });
 
   it('requires a decision packet before sending BLOCK to a human', () => {
@@ -109,6 +112,15 @@ describe('claude-review structured output contract', () => {
     expect(workflow).toContain('REQUEST_CHANGES: fixable code, test, artifact-capture, or harness');
     expect(workflow).toContain('author agent will be re-dispatched automatically');
     expect(workflow).toContain('Do not use BLOCK just because a screenshot/artifact is missing');
+  });
+
+  it('skips Claude reviewer cleanly when the reviewer workflow changes itself', () => {
+    expect(workflow).toContain('Detect reviewer workflow self-change');
+    expect(workflow).toContain('pulls/${PR_NUMBER}/files');
+    expect(workflow).toContain("grep -Fxq '.github/workflows/claude-review.yml'");
+    expect(workflow).toContain("claude-code-action requires the workflow to match the default branch");
+    expect(workflow).toContain("if: steps.review_workflow_guard.outputs.skip != 'true'");
+    expect(workflow).toContain("if: always() && steps.review_workflow_guard.outputs.skip != 'true'");
   });
 
   it('grounds the reviewer in the rubric + personas + parent issue QA plan', () => {
