@@ -1,0 +1,133 @@
+name: artifact-capture
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to capture artifacts for
+        required: true
+        type: string
+
+jobs:
+  capture:
+    if: |
+      (github.event_name == 'pull_request' &&
+        (startsWith(github.event.pull_request.head.ref, 'claude/issue-') ||
+         startsWith(github.event.pull_request.head.ref, 'codex/issue-'))) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Resolve PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve PR head
+        id: pr_context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr view "${PR_NUMBER}" --json headRefName,headRefOid --jq '{headRefName, headRefOid}')"
+          {
+            echo "head_ref=$(printf '%s' "${pr}" | jq -r '.headRefName')"
+            echo "head_sha=$(printf '%s' "${pr}" | jq -r '.headRefOid')"
+          } >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.pr_context.outputs.head_sha }}
+
+      - name: Plan artifact capture
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          AETHER_BASE_URL: ${{ vars.AETHER_ARTIFACT_BASE_URL }}
+        run: node .github/scripts/artifact-capture.mjs plan
+
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.required == 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.plan.outputs.required == 'true'
+        run: npm install --no-audit --no-fund --prefer-offline
+
+      - name: Install Playwright browsers
+        if: steps.plan.outputs.required == 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Run artifact capture
+        id: capture
+        if: steps.plan.outputs.required == 'true'
+        continue-on-error: true
+        env:
+          AETHER_BASE_URL: ${{ steps.plan.outputs.base_url }}
+          PLAYWRIGHT_ARTIFACT_DIR: ${{ steps.plan.outputs.artifact_dir }}
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npx playwright test --config=playwright.artifacts.config.ts "${{ steps.plan.outputs.spec_path }}"
+
+      - name: Finalize artifact manifest
+        id: manifest
+        if: steps.plan.outputs.required == 'true'
+        env:
+          PR_NUMBER: ${{ steps.plan.outputs.pr_number }}
+          ISSUE_NUMBER: ${{ steps.plan.outputs.issue_number }}
+          PR_HEAD_REF: ${{ steps.plan.outputs.head_ref }}
+          PR_HEAD_SHA: ${{ steps.plan.outputs.head_sha }}
+          SPEC_PATH: ${{ steps.plan.outputs.spec_path }}
+          SPEC_SOURCE: ${{ steps.plan.outputs.spec_source }}
+          AETHER_BASE_URL: ${{ steps.plan.outputs.base_url }}
+          LOCAL_PREVIEW: ${{ steps.plan.outputs.local_preview }}
+          PLAYWRIGHT_ARTIFACT_DIR: ${{ steps.plan.outputs.artifact_dir }}
+          ARTIFACT_NAME: ${{ steps.plan.outputs.artifact_name }}
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        run: node .github/scripts/artifact-capture.mjs finalize
+
+      - name: Upload artifact bundle
+        id: upload
+        if: steps.plan.outputs.required == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.plan.outputs.artifact_name }}
+          path: |
+            ${{ steps.plan.outputs.artifact_dir }}
+            playwright-report/issue-${{ steps.plan.outputs.issue_number }}
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Comment artifact manifest
+        if: steps.plan.outputs.required == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.plan.outputs.pr_number }}
+          MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
+          ARTIFACT_NAME: ${{ steps.plan.outputs.artifact_name }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: node .github/scripts/artifact-capture.mjs comment
+
+      - name: Fail failed capture
+        if: steps.plan.outputs.required == 'true' && steps.capture.outcome != 'success'
+        run: exit 1
