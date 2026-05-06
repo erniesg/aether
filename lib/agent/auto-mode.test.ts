@@ -394,6 +394,7 @@ describe('runAutoMode · orchestration', () => {
     const endCall = mocks.notifyDiscord.mock.calls.find(
       (c: any[]) => c[0].tag === 'lap-end-notify'
     );
+    if (!endCall) throw new Error('expected lap-end-notify Discord call');
     expect(endCall[0].content).toContain('2/2 variations ready');
   });
 
@@ -449,6 +450,7 @@ describe('runAutoMode · orchestration', () => {
     const endCall = mocks.notifyDiscord.mock.calls.find(
       (c: any[]) => c[0].tag === 'lap-end-review'
     );
+    if (!endCall) throw new Error('expected lap-end-review Discord call');
     expect(endCall[0].content).toContain('AWAITING APPROVAL');
   });
 
@@ -501,7 +503,7 @@ describe('runAutoMode · orchestration', () => {
     const endCall = mocks.notifyDiscord.mock.calls.find(
       (c: any[]) => c[0].tag === 'lap-end-notify'
     );
-    expect(endCall).toBeDefined();
+    if (!endCall) throw new Error('expected lap-end-notify Discord call');
     // Text body MUST NOT show the placeholder.
     expect(endCall[0].content).not.toContain('<no caption>');
     // Text body MUST contain (a prefix of) the en-SG caption.
@@ -535,7 +537,7 @@ describe('runAutoMode · orchestration', () => {
     const endCall = mocks.notifyDiscord.mock.calls.find(
       (c: any[]) => c[0].tag === 'lap-end-auto-post'
     );
-    expect(endCall).toBeDefined();
+    if (!endCall) throw new Error('expected lap-end-auto-post Discord call');
     expect(endCall[0].content).toContain('POSTS SCHEDULED');
   });
 

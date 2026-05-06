@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import type {
@@ -66,6 +66,8 @@ const CONCURRENCY_LABEL: Record<AutoModeConcurrency, string> = {
   parallel: 'Parallel',
 };
 
+const POPOVER_ID = 'workspace-auto-mode-popover';
+
 export function AutoModeToggle({
   config,
   onChange,
@@ -73,7 +75,6 @@ export function AutoModeToggle({
   className,
 }: AutoModeToggleProps) {
   const [open, setOpen] = useState(false);
-  const popoverId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Close on outside click — minimum-viable popover.
@@ -137,7 +138,7 @@ export function AutoModeToggle({
           setOpen((value) => !value);
         }}
         aria-pressed={config.enabled}
-        aria-controls={popoverId}
+        aria-controls={POPOVER_ID}
         aria-expanded={open}
         className="cursor-pointer focus:outline-none"
         title="Auto Mode — drop a URL or files; lap runs automatically. Right-click to configure."
@@ -149,7 +150,7 @@ export function AutoModeToggle({
 
       {open ? (
         <div
-          id={popoverId}
+          id={POPOVER_ID}
           role="dialog"
           aria-label="Auto Mode configuration"
           // z-[1000] to clear tldraw canvas chrome and frame overlays —
