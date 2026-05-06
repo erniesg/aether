@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Hard rules and product identity
+    url: https://github.com/erniesg/aether/blob/main/AGENTS.md
+    about: Read this before opening an issue. Restraint, single synthesis shell, canvas-as-substrate, typed provenance — these are not negotiable.
+  - name: QA rubric
+    url: https://github.com/erniesg/aether/blob/main/docs/qa-rubric.md
+    about: How to write a falsifiable QA plan. The reviewer agent enforces this against every PR.
+  - name: Reviewer personas
+    url: https://github.com/erniesg/aether/blob/main/docs/reviewer-personas.md
+    about: Which assertions fire for which touched paths. Five risk-surface personas, each with falsifiable checks.
