@@ -145,6 +145,7 @@ Reviewer agent + Ernie both review from Discord. Without artifacts, review is th
 ## Dependency labels
 
 - **`depends-on-pr`** — issue is blocked until a specific PR merges. Link the blocking PR in the issue body with `Blocked by #<pr-number>`. On merge, the Discord gate scans open issues for this label + body reference and auto-adds `claude-run` to the dependents.
+- **`queue-queued` / `queue-running` / `queue-awaiting-review` / `queue-ready-human` / `queue-blocked` / `queue-paused` / `queue-deferred` / `queue-done`** — canonical queue state labels. Only one should be present; `queue-controller.yml` repairs conflicts.
 - **`ready-for-ernie`** — reviewer agent APPROVED; Discord ping sent; awaiting ack. Don't re-fire the agent on this.
 - **`queue-paused`** — global pause. Author agents skip `claude-run` issues when any issue bears this. Ernie unpauses via Discord.
 - **`auto-merge-safe`** — chore/docs/test-only PRs that bypass Discord gate on green. Author agents **never** self-apply this; it's human-authored.

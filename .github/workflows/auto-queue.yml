@@ -12,6 +12,8 @@ name: auto-queue
 #
 # When *all* of an issue's blockers are merged, the issue gets:
 #   - `depends-on-pr` removed
+#   - `queue-blocked` removed
+#   - `queue-queued` added
 #   - `claude-run` added (fires the harness)
 # Issues with at least one unmerged blocker stay blocked.
 
@@ -93,9 +95,11 @@ jobs:
             done <<< "$ids"
 
             if [ "$still_blocked" -eq 0 ]; then
-              echo "  → unblocking #${num}: removing depends-on-pr, adding claude-run"
+              echo "  -> unblocking #${num}: removing blocked queue labels, adding queue-queued + claude-run"
               gh issue edit "$num" \
                 --remove-label depends-on-pr \
+                --remove-label queue-blocked \
+                --add-label queue-queued \
                 --add-label claude-run \
                 || echo "  (label edit failed; skipping)"
             fi

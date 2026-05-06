@@ -2,7 +2,7 @@
 name: Feature
 about: New capability, surface, or behavior
 title: '[feature] '
-labels: feature, claude-run
+labels: feature, claude-run, queue-queued
 ---
 
 ## Summary

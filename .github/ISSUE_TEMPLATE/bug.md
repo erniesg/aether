@@ -2,7 +2,7 @@
 name: Bug
 about: Regression, broken behavior, or wrong output
 title: '[bug] '
-labels: bug, claude-run
+labels: bug, claude-run, queue-queued
 ---
 
 ## Summary
