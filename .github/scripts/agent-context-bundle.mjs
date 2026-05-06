@@ -143,7 +143,7 @@ function extractReferencedPaths(texts = [], trackedFiles = []) {
   const tracked = new Set(trackedFiles.map(normalizePath));
   const refs = [];
   const patterns = [
-    /\b(?:\.\/)?((?:docs|\.github|tests|lib|app|components|convex|scripts)\/[A-Za-z0-9._/@+-]+(?:\.[A-Za-z0-9]+)?)\b/g,
+    /\b(?:\.\/)?((?:docs|\.github|tests|lib|app|components|convex|scripts)\/[A-Za-z0-9._/@+-]+\.[A-Za-z0-9]+)\b/g,
     /`((?:docs|\.github|tests|lib|app|components|convex|scripts)\/[^`\s]+)`/g,
   ];
 
@@ -152,7 +152,8 @@ function extractReferencedPaths(texts = [], trackedFiles = []) {
     for (const pattern of patterns) {
       pattern.lastIndex = 0;
       for (const match of body.matchAll(pattern)) {
-        refs.push(normalizePath(match[1]).replace(/[),.;:]+$/, ''));
+        const referencedPath = normalizePath(match[1]).replace(/[),.;:]+$/, '');
+        if (/\.[A-Za-z0-9]+$/.test(referencedPath)) refs.push(referencedPath);
       }
     }
   }
