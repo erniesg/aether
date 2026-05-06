@@ -40,6 +40,11 @@ describe('claude author workflow branch targeting', () => {
 
   it('bases Claude on the resolved branch and grants validation commands', () => {
     expect(workflow).toContain('base_branch: ${{ steps.agent_target.outputs.base_branch }}');
+    expect(workflow).toContain('workflow_dispatch:');
+    expect(workflow).toContain('issue_number:');
+    expect(workflow).toContain('CI failure repair packet');
+    expect(workflow).toContain('prompt: >-');
+    expect(workflow).toContain('ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number ||');
     expect(workflow).toContain('Bash(npm install)');
     expect(workflow).toContain('Bash(npm test:*)');
     expect(workflow).toContain('Bash(npm run typecheck)');
