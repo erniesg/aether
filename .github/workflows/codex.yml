@@ -1,24 +1,30 @@
 name: codex
 
-# Autonomous OpenAI Codex agent — sister workflow to claude.yml.
+# Local Codex intake — sister workflow to claude.yml.
 #
 # Routing convention (the dual-agent arbiter):
 #   - Issue labeled `claude-run` → claude.yml fires, branches at `claude/issue-<n>-*`.
-#   - Issue labeled `codex-run`  → THIS workflow fires, branches at `codex/issue-<n>-*`.
-#   - Both labels on the same issue: explicit user choice; both fire in parallel.
-#     The first to ship a PR wins; the other's branch is left for human review.
+#   - Issue labeled `codex-run`  → THIS workflow watches for local Codex work,
+#     branches at `codex/issue-<n>-*`, and opens/refreshes PRs.
+#   - Both labels on the same issue: explicit user choice; both can run in
+#     parallel. The first to ship a PR wins; the other's branch is left for
+#     human review.
 #   - Default routing rule (when neither label is set by the user):
 #       The harness adds `claude-run` for primary work and `codex-run` only for
-#       cross-review or specific skills (see docs/agent-routing.md, when added).
+#       local Codex pickup, cross-review, or specific skills.
 #
 # Cost discipline:
-#   - This workflow MUST use a subscription-backed OAuth/session token, never a
-#     pay-per-token API key. The `OPENAI_CODEX_OAUTH_TOKEN` secret is required.
-#     If missing, the workflow fails fast with a clear error so a runaway agent
-#     can't burn API budget.
-#   - The fail-fast guard is intentional: silent fallback to API-key billing is
-#     exactly the kind of "context failure" the rubric/reviewer arc is meant
-#     to prevent.
+#   - This workflow does NOT invoke Codex remotely and does NOT use an OpenAI
+#     API key. Codex work happens locally, then a human/local agent pushes a
+#     `codex/issue-<n>-*` branch.
+#   - The repo-owned `.github/actions/local-codex-intake` action only handles
+#     branch intake: refresh, PR creation fallback, and explicit CI/reviewer
+#     dispatch for pushed Codex branches.
+#   - The intake harness is always checked out from the default branch. Codex
+#     branches never get to supply the workflow/action code that has write
+#     permissions.
+#   - Public GitHub writes are quiet during Singapore working hours by default:
+#     set `AETHER_PUBLIC_WRITE_POLICY=always` only when public timestamps are OK.
 #
 # Cross-review pairing:
 #   - claude-review.yml's branch regex matches both `claude/issue-*` AND
@@ -34,14 +40,21 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Optional issue number to drain; omit to scan all queued codex/issue-* branches.
+        required: false
+        type: string
+  schedule:
+    # Runs from the default branch after Singapore working hours.
+    - cron: '5,20,35,50 10-15 * * 1-5'
+    - cron: '5,35 * * * 0,6'
 
 jobs:
   codex:
     # Only spin up the runner when this is actually a codex-relevant event.
-    # Without this guard, the token-missing fail-fast exits 1 on every PR
-    # opened against main, polluting the check list. The check is at the
-    # job level so claude.yml-style label_trigger / trigger_phrase logic
-    # can stay inside the agent step (when one is wired).
+    # Without this guard, non-codex PRs would pollute the check list.
     if: |
       (github.event_name == 'issues' &&
         contains(github.event.issue.labels.*.name, 'codex-run')) ||
@@ -50,32 +63,39 @@ jobs:
       (github.event_name == 'pull_request_review_comment' &&
         contains(github.event.comment.body, '@codex')) ||
       (github.event_name == 'pull_request' &&
-        startsWith(github.event.pull_request.head.ref, 'codex/issue-'))
+        startsWith(github.event.pull_request.head.ref, 'codex/issue-')) ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' &&
+        github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: write
       pull-requests: write
       issues: write
-      id-token: write
       actions: write
       checks: read
       statuses: read
+    env:
+      AETHER_PUBLIC_WRITE_POLICY: ${{ vars.AETHER_PUBLIC_WRITE_POLICY || 'after-hours-sgt' }}
     steps:
-      - name: Subscription token guard (fail fast if missing)
-        env:
-          TOKEN: ${{ secrets.OPENAI_CODEX_OAUTH_TOKEN }}
+      - name: Remote Codex execution disabled
         run: |
-          if [ -z "${TOKEN:-}" ]; then
-            echo "::error::OPENAI_CODEX_OAUTH_TOKEN is not set."
-            echo "::error::This workflow MUST use the ChatGPT/Codex subscription, never against pay-per-token API budgets."
-            echo "::error::Configure the secret before re-running. See docs/agent-routing.md."
-            exit 1
-          fi
-          echo "::notice::Subscription token present; proceeding."
+          echo "::notice::This workflow does not run remote Codex and does not use OpenAI API keys."
+          echo "::notice::Run Codex locally, push codex/issue-<n>-*, then let this workflow open/refresh PRs and dispatch checks."
+
+      - name: Checkout intake harness
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch || 'main' }}
 
       - name: Resolve agent target branch
         id: agent_target
+        uses: ./.github/actions/local-codex-intake
+        with:
+          mode: resolve
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -84,226 +104,73 @@ jobs:
           ISSUE_IS_PR: ${{ github.event.issue.pull_request && 'true' || 'false' }}
           PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || '' }}
           PULL_REQUEST_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
-        run: |
-          set -euo pipefail
-
-          checkout_ref=""
-          existing_pr_branch=""
-          existing_pr_number=""
-
-          if [ -n "${PULL_REQUEST_HEAD_REF:-}" ]; then
-            checkout_ref="${PULL_REQUEST_HEAD_REF}"
-            existing_pr_branch="${PULL_REQUEST_HEAD_REF}"
-            existing_pr_number="${PULL_REQUEST_NUMBER:-}"
-          elif [ "${ISSUE_IS_PR:-false}" = "true" ] && [ -n "${ISSUE_NUMBER:-}" ]; then
-            checkout_ref="$(gh api "repos/${GH_REPO}/pulls/${ISSUE_NUMBER}" --jq '.head.ref')"
-            existing_pr_branch="${checkout_ref}"
-            existing_pr_number="${ISSUE_NUMBER}"
-          elif [ "${EVENT_NAME}" = "issues" ] && [ -n "${ISSUE_NUMBER:-}" ]; then
-            match="$(gh pr list \
-              --state open \
-              --json number,headRefName,updatedAt \
-              --jq "[.[] | select(.headRefName | startswith(\"codex/issue-${ISSUE_NUMBER}-\"))] | sort_by(.updatedAt) | reverse | .[0] // empty")"
-            if [ -n "${match}" ]; then
-              checkout_ref="$(printf '%s' "${match}" | jq -r '.headRefName')"
-              existing_pr_branch="${checkout_ref}"
-              existing_pr_number="$(printf '%s' "${match}" | jq -r '.number')"
-            fi
-          fi
-
-          base_branch="${checkout_ref:-main}"
-          {
-            echo "checkout_ref=${checkout_ref}"
-            echo "base_branch=${base_branch}"
-            echo "existing_pr_branch=${existing_pr_branch}"
-            echo "existing_pr_number=${existing_pr_number}"
-          } >> "${GITHUB_OUTPUT}"
-
-          if [ -n "${checkout_ref}" ]; then
-            echo "::notice::Codex target branch resolved to ${checkout_ref}"
-          else
-            echo "::notice::No existing PR branch found; Codex will start from the event ref."
-          fi
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ steps.agent_target.outputs.checkout_ref || github.ref }}
+          REF_NAME: ${{ github.ref_name }}
 
       - name: Refresh existing PR branch from main
         if: steps.agent_target.outputs.existing_pr_branch != ''
+        uses: ./.github/actions/local-codex-intake
+        with:
+          mode: refresh
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
           TARGET_BRANCH: ${{ steps.agent_target.outputs.existing_pr_branch }}
           TARGET_PR_NUMBER: ${{ steps.agent_target.outputs.existing_pr_number }}
-        run: |
-          set -euo pipefail
-          dispatch_pr_checks() {
-            if [ -z "${TARGET_PR_NUMBER:-}" ]; then
-              echo "::notice::No PR number resolved; skipping explicit check dispatch."
-              return
-            fi
-            gh workflow run ci.yml --ref "${TARGET_BRANCH}"
-            gh workflow run claude-review.yml --ref "${TARGET_BRANCH}" -f "pr_number=${TARGET_PR_NUMBER}"
-            echo "::notice::Dispatched CI and reviewer workflows for PR #${TARGET_PR_NUMBER} on ${TARGET_BRANCH}."
-          }
+          AETHER_PUBLIC_WRITE_POLICY: ${{ env.AETHER_PUBLIC_WRITE_POLICY }}
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main "${TARGET_BRANCH}" --quiet
-          git checkout -B "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}"
-          before="$(git rev-parse HEAD)"
-          if git merge --no-edit origin/main; then
-            after="$(git rev-parse HEAD)"
-            if [ "${before}" != "${after}" ]; then
-              git push origin "HEAD:${TARGET_BRANCH}"
-              echo "::notice::Merged origin/main into ${TARGET_BRANCH} before Codex continued."
-            else
-              echo "::notice::${TARGET_BRANCH} already includes origin/main."
-            fi
-            dispatch_pr_checks
-          else
-            git merge --abort || true
-            echo "::warning::Could not auto-merge origin/main into ${TARGET_BRANCH}; Codex will see the existing PR branch state."
-          fi
-
-      # ──── Codex agent step (TODO: wire to actual action) ────
-      #
-      # The structural pieces around this step (branch resolution, refresh,
-      # PR creation, CI/reviewer dispatch) are complete and identical to
-      # claude.yml. Slot the agent invocation here.
-      #
-      # Candidate options:
-      #   1. openai/codex-action@vN  (when published)
-      #   2. A custom step that uses `npx -y @openai/codex-cli` with the
-      #      OAuth token, similar to how claude.yml uses claude-code-action.
-      #   3. A shell step that calls the OpenAI API directly with the
-      #      issue body + repo context as the prompt.
-      #
-      # Whatever the agent step does, it MUST:
-      #   - Push commits to a `codex/issue-${ISSUE_NUMBER}-<slug>` branch.
-      #   - Optionally call `gh pr create` itself; the budget-independent
-      #     fallback below handles the case where it doesn't.
-      #   - Emit a sticky comment on the source issue with its TDD log
-      #     (matching claude-code-action's behaviour).
-      - name: Run Codex agent
-        id: agent
-        continue-on-error: true
+      - name: Local Codex branch intake
+        uses: ./.github/actions/local-codex-intake
+        with:
+          mode: intake
         env:
-          OPENAI_CODEX_OAUTH_TOKEN: ${{ secrets.OPENAI_CODEX_OAUTH_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || '' }}
+          ISSUE_NUMBER: ${{ steps.agent_target.outputs.issue_number }}
+          EXISTING_PR_BRANCH: ${{ steps.agent_target.outputs.existing_pr_branch }}
+          REF_NAME: ${{ github.ref_name }}
+
+      - name: Open PR for queued codex branch
+        if: |
+          always() &&
+          github.event_name == 'issues' &&
+          github.event.action == 'labeled'
+        uses: ./.github/actions/local-codex-intake
+        with:
+          mode: open-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.agent_target.outputs.issue_number }}
           ISSUE_TITLE: ${{ github.event.issue.title || '' }}
-          ISSUE_BODY: ${{ github.event.issue.body || '' }}
-          BASE_BRANCH: ${{ steps.agent_target.outputs.base_branch }}
-          GH_TOKEN: ${{ github.token }}
-          GIT_AUTHOR_NAME: 'codex-agent[bot]'
-          GIT_AUTHOR_EMAIL: 'codex-agent@users.noreply.github.com'
-          GIT_COMMITTER_NAME: 'codex-agent[bot]'
-          GIT_COMMITTER_EMAIL: 'codex-agent@users.noreply.github.com'
-        run: |
-          set -u
-          # PLACEHOLDER: replace this block with the actual codex invocation.
-          # Until then, this step records that codex was supposed to fire
-          # and exits without committing — the budget-independent PR step
-          # will then no-op since no codex/issue-* branch was pushed.
-          echo "::warning::Codex agent step is a placeholder. Wire the action in this workflow before relying on codex-run."
-          echo "::notice::Issue #${ISSUE_NUMBER:-?}: ${ISSUE_TITLE:-?}"
-          # Do NOT exit non-zero — that would cancel the budget-independent
-          # PR step. Just emit the warning and continue.
-
-      - name: Open PR for pushed codex branch (budget-independent)
-        if: always() && github.event_name == 'issues' && github.event.action == 'labeled'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          AGENT_OUTCOME: ${{ steps.agent.outcome }}
           EXISTING_PR_BRANCH: ${{ steps.agent_target.outputs.existing_pr_branch }}
           EXISTING_PR_NUMBER: ${{ steps.agent_target.outputs.existing_pr_number }}
-        run: |
-          set -u
-          git fetch origin --prune --quiet
-          BRANCH=$(git branch -r --list "origin/codex/issue-${ISSUE_NUMBER}-*" \
-            | sed 's|^ *origin/||' \
-            | sort -r \
-            | head -n 1)
-          if [ -z "${BRANCH:-}" ]; then
-            echo "::notice::No codex/issue-${ISSUE_NUMBER}-* branch on origin — nothing to PR."
-            exit 0
-          fi
-
-          if [ -n "${EXISTING_PR_BRANCH:-}" ]; then
-            if [ "${BRANCH}" = "${EXISTING_PR_BRANCH}" ]; then
-              echo "::notice::Existing PR branch ${EXISTING_PR_BRANCH} was the latest agent branch."
-              exit 0
-            fi
-
-            git checkout -B "${EXISTING_PR_BRANCH}" "origin/${EXISTING_PR_BRANCH}"
-            if git merge --ff-only "origin/${BRANCH}"; then
-              git push origin "HEAD:${EXISTING_PR_BRANCH}"
-              if [ -n "${EXISTING_PR_NUMBER:-}" ]; then
-                gh pr comment "${EXISTING_PR_NUMBER}" --body "Merged follow-up codex branch \`${BRANCH}\` back into existing PR branch \`${EXISTING_PR_BRANCH}\`."
-                gh workflow run ci.yml --ref "${EXISTING_PR_BRANCH}"
-                gh workflow run claude-review.yml --ref "${EXISTING_PR_BRANCH}" -f "pr_number=${EXISTING_PR_NUMBER}"
-              fi
-              echo "::notice::Merged ${BRANCH} into existing PR branch ${EXISTING_PR_BRANCH}."
-            else
-              echo "::warning::Latest codex branch ${BRANCH} did not fast-forward ${EXISTING_PR_BRANCH}; leaving it for explicit follow-up."
-            fi
-            exit 0
-          fi
-
-          AHEAD=$(git rev-list --count "origin/main..origin/${BRANCH}")
-          if [ "${AHEAD}" -eq 0 ]; then
-            echo "::notice::Branch ${BRANCH} has 0 commits ahead of main — nothing to PR."
-            exit 0
-          fi
-          if gh pr list --head "${BRANCH}" --state open --json number --jq 'length' | grep -qv '^0$'; then
-            echo "::notice::PR already open for ${BRANCH}."
-            exit 0
-          fi
-          BODY=$(cat <<BODY
-          Auto-opened by \`codex.yml\` because the agent pushed ${AHEAD} commits to \`${BRANCH}\` but did not complete its own \`gh pr create\` step (agent step outcome: \`${AGENT_OUTCOME}\`).
-
-          Closes #${ISSUE_NUMBER}.
-
-          Review checklist:
-          - CI must pass (typecheck · unit tests · e2e).
-          - Automated reviewer comment surfaces in the timeline (claude-review acts as Codex's second opinion).
-          - Read the agent's sticky comment on issue #${ISSUE_NUMBER} for its TDD log.
-
-          🤖 Generated by codex agent
-          BODY
-          )
-          gh pr create \
-            --title "${ISSUE_TITLE}" \
-            --body "${BODY}" \
-            --base main \
-            --head "${BRANCH}"
+          REF_NAME: ${{ github.ref_name }}
+          AETHER_PUBLIC_WRITE_POLICY: ${{ env.AETHER_PUBLIC_WRITE_POLICY }}
 
       # GitHub does NOT trigger workflows when GITHUB_TOKEN-authored events
       # create PRs (anti-recursion guard). Mirror of the claude.yml dispatch
       # step so codex PRs get the same first-PR signal.
       - name: Dispatch CI + reviewer for fresh codex PRs
-        if: always() && github.event_name == 'issues' && github.event.action == 'labeled'
+        if: |
+          always() &&
+          github.event_name == 'issues' &&
+          github.event.action == 'labeled'
+        uses: ./.github/actions/local-codex-intake
+        with:
+          mode: dispatch
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-        run: |
-          set -u
-          PR_JSON="$(gh pr list \
-            --state open \
-            --json number,headRefName \
-            --jq "[.[] | select(.headRefName | startswith(\"codex/issue-${ISSUE_NUMBER}-\"))] | sort_by(.number) | reverse | .[0] // empty")"
-          if [ -z "${PR_JSON:-}" ]; then
-            echo "::notice::No open PR for issue #${ISSUE_NUMBER}; nothing to dispatch."
-            exit 0
-          fi
-          PR_BRANCH="$(printf '%s' "${PR_JSON}" | jq -r '.headRefName')"
-          PR_NUMBER="$(printf '%s' "${PR_JSON}" | jq -r '.number')"
-          echo "::notice::Dispatching ci.yml + claude-review.yml for codex PR #${PR_NUMBER} on ${PR_BRANCH}"
-          gh workflow run ci.yml --ref "${PR_BRANCH}" \
-            || echo "::warning::ci.yml dispatch failed"
-          gh workflow run claude-review.yml --ref "${PR_BRANCH}" -f "pr_number=${PR_NUMBER}" \
-            || echo "::warning::claude-review.yml dispatch failed"
+          ISSUE_NUMBER: ${{ steps.agent_target.outputs.issue_number }}
+          REF_NAME: ${{ github.ref_name }}
+          AETHER_PUBLIC_WRITE_POLICY: ${{ env.AETHER_PUBLIC_WRITE_POLICY }}
+
+      - name: Drain queued local Codex branches
+        if: |
+          always() &&
+          (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        uses: ./.github/actions/local-codex-intake
+        with:
+          mode: drain
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.inputs.issue_number || '' }}
+          AETHER_PUBLIC_WRITE_POLICY: ${{ env.AETHER_PUBLIC_WRITE_POLICY }}

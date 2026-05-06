@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const codexWorkflow = readFileSync(
@@ -17,33 +18,45 @@ const routeScript = readFileSync(
   'utf8'
 );
 
+const localCodexAction = readFileSync(
+  resolve(process.cwd(), '.github/actions/local-codex-intake/action.yml'),
+  'utf8'
+);
+
+const localCodexIntakePath = resolve(process.cwd(), '.github/scripts/local-codex-intake.mjs');
+const localCodexIntake = readFileSync(localCodexIntakePath, 'utf8');
+
 describe('codex.yml dual-agent mirror', () => {
   it('declares the codex/issue-* branch convention and codex-run label trigger', () => {
-    expect(codexWorkflow).toContain('codex/issue-${ISSUE_NUMBER}-');
+    expect(codexWorkflow).toContain('codex/issue-<n>-*');
+    expect(localCodexIntake).toContain('codex/issue-${issueNumber}-');
     expect(codexWorkflow).toContain('codex-run');
   });
 
-  it('fails fast if the subscription token is missing (no API-key fallback)', () => {
-    expect(codexWorkflow).toContain('OPENAI_CODEX_OAUTH_TOKEN');
-    expect(codexWorkflow).toContain('Subscription token guard');
-    expect(codexWorkflow).toContain('exit 1');
-    expect(codexWorkflow).toContain('subscription, never');
-    expect(codexWorkflow).toContain('pay-per-token API budgets');
+  it('does not invoke remote Codex or require OpenAI API credentials', () => {
+    expect(codexWorkflow).toContain('Remote Codex execution disabled');
+    expect(codexWorkflow).toContain('does not use OpenAI API keys');
+    expect(codexWorkflow).toContain('Run Codex locally');
+    expect(codexWorkflow).not.toContain('OPENAI_CODEX' + '_API_KEY');
+    expect(codexWorkflow).not.toContain('CODEX_ACTION' + '_ENABLED');
+    expect(codexWorkflow).not.toContain('openai/' + 'codex-action');
+    expect(localCodexAction).not.toContain('OPENAI_CODEX' + '_API_KEY');
+    expect(localCodexAction).not.toContain('CODEX_ACTION' + '_ENABLED');
+    expect(localCodexAction).not.toContain('openai/' + 'codex-action');
   });
 
   it('mirrors claude.yml structural pieces (refresh, PR creation, dispatch)', () => {
-    // Branch resolution
     expect(codexWorkflow).toContain('Resolve agent target branch');
-    // Refresh from main
+    expect(codexWorkflow).toContain('./.github/actions/local-codex-intake');
     expect(codexWorkflow).toContain('Refresh existing PR branch from main');
-    expect(codexWorkflow).toContain("git merge --no-edit origin/main");
-    // PR creation fallback
-    expect(codexWorkflow).toContain('Open PR for pushed codex branch (budget-independent)');
-    expect(codexWorkflow).toContain('gh pr create');
-    // Dispatch CI + reviewer for fresh PRs
+    expect(codexWorkflow).toContain('Open PR for queued codex branch');
     expect(codexWorkflow).toContain('Dispatch CI + reviewer for fresh codex PRs');
-    expect(codexWorkflow).toContain('gh workflow run ci.yml');
-    expect(codexWorkflow).toContain('gh workflow run claude-review.yml');
+
+    expect(localCodexIntake).toContain("git(['merge', '--no-edit', 'origin/main'])");
+    expect(localCodexIntake).toContain("'pr',");
+    expect(localCodexIntake).toContain("'create',");
+    expect(localCodexIntake).toContain("'workflow', 'run', 'ci.yml'");
+    expect(localCodexIntake).toContain("'workflow', 'run', 'claude-review.yml'");
   });
 
   it('triggers on the same events as claude.yml', () => {
@@ -53,11 +66,53 @@ describe('codex.yml dual-agent mirror', () => {
     expect(codexWorkflow).toContain('pull_request_review_comment');
   });
 
-  it('keeps the codex agent step as a clearly-marked placeholder', () => {
-    // Until we wire an actual codex action, we want this step to be
-    // obviously incomplete so a reviewer doesn't merge it as fully wired.
-    expect(codexWorkflow).toContain('PLACEHOLDER');
-    expect(codexWorkflow).toContain('TODO: wire to actual action');
+  it('treats codex-run as local branch intake, not a remote coding task', () => {
+    expect(codexWorkflow).toContain('Local Codex branch intake');
+    expect(localCodexIntake).toContain('Waiting for a local Codex push');
+    expect(codexWorkflow).toContain('Open PR for queued codex branch');
+    expect(codexWorkflow).toContain('persist-credentials: false');
+    expect(localCodexIntake).toContain('withAuthenticatedOrigin');
+    expect(codexWorkflow).not.toContain('Commit Codex changes to agent branch');
+    expect(codexWorkflow).not.toContain('PLACEHOLDER');
+  });
+
+  it('uses a repo-owned local Codex intake action instead of a third-party remote coding action', () => {
+    expect(localCodexAction).toContain('using: composite');
+    expect(localCodexAction).toContain('local-codex-intake.mjs');
+    expect(localCodexAction).toContain('mode');
+    expect(codexWorkflow).toContain('mode: resolve');
+    expect(codexWorkflow).toContain('mode: refresh');
+    expect(codexWorkflow).toContain('mode: intake');
+    expect(codexWorkflow).toContain('mode: open-pr');
+    expect(codexWorkflow).toContain('mode: dispatch');
+    expect(codexWorkflow).toContain('mode: drain');
+  });
+
+  it('drains queued branches from trusted default-branch workflow code', () => {
+    expect(codexWorkflow).not.toMatch(/push:\s*\n\s*branches:\s*\n\s*-\s*'codex\/issue-\*'/);
+    expect(codexWorkflow).toContain('workflow_dispatch');
+    expect(codexWorkflow).toContain('schedule:');
+    expect(codexWorkflow).toContain("github.event_name == 'schedule'");
+    expect(codexWorkflow).toContain("github.event_name == 'workflow_dispatch'");
+    expect(codexWorkflow).toContain("github.ref_name == github.event.repository.default_branch");
+    expect(codexWorkflow).toContain("ref: ${{ github.event.repository.default_branch || 'main' }}");
+    expect(localCodexIntake).toContain('drainQueuedCodexBranches');
+    expect(localCodexIntake).toContain('remoteCodexIssueNumbers');
+  });
+
+  it('pauses public GitHub writes during Singapore working hours by default', async () => {
+    const { isPublicWriteAllowed } = await import(pathToFileURL(localCodexIntakePath).href);
+    expect(codexWorkflow).toContain("AETHER_PUBLIC_WRITE_POLICY || 'after-hours-sgt'");
+    expect(localCodexIntake).toContain('after 18:00 SGT');
+    expect(
+      isPublicWriteAllowed('after-hours-sgt', new Date('2026-05-06T04:00:00.000Z'))
+    ).toBe(false);
+    expect(
+      isPublicWriteAllowed('after-hours-sgt', new Date('2026-05-06T11:00:00.000Z'))
+    ).toBe(true);
+    expect(isPublicWriteAllowed('always', new Date('2026-05-06T04:00:00.000Z'))).toBe(
+      true
+    );
   });
 
   it('only fires on codex-relevant events (label / @codex / codex branch)', () => {
@@ -67,6 +122,7 @@ describe('codex.yml dual-agent mirror', () => {
     expect(codexWorkflow).toContain("contains(github.event.issue.labels.*.name, 'codex-run')");
     expect(codexWorkflow).toContain("contains(github.event.comment.body, '@codex')");
     expect(codexWorkflow).toContain("startsWith(github.event.pull_request.head.ref, 'codex/issue-')");
+    expect(codexWorkflow).toContain("github.event_name == 'schedule'");
   });
 });
 

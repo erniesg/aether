@@ -9,15 +9,32 @@ The repo runs two author agents in parallel:
 | Workflow | Agent | Branch convention | Label trigger | Token secret |
 |---|---|---|---|---|
 | [`.github/workflows/claude.yml`](../.github/workflows/claude.yml) | Anthropic Claude (Claude Code) | `claude/issue-<n>-<slug>` | `claude-run` | `CLAUDE_CODE_OAUTH_TOKEN` |
-| [`.github/workflows/codex.yml`](../.github/workflows/codex.yml) | OpenAI Codex | `codex/issue-<n>-<slug>` | `codex-run` | `OPENAI_CODEX_OAUTH_TOKEN` |
+| [`.github/workflows/codex.yml`](../.github/workflows/codex.yml) | OpenAI Codex (local) | `codex/issue-<n>-<slug>` | `codex-run` | none |
 
 Both workflows share the same surrounding plumbing: branch resolution, refresh-from-main, budget-independent PR creation, and explicit dispatch of `ci.yml` + `claude-review.yml` for fresh PRs.
 
 ## Cost discipline (load-bearing)
 
-Both workflows require **subscription-backed OAuth/session tokens**, never pay-per-token API keys for the autopilot path. If the relevant token secret is missing, the workflow fails fast with a clear error before invoking the agent.
+Claude uses a subscription-backed OAuth token inside its GitHub workflow. Codex work is local-only: run Codex from the desktop/CLI on a developer machine, commit locally, and push a `codex/issue-<n>-<slug>` branch.
 
-The fail-fast guard exists because silent fallback to API-key billing is exactly the kind of "context failure" the rubric/reviewer arc is meant to prevent. A runaway agent on a metered token is the worst possible outcome.
+The repo now includes a local [Codex subscription adapter](./codex-subscription-adapter.md) for ChatGPT subscription-backed Codex access. It understands the device login flow and Codex Responses headers, but live calls require explicit local `--live` invocation and are not wired into GitHub Actions.
+
+The repo also has a manual `codex-subscription-preflight` workflow for a `self-hosted` runner labelled `codex-subscription`. It does not invoke Codex; it only checks that the local runner has the adapter and credential boundary ready.
+
+`codex.yml` does not invoke remote Codex, does not require an OpenAI API key, and does not restore ChatGPT subscription credentials from secrets. It delegates to the repo-owned [`.github/actions/local-codex-intake`](../.github/actions/local-codex-intake/action.yml) action, which wraps [`.github/scripts/local-codex-intake.mjs`](../.github/scripts/local-codex-intake.mjs).
+
+The local intake action only handles GitHub plumbing:
+
+- resolve the existing Codex PR branch, if one exists;
+- refresh that branch from `main`;
+- open a PR when a local `codex/issue-<n>-<slug>` branch is pushed without a PR;
+- explicitly dispatch CI + reviewer checks for that PR.
+
+This prevents silent API-budget spend for remote coding tasks. The action is branch intake, not an authoring agent.
+
+Security boundary: `codex.yml` checks out the intake harness from the default branch before running the local composite action. A pushed `codex/issue-*` branch is treated as data to be scanned and merged, not trusted workflow/action code.
+
+By default public GitHub writes use `AETHER_PUBLIC_WRITE_POLICY=after-hours-sgt`, which pauses PR creation, PR comments, branch pushes, and workflow dispatches during Singapore working hours (09:00-18:00, Monday-Friday). Set the repo variable to `always` only when public timestamps during working hours are acceptable.
 
 ## Routing rules
 
@@ -28,6 +45,14 @@ If neither label is present when an issue opens, the **harness adds `claude-run`
 - A maintainer manually preferring Codex for a specific ticket.
 - The cross-review pattern (when claude-review needs Codex's second opinion on a Claude-authored PR).
 - A skill or capability tagged as `prefers:codex` (future).
+
+For local Codex pickup, the useful path is:
+
+1. Label the issue `codex-run`.
+2. Run Codex locally from the desktop/CLI or the local subscription adapter.
+3. Commit locally on `codex/issue-<n>-<slug>`.
+4. Push that branch when public timestamps are acceptable.
+5. The default-branch intake workflow drains queued branches from an issue-label event, manual `workflow_dispatch`, or the after-hours schedule, then opens or refreshes the PR and dispatches CI + reviewer.
 
 ### When both labels are present
 
@@ -60,7 +85,7 @@ Hard limits per workflow run:
 
 | Limit | Value | Where |
 |---|---|---|
-| Max agent turns | 250 (Claude) / TBD (Codex) | `claude_args` / codex agent step |
+| Max agent turns | 250 (Claude) / local session limit (Codex) | `claude_args` / local Codex session |
 | Max wall-clock | 60 min | `timeout-minutes` in workflow |
 | CI failure retries | 2 | `MAX_RETRIES` in `ci-failure-router.yml` |
 
