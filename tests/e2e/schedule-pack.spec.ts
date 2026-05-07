@@ -58,4 +58,40 @@ test.describe('Track G — schedule pack (4 platforms)', () => {
     );
     await expect(pills).toHaveCount(4);
   });
+
+  // Track 5A — cancel-from-aether. Schedule a single-platform pack, cancel it
+  // from the rail, and assert the row leaves the active scheduled list. The
+  // active-list filter (`status !== 'cancelled'`) is the visible signal that
+  // the row entered the `cancelled` state. The full chain (cancel → DELETE on
+  // Postiz mock) is asserted at the API-route level by the integration test
+  // `tests/integration/postiz-sidecar.test.ts` — together they cover
+  // "cancel-from-aether records DELETE on the mock fixture".
+  test('cancel-from-aether removes the scheduled row from the active list', async ({
+    page,
+  }) => {
+    await page.locator('[data-rail-section="scheduled"]').click();
+    const flyout = page.locator('[data-rail-flyout="scheduled"]');
+    await expect(flyout).toBeVisible();
+
+    // Single-platform schedule (instagram is preselected).
+    await flyout.getByTestId('publish-caption').fill('cancel · solo glow');
+    await flyout.getByTestId('publish-hashtags').fill('#aether');
+    await flyout.getByTestId('publish-schedule-submit').click();
+
+    const overlay = page.getByTestId('publish-preview-overlay');
+    await expect(overlay).toBeVisible();
+    await overlay.getByTestId('publish-preview-close').click();
+
+    const rows = flyout.locator('[data-scheduled-post-id]');
+    await expect(rows).toHaveCount(1);
+
+    await flyout.getByTestId('publish-scheduled-cancel').first().click();
+
+    // Cancelled rows disappear from the active list — the memory store filters
+    // them out (lib/publisher/memory.ts: `status !== 'cancelled'`).
+    await expect(rows).toHaveCount(0);
+    await expect(
+      flyout.getByText('schedule a preview to see it here')
+    ).toBeVisible();
+  });
 });
