@@ -7,6 +7,7 @@ Use this as the tool/operator contract until the workflow is promoted into a Cod
 - `warm_linkedin_session` starts a TinyFish Agent run for human handoff. `inspectorUrl` is the interactive browser for LinkedIn login or verification. `streamingUrl` is read-only preview/provenance and may disappear after the run ends.
 - A verified LinkedIn browser run does not reliably share cookies with later TinyFish Agent scrape runs. Treat `browser-direct` as a best-effort logged-in probe, not the primary high-recall collector.
 - Prefer broad TinyFish Search fanout plus TinyFish Fetch for LinkedIn recall. Preserve the original LinkedIn post URL casing for Fetch; lowercasing URLs is only safe for dedupe keys.
+- For refreshes, use `refresh_event_recap` with `targetItemsPerPlatform` and `dedupeAgainstExisting: true`. The tool builds a stored seen set, skips already archived LinkedIn URLs during TinyFish Search, and only sends unseen URLs to TinyFish Fetch.
 - Request `image_links: true` when fetching LinkedIn pages. Store all returned media links as provenance, but only promote or download likely post-content media, not profile photos, backgrounds, logos, or static LinkedIn assets.
 - Report LinkedIn counts as lower bounds. Search-index counts are cheap indexed-public URL estimates; browser-direct counts spend Agent credits and are still crawl lower bounds.
 - Keep raw TinyFish run state, page errors, and streaming links in debug/provenance. Creator-facing recap output should expose references, clusters, voices, cited excerpts, and selected media artifacts.

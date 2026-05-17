@@ -22,6 +22,7 @@ import { getEventTopVoices } from './get-event-top-voices';
 import { getEventExpansionPlan } from './get-event-expansion-plan';
 import { generateEventSearchFrontier } from './generate-event-search-frontier';
 import { estimateEventCounts } from './estimate-event-counts';
+import { refreshEventRecap } from './refresh-event-recap';
 import { warmLinkedInSession } from './warm-linkedin-session';
 import type { AgentTool } from './types';
 
@@ -40,6 +41,7 @@ export function listAgentTools(): AgentTool[] {
     getEventExpansionPlan,
     generateEventSearchFrontier,
     estimateEventCounts,
+    refreshEventRecap,
     warmLinkedInSession,
   ];
 }

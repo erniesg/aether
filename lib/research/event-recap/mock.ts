@@ -185,6 +185,7 @@ export function mockScrapePlatform(
 export function mockRunShell(input: {
   runId: string;
   eventId: string;
+  platforms?: EventPlatform[];
   querySet: string[];
   windowStart: string;
   windowEnd: string;
@@ -196,7 +197,7 @@ export function mockRunShell(input: {
     status: 'running',
     mode: 'mock',
     provider: 'tinyfish-mock',
-    platforms: ['x', 'linkedin'],
+    platforms: input.platforms ?? ['x', 'linkedin'],
     querySet: input.querySet,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,

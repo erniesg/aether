@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'estimate_event_counts',
   description:
-    'Estimate how many matching public posts exist across X and LinkedIn before scraping. LinkedIn can use cheap search-index estimates or a logged-in TinyFish/Vault browser probe.',
+    'Estimate how many matching public posts exist across X and LinkedIn before scraping. LinkedIn can use cheap search-index estimates or a logged-in TinyFish/Vault browser probe. For efficient collection after estimating, call refresh_event_recap with targetItemsPerPlatform so stored posts are skipped before expensive fetches.',
   input_schema: {
     type: 'object',
     properties: {

@@ -67,7 +67,7 @@ export async function getEventBundle(eventId: string): Promise<EventRecapBundle 
     try {
       const bundle = (await convex.query(eventRecapsApi.getBundle as never, {
         eventId,
-        postLimit: 500,
+        postLimit: 2000,
       } as never)) as EventRecapBundle | null;
       if (bundle) return normalizeBundle(bundle);
     } catch (err) {

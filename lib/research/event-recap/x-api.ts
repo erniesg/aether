@@ -84,6 +84,10 @@ export async function searchXViaOfficialApi(
     windowStart: string;
     windowEnd: string;
     maxItems: number;
+    maxQueries?: number;
+    maxScannedPerQuery?: number;
+    seenPostIds?: string[];
+    seenPostUrls?: string[];
   },
   env: XSearchEnv = process.env
 ): Promise<PlatformScrapeResult> {
@@ -104,7 +108,11 @@ export async function searchXViaOfficialApi(
   });
 
   const timeWindow = recentSearchWindow(input.windowStart, input.windowEnd);
-  const queryPlan = buildXQueryPlan(input.querySet);
+  const queryPlan = buildXQueryPlan(input.querySet, input.maxQueries ?? 12);
+  const seenTweetIds = new Set([
+    ...(input.seenPostIds ?? []),
+    ...(input.seenPostUrls ?? []).map(tweetIdFromUrl).filter((id): id is string => Boolean(id)),
+  ]);
   const users = new Map<string, XUser>();
   const media = new Map<string, XMedia>();
   const tweetsById = new Map<string, XTweet>();
@@ -115,6 +123,8 @@ export async function searchXViaOfficialApi(
     count?: number;
     countError?: string;
     fetched: number;
+    skippedSeen: number;
+    scanned: number;
     meta?: Record<string, unknown>;
     error?: string;
   }> = [];
@@ -122,6 +132,8 @@ export async function searchXViaOfficialApi(
     rootId: string;
     query: string;
     fetched: number;
+    skippedSeen: number;
+    scanned: number;
     meta?: Record<string, unknown>;
     error?: string;
   }> = [];
@@ -180,10 +192,19 @@ export async function searchXViaOfficialApi(
       };
 
       let fetched = 0;
+      let skippedSeen = 0;
+      let scanned = 0;
+      const maxScanned = maxScannedPerQuery(input.maxScannedPerQuery, perQuery);
       for await (const tweet of paginator) {
+        scanned += 1;
+        if (seenTweetIds.has(tweet.id) || tweetsById.has(tweet.id)) {
+          skippedSeen += 1;
+          if (scanned >= maxScanned) break;
+          continue;
+        }
         tweetsById.set(tweet.id, tweet);
         fetched += 1;
-        if (fetched >= perQuery || tweetsById.size >= input.maxItems) break;
+        if (fetched >= perQuery || tweetsById.size >= input.maxItems || scanned >= maxScanned) break;
       }
       for (const user of paginator.includes?.users ?? []) users.set(user.id, user);
       for (const item of paginator.includes?.media ?? []) media.set(item.media_key, item);
@@ -193,6 +214,8 @@ export async function searchXViaOfficialApi(
         count,
         countError,
         fetched,
+        skippedSeen,
+        scanned,
         meta: paginator.meta,
       });
     } catch (err) {
@@ -202,6 +225,8 @@ export async function searchXViaOfficialApi(
         count,
         countError,
         fetched: 0,
+        skippedSeen: 0,
+        scanned: 0,
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -214,6 +239,7 @@ export async function searchXViaOfficialApi(
       roots: Array.from(tweetsById.values()),
       media,
       users,
+      seenTweetIds,
       maxItemsRemaining: input.maxItems - tweetsById.size,
     });
     rawReplyQueries.push(...replyResults.raw);
@@ -243,6 +269,7 @@ async function fetchRepliesForTopPosts(input: {
   roots: XTweet[];
   media: Map<string, XMedia>;
   users: Map<string, XUser>;
+  seenTweetIds: Set<string>;
   maxItemsRemaining: number;
 }): Promise<{
   replies: XTweet[];
@@ -250,6 +277,8 @@ async function fetchRepliesForTopPosts(input: {
     rootId: string;
     query: string;
     fetched: number;
+    skippedSeen: number;
+    scanned: number;
     meta?: Record<string, unknown>;
     error?: string;
   }>;
@@ -263,6 +292,8 @@ async function fetchRepliesForTopPosts(input: {
     rootId: string;
     query: string;
     fetched: number;
+    skippedSeen: number;
+    scanned: number;
     meta?: Record<string, unknown>;
     error?: string;
   }> = [];
@@ -313,21 +344,32 @@ async function fetchRepliesForTopPosts(input: {
       };
 
       let fetched = 0;
+      let skippedSeen = 0;
+      let scanned = 0;
+      const maxScanned = maxScannedPerQuery(undefined, perRoot);
       for await (const tweet of paginator) {
-        if (tweet.id !== root.id) {
+        scanned += 1;
+        if (tweet.id === root.id || input.seenTweetIds.has(tweet.id) || repliesById.has(tweet.id)) {
+          skippedSeen += 1;
+          if (scanned >= maxScanned) break;
+          continue;
+        }
+        {
           repliesById.set(tweet.id, tweet);
           fetched += 1;
         }
-        if (fetched >= perRoot || repliesById.size >= input.maxItemsRemaining) break;
+        if (fetched >= perRoot || repliesById.size >= input.maxItemsRemaining || scanned >= maxScanned) break;
       }
       for (const user of paginator.includes?.users ?? []) input.users.set(user.id, user);
       for (const item of paginator.includes?.media ?? []) input.media.set(item.media_key, item);
-      raw.push({ rootId, query, fetched, meta: paginator.meta });
+      raw.push({ rootId, query, fetched, skippedSeen, scanned, meta: paginator.meta });
     } catch (err) {
       raw.push({
         rootId,
         query,
         fetched: 0,
+        skippedSeen: 0,
+        scanned: 0,
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -533,6 +575,16 @@ function xRepliesPerRoot(env: XSearchEnv): number {
   const raw = Number(env.EVENT_RECAP_X_REPLIES_PER_ROOT ?? 25);
   if (!Number.isFinite(raw)) return 25;
   return Math.max(1, Math.min(100, Math.round(raw)));
+}
+
+function maxScannedPerQuery(value: number | undefined, perQuery: number): number {
+  const fallback = perQuery * 4;
+  const raw = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.max(perQuery, Math.min(1000, Math.round(raw)));
+}
+
+function tweetIdFromUrl(url: string): string | undefined {
+  return url.match(/\/status\/(\d+)/)?.[1];
 }
 
 function toXSecondTimestamp(value: string): string {
