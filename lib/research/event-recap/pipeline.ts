@@ -117,7 +117,10 @@ export async function refreshEventRecap(
     daysBefore: config.daysBefore,
     daysAfter: config.daysAfter,
   });
-  const activeQuerySet = normalizeQuerySet([...(base?.querySet ?? []), ...resolution.querySet]);
+  const activeQuerySet = normalizeQuerySet(
+    [...resolution.querySet, ...(base?.querySet ?? [])],
+    Math.max(input.maxQueries ?? 24, 24)
+  );
   const platforms = sanitizePlatforms(input.platforms);
   const targetItemsPerPlatform = clampOptionalTarget(input.targetItemsPerPlatform);
   const platformBudgets = scrapeBudgetsByPlatform({

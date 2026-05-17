@@ -5,6 +5,7 @@ import type {
   PlatformScrapeResult,
 } from './types';
 import { deriveSeedFrontier } from './frontier';
+import { fetchOfficialScheduleFrontier } from './official-schedule';
 import { makePostId, normalizeQuerySet } from './utils';
 
 const SEARCH_ENDPOINT = 'https://api.search.tinyfish.ai';
@@ -264,22 +265,37 @@ export async function resolveEventViaTinyFish(
   ].join('\n\n');
   const dates = inferDateRange(text);
 
+  const officialUrl = urls[0];
+  const schedule = await fetchOfficialScheduleFrontier(
+    {
+      eventName: input.name,
+      officialUrl,
+      sourceUrls: urls,
+    },
+    fetcher
+  );
+
   return {
     canonicalName: inferName(input.name, topResults),
-    officialUrl: urls[0],
+    officialUrl,
     location: inferLocation(text) ?? 'Singapore',
     startsAt: dates.startsAt,
     endsAt: dates.endsAt,
     querySet: deriveSeedFrontier({
       eventName: input.name,
       contextHint: input.contextHint,
-      officialUrl: urls[0],
-      sourceUrls: urls,
+      officialUrl,
+      sourceUrls: [...urls, ...schedule.sourceUrls],
+      speakers: schedule.speakers,
+      sessions: schedule.sessions,
     }).querySet,
-    sourceUrls: urls,
-    warnings: fetched?.errors?.length
-      ? [`TinyFish Fetch returned ${fetched.errors.length} page errors`]
-      : [],
+    sourceUrls: [...urls, ...schedule.sourceUrls],
+    warnings: [
+      ...(fetched?.errors?.length
+        ? [`TinyFish Fetch returned ${fetched.errors.length} page errors`]
+        : []),
+      ...schedule.warnings,
+    ],
   };
 }
 

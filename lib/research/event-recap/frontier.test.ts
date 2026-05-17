@@ -22,4 +22,37 @@ describe('event recap seed frontier', () => {
       bias: expect.stringContaining('organizer-biased'),
     });
   });
+
+  it('fans out official keynote speaker names into reusable search anchors', () => {
+    const plan = deriveSeedFrontier({
+      eventName: 'AI Engineer Singapore',
+      officialUrl: 'https://ai.engineer/singapore',
+      speakers: [
+        {
+          name: 'Gavriel Cohen',
+          company: 'NanoCo, creators of NanoClaw',
+          role: 'keynote',
+          sessionTitle: "NanoClaw's agent factory",
+        },
+        {
+          name: 'Ryo Lu',
+          company: 'Cursor',
+          role: 'keynote',
+          sessionTitle: 'Designing the Next Cursor',
+        },
+      ],
+      maxQueries: 12,
+    });
+
+    expect(plan.querySet).toEqual(
+      expect.arrayContaining([
+        '"Gavriel Cohen" "AI Engineer Singapore"',
+        '"Ryo Lu" "AI Engineer Singapore"',
+      ])
+    );
+    expect(plan.anchors.find((anchor) => anchor.value === 'Gavriel Cohen')).toMatchObject({
+      sourceKind: 'official-schedule',
+      bias: expect.stringContaining('keynote-speaker-biased'),
+    });
+  });
 });
