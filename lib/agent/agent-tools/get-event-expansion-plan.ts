@@ -59,12 +59,14 @@ export const getEventExpansionPlan: AgentTool = {
       warnings: plan.warnings,
       anchors: anchors.slice(0, 12).map((anchor) => ({
         kind: anchor.kind,
+        sourceKind: anchor.sourceKind,
         value: anchor.value,
         query: anchor.query,
         score: anchor.score,
         count: anchor.count,
         platforms: anchor.platforms,
         samplePostIds: anchor.samplePostIds,
+        bias: anchor.bias,
         reason: anchor.reason,
       })),
     });
