@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       url: post.url,
       authorName: post.authorName,
       authorHandle: post.authorHandle,
+      authorMeta: post.authorMeta,
       text: post.text,
       postedAt: post.postedAt,
       metrics: post.metrics,

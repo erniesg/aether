@@ -1,6 +1,7 @@
 import { analyzePosts } from './analyze';
 import { enrichPostConversationTags } from './conversation';
 import { deriveExpansionPlan } from './expand';
+import { deriveSeedFrontier } from './frontier';
 import { mockResolveEvent, mockRunShell, mockScrapePlatform } from './mock';
 import {
   getEventBundle,
@@ -43,7 +44,10 @@ export async function createEventRecap(
     ...config,
     status: 'draft',
     usedCredits: 0,
-    querySet: [config.name],
+    querySet: deriveSeedFrontier({
+      eventName: config.name,
+      contextHint: config.contextHint,
+    }).querySet,
     sourceUrls: [],
     createdAt: now,
     updatedAt: now,

@@ -20,6 +20,7 @@ import { queryEventPosts } from './query-event-posts';
 import { getEventThemeSummary } from './get-event-theme-summary';
 import { getEventTopVoices } from './get-event-top-voices';
 import { getEventExpansionPlan } from './get-event-expansion-plan';
+import { generateEventSearchFrontier } from './generate-event-search-frontier';
 import type { AgentTool } from './types';
 
 export type { AgentTool, ToolDispatchSpec } from './types';
@@ -35,5 +36,6 @@ export function listAgentTools(): AgentTool[] {
     getEventThemeSummary,
     getEventTopVoices,
     getEventExpansionPlan,
+    generateEventSearchFrontier,
   ];
 }

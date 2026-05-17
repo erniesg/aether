@@ -43,6 +43,19 @@ export interface EventPostMetrics {
   views?: number;
 }
 
+export interface EventAuthorMeta {
+  description?: string;
+  headline?: string;
+  location?: string;
+  followers?: number;
+  following?: number;
+  posts?: number;
+  listed?: number;
+  verified?: boolean;
+  verifiedType?: string;
+  profileImageUrl?: string;
+}
+
 export interface EventPost {
   postId: string;
   eventId: string;
@@ -52,6 +65,7 @@ export interface EventPost {
   authorName: string;
   authorHandle?: string;
   authorUrl?: string;
+  authorMeta?: EventAuthorMeta;
   text: string;
   postedAt?: string;
   capturedAt: number;

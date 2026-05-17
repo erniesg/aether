@@ -405,6 +405,20 @@ export default defineSchema({
     authorName: v.string(),
     authorHandle: v.optional(v.string()),
     authorUrl: v.optional(v.string()),
+    authorMeta: v.optional(
+      v.object({
+        description: v.optional(v.string()),
+        headline: v.optional(v.string()),
+        location: v.optional(v.string()),
+        followers: v.optional(v.number()),
+        following: v.optional(v.number()),
+        posts: v.optional(v.number()),
+        listed: v.optional(v.number()),
+        verified: v.optional(v.boolean()),
+        verifiedType: v.optional(v.string()),
+        profileImageUrl: v.optional(v.string()),
+      })
+    ),
     text: v.string(),
     postedAt: v.optional(v.string()),
     capturedAt: v.number(),
