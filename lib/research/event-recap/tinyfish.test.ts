@@ -21,6 +21,11 @@ describe('TinyFish event recap normalization', () => {
       'Sherry Yan Jiang Singapore',
       'SherryYanJiang Singapore',
     ]);
+
+    const postUrl =
+      'https://www.linkedin.com/posts/0thernet_i-had-a-blast-in-singapore-this-week-activity-7461680102452502529-YgGD';
+    expect(linkedinQueryVariants(postUrl)).toEqual([postUrl]);
+    expect(platformFrontierQueries('linkedin', [postUrl], 2)).toEqual([postUrl]);
   });
 
   it('keeps LinkedIn post metadata and flattens substantive comments', () => {
@@ -38,6 +43,16 @@ describe('TinyFish event recap normalization', () => {
           image_urls: [
             'https://media.licdn.com/dms/image/v2/D4E22AQContent/feedshare-shrink_1280/example.jpg',
             'https://media.licdn.com/dms/image/v2/D4D3DAQHP_rpB7v5-Lg/image-scale_191_1128/daytonaio_cover.jpg',
+          ],
+          media: [
+            {
+              url: 'https://media.licdn.com/dms/image/v2/D4E22AQContent/feedshare-image-high-res/slide.jpg',
+              type: 'image',
+            },
+            {
+              url: 'https://media.licdn.com/dms/image/v2/D4D3DAQHP_rpB7v5-Lg/image-scale_191_1128/profile_cover.jpg',
+              type: 'image',
+            },
           ],
           comments_list: [
             {
@@ -58,6 +73,11 @@ describe('TinyFish event recap normalization', () => {
       media: [
         {
           url: 'https://media.licdn.com/dms/image/v2/D4E22AQContent/feedshare-shrink_1280/example.jpg',
+          type: 'image',
+          source: 'linkedin-tinyfish',
+        },
+        {
+          url: 'https://media.licdn.com/dms/image/v2/D4E22AQContent/feedshare-image-high-res/slide.jpg',
           type: 'image',
           source: 'linkedin-tinyfish',
         },

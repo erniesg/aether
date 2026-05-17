@@ -65,7 +65,8 @@ const tool: Anthropic.Messages.Tool = {
       },
       includeMedia: {
         type: 'boolean',
-        description: 'When true, ask TinyFish Fetch for image links and keep likely post-content media.',
+        description:
+          'When true, collect post-content media. LinkedIn Search+Fetch can only keep indexed feedshare images; LinkedIn browser-direct performs a richer logged-in post-card media pass and excludes page chrome/profile/cover assets.',
       },
       seenPostUrls: {
         type: 'array',
