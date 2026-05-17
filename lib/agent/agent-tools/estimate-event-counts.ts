@@ -29,7 +29,7 @@ const tool: Anthropic.Messages.Tool = {
         type: 'string',
         enum: ['search-index', 'browser-direct'],
         description:
-          'LinkedIn counting mode. search-index is cheap and undercounts; browser-direct logs into LinkedIn through TinyFish Vault and returns a crawl lower bound. If LinkedIn asks for verification, output includes status=needs_human_verification and a streamingUrl for handoff.',
+          'LinkedIn counting mode. search-index is cheap and undercounts; browser-direct logs into LinkedIn through TinyFish Vault and returns a crawl lower bound. If LinkedIn asks for verification, call warm_linkedin_session to get an interactive inspectorUrl; streamingUrl is read-only preview only.',
       },
       syncVault: {
         type: 'boolean',

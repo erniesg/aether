@@ -8,7 +8,9 @@ import { makePostId, normalizeQuerySet } from './utils';
 
 const SEARCH_ENDPOINT = 'https://api.search.tinyfish.ai';
 const FETCH_ENDPOINT = 'https://api.fetch.tinyfish.ai';
+const AGENT_ASYNC_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run-async';
 const AGENT_SSE_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run-sse';
+const AGENT_RUNS_ENDPOINT = 'https://agent.tinyfish.ai/v1/runs';
 const VAULT_ITEMS_ENDPOINT = 'https://agent.tinyfish.ai/v1/vault/items';
 const VAULT_ITEMS_SYNC_ENDPOINT = 'https://agent.tinyfish.ai/v1/vault/items/sync';
 
@@ -63,6 +65,38 @@ interface TinyFishStreamingEvent {
   streaming_url?: string;
 }
 
+interface TinyFishAsyncRunResponse {
+  run_id?: string | null;
+  runId?: string | null;
+  id?: string | null;
+  error?: unknown;
+}
+
+interface TinyFishRunRecord {
+  run_id?: string;
+  runId?: string;
+  id?: string;
+  status?: string;
+  state?: string;
+  run_status?: string;
+  phase?: string;
+  streaming_url?: string;
+  streamingUrl?: string;
+  result?: unknown;
+  output?: unknown;
+  final_result?: unknown;
+  error?: unknown;
+  message?: unknown;
+  help_message?: unknown;
+}
+
+interface TinyFishBrowserPage {
+  url?: string;
+  title?: string;
+  devtoolsFrontendUrl?: string;
+  webSocketDebuggerUrl?: string;
+}
+
 type TinyFishSseEvent =
   | TinyFishCompleteEvent
   | TinyFishStreamingEvent
@@ -113,6 +147,21 @@ export interface LinkedInVaultDiagnostic {
     hasTotp?: boolean;
     configured: boolean;
   }>;
+}
+
+export interface LinkedInWarmSessionResult {
+  status: 'started' | 'running' | 'ready' | 'needs_human_verification' | 'failed' | 'vault_not_ready';
+  runId?: string;
+  streamingUrl?: string;
+  inspectorUrl?: string;
+  browserBaseUrl?: string;
+  needsHumanVerification: boolean;
+  result?: unknown;
+  error?: string;
+  vault?: Omit<LinkedInVaultDiagnostic, 'items'> & {
+    items: Array<Omit<LinkedInVaultDiagnostic['items'][number], 'itemId'> & { itemId: 'redacted' }>;
+  };
+  warnings: string[];
 }
 
 interface ScrapedPostPayload {
@@ -468,6 +517,281 @@ export async function diagnoseLinkedInVault(
     warnings,
     items: normalized,
   };
+}
+
+export async function warmLinkedInSessionViaTinyFish(
+  input: {
+    credentialItemIds?: string[];
+    syncVault?: boolean;
+    holdMinutes?: number;
+    pollSeconds?: number;
+    targetUrl?: string;
+  } = {},
+  fetcher: Fetcher = fetch
+): Promise<LinkedInWarmSessionResult> {
+  const credentialItemIds = input.credentialItemIds ?? linkedInCredentialItemIdsFromEnv();
+  let vault: LinkedInVaultDiagnostic | undefined;
+  try {
+    vault = await diagnoseLinkedInVault({
+      credentialItemIds,
+      sync: input.syncVault,
+    }, fetcher);
+  } catch (err) {
+    return {
+      status: 'failed',
+      needsHumanVerification: false,
+      error: err instanceof Error ? err.message : String(err),
+      warnings: ['TinyFish Vault diagnostic failed before LinkedIn warm-up.'],
+    };
+  }
+
+  if (!vault.ready) {
+    return {
+      status: 'vault_not_ready',
+      needsHumanVerification: false,
+      vault: redactVaultDiagnostic(vault),
+      warnings: vault.warnings,
+    };
+  }
+
+  const holdMinutes = clampInteger(input.holdMinutes, 1, 20, 10);
+  const payload: Record<string, unknown> = {
+    url: input.targetUrl ?? 'https://www.linkedin.com/feed/',
+    goal: buildLinkedInWarmGoal(holdMinutes),
+    browser_profile: 'stealth',
+    use_vault: true,
+    credential_item_ids: credentialItemIds,
+    agent_config: {
+      max_duration_seconds: Math.max(120, holdMinutes * 60 + 90),
+    },
+  };
+  if (process.env.TINYFISH_LINKEDIN_USE_PROFILE === '1') {
+    payload.use_profile = true;
+  }
+  const proxyCountry = process.env.TINYFISH_PROXY_COUNTRY?.trim();
+  if (proxyCountry) {
+    payload.proxy_config = {
+      enabled: true,
+      type: 'tetra',
+      country_code: proxyCountry,
+    };
+  }
+
+  const created = await fetcher(AGENT_ASYNC_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey(),
+    },
+    body: JSON.stringify(payload),
+  });
+  const createdJson = (await created.json().catch(() => ({}))) as TinyFishAsyncRunResponse;
+  if (!created.ok) {
+    return {
+      status: 'failed',
+      needsHumanVerification: false,
+      vault: redactVaultDiagnostic(vault),
+      error: stringifyShort(createdJson.error ?? createdJson),
+      warnings: ['TinyFish LinkedIn warm-up run could not be started.'],
+    };
+  }
+
+  const runId = createdJson.run_id ?? createdJson.runId ?? createdJson.id ?? undefined;
+  if (!runId) {
+    return {
+      status: 'failed',
+      needsHumanVerification: false,
+      vault: redactVaultDiagnostic(vault),
+      error: stringifyShort(createdJson.error ?? createdJson),
+      warnings: ['TinyFish LinkedIn warm-up response did not include a run id.'],
+    };
+  }
+
+  const record = await pollTinyFishRunForBrowser(runId, input.pollSeconds ?? 18, fetcher);
+  const runStatus = tinyFishRunStatus(record);
+  const streamingUrl = stringValue(record?.streaming_url ?? record?.streamingUrl);
+  const browserBaseUrl = tinyFishBrowserBaseUrl(streamingUrl);
+  const inspectorUrl = browserBaseUrl
+    ? await findTinyFishInspectorUrl(browserBaseUrl, fetcher).catch(() => undefined)
+    : undefined;
+  const result = record?.result ?? record?.output ?? record?.final_result;
+  const status = linkedInWarmStatus(runStatus, result, record?.error, Boolean(inspectorUrl));
+  const warnings = [
+    ...vault.warnings,
+    'TinyFish streamingUrl is a read-only live preview; use inspectorUrl for human LinkedIn verification when present.',
+    'TinyFish documents that streaming URLs may become unavailable after a run completes.',
+  ];
+  if (status === 'needs_human_verification' && !inspectorUrl) {
+    warnings.push('LinkedIn needs human verification, but no active inspector URL was available from the TinyFish run host.');
+  }
+
+  return {
+    status,
+    runId,
+    streamingUrl,
+    inspectorUrl,
+    browserBaseUrl,
+    needsHumanVerification: status === 'needs_human_verification',
+    result,
+    error: record?.error ? stringifyShort(record.error) : undefined,
+    vault: redactVaultDiagnostic(vault),
+    warnings,
+  };
+}
+
+function buildLinkedInWarmGoal(holdMinutes: number): string {
+  return [
+    'Warm a LinkedIn session for an event recap collection workflow.',
+    'Use the selected Vault credential and the default browser profile if available.',
+    'Do not post, like, follow, message, search, or change account settings.',
+    'If LinkedIn asks for login, identity verification, 2FA, checkpoint, captcha, or any human action, stop on that page and keep the browser active.',
+    `Wait up to ${holdMinutes} minutes for a human to complete verification through the DevTools inspector.`,
+    'If the LinkedIn feed is visible, leave the browser on LinkedIn and return JSON only shaped as {"status":"ready"}.',
+    'If the handoff window ends before the feed is visible, return JSON only shaped as {"status":"needs_human_verification","reason":"human handoff window ended"}.',
+  ].join('\n');
+}
+
+function linkedInCredentialItemIdsFromEnv(): string[] | undefined {
+  const raw = process.env.TINYFISH_LINKEDIN_CREDENTIAL_ITEM_IDS?.trim();
+  if (!raw) return undefined;
+  const ids = raw
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return ids.length ? ids : undefined;
+}
+
+async function pollTinyFishRunForBrowser(
+  runId: string,
+  pollSeconds: number,
+  fetcher: Fetcher
+): Promise<TinyFishRunRecord | undefined> {
+  const deadline = Date.now() + Math.max(1, Math.min(60, pollSeconds)) * 1000;
+  let record: TinyFishRunRecord | undefined;
+  while (Date.now() <= deadline) {
+    record = await getTinyFishRun(runId, fetcher);
+    const status = tinyFishRunStatus(record);
+    if (record?.streaming_url || record?.streamingUrl || isTerminalTinyFishRunStatus(status)) break;
+    await sleep(1500);
+  }
+  return record;
+}
+
+async function getTinyFishRun(runId: string, fetcher: Fetcher): Promise<TinyFishRunRecord | undefined> {
+  const res = await fetcher(`${AGENT_RUNS_ENDPOINT}/${encodeURIComponent(runId)}`, {
+    headers: { 'X-API-Key': apiKey() },
+  });
+  if (!res.ok) return undefined;
+  return (await res.json().catch(() => undefined)) as TinyFishRunRecord | undefined;
+}
+
+async function findTinyFishInspectorUrl(
+  browserBaseUrl: string,
+  fetcher: Fetcher
+): Promise<string | undefined> {
+  const res = await fetcher(`${browserBaseUrl}/pages`);
+  if (!res.ok) return undefined;
+  const pages = (await res.json().catch(() => [])) as TinyFishBrowserPage[];
+  if (!Array.isArray(pages)) return undefined;
+  const page =
+    pages.find((candidate) => {
+      const url = candidate.url?.trim();
+      return url && !['about:blank', 'about:newtab'].includes(url);
+    }) ?? pages[0];
+  return page?.devtoolsFrontendUrl;
+}
+
+export function tinyFishBrowserBaseUrl(streamingUrl?: string): string | undefined {
+  if (!streamingUrl) return undefined;
+  return streamingUrl.replace(/\/stream\/\d+.*$/, '');
+}
+
+function tinyFishRunStatus(record: TinyFishRunRecord | undefined): string | undefined {
+  return stringValue(record?.status ?? record?.state ?? record?.run_status ?? record?.phase);
+}
+
+function isTerminalTinyFishRunStatus(status?: string): boolean {
+  return ['COMPLETED', 'FAILED', 'CANCELLED', 'ERROR'].includes((status ?? '').toUpperCase());
+}
+
+function linkedInWarmStatus(
+  runStatus?: string,
+  result?: unknown,
+  error?: unknown,
+  hasInspector = false
+): LinkedInWarmSessionResult['status'] {
+  const status = (runStatus ?? '').toUpperCase();
+  if (status === 'RUNNING' && hasInspector) return 'needs_human_verification';
+  if (status === 'RUNNING' || status === 'PENDING') return 'running';
+  if (error) return needsHumanFromValue(error) ? 'needs_human_verification' : 'failed';
+  if (result && typeof result === 'object') {
+    const resultStatus = stringValue((result as Record<string, unknown>).status).toLowerCase();
+    const loggedIn = (result as Record<string, unknown>).logged_in ?? (result as Record<string, unknown>).loggedIn;
+    const feedVisible = (result as Record<string, unknown>).feedVisible;
+    if (resultStatus === 'ready' || loggedIn === true || feedVisible === true) return 'ready';
+    if (resultStatus.includes('needs_human') || needsHumanFromValue(result)) return 'needs_human_verification';
+    if (resultStatus.includes('fail') || resultStatus.includes('block') || failedFromValue(result)) return 'failed';
+  }
+  if (needsHumanFromValue(result)) return 'needs_human_verification';
+  if (failedFromValue(result)) return 'failed';
+  if (status === 'COMPLETED') return 'ready';
+  return 'started';
+}
+
+function needsHumanFromValue(value: unknown): boolean {
+  const text = stringifyShort(value, 3000).toLowerCase();
+  return [
+    'verification code',
+    'verify your identity',
+    'two-step',
+    'two factor',
+    '2fa',
+    'security code',
+    'checkpoint',
+    'captcha',
+    'challenge',
+    'email otp',
+    'email pin',
+    'needs_human_verification',
+  ].some((marker) => text.includes(marker));
+}
+
+function failedFromValue(value: unknown): boolean {
+  const text = stringifyShort(value, 3000).toLowerCase();
+  return [
+    'login failed',
+    'wrong email or password',
+    'blocked by login wall',
+    'status":"failed',
+    'status":"failure',
+    'status":"blocked',
+  ].some((marker) => text.includes(marker));
+}
+
+function redactVaultDiagnostic(
+  diagnostic: LinkedInVaultDiagnostic
+): LinkedInWarmSessionResult['vault'] {
+  return {
+    ...diagnostic,
+    items: diagnostic.items.map((item) => ({
+      ...item,
+      itemId: 'redacted' as const,
+    })),
+  };
+}
+
+function stringifyShort(value: unknown, limit = 600): string {
+  const text = typeof value === 'string' ? value : JSON.stringify(value ?? '');
+  return text.replace(/\s+/g, ' ').slice(0, limit);
+}
+
+function clampInteger(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function listTinyFishVaultItems(fetcher: Fetcher): Promise<TinyFishVaultItem[]> {
