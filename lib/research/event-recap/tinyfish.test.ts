@@ -224,6 +224,51 @@ describe('TinyFish event recap normalization', () => {
     expect(result.warnings[0]).toContain('skipped 1 already-seen URLs');
   });
 
+  it('keeps TinyFish Fetch batches within the API limit', async () => {
+    const urls = Array.from(
+      { length: 11 },
+      (_, index) =>
+        `https://www.linkedin.com/posts/builder_${index}-ai-engineer-singapore-activity-${index}-abcd`
+    );
+    const batchSizes: number[] = [];
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith('https://api.search.tinyfish.ai')) {
+        return jsonResponse({
+          results: urls.map((postUrl) => ({ url: postUrl, title: 'AI Engineer Singapore' })),
+        });
+      }
+      if (url === 'https://api.fetch.tinyfish.ai') {
+        const payload = JSON.parse(String(init?.body ?? '{}')) as { urls?: string[] };
+        const batch = payload.urls ?? [];
+        batchSizes.push(batch.length);
+        return jsonResponse({
+          results: batch.map((postUrl) => ({
+            url: postUrl,
+            final_url: postUrl,
+            title: 'AI Engineer Singapore',
+            text: 'AI Engineer Singapore attendee takeaway about agents and evals.',
+          })),
+        });
+      }
+      return jsonResponse({}, 404);
+    };
+
+    const result = await scrapeLinkedInViaTinyFishSearchFetch(
+      {
+        querySet: ['AI Engineer Singapore'],
+        maxItems: 11,
+        maxQueries: 1,
+        searchPagesPerQuery: 1,
+        candidateMultiplier: 1,
+      },
+      fetcher
+    );
+
+    expect(batchSizes).toEqual([10, 1]);
+    expect(result.posts).toHaveLength(11);
+  });
+
   it('returns an interactive inspector url for LinkedIn human handoff runs', async () => {
     const originalUseProfile = process.env.TINYFISH_LINKEDIN_USE_PROFILE;
     process.env.TINYFISH_LINKEDIN_USE_PROFILE = '1';

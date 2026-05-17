@@ -442,7 +442,7 @@ export async function scrapeLinkedInViaTinyFishSearchFetch(
 ): Promise<PlatformScrapeResult> {
   const seenUrls = new Set((input.seenPostUrls ?? []).map(postUrlKey));
   const queries = linkedInSearchFetchQueries(input.querySet, input.maxQueries ?? 12);
-  const searchPages = clampInteger(input.searchPagesPerQuery, 1, 12, 2);
+  const searchPages = clampInteger(input.searchPagesPerQuery, 1, 11, 2);
   const candidateMultiplier =
     typeof input.candidateMultiplier === 'number' && Number.isFinite(input.candidateMultiplier)
       ? Math.max(1, Math.min(8, input.candidateMultiplier))
@@ -1103,8 +1103,9 @@ async function fetchLinkedInPostPages(
 ): Promise<TinyFishFetchResponse> {
   const results: NonNullable<TinyFishFetchResponse['results']> = [];
   const errors: unknown[] = [];
-  for (let index = 0; index < urls.length; index += 20) {
-    const batch = urls.slice(index, index + 20);
+  const maxTinyFishFetchUrls = 10;
+  for (let index = 0; index < urls.length; index += maxTinyFishFetchUrls) {
+    const batch = urls.slice(index, index + maxTinyFishFetchUrls);
     const res = await fetcher(FETCH_ENDPOINT, {
       method: 'POST',
       headers: {
