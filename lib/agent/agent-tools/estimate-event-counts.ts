@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'estimate_event_counts',
   description:
-    'Estimate how many matching public posts exist across X and LinkedIn/search-index before scraping. Returns per-query counts with platform caveats.',
+    'Estimate how many matching public posts exist across X and LinkedIn before scraping. LinkedIn can use cheap search-index estimates or a logged-in TinyFish/Vault browser probe.',
   input_schema: {
     type: 'object',
     properties: {
@@ -20,6 +20,22 @@ const tool: Anthropic.Messages.Tool = {
       windowStart: { type: 'string', description: 'Optional ISO start time.' },
       windowEnd: { type: 'string', description: 'Optional ISO end time.' },
       maxQueries: { type: 'number', description: 'Maximum queries to estimate. Default 12.' },
+      maxItems: {
+        type: 'number',
+        description:
+          'Maximum LinkedIn posts to collect when linkedinMode is browser-direct. Default 100.',
+      },
+      linkedinMode: {
+        type: 'string',
+        enum: ['search-index', 'browser-direct'],
+        description:
+          'LinkedIn counting mode. search-index is cheap and undercounts; browser-direct logs into LinkedIn through TinyFish Vault and returns a crawl lower bound. If LinkedIn asks for verification, output includes status=needs_human_verification and a streamingUrl for handoff.',
+      },
+      syncVault: {
+        type: 'boolean',
+        description:
+          'When true, sync TinyFish Vault items before LinkedIn browser-direct mode. Use after changing credential domains or password manager entries.',
+      },
     },
   } as unknown as Anthropic.Messages.Tool['input_schema'],
 };
