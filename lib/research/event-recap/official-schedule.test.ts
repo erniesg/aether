@@ -24,6 +24,17 @@ describe('official event schedule frontier', () => {
               topics: ['demo'],
               speakers: [{ name: 'Builder', company: 'Example', title: 'Engineer' }],
             },
+            {
+              title: "Building a 'Second Brain': Opportunities, Risks, and Implications",
+              topics: ['leadership', 'software'],
+              speakers: [
+                {
+                  name: 'Dr Vivian Balakrishnan',
+                  company: 'Ministry of Foreign Affairs, Singapore',
+                  title: 'Minister for Foreign Affairs',
+                },
+              ],
+            },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -50,6 +61,10 @@ describe('official event schedule frontier', () => {
         expect.objectContaining({
           name: 'Builder',
           role: 'speaker',
+        }),
+        expect.objectContaining({
+          name: 'Dr Vivian Balakrishnan',
+          role: 'headline',
         }),
       ])
     );
