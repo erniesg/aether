@@ -13,11 +13,15 @@ describe('event count estimates', () => {
         return jsonResponse({ meta: { total_tweet_count: 42 }, data: [] });
       }
       if (url.includes('api.search.tinyfish.ai')) {
+        const parsed = new URL(url);
+        const q = parsed.searchParams.get('query') ?? '';
+        const extra = q.includes('linkedin posts') ? [{ url: 'https://www.linkedin.com/posts/c_3' }] : [];
         return jsonResponse({
           results: [
             { url: 'https://www.linkedin.com/posts/a_1', title: 'A' },
             { url: 'https://www.linkedin.com/posts/b_2', title: 'B' },
             { url: 'https://example.com/not-linkedin' },
+            ...extra,
           ],
         });
       }
@@ -44,7 +48,7 @@ describe('event count estimates', () => {
       expect(result.estimates[0].estimates.length).toBe(2);
       expect(result.estimates[1]).toMatchObject({
         platform: 'linkedin',
-        totalLowerBound: 2,
+        totalLowerBound: 3,
       });
     } finally {
       global.fetch = originalFetch;
