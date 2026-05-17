@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'refresh_event_recap',
   description:
-    'Delta-refresh an event recap corpus. Uses stored posts as a seen set, then fills toward targetItemsPerPlatform without re-fetching already archived X/LinkedIn URLs. LinkedIn defaults to TinyFish Search+Fetch for lower cost; browser-direct is only for logged-in probes.',
+    'Delta-refresh an event recap corpus. Uses stored posts as a seen set, then fills toward targetItemsPerPlatform without re-fetching already archived X/LinkedIn URLs. X can use official search or Apify; LinkedIn defaults to TinyFish Search+Fetch for lower cost; browser-direct is only for logged-in probes.',
   input_schema: {
     type: 'object',
     properties: {
@@ -41,6 +41,27 @@ const tool: Anthropic.Messages.Tool = {
         enum: ['search-fetch', 'browser-direct'],
         description:
           'LinkedIn collection mode. search-fetch is cheaper and skips seen URLs before Fetch; browser-direct spends Agent credits and may require warm_linkedin_session.',
+      },
+      xProvider: {
+        type: 'string',
+        enum: ['official', 'apify'],
+        description:
+          'X collection provider. official uses the configured X API; apify uses the configured Apify X actor and normalizes likes/views/replies/media.',
+      },
+      apifyActorId: {
+        type: 'string',
+        description:
+          'Optional Apify X actor id. Defaults to the Tweet Scraper V2 actor, 61RPP7dywgiy0JPD0.',
+      },
+      apifySort: {
+        type: 'string',
+        enum: ['Top', 'Latest', 'Latest + Top'],
+        description: 'Apify X sort mode. Latest is cheaper/less overlapping; Latest + Top can increase recall but may duplicate.',
+      },
+      apifyCandidateMultiplier: {
+        type: 'number',
+        description:
+          'Apify X over-collection multiplier before local dedupe. Default 1 for cost control; increase when seen-set overlap is high.',
       },
       includeMedia: {
         type: 'boolean',

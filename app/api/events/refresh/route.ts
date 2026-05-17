@@ -41,6 +41,21 @@ export async function POST(request: Request) {
         input.linkedinMode === 'browser-direct' || input.linkedinMode === 'search-fetch'
           ? input.linkedinMode
           : undefined,
+      xProvider:
+        input.xProvider === 'official' || input.xProvider === 'apify'
+          ? input.xProvider
+          : undefined,
+      apifyActorId: typeof input.apifyActorId === 'string' ? input.apifyActorId : undefined,
+      apifySort:
+        input.apifySort === 'Top' ||
+        input.apifySort === 'Latest' ||
+        input.apifySort === 'Latest + Top'
+          ? input.apifySort
+          : undefined,
+      apifyCandidateMultiplier:
+        typeof input.apifyCandidateMultiplier === 'number'
+          ? input.apifyCandidateMultiplier
+          : undefined,
       maxQueries: typeof input.maxQueries === 'number' ? input.maxQueries : undefined,
       maxSearchPagesPerQuery:
         typeof input.maxSearchPagesPerQuery === 'number'
