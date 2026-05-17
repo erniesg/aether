@@ -3,6 +3,7 @@ import type {
   EventResolution,
   PlatformScrapeResult,
 } from './types';
+import { deriveSeedFrontier } from './frontier';
 import { makePostId, normalizeQuerySet } from './utils';
 
 const SEARCH_ENDPOINT = 'https://api.search.tinyfish.ai';
@@ -60,6 +61,14 @@ interface ScrapedPostPayload {
   authorHandle?: string;
   author_url?: string;
   authorUrl?: string;
+  author_headline?: string;
+  authorHeadline?: string;
+  author_location?: string;
+  authorLocation?: string;
+  author_followers?: number;
+  authorFollowers?: number;
+  author_description?: string;
+  authorDescription?: string;
   text?: string;
   posted_at?: string;
   postedAt?: string;
@@ -71,6 +80,27 @@ interface ScrapedPostPayload {
   impressions?: number;
   views?: number;
   tags?: string[];
+  comments_list?: ScrapedCommentPayload[];
+  commentsList?: ScrapedCommentPayload[];
+  visible_comments?: ScrapedCommentPayload[];
+  visibleComments?: ScrapedCommentPayload[];
+}
+
+interface ScrapedCommentPayload {
+  url?: string;
+  author_name?: string;
+  authorName?: string;
+  author_handle?: string;
+  authorHandle?: string;
+  author_url?: string;
+  authorUrl?: string;
+  author_headline?: string;
+  authorHeadline?: string;
+  text?: string;
+  posted_at?: string;
+  postedAt?: string;
+  likes?: number;
+  reactions?: number;
 }
 
 function apiKey(): string {
@@ -118,15 +148,12 @@ export async function resolveEventViaTinyFish(
     location: inferLocation(text) ?? 'Singapore',
     startsAt: dates.startsAt,
     endsAt: dates.endsAt,
-    querySet: normalizeQuerySet([
-      input.name,
-      `"${input.name}"`,
-      `${input.name} Singapore`,
-      '"AI engineer" Singapore',
-      '#AIEngineer',
-      '#AISingapore',
-      '#SGTech',
-    ]),
+    querySet: deriveSeedFrontier({
+      eventName: input.name,
+      contextHint: input.contextHint,
+      officialUrl: urls[0],
+      sourceUrls: urls,
+    }).querySet,
     sourceUrls: urls,
     warnings: fetched?.errors?.length
       ? [`TinyFish Fetch returned ${fetched.errors.length} page errors`]
@@ -357,8 +384,11 @@ function buildScrapeGoal(input: {
     `Return at most ${input.maxItems} posts.`,
     'Exclude job ads, generic hiring spam, profile-only matches, and duplicate reposts unless the repost text adds new commentary.',
     'Return ONLY valid JSON shaped as {"posts":[...]} with no markdown wrapper.',
-    'For each post include url, author_name, author_handle, author_url, text, posted_at, likes/reposts/replies/comments/reactions/impressions/views when visible, and tags.',
-    'Prefer posts with visible reach or engagement, but keep a mix of high-reach voices and useful niche commentary.',
+    'For each post include url, author_name, author_handle, author_url, author_headline, author_location, author_followers, text, posted_at, likes/reposts/replies/comments/reactions/impressions/views when visible, and tags.',
+    input.platform === 'linkedin'
+      ? 'When a post has visible comments, include up to 5 substantive attendee comments in comments_list with author_name, author_handle, author_url, author_headline, text, posted_at, likes/reactions. Avoid generic congratulations-only comments.'
+      : 'Prefer posts with visible reach or engagement, but keep a mix of high-reach voices and useful niche commentary.',
+    'Prefer attendee reactions, questions, critiques, takeaways, and useful resources over announcements.',
   ].join('\n');
 }
 
@@ -421,6 +451,9 @@ function postOutputSchema(maxItems: number) {
             author_name: { type: 'string' },
             author_handle: { type: 'string' },
             author_url: { type: 'string' },
+            author_headline: { type: 'string' },
+            author_location: { type: 'string' },
+            author_followers: { type: 'number' },
             text: { type: 'string' },
             posted_at: { type: 'string' },
             likes: { type: 'number' },
@@ -431,6 +464,23 @@ function postOutputSchema(maxItems: number) {
             impressions: { type: 'number' },
             views: { type: 'number' },
             tags: { type: 'array', items: { type: 'string' } },
+            comments_list: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  url: { type: 'string' },
+                  author_name: { type: 'string' },
+                  author_handle: { type: 'string' },
+                  author_url: { type: 'string' },
+                  author_headline: { type: 'string' },
+                  text: { type: 'string' },
+                  posted_at: { type: 'string' },
+                  likes: { type: 'number' },
+                  reactions: { type: 'number' },
+                },
+              },
+            },
           },
           required: ['url', 'author_name', 'text'],
         },
@@ -440,23 +490,32 @@ function postOutputSchema(maxItems: number) {
   };
 }
 
-function normalizeTinyFishPosts(platform: EventPlatform, value: unknown) {
+export function normalizeTinyFishPosts(platform: EventPlatform, value: unknown) {
   const parsed = parseResultObject(value);
   const record = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
   const posts = Array.isArray(record.posts) ? record.posts : [];
   return posts
     .filter((post): post is ScrapedPostPayload => Boolean(post && typeof post === 'object'))
-    .map((post) => {
+    .flatMap((post) => {
       const text = stringValue(post.text);
       const url = stringValue(post.url) || platformSearchUrl(platform, [text.slice(0, 60)]);
       const authorName = stringValue(post.author_name ?? post.authorName) || 'unknown';
-      return {
+      const baseTags = Array.isArray(post.tags)
+        ? post.tags.filter((tag): tag is string => typeof tag === 'string')
+        : [];
+      const normalized = [{
         postId: makePostId(platform, url, text),
         platform,
         url,
         authorName,
         authorHandle: stringValue(post.author_handle ?? post.authorHandle) || undefined,
         authorUrl: stringValue(post.author_url ?? post.authorUrl) || undefined,
+        authorMeta: {
+          headline: stringValue(post.author_headline ?? post.authorHeadline) || undefined,
+          location: stringValue(post.author_location ?? post.authorLocation) || undefined,
+          followers: numberValue(post.author_followers ?? post.authorFollowers),
+          description: stringValue(post.author_description ?? post.authorDescription) || undefined,
+        },
         text,
         postedAt: stringValue(post.posted_at ?? post.postedAt) || undefined,
         metrics: {
@@ -468,13 +527,50 @@ function normalizeTinyFishPosts(platform: EventPlatform, value: unknown) {
           impressions: numberValue(post.impressions),
           views: numberValue(post.views),
         },
-        tags: Array.isArray(post.tags)
-          ? post.tags.filter((tag): tag is string => typeof tag === 'string')
-          : [],
+        tags: baseTags,
         raw: post,
-      };
+      }];
+      const comments = commentList(post)
+        .map((comment, index) => normalizeTinyFishComment(platform, url, comment, index))
+        .filter((comment) => comment.text.length > 0);
+      return [...normalized, ...comments];
     })
     .filter((post) => post.text.length > 0);
+}
+
+function commentList(post: ScrapedPostPayload): ScrapedCommentPayload[] {
+  const value = post.comments_list ?? post.commentsList ?? post.visible_comments ?? post.visibleComments;
+  return Array.isArray(value) ? value.filter((comment) => Boolean(comment && typeof comment === 'object')) : [];
+}
+
+function normalizeTinyFishComment(
+  platform: EventPlatform,
+  parentUrl: string,
+  comment: ScrapedCommentPayload,
+  index: number
+) {
+  const text = stringValue(comment.text);
+  const url = stringValue(comment.url) || `${parentUrl}#comment-${index + 1}-${makePostId(platform, parentUrl, text)}`;
+  const authorName = stringValue(comment.author_name ?? comment.authorName) || 'unknown';
+  return {
+    postId: makePostId(platform, url, text),
+    platform,
+    url,
+    authorName,
+    authorHandle: stringValue(comment.author_handle ?? comment.authorHandle) || undefined,
+    authorUrl: stringValue(comment.author_url ?? comment.authorUrl) || undefined,
+    authorMeta: {
+      headline: stringValue(comment.author_headline ?? comment.authorHeadline) || undefined,
+    },
+    text,
+    postedAt: stringValue(comment.posted_at ?? comment.postedAt) || undefined,
+    metrics: {
+      likes: numberValue(comment.likes),
+      reactions: numberValue(comment.reactions),
+    },
+    tags: [`${platform}-comment`, 'comment', 'conversation'],
+    raw: comment,
+  };
 }
 
 function parseResultObject(value: unknown): unknown {

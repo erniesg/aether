@@ -1,5 +1,5 @@
 import { TwitterApi } from 'twitter-api-v2';
-import type { PlatformScrapeResult } from './types';
+import type { EventAuthorMeta, PlatformScrapeResult } from './types';
 import { makePostId, normalizeQuerySet } from './utils';
 
 type XSearchEnv = Partial<Record<string, string | undefined>>;
@@ -8,6 +8,17 @@ interface XUser {
   id: string;
   name?: string;
   username?: string;
+  description?: string;
+  location?: string;
+  verified?: boolean;
+  verified_type?: string;
+  profile_image_url?: string;
+  public_metrics?: {
+    followers_count?: number;
+    following_count?: number;
+    tweet_count?: number;
+    listed_count?: number;
+  };
 }
 
 interface XTweet {
@@ -23,6 +34,9 @@ interface XTweet {
     impression_count?: number;
     bookmark_count?: number;
   };
+  conversation_id?: string;
+  in_reply_to_user_id?: string;
+  referenced_tweets?: Array<{ type: string; id: string }>;
   lang?: string;
 }
 
@@ -83,6 +97,13 @@ export async function searchXViaOfficialApi(
     meta?: Record<string, unknown>;
     error?: string;
   }> = [];
+  const rawReplyQueries: Array<{
+    rootId: string;
+    query: string;
+    fetched: number;
+    meta?: Record<string, unknown>;
+    error?: string;
+  }> = [];
 
   for (const plan of queryPlan) {
     if (tweetsById.size >= input.maxItems) break;
@@ -101,8 +122,25 @@ export async function searchXViaOfficialApi(
       const paginator = (await client.v2.search(plan.query, {
         max_results: Math.max(10, Math.min(100, perQuery)),
         expansions: ['author_id'],
-        'tweet.fields': ['author_id', 'created_at', 'public_metrics', 'lang'],
-        'user.fields': ['name', 'username', 'verified'],
+        'tweet.fields': [
+          'author_id',
+          'conversation_id',
+          'created_at',
+          'in_reply_to_user_id',
+          'public_metrics',
+          'referenced_tweets',
+          'lang',
+        ],
+        'user.fields': [
+          'description',
+          'location',
+          'name',
+          'profile_image_url',
+          'public_metrics',
+          'username',
+          'verified',
+          'verified_type',
+        ],
         start_time: timeWindow.startTime,
         end_time: timeWindow.endTime,
       } as never)) as unknown as AsyncIterable<XTweet> & {
@@ -136,46 +174,121 @@ export async function searchXViaOfficialApi(
       });
     }
   }
+  if (shouldFetchReplies(env) && tweetsById.size < input.maxItems) {
+    const replyResults = await fetchRepliesForTopPosts({
+      client,
+      env,
+      timeWindow,
+      roots: Array.from(tweetsById.values()),
+      users,
+      maxItemsRemaining: input.maxItems - tweetsById.size,
+    });
+    rawReplyQueries.push(...replyResults.raw);
+    for (const reply of replyResults.replies) tweetsById.set(reply.id, reply);
+  }
   const tweets = Array.from(tweetsById.values()).slice(0, input.maxItems);
 
   return {
     platform: 'x',
-    posts: tweets.map((tweet) => {
-      const user = tweet.author_id ? users.get(tweet.author_id) : undefined;
-      const handle = user?.username;
-      const url = handle
-        ? `https://x.com/${handle}/status/${tweet.id}`
-        : `https://twitter.com/i/web/status/${tweet.id}`;
-      const metrics = tweet.public_metrics ?? {};
-      return {
-        postId: makePostId('x', url, tweet.text),
-        platform: 'x',
-        url,
-        authorName: user?.name ?? handle ?? tweet.author_id ?? 'unknown',
-        authorHandle: handle,
-        authorUrl: handle ? `https://x.com/${handle}` : undefined,
-        text: tweet.text,
-        postedAt: tweet.created_at,
-        metrics: {
-          likes: metrics.like_count,
-          reposts: (metrics.retweet_count ?? 0) + (metrics.quote_count ?? 0),
-          replies: metrics.reply_count,
-          impressions: metrics.impression_count,
-          views: metrics.impression_count,
-        },
-        tags: ['x-api'],
-        raw: tweet,
-      };
-    }),
+    posts: tweets.map((tweet) => toEventPost(tweet, users)),
     warnings:
       tweets.length > 0
         ? []
         : [`X official search returned no posts for ${queryPlan.length} expansion queries`],
     raw: {
       queries: rawQueries,
+      replyQueries: rawReplyQueries,
       timeWindow,
     },
   };
+}
+
+async function fetchRepliesForTopPosts(input: {
+  client: TwitterApi;
+  env: XSearchEnv;
+  timeWindow: { startTime: string; endTime: string };
+  roots: XTweet[];
+  users: Map<string, XUser>;
+  maxItemsRemaining: number;
+}): Promise<{
+  replies: XTweet[];
+  raw: Array<{
+    rootId: string;
+    query: string;
+    fetched: number;
+    meta?: Record<string, unknown>;
+    error?: string;
+  }>;
+}> {
+  const roots = input.roots
+    .filter((tweet) => (tweet.public_metrics?.reply_count ?? 0) > 0)
+    .sort((a, b) => (b.public_metrics?.reply_count ?? 0) - (a.public_metrics?.reply_count ?? 0))
+    .slice(0, xReplyRootLimit(input.env));
+  const repliesById = new Map<string, XTweet>();
+  const raw: Array<{
+    rootId: string;
+    query: string;
+    fetched: number;
+    meta?: Record<string, unknown>;
+    error?: string;
+  }> = [];
+  const perRoot = xRepliesPerRoot(input.env);
+
+  for (const root of roots) {
+    if (repliesById.size >= input.maxItemsRemaining) break;
+    const rootId = root.conversation_id ?? root.id;
+    const query = `conversation_id:${rootId} -is:retweet`;
+    try {
+      const paginator = (await input.client.v2.search(query, {
+        max_results: Math.max(10, Math.min(100, perRoot)),
+        expansions: ['author_id'],
+        'tweet.fields': [
+          'author_id',
+          'conversation_id',
+          'created_at',
+          'in_reply_to_user_id',
+          'public_metrics',
+          'referenced_tweets',
+          'lang',
+        ],
+        'user.fields': [
+          'description',
+          'location',
+          'name',
+          'profile_image_url',
+          'public_metrics',
+          'username',
+          'verified',
+          'verified_type',
+        ],
+        start_time: input.timeWindow.startTime,
+        end_time: input.timeWindow.endTime,
+      } as never)) as unknown as AsyncIterable<XTweet> & {
+        includes?: { users?: XUser[] };
+        meta?: Record<string, unknown>;
+      };
+
+      let fetched = 0;
+      for await (const tweet of paginator) {
+        if (tweet.id !== root.id) {
+          repliesById.set(tweet.id, tweet);
+          fetched += 1;
+        }
+        if (fetched >= perRoot || repliesById.size >= input.maxItemsRemaining) break;
+      }
+      for (const user of paginator.includes?.users ?? []) input.users.set(user.id, user);
+      raw.push({ rootId, query, fetched, meta: paginator.meta });
+    } catch (err) {
+      raw.push({
+        rootId,
+        query,
+        fetched: 0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return { replies: Array.from(repliesById.values()), raw };
 }
 
 export function buildXQueryPlan(querySet: string[], limit = 12): XQueryPlan[] {
@@ -220,6 +333,55 @@ async function countRecentPosts(
   }
 }
 
+function toEventPost(tweet: XTweet, users: Map<string, XUser>) {
+  const user = tweet.author_id ? users.get(tweet.author_id) : undefined;
+  const handle = user?.username;
+  const url = handle
+    ? `https://x.com/${handle}/status/${tweet.id}`
+    : `https://twitter.com/i/web/status/${tweet.id}`;
+  const metrics = tweet.public_metrics ?? {};
+  const isReply = Boolean(tweet.in_reply_to_user_id || tweet.referenced_tweets?.some((ref) => ref.type === 'replied_to'));
+  const tags = ['x-api'];
+  if (isReply) tags.push('x-reply', 'conversation');
+  if (tweet.conversation_id) tags.push(`conversation:${tweet.conversation_id}`);
+  return {
+    postId: makePostId('x', url, tweet.text),
+    platform: 'x' as const,
+    url,
+    authorName: user?.name ?? handle ?? tweet.author_id ?? 'unknown',
+    authorHandle: handle,
+    authorUrl: handle ? `https://x.com/${handle}` : undefined,
+    authorMeta: authorMetaFromXUser(user),
+    text: tweet.text,
+    postedAt: tweet.created_at,
+    metrics: {
+      likes: metrics.like_count,
+      reposts: (metrics.retweet_count ?? 0) + (metrics.quote_count ?? 0),
+      replies: metrics.reply_count,
+      impressions: metrics.impression_count,
+      views: metrics.impression_count,
+    },
+    tags,
+    raw: tweet,
+  };
+}
+
+function authorMetaFromXUser(user?: XUser): EventAuthorMeta | undefined {
+  if (!user) return undefined;
+  const metrics = user.public_metrics ?? {};
+  return {
+    description: user.description,
+    location: user.location,
+    followers: metrics.followers_count,
+    following: metrics.following_count,
+    posts: metrics.tweet_count,
+    listed: metrics.listed_count,
+    verified: user.verified,
+    verifiedType: user.verified_type,
+    profileImageUrl: user.profile_image_url,
+  };
+}
+
 async function getAppOnlyBearerToken(env: XSearchEnv): Promise<string | undefined> {
   const existing = env.X_BEARER_TOKEN?.trim() || env.X_APP_BEARER_TOKEN?.trim();
   if (existing) return existing;
@@ -244,6 +406,22 @@ async function getAppOnlyBearerToken(env: XSearchEnv): Promise<string | undefine
   const json = (await res.json()) as { access_token?: string };
   cachedAppOnlyBearerToken = json.access_token;
   return cachedAppOnlyBearerToken;
+}
+
+function shouldFetchReplies(env: XSearchEnv): boolean {
+  return env.EVENT_RECAP_X_FETCH_REPLIES !== '0';
+}
+
+function xReplyRootLimit(env: XSearchEnv): number {
+  const raw = Number(env.EVENT_RECAP_X_REPLY_ROOTS ?? 8);
+  if (!Number.isFinite(raw)) return 8;
+  return Math.max(0, Math.min(25, Math.round(raw)));
+}
+
+function xRepliesPerRoot(env: XSearchEnv): number {
+  const raw = Number(env.EVENT_RECAP_X_REPLIES_PER_ROOT ?? 25);
+  if (!Number.isFinite(raw)) return 25;
+  return Math.max(1, Math.min(100, Math.round(raw)));
 }
 
 function toXSecondTimestamp(value: string): string {
