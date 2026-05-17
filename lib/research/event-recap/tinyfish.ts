@@ -350,32 +350,38 @@ export async function countPlatformViaTinyFishSearch(
   const queries = normalizeQuerySet(input.querySet, input.maxQueries ?? 8);
   const estimates: Array<{ source: string; query: string; count: number; urls: string[]; error?: string }> = [];
   for (const source of queries) {
-    const query = platformSearchFallbackQuery(input.platform, [source]);
-    const searchUrl = new URL(SEARCH_ENDPOINT);
-    searchUrl.searchParams.set('query', query);
-    searchUrl.searchParams.set('location', 'SG');
-    searchUrl.searchParams.set('language', 'en');
-    try {
-      const res = await fetcher(searchUrl, { headers: { 'X-API-Key': apiKey() } });
-      if (!res.ok) {
-        estimates.push({ source, query, count: 0, urls: [], error: `HTTP ${res.status}` });
-        continue;
+    const variants = platformCountQueries(input.platform, source);
+    const urls = new Set<string>();
+    const errors: string[] = [];
+    for (const query of variants) {
+      const searchUrl = new URL(SEARCH_ENDPOINT);
+      searchUrl.searchParams.set('query', query);
+      searchUrl.searchParams.set('location', 'SG');
+      searchUrl.searchParams.set('language', 'en');
+      try {
+        const res = await fetcher(searchUrl, { headers: { 'X-API-Key': apiKey() } });
+        if (!res.ok) {
+          errors.push(`${query}: HTTP ${res.status}`);
+          continue;
+        }
+        const json = (await res.json()) as TinyFishSearchResponse;
+        for (const url of (json.results ?? [])
+          .map((result) => result.url)
+          .filter((url): url is string => Boolean(url))
+          .filter((url) => isPlatformPostUrl(input.platform, url))) {
+          urls.add(url);
+        }
+      } catch (err) {
+        errors.push(`${query}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      const json = (await res.json()) as TinyFishSearchResponse;
-      const urls = (json.results ?? [])
-        .map((result) => result.url)
-        .filter((url): url is string => Boolean(url))
-        .filter((url) => isPlatformPostUrl(input.platform, url));
-      estimates.push({ source, query, count: urls.length, urls });
-    } catch (err) {
-      estimates.push({
-        source,
-        query,
-        count: 0,
-        urls: [],
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
+    estimates.push({
+      source,
+      query: variants.join(' || '),
+      count: urls.size,
+      urls: Array.from(urls),
+      error: errors.length ? errors.join(' | ') : undefined,
+    });
   }
   return {
     platform: input.platform,
@@ -386,6 +392,22 @@ export async function countPlatformViaTinyFishSearch(
       'Search-index results are biased toward public, indexed, and high-ranking posts; use browser scraping for recall.',
     ],
   };
+}
+
+function platformCountQueries(platform: EventPlatform, source: string): string[] {
+  if (platform !== 'linkedin') return [platformSearchFallbackQuery(platform, [source])];
+
+  const stripped = source
+    .replace(/^@/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const quoted = stripped.startsWith('"') ? stripped : `"${stripped}"`;
+  const withoutQuotes = stripped.replace(/"/g, '');
+  return normalizeQuerySet([
+    `site:linkedin.com/posts ${quoted}`,
+    `linkedin posts ${quoted}`,
+    withoutQuotes ? `site:linkedin.com/posts ${withoutQuotes}` : '',
+  ], 3);
 }
 
 async function runSse(
