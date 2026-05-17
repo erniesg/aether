@@ -4,6 +4,8 @@ import {
   normalizeTinyFishPosts,
   platformFrontierQueries,
   scrapePlatformViaTinyFish,
+  tinyFishBrowserBaseUrl,
+  warmLinkedInSessionViaTinyFish,
 } from './tinyfish';
 
 describe('TinyFish event recap normalization', () => {
@@ -142,7 +144,101 @@ describe('TinyFish event recap normalization', () => {
 
     expect(result.posts).toHaveLength(1);
   });
+
+  it('returns an interactive inspector url for LinkedIn human handoff runs', async () => {
+    const originalUseProfile = process.env.TINYFISH_LINKEDIN_USE_PROFILE;
+    process.env.TINYFISH_LINKEDIN_USE_PROFILE = '1';
+    const streamUrl = 'https://ip.tinyfish.test/tf-session/stream/0';
+    const calls: string[] = [];
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('/v1/vault/items')) return linkedinVaultResponse();
+      if (url.includes('/automation/run-async')) {
+        const payload = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        expect(payload.use_vault).toBe(true);
+        expect(payload.use_profile).toBe(true);
+        expect(payload.credential_item_ids).toEqual(['credential-a']);
+        return jsonResponse({ run_id: 'run-a', error: null });
+      }
+      if (url.includes('/v1/runs/run-a')) {
+        return jsonResponse({
+          run_id: 'run-a',
+          status: 'RUNNING',
+          streaming_url: streamUrl,
+        });
+      }
+      if (url === 'https://ip.tinyfish.test/tf-session/pages') {
+        return jsonResponse([
+          {
+            url: 'https://www.linkedin.com/uas/login',
+            title: 'LinkedIn Login',
+            devtoolsFrontendUrl: 'https://tetra-streaming.tinyfish.test/inspector.html?wss=abc',
+          },
+        ]);
+      }
+      return jsonResponse({}, 404);
+    };
+
+    try {
+      const result = await warmLinkedInSessionViaTinyFish(
+        {
+          credentialItemIds: ['credential-a'],
+          holdMinutes: 3,
+          pollSeconds: 1,
+        },
+        fetcher
+      );
+
+      expect(result).toMatchObject({
+        status: 'needs_human_verification',
+        runId: 'run-a',
+        streamingUrl: streamUrl,
+        browserBaseUrl: 'https://ip.tinyfish.test/tf-session',
+        inspectorUrl: 'https://tetra-streaming.tinyfish.test/inspector.html?wss=abc',
+        needsHumanVerification: true,
+      });
+      expect(result.warnings.some((warning) => warning.includes('read-only'))).toBe(true);
+      expect(calls).toContain('https://ip.tinyfish.test/tf-session/pages');
+    } finally {
+      if (originalUseProfile === undefined) {
+        delete process.env.TINYFISH_LINKEDIN_USE_PROFILE;
+      } else {
+        process.env.TINYFISH_LINKEDIN_USE_PROFILE = originalUseProfile;
+      }
+    }
+  });
+
+  it('derives the TinyFish browser base url from the read-only stream url', () => {
+    expect(tinyFishBrowserBaseUrl('https://ip.tinyfish.test/tf-session/stream/0')).toBe(
+      'https://ip.tinyfish.test/tf-session'
+    );
+  });
 });
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function linkedinVaultResponse(): Response {
+  return jsonResponse({
+    items: [
+      {
+        itemId: 'credential-a',
+        label: 'LinkedIn',
+        vaultName: 'Personal',
+        domains: ['linkedin.com'],
+        fieldMetadata: [
+          { fieldId: 'username', label: 'username', type: 'STRING' },
+          { fieldId: 'password', label: 'password', type: 'CONCEALED' },
+        ],
+      },
+    ],
+  });
+}
 
 function sseResponse(events: unknown[]): Response {
   return new Response(
