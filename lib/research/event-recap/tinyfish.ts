@@ -9,6 +9,8 @@ import { makePostId, normalizeQuerySet } from './utils';
 const SEARCH_ENDPOINT = 'https://api.search.tinyfish.ai';
 const FETCH_ENDPOINT = 'https://api.fetch.tinyfish.ai';
 const AGENT_SSE_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run-sse';
+const VAULT_ITEMS_ENDPOINT = 'https://agent.tinyfish.ai/v1/vault/items';
+const VAULT_ITEMS_SYNC_ENDPOINT = 'https://agent.tinyfish.ai/v1/vault/items/sync';
 
 type Fetcher = typeof fetch;
 
@@ -35,6 +37,19 @@ interface TinyFishFetchResponse {
   errors?: unknown[];
 }
 
+interface TinyFishVaultItem {
+  itemId?: string;
+  label?: string;
+  vaultName?: string;
+  domains?: string[];
+  fieldMetadata?: Array<{ fieldId?: string; label?: string; type?: string }>;
+  hasTotp?: boolean;
+}
+
+interface TinyFishVaultItemsResponse {
+  items?: TinyFishVaultItem[];
+}
+
 interface TinyFishCompleteEvent {
   type: 'COMPLETE';
   status?: string;
@@ -52,6 +67,53 @@ type TinyFishSseEvent =
   | TinyFishCompleteEvent
   | TinyFishStreamingEvent
   | { type?: string; [key: string]: unknown };
+
+export class TinyFishAgentRunError extends Error {
+  readonly status?: string;
+  readonly streamingUrl?: string;
+  readonly needsHumanVerification: boolean;
+  readonly raw?: unknown;
+
+  constructor(
+    message: string,
+    details: {
+      status?: string;
+      streamingUrl?: string;
+      needsHumanVerification?: boolean;
+      raw?: unknown;
+    } = {}
+  ) {
+    super(message);
+    this.name = 'TinyFishAgentRunError';
+    this.status = details.status;
+    this.streamingUrl = details.streamingUrl;
+    this.needsHumanVerification = Boolean(details.needsHumanVerification);
+    this.raw = details.raw;
+  }
+}
+
+export function isTinyFishAgentRunError(value: unknown): value is TinyFishAgentRunError {
+  return value instanceof TinyFishAgentRunError;
+}
+
+export interface LinkedInVaultDiagnostic {
+  configured: boolean;
+  configuredItemCount: number;
+  matchedItemCount: number;
+  linkedInItemCount: number;
+  ready: boolean;
+  warnings: string[];
+  items: Array<{
+    itemId: string;
+    label?: string;
+    vaultName?: string;
+    domains: string[];
+    hasUsername: boolean;
+    hasPassword: boolean;
+    hasTotp?: boolean;
+    configured: boolean;
+  }>;
+}
 
 interface ScrapedPostPayload {
   url?: string;
@@ -196,6 +258,9 @@ export async function scrapePlatformViaTinyFish(
     browser_profile: 'stealth',
     use_vault: input.platform === 'linkedin',
   };
+  if (input.platform === 'linkedin' && process.env.TINYFISH_LINKEDIN_USE_PROFILE === '1') {
+    payload.use_profile = true;
+  }
   if (process.env.TINYFISH_USE_OUTPUT_SCHEMA === '1') {
     payload.output_schema = postOutputSchema(input.maxItems);
   }
@@ -219,19 +284,34 @@ export async function scrapePlatformViaTinyFish(
   const streaming = events.find(
     (event): event is TinyFishStreamingEvent => event.type === 'STREAMING_URL'
   );
-  if (!complete) throw new Error('TinyFish Agent stream ended without COMPLETE');
+  const streamingUrl = streaming?.streaming_url;
+  if (!complete) {
+    throw new TinyFishAgentRunError('TinyFish Agent stream ended without COMPLETE', {
+      streamingUrl,
+      needsHumanVerification: eventsNeedHumanVerification(events),
+      raw: events,
+    });
+  }
   if (complete.status && complete.status !== 'COMPLETED') {
-    throw new Error(
-      complete.help_message ||
-        `TinyFish Agent ${input.platform} run failed: ${JSON.stringify(complete.error)}`
-    );
+    const errorDetail = complete.error ? JSON.stringify(complete.error).slice(0, 600) : '';
+    const help = complete.help_message ? ` Help: ${complete.help_message}` : '';
+    const message =
+      `TinyFish Agent ${input.platform} run failed (${complete.status})${
+        errorDetail ? `: ${errorDetail}` : ''
+      }${help}`;
+    throw new TinyFishAgentRunError(message, {
+      status: complete.status,
+      streamingUrl,
+      needsHumanVerification: eventsNeedHumanVerification(events),
+      raw: complete.error ?? events,
+    });
   }
 
   const posts = normalizeTinyFishPosts(input.platform, complete.result);
   return {
     platform: input.platform,
     posts: posts.slice(0, input.maxItems),
-    streamingUrl: streaming?.streaming_url,
+    streamingUrl,
     warnings: posts.length === 0 ? [`TinyFish returned no ${input.platform} posts`] : [],
     raw: complete.result,
   };
@@ -249,7 +329,7 @@ export async function scrapePlatformFrontierViaTinyFish(
   },
   fetcher: Fetcher = fetch
 ): Promise<PlatformScrapeResult> {
-  const queries = normalizeQuerySet(input.querySet, input.maxQueries ?? 4);
+  const queries = platformFrontierQueries(input.platform, input.querySet, input.maxQueries ?? 4);
   const maxPerQuery = Math.max(10, Math.ceil(input.maxItems / Math.max(1, Math.min(queries.length, 4))));
   const byUrl = new Map<string, PlatformScrapeResult['posts'][number]>();
   const streamingUrls: string[] = [];
@@ -334,6 +414,98 @@ export async function searchPlatformFallbackViaTinyFish(
   };
 }
 
+export async function diagnoseLinkedInVault(
+  input: { credentialItemIds?: string[]; sync?: boolean } = {},
+  fetcher: Fetcher = fetch
+): Promise<LinkedInVaultDiagnostic> {
+  const configuredIds = input.credentialItemIds ?? [];
+  const items = input.sync
+    ? await syncTinyFishVaultItems(fetcher)
+    : await listTinyFishVaultItems(fetcher);
+  const configuredSet = new Set(configuredIds);
+  const linkedInItems = items.filter((item) => vaultItemDomains(item).some(isLinkedInDomain));
+  const matchedItems = configuredIds.length
+    ? items.filter((item) => item.itemId && configuredSet.has(item.itemId))
+    : [];
+  const relevantItems = configuredIds.length ? matchedItems : linkedInItems;
+  const normalized = relevantItems.map((item) => ({
+    itemId: item.itemId ?? '',
+    label: item.label,
+    vaultName: item.vaultName,
+    domains: vaultItemDomains(item),
+    hasUsername: vaultItemHasField(item, 'username'),
+    hasPassword: vaultItemHasField(item, 'password'),
+    hasTotp: item.hasTotp,
+    configured: Boolean(item.itemId && configuredSet.has(item.itemId)),
+  }));
+  const warnings: string[] = [];
+  if (!configuredIds.length) {
+    warnings.push('TINYFISH_LINKEDIN_CREDENTIAL_ITEM_IDS is not set; LinkedIn runs may not receive the intended Vault login.');
+  }
+  if (configuredIds.length && matchedItems.length === 0) {
+    warnings.push('Configured LinkedIn credential item id was not found in TinyFish Vault. Sync Vault and update TINYFISH_LINKEDIN_CREDENTIAL_ITEM_IDS.');
+  }
+  if (matchedItems.length && !matchedItems.some((item) => vaultItemDomains(item).some(isLinkedInDomain))) {
+    warnings.push('Configured LinkedIn credential item does not list linkedin.com in its domains.');
+  }
+  if (matchedItems.length && !matchedItems.some((item) => vaultItemHasField(item, 'password'))) {
+    warnings.push('Configured LinkedIn credential item does not expose a password field to TinyFish.');
+  }
+  if (!linkedInItems.length) {
+    warnings.push('TinyFish Vault has no credential item with a linkedin.com domain.');
+  }
+
+  return {
+    configured: configuredIds.length > 0,
+    configuredItemCount: configuredIds.length,
+    matchedItemCount: matchedItems.length,
+    linkedInItemCount: linkedInItems.length,
+    ready:
+      configuredIds.length > 0 &&
+      matchedItems.some(
+        (item) => vaultItemDomains(item).some(isLinkedInDomain) && vaultItemHasField(item, 'password')
+      ),
+    warnings,
+    items: normalized,
+  };
+}
+
+async function listTinyFishVaultItems(fetcher: Fetcher): Promise<TinyFishVaultItem[]> {
+  const res = await fetcher(VAULT_ITEMS_ENDPOINT, {
+    headers: { 'X-API-Key': apiKey() },
+  });
+  if (!res.ok) throw new Error(`TinyFish Vault items failed: HTTP ${res.status}`);
+  const json = (await res.json()) as TinyFishVaultItemsResponse;
+  return Array.isArray(json.items) ? json.items : [];
+}
+
+async function syncTinyFishVaultItems(fetcher: Fetcher): Promise<TinyFishVaultItem[]> {
+  const res = await fetcher(VAULT_ITEMS_SYNC_ENDPOINT, {
+    method: 'POST',
+    headers: { 'X-API-Key': apiKey() },
+  });
+  if (!res.ok) throw new Error(`TinyFish Vault sync failed: HTTP ${res.status}`);
+  const json = (await res.json()) as TinyFishVaultItemsResponse;
+  return Array.isArray(json.items) ? json.items : [];
+}
+
+function vaultItemDomains(item: TinyFishVaultItem): string[] {
+  return Array.isArray(item.domains) ? item.domains.filter((domain): domain is string => typeof domain === 'string') : [];
+}
+
+function isLinkedInDomain(domain: string): boolean {
+  return /(^|\.)linkedin\.com$/i.test(domain);
+}
+
+function vaultItemHasField(item: TinyFishVaultItem, name: string): boolean {
+  const fields = Array.isArray(item.fieldMetadata) ? item.fieldMetadata : [];
+  return fields.some((field) => {
+    const id = field.fieldId?.toLowerCase() ?? '';
+    const label = field.label?.toLowerCase() ?? '';
+    return id.includes(name) || label.includes(name);
+  });
+}
+
 export async function countPlatformViaTinyFishSearch(
   input: {
     platform: EventPlatform;
@@ -397,53 +569,207 @@ export async function countPlatformViaTinyFishSearch(
 function platformCountQueries(platform: EventPlatform, source: string): string[] {
   if (platform !== 'linkedin') return [platformSearchFallbackQuery(platform, [source])];
 
-  const stripped = source
-    .replace(/^@/, '')
+  return normalizeQuerySet(
+    linkedinQueryVariants(source).flatMap((variant) => {
+      const stripped = stripLinkedInQueryHandleSyntax(variant);
+      const quoted = stripped.startsWith('"') ? stripped : `"${stripped}"`;
+      const withoutQuotes = stripped.replace(/"/g, '');
+      return [
+        `site:linkedin.com/posts ${quoted}`,
+        `linkedin posts ${quoted}`,
+        withoutQuotes ? `site:linkedin.com/posts ${withoutQuotes}` : '',
+      ];
+    }),
+    6
+  );
+}
+
+export function platformFrontierQueries(
+  platform: EventPlatform,
+  querySet: string[],
+  limit = 4
+): string[] {
+  if (platform !== 'linkedin') return normalizeQuerySet(querySet, limit);
+  return normalizeQuerySet(querySet.flatMap(linkedinQueryVariants), limit);
+}
+
+export function linkedinQueryVariants(source: string): string[] {
+  const stripped = stripLinkedInQueryHandleSyntax(source);
+  const spaced = splitCamelCaseHandles(stripped);
+  return normalizeQuerySet([
+    spaced,
+    stripped,
+    source,
+  ], 4);
+}
+
+function stripLinkedInQueryHandleSyntax(source: string): string {
+  return source
+    .replace(/@([A-Za-z0-9_]+)/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
-  const quoted = stripped.startsWith('"') ? stripped : `"${stripped}"`;
-  const withoutQuotes = stripped.replace(/"/g, '');
-  return normalizeQuerySet([
-    `site:linkedin.com/posts ${quoted}`,
-    `linkedin posts ${quoted}`,
-    withoutQuotes ? `site:linkedin.com/posts ${withoutQuotes}` : '',
-  ], 3);
+}
+
+function splitCamelCaseHandles(source: string): string {
+  return source
+    .split(/\s+/)
+    .map((token) => {
+      if (!/[a-z][A-Z]/.test(token)) return token;
+      return token
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+    })
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 async function runSse(
   payload: Record<string, unknown>,
   fetcher: Fetcher
 ): Promise<TinyFishSseEvent[]> {
-  const res = await fetcher(AGENT_SSE_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey(),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const errorBody = await res.text().catch(() => '');
-    throw new Error(
-      `TinyFish Agent SSE failed: HTTP ${res.status}${errorBody ? `: ${errorBody.slice(0, 300)}` : ''}`
-    );
-  }
-  const body = await res.text();
+  const timeoutMs = tinyFishAgentTimeoutMs();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const events: TinyFishSseEvent[] = [];
-  for (const block of body.split(/\n\n+/)) {
-    const dataLine = block
-      .split(/\n/)
-      .find((line) => line.startsWith('data:'));
-    if (!dataLine) continue;
-    const json = dataLine.replace(/^data:\s*/, '').trim();
-    if (!json) continue;
-    try {
-      events.push(JSON.parse(json) as TinyFishSseEvent);
-    } catch {
-      // Ignore malformed progress chunks; COMPLETE still determines success.
+  try {
+    const res = await fetcher(AGENT_SSE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey(),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => '');
+      throw new Error(
+        `TinyFish Agent SSE failed: HTTP ${res.status}${errorBody ? `: ${errorBody.slice(0, 300)}` : ''}`
+      );
     }
+    await readSseEvents(res, controller.signal, events);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      const streamingUrl = latestStreamingUrl(events);
+      const suffix = streamingUrl ? `; streamingUrl=${streamingUrl}` : '';
+      throw new TinyFishAgentRunError(`TinyFish Agent SSE timed out after ${timeoutMs}ms${suffix}`, {
+        status: 'timeout',
+        streamingUrl,
+        needsHumanVerification: eventsNeedHumanVerification(events),
+        raw: events,
+      });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
   return events;
+}
+
+async function readSseEvents(
+  res: Response,
+  signal: AbortSignal,
+  events: TinyFishSseEvent[]
+): Promise<TinyFishSseEvent[]> {
+  if (!res.body) {
+    events.push(...parseSseBody(await res.text()));
+    return events;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let boundary = sseBoundary(buffer);
+      while (boundary) {
+        const block = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary.length);
+        const event = parseSseBlock(block);
+        if (event) {
+          events.push(event);
+          if (event.type === 'COMPLETE') {
+            await reader.cancel().catch(() => undefined);
+            return events;
+          }
+        }
+        boundary = sseBoundary(buffer);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const tail = decoder.decode();
+  if (tail) buffer += tail;
+  const finalEvents = parseSseBody(buffer);
+  events.push(...finalEvents);
+  return events;
+}
+
+function parseSseBody(body: string): TinyFishSseEvent[] {
+  const events: TinyFishSseEvent[] = [];
+  for (const block of body.split(/(?:\r?\n){2,}/)) {
+    const event = parseSseBlock(block);
+    if (event) events.push(event);
+  }
+  return events;
+}
+
+function parseSseBlock(block: string): TinyFishSseEvent | null {
+  const json = block
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.replace(/^data:\s*/, ''))
+    .join('\n')
+    .trim();
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as TinyFishSseEvent;
+  } catch {
+    // Ignore malformed progress chunks; COMPLETE still determines success.
+    return null;
+  }
+}
+
+function sseBoundary(buffer: string): { index: number; length: number } | null {
+  const match = /\r?\n\r?\n/.exec(buffer);
+  if (!match || match.index === undefined) return null;
+  return { index: match.index, length: match[0].length };
+}
+
+function latestStreamingUrl(events: TinyFishSseEvent[]): string | undefined {
+  return [...events]
+    .reverse()
+    .find((event): event is TinyFishStreamingEvent => event.type === 'STREAMING_URL')
+    ?.streaming_url;
+}
+
+function eventsNeedHumanVerification(events: TinyFishSseEvent[]): boolean {
+  const text = JSON.stringify(events).toLowerCase();
+  return [
+    'verification code',
+    'verify your identity',
+    'two-step',
+    'two factor',
+    '2fa',
+    'security code',
+    'checkpoint',
+    'captcha',
+    'challenge',
+  ].some((marker) => text.includes(marker));
+}
+
+function tinyFishAgentTimeoutMs(): number {
+  const raw = Number(process.env.TINYFISH_AGENT_TIMEOUT_MS ?? 110_000);
+  if (!Number.isFinite(raw)) return 110_000;
+  return Math.max(10_000, Math.min(300_000, Math.round(raw)));
 }
 
 function buildScrapeGoal(input: {
@@ -459,20 +785,34 @@ function buildScrapeGoal(input: {
     `Queries: ${input.querySet.join(' | ')}`,
     `Only include posts about the event or "AI engineer Singapore" conversation, posted from ${input.windowStart} through ${input.windowEnd}.`,
     `Return at most ${input.maxItems} posts.`,
-    'Exclude job ads, generic hiring spam, profile-only matches, and duplicate reposts unless the repost text adds new commentary.',
+    input.platform === 'linkedin' && input.querySet.some((query) => isPlatformUrl('linkedin', query))
+      ? 'Exclude job ads, generic hiring spam, and profile-only matches. On profile/activity pages, include visible reposted/shared posts when the original post is event-relevant even if the profile added no commentary; tag these as account-discovered and repost.'
+      : 'Exclude job ads, generic hiring spam, profile-only matches, and duplicate reposts unless the repost text adds new commentary.',
     'Return ONLY valid JSON shaped as {"posts":[...]} with no markdown wrapper.',
     'For each post include url, author_name, author_handle, author_url, author_headline, author_location, author_followers, text, posted_at, likes/reposts/replies/comments/reactions/impressions/views when visible, and tags.',
     input.platform === 'linkedin'
-      ? 'When a post has visible comments, include up to 5 substantive attendee comments in comments_list with author_name, author_handle, author_url, author_headline, text, posted_at, likes/reactions. Avoid generic congratulations-only comments.'
+      ? 'Use LinkedIn content search directly. If a query looks like a person, company, or account name and content search is sparse, open the most relevant LinkedIn profile/company page and its Posts/Activity tab, then collect event-relevant posts from there. When a post has visible comments, include up to 5 substantive attendee comments in comments_list with author_name, author_handle, author_url, author_headline, text, posted_at, likes/reactions. Avoid generic congratulations-only comments.'
       : 'Prefer posts with visible reach or engagement, but keep a mix of high-reach voices and useful niche commentary.',
     'Prefer attendee reactions, questions, critiques, takeaways, and useful resources over announcements.',
   ].join('\n');
 }
 
 function platformSearchUrl(platform: EventPlatform, querySet: string[]): string {
+  const directUrl = querySet.map((query) => query.trim()).find((query) => isPlatformUrl(platform, query));
+  if (directUrl) return directUrl;
   const q = encodeURIComponent(querySet.slice(0, 3).join(' OR '));
   if (platform === 'x') return `https://x.com/search?q=${q}&src=typed_query&f=live`;
   return `https://www.linkedin.com/search/results/content/?keywords=${q}`;
+}
+
+function isPlatformUrl(platform: EventPlatform, value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (platform === 'x') return /(^|\.)x\.com$/i.test(url.hostname);
+    return /(^|\.)linkedin\.com$/i.test(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function platformSearchFallbackQuery(platform: EventPlatform, querySet: string[]): string {

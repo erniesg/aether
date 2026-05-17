@@ -39,6 +39,12 @@ export async function POST(request: Request) {
       windowStart: typeof body.windowStart === 'string' ? body.windowStart : undefined,
       windowEnd: typeof body.windowEnd === 'string' ? body.windowEnd : undefined,
       maxQueries: typeof body.maxQueries === 'number' ? body.maxQueries : undefined,
+      maxItems: typeof body.maxItems === 'number' ? body.maxItems : undefined,
+      linkedinMode:
+        body.linkedinMode === 'browser-direct' || body.linkedinMode === 'search-index'
+          ? body.linkedinMode
+          : undefined,
+      syncVault: typeof body.syncVault === 'boolean' ? body.syncVault : undefined,
     });
     return NextResponse.json({ ok: true, counts });
   } catch (err) {
