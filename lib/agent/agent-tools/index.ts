@@ -16,6 +16,9 @@ import { clusterReferences } from './cluster-references';
 import { generateImage } from './generate-image';
 import { analyzeVideo } from './analyze-video';
 import { getCurrentDatetime } from './get-current-datetime';
+import { queryEventPosts } from './query-event-posts';
+import { getEventThemeSummary } from './get-event-theme-summary';
+import { getEventTopVoices } from './get-event-top-voices';
 import type { AgentTool } from './types';
 
 export type { AgentTool, ToolDispatchSpec } from './types';
@@ -27,5 +30,8 @@ export function listAgentTools(): AgentTool[] {
     generateImage,
     analyzeVideo,
     getCurrentDatetime,
+    queryEventPosts,
+    getEventThemeSummary,
+    getEventTopVoices,
   ];
 }

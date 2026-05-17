@@ -1,0 +1,384 @@
+import { analyzePosts } from './analyze';
+import { mockResolveEvent, mockRunShell, mockScrapePlatform } from './mock';
+import {
+  getEventBundle,
+  saveEvent,
+  savePosts,
+  saveRunFinish,
+  saveRunStart,
+  saveThemes,
+  saveVoices,
+} from './store';
+import {
+  resolveEventViaTinyFish,
+  scrapePlatformViaTinyFish,
+  searchPlatformFallbackViaTinyFish,
+} from './tinyfish';
+import { isXSearchConfigured, searchXViaOfficialApi } from './x-api';
+import type {
+  EventPlatform,
+  EventPost,
+  EventRecapConfig,
+  EventRecapRecord,
+  EventScrapeRun,
+  PlatformScrapeResult,
+} from './types';
+import { clampConfig, eventWindow, scorePostsByPlatform } from './utils';
+
+const PLATFORMS: EventPlatform[] = ['x', 'linkedin'];
+
+export async function createEventRecap(
+  input: Partial<EventRecapConfig> & { name: string }
+): Promise<EventRecapRecord> {
+  const config = clampConfig(input);
+  const now = Date.now();
+  const existing = await getEventBundle(config.eventId);
+  if (existing?.event) return existing.event;
+
+  const event: EventRecapRecord = {
+    ...config,
+    status: 'draft',
+    usedCredits: 0,
+    querySet: [config.name],
+    sourceUrls: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+  await saveEvent(event);
+  return event;
+}
+
+export async function refreshEventRecap(
+  input: Partial<EventRecapConfig> & { name?: string; eventId: string }
+) {
+  const existing = await getEventBundle(input.eventId);
+  const base = existing?.event;
+  if (!base && !input.name) {
+    throw new Error(`event ${input.eventId} not found`);
+  }
+  const config = clampConfig({
+    eventId: input.eventId,
+    name: input.name ?? base?.name ?? input.eventId,
+    contextHint: input.contextHint ?? base?.contextHint,
+    workspaceId: input.workspaceId ?? base?.workspaceId,
+    daysBefore: input.daysBefore ?? base?.daysBefore,
+    daysAfter: input.daysAfter ?? base?.daysAfter,
+    refreshIntervalHours: input.refreshIntervalHours ?? base?.refreshIntervalHours,
+    maxItemsPerPlatform: input.maxItemsPerPlatform ?? base?.maxItemsPerPlatform,
+    monthlyCreditBudget: input.monthlyCreditBudget ?? base?.monthlyCreditBudget,
+    liveMode: input.liveMode ?? base?.liveMode ?? defaultMode(),
+  });
+
+  const resolvingEvent = toEventRecord(base, config, {
+    status: 'resolving',
+    updatedAt: Date.now(),
+    error: undefined,
+  });
+  await saveEvent(resolvingEvent);
+
+  const resolution =
+    config.liveMode === 'tinyfish'
+      ? await resolveEventViaTinyFish(config)
+      : mockResolveEvent(config.name, config.contextHint);
+
+  const { windowStart, windowEnd } = eventWindow({
+    startsAt: resolution.startsAt,
+    endsAt: resolution.endsAt,
+    daysBefore: config.daysBefore,
+    daysAfter: config.daysAfter,
+  });
+  const estimatedCredits = config.liveMode === 'tinyfish' ? PLATFORMS.length * 10 : 0;
+  const usedCredits = base?.usedCredits ?? 0;
+  const runId = `event_${config.eventId}_${Date.now().toString(36)}`;
+
+  if (
+    config.monthlyCreditBudget > 0 &&
+    estimatedCredits > 0 &&
+    usedCredits + estimatedCredits > config.monthlyCreditBudget
+  ) {
+    const skippedRun = skippedBudgetRun({
+      runId,
+      eventId: config.eventId,
+      querySet: resolution.querySet,
+      windowStart,
+      windowEnd,
+      maxItemsPerPlatform: config.maxItemsPerPlatform,
+      estimatedCredits,
+    });
+    await saveRunStart(skippedRun);
+    await saveRunFinish(skippedRun);
+    const event = toEventRecord(base, config, {
+      status: 'ready',
+      canonicalName: resolution.canonicalName,
+      officialUrl: resolution.officialUrl,
+      location: resolution.location,
+      startsAt: resolution.startsAt,
+      endsAt: resolution.endsAt,
+      querySet: resolution.querySet,
+      sourceUrls: resolution.sourceUrls,
+      usedCredits,
+      nextRefreshAt: nextRefreshAt(config.refreshIntervalHours),
+      updatedAt: Date.now(),
+    });
+    await saveEvent(event);
+    return getEventBundle(config.eventId);
+  }
+
+  const run =
+    config.liveMode === 'mock'
+      ? mockRunShell({
+          runId,
+          eventId: config.eventId,
+          querySet: resolution.querySet,
+          windowStart,
+          windowEnd,
+          maxItemsPerPlatform: config.maxItemsPerPlatform,
+        })
+      : liveRunShell({
+          runId,
+          eventId: config.eventId,
+          querySet: resolution.querySet,
+          windowStart,
+          windowEnd,
+          maxItemsPerPlatform: config.maxItemsPerPlatform,
+          estimatedCredits,
+        });
+  await saveRunStart(run);
+
+  const refreshingEvent = toEventRecord(base, config, {
+    status: 'refreshing',
+    canonicalName: resolution.canonicalName,
+    officialUrl: resolution.officialUrl,
+    location: resolution.location,
+    startsAt: resolution.startsAt,
+    endsAt: resolution.endsAt,
+    querySet: resolution.querySet,
+    sourceUrls: resolution.sourceUrls,
+    updatedAt: Date.now(),
+  });
+  await saveEvent(refreshingEvent);
+
+  try {
+    const platformResults =
+      config.liveMode === 'mock'
+        ? PLATFORMS.map((platform) =>
+            mockScrapePlatform(platform, config.eventId, runId, config.maxItemsPerPlatform)
+          )
+        : await Promise.all(
+            PLATFORMS.map(async (platform) => {
+              if (platform === 'x' && isXSearchConfigured()) {
+                const official = await searchXViaOfficialApi({
+                  querySet: resolution.querySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems: config.maxItemsPerPlatform,
+                });
+                if (official.posts.length > 0) return official;
+              }
+
+              const result = await scrapePlatformViaTinyFish({
+                platform,
+                querySet: resolution.querySet,
+                windowStart,
+                windowEnd,
+                maxItems: config.maxItemsPerPlatform,
+                credentialItemIds:
+                  platform === 'linkedin' ? linkedinCredentialItemIds() : undefined,
+              });
+              if (result.posts.length > 0) return result;
+              const fallback = await searchPlatformFallbackViaTinyFish({
+                platform,
+                querySet: resolution.querySet,
+                maxItems: config.maxItemsPerPlatform,
+              });
+              return {
+                ...fallback,
+                streamingUrl: result.streamingUrl,
+                warnings: [...result.warnings, ...fallback.warnings],
+                raw: { agent: result.raw, fallback: fallback.raw },
+              };
+            })
+          );
+
+    const posts = materializePosts(config.eventId, runId, platformResults);
+    const previousPosts = existing?.posts ?? [];
+    const merged = mergePosts(previousPosts, posts);
+    const analysis = analyzePosts(config.eventId, merged);
+
+    await savePosts(config.eventId, posts);
+    await saveThemes(config.eventId, analysis.themes);
+    await saveVoices(config.eventId, analysis.voices);
+
+    const finishedRun: EventScrapeRun = {
+      ...run,
+      status: 'completed',
+      actualCredits: estimatedCredits,
+      streamingUrls: platformResults
+        .filter((result) => result.streamingUrl)
+        .map((result) => ({
+          platform: result.platform,
+          url: result.streamingUrl as string,
+        })),
+      warnings: [
+        ...resolution.warnings,
+        ...platformResults.flatMap((result) => result.warnings),
+      ],
+      outputs: {
+        posts: posts.length,
+        themes: analysis.themes.length,
+        voices: analysis.voices.length,
+      },
+      finishedAt: Date.now(),
+    };
+    await saveRunFinish(finishedRun);
+
+    const event = toEventRecord(base, config, {
+      status: 'ready',
+      canonicalName: resolution.canonicalName,
+      officialUrl: resolution.officialUrl,
+      location: resolution.location,
+      startsAt: resolution.startsAt,
+      endsAt: resolution.endsAt,
+      querySet: resolution.querySet,
+      sourceUrls: resolution.sourceUrls,
+      usedCredits: usedCredits + estimatedCredits,
+      lastRunAt: finishedRun.finishedAt,
+      nextRefreshAt: nextRefreshAt(config.refreshIntervalHours),
+      error: undefined,
+      updatedAt: Date.now(),
+    });
+    await saveEvent(event);
+    return getEventBundle(config.eventId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await saveRunFinish({
+      ...run,
+      status: 'failed',
+      warnings: [...resolution.warnings],
+      error: message,
+      outputs: {},
+      finishedAt: Date.now(),
+    });
+    const event = toEventRecord(base, config, {
+      status: 'error',
+      error: message,
+      updatedAt: Date.now(),
+    });
+    await saveEvent(event);
+    throw err;
+  }
+}
+
+function toEventRecord(
+  base: EventRecapRecord | undefined,
+  config: EventRecapConfig,
+  patch: Partial<EventRecapRecord>
+): EventRecapRecord {
+  const now = Date.now();
+  return {
+    ...config,
+    status: base?.status ?? 'draft',
+    canonicalName: base?.canonicalName,
+    officialUrl: base?.officialUrl,
+    location: base?.location,
+    startsAt: base?.startsAt,
+    endsAt: base?.endsAt,
+    usedCredits: base?.usedCredits ?? 0,
+    querySet: base?.querySet ?? [config.name],
+    sourceUrls: base?.sourceUrls ?? [],
+    lastRunAt: base?.lastRunAt,
+    nextRefreshAt: base?.nextRefreshAt,
+    error: base?.error,
+    createdAt: base?.createdAt ?? now,
+    updatedAt: now,
+    ...patch,
+  };
+}
+
+function liveRunShell(input: {
+  runId: string;
+  eventId: string;
+  querySet: string[];
+  windowStart: string;
+  windowEnd: string;
+  maxItemsPerPlatform: number;
+  estimatedCredits: number;
+}): EventScrapeRun {
+  return {
+    runId: input.runId,
+    eventId: input.eventId,
+    status: 'running',
+    mode: 'tinyfish',
+    provider: 'tinyfish',
+    platforms: PLATFORMS,
+    querySet: input.querySet,
+    windowStart: input.windowStart,
+    windowEnd: input.windowEnd,
+    maxItemsPerPlatform: input.maxItemsPerPlatform,
+    estimatedCredits: input.estimatedCredits,
+    streamingUrls: [],
+    warnings: [],
+    inputs: input,
+    outputs: {},
+    startedAt: Date.now(),
+  };
+}
+
+function skippedBudgetRun(input: {
+  runId: string;
+  eventId: string;
+  querySet: string[];
+  windowStart: string;
+  windowEnd: string;
+  maxItemsPerPlatform: number;
+  estimatedCredits: number;
+}): EventScrapeRun {
+  return {
+    ...liveRunShell(input),
+    status: 'skipped',
+    warnings: ['monthly TinyFish credit budget would be exceeded'],
+    finishedAt: Date.now(),
+  };
+}
+
+function materializePosts(
+  eventId: string,
+  runId: string,
+  results: PlatformScrapeResult[]
+): EventPost[] {
+  const capturedAt = Date.now();
+  return scorePostsByPlatform(
+    results.flatMap((result) =>
+      result.posts.map((post) => ({
+        ...post,
+        eventId,
+        runId,
+        capturedAt,
+        reachScore: 0,
+      }))
+    )
+  );
+}
+
+function mergePosts(existing: EventPost[], incoming: EventPost[]): EventPost[] {
+  const byUrl = new Map(existing.map((post) => [post.url, post]));
+  for (const post of incoming) byUrl.set(post.url, post);
+  return Array.from(byUrl.values());
+}
+
+function nextRefreshAt(hours: number): number {
+  return Date.now() + hours * 60 * 60 * 1000;
+}
+
+function linkedinCredentialItemIds(): string[] | undefined {
+  const raw = process.env.TINYFISH_LINKEDIN_CREDENTIAL_ITEM_IDS?.trim();
+  if (!raw) return undefined;
+  return raw
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function defaultMode(): 'mock' | 'tinyfish' {
+  return process.env.EVENT_RECAP_EXECUTION_MODE === 'tinyfish' ? 'tinyfish' : 'mock';
+}
