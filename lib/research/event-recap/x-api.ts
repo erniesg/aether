@@ -1,5 +1,5 @@
 import { TwitterApi } from 'twitter-api-v2';
-import type { EventAuthorMeta, PlatformScrapeResult } from './types';
+import type { EventAuthorMeta, EventPostMedia, PlatformScrapeResult } from './types';
 import { makePostId, normalizeQuerySet } from './utils';
 
 type XSearchEnv = Partial<Record<string, string | undefined>>;
@@ -25,6 +25,9 @@ interface XTweet {
   id: string;
   text: string;
   author_id?: string;
+  attachments?: {
+    media_keys?: string[];
+  };
   created_at?: string;
   public_metrics?: {
     retweet_count?: number;
@@ -38,6 +41,16 @@ interface XTweet {
   in_reply_to_user_id?: string;
   referenced_tweets?: Array<{ type: string; id: string }>;
   lang?: string;
+}
+
+interface XMedia {
+  media_key: string;
+  type?: 'photo' | 'video' | 'animated_gif' | string;
+  url?: string;
+  preview_image_url?: string;
+  alt_text?: string;
+  width?: number;
+  height?: number;
 }
 
 interface XQueryPlan {
@@ -93,6 +106,7 @@ export async function searchXViaOfficialApi(
   const timeWindow = recentSearchWindow(input.windowStart, input.windowEnd);
   const queryPlan = buildXQueryPlan(input.querySet);
   const users = new Map<string, XUser>();
+  const media = new Map<string, XMedia>();
   const tweetsById = new Map<string, XTweet>();
   const perQuery = Math.max(25, Math.ceil(input.maxItems / Math.max(1, Math.min(queryPlan.length, 4))));
   const rawQueries: Array<{
@@ -128,8 +142,9 @@ export async function searchXViaOfficialApi(
     try {
       const paginator = (await client.v2.search(plan.query, {
         max_results: Math.max(10, Math.min(100, perQuery)),
-        expansions: ['author_id'],
+        expansions: ['author_id', 'attachments.media_keys'],
         'tweet.fields': [
+          'attachments',
           'author_id',
           'conversation_id',
           'created_at',
@@ -148,10 +163,19 @@ export async function searchXViaOfficialApi(
           'verified',
           'verified_type',
         ],
+        'media.fields': [
+          'alt_text',
+          'height',
+          'media_key',
+          'preview_image_url',
+          'type',
+          'url',
+          'width',
+        ],
         start_time: timeWindow.startTime,
         end_time: timeWindow.endTime,
       } as never)) as unknown as AsyncIterable<XTweet> & {
-        includes?: { users?: XUser[] };
+        includes?: { media?: XMedia[]; users?: XUser[] };
         meta?: Record<string, unknown>;
       };
 
@@ -162,6 +186,7 @@ export async function searchXViaOfficialApi(
         if (fetched >= perQuery || tweetsById.size >= input.maxItems) break;
       }
       for (const user of paginator.includes?.users ?? []) users.set(user.id, user);
+      for (const item of paginator.includes?.media ?? []) media.set(item.media_key, item);
       rawQueries.push({
         source: plan.source,
         query: plan.query,
@@ -187,6 +212,7 @@ export async function searchXViaOfficialApi(
       env,
       timeWindow,
       roots: Array.from(tweetsById.values()),
+      media,
       users,
       maxItemsRemaining: input.maxItems - tweetsById.size,
     });
@@ -197,7 +223,7 @@ export async function searchXViaOfficialApi(
 
   return {
     platform: 'x',
-    posts: tweets.map((tweet) => toEventPost(tweet, users)),
+    posts: tweets.map((tweet) => toEventPost(tweet, users, media)),
     warnings:
       tweets.length > 0
         ? []
@@ -215,6 +241,7 @@ async function fetchRepliesForTopPosts(input: {
   env: XSearchEnv;
   timeWindow: { startTime: string; endTime: string };
   roots: XTweet[];
+  media: Map<string, XMedia>;
   users: Map<string, XUser>;
   maxItemsRemaining: number;
 }): Promise<{
@@ -248,8 +275,9 @@ async function fetchRepliesForTopPosts(input: {
     try {
       const paginator = (await input.client.v2.search(query, {
         max_results: Math.max(10, Math.min(100, perRoot)),
-        expansions: ['author_id'],
+        expansions: ['author_id', 'attachments.media_keys'],
         'tweet.fields': [
+          'attachments',
           'author_id',
           'conversation_id',
           'created_at',
@@ -268,10 +296,19 @@ async function fetchRepliesForTopPosts(input: {
           'verified',
           'verified_type',
         ],
+        'media.fields': [
+          'alt_text',
+          'height',
+          'media_key',
+          'preview_image_url',
+          'type',
+          'url',
+          'width',
+        ],
         start_time: input.timeWindow.startTime,
         end_time: input.timeWindow.endTime,
       } as never)) as unknown as AsyncIterable<XTweet> & {
-        includes?: { users?: XUser[] };
+        includes?: { media?: XMedia[]; users?: XUser[] };
         meta?: Record<string, unknown>;
       };
 
@@ -284,6 +321,7 @@ async function fetchRepliesForTopPosts(input: {
         if (fetched >= perRoot || repliesById.size >= input.maxItemsRemaining) break;
       }
       for (const user of paginator.includes?.users ?? []) input.users.set(user.id, user);
+      for (const item of paginator.includes?.media ?? []) input.media.set(item.media_key, item);
       raw.push({ rootId, query, fetched, meta: paginator.meta });
     } catch (err) {
       raw.push({
@@ -381,7 +419,7 @@ async function countRecentPosts(
   }
 }
 
-function toEventPost(tweet: XTweet, users: Map<string, XUser>) {
+function toEventPost(tweet: XTweet, users: Map<string, XUser>, media: Map<string, XMedia>) {
   const user = tweet.author_id ? users.get(tweet.author_id) : undefined;
   const handle = user?.username;
   const url = handle
@@ -409,6 +447,7 @@ function toEventPost(tweet: XTweet, users: Map<string, XUser>) {
       impressions: metrics.impression_count,
       views: metrics.impression_count,
     },
+    media: mediaFromTweet(tweet, media),
     tags,
     raw: tweet,
   };
@@ -428,6 +467,30 @@ function authorMetaFromXUser(user?: XUser): EventAuthorMeta | undefined {
     verifiedType: user.verified_type,
     profileImageUrl: user.profile_image_url,
   };
+}
+
+function mediaFromTweet(tweet: XTweet, media: Map<string, XMedia>): EventPostMedia[] | undefined {
+  const items = (tweet.attachments?.media_keys ?? [])
+    .map((key) => media.get(key))
+    .filter((item): item is XMedia => Boolean(item))
+    .map((item) => ({
+      url: item.url ?? item.preview_image_url ?? '',
+      type: xMediaType(item.type),
+      source: 'x-api',
+      previewUrl: item.preview_image_url,
+      altText: item.alt_text,
+      width: item.width,
+      height: item.height,
+    }))
+    .filter((item) => item.url.length > 0);
+  return items.length ? items : undefined;
+}
+
+function xMediaType(type?: string): EventPostMedia['type'] {
+  if (type === 'photo') return 'image';
+  if (type === 'video') return 'video';
+  if (type === 'animated_gif') return 'gif';
+  return 'unknown';
 }
 
 async function getAppOnlyBearerToken(env: XSearchEnv): Promise<string | undefined> {

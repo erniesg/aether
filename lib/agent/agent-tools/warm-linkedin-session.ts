@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'warm_linkedin_session',
   description:
-    'Start a TinyFish LinkedIn Vault/profile warm-up run and return handoff state. If LinkedIn needs human verification, use inspectorUrl for interactive verification; streamingUrl is read-only preview/provenance only.',
+    'Start a TinyFish LinkedIn Vault/profile warm-up run and return handoff state. If LinkedIn needs human verification, use inspectorUrl for interactive verification; streamingUrl is read-only preview/provenance only. Verified sessions may not persist into later Agent scrapes, so use this as a handoff/probe and prefer Search+Fetch fanout for high-recall LinkedIn collection.',
   input_schema: {
     type: 'object',
     properties: {

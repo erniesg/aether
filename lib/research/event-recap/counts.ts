@@ -164,7 +164,7 @@ async function countLinkedInViaTinyFishBrowser(input: {
         warnings: [
           ...vaultWarnings,
           err.needsHumanVerification
-            ? 'LinkedIn requested human verification in the TinyFish browser session. Open the streaming URL, complete the check, then rerun the browser-direct probe.'
+            ? 'LinkedIn requested human verification in the TinyFish browser session. Call warm_linkedin_session, open inspectorUrl for the interactive check, then rerun the browser-direct probe. streamingUrl is read-only preview/provenance.'
             : err.message,
         ],
       };
