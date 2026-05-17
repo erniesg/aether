@@ -26,6 +26,11 @@ interface XTweet {
   lang?: string;
 }
 
+interface XQueryPlan {
+  query: string;
+  source: string;
+}
+
 export function isXSearchConfigured(
   env: XSearchEnv = process.env
 ): boolean {
@@ -62,28 +67,76 @@ export async function searchXViaOfficialApi(
     accessSecret: env.X_ACCESS_TOKEN_SECRET!.trim(),
   });
 
-  const query = buildXQuery(input.querySet);
   const timeWindow = recentSearchWindow(input.windowStart, input.windowEnd);
-  const paginator = (await client.v2.search(query, {
-    max_results: Math.max(10, Math.min(100, input.maxItems)),
-    expansions: ['author_id'],
-    'tweet.fields': ['author_id', 'created_at', 'public_metrics', 'lang'],
-    'user.fields': ['name', 'username', 'verified'],
-    start_time: timeWindow.startTime,
-    end_time: timeWindow.endTime,
-  } as never)) as unknown as AsyncIterable<XTweet> & {
-    includes?: { users?: XUser[] };
-    meta?: Record<string, unknown>;
-  };
-
+  const queryPlan = buildXQueryPlan(input.querySet);
   const users = new Map<string, XUser>();
-  for (const user of paginator.includes?.users ?? []) users.set(user.id, user);
+  const tweetsById = new Map<string, XTweet>();
+  const perQuery = Math.max(25, Math.ceil(input.maxItems / Math.max(1, Math.min(queryPlan.length, 4))));
+  const rawQueries: Array<{
+    source: string;
+    query: string;
+    count?: number;
+    countError?: string;
+    fetched: number;
+    meta?: Record<string, unknown>;
+    error?: string;
+  }> = [];
 
-  const tweets: XTweet[] = [];
-  for await (const tweet of paginator) {
-    tweets.push(tweet);
-    if (tweets.length >= input.maxItems) break;
+  for (const plan of queryPlan) {
+    if (tweetsById.size >= input.maxItems) break;
+    let count: number | undefined;
+    let countError: string | undefined;
+    try {
+      const counts = (await client.v2.tweetCountRecent(plan.query, {
+        start_time: timeWindow.startTime,
+        end_time: timeWindow.endTime,
+      } as never)) as unknown as { meta?: { total_tweet_count?: number } };
+      count = counts.meta?.total_tweet_count;
+    } catch (err) {
+      countError = err instanceof Error ? err.message : String(err);
+      // Counts are advisory for planning only; search still carries the scrape.
+    }
+
+    try {
+      const paginator = (await client.v2.search(plan.query, {
+        max_results: Math.max(10, Math.min(100, perQuery)),
+        expansions: ['author_id'],
+        'tweet.fields': ['author_id', 'created_at', 'public_metrics', 'lang'],
+        'user.fields': ['name', 'username', 'verified'],
+        start_time: timeWindow.startTime,
+        end_time: timeWindow.endTime,
+      } as never)) as unknown as AsyncIterable<XTweet> & {
+        includes?: { users?: XUser[] };
+        meta?: Record<string, unknown>;
+      };
+
+      let fetched = 0;
+      for await (const tweet of paginator) {
+        tweetsById.set(tweet.id, tweet);
+        fetched += 1;
+        if (fetched >= perQuery || tweetsById.size >= input.maxItems) break;
+      }
+      for (const user of paginator.includes?.users ?? []) users.set(user.id, user);
+      rawQueries.push({
+        source: plan.source,
+        query: plan.query,
+        count,
+        countError,
+        fetched,
+        meta: paginator.meta,
+      });
+    } catch (err) {
+      rawQueries.push({
+        source: plan.source,
+        query: plan.query,
+        count,
+        countError,
+        fetched: 0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
+  const tweets = Array.from(tweetsById.values()).slice(0, input.maxItems);
 
   return {
     platform: 'x',
@@ -117,27 +170,66 @@ export async function searchXViaOfficialApi(
     warnings:
       tweets.length > 0
         ? []
-        : [`X official search returned no posts for query: ${query}`],
+        : [`X official search returned no posts for ${queryPlan.length} expansion queries`],
     raw: {
-      query,
+      queries: rawQueries,
       timeWindow,
-      meta: paginator.meta,
     },
   };
 }
 
-function buildXQuery(querySet: string[]): string {
-  const candidates = normalizeQuerySet(querySet)
+export function buildXQueryPlan(querySet: string[], limit = 12): XQueryPlan[] {
+  const candidates = normalizeQuerySet(querySet, limit)
     .filter((query) => !query.toLowerCase().includes(' singapore singapore'))
-    .slice(0, 5);
-  const quoted = candidates
-    .filter((query) => query.startsWith('"') || query.startsWith('#'))
-    .slice(0, 4);
-  const terms = quoted.length ? quoted : candidates.slice(0, 3);
-  return `${terms.join(' OR ')} -is:retweet`;
+    .map((query) => query.trim())
+    .filter(Boolean);
+  const planned = candidates.map((source) => ({
+    source,
+    query: toXSearchQuery(source),
+  }));
+  return dedupeQueryPlan(planned);
 }
 
-function recentSearchWindow(
+function toXSearchQuery(source: string): string {
+  const handle = source.match(/^@([A-Za-z0-9_]{2,30})(?:\s+(.+))?$/);
+  if (handle) {
+    const rest = handle[2]?.trim();
+    const context = rest && !/^singapore$/i.test(rest) ? quoteIfPlain(rest) : '(Singapore OR "AI Engineer")';
+    return `(@${handle[1]} OR from:${handle[1]}) ${context} -is:retweet`;
+  }
+  const hashtag = source.match(/^(#[A-Za-z][A-Za-z0-9_]{2,40})(?:\s+(.+))?$/);
+  if (hashtag) {
+    const rest = hashtag[2]?.trim();
+    return `${hashtag[1]} ${rest ? quoteIfPlain(rest) : '(Singapore OR "AI Engineer")'} -is:retweet`;
+  }
+  if (source.includes('"') || /\b(OR|from:|url:|has:|is:|lang:)\b/i.test(source)) {
+    return `${source} -is:retweet`;
+  }
+  return `${quoteIfPlain(source)} -is:retweet`;
+}
+
+function quoteIfPlain(value: string): string {
+  const compact = value.trim().replace(/\s+/g, ' ');
+  if (!compact) return compact;
+  if (compact.startsWith('"') || compact.startsWith('(')) return compact;
+  if (/^[#@]/.test(compact)) return compact;
+  if (/\s/.test(compact)) return `"${compact}"`;
+  return compact;
+}
+
+function dedupeQueryPlan(plans: XQueryPlan[]): XQueryPlan[] {
+  const seen = new Set<string>();
+  const out: XQueryPlan[] = [];
+  for (const plan of plans) {
+    const key = plan.query.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(plan);
+  }
+  return out;
+}
+
+export function recentSearchWindow(
   windowStart: string,
   windowEnd: string,
   now = new Date()
