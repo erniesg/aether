@@ -35,7 +35,10 @@ describe('TinyFish event recap normalization', () => {
           text: 'My practical takeaway from AI Engineer Singapore was that evals need owners.',
           reactions: 12,
           comments: 2,
-          image_urls: ['https://media.licdn.com/dms/image/example.jpg'],
+          image_urls: [
+            'https://media.licdn.com/dms/image/v2/D4E22AQContent/feedshare-shrink_1280/example.jpg',
+            'https://media.licdn.com/dms/image/v2/D4D3DAQHP_rpB7v5-Lg/image-scale_191_1128/daytonaio_cover.jpg',
+          ],
           comments_list: [
             {
               author_name: 'Attendee',
@@ -54,7 +57,7 @@ describe('TinyFish event recap normalization', () => {
       metrics: { reactions: 12, comments: 2 },
       media: [
         {
-          url: 'https://media.licdn.com/dms/image/example.jpg',
+          url: 'https://media.licdn.com/dms/image/v2/D4E22AQContent/feedshare-shrink_1280/example.jpg',
           type: 'image',
           source: 'linkedin-tinyfish',
         },
@@ -186,7 +189,9 @@ describe('TinyFish event recap normalization', () => {
               title: 'New post | Sherry Jiang',
               text: 'AI Engineer Singapore had useful agent workflow takeaways. More Relevant Posts unrelated text.',
               image_links: [
-                'https://media.licdn.com/dms/image/v2/D5610AQContent/image-scale_191_1128/example?e=1',
+                'https://media.licdn.com/dms/image/v2/D5610AQContent/feedshare-image-high-res/example?e=1',
+                'https://media.licdn.com/dms/image/v2/D5610AQContent/image-scale_191_1128/example_cover?e=1',
+                'https://media.licdn.com/dms/image/v2/C561BAQContent/company-background_1536_768/example?e=1',
                 'https://media.licdn.com/dms/image/v2/D5616AQProfile/profile-displayphoto-shrink_100_100/profile.jpg',
               ],
             },
@@ -215,7 +220,7 @@ describe('TinyFish event recap normalization', () => {
       text: 'AI Engineer Singapore had useful agent workflow takeaways.',
       media: [
         {
-          url: 'https://media.licdn.com/dms/image/v2/D5610AQContent/image-scale_191_1128/example?e=1',
+          url: 'https://media.licdn.com/dms/image/v2/D5610AQContent/feedshare-image-high-res/example?e=1',
           type: 'image',
           source: 'linkedin-tinyfish-fetch',
         },
