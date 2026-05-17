@@ -61,7 +61,7 @@ export function clampConfig(input: Partial<EventRecapConfig> & { name: string })
   const daysBefore = clampNumber(input.daysBefore, 0, 30, 1);
   const daysAfter = clampNumber(input.daysAfter, 0, 30, 3);
   const refreshIntervalHours = clampNumber(input.refreshIntervalHours, 1, 168, 6);
-  const maxItemsPerPlatform = clampNumber(input.maxItemsPerPlatform, 1, 100, 25);
+  const maxItemsPerPlatform = clampNumber(input.maxItemsPerPlatform, 1, 1000, 25);
   const monthlyCreditBudget = clampNumber(input.monthlyCreditBudget, 0, 1000, 50);
   return {
     eventId: input.eventId || createEventId(input.name),
@@ -171,7 +171,7 @@ export function shortExcerpt(text: string, limit = 220): string {
   return `${compact.slice(0, limit - 1).trim()}...`;
 }
 
-export function normalizeQuerySet(values: ReadonlyArray<string>): string[] {
+export function normalizeQuerySet(values: ReadonlyArray<string>, limit = 12): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of values) {
@@ -181,5 +181,5 @@ export function normalizeQuerySet(values: ReadonlyArray<string>): string[] {
     seen.add(key);
     out.push(value);
   }
-  return out.slice(0, 12);
+  return out.slice(0, limit);
 }

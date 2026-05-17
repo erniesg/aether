@@ -152,3 +152,28 @@ export interface EventThemeDraft {
   score: number;
   evidence: ThemeEvidenceSample[];
 }
+
+export type EventExpansionAnchorKind = 'mention' | 'hashtag' | 'author' | 'entity' | 'query';
+
+export interface EventExpansionAnchor {
+  kind: EventExpansionAnchorKind;
+  value: string;
+  query: string;
+  score: number;
+  count: number;
+  platforms: EventPlatform[];
+  samplePostIds: string[];
+  reason: string;
+}
+
+export interface EventExpansionPlan {
+  eventName: string;
+  generatedAt: number;
+  corpus: {
+    posts: number;
+    platforms: Record<EventPlatform, number>;
+  };
+  anchors: EventExpansionAnchor[];
+  querySet: string[];
+  warnings: string[];
+}

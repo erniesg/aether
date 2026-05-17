@@ -14,6 +14,7 @@ import type * as brandPolicy from "../brandPolicy.js";
 import type * as campaigns from "../campaigns.js";
 import type * as clusters from "../clusters.js";
 import type * as creatorContext from "../creatorContext.js";
+import type * as eventRecaps from "../eventRecaps.js";
 import type * as inboundReply from "../inboundReply.js";
 import type * as lapEvent from "../lapEvent.js";
 import type * as proposals from "../proposals.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   campaigns: typeof campaigns;
   clusters: typeof clusters;
   creatorContext: typeof creatorContext;
+  eventRecaps: typeof eventRecaps;
   inboundReply: typeof inboundReply;
   lapEvent: typeof lapEvent;
   proposals: typeof proposals;

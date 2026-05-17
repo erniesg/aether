@@ -1,4 +1,5 @@
 import { analyzePosts } from './analyze';
+import { deriveExpansionPlan } from './expand';
 import { mockResolveEvent, mockRunShell, mockScrapePlatform } from './mock';
 import {
   getEventBundle,
@@ -17,13 +18,14 @@ import {
 import { isXSearchConfigured, searchXViaOfficialApi } from './x-api';
 import type {
   EventPlatform,
+  EventExpansionPlan,
   EventPost,
   EventRecapConfig,
   EventRecapRecord,
   EventScrapeRun,
   PlatformScrapeResult,
 } from './types';
-import { clampConfig, eventWindow, scorePostsByPlatform } from './utils';
+import { clampConfig, eventWindow, normalizeQuerySet, scorePostsByPlatform } from './utils';
 
 const PLATFORMS: EventPlatform[] = ['x', 'linkedin'];
 
@@ -87,7 +89,15 @@ export async function refreshEventRecap(
     daysBefore: config.daysBefore,
     daysAfter: config.daysAfter,
   });
-  const estimatedCredits = config.liveMode === 'tinyfish' ? PLATFORMS.length * 10 : 0;
+  const activeQuerySet = normalizeQuerySet([...(base?.querySet ?? []), ...resolution.querySet]);
+  const estimatedCredits =
+    config.liveMode === 'tinyfish'
+      ? estimateTinyFishCredits({
+          platforms: PLATFORMS.length,
+          queryCount: activeQuerySet.length,
+          maxItemsPerPlatform: config.maxItemsPerPlatform,
+        })
+      : 0;
   const usedCredits = base?.usedCredits ?? 0;
   const runId = `event_${config.eventId}_${Date.now().toString(36)}`;
 
@@ -99,7 +109,7 @@ export async function refreshEventRecap(
     const skippedRun = skippedBudgetRun({
       runId,
       eventId: config.eventId,
-      querySet: resolution.querySet,
+      querySet: activeQuerySet,
       windowStart,
       windowEnd,
       maxItemsPerPlatform: config.maxItemsPerPlatform,
@@ -114,7 +124,7 @@ export async function refreshEventRecap(
       location: resolution.location,
       startsAt: resolution.startsAt,
       endsAt: resolution.endsAt,
-      querySet: resolution.querySet,
+      querySet: activeQuerySet,
       sourceUrls: resolution.sourceUrls,
       usedCredits,
       nextRefreshAt: nextRefreshAt(config.refreshIntervalHours),
@@ -129,7 +139,7 @@ export async function refreshEventRecap(
       ? mockRunShell({
           runId,
           eventId: config.eventId,
-          querySet: resolution.querySet,
+          querySet: activeQuerySet,
           windowStart,
           windowEnd,
           maxItemsPerPlatform: config.maxItemsPerPlatform,
@@ -137,7 +147,7 @@ export async function refreshEventRecap(
       : liveRunShell({
           runId,
           eventId: config.eventId,
-          querySet: resolution.querySet,
+          querySet: activeQuerySet,
           windowStart,
           windowEnd,
           maxItemsPerPlatform: config.maxItemsPerPlatform,
@@ -152,7 +162,7 @@ export async function refreshEventRecap(
     location: resolution.location,
     startsAt: resolution.startsAt,
     endsAt: resolution.endsAt,
-    querySet: resolution.querySet,
+    querySet: activeQuerySet,
     sourceUrls: resolution.sourceUrls,
     updatedAt: Date.now(),
   });
@@ -168,7 +178,7 @@ export async function refreshEventRecap(
             PLATFORMS.map(async (platform) => {
               if (platform === 'x' && isXSearchConfigured()) {
                 const official = await searchXViaOfficialApi({
-                  querySet: resolution.querySet,
+                  querySet: activeQuerySet,
                   windowStart,
                   windowEnd,
                   maxItems: config.maxItemsPerPlatform,
@@ -178,7 +188,7 @@ export async function refreshEventRecap(
 
               const result = await scrapePlatformViaTinyFish({
                 platform,
-                querySet: resolution.querySet,
+                querySet: activeQuerySet,
                 windowStart,
                 windowEnd,
                 maxItems: config.maxItemsPerPlatform,
@@ -188,7 +198,7 @@ export async function refreshEventRecap(
               if (result.posts.length > 0) return result;
               const fallback = await searchPlatformFallbackViaTinyFish({
                 platform,
-                querySet: resolution.querySet,
+                querySet: activeQuerySet,
                 maxItems: config.maxItemsPerPlatform,
               });
               return {
@@ -203,6 +213,10 @@ export async function refreshEventRecap(
     const posts = materializePosts(config.eventId, runId, platformResults);
     const previousPosts = existing?.posts ?? [];
     const merged = mergePosts(previousPosts, posts);
+    const expansion = deriveExpansionPlan(resolution.canonicalName ?? config.name, merged, {
+      baseQueries: activeQuerySet,
+      maxQueries: 12,
+    });
     const analysis = analyzePosts(config.eventId, merged);
 
     await savePosts(config.eventId, posts);
@@ -221,12 +235,14 @@ export async function refreshEventRecap(
         })),
       warnings: [
         ...resolution.warnings,
+        ...expansion.warnings,
         ...platformResults.flatMap((result) => result.warnings),
       ],
       outputs: {
         posts: posts.length,
         themes: analysis.themes.length,
         voices: analysis.voices.length,
+        expansion: summarizeExpansion(expansion),
       },
       finishedAt: Date.now(),
     };
@@ -239,7 +255,7 @@ export async function refreshEventRecap(
       location: resolution.location,
       startsAt: resolution.startsAt,
       endsAt: resolution.endsAt,
-      querySet: resolution.querySet,
+      querySet: expansion.querySet,
       sourceUrls: resolution.sourceUrls,
       usedCredits: usedCredits + estimatedCredits,
       lastRunAt: finishedRun.finishedAt,
@@ -377,6 +393,33 @@ function linkedinCredentialItemIds(): string[] | undefined {
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean);
+}
+
+function estimateTinyFishCredits(input: {
+  platforms: number;
+  queryCount: number;
+  maxItemsPerPlatform: number;
+}): number {
+  const queryFactor = Math.min(12, input.queryCount * 0.75);
+  const volumeFactor = Math.min(20, input.maxItemsPerPlatform / 100);
+  return Math.ceil(input.platforms * (3 + queryFactor + volumeFactor));
+}
+
+function summarizeExpansion(expansion: EventExpansionPlan) {
+  return {
+    corpus: expansion.corpus,
+    querySet: expansion.querySet,
+    anchors: expansion.anchors.slice(0, 12).map((anchor) => ({
+      kind: anchor.kind,
+      value: anchor.value,
+      query: anchor.query,
+      score: anchor.score,
+      count: anchor.count,
+      platforms: anchor.platforms,
+      samplePostIds: anchor.samplePostIds.slice(0, 3),
+      reason: anchor.reason,
+    })),
+  };
 }
 
 function defaultMode(): 'mock' | 'tinyfish' {

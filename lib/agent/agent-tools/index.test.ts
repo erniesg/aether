@@ -15,6 +15,7 @@ describe('listAgentTools', () => {
     expect(names).toContain('query_event_posts');
     expect(names).toContain('get_event_theme_summary');
     expect(names).toContain('get_event_top_voices');
+    expect(names).toContain('get_event_expansion_plan');
   });
 
   it('every tool exposes a non-empty Anthropic SDK Tool shape', () => {
