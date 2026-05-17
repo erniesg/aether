@@ -105,6 +105,7 @@ interface ScrapedCommentPayload {
 
 function apiKey(): string {
   const key = process.env.TINYFISH_API_KEY?.trim();
+  if (!key && process.env.NODE_ENV === 'test') return 'test-tinyfish-key';
   if (!key) throw new Error('TINYFISH_API_KEY is not set');
   return key;
 }
@@ -330,6 +331,60 @@ export async function searchPlatformFallbackViaTinyFish(
       `TinyFish Agent could not access ${input.platform} posts directly; used Search API snippets as cited fallback`,
     ],
     raw: searchJson,
+  };
+}
+
+export async function countPlatformViaTinyFishSearch(
+  input: {
+    platform: EventPlatform;
+    querySet: string[];
+    maxQueries?: number;
+  },
+  fetcher: Fetcher = fetch
+): Promise<{
+  platform: EventPlatform;
+  estimates: Array<{ source: string; query: string; count: number; urls: string[]; error?: string }>;
+  totalLowerBound: number;
+  warnings: string[];
+}> {
+  const queries = normalizeQuerySet(input.querySet, input.maxQueries ?? 8);
+  const estimates: Array<{ source: string; query: string; count: number; urls: string[]; error?: string }> = [];
+  for (const source of queries) {
+    const query = platformSearchFallbackQuery(input.platform, [source]);
+    const searchUrl = new URL(SEARCH_ENDPOINT);
+    searchUrl.searchParams.set('query', query);
+    searchUrl.searchParams.set('location', 'SG');
+    searchUrl.searchParams.set('language', 'en');
+    try {
+      const res = await fetcher(searchUrl, { headers: { 'X-API-Key': apiKey() } });
+      if (!res.ok) {
+        estimates.push({ source, query, count: 0, urls: [], error: `HTTP ${res.status}` });
+        continue;
+      }
+      const json = (await res.json()) as TinyFishSearchResponse;
+      const urls = (json.results ?? [])
+        .map((result) => result.url)
+        .filter((url): url is string => Boolean(url))
+        .filter((url) => isPlatformPostUrl(input.platform, url));
+      estimates.push({ source, query, count: urls.length, urls });
+    } catch (err) {
+      estimates.push({
+        source,
+        query,
+        count: 0,
+        urls: [],
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return {
+    platform: input.platform,
+    estimates,
+    totalLowerBound: new Set(estimates.flatMap((estimate) => estimate.urls)).size,
+    warnings: [
+      `${input.platform} TinyFish Search counts are indexed-public URL estimates, not platform-total counts.`,
+      'Search-index results are biased toward public, indexed, and high-ranking posts; use browser scraping for recall.',
+    ],
   };
 }
 

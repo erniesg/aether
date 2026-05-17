@@ -45,6 +45,13 @@ interface XQueryPlan {
   source: string;
 }
 
+export interface XCountEstimate {
+  source: string;
+  query: string;
+  count?: number;
+  error?: string;
+}
+
 let cachedAppOnlyBearerToken: string | undefined;
 
 export function isXSearchConfigured(
@@ -301,6 +308,47 @@ export function buildXQueryPlan(querySet: string[], limit = 12): XQueryPlan[] {
     query: toXSearchQuery(source),
   }));
   return dedupeQueryPlan(planned);
+}
+
+export async function countXRecentQueries(
+  input: {
+    querySet: string[];
+    windowStart: string;
+    windowEnd: string;
+    maxQueries?: number;
+  },
+  env: XSearchEnv = process.env
+): Promise<{
+  platform: 'x';
+  windowStart: string;
+  windowEnd: string;
+  totalLowerBound: number;
+  estimates: XCountEstimate[];
+  warnings: string[];
+}> {
+  const timeWindow = recentSearchWindow(input.windowStart, input.windowEnd);
+  const plan = buildXQueryPlan(input.querySet, input.maxQueries ?? 12);
+  const estimates: XCountEstimate[] = [];
+  for (const item of plan) {
+    const result = await countRecentPosts(item.query, timeWindow, env);
+    estimates.push({
+      source: item.source,
+      query: item.query,
+      count: result.count,
+      error: result.error,
+    });
+  }
+  return {
+    platform: 'x',
+    windowStart: timeWindow.startTime,
+    windowEnd: timeWindow.endTime,
+    totalLowerBound: estimates.reduce((sum, estimate) => sum + (estimate.count ?? 0), 0),
+    estimates,
+    warnings: [
+      'X recent counts are per-query volumes, not deduped corpus size; overlapping anchors can count the same post multiple times.',
+      'X recent search/counts only cover the recent-search window available to the app.',
+    ],
+  };
 }
 
 async function countRecentPosts(
