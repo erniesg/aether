@@ -1,4 +1,5 @@
 import { analyzePosts } from './analyze';
+import { enrichPostConversationTags } from './conversation';
 import { deriveExpansionPlan } from './expand';
 import { mockResolveEvent, mockRunShell, mockScrapePlatform } from './mock';
 import {
@@ -12,6 +13,7 @@ import {
 } from './store';
 import {
   resolveEventViaTinyFish,
+  scrapePlatformFrontierViaTinyFish,
   scrapePlatformViaTinyFish,
   searchPlatformFallbackViaTinyFish,
 } from './tinyfish';
@@ -186,15 +188,24 @@ export async function refreshEventRecap(
                 if (official.posts.length > 0) return official;
               }
 
-              const result = await scrapePlatformViaTinyFish({
-                platform,
-                querySet: activeQuerySet,
-                windowStart,
-                windowEnd,
-                maxItems: config.maxItemsPerPlatform,
-                credentialItemIds:
-                  platform === 'linkedin' ? linkedinCredentialItemIds() : undefined,
-              });
+              const result =
+                platform === 'linkedin'
+                  ? await scrapePlatformFrontierViaTinyFish({
+                      platform,
+                      querySet: activeQuerySet,
+                      windowStart,
+                      windowEnd,
+                      maxItems: config.maxItemsPerPlatform,
+                      credentialItemIds: linkedinCredentialItemIds(),
+                      maxQueries: linkedinFrontierQueryLimit(),
+                    })
+                  : await scrapePlatformViaTinyFish({
+                      platform,
+                      querySet: activeQuerySet,
+                      windowStart,
+                      windowEnd,
+                      maxItems: config.maxItemsPerPlatform,
+                    });
               if (result.posts.length > 0) return result;
               const fallback = await searchPlatformFallbackViaTinyFish({
                 platform,
@@ -372,6 +383,7 @@ function materializePosts(
         capturedAt,
         reachScore: 0,
       }))
+      .map(enrichPostConversationTags)
     )
   );
 }
@@ -395,6 +407,12 @@ function linkedinCredentialItemIds(): string[] | undefined {
     .filter(Boolean);
 }
 
+function linkedinFrontierQueryLimit(): number {
+  const raw = Number(process.env.TINYFISH_LINKEDIN_FRONTIER_QUERIES ?? 4);
+  if (!Number.isFinite(raw)) return 4;
+  return Math.max(1, Math.min(12, Math.round(raw)));
+}
+
 function estimateTinyFishCredits(input: {
   platforms: number;
   queryCount: number;
@@ -411,12 +429,14 @@ function summarizeExpansion(expansion: EventExpansionPlan) {
     querySet: expansion.querySet,
     anchors: expansion.anchors.slice(0, 12).map((anchor) => ({
       kind: anchor.kind,
+      sourceKind: anchor.sourceKind,
       value: anchor.value,
       query: anchor.query,
       score: anchor.score,
       count: anchor.count,
       platforms: anchor.platforms,
       samplePostIds: anchor.samplePostIds.slice(0, 3),
+      bias: anchor.bias,
       reason: anchor.reason,
     })),
   };

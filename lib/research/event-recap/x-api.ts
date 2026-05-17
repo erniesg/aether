@@ -31,6 +31,8 @@ interface XQueryPlan {
   source: string;
 }
 
+let cachedAppOnlyBearerToken: string | undefined;
+
 export function isXSearchConfigured(
   env: XSearchEnv = process.env
 ): boolean {
@@ -87,11 +89,9 @@ export async function searchXViaOfficialApi(
     let count: number | undefined;
     let countError: string | undefined;
     try {
-      const counts = (await client.v2.tweetCountRecent(plan.query, {
-        start_time: timeWindow.startTime,
-        end_time: timeWindow.endTime,
-      } as never)) as unknown as { meta?: { total_tweet_count?: number } };
-      count = counts.meta?.total_tweet_count;
+      const counts = await countRecentPosts(plan.query, timeWindow, env);
+      count = counts.count;
+      countError = counts.error;
     } catch (err) {
       countError = err instanceof Error ? err.message : String(err);
       // Counts are advisory for planning only; search still carries the scrape.
@@ -188,6 +188,66 @@ export function buildXQueryPlan(querySet: string[], limit = 12): XQueryPlan[] {
     query: toXSearchQuery(source),
   }));
   return dedupeQueryPlan(planned);
+}
+
+async function countRecentPosts(
+  query: string,
+  timeWindow: { startTime: string; endTime: string },
+  env: XSearchEnv
+): Promise<{ count?: number; error?: string }> {
+  const bearer = await getAppOnlyBearerToken(env);
+  if (!bearer) return { error: 'X app-only bearer token unavailable' };
+
+  const url = new URL('https://api.x.com/2/tweets/counts/recent');
+  url.searchParams.set('query', query);
+  url.searchParams.set('start_time', toXSecondTimestamp(timeWindow.startTime));
+  url.searchParams.set('end_time', toXSecondTimestamp(timeWindow.endTime));
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${bearer}` },
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    return {
+      error: `HTTP ${res.status}: ${text.slice(0, 240)}`,
+    };
+  }
+  try {
+    const json = JSON.parse(text) as { meta?: { total_tweet_count?: number } };
+    return { count: json.meta?.total_tweet_count };
+  } catch {
+    return { error: 'X counts response was not JSON' };
+  }
+}
+
+async function getAppOnlyBearerToken(env: XSearchEnv): Promise<string | undefined> {
+  const existing = env.X_BEARER_TOKEN?.trim() || env.X_APP_BEARER_TOKEN?.trim();
+  if (existing) return existing;
+  if (cachedAppOnlyBearerToken) return cachedAppOnlyBearerToken;
+
+  const key = env.X_API_KEY?.trim();
+  const secret = env.X_API_KEY_SECRET?.trim();
+  if (!key || !secret) return undefined;
+
+  const basic = Buffer.from(`${encodeURIComponent(key)}:${encodeURIComponent(secret)}`).toString(
+    'base64'
+  );
+  const res = await fetch('https://api.x.com/oauth2/token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basic}`,
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: 'grant_type=client_credentials',
+  });
+  if (!res.ok) return undefined;
+  const json = (await res.json()) as { access_token?: string };
+  cachedAppOnlyBearerToken = json.access_token;
+  return cachedAppOnlyBearerToken;
+}
+
+function toXSecondTimestamp(value: string): string {
+  return new Date(value).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 function toXSearchQuery(source: string): string {

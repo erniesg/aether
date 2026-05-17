@@ -2,9 +2,11 @@ import type {
   EventExpansionAnchor,
   EventExpansionAnchorKind,
   EventExpansionPlan,
+  EventFrontierSourceKind,
   EventPlatform,
   EventPost,
 } from './types';
+import { classifyConversationPost } from './conversation';
 import { engagement, normalizeQuerySet, tokenize } from './utils';
 
 const HIRING_NOISE = new Set([
@@ -103,7 +105,8 @@ export function deriveExpansionPlan(
   for (const post of posts) {
     platformCounts[post.platform] += 1;
     const relevance = relevanceScore(post, eventTokens);
-    const noisy = isHiringNoise(post);
+    const classification = classifyConversationPost(post);
+    const noisy = isHiringNoise(post) || classification.intent === 'announcement';
     for (const anchor of extractAnchors(post, eventName)) {
       if (
         anchor.kind === 'hashtag' &&
@@ -284,12 +287,14 @@ function toAnchor(candidate: Candidate, eventName: string): EventExpansionAnchor
   );
   return {
     kind: candidate.kind,
+    sourceKind: sourceKindForAnchor(candidate),
     value: candidate.value,
     query: queryForAnchor(candidate, eventName),
     score,
     count: candidate.count,
     platforms,
     samplePostIds: candidate.samplePostIds,
+    bias: biasForAnchor(candidate, platforms),
     reason: reasonForAnchor(candidate, platforms),
   };
 }
@@ -331,6 +336,32 @@ function reasonForAnchor(candidate: Candidate, platforms: EventPlatform[]): stri
   return `${candidate.count} corpus hits, ${candidate.relevantPosts} relevant hits, ${surface}${noisy}`;
 }
 
+function sourceKindForAnchor(candidate: Candidate): EventFrontierSourceKind {
+  if (/aidotengineer|ai\.engineer/i.test(candidate.value)) return 'official-schedule';
+  if (candidate.kind === 'hashtag' || candidate.kind === 'query') return 'broad-public-search';
+  if (candidate.kind === 'mention' || candidate.kind === 'author') return 'corpus-discovered';
+  if (/convex|openai|vercel|google|govtech|aisg|singtel/i.test(candidate.value)) {
+    return 'sponsor-org';
+  }
+  return 'corpus-discovered';
+}
+
+function biasForAnchor(candidate: Candidate, platforms: EventPlatform[]): string {
+  if (candidate.noisyPosts > candidate.relevantPosts) {
+    return 'likely announcement or hiring-heavy; use for discovery, not sentiment summary';
+  }
+  if (/aidotengineer|ai\.engineer/i.test(candidate.value)) {
+    return 'organizer-biased; high recall for event references but promo-heavy';
+  }
+  if (candidate.kind === 'hashtag') {
+    return 'public-search-biased; broad hashtags over-sample popular and promotional posts';
+  }
+  if (platforms.length === 1) {
+    return `platform-skewed toward ${platforms[0]}; validate against the other platform before summarizing`;
+  }
+  return 'corpus-discovered from mixed X and LinkedIn posts';
+}
+
 function officialEventAnchors(eventName: string): Array<{
   kind: EventExpansionAnchorKind;
   value: string;
@@ -352,6 +383,7 @@ function relevanceScore(post: EventPost, eventTokens: Set<string>): number {
   if (/\bSingapore\b/i.test(post.text) && /\bAI\b/i.test(post.text)) score += 2;
   if (/aiDotEngineer|AI Engineer Summit|AI\.Engineer/i.test(post.text)) score += 4;
   if (isHiringNoise(post)) score -= 3;
+  if (classifyConversationPost(post).intent === 'announcement') score -= 2;
   return score;
 }
 

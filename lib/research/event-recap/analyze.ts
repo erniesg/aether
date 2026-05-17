@@ -6,6 +6,7 @@ import type {
   EventVoice,
   ThemeEvidenceSample,
 } from './types';
+import { isConversationPost } from './conversation';
 import { engagement, shortExcerpt, slugify, tokenize } from './utils';
 
 interface ClusterSeed {
@@ -53,10 +54,12 @@ export interface AnalyzePostsResult {
 }
 
 export function analyzePosts(eventId: string, posts: EventPost[]): AnalyzePostsResult {
-  const drafts = clusterPosts(posts);
+  const conversationPosts = posts.filter(isConversationPost);
+  const analysisPosts = conversationPosts.length ? conversationPosts : posts;
+  const drafts = clusterPosts(analysisPosts);
   return {
     themes: drafts.map((draft) => toTheme(eventId, draft)),
-    voices: rankVoices(eventId, posts),
+    voices: rankVoices(eventId, analysisPosts),
   };
 }
 

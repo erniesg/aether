@@ -44,6 +44,13 @@ describe('event recap analysis', () => {
         text: 'Hiring signal: AI engineer roles are software engineering roles with evals, data pipelines and product judgment.',
         metrics: { likes: 20, reposts: 4, views: 2000 },
       }),
+      post({
+        postId: 'x_announcement',
+        platform: 'x',
+        authorName: 'Promo Voice',
+        text: 'Join us at AI Engineer Singapore for a keynote and panel session. Register now.',
+        metrics: { likes: 200, reposts: 60, views: 50000 },
+      }),
     ]);
 
     const result = analyzePosts('ai-engineer-summit-singapore', posts);
@@ -52,13 +59,14 @@ describe('event recap analysis', () => {
     expect(result.voices.map((voice) => voice.platform).sort()).toEqual([
       'linkedin',
       'x',
-      'x',
     ]);
 
     const summaries = result.themes.map((theme) => theme.summary).join('\n');
     expect(summaries).toContain('https://example.com/');
     expect(result.themes.flatMap((theme) => theme.postIds)).toEqual(
-      expect.arrayContaining(['x_evals', 'li_evals', 'x_hiring'])
+      expect.arrayContaining(['x_evals', 'li_evals'])
     );
+    expect(result.themes.flatMap((theme) => theme.postIds)).not.toContain('x_announcement');
+    expect(result.themes.flatMap((theme) => theme.postIds)).not.toContain('x_hiring');
   });
 });

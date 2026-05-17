@@ -154,15 +154,24 @@ export interface EventThemeDraft {
 }
 
 export type EventExpansionAnchorKind = 'mention' | 'hashtag' | 'author' | 'entity' | 'query';
+export type EventFrontierSourceKind =
+  | 'broad-public-search'
+  | 'official-schedule'
+  | 'speaker-account'
+  | 'sponsor-org'
+  | 'corpus-discovered'
+  | 'engagement-graph';
 
 export interface EventExpansionAnchor {
   kind: EventExpansionAnchorKind;
+  sourceKind: EventFrontierSourceKind;
   value: string;
   query: string;
   score: number;
   count: number;
   platforms: EventPlatform[];
   samplePostIds: string[];
+  bias: string;
   reason: string;
 }
 

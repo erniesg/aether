@@ -209,6 +209,53 @@ export async function scrapePlatformViaTinyFish(
   };
 }
 
+export async function scrapePlatformFrontierViaTinyFish(
+  input: {
+    platform: EventPlatform;
+    querySet: string[];
+    windowStart: string;
+    windowEnd: string;
+    maxItems: number;
+    credentialItemIds?: string[];
+    maxQueries?: number;
+  },
+  fetcher: Fetcher = fetch
+): Promise<PlatformScrapeResult> {
+  const queries = normalizeQuerySet(input.querySet, input.maxQueries ?? 4);
+  const maxPerQuery = Math.max(10, Math.ceil(input.maxItems / Math.max(1, Math.min(queries.length, 4))));
+  const byUrl = new Map<string, PlatformScrapeResult['posts'][number]>();
+  const streamingUrls: string[] = [];
+  const warnings: string[] = [];
+  const rawQueries: unknown[] = [];
+
+  for (const query of queries) {
+    if (byUrl.size >= input.maxItems) break;
+    const result = await scrapePlatformViaTinyFish(
+      {
+        platform: input.platform,
+        querySet: [query],
+        windowStart: input.windowStart,
+        windowEnd: input.windowEnd,
+        maxItems: maxPerQuery,
+        credentialItemIds: input.credentialItemIds,
+      },
+      fetcher
+    );
+    if (result.streamingUrl) streamingUrls.push(result.streamingUrl);
+    warnings.push(...result.warnings.map((warning) => `${query}: ${warning}`));
+    rawQueries.push({ query, raw: result.raw, posts: result.posts.length });
+    for (const post of result.posts) byUrl.set(post.url, post);
+  }
+
+  return {
+    platform: input.platform,
+    posts: Array.from(byUrl.values()).slice(0, input.maxItems),
+    streamingUrl: streamingUrls[0],
+    warnings,
+    raw: { queries: rawQueries, streamingUrls },
+  };
+}
+
 export async function searchPlatformFallbackViaTinyFish(
   input: {
     platform: EventPlatform;
