@@ -3,6 +3,7 @@ import {
   linkedinQueryVariants,
   normalizeTinyFishPosts,
   platformFrontierQueries,
+  scrapeLinkedInViaTinyFishSearchFetch,
   scrapePlatformViaTinyFish,
   tinyFishBrowserBaseUrl,
   warmLinkedInSessionViaTinyFish,
@@ -151,6 +152,76 @@ describe('TinyFish event recap normalization', () => {
     );
 
     expect(result.posts).toHaveLength(1);
+  });
+
+  it('skips already-seen LinkedIn URLs before TinyFish Fetch in search-fetch mode', async () => {
+    const seenUrl =
+      'https://www.linkedin.com/posts/sherrypeek_seen-ai-engineer-singapore-activity-1-abcD';
+    const newUrl =
+      'https://www.linkedin.com/posts/SherryPeek_New-AI-Engineer-Singapore-Activity-2-EfGh';
+    const fetchedUrls: string[] = [];
+    let searchCalls = 0;
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith('https://api.search.tinyfish.ai')) {
+        searchCalls += 1;
+        return jsonResponse({
+          results:
+            searchCalls === 1
+              ? [
+                  { url: seenUrl, title: 'Seen post | Sherry Jiang' },
+                  { url: newUrl, title: 'New post | Sherry Jiang' },
+                ]
+              : [],
+        });
+      }
+      if (url === 'https://api.fetch.tinyfish.ai') {
+        const payload = JSON.parse(String(init?.body ?? '{}')) as { urls?: string[] };
+        fetchedUrls.push(...(payload.urls ?? []));
+        return jsonResponse({
+          results: [
+            {
+              url: newUrl,
+              final_url: newUrl,
+              title: 'New post | Sherry Jiang',
+              text: 'AI Engineer Singapore had useful agent workflow takeaways. More Relevant Posts unrelated text.',
+              image_links: [
+                'https://media.licdn.com/dms/image/v2/D5610AQContent/image-scale_191_1128/example?e=1',
+                'https://media.licdn.com/dms/image/v2/D5616AQProfile/profile-displayphoto-shrink_100_100/profile.jpg',
+              ],
+            },
+          ],
+        });
+      }
+      return jsonResponse({}, 404);
+    };
+
+    const result = await scrapeLinkedInViaTinyFishSearchFetch(
+      {
+        querySet: ['AI Engineer Singapore'],
+        maxItems: 5,
+        maxQueries: 1,
+        searchPagesPerQuery: 1,
+        seenPostUrls: [seenUrl.toLowerCase()],
+      },
+      fetcher
+    );
+
+    expect(fetchedUrls).toEqual([newUrl]);
+    expect(result.posts).toHaveLength(1);
+    expect(result.posts[0]).toMatchObject({
+      url: newUrl,
+      authorName: 'Sherry Jiang',
+      text: 'AI Engineer Singapore had useful agent workflow takeaways.',
+      media: [
+        {
+          url: 'https://media.licdn.com/dms/image/v2/D5610AQContent/image-scale_191_1128/example?e=1',
+          type: 'image',
+          source: 'linkedin-tinyfish-fetch',
+        },
+      ],
+    });
+    expect(result.warnings[0]).toContain('skipped 1 already-seen URLs');
   });
 
   it('returns an interactive inspector url for LinkedIn human handoff runs', async () => {

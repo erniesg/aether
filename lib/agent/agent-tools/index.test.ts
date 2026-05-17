@@ -18,6 +18,7 @@ describe('listAgentTools', () => {
     expect(names).toContain('get_event_expansion_plan');
     expect(names).toContain('generate_event_search_frontier');
     expect(names).toContain('estimate_event_counts');
+    expect(names).toContain('refresh_event_recap');
     expect(names).toContain('warm_linkedin_session');
   });
 

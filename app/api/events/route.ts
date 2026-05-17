@@ -45,7 +45,23 @@ export async function POST(request: Request) {
     const shouldRefresh = body.refresh !== false;
     if (!shouldRefresh) return NextResponse.json({ ok: true, event });
 
-    const bundle = await refreshEventRecap({ eventId: event.eventId });
+    const bundle = await refreshEventRecap({
+      eventId: event.eventId,
+      targetItemsPerPlatform:
+        typeof body.targetItemsPerPlatform === 'number'
+          ? body.targetItemsPerPlatform
+          : undefined,
+      maxQueries: typeof body.maxQueries === 'number' ? body.maxQueries : undefined,
+      maxSearchPagesPerQuery:
+        typeof body.maxSearchPagesPerQuery === 'number'
+          ? body.maxSearchPagesPerQuery
+          : undefined,
+      includeMedia: typeof body.includeMedia === 'boolean' ? body.includeMedia : undefined,
+      linkedinMode:
+        body.linkedinMode === 'browser-direct' || body.linkedinMode === 'search-fetch'
+          ? body.linkedinMode
+          : undefined,
+    });
     return NextResponse.json({ ok: true, event: bundle?.event ?? event, bundle });
   } catch (err) {
     return NextResponse.json(

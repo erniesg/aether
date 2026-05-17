@@ -9,25 +9,21 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ eventId: string }> }
-) {
-  const { eventId } = await params;
+export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const input = isObject(body) ? body : {};
+  if (typeof input.eventId !== 'string' || !input.eventId.trim()) {
+    return NextResponse.json({ ok: false, error: 'eventId is required' }, { status: 400 });
+  }
 
   try {
     const bundle = await refreshEventRecap({
-      eventId,
+      eventId: input.eventId,
       name: typeof input.name === 'string' ? input.name : undefined,
-      contextHint:
-        typeof input.contextHint === 'string' ? input.contextHint : undefined,
+      contextHint: typeof input.contextHint === 'string' ? input.contextHint : undefined,
       liveMode: input.liveMode === 'tinyfish' ? 'tinyfish' : undefined,
       maxItemsPerPlatform:
-        typeof input.maxItemsPerPlatform === 'number'
-          ? input.maxItemsPerPlatform
-          : undefined,
+        typeof input.maxItemsPerPlatform === 'number' ? input.maxItemsPerPlatform : undefined,
       targetItemsPerPlatform:
         typeof input.targetItemsPerPlatform === 'number'
           ? input.targetItemsPerPlatform
@@ -45,18 +41,14 @@ export async function POST(
         input.linkedinMode === 'browser-direct' || input.linkedinMode === 'search-fetch'
           ? input.linkedinMode
           : undefined,
-      maxQueries:
-        typeof input.maxQueries === 'number' ? input.maxQueries : undefined,
+      maxQueries: typeof input.maxQueries === 'number' ? input.maxQueries : undefined,
       maxSearchPagesPerQuery:
         typeof input.maxSearchPagesPerQuery === 'number'
           ? input.maxSearchPagesPerQuery
           : undefined,
-      includeMedia:
-        typeof input.includeMedia === 'boolean' ? input.includeMedia : undefined,
+      includeMedia: typeof input.includeMedia === 'boolean' ? input.includeMedia : undefined,
       monthlyCreditBudget:
-        typeof input.monthlyCreditBudget === 'number'
-          ? input.monthlyCreditBudget
-          : undefined,
+        typeof input.monthlyCreditBudget === 'number' ? input.monthlyCreditBudget : undefined,
     });
     return NextResponse.json({ ok: true, bundle });
   } catch (err) {

@@ -14,6 +14,7 @@ import {
 } from './store';
 import {
   resolveEventViaTinyFish,
+  scrapeLinkedInViaTinyFishSearchFetch,
   scrapePlatformFrontierViaTinyFish,
   scrapePlatformViaTinyFish,
   searchPlatformFallbackViaTinyFish,
@@ -31,6 +32,20 @@ import type {
 import { clampConfig, eventWindow, normalizeQuerySet, scorePostsByPlatform } from './utils';
 
 const PLATFORMS: EventPlatform[] = ['x', 'linkedin'];
+
+type LinkedInRefreshMode = 'search-fetch' | 'browser-direct';
+
+interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
+  name?: string;
+  eventId: string;
+  platforms?: EventPlatform[];
+  targetItemsPerPlatform?: number;
+  dedupeAgainstExisting?: boolean;
+  linkedinMode?: LinkedInRefreshMode;
+  maxQueries?: number;
+  maxSearchPagesPerQuery?: number;
+  includeMedia?: boolean;
+}
 
 export async function createEventRecap(
   input: Partial<EventRecapConfig> & { name: string }
@@ -57,7 +72,7 @@ export async function createEventRecap(
 }
 
 export async function refreshEventRecap(
-  input: Partial<EventRecapConfig> & { name?: string; eventId: string }
+  input: RefreshEventRecapInput
 ) {
   const existing = await getEventBundle(input.eventId);
   const base = existing?.event;
@@ -96,12 +111,21 @@ export async function refreshEventRecap(
     daysAfter: config.daysAfter,
   });
   const activeQuerySet = normalizeQuerySet([...(base?.querySet ?? []), ...resolution.querySet]);
+  const platforms = sanitizePlatforms(input.platforms);
+  const targetItemsPerPlatform = clampOptionalTarget(input.targetItemsPerPlatform);
+  const platformBudgets = scrapeBudgetsByPlatform({
+    platforms,
+    existingPosts: existing?.posts ?? [],
+    targetItemsPerPlatform,
+    defaultBudget: config.maxItemsPerPlatform,
+  });
+  const maxBudget = Math.max(1, ...platforms.map((platform) => platformBudgets[platform] ?? 0));
   const estimatedCredits =
     config.liveMode === 'tinyfish'
       ? estimateTinyFishCredits({
-          platforms: PLATFORMS.length,
+          platforms: platforms.filter((platform) => (platformBudgets[platform] ?? 0) > 0).length,
           queryCount: activeQuerySet.length,
-          maxItemsPerPlatform: config.maxItemsPerPlatform,
+          maxItemsPerPlatform: maxBudget,
         })
       : 0;
   const usedCredits = base?.usedCredits ?? 0;
@@ -115,11 +139,14 @@ export async function refreshEventRecap(
     const skippedRun = skippedBudgetRun({
       runId,
       eventId: config.eventId,
+      platforms,
       querySet: activeQuerySet,
       windowStart,
       windowEnd,
-      maxItemsPerPlatform: config.maxItemsPerPlatform,
+      maxItemsPerPlatform: maxBudget,
       estimatedCredits,
+      targetItemsPerPlatform,
+      platformBudgets,
     });
     await saveRunStart(skippedRun);
     await saveRunFinish(skippedRun);
@@ -145,19 +172,23 @@ export async function refreshEventRecap(
       ? mockRunShell({
           runId,
           eventId: config.eventId,
+          platforms,
           querySet: activeQuerySet,
           windowStart,
           windowEnd,
-          maxItemsPerPlatform: config.maxItemsPerPlatform,
+          maxItemsPerPlatform: maxBudget,
         })
       : liveRunShell({
           runId,
           eventId: config.eventId,
+          platforms,
           querySet: activeQuerySet,
           windowStart,
           windowEnd,
-          maxItemsPerPlatform: config.maxItemsPerPlatform,
+          maxItemsPerPlatform: maxBudget,
           estimatedCredits,
+          targetItemsPerPlatform,
+          platformBudgets,
         });
   await saveRunStart(run);
 
@@ -177,44 +208,78 @@ export async function refreshEventRecap(
   try {
     const platformResults =
       config.liveMode === 'mock'
-        ? PLATFORMS.map((platform) =>
-            mockScrapePlatform(platform, config.eventId, runId, config.maxItemsPerPlatform)
+        ? platforms.map((platform) =>
+            mockScrapePlatform(platform, config.eventId, runId, platformBudgets[platform] ?? config.maxItemsPerPlatform)
           )
         : await Promise.all(
-            PLATFORMS.map(async (platform) => {
+            platforms.map(async (platform) => {
+              const maxItems = platformBudgets[platform] ?? config.maxItemsPerPlatform;
+              const seenPostUrls =
+                input.dedupeAgainstExisting === false
+                  ? []
+                  : (existing?.posts ?? [])
+                      .filter((post) => post.platform === platform)
+                      .map((post) => post.url);
+              if (maxItems <= 0) {
+                return {
+                  platform,
+                  posts: [],
+                  warnings: [
+                    `${platform} already has ${seenPostUrls.length} stored posts; target ${targetItemsPerPlatform} reached, so refresh skipped expensive collection.`,
+                  ],
+                  raw: {
+                    mode: 'delta-skip',
+                    seenPostUrls: seenPostUrls.length,
+                    targetItemsPerPlatform,
+                  },
+                } satisfies PlatformScrapeResult;
+              }
               if (platform === 'x' && isXSearchConfigured()) {
                 const official = await searchXViaOfficialApi({
                   querySet: activeQuerySet,
                   windowStart,
                   windowEnd,
-                  maxItems: config.maxItemsPerPlatform,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  seenPostUrls,
                 });
                 if (official.posts.length > 0) return official;
               }
 
               const result =
-                platform === 'linkedin'
+                platform === 'linkedin' && (input.linkedinMode ?? 'search-fetch') === 'search-fetch'
+                  ? await scrapeLinkedInViaTinyFishSearchFetch({
+                      querySet: activeQuerySet,
+                      maxItems,
+                      maxQueries: input.maxQueries ?? linkedinFrontierQueryLimit(),
+                      searchPagesPerQuery: input.maxSearchPagesPerQuery,
+                      includeMedia: input.includeMedia,
+                      seenPostUrls,
+                    })
+                  : platform === 'linkedin'
                   ? await scrapePlatformFrontierViaTinyFish({
                       platform,
                       querySet: activeQuerySet,
                       windowStart,
                       windowEnd,
-                      maxItems: config.maxItemsPerPlatform,
+                      maxItems,
                       credentialItemIds: linkedinCredentialItemIds(),
                       maxQueries: linkedinFrontierQueryLimit(),
+                      seenPostUrls,
                     })
                   : await scrapePlatformViaTinyFish({
                       platform,
                       querySet: activeQuerySet,
                       windowStart,
                       windowEnd,
-                      maxItems: config.maxItemsPerPlatform,
+                      maxItems,
                     });
               if (result.posts.length > 0) return result;
               const fallback = await searchPlatformFallbackViaTinyFish({
                 platform,
                 querySet: activeQuerySet,
-                maxItems: config.maxItemsPerPlatform,
+                maxItems,
+                seenPostUrls,
               });
               return {
                 ...fallback,
@@ -255,6 +320,9 @@ export async function refreshEventRecap(
       ],
       outputs: {
         posts: posts.length,
+        mergedPosts: merged.length,
+        platformBudgets,
+        targetItemsPerPlatform,
         themes: analysis.themes.length,
         voices: analysis.voices.length,
         expansion: summarizeExpansion(expansion),
@@ -300,6 +368,46 @@ export async function refreshEventRecap(
   }
 }
 
+function sanitizePlatforms(platforms: EventPlatform[] | undefined): EventPlatform[] {
+  const requested = platforms?.length ? platforms : PLATFORMS;
+  const allowed = new Set<EventPlatform>(PLATFORMS);
+  const seen = new Set<EventPlatform>();
+  const sanitized = requested.filter((platform) => {
+    if (!allowed.has(platform) || seen.has(platform)) return false;
+    seen.add(platform);
+    return true;
+  });
+  return sanitized.length ? sanitized : PLATFORMS;
+}
+
+function clampOptionalTarget(value: number | undefined): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(1, Math.min(1000, Math.round(value)));
+}
+
+function scrapeBudgetsByPlatform(input: {
+  platforms: EventPlatform[];
+  existingPosts: EventPost[];
+  targetItemsPerPlatform?: number;
+  defaultBudget: number;
+}): Partial<Record<EventPlatform, number>> {
+  const counts = input.existingPosts.reduce(
+    (acc, post) => {
+      acc[post.platform] += 1;
+      return acc;
+    },
+    { x: 0, linkedin: 0 } satisfies Record<EventPlatform, number>
+  );
+  return Object.fromEntries(
+    input.platforms.map((platform) => [
+      platform,
+      input.targetItemsPerPlatform
+        ? Math.max(0, input.targetItemsPerPlatform - counts[platform])
+        : input.defaultBudget,
+    ])
+  ) as Partial<Record<EventPlatform, number>>;
+}
+
 function toEventRecord(
   base: EventRecapRecord | undefined,
   config: EventRecapConfig,
@@ -329,11 +437,14 @@ function toEventRecord(
 function liveRunShell(input: {
   runId: string;
   eventId: string;
+  platforms: EventPlatform[];
   querySet: string[];
   windowStart: string;
   windowEnd: string;
   maxItemsPerPlatform: number;
   estimatedCredits: number;
+  targetItemsPerPlatform?: number;
+  platformBudgets?: Partial<Record<EventPlatform, number>>;
 }): EventScrapeRun {
   return {
     runId: input.runId,
@@ -341,7 +452,7 @@ function liveRunShell(input: {
     status: 'running',
     mode: 'tinyfish',
     provider: 'tinyfish',
-    platforms: PLATFORMS,
+    platforms: input.platforms,
     querySet: input.querySet,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,
@@ -349,7 +460,11 @@ function liveRunShell(input: {
     estimatedCredits: input.estimatedCredits,
     streamingUrls: [],
     warnings: [],
-    inputs: input,
+    inputs: {
+      ...input,
+      targetItemsPerPlatform: input.targetItemsPerPlatform,
+      platformBudgets: input.platformBudgets,
+    },
     outputs: {},
     startedAt: Date.now(),
   };
@@ -358,11 +473,14 @@ function liveRunShell(input: {
 function skippedBudgetRun(input: {
   runId: string;
   eventId: string;
+  platforms: EventPlatform[];
   querySet: string[];
   windowStart: string;
   windowEnd: string;
   maxItemsPerPlatform: number;
   estimatedCredits: number;
+  targetItemsPerPlatform?: number;
+  platformBudgets?: Partial<Record<EventPlatform, number>>;
 }): EventScrapeRun {
   return {
     ...liveRunShell(input),

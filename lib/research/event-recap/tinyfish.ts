@@ -385,11 +385,13 @@ export async function scrapePlatformFrontierViaTinyFish(
     maxItems: number;
     credentialItemIds?: string[];
     maxQueries?: number;
+    seenPostUrls?: string[];
   },
   fetcher: Fetcher = fetch
 ): Promise<PlatformScrapeResult> {
   const queries = platformFrontierQueries(input.platform, input.querySet, input.maxQueries ?? 4);
   const maxPerQuery = Math.max(10, Math.ceil(input.maxItems / Math.max(1, Math.min(queries.length, 4))));
+  const seenUrls = new Set((input.seenPostUrls ?? []).map(postUrlKey));
   const byUrl = new Map<string, PlatformScrapeResult['posts'][number]>();
   const streamingUrls: string[] = [];
   const warnings: string[] = [];
@@ -411,7 +413,10 @@ export async function scrapePlatformFrontierViaTinyFish(
     if (result.streamingUrl) streamingUrls.push(result.streamingUrl);
     warnings.push(...result.warnings.map((warning) => `${query}: ${warning}`));
     rawQueries.push({ query, raw: result.raw, posts: result.posts.length });
-    for (const post of result.posts) byUrl.set(post.url, post);
+    for (const post of result.posts) {
+      if (seenUrls.has(postUrlKey(post.url))) continue;
+      byUrl.set(post.url, post);
+    }
   }
 
   return {
@@ -423,11 +428,173 @@ export async function scrapePlatformFrontierViaTinyFish(
   };
 }
 
+export async function scrapeLinkedInViaTinyFishSearchFetch(
+  input: {
+    querySet: string[];
+    maxItems: number;
+    maxQueries?: number;
+    searchPagesPerQuery?: number;
+    candidateMultiplier?: number;
+    includeMedia?: boolean;
+    seenPostUrls?: string[];
+  },
+  fetcher: Fetcher = fetch
+): Promise<PlatformScrapeResult> {
+  const seenUrls = new Set((input.seenPostUrls ?? []).map(postUrlKey));
+  const queries = linkedInSearchFetchQueries(input.querySet, input.maxQueries ?? 12);
+  const searchPages = clampInteger(input.searchPagesPerQuery, 1, 12, 2);
+  const candidateMultiplier =
+    typeof input.candidateMultiplier === 'number' && Number.isFinite(input.candidateMultiplier)
+      ? Math.max(1, Math.min(8, input.candidateMultiplier))
+      : 3;
+  const maxCandidates = Math.max(input.maxItems, Math.ceil(input.maxItems * candidateMultiplier));
+  const discovered = new Map<
+    string,
+    {
+      url: string;
+      sources: string[];
+      title?: string;
+      snippet?: string;
+    }
+  >();
+  const rawSearches: Array<{
+    query: string;
+    page: number;
+    results: number;
+    added: number;
+    skippedSeen: number;
+    error?: string;
+  }> = [];
+  let skippedSeen = 0;
+
+  for (const query of queries) {
+    if (discovered.size >= maxCandidates) break;
+    for (let page = 0; page < searchPages; page += 1) {
+      if (discovered.size >= maxCandidates) break;
+      const searchUrl = new URL(SEARCH_ENDPOINT);
+      searchUrl.searchParams.set('query', query);
+      searchUrl.searchParams.set('location', 'SG');
+      searchUrl.searchParams.set('language', 'en');
+      searchUrl.searchParams.set('page', String(page));
+      try {
+        const res = await fetcher(searchUrl, { headers: { 'X-API-Key': apiKey() } });
+        if (!res.ok) {
+          rawSearches.push({ query, page, results: 0, added: 0, skippedSeen: 0, error: `HTTP ${res.status}` });
+          break;
+        }
+        const json = (await res.json()) as TinyFishSearchResponse;
+        const results = json.results ?? [];
+        let added = 0;
+        let pageSkippedSeen = 0;
+        for (const result of results) {
+          if (!isPlatformPostUrl('linkedin', result.url)) continue;
+          const url = normalizePostUrl(result.url as string);
+          const key = postUrlKey(url);
+          if (seenUrls.has(key)) {
+            skippedSeen += 1;
+            pageSkippedSeen += 1;
+            continue;
+          }
+          const current = discovered.get(key) ?? {
+            url,
+            sources: [],
+            title: result.title,
+            snippet: result.snippet,
+          };
+          current.sources.push(`${query}#page=${page}`);
+          discovered.set(key, current);
+          added += 1;
+          if (discovered.size >= maxCandidates) break;
+        }
+        rawSearches.push({ query, page, results: results.length, added, skippedSeen: pageSkippedSeen });
+        if (results.length === 0) break;
+      } catch (err) {
+        rawSearches.push({
+          query,
+          page,
+          results: 0,
+          added: 0,
+          skippedSeen: 0,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        break;
+      }
+    }
+  }
+
+  const candidates = Array.from(discovered.values());
+  if (candidates.length === 0) {
+    return {
+      platform: 'linkedin',
+      posts: [],
+      warnings: [
+        `TinyFish Search found no unseen LinkedIn post URLs across ${queries.length} queries; skipped ${skippedSeen} already-seen URLs.`,
+      ],
+      raw: { searches: rawSearches, skippedSeen, discovered: 0 },
+    };
+  }
+
+  const fetched = await fetchLinkedInPostPages(
+    candidates.map((candidate) => candidate.url),
+    input.includeMedia !== false,
+    fetcher
+  );
+  const candidateByKey = new Map(candidates.map((candidate) => [postUrlKey(candidate.url), candidate]));
+  const byUrl = new Map<string, PlatformScrapeResult['posts'][number]>();
+  for (const result of fetched.results ?? []) {
+    const url = normalizePostUrl(result.final_url ?? result.url ?? '');
+    if (!url || !isPlatformPostUrl('linkedin', url)) continue;
+    const key = postUrlKey(url);
+    if (seenUrls.has(key)) continue;
+    const candidate = candidateByKey.get(key);
+    const text = trimLinkedInRelatedPosts(fetchResultText(result));
+    if (!text) continue;
+    byUrl.set(url, {
+      postId: makePostId('linkedin', url, text),
+      platform: 'linkedin',
+      url,
+      authorName: authorFromFetchedLinkedIn(result, url),
+      authorHandle: handleFromUrl('linkedin', url),
+      authorUrl: profileUrlFromPostUrl('linkedin', url),
+      text,
+      metrics: {},
+      media: mediaFromLinkedInImageLinks(result.image_links),
+      tags: ['linkedin-search-fetch', 'search-index-expanded'],
+      raw: {
+        ...result,
+        searchSources: candidate?.sources ?? [],
+        searchTitle: candidate?.title,
+        searchSnippet: candidate?.snippet,
+      },
+    });
+    if (byUrl.size >= input.maxItems) break;
+  }
+
+  const errors = fetched.errors ?? [];
+  return {
+    platform: 'linkedin',
+    posts: Array.from(byUrl.values()).slice(0, input.maxItems),
+    warnings: [
+      `TinyFish LinkedIn Search+Fetch discovered ${candidates.length} unseen candidate URLs and skipped ${skippedSeen} already-seen URLs before Fetch.`,
+      ...(errors.length ? [`TinyFish Fetch returned ${errors.length} page errors`] : []),
+    ],
+    raw: {
+      mode: 'search-fetch',
+      searches: rawSearches,
+      discovered: candidates.length,
+      skippedSeen,
+      fetched: fetched.results?.length ?? 0,
+      fetchErrors: errors,
+    },
+  };
+}
+
 export async function searchPlatformFallbackViaTinyFish(
   input: {
     platform: EventPlatform;
     querySet: string[];
     maxItems: number;
+    seenPostUrls?: string[];
   },
   fetcher: Fetcher = fetch
 ): Promise<PlatformScrapeResult> {
@@ -444,8 +611,10 @@ export async function searchPlatformFallbackViaTinyFish(
     throw new Error(`TinyFish Search fallback failed: HTTP ${searchRes.status}`);
   }
   const searchJson = (await searchRes.json()) as TinyFishSearchResponse;
+  const seenUrls = new Set((input.seenPostUrls ?? []).map(postUrlKey));
   const results = (searchJson.results ?? [])
     .filter((result) => isPlatformPostUrl(input.platform, result.url))
+    .filter((result) => !seenUrls.has(postUrlKey(result.url ?? '')))
     .slice(0, input.maxItems);
 
   return {
@@ -918,6 +1087,48 @@ function platformCountQueries(platform: EventPlatform, source: string): string[]
   );
 }
 
+function linkedInSearchFetchQueries(querySet: string[], maxSources: number): string[] {
+  return normalizeQuerySet(
+    normalizeQuerySet(querySet, maxSources).flatMap((source) =>
+      platformCountQueries('linkedin', source)
+    ),
+    Math.max(1, maxSources * 4)
+  );
+}
+
+async function fetchLinkedInPostPages(
+  urls: string[],
+  includeMedia: boolean,
+  fetcher: Fetcher
+): Promise<TinyFishFetchResponse> {
+  const results: NonNullable<TinyFishFetchResponse['results']> = [];
+  const errors: unknown[] = [];
+  for (let index = 0; index < urls.length; index += 20) {
+    const batch = urls.slice(index, index + 20);
+    const res = await fetcher(FETCH_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey(),
+      },
+      body: JSON.stringify({
+        urls: batch,
+        format: 'markdown',
+        links: true,
+        image_links: includeMedia,
+      }),
+    });
+    if (!res.ok) {
+      errors.push({ urls: batch, error: `HTTP ${res.status}` });
+      continue;
+    }
+    const json = (await res.json()) as TinyFishFetchResponse;
+    results.push(...(json.results ?? []));
+    errors.push(...(json.errors ?? []));
+  }
+  return { results, errors };
+}
+
 export function platformFrontierQueries(
   platform: EventPlatform,
   querySet: string[],
@@ -1158,7 +1369,60 @@ function platformSearchFallbackQuery(platform: EventPlatform, querySet: string[]
 function isPlatformPostUrl(platform: EventPlatform, url?: string): boolean {
   if (!url) return false;
   if (platform === 'x') return /^https:\/\/x\.com\/[^/]+\/status\/\d+/i.test(url);
-  return /^https:\/\/(?:www\.)?linkedin\.com\/posts\//i.test(url);
+  return /^https:\/\/(?:www\.)?linkedin\.com\/(?:posts\/|feed\/update\/)/i.test(url);
+}
+
+function normalizePostUrl(url: string): string {
+  return url.trim().split(/[?#]/)[0].replace(/\/$/, '');
+}
+
+function postUrlKey(url: string): string {
+  return normalizePostUrl(url).toLowerCase();
+}
+
+function fetchResultText(result: NonNullable<TinyFishFetchResponse['results']>[number]): string {
+  if (typeof result.text === 'string') return result.text.replace(/\s+/g, ' ').trim();
+  if (result.text && typeof result.text === 'object') {
+    return JSON.stringify(result.text).replace(/\s+/g, ' ').trim();
+  }
+  return [result.description, result.title].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function trimLinkedInRelatedPosts(text: string): string {
+  return text.split(/#{1,3}\s*More Relevant Posts|\bMore Relevant Posts\b/i)[0]?.trim() ?? '';
+}
+
+function authorFromFetchedLinkedIn(
+  result: NonNullable<TinyFishFetchResponse['results']>[number],
+  url: string
+): string {
+  const title = result.title?.trim();
+  const titleAuthor = title?.split('|').pop()?.trim();
+  if (titleAuthor && !/^linkedin$/i.test(titleAuthor)) return titleAuthor;
+  return authorFromSearchResult('linkedin', { title, url });
+}
+
+function mediaFromLinkedInImageLinks(imageLinks?: string[]): EventPostMedia[] | undefined {
+  if (!Array.isArray(imageLinks)) return undefined;
+  const media = imageLinks
+    .filter(likelyLinkedInContentImage)
+    .map((url) => ({
+      url,
+      type: mediaTypeFromUrl(url, 'image'),
+      source: 'linkedin-tinyfish-fetch',
+    }));
+  return media.length ? media : undefined;
+}
+
+function likelyLinkedInContentImage(url: string): boolean {
+  const lower = url.toLowerCase();
+  if (!lower.includes('media.licdn.com') || !lower.includes('/image')) return false;
+  return ![
+    'profile-displayphoto',
+    'profile-displaybackgroundimage',
+    'company-logo',
+    'static.licdn.com',
+  ].some((marker) => lower.includes(marker));
 }
 
 function authorFromSearchResult(
