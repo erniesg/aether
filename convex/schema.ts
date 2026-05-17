@@ -324,6 +324,132 @@ export default defineSchema({
     .index('by_ws', ['wsId'])
     .index('by_workspace', ['workspaceId']),
 
+  // Event recap research targets. These are creator-facing research lenses:
+  // an event name + context becomes a dated scrape window, a stored corpus,
+  // topic clusters, and top voices that can feed the canvas as references.
+  eventRecap: defineTable({
+    eventId: v.string(),
+    workspaceId: v.optional(v.string()),
+    name: v.string(),
+    contextHint: v.optional(v.string()),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('resolving'),
+      v.literal('ready'),
+      v.literal('refreshing'),
+      v.literal('error')
+    ),
+    canonicalName: v.optional(v.string()),
+    officialUrl: v.optional(v.string()),
+    location: v.optional(v.string()),
+    startsAt: v.optional(v.string()),
+    endsAt: v.optional(v.string()),
+    daysBefore: v.number(),
+    daysAfter: v.number(),
+    refreshIntervalHours: v.number(),
+    maxItemsPerPlatform: v.number(),
+    monthlyCreditBudget: v.number(),
+    usedCredits: v.number(),
+    querySet: v.array(v.string()),
+    sourceUrls: v.array(v.string()),
+    liveMode: v.union(v.literal('mock'), v.literal('tinyfish')),
+    lastRunAt: v.optional(v.number()),
+    nextRefreshAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_event_id', ['eventId'])
+    .index('by_workspace', ['workspaceId']),
+
+  eventScrapeRun: defineTable({
+    runId: v.string(),
+    eventId: v.string(),
+    status: v.union(
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('skipped')
+    ),
+    mode: v.union(v.literal('mock'), v.literal('tinyfish')),
+    provider: v.string(),
+    platforms: v.array(v.union(v.literal('x'), v.literal('linkedin'))),
+    querySet: v.array(v.string()),
+    windowStart: v.string(),
+    windowEnd: v.string(),
+    maxItemsPerPlatform: v.number(),
+    estimatedCredits: v.number(),
+    actualCredits: v.optional(v.number()),
+    streamingUrls: v.array(
+      v.object({
+        platform: v.union(v.literal('x'), v.literal('linkedin')),
+        url: v.string(),
+      })
+    ),
+    warnings: v.array(v.string()),
+    error: v.optional(v.string()),
+    inputs: v.any(),
+    outputs: v.any(),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  })
+    .index('by_run_id', ['runId'])
+    .index('by_event', ['eventId']),
+
+  eventPost: defineTable({
+    postId: v.string(),
+    eventId: v.string(),
+    runId: v.string(),
+    platform: v.union(v.literal('x'), v.literal('linkedin')),
+    url: v.string(),
+    authorName: v.string(),
+    authorHandle: v.optional(v.string()),
+    authorUrl: v.optional(v.string()),
+    text: v.string(),
+    postedAt: v.optional(v.string()),
+    capturedAt: v.number(),
+    metrics: v.object({
+      likes: v.optional(v.number()),
+      reposts: v.optional(v.number()),
+      replies: v.optional(v.number()),
+      comments: v.optional(v.number()),
+      reactions: v.optional(v.number()),
+      impressions: v.optional(v.number()),
+      views: v.optional(v.number()),
+    }),
+    reachScore: v.number(),
+    tags: v.array(v.string()),
+    raw: v.any(),
+  })
+    .index('by_event', ['eventId'])
+    .index('by_event_platform', ['eventId', 'platform'])
+    .index('by_event_url', ['eventId', 'url']),
+
+  eventTheme: defineTable({
+    themeId: v.string(),
+    eventId: v.string(),
+    label: v.string(),
+    summary: v.string(),
+    keywords: v.array(v.string()),
+    postIds: v.array(v.string()),
+    score: v.number(),
+    updatedAt: v.number(),
+  }).index('by_event', ['eventId']),
+
+  eventVoice: defineTable({
+    voiceId: v.string(),
+    eventId: v.string(),
+    platform: v.union(v.literal('x'), v.literal('linkedin')),
+    name: v.string(),
+    handle: v.optional(v.string()),
+    profileUrl: v.optional(v.string()),
+    postCount: v.number(),
+    totalEngagement: v.number(),
+    reachScore: v.number(),
+    samplePostUrls: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index('by_event', ['eventId']),
+
   // ─── canvas ────────────────────────────────────────────────────────────
   // wsId is optional for the same reason it is on capabilityRun / clusterCard /
   // signalSubscription: pre-Phase-5 the canvas writes snapshots without a
