@@ -43,6 +43,17 @@ export interface EventPostMetrics {
   views?: number;
 }
 
+export interface EventPostMedia {
+  url: string;
+  type: 'image' | 'video' | 'gif' | 'unknown';
+  source?: string;
+  previewUrl?: string;
+  altText?: string;
+  width?: number;
+  height?: number;
+  localPath?: string;
+}
+
 export interface EventAuthorMeta {
   description?: string;
   headline?: string;
@@ -70,6 +81,7 @@ export interface EventPost {
   postedAt?: string;
   capturedAt: number;
   metrics: EventPostMetrics;
+  media?: EventPostMedia[];
   reachScore: number;
   tags: string[];
   raw: unknown;

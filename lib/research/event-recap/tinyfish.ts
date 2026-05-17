@@ -1,4 +1,5 @@
 import type {
+  EventPostMedia,
   EventPlatform,
   EventResolution,
   PlatformScrapeResult,
@@ -34,6 +35,7 @@ interface TinyFishFetchResponse {
     final_url?: string;
     title?: string;
     description?: string;
+    image_links?: string[];
     text?: string | object;
   }>;
   errors?: unknown[];
@@ -191,6 +193,14 @@ interface ScrapedPostPayload {
   impressions?: number;
   views?: number;
   tags?: string[];
+  media?: unknown;
+  media_urls?: unknown;
+  mediaUrls?: unknown;
+  image_urls?: unknown;
+  imageUrls?: unknown;
+  image_links?: unknown;
+  imageLinks?: unknown;
+  images?: unknown;
   comments_list?: ScrapedCommentPayload[];
   commentsList?: ScrapedCommentPayload[];
   visible_comments?: ScrapedCommentPayload[];
@@ -283,7 +293,7 @@ async function fetchEventPages(
       'Content-Type': 'application/json',
       'X-API-Key': apiKey(),
     },
-    body: JSON.stringify({ urls, format: 'markdown', links: true }),
+    body: JSON.stringify({ urls, format: 'markdown', links: true, image_links: true }),
   });
   if (!res.ok) throw new Error(`TinyFish Fetch failed: HTTP ${res.status}`);
   return (await res.json()) as TinyFishFetchResponse;
@@ -1204,6 +1214,22 @@ function postOutputSchema(maxItems: number) {
             reactions: { type: 'number' },
             impressions: { type: 'number' },
             views: { type: 'number' },
+            image_urls: { type: 'array', items: { type: 'string' } },
+            media_urls: { type: 'array', items: { type: 'string' } },
+            media: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  url: { type: 'string' },
+                  type: { type: 'string' },
+                  alt_text: { type: 'string' },
+                  preview_url: { type: 'string' },
+                  width: { type: 'number' },
+                  height: { type: 'number' },
+                },
+              },
+            },
             tags: { type: 'array', items: { type: 'string' } },
             comments_list: {
               type: 'array',
@@ -1268,6 +1294,7 @@ export function normalizeTinyFishPosts(platform: EventPlatform, value: unknown) 
           impressions: numberValue(post.impressions),
           views: numberValue(post.views),
         },
+        media: mediaFromTinyFishPost(platform, post),
         tags: baseTags,
         raw: post,
       }];
@@ -1332,6 +1359,79 @@ function stringValue(value: unknown): string {
 
 function numberValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function mediaFromTinyFishPost(
+  platform: EventPlatform,
+  post: ScrapedPostPayload
+): EventPostMedia[] | undefined {
+  const byUrl = new Map<string, EventPostMedia>();
+  const addMedia = (media: EventPostMedia) => {
+    const key = media.url.trim();
+    if (!key || byUrl.has(key)) return;
+    byUrl.set(key, { ...media, url: key });
+  };
+
+  for (const source of [
+    post.image_urls,
+    post.imageUrls,
+    post.image_links,
+    post.imageLinks,
+    post.media_urls,
+    post.mediaUrls,
+  ]) {
+    for (const url of stringArray(source)) {
+      addMedia({
+        url,
+        type: mediaTypeFromUrl(url, 'image'),
+        source: `${platform}-tinyfish`,
+      });
+    }
+  }
+
+  for (const item of objectArray(post.media ?? post.images)) {
+    const url = stringValue(item.url ?? item.src ?? item.href ?? item.image_url ?? item.imageUrl);
+    if (!url) continue;
+    addMedia({
+      url,
+      type: mediaTypeFromValue(stringValue(item.type), url),
+      source: `${platform}-tinyfish`,
+      previewUrl: stringValue(item.preview_url ?? item.previewUrl ?? item.preview_image_url) || undefined,
+      altText: stringValue(item.alt_text ?? item.altText ?? item.alt) || undefined,
+      width: numberValue(item.width),
+      height: numberValue(item.height),
+      localPath: stringValue(item.local_path ?? item.localPath) || undefined,
+    });
+  }
+
+  const media = Array.from(byUrl.values());
+  return media.length ? media : undefined;
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => stringValue(item)).filter(Boolean);
+}
+
+function objectArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'));
+}
+
+function mediaTypeFromValue(value: string, url: string): EventPostMedia['type'] {
+  const normalized = value.toLowerCase();
+  if (normalized.includes('gif')) return 'gif';
+  if (normalized.includes('video')) return 'video';
+  if (normalized.includes('image') || normalized.includes('photo')) return 'image';
+  return mediaTypeFromUrl(url);
+}
+
+function mediaTypeFromUrl(url: string, fallback: EventPostMedia['type'] = 'unknown'): EventPostMedia['type'] {
+  const pathname = new URL(url, 'https://placeholder.local').pathname.toLowerCase();
+  if (/\.(png|jpe?g|webp|avif|heic)$/.test(pathname)) return 'image';
+  if (/\.gif$/.test(pathname)) return 'gif';
+  if (/\.(mp4|mov|webm|m4v)$/.test(pathname)) return 'video';
+  return fallback;
 }
 
 function inferName(fallback: string, results: TinyFishSearchResult[]): string {

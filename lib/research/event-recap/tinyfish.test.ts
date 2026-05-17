@@ -34,6 +34,7 @@ describe('TinyFish event recap normalization', () => {
           text: 'My practical takeaway from AI Engineer Singapore was that evals need owners.',
           reactions: 12,
           comments: 2,
+          image_urls: ['https://media.licdn.com/dms/image/example.jpg'],
           comments_list: [
             {
               author_name: 'Attendee',
@@ -50,6 +51,13 @@ describe('TinyFish event recap normalization', () => {
     expect(posts[0]).toMatchObject({
       authorMeta: { headline: 'AI engineer', followers: 1200 },
       metrics: { reactions: 12, comments: 2 },
+      media: [
+        {
+          url: 'https://media.licdn.com/dms/image/example.jpg',
+          type: 'image',
+          source: 'linkedin-tinyfish',
+        },
+      ],
     });
     expect(posts[1]).toMatchObject({
       authorName: 'Attendee',
