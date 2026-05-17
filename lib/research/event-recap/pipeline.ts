@@ -1,4 +1,5 @@
 import { analyzePosts } from './analyze';
+import { isApifyConfigured, searchXViaApify, type ApifyXSort } from './apify';
 import { enrichPostConversationTags } from './conversation';
 import { deriveExpansionPlan } from './expand';
 import { deriveSeedFrontier } from './frontier';
@@ -34,6 +35,7 @@ import { clampConfig, eventWindow, normalizeQuerySet, scorePostsByPlatform } fro
 const PLATFORMS: EventPlatform[] = ['x', 'linkedin'];
 
 type LinkedInRefreshMode = 'search-fetch' | 'browser-direct';
+type XRefreshProvider = 'official' | 'apify';
 
 interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   name?: string;
@@ -45,6 +47,10 @@ interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   maxQueries?: number;
   maxSearchPagesPerQuery?: number;
   includeMedia?: boolean;
+  xProvider?: XRefreshProvider;
+  apifyActorId?: string;
+  apifySort?: ApifyXSort;
+  apifyCandidateMultiplier?: number;
 }
 
 export async function createEventRecap(
@@ -234,6 +240,19 @@ export async function refreshEventRecap(
                   },
                 } satisfies PlatformScrapeResult;
               }
+              if (platform === 'x' && input.xProvider === 'apify') {
+                return searchXViaApify({
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  actorId: input.apifyActorId,
+                  sort: input.apifySort,
+                  candidateMultiplier: input.apifyCandidateMultiplier,
+                  seenPostUrls,
+                });
+              }
               if (platform === 'x' && isXSearchConfigured()) {
                 const official = await searchXViaOfficialApi({
                   querySet: activeQuerySet,
@@ -244,6 +263,20 @@ export async function refreshEventRecap(
                   seenPostUrls,
                 });
                 if (official.posts.length > 0) return official;
+              }
+              if (platform === 'x' && isApifyConfigured()) {
+                const apify = await searchXViaApify({
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  actorId: input.apifyActorId,
+                  sort: input.apifySort,
+                  candidateMultiplier: input.apifyCandidateMultiplier,
+                  seenPostUrls,
+                });
+                if (apify.posts.length > 0) return apify;
               }
 
               const result =

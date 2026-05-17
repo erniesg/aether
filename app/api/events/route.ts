@@ -61,6 +61,21 @@ export async function POST(request: Request) {
         body.linkedinMode === 'browser-direct' || body.linkedinMode === 'search-fetch'
           ? body.linkedinMode
           : undefined,
+      xProvider:
+        body.xProvider === 'official' || body.xProvider === 'apify'
+          ? body.xProvider
+          : undefined,
+      apifyActorId: typeof body.apifyActorId === 'string' ? body.apifyActorId : undefined,
+      apifySort:
+        body.apifySort === 'Top' ||
+        body.apifySort === 'Latest' ||
+        body.apifySort === 'Latest + Top'
+          ? body.apifySort
+          : undefined,
+      apifyCandidateMultiplier:
+        typeof body.apifyCandidateMultiplier === 'number'
+          ? body.apifyCandidateMultiplier
+          : undefined,
     });
     return NextResponse.json({ ok: true, event: bundle?.event ?? event, bundle });
   } catch (err) {
