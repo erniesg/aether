@@ -48,7 +48,7 @@ export async function fetchOfficialScheduleFrontier(
       for (const session of json.sessions ?? []) {
         const title = session.title?.trim();
         if (!title) continue;
-        const isKeynote = (session.topics ?? []).some((topic) => /keynote/i.test(topic));
+        const role = roleFromOfficialSession(session);
         const sessionSpeakers = (session.speakers ?? [])
           .map((speaker): FrontierSpeakerInput | undefined => {
             const name = speaker.name?.trim();
@@ -57,7 +57,7 @@ export async function fetchOfficialScheduleFrontier(
               name,
               company: speaker.company,
               title: speaker.title,
-              role: isKeynote ? 'keynote' : 'speaker',
+              role,
               sessionTitle: title,
               topics: session.topics,
             };
@@ -84,6 +84,23 @@ export async function fetchOfficialScheduleFrontier(
     sourceUrls: urls,
     warnings,
   };
+}
+
+function roleFromOfficialSession(
+  session: OfficialScheduleApiSession
+): FrontierSpeakerInput['role'] {
+  if ((session.topics ?? []).some((topic) => /keynote/i.test(topic))) return 'keynote';
+  const text = [
+    session.title,
+    ...(session.topics ?? []),
+    ...(session.speakers ?? []).flatMap((speaker) => [speaker.title, speaker.company]),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  if (/\b(minister|ministry|foreign affairs|govtech|government|cabinet|prime minister|public sector)\b/i.test(text)) {
+    return 'headline';
+  }
+  return 'speaker';
 }
 
 function officialScheduleApiUrls(input: {

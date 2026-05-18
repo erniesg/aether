@@ -29,7 +29,7 @@ const tool: Anthropic.Messages.Tool = {
             name: { type: 'string' },
             company: { type: 'string' },
             title: { type: 'string' },
-            role: { type: 'string', enum: ['keynote', 'speaker', 'organizer', 'sponsor'] },
+            role: { type: 'string', enum: ['keynote', 'headline', 'speaker', 'organizer', 'sponsor'] },
             sessionTitle: { type: 'string' },
             profileUrl: { type: 'string' },
             handle: { type: 'string' },
@@ -37,7 +37,7 @@ const tool: Anthropic.Messages.Tool = {
           required: ['name'],
         },
         description:
-          'Optional official speaker/keynote list. Names are fanned out into reusable search anchors with source/bias labels.',
+          'Optional official speaker/keynote/headline list. Names are fanned out into reusable search anchors with source/bias labels.',
       },
       sponsors: {
         type: 'array',
@@ -47,7 +47,7 @@ const tool: Anthropic.Messages.Tool = {
       includeOfficialSchedule: {
         type: 'boolean',
         description:
-          'When true, fetch a supported official schedule API from officialUrl/sourceUrls and add speaker/keynote anchors. Defaults true for supported events.',
+          'When true, fetch a supported official schedule API from officialUrl/sourceUrls and add speaker/keynote/headline anchors. Defaults true for supported events.',
       },
       maxQueries: { type: 'number', description: 'Maximum queries to return. Default 12.' },
     },
@@ -71,7 +71,7 @@ export const generateEventSearchFrontier: AgentTool = {
           name: string;
           company?: string;
           title?: string;
-          role?: 'keynote' | 'speaker' | 'organizer' | 'sponsor';
+          role?: 'keynote' | 'headline' | 'speaker' | 'organizer' | 'sponsor';
           sessionTitle?: string;
           profileUrl?: string;
           handle?: string;
@@ -103,6 +103,7 @@ export const generateEventSearchFrontier: AgentTool = {
         schedule: {
           speakers: schedule.speakers.length,
           keynotes: schedule.speakers.filter((speaker) => speaker.role === 'keynote').length,
+          headlines: schedule.speakers.filter((speaker) => speaker.role === 'headline').length,
           sourceUrls: schedule.sourceUrls,
           warnings: schedule.warnings,
         },

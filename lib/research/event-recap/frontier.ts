@@ -5,7 +5,7 @@ export interface FrontierSpeakerInput {
   name: string;
   company?: string;
   title?: string;
-  role?: 'keynote' | 'speaker' | 'organizer' | 'sponsor';
+  role?: 'keynote' | 'headline' | 'speaker' | 'organizer' | 'sponsor';
   sessionTitle?: string;
   profileUrl?: string;
   handle?: string;
@@ -99,9 +99,7 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
     ...(input.sessions ?? []).flatMap((session) =>
       (session.speakers ?? []).map((speaker) => ({
         ...speaker,
-        role:
-          speaker.role ??
-          (session.topics?.some((topic) => /keynote/i.test(topic)) ? 'keynote' : 'speaker'),
+        role: speaker.role ?? roleFromSession(session),
         sessionTitle: speaker.sessionTitle ?? session.title,
         topics: speaker.topics ?? session.topics,
       }))
@@ -109,6 +107,7 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
   ]);
   for (const speaker of speakers.slice(0, 32)) {
     const isKeynote = speaker.role === 'keynote';
+    const isHeadline = speaker.role === 'headline';
     anchors.push(
       anchor({
         kind: 'author',
@@ -117,29 +116,33 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
         query: speaker.handle
           ? `@${stripAt(speaker.handle)} ${eventName}`
           : `"${speaker.name}" "${eventName}"`,
-        score: isKeynote ? 76 : 54,
+        score: isKeynote ? 76 : isHeadline ? 74 : 54,
         bias: isKeynote
           ? 'keynote-speaker-biased; strong for talk reactions but may over-sample announcements'
+          : isHeadline
+            ? 'headline-speaker-biased; strong for major public-interest sessions but may over-sample announcements'
           : 'speaker-biased; useful for talk-specific discovery but announcement-heavy',
       })
     );
-    if (isKeynote && speaker.company) {
+    if ((isKeynote || isHeadline) && speaker.company) {
       anchors.push(
         anchor({
           kind: 'entity',
           sourceKind: 'official-schedule',
           value: speaker.company,
           query: `"${speaker.company}" "${eventName}"`,
-          score: 48,
-          bias: 'keynote-company-derived; useful for talk discovery, not attendee sentiment',
+          score: isKeynote ? 48 : 46,
+          bias: isKeynote
+            ? 'keynote-company-derived; useful for talk discovery, not attendee sentiment'
+            : 'headline-company-derived; useful for public-interest talk discovery, not attendee sentiment',
         })
       );
     }
   }
 
   for (const session of normalizeSessions(input.sessions ?? []).slice(0, 12)) {
-    const isKeynote = session.topics?.some((topic) => /keynote/i.test(topic));
-    if (!isKeynote) continue;
+    const role = roleFromSession(session);
+    if (role !== 'keynote' && role !== 'headline') continue;
     const phrase = compactSessionPhrase(session.title);
     if (!phrase) continue;
     anchors.push(
@@ -148,8 +151,11 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
         sourceKind: 'official-schedule',
         value: phrase,
         query: `"${phrase}" "${eventName}"`,
-        score: 50,
-        bias: 'keynote-session-title-derived; high precision but often low recall',
+        score: role === 'keynote' ? 50 : 49,
+        bias:
+          role === 'keynote'
+            ? 'keynote-session-title-derived; high precision but often low recall'
+            : 'headline-session-title-derived; high precision for public-interest sessions but often low recall',
       })
     );
   }
@@ -253,7 +259,25 @@ function normalizeSpeakers(speakers: FrontierSpeakerInput[]): FrontierSpeakerInp
 }
 
 function speakerScore(speaker: FrontierSpeakerInput): number {
-  return (speaker.role === 'keynote' ? 1000 : 0) + (speaker.company ? 10 : 0);
+  return (
+    (speaker.role === 'keynote' ? 1000 : speaker.role === 'headline' ? 900 : 0) +
+    (speaker.company ? 10 : 0)
+  );
+}
+
+function roleFromSession(session: FrontierSessionInput): FrontierSpeakerInput['role'] {
+  if (session.topics?.some((topic) => /keynote/i.test(topic))) return 'keynote';
+  const text = [
+    session.title,
+    ...(session.speakers ?? []).flatMap((speaker) => [speaker.title, speaker.company]),
+    ...(session.topics ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  if (/\b(minister|ministry|foreign affairs|govtech|government|cabinet|prime minister|public sector)\b/i.test(text)) {
+    return 'headline';
+  }
+  return 'speaker';
 }
 
 function normalizeSessions(sessions: FrontierSessionInput[]): FrontierSessionInput[] {
