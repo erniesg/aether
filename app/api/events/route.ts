@@ -74,7 +74,9 @@ export async function POST(request: Request) {
           ? body.maxYouTubeLiveChatMessagesPerVideo
           : undefined,
       linkedinMode:
-        body.linkedinMode === 'browser-direct' || body.linkedinMode === 'search-fetch'
+        body.linkedinMode === 'browser-direct' ||
+        body.linkedinMode === 'search-fetch' ||
+        body.linkedinMode === 'apify'
           ? body.linkedinMode
           : undefined,
       xProvider:
@@ -91,6 +93,36 @@ export async function POST(request: Request) {
       apifyCandidateMultiplier:
         typeof body.apifyCandidateMultiplier === 'number'
           ? body.apifyCandidateMultiplier
+          : undefined,
+      linkedinApifyActorId:
+        typeof body.linkedinApifyActorId === 'string' ? body.linkedinApifyActorId : undefined,
+      linkedinApifySortBy:
+        body.linkedinApifySortBy === 'date' || body.linkedinApifySortBy === 'relevance'
+          ? body.linkedinApifySortBy
+          : undefined,
+      linkedinApifyContentType:
+        body.linkedinApifyContentType === 'all' ||
+        body.linkedinApifyContentType === 'documents' ||
+        body.linkedinApifyContentType === 'images' ||
+        body.linkedinApifyContentType === 'videos' ||
+        body.linkedinApifyContentType === 'articles'
+          ? body.linkedinApifyContentType
+          : undefined,
+      linkedinApifyCandidateMultiplier:
+        typeof body.linkedinApifyCandidateMultiplier === 'number'
+          ? body.linkedinApifyCandidateMultiplier
+          : undefined,
+      includeLinkedInComments:
+        typeof body.includeLinkedInComments === 'boolean' ? body.includeLinkedInComments : undefined,
+      maxLinkedInCommentsPerPost:
+        typeof body.maxLinkedInCommentsPerPost === 'number'
+          ? body.maxLinkedInCommentsPerPost
+          : undefined,
+      includeLinkedInReactions:
+        typeof body.includeLinkedInReactions === 'boolean' ? body.includeLinkedInReactions : undefined,
+      maxLinkedInReactionsPerPost:
+        typeof body.maxLinkedInReactionsPerPost === 'number'
+          ? body.maxLinkedInReactionsPerPost
           : undefined,
     });
     return NextResponse.json({ ok: true, event: bundle?.event ?? event, bundle });

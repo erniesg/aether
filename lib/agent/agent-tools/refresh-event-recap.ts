@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'refresh_event_recap',
   description:
-    'Delta-refresh an event recap corpus. Uses stored posts as a seen set, then fills toward targetItemsPerPlatform without re-fetching already archived X, LinkedIn, or YouTube URLs. X can use official search or Apify; LinkedIn defaults to TinyFish Search+Fetch for lower cost; YouTube uses the configured Data API and keeps video/channel metadata plus thumbnails.',
+    'Delta-refresh an event recap corpus. Uses stored posts as a seen set, then fills toward targetItemsPerPlatform without re-fetching already archived X, LinkedIn, or YouTube URLs. X can use official search or Apify; LinkedIn can use Apify post search for bulk media/metadata, TinyFish Search+Fetch for cheaper indexed URL fanout, or TinyFish browser-direct for time-limited logged-in checks; YouTube uses the configured Data API and keeps video/channel metadata plus thumbnails.',
   input_schema: {
     type: 'object',
     properties: {
@@ -38,9 +38,9 @@ const tool: Anthropic.Messages.Tool = {
       },
       linkedinMode: {
         type: 'string',
-        enum: ['search-fetch', 'browser-direct'],
+        enum: ['search-fetch', 'browser-direct', 'apify'],
         description:
-          'LinkedIn collection mode. search-fetch is cheaper and skips seen URLs before Fetch; browser-direct spends Agent credits, uses TinyFish Vault/profile, can follow warm_linkedin_session human handoff, and captures visible metadata/views/impressions only when LinkedIn renders them.',
+          'LinkedIn collection mode. apify uses HarvestAPI LinkedIn Post Search for bulk public posts, engagement metadata, comments/reactions when requested, and media URLs while skipping stored activity IDs; search-fetch is cheaper indexed URL fanout; browser-direct spends TinyFish Agent credits, uses Vault/profile, can follow warm_linkedin_session human handoff, and captures visible metadata/views/impressions only when LinkedIn renders them before the remote session expires.',
       },
       xProvider: {
         type: 'string',
@@ -62,6 +62,44 @@ const tool: Anthropic.Messages.Tool = {
         type: 'number',
         description:
           'Apify X over-collection multiplier before local dedupe. Default 1 for cost control; increase when seen-set overlap is high.',
+      },
+      linkedinApifyActorId: {
+        type: 'string',
+        description:
+          'Optional Apify LinkedIn actor id. Defaults to harvestapi/linkedin-post-search.',
+      },
+      linkedinApifySortBy: {
+        type: 'string',
+        enum: ['date', 'relevance'],
+        description: 'Apify LinkedIn sort mode. date is best for delta refresh; relevance can broaden older/high-match posts.',
+      },
+      linkedinApifyContentType: {
+        type: 'string',
+        enum: ['all', 'documents', 'images', 'videos', 'articles'],
+        description: 'Optional LinkedIn post content filter for the Apify actor. Use all for recall; images/videos/documents can enrich media-heavy passes.',
+      },
+      linkedinApifyCandidateMultiplier: {
+        type: 'number',
+        description:
+          'Apify LinkedIn over-collection multiplier before local dedupe/relevance filtering. Default 1 for cost control; increase when seen-set overlap is high.',
+      },
+      includeLinkedInComments: {
+        type: 'boolean',
+        description:
+          'Apify LinkedIn only: when true, request visible post comments as conversation rows. Use small maxLinkedInCommentsPerPost values for cost control.',
+      },
+      maxLinkedInCommentsPerPost: {
+        type: 'number',
+        description: 'Apify LinkedIn only: maximum comments per post to request when includeLinkedInComments is true.',
+      },
+      includeLinkedInReactions: {
+        type: 'boolean',
+        description:
+          'Apify LinkedIn only: when true, request sampled reaction identities in raw provenance. Aggregate reaction counts are captured without this where the actor returns them.',
+      },
+      maxLinkedInReactionsPerPost: {
+        type: 'number',
+        description: 'Apify LinkedIn only: maximum reaction identities per post to request when includeLinkedInReactions is true.',
       },
       includeMedia: {
         type: 'boolean',

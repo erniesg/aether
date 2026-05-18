@@ -1,5 +1,12 @@
 import { analyzePosts } from './analyze';
-import { isApifyConfigured, searchXViaApify, type ApifyXSort } from './apify';
+import {
+  isApifyConfigured,
+  searchLinkedInViaApify,
+  searchXViaApify,
+  type ApifyLinkedInContentType,
+  type ApifyLinkedInSort,
+  type ApifyXSort,
+} from './apify';
 import { enrichPostConversationTags } from './conversation';
 import { deriveExpansionPlan } from './expand';
 import { deriveSeedFrontier } from './frontier';
@@ -37,7 +44,7 @@ import { searchYouTubeVideos } from './youtube';
 
 const PLATFORMS: EventPlatform[] = [...EVENT_PLATFORMS];
 
-type LinkedInRefreshMode = 'search-fetch' | 'browser-direct';
+type LinkedInRefreshMode = 'search-fetch' | 'browser-direct' | 'apify';
 type XRefreshProvider = 'official' | 'apify';
 
 interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
@@ -59,6 +66,14 @@ interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   apifyActorId?: string;
   apifySort?: ApifyXSort;
   apifyCandidateMultiplier?: number;
+  linkedinApifyActorId?: string;
+  linkedinApifySortBy?: ApifyLinkedInSort;
+  linkedinApifyContentType?: ApifyLinkedInContentType;
+  linkedinApifyCandidateMultiplier?: number;
+  includeLinkedInComments?: boolean;
+  maxLinkedInCommentsPerPost?: number;
+  includeLinkedInReactions?: boolean;
+  maxLinkedInReactionsPerPost?: number;
 }
 
 export async function createEventRecap(
@@ -308,6 +323,24 @@ export async function refreshEventRecap(
                   seenPostUrls,
                 });
                 if (apify.posts.length > 0) return apify;
+              }
+              if (platform === 'linkedin' && input.linkedinMode === 'apify') {
+                return searchLinkedInViaApify({
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  actorId: input.linkedinApifyActorId,
+                  sortBy: input.linkedinApifySortBy,
+                  contentType: input.linkedinApifyContentType,
+                  candidateMultiplier: input.linkedinApifyCandidateMultiplier,
+                  seenPostUrls,
+                  scrapeComments: input.includeLinkedInComments,
+                  maxComments: input.maxLinkedInCommentsPerPost,
+                  scrapeReactions: input.includeLinkedInReactions,
+                  maxReactions: input.maxLinkedInReactionsPerPost,
+                });
               }
 
               const result =
