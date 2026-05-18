@@ -1,5 +1,6 @@
 import { deriveExpansionPlan } from './expand';
 import { deriveSeedFrontier } from './frontier';
+import { fetchOfficialScheduleFrontier } from './official-schedule';
 import { getEventBundle } from './store';
 import {
   countPlatformViaTinyFishSearch,
@@ -8,6 +9,7 @@ import {
   scrapePlatformFrontierViaTinyFish,
 } from './tinyfish';
 import type { EventPlatform } from './types';
+import { normalizeQuerySet } from './utils';
 import { countXRecentQueries } from './x-api';
 
 export type LinkedInCountMode = 'search-index' | 'browser-direct';
@@ -30,7 +32,7 @@ export async function estimateEventCounts(input: EventCountEstimateInput) {
   const bundle = input.eventId ? await getEventBundle(input.eventId) : null;
   const eventName =
     input.eventName ?? bundle?.event.canonicalName ?? bundle?.event.name ?? input.eventId ?? 'event';
-  const querySet =
+  const baseQuerySet =
     input.querySet && input.querySet.length
       ? input.querySet
       : bundle?.posts.length
@@ -45,6 +47,28 @@ export async function estimateEventCounts(input: EventCountEstimateInput) {
             sourceUrls: bundle?.event.sourceUrls,
             maxQueries: input.maxQueries ?? 12,
           }).querySet;
+  const schedule =
+    input.querySet && input.querySet.length
+      ? { speakers: [], sessions: [], sourceUrls: [], warnings: [] }
+      : await fetchOfficialScheduleFrontier({
+          eventName,
+          officialUrl: bundle?.event.officialUrl,
+          sourceUrls: bundle?.event.sourceUrls,
+        });
+  const scheduleQuerySet = schedule.speakers.length
+    ? deriveSeedFrontier({
+        eventName,
+        officialUrl: bundle?.event.officialUrl,
+        sourceUrls: [...(bundle?.event.sourceUrls ?? []), ...schedule.sourceUrls],
+        speakers: schedule.speakers,
+        sessions: schedule.sessions,
+        maxQueries: input.maxQueries ?? 12,
+      }).querySet
+    : [];
+  const querySet = normalizeQuerySet(
+    [...baseQuerySet.slice(0, 4), ...scheduleQuerySet, ...baseQuerySet.slice(4)],
+    Math.max(input.maxQueries ?? 12, 12)
+  );
 
   const windowStart =
     input.windowStart ??
@@ -98,6 +122,7 @@ export async function estimateEventCounts(input: EventCountEstimateInput) {
     warnings: [
       'Cross-platform totals are not additive because platforms expose different search/count semantics.',
       'Use counts to choose frontier budget, then rely on dedupe and conversation classification after scraping.',
+      ...(schedule.warnings ?? []),
     ],
   };
 }

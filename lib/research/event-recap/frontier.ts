@@ -1,11 +1,32 @@
 import type { EventExpansionAnchor, EventExpansionPlan } from './types';
 import { normalizeQuerySet } from './utils';
 
-interface SeedFrontierInput {
+export interface FrontierSpeakerInput {
+  name: string;
+  company?: string;
+  title?: string;
+  role?: 'keynote' | 'speaker' | 'organizer' | 'sponsor';
+  sessionTitle?: string;
+  profileUrl?: string;
+  handle?: string;
+  topics?: string[];
+}
+
+export interface FrontierSessionInput {
+  title: string;
+  speakers?: FrontierSpeakerInput[];
+  topics?: string[];
+  startsAt?: string;
+}
+
+export interface SeedFrontierInput {
   eventName: string;
   contextHint?: string;
   officialUrl?: string;
   sourceUrls?: string[];
+  speakers?: FrontierSpeakerInput[];
+  sessions?: FrontierSessionInput[];
+  sponsors?: string[];
   maxQueries?: number;
 }
 
@@ -30,14 +51,18 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
       score: 78,
       bias: 'exact phrase search; useful for canonical mentions, usually misses casual posts',
     }),
-    anchor({
-      kind: 'query',
-      sourceKind: 'broad-public-search',
-      value: `${eventName} Singapore`,
-      query: `${eventName} Singapore`,
-      score: 74,
-      bias: 'location-constrained keyword search; may over-sample event listings',
-    }),
+    ...(!/\bsingapore\b/i.test(eventName)
+      ? [
+          anchor({
+            kind: 'query',
+            sourceKind: 'broad-public-search',
+            value: `${eventName} Singapore`,
+            query: `${eventName} Singapore`,
+            score: 74,
+            bias: 'location-constrained keyword search; may over-sample event listings',
+          }),
+        ]
+      : []),
     anchor({
       kind: 'query',
       sourceKind: 'broad-public-search',
@@ -65,6 +90,79 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
         query: '#aiengineer Singapore',
         score: 62,
         bias: 'hashtag-biased; useful when attendees use official tags',
+      })
+    );
+  }
+
+  const speakers = normalizeSpeakers([
+    ...(input.speakers ?? []),
+    ...(input.sessions ?? []).flatMap((session) =>
+      (session.speakers ?? []).map((speaker) => ({
+        ...speaker,
+        role:
+          speaker.role ??
+          (session.topics?.some((topic) => /keynote/i.test(topic)) ? 'keynote' : 'speaker'),
+        sessionTitle: speaker.sessionTitle ?? session.title,
+        topics: speaker.topics ?? session.topics,
+      }))
+    ),
+  ]);
+  for (const speaker of speakers.slice(0, 32)) {
+    const isKeynote = speaker.role === 'keynote';
+    anchors.push(
+      anchor({
+        kind: 'author',
+        sourceKind: speaker.profileUrl || speaker.handle ? 'speaker-account' : 'official-schedule',
+        value: speaker.handle ? `@${stripAt(speaker.handle)}` : speaker.name,
+        query: speaker.handle
+          ? `@${stripAt(speaker.handle)} ${eventName}`
+          : `"${speaker.name}" "${eventName}"`,
+        score: isKeynote ? 76 : 54,
+        bias: isKeynote
+          ? 'keynote-speaker-biased; strong for talk reactions but may over-sample announcements'
+          : 'speaker-biased; useful for talk-specific discovery but announcement-heavy',
+      })
+    );
+    if (isKeynote && speaker.company) {
+      anchors.push(
+        anchor({
+          kind: 'entity',
+          sourceKind: 'official-schedule',
+          value: speaker.company,
+          query: `"${speaker.company}" "${eventName}"`,
+          score: 48,
+          bias: 'keynote-company-derived; useful for talk discovery, not attendee sentiment',
+        })
+      );
+    }
+  }
+
+  for (const session of normalizeSessions(input.sessions ?? []).slice(0, 12)) {
+    const isKeynote = session.topics?.some((topic) => /keynote/i.test(topic));
+    if (!isKeynote) continue;
+    const phrase = compactSessionPhrase(session.title);
+    if (!phrase) continue;
+    anchors.push(
+      anchor({
+        kind: 'query',
+        sourceKind: 'official-schedule',
+        value: phrase,
+        query: `"${phrase}" "${eventName}"`,
+        score: 50,
+        bias: 'keynote-session-title-derived; high precision but often low recall',
+      })
+    );
+  }
+
+  for (const sponsor of normalizeQuerySet(input.sponsors ?? [], 12)) {
+    anchors.push(
+      anchor({
+        kind: 'entity',
+        sourceKind: 'sponsor-org',
+        value: sponsor,
+        query: `"${sponsor}" "${eventName}"`,
+        score: 44,
+        bias: 'sponsor-biased; useful for coverage and booth posts, often promotional',
       })
     );
   }
@@ -138,6 +236,52 @@ function contextPhrases(context: string): string[] {
       .filter((part) => part.length >= 4 && part.length <= 80),
     8
   );
+}
+
+function normalizeSpeakers(speakers: FrontierSpeakerInput[]): FrontierSpeakerInput[] {
+  const seen = new Set<string>();
+  const out: FrontierSpeakerInput[] = [];
+  for (const speaker of speakers) {
+    const name = speaker.name?.trim().replace(/\s+/g, ' ');
+    if (!name || /^(tba|kickoff|speaker)$/i.test(name)) continue;
+    const key = `${name}:${speaker.company ?? ''}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...speaker, name });
+  }
+  return out.sort((a, b) => speakerScore(b) - speakerScore(a));
+}
+
+function speakerScore(speaker: FrontierSpeakerInput): number {
+  return (speaker.role === 'keynote' ? 1000 : 0) + (speaker.company ? 10 : 0);
+}
+
+function normalizeSessions(sessions: FrontierSessionInput[]): FrontierSessionInput[] {
+  const seen = new Set<string>();
+  const out: FrontierSessionInput[] = [];
+  for (const session of sessions) {
+    const title = session.title?.trim().replace(/\s+/g, ' ');
+    if (!title || /^(tba|kickoff)$/i.test(title)) continue;
+    const key = title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...session, title });
+  }
+  return out;
+}
+
+function compactSessionPhrase(title: string): string | undefined {
+  const phrase = title
+    .replace(/[“”]/g, '"')
+    .split(/[:—-]/)[0]
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (phrase.length < 6 || phrase.length > 80) return undefined;
+  return phrase;
+}
+
+function stripAt(value: string): string {
+  return value.trim().replace(/^@+/, '');
 }
 
 function domainFromUrl(raw?: string): string | undefined {
