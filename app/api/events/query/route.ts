@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getEventBundle } from '@/lib/research/event-recap/store';
-import type { EventPlatform } from '@/lib/research/event-recap/types';
+import { isEventPlatform, type EventPlatform } from '@/lib/research/event-recap/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function platform(value: unknown): EventPlatform | undefined {
-  return value === 'x' || value === 'linkedin' ? value : undefined;
+  return isEventPlatform(value) ? value : undefined;
 }
 
 export async function POST(request: Request) {
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
       text: post.text,
       postedAt: post.postedAt,
       metrics: post.metrics,
+      media: post.media,
       reachScore: post.reachScore,
       tags: post.tags,
     })),

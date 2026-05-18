@@ -16,9 +16,11 @@ interface MockPostSeed {
   authorName: string;
   authorHandle?: string;
   authorUrl?: string;
+  authorMeta?: EventPost['authorMeta'];
   text: string;
   postedAt: string;
   metrics: EventPost['metrics'];
+  media?: EventPost['media'];
   tags: string[];
 }
 
@@ -70,6 +72,31 @@ const SEEDS: MockPostSeed[] = [
     postedAt: '2026-05-16T09:15:00.000Z',
     metrics: { likes: 48, reposts: 12, replies: 6, views: 8700 },
     tags: ['careers', 'learning'],
+  },
+  {
+    platform: 'youtube',
+    url: 'https://www.youtube.com/watch?v=mockAIE2026d1',
+    authorName: 'AI Engineer',
+    authorHandle: '@aiDotEngineer',
+    authorUrl: 'https://www.youtube.com/@aiDotEngineer',
+    authorMeta: {
+      followers: 38000,
+      posts: 240,
+      profileImageUrl: 'https://i.ytimg.com/vi/mockAIE2026d1/default.jpg',
+    },
+    text:
+      'AI Engineer Singapore Day 1 keynote clips: practical agents, evals, and builders sharing what moved from demos into production.',
+    postedAt: '2026-05-17T03:00:00.000Z',
+    metrics: { views: 20248, impressions: 20248, likes: 375, comments: 6 },
+    media: [
+      {
+        url: 'https://i.ytimg.com/vi/mockAIE2026d1/maxresdefault.jpg',
+        type: 'image',
+        source: 'youtube-thumbnail',
+        altText: 'Video thumbnail: AI Engineer Singapore Day 1',
+      },
+    ],
+    tags: ['youtube-video', 'keynote', 'event-recap'],
   },
   {
     platform: 'linkedin',
@@ -141,6 +168,7 @@ export function mockResolveEvent(name: string, contextHint?: string): EventResol
       `https://api.search.tinyfish.ai?query=${encodeURIComponent(name)}`,
       `https://x.com/search?q=${encodeURIComponent(name)}`,
       `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(name)}`,
+      `https://www.youtube.com/results?search_query=${encodeURIComponent(name)}`,
     ],
     warnings: ['mock event resolution; live TinyFish Search/Fetch not called'],
   };
@@ -164,10 +192,12 @@ export function mockScrapePlatform(
         authorName: seed.authorName,
         authorHandle: seed.authorHandle,
         authorUrl: seed.authorUrl,
+        authorMeta: seed.authorMeta,
         text: seed.text,
         postedAt: seed.postedAt,
         capturedAt: Date.now(),
         metrics: seed.metrics,
+        media: seed.media,
         reachScore: 0,
         tags: seed.tags,
         raw: seed,
@@ -197,7 +227,7 @@ export function mockRunShell(input: {
     status: 'running',
     mode: 'mock',
     provider: 'tinyfish-mock',
-    platforms: input.platforms ?? ['x', 'linkedin'],
+    platforms: input.platforms ?? ['x', 'linkedin', 'youtube'],
     querySet: input.querySet,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,

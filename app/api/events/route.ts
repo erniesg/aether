@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createEventRecap, refreshEventRecap } from '@/lib/research/event-recap/pipeline';
+import { isEventPlatform } from '@/lib/research/event-recap/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
 
     const bundle = await refreshEventRecap({
       eventId: event.eventId,
+      platforms: Array.isArray(body.platforms)
+        ? body.platforms.filter(isEventPlatform)
+        : undefined,
       targetItemsPerPlatform:
         typeof body.targetItemsPerPlatform === 'number'
           ? body.targetItemsPerPlatform

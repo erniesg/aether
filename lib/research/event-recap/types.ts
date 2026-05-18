@@ -1,7 +1,19 @@
-export type EventPlatform = 'x' | 'linkedin';
+export const EVENT_PLATFORMS = ['x', 'linkedin', 'youtube'] as const;
+export type EventPlatform = (typeof EVENT_PLATFORMS)[number];
 export type EventRecapMode = 'mock' | 'tinyfish';
 export type EventStatus = 'draft' | 'resolving' | 'ready' | 'refreshing' | 'error';
 export type EventRunStatus = 'running' | 'completed' | 'failed' | 'skipped';
+
+export function isEventPlatform(value: unknown): value is EventPlatform {
+  return typeof value === 'string' && (EVENT_PLATFORMS as readonly string[]).includes(value);
+}
+
+export function emptyEventPlatformCounts(): Record<EventPlatform, number> {
+  return EVENT_PLATFORMS.reduce((acc, platform) => {
+    acc[platform] = 0;
+    return acc;
+  }, {} as Record<EventPlatform, number>);
+}
 
 export interface EventRecapConfig {
   eventId: string;

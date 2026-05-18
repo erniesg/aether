@@ -1,6 +1,18 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+const EVENT_PLATFORM = v.union(v.literal('x'), v.literal('linkedin'), v.literal('youtube'));
+const EVENT_POST_MEDIA = v.object({
+  url: v.string(),
+  type: v.union(v.literal('image'), v.literal('video'), v.literal('gif'), v.literal('unknown')),
+  source: v.optional(v.string()),
+  previewUrl: v.optional(v.string()),
+  altText: v.optional(v.string()),
+  width: v.optional(v.number()),
+  height: v.optional(v.number()),
+  localPath: v.optional(v.string()),
+});
+
 /**
  * v0.1 hackathon schema. Matches docs/ARCHITECTURE.md § Data model.
  * Keep the sections ordered: inputs → canvas → capability → observations → export.
@@ -373,7 +385,7 @@ export default defineSchema({
     ),
     mode: v.union(v.literal('mock'), v.literal('tinyfish')),
     provider: v.string(),
-    platforms: v.array(v.union(v.literal('x'), v.literal('linkedin'))),
+    platforms: v.array(EVENT_PLATFORM),
     querySet: v.array(v.string()),
     windowStart: v.string(),
     windowEnd: v.string(),
@@ -382,7 +394,7 @@ export default defineSchema({
     actualCredits: v.optional(v.number()),
     streamingUrls: v.array(
       v.object({
-        platform: v.union(v.literal('x'), v.literal('linkedin')),
+        platform: EVENT_PLATFORM,
         url: v.string(),
       })
     ),
@@ -400,7 +412,7 @@ export default defineSchema({
     postId: v.string(),
     eventId: v.string(),
     runId: v.string(),
-    platform: v.union(v.literal('x'), v.literal('linkedin')),
+    platform: EVENT_PLATFORM,
     url: v.string(),
     authorName: v.string(),
     authorHandle: v.optional(v.string()),
@@ -431,6 +443,7 @@ export default defineSchema({
       impressions: v.optional(v.number()),
       views: v.optional(v.number()),
     }),
+    media: v.optional(v.array(EVENT_POST_MEDIA)),
     reachScore: v.number(),
     tags: v.array(v.string()),
     raw: v.any(),
@@ -453,7 +466,7 @@ export default defineSchema({
   eventVoice: defineTable({
     voiceId: v.string(),
     eventId: v.string(),
-    platform: v.union(v.literal('x'), v.literal('linkedin')),
+    platform: EVENT_PLATFORM,
     name: v.string(),
     handle: v.optional(v.string()),
     profileUrl: v.optional(v.string()),

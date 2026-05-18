@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { estimateEventCounts } from '@/lib/research/event-recap/counts';
-import type { EventPlatform } from '@/lib/research/event-recap/types';
+import { isEventPlatform, type EventPlatform } from '@/lib/research/event-recap/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function platforms(value: unknown): EventPlatform[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  return value.filter((item): item is EventPlatform => item === 'x' || item === 'linkedin');
+  return value.filter(isEventPlatform);
 }
 
 export async function POST(request: Request) {

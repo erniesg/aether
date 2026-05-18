@@ -1,10 +1,11 @@
-import type {
-  EventExpansionAnchor,
-  EventExpansionAnchorKind,
-  EventExpansionPlan,
-  EventFrontierSourceKind,
-  EventPlatform,
-  EventPost,
+import {
+  emptyEventPlatformCounts,
+  type EventExpansionAnchor,
+  type EventExpansionAnchorKind,
+  type EventExpansionPlan,
+  type EventFrontierSourceKind,
+  type EventPlatform,
+  type EventPost,
 } from './types';
 import { classifyConversationPost } from './conversation';
 import { engagement, normalizeQuerySet, tokenize } from './utils';
@@ -151,7 +152,7 @@ export function deriveExpansionPlan(
   const maxQueries = options.maxQueries ?? 12;
   const eventTokens = new Set([...tokenize(eventName), ...STRONG_TERMS]);
   const candidates = new Map<string, Candidate>();
-  const platformCounts: Record<EventPlatform, number> = { x: 0, linkedin: 0 };
+  const platformCounts: Record<EventPlatform, number> = emptyEventPlatformCounts();
 
   for (const post of posts) {
     platformCounts[post.platform] += 1;
@@ -186,11 +187,18 @@ export function deriveExpansionPlan(
   if (posts.length < 100) {
     warnings.push('Expansion plan is based on a small seed corpus; treat long-tail recall as incomplete.');
   }
-  if (platformCounts.linkedin === 0) {
-    warnings.push('No LinkedIn posts were present, so expansion is X-skewed.');
-  }
-  if (platformCounts.x === 0) {
-    warnings.push('No X posts were present, so expansion is LinkedIn-skewed.');
+  const missingPlatforms = Object.entries(platformCounts)
+    .filter(([, count]) => count === 0)
+    .map(([platform]) => platform);
+  if (missingPlatforms.length > 0 && missingPlatforms.length < Object.keys(platformCounts).length) {
+    warnings.push(
+      `No ${missingPlatforms.join(' or ')} posts were present, so expansion is skewed toward ${Object.entries(
+        platformCounts
+      )
+        .filter(([, count]) => count > 0)
+        .map(([platform]) => platform)
+        .join(' + ')}.`
+    );
   }
   const noisyCount = posts.filter(isHiringNoise).length;
   if (noisyCount > 0) {
@@ -433,9 +441,9 @@ function biasForAnchor(candidate: Candidate, platforms: EventPlatform[]): string
     return 'corpus-phrase-derived; high precision for follow-on discovery but can over-focus on already-visible subtopics';
   }
   if (platforms.length === 1) {
-    return `platform-skewed toward ${platforms[0]}; validate against the other platform before summarizing`;
+    return `platform-skewed toward ${platforms[0]}; validate against other platforms before summarizing`;
   }
-  return 'corpus-discovered from mixed X and LinkedIn posts';
+  return 'corpus-discovered from mixed-platform posts';
 }
 
 function officialEventAnchors(eventName: string): Array<{

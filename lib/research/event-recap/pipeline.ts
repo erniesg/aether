@@ -21,18 +21,21 @@ import {
   searchPlatformFallbackViaTinyFish,
 } from './tinyfish';
 import { isXSearchConfigured, searchXViaOfficialApi } from './x-api';
-import type {
-  EventPlatform,
-  EventExpansionPlan,
-  EventPost,
-  EventRecapConfig,
-  EventRecapRecord,
-  EventScrapeRun,
-  PlatformScrapeResult,
+import {
+  EVENT_PLATFORMS,
+  emptyEventPlatformCounts,
+  type EventPlatform,
+  type EventExpansionPlan,
+  type EventPost,
+  type EventRecapConfig,
+  type EventRecapRecord,
+  type EventScrapeRun,
+  type PlatformScrapeResult,
 } from './types';
 import { clampConfig, eventWindow, normalizeQuerySet, scorePostsByPlatform } from './utils';
+import { searchYouTubeVideos } from './youtube';
 
-const PLATFORMS: EventPlatform[] = ['x', 'linkedin'];
+const PLATFORMS: EventPlatform[] = [...EVENT_PLATFORMS];
 
 type LinkedInRefreshMode = 'search-fetch' | 'browser-direct';
 type XRefreshProvider = 'official' | 'apify';
@@ -133,7 +136,9 @@ export async function refreshEventRecap(
   const estimatedCredits =
     config.liveMode === 'tinyfish'
       ? estimateTinyFishCredits({
-          platforms: platforms.filter((platform) => (platformBudgets[platform] ?? 0) > 0).length,
+          platforms: platforms.filter(
+            (platform) => platform !== 'youtube' && (platformBudgets[platform] ?? 0) > 0
+          ).length,
           queryCount: activeQuerySet.length,
           maxItemsPerPlatform: maxBudget,
         })
@@ -246,6 +251,17 @@ export async function refreshEventRecap(
                     targetItemsPerPlatform,
                   },
                 } satisfies PlatformScrapeResult;
+              }
+              if (platform === 'youtube') {
+                return searchYouTubeVideos({
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  seenPostUrls,
+                  includeMedia: input.includeMedia,
+                });
               }
               if (platform === 'x' && input.xProvider === 'apify') {
                 return searchXViaApify({
@@ -437,7 +453,7 @@ function scrapeBudgetsByPlatform(input: {
       acc[post.platform] += 1;
       return acc;
     },
-    { x: 0, linkedin: 0 } satisfies Record<EventPlatform, number>
+    emptyEventPlatformCounts()
   );
   return Object.fromEntries(
     input.platforms.map((platform) => [
@@ -492,7 +508,7 @@ function liveRunShell(input: {
     eventId: input.eventId,
     status: 'running',
     mode: 'tinyfish',
-    provider: 'tinyfish',
+    provider: 'event-recap-providers',
     platforms: input.platforms,
     querySet: input.querySet,
     windowStart: input.windowStart,

@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'get_event_expansion_plan',
   description:
-    'Inspect a stored mixed X + LinkedIn event corpus and suggest the next search frontier: accounts, hashtags, entities, corpus phrase clues, and expanded queries, with cited sample post ids.',
+    'Inspect a stored mixed X + LinkedIn + YouTube event corpus and suggest the next search frontier: accounts/channels, hashtags, entities, corpus phrase clues, and expanded queries, with cited sample post ids.',
   input_schema: {
     type: 'object',
     properties: {

@@ -52,7 +52,7 @@ describe('event recap expansion planning', () => {
       maxQueries: 8,
     });
 
-    expect(plan.corpus.platforms).toEqual({ x: 1, linkedin: 2 });
+    expect(plan.corpus.platforms).toEqual({ x: 1, linkedin: 2, youtube: 0 });
     expect(plan.anchors[0].value).toBe('@aiDotEngineer');
     expect(plan.querySet).toContain('@aiDotEngineer Singapore');
     expect(plan.querySet.join('\n')).toMatch(/SherryYanJiang|Sherry Yan Jiang/i);
