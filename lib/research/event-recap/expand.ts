@@ -41,14 +41,38 @@ const GENERIC_ENTITIES = new Set([
   'Twitter',
   'Today',
   'Thanks',
+  'There',
   'People',
   'Event',
+  'Excited',
   'Summit',
   'What',
   'When',
   'Where',
   'Who',
   'Why',
+]);
+
+const SINGLE_TOKEN_ENTITY_ALLOWLIST = new Set([
+  'AIE',
+  'Arize',
+  'Cerebras',
+  'Claude',
+  'Codex',
+  'Convex',
+  'Cursor',
+  'Daytona',
+  'Exa',
+  'Gemini',
+  'HuggingFace',
+  'MiniMax',
+  'Minister',
+  'NanoClaw',
+  'OpenAI',
+  'Pullman',
+  'SMU',
+  'Tusk',
+  'Vercel',
 ]);
 
 const STRONG_TERMS = new Set([
@@ -73,6 +97,33 @@ const STRONG_TERMS = new Set([
   'singapore',
   'summit',
 ]);
+
+const CORPUS_PHRASE_RULES: Array<{ value: string; pattern: RegExp }> = [
+  { value: 'Road to AIE', pattern: /\broad to (?:aie|ai engineer(?: singapore)?)\b/i },
+  { value: 'AI Engineer SG', pattern: /\bai engineer sg\b/i },
+  { value: 'AIE SG', pattern: /\baie\s+sg\b/i },
+  { value: 'AIE2026', pattern: /\b#?aie2026\b/i },
+  { value: 'AI Engineer Summit Singapore', pattern: /\bai engineer summit singapore\b/i },
+  { value: 'AI Engineer side event', pattern: /\b(?:ai engineer\s+)?side events?\b/i },
+  { value: 'AI Engineer workshop', pattern: /\b(?:ai engineer\s+)?workshops?\b/i },
+  { value: 'AI Engineer hackathon', pattern: /\b(?:ai engineer\s+)?hackathon\b/i },
+  { value: 'Codex Booth', pattern: /\bcodex booth\b/i },
+  { value: 'feel-the-AGI', pattern: /\bfeel[-\s]the[-\s]agi\b/i },
+  { value: 'Second Brain', pattern: /\bsecond brain\b/i },
+  { value: 'personal AI stack', pattern: /\bpersonal ai stack\b/i },
+  { value: 'Cabinet Minister', pattern: /\bcabinet minister\b/i },
+  { value: 'Foreign Affairs', pattern: /\bforeign affairs\b/i },
+  { value: 'NanoClaw', pattern: /\bnanoclaw\b/i },
+  { value: 'long-running agents', pattern: /\blong[-\s]running agents\b/i },
+  { value: 'agentic AI', pattern: /\bagentic ai\b/i },
+  { value: 'vibe coding', pattern: /\bvibe[-\s]coding\b/i },
+  { value: 'AI Builders Meetup', pattern: /\bai builders meetup\b/i },
+  { value: 'student ticket', pattern: /\b(?:student|sponsored) tickets?\b/i },
+  { value: 'fully sponsored ticket', pattern: /\bfully sponsored ticket\b/i },
+  { value: 'Capitol Kempinski', pattern: /\bcapitol kempinski\b/i },
+  { value: 'Pullman', pattern: /\bpullman\b/i },
+  { value: 'SMU', pattern: /\bsmu\b/i },
+];
 
 interface DeriveExpansionOptions {
   baseQueries?: string[];
@@ -184,7 +235,18 @@ function extractAnchors(
   for (const entity of extractEntities(post.text, eventName)) {
     anchors.push({ kind: 'entity', value: entity });
   }
+  for (const phrase of extractCorpusPhrases(post.text)) {
+    anchors.push({ kind: 'query', value: phrase });
+  }
   return dedupeAnchors(anchors);
+}
+
+function extractCorpusPhrases(text: string): string[] {
+  const out: string[] = [];
+  for (const rule of CORPUS_PHRASE_RULES) {
+    if (rule.pattern.test(text)) out.push(rule.value);
+  }
+  return out;
 }
 
 function extractEntities(text: string, eventName: string): string[] {
@@ -204,7 +266,11 @@ function extractEntities(text: string, eventName: string): string[] {
     if (entityTokens.length > 0 && entityTokens.every((token) => eventTokens.has(token))) {
       continue;
     }
-    if (entityTokens.length === 1 && value.length <= 5 && value !== value.toUpperCase()) {
+    if (
+      entityTokens.length === 1 &&
+      value !== value.toUpperCase() &&
+      !SINGLE_TOKEN_ENTITY_ALLOWLIST.has(value)
+    ) {
       continue;
     }
     seen.add(key);
@@ -303,10 +369,16 @@ function queryForAnchor(candidate: Candidate, eventName: string): string {
   if (/^@?aiDotEngineer$/i.test(candidate.value) || /ai\.engineer/i.test(candidate.value)) {
     return '@aiDotEngineer Singapore';
   }
+  if (candidate.kind === 'query') return queryForPhrase(candidate.value, eventName);
   if (candidate.kind === 'hashtag') return `${candidate.value} Singapore`;
   if (candidate.kind === 'mention') return `${candidate.value} Singapore`;
   if (candidate.kind === 'author') return `${candidate.value} "${eventName}"`;
   return `${candidate.value} "AI Engineer" Singapore`;
+}
+
+function queryForPhrase(value: string, eventName: string): string {
+  if (/\b(?:AIE|AI Engineer)\b/i.test(value)) return `"${value}" Singapore`;
+  return `"${value}" "${eventName}"`;
 }
 
 function buildExpandedQuerySet(
@@ -338,7 +410,8 @@ function reasonForAnchor(candidate: Candidate, platforms: EventPlatform[]): stri
 
 function sourceKindForAnchor(candidate: Candidate): EventFrontierSourceKind {
   if (/aidotengineer|ai\.engineer/i.test(candidate.value)) return 'official-schedule';
-  if (candidate.kind === 'hashtag' || candidate.kind === 'query') return 'broad-public-search';
+  if (candidate.kind === 'hashtag') return 'broad-public-search';
+  if (candidate.kind === 'query') return 'corpus-discovered';
   if (candidate.kind === 'mention' || candidate.kind === 'author') return 'corpus-discovered';
   if (/convex|openai|vercel|google|govtech|aisg|singtel/i.test(candidate.value)) {
     return 'sponsor-org';
@@ -355,6 +428,9 @@ function biasForAnchor(candidate: Candidate, platforms: EventPlatform[]): string
   }
   if (candidate.kind === 'hashtag') {
     return 'public-search-biased; broad hashtags over-sample popular and promotional posts';
+  }
+  if (candidate.kind === 'query') {
+    return 'corpus-phrase-derived; high precision for follow-on discovery but can over-focus on already-visible subtopics';
   }
   if (platforms.length === 1) {
     return `platform-skewed toward ${platforms[0]}; validate against the other platform before summarizing`;
