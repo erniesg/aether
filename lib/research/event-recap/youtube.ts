@@ -7,6 +7,8 @@ type Fetcher = typeof fetch;
 const SEARCH_ENDPOINT = 'https://www.googleapis.com/youtube/v3/search';
 const VIDEOS_ENDPOINT = 'https://www.googleapis.com/youtube/v3/videos';
 const CHANNELS_ENDPOINT = 'https://www.googleapis.com/youtube/v3/channels';
+const COMMENT_THREADS_ENDPOINT = 'https://www.googleapis.com/youtube/v3/commentThreads';
+const LIVE_CHAT_MESSAGES_ENDPOINT = 'https://www.googleapis.com/youtube/v3/liveChat/messages';
 
 interface YouTubeSearchInput {
   querySet: string[];
@@ -16,6 +18,10 @@ interface YouTubeSearchInput {
   maxQueries?: number;
   seenPostUrls?: string[];
   includeMedia?: boolean;
+  includeComments?: boolean;
+  maxCommentVideos?: number;
+  maxCommentsPerVideo?: number;
+  maxLiveChatMessagesPerVideo?: number;
 }
 
 interface YouTubeCountInput {
@@ -60,6 +66,7 @@ interface YouTubeVideo {
     publishedAt?: string;
     thumbnails?: unknown;
     tags?: string[];
+    liveBroadcastContent?: string;
   };
   statistics?: {
     viewCount?: string;
@@ -68,6 +75,12 @@ interface YouTubeVideo {
   };
   contentDetails?: {
     duration?: string;
+  };
+  liveStreamingDetails?: {
+    activeLiveChatId?: string;
+    actualStartTime?: string;
+    actualEndTime?: string;
+    scheduledStartTime?: string;
   };
 }
 
@@ -88,6 +101,60 @@ interface YouTubeChannel {
     hiddenSubscriberCount?: boolean;
     videoCount?: string;
     viewCount?: string;
+  };
+}
+
+interface YouTubeCommentThreadsResponse {
+  items?: YouTubeCommentThread[];
+}
+
+interface YouTubeCommentThread {
+  id?: string;
+  snippet?: {
+    videoId?: string;
+    totalReplyCount?: number;
+    topLevelComment?: YouTubeComment;
+  };
+}
+
+interface YouTubeComment {
+  id?: string;
+  snippet?: {
+    authorDisplayName?: string;
+    authorChannelUrl?: string;
+    authorProfileImageUrl?: string;
+    textDisplay?: string;
+    textOriginal?: string;
+    likeCount?: number;
+    publishedAt?: string;
+    updatedAt?: string;
+  };
+}
+
+interface YouTubeLiveChatMessagesResponse {
+  items?: YouTubeLiveChatMessage[];
+}
+
+interface YouTubeLiveChatMessage {
+  id?: string;
+  snippet?: {
+    liveChatId?: string;
+    type?: string;
+    publishedAt?: string;
+    displayMessage?: string;
+    textMessageDetails?: {
+      messageText?: string;
+    };
+  };
+  authorDetails?: {
+    channelId?: string;
+    channelUrl?: string;
+    displayName?: string;
+    profileImageUrl?: string;
+    isChatOwner?: boolean;
+    isChatSponsor?: boolean;
+    isChatModerator?: boolean;
+    isVerified?: boolean;
   };
 }
 
@@ -186,13 +253,26 @@ export async function searchYouTubeVideos(
       });
     })
     .filter((post): post is PlatformScrapeResult['posts'][number] => Boolean(post));
+  const comments =
+    input.includeComments === false
+      ? { posts: [], warnings: [], raw: [] }
+      : await fetchYouTubeConversationPosts({
+          videos: orderedIds.map((id) => byVideo.get(id)).filter((video): video is YouTubeVideo => Boolean(video)),
+          channels: byChannel,
+          apiKey,
+          fetcher,
+          maxCommentVideos: input.maxCommentVideos,
+          maxCommentsPerVideo: input.maxCommentsPerVideo,
+          maxLiveChatMessagesPerVideo: input.maxLiveChatMessagesPerVideo,
+        });
 
   return {
     platform: 'youtube',
-    posts,
+    posts: [...posts, ...comments.posts],
     warnings: [
-      `YouTube Data API searched ${queries.length} queries and returned ${posts.length} videos after seen-URL dedupe.`,
+      `YouTube Data API searched ${queries.length} queries and returned ${posts.length} videos plus ${comments.posts.length} comments/live-chat messages after seen-URL dedupe.`,
       'YouTube search counts are approximate and are not deduped across queries.',
+      ...comments.warnings,
     ],
     raw: {
       mode: 'youtube-data-api',
@@ -200,6 +280,7 @@ export async function searchYouTubeVideos(
       requestedVideos: orderedIds.length,
       returnedVideos: videos.length,
       returnedChannels: channels.length,
+      comments: comments.raw,
       skippedSeen,
     },
   };
@@ -347,7 +428,7 @@ async function fetchYouTubeVideos(
     const json = await fetchYouTubeJson<YouTubeVideosResponse>(
       VIDEOS_ENDPOINT,
       {
-        part: 'snippet,statistics,contentDetails',
+        part: 'snippet,statistics,contentDetails,liveStreamingDetails',
         id: batch.join(','),
         key: apiKey,
       },
@@ -356,6 +437,189 @@ async function fetchYouTubeVideos(
     out.push(...(json.items ?? []));
   }
   return out;
+}
+
+async function fetchYouTubeConversationPosts(input: {
+  videos: YouTubeVideo[];
+  channels: Map<string | undefined, YouTubeChannel>;
+  apiKey: string;
+  fetcher: Fetcher;
+  maxCommentVideos?: number;
+  maxCommentsPerVideo?: number;
+  maxLiveChatMessagesPerVideo?: number;
+}): Promise<{
+  posts: PlatformScrapeResult['posts'];
+  warnings: string[];
+  raw: unknown[];
+}> {
+  const maxCommentVideos = clampInteger(input.maxCommentVideos, 1, 50, 25);
+  const maxCommentsPerVideo = clampInteger(input.maxCommentsPerVideo, 0, 100, 10);
+  const maxLiveChatMessagesPerVideo = clampInteger(input.maxLiveChatMessagesPerVideo, 0, 200, 25);
+  const posts: PlatformScrapeResult['posts'] = [];
+  const warnings: string[] = [];
+  const raw: unknown[] = [];
+
+  for (const video of input.videos.slice(0, maxCommentVideos)) {
+    const videoId = video.id?.trim();
+    if (!videoId) continue;
+    const channel = input.channels.get(video.snippet?.channelId);
+    if (maxCommentsPerVideo > 0) {
+      try {
+        const threads = await fetchYouTubeCommentThreads({
+          videoId,
+          maxResults: maxCommentsPerVideo,
+          apiKey: input.apiKey,
+          fetcher: input.fetcher,
+        });
+        raw.push({ videoId, commentThreads: threads.length });
+        for (const thread of threads) {
+          const post = normalizeYouTubeCommentThread(thread, video, channel);
+          if (post) posts.push(post);
+        }
+      } catch (err) {
+        warnings.push(`YouTube comments were not available for ${youtubeWatchUrl(videoId)}: ${shortError(err)}`);
+      }
+    }
+
+    const liveChatId = video.liveStreamingDetails?.activeLiveChatId?.trim();
+    if (liveChatId && maxLiveChatMessagesPerVideo > 0) {
+      try {
+        const messages = await fetchYouTubeLiveChatMessages({
+          liveChatId,
+          maxResults: maxLiveChatMessagesPerVideo,
+          apiKey: input.apiKey,
+          fetcher: input.fetcher,
+        });
+        raw.push({ videoId, liveChatMessages: messages.length });
+        for (const message of messages) {
+          const post = normalizeYouTubeLiveChatMessage(message, video, channel);
+          if (post) posts.push(post);
+        }
+      } catch (err) {
+        warnings.push(`YouTube live chat was not available for ${youtubeWatchUrl(videoId)}: ${shortError(err)}`);
+      }
+    } else if (video.liveStreamingDetails && maxLiveChatMessagesPerVideo > 0) {
+      warnings.push(
+        `YouTube live chat replay was not API-visible for ${youtubeWatchUrl(
+          videoId
+        )}; archived chat may require a browser/TinyFish pass.`
+      );
+    }
+  }
+
+  return { posts, warnings, raw };
+}
+
+async function fetchYouTubeCommentThreads(input: {
+  videoId: string;
+  maxResults: number;
+  apiKey: string;
+  fetcher: Fetcher;
+}): Promise<YouTubeCommentThread[]> {
+  const json = await fetchYouTubeJson<YouTubeCommentThreadsResponse>(
+    COMMENT_THREADS_ENDPOINT,
+    {
+      part: 'snippet',
+      videoId: input.videoId,
+      maxResults: String(Math.min(100, Math.max(1, input.maxResults))),
+      order: 'relevance',
+      textFormat: 'plainText',
+      key: input.apiKey,
+    },
+    input.fetcher
+  );
+  return json.items ?? [];
+}
+
+async function fetchYouTubeLiveChatMessages(input: {
+  liveChatId: string;
+  maxResults: number;
+  apiKey: string;
+  fetcher: Fetcher;
+}): Promise<YouTubeLiveChatMessage[]> {
+  const json = await fetchYouTubeJson<YouTubeLiveChatMessagesResponse>(
+    LIVE_CHAT_MESSAGES_ENDPOINT,
+    {
+      part: 'snippet,authorDetails',
+      liveChatId: input.liveChatId,
+      maxResults: String(Math.min(200, Math.max(1, input.maxResults))),
+      key: input.apiKey,
+    },
+    input.fetcher
+  );
+  return json.items ?? [];
+}
+
+function normalizeYouTubeCommentThread(
+  thread: YouTubeCommentThread,
+  video: YouTubeVideo,
+  channel?: YouTubeChannel
+): PlatformScrapeResult['posts'][number] | null {
+  const comment = thread.snippet?.topLevelComment;
+  const snippet = comment?.snippet;
+  const text = plainText(snippet?.textOriginal ?? snippet?.textDisplay);
+  const commentId = comment?.id?.trim() || thread.id?.trim();
+  const videoId = video.id?.trim();
+  if (!text || !commentId || !videoId) return null;
+  const url = `${youtubeWatchUrl(videoId)}&lc=${encodeURIComponent(commentId)}`;
+  const authorUrl = snippet?.authorChannelUrl?.trim() || undefined;
+  return {
+    postId: makePostId('youtube', url, text),
+    platform: 'youtube',
+    url,
+    authorName: snippet?.authorDisplayName?.trim() || 'unknown',
+    authorHandle: youtubeAuthorHandleFromUrl(authorUrl),
+    authorUrl,
+    authorMeta: {
+      profileImageUrl: snippet?.authorProfileImageUrl?.trim() || undefined,
+    },
+    text,
+    postedAt: snippet?.publishedAt,
+    metrics: {
+      likes: numberFromUnknown(snippet?.likeCount),
+      replies: numberFromUnknown(thread.snippet?.totalReplyCount),
+      comments: numberFromUnknown(thread.snippet?.totalReplyCount),
+    },
+    tags: ['youtube-comment', 'comment', 'conversation', 'youtube-video-reaction'],
+    raw: {
+      thread,
+      parentVideo: video,
+      parentChannel: channel,
+    },
+  };
+}
+
+function normalizeYouTubeLiveChatMessage(
+  message: YouTubeLiveChatMessage,
+  video: YouTubeVideo,
+  channel?: YouTubeChannel
+): PlatformScrapeResult['posts'][number] | null {
+  const text = plainText(message.snippet?.textMessageDetails?.messageText ?? message.snippet?.displayMessage);
+  const messageId = message.id?.trim();
+  const videoId = video.id?.trim();
+  if (!text || !messageId || !videoId) return null;
+  const authorUrl = message.authorDetails?.channelUrl?.trim() || undefined;
+  return {
+    postId: makePostId('youtube', `${youtubeWatchUrl(videoId)}#live-chat-${messageId}`, text),
+    platform: 'youtube',
+    url: `${youtubeWatchUrl(videoId)}#live-chat-${encodeURIComponent(messageId)}`,
+    authorName: message.authorDetails?.displayName?.trim() || 'unknown',
+    authorHandle: youtubeAuthorHandleFromUrl(authorUrl) ?? message.authorDetails?.channelId,
+    authorUrl,
+    authorMeta: {
+      verified: message.authorDetails?.isVerified,
+      profileImageUrl: message.authorDetails?.profileImageUrl?.trim() || undefined,
+    },
+    text,
+    postedAt: message.snippet?.publishedAt,
+    metrics: {},
+    tags: ['youtube-live-chat', 'comment', 'conversation', 'livestream-reaction'],
+    raw: {
+      message,
+      parentVideo: video,
+      parentChannel: channel,
+    },
+  };
 }
 
 async function fetchYouTubeChannels(
@@ -487,11 +751,53 @@ function youtubeChannelHandle(channel?: YouTubeChannel): string | undefined {
   return raw.replace(/^https?:\/\/(?:www\.)?youtube\.com\//i, '').replace(/^\/+/, '') || undefined;
 }
 
+function youtubeAuthorHandleFromUrl(value?: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts[0]?.startsWith('@')) return parts[0];
+    if (parts[0] === 'channel') return parts[1];
+    if (parts[0] === 'user' || parts[0] === 'c') return parts[1];
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 function isoForYouTube(value?: string): string | undefined {
   if (!value) return undefined;
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return undefined;
   return new Date(time).toISOString();
+}
+
+function plainText(value?: string): string {
+  if (!value) return '';
+  return value
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function clampInteger(
+  value: number | undefined,
+  min: number,
+  max: number,
+  fallback: number
+): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function shortError(err: unknown): string {
+  return err instanceof Error ? err.message.slice(0, 240) : String(err).slice(0, 240);
 }
 
 function numberFromYouTube(value?: string): number | undefined {

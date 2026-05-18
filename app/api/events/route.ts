@@ -61,6 +61,18 @@ export async function POST(request: Request) {
           ? body.maxSearchPagesPerQuery
           : undefined,
       includeMedia: typeof body.includeMedia === 'boolean' ? body.includeMedia : undefined,
+      includeYouTubeComments:
+        typeof body.includeYouTubeComments === 'boolean' ? body.includeYouTubeComments : undefined,
+      maxYouTubeCommentVideos:
+        typeof body.maxYouTubeCommentVideos === 'number' ? body.maxYouTubeCommentVideos : undefined,
+      maxYouTubeCommentsPerVideo:
+        typeof body.maxYouTubeCommentsPerVideo === 'number'
+          ? body.maxYouTubeCommentsPerVideo
+          : undefined,
+      maxYouTubeLiveChatMessagesPerVideo:
+        typeof body.maxYouTubeLiveChatMessagesPerVideo === 'number'
+          ? body.maxYouTubeLiveChatMessagesPerVideo
+          : undefined,
       linkedinMode:
         body.linkedinMode === 'browser-direct' || body.linkedinMode === 'search-fetch'
           ? body.linkedinMode

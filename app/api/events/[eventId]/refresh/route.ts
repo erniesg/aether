@@ -67,6 +67,18 @@ export async function POST(
           : undefined,
       includeMedia:
         typeof input.includeMedia === 'boolean' ? input.includeMedia : undefined,
+      includeYouTubeComments:
+        typeof input.includeYouTubeComments === 'boolean' ? input.includeYouTubeComments : undefined,
+      maxYouTubeCommentVideos:
+        typeof input.maxYouTubeCommentVideos === 'number' ? input.maxYouTubeCommentVideos : undefined,
+      maxYouTubeCommentsPerVideo:
+        typeof input.maxYouTubeCommentsPerVideo === 'number'
+          ? input.maxYouTubeCommentsPerVideo
+          : undefined,
+      maxYouTubeLiveChatMessagesPerVideo:
+        typeof input.maxYouTubeLiveChatMessagesPerVideo === 'number'
+          ? input.maxYouTubeLiveChatMessagesPerVideo
+          : undefined,
       seenPostUrls: Array.isArray(input.seenPostUrls)
         ? input.seenPostUrls.filter((url): url is string => typeof url === 'string')
         : undefined,
