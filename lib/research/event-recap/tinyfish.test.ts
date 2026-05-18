@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isTinyFishAgentRunError,
   linkedinQueryVariants,
   normalizeTinyFishPosts,
   platformFrontierQueries,
@@ -140,6 +141,42 @@ describe('TinyFish event recap normalization', () => {
     expect(result.streamingUrl).toBe('https://stream.tinyfish.test/run');
     expect(result.posts).toHaveLength(1);
     expect(cancelled).toBe(true);
+  });
+
+  it('surfaces LinkedIn completed-but-blocked OTP results as verification handoffs', async () => {
+    await expect(
+      scrapePlatformViaTinyFish(
+        {
+          platform: 'linkedin',
+          querySet: ['AI Engineer Singapore'],
+          windowStart: '2026-05-11T00:00:00.000Z',
+          windowEnd: '2026-05-18T00:00:00.000Z',
+          maxItems: 5,
+        },
+        async () =>
+          sseResponse([
+            {
+              type: 'STREAMING_URL',
+              streaming_url: 'https://stream.tinyfish.test/verify',
+            },
+            {
+              type: 'COMPLETE',
+              status: 'COMPLETED',
+              result: {
+                status: 'blocked',
+                reason: 'Email OTP encountered',
+              },
+            },
+          ])
+      )
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(isTinyFishAgentRunError(err)).toBe(true);
+      if (!isTinyFishAgentRunError(err)) return false;
+      expect(err.status).toBe('blocked');
+      expect(err.needsHumanVerification).toBe(true);
+      expect(err.streamingUrl).toBe('https://stream.tinyfish.test/verify');
+      return true;
+    });
   });
 
   it('opens direct LinkedIn profile urls for account frontier scraping', async () => {
