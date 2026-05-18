@@ -434,6 +434,7 @@ export default defineSchema({
     text: v.string(),
     postedAt: v.optional(v.string()),
     capturedAt: v.number(),
+    updatedAt: v.optional(v.number()),
     metrics: v.object({
       likes: v.optional(v.number()),
       reposts: v.optional(v.number()),

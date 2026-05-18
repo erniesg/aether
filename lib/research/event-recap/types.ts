@@ -92,6 +92,7 @@ export interface EventPost {
   text: string;
   postedAt?: string;
   capturedAt: number;
+  updatedAt: number;
   metrics: EventPostMetrics;
   media?: EventPostMedia[];
   reachScore: number;
@@ -167,7 +168,7 @@ export interface EventResolution {
 
 export interface PlatformScrapeResult {
   platform: EventPlatform;
-  posts: Omit<EventPost, 'eventId' | 'runId' | 'capturedAt' | 'reachScore'>[];
+  posts: Omit<EventPost, 'eventId' | 'runId' | 'capturedAt' | 'updatedAt' | 'reachScore'>[];
   streamingUrl?: string;
   warnings: string[];
   raw: unknown;

@@ -27,6 +27,7 @@ describe('event recap conversation classification', () => {
       authorName: 'A',
       text: 'Curious why everyone at AI Engineer Singapore is talking about evals?',
       capturedAt: Date.now(),
+      updatedAt: Date.now(),
       metrics: {},
       reachScore: 0,
       tags: ['x-api'],

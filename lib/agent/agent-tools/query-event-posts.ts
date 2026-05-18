@@ -66,6 +66,8 @@ export const queryEventPosts: AgentTool = {
         authorMeta: post.authorMeta,
         url: post.url,
         text: post.text,
+        capturedAt: post.capturedAt,
+        updatedAt: post.updatedAt,
         metrics: post.metrics,
         media: post.media,
         reachScore: post.reachScore,

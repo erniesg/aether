@@ -81,7 +81,7 @@ export async function getEventBundle(eventId: string): Promise<EventRecapBundle 
   return {
     event,
     runs: state.runs.get(eventId) ?? [],
-    posts: state.posts.get(eventId) ?? [],
+    posts: (state.posts.get(eventId) ?? []).map(normalizePost),
     themes: state.themes.get(eventId) ?? [],
     voices: state.voices.get(eventId) ?? [],
   };
@@ -180,7 +180,7 @@ function normalizeBundle(bundle: EventRecapBundle): EventRecapBundle {
   return {
     event: stripConvexMeta(bundle.event),
     runs: bundle.runs.map(stripConvexMeta),
-    posts: bundle.posts.map(stripConvexMeta),
+    posts: bundle.posts.map(normalizePost),
     themes: bundle.themes.map(stripConvexMeta),
     voices: bundle.voices.map(stripConvexMeta),
   };
@@ -192,4 +192,12 @@ function stripConvexMeta<T>(value: T): T {
   delete copy._id;
   delete copy._creationTime;
   return copy as T;
+}
+
+function normalizePost(post: EventPost): EventPost {
+  const clean = stripConvexMeta(post);
+  return {
+    ...clean,
+    updatedAt: clean.updatedAt ?? clean.capturedAt,
+  };
 }

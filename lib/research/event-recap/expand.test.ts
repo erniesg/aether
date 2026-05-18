@@ -10,6 +10,7 @@ function post(input: Partial<EventPost> & Pick<EventPost, 'postId' | 'platform' 
     url: `https://example.com/${input.postId}`,
     authorName: input.authorName ?? input.postId,
     capturedAt: Date.now(),
+    updatedAt: Date.now(),
     metrics: input.metrics ?? {},
     reachScore: input.reachScore ?? 0,
     tags: input.tags ?? [],

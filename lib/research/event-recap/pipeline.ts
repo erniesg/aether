@@ -568,6 +568,7 @@ function materializePosts(
         eventId,
         runId,
         capturedAt,
+        updatedAt: capturedAt,
         reachScore: 0,
       }))
       .map(enrichPostConversationTags)

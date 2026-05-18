@@ -266,6 +266,7 @@ export const upsertPosts = mutationGeneric({
         text: v.string(),
         postedAt: v.optional(v.string()),
         capturedAt: v.number(),
+        updatedAt: v.number(),
         metrics: METRICS,
         media: v.optional(v.array(MEDIA)),
         reachScore: v.number(),

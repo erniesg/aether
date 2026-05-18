@@ -57,6 +57,8 @@ export async function POST(request: Request) {
       authorMeta: post.authorMeta,
       text: post.text,
       postedAt: post.postedAt,
+      capturedAt: post.capturedAt,
+      updatedAt: post.updatedAt,
       metrics: post.metrics,
       media: post.media,
       reachScore: post.reachScore,
