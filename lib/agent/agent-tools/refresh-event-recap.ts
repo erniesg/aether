@@ -34,7 +34,7 @@ const tool: Anthropic.Messages.Tool = {
       maxSearchPagesPerQuery: {
         type: 'number',
         description:
-          'LinkedIn Search+Fetch only: max TinyFish Search pages per query before fetching unseen URLs. Default 2.',
+          'LinkedIn Search+Fetch only: max TinyFish Search pages per query before fetching unseen URLs. Default 2; capped at 11 because TinyFish page indexes stop at 10.',
       },
       linkedinMode: {
         type: 'string',
@@ -66,6 +66,12 @@ const tool: Anthropic.Messages.Tool = {
       includeMedia: {
         type: 'boolean',
         description: 'When true, ask TinyFish Fetch for image links and keep likely post-content media.',
+      },
+      seenPostUrls: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Optional additional seen URLs to skip before expensive collection, useful for URLs already fetched and rejected as irrelevant/noise.',
       },
       dedupeAgainstExisting: {
         type: 'boolean',

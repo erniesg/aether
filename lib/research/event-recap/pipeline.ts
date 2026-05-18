@@ -47,6 +47,7 @@ interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   maxQueries?: number;
   maxSearchPagesPerQuery?: number;
   includeMedia?: boolean;
+  seenPostUrls?: string[];
   xProvider?: XRefreshProvider;
   apifyActorId?: string;
   apifySort?: ApifyXSort;
@@ -222,10 +223,13 @@ export async function refreshEventRecap(
               const maxItems = platformBudgets[platform] ?? config.maxItemsPerPlatform;
               const seenPostUrls =
                 input.dedupeAgainstExisting === false
-                  ? []
-                  : (existing?.posts ?? [])
-                      .filter((post) => post.platform === platform)
-                      .map((post) => post.url);
+                  ? input.seenPostUrls ?? []
+                  : [
+                      ...(existing?.posts ?? [])
+                        .filter((post) => post.platform === platform)
+                        .map((post) => post.url),
+                      ...(input.seenPostUrls ?? []),
+                    ];
               if (maxItems <= 0) {
                 return {
                   platform,

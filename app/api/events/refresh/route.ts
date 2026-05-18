@@ -62,6 +62,9 @@ export async function POST(request: Request) {
           ? input.maxSearchPagesPerQuery
           : undefined,
       includeMedia: typeof input.includeMedia === 'boolean' ? input.includeMedia : undefined,
+      seenPostUrls: Array.isArray(input.seenPostUrls)
+        ? input.seenPostUrls.filter((url): url is string => typeof url === 'string')
+        : undefined,
       monthlyCreditBudget:
         typeof input.monthlyCreditBudget === 'number' ? input.monthlyCreditBudget : undefined,
     });
