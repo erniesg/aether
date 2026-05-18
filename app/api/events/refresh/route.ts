@@ -37,7 +37,9 @@ export async function POST(request: Request) {
         ? input.platforms.filter(isEventPlatform)
         : undefined,
       linkedinMode:
-        input.linkedinMode === 'browser-direct' || input.linkedinMode === 'search-fetch'
+        input.linkedinMode === 'browser-direct' ||
+        input.linkedinMode === 'search-fetch' ||
+        input.linkedinMode === 'apify'
           ? input.linkedinMode
           : undefined,
       xProvider:
@@ -54,6 +56,36 @@ export async function POST(request: Request) {
       apifyCandidateMultiplier:
         typeof input.apifyCandidateMultiplier === 'number'
           ? input.apifyCandidateMultiplier
+          : undefined,
+      linkedinApifyActorId:
+        typeof input.linkedinApifyActorId === 'string' ? input.linkedinApifyActorId : undefined,
+      linkedinApifySortBy:
+        input.linkedinApifySortBy === 'date' || input.linkedinApifySortBy === 'relevance'
+          ? input.linkedinApifySortBy
+          : undefined,
+      linkedinApifyContentType:
+        input.linkedinApifyContentType === 'all' ||
+        input.linkedinApifyContentType === 'documents' ||
+        input.linkedinApifyContentType === 'images' ||
+        input.linkedinApifyContentType === 'videos' ||
+        input.linkedinApifyContentType === 'articles'
+          ? input.linkedinApifyContentType
+          : undefined,
+      linkedinApifyCandidateMultiplier:
+        typeof input.linkedinApifyCandidateMultiplier === 'number'
+          ? input.linkedinApifyCandidateMultiplier
+          : undefined,
+      includeLinkedInComments:
+        typeof input.includeLinkedInComments === 'boolean' ? input.includeLinkedInComments : undefined,
+      maxLinkedInCommentsPerPost:
+        typeof input.maxLinkedInCommentsPerPost === 'number'
+          ? input.maxLinkedInCommentsPerPost
+          : undefined,
+      includeLinkedInReactions:
+        typeof input.includeLinkedInReactions === 'boolean' ? input.includeLinkedInReactions : undefined,
+      maxLinkedInReactionsPerPost:
+        typeof input.maxLinkedInReactionsPerPost === 'number'
+          ? input.maxLinkedInReactionsPerPost
           : undefined,
       maxQueries: typeof input.maxQueries === 'number' ? input.maxQueries : undefined,
       maxSearchPagesPerQuery:
