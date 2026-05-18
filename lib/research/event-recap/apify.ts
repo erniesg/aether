@@ -322,7 +322,8 @@ function buildApifyLinkedInRunInput(input: ApifyLinkedInSearchInput): Record<str
     typeof input.candidateMultiplier === 'number' && Number.isFinite(input.candidateMultiplier)
       ? Math.max(1, Math.min(5, input.candidateMultiplier))
       : 1;
-  const maxPosts = Math.max(1, Math.min(1000, Math.ceil(input.maxItems * multiplier)));
+  const perQueryTarget = Math.ceil(input.maxItems / Math.max(1, searchQueries.length));
+  const maxPosts = Math.max(1, Math.min(1000, Math.ceil(perQueryTarget * multiplier)));
   const postedLimitDate = isoDateOnly(input.windowStart);
   return {
     searchQueries,

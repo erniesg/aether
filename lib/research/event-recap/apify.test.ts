@@ -218,6 +218,7 @@ describe('Apify LinkedIn event recap collection', () => {
       {
         querySet: [
           'AI Engineer Singapore',
+          'Vivian Balakrishnan AI Engineer Singapore',
           'https://www.linkedin.com/in/sherrypeek/recent-activity/all/',
         ],
         windowStart: '2026-05-11T00:00:00.000Z',
@@ -236,8 +237,8 @@ describe('Apify LinkedIn event recap collection', () => {
     );
 
     expect(body).toMatchObject({
-      searchQueries: ['AI Engineer Singapore'],
-      maxPosts: 20,
+      searchQueries: ['AI Engineer Singapore', 'Vivian Balakrishnan AI Engineer Singapore'],
+      maxPosts: 10,
       sortBy: 'date',
       contentType: 'all',
       postedLimitDate: '2026-05-11',
