@@ -50,6 +50,10 @@ interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   maxQueries?: number;
   maxSearchPagesPerQuery?: number;
   includeMedia?: boolean;
+  includeYouTubeComments?: boolean;
+  maxYouTubeCommentVideos?: number;
+  maxYouTubeCommentsPerVideo?: number;
+  maxYouTubeLiveChatMessagesPerVideo?: number;
   seenPostUrls?: string[];
   xProvider?: XRefreshProvider;
   apifyActorId?: string;
@@ -261,6 +265,10 @@ export async function refreshEventRecap(
                   maxQueries: input.maxQueries,
                   seenPostUrls,
                   includeMedia: input.includeMedia,
+                  includeComments: input.includeYouTubeComments,
+                  maxCommentVideos: input.maxYouTubeCommentVideos,
+                  maxCommentsPerVideo: input.maxYouTubeCommentsPerVideo,
+                  maxLiveChatMessagesPerVideo: input.maxYouTubeLiveChatMessagesPerVideo,
                 });
               }
               if (platform === 'x' && input.xProvider === 'apify') {

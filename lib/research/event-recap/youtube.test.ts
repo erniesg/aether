@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { countYouTubeQueries, searchYouTubeVideos } from './youtube';
 
 describe('YouTube event recap collection', () => {
-  it('normalizes video, channel, metrics, and thumbnail media', async () => {
+  it('normalizes video, channel, metrics, thumbnail media, comments, and live chat', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith('/search')) {
@@ -41,6 +41,9 @@ describe('YouTube event recap collection', () => {
                 likeCount: '375',
                 commentCount: '6',
               },
+              liveStreamingDetails: {
+                activeLiveChatId: 'chat-1',
+              },
             },
           ],
         });
@@ -66,6 +69,56 @@ describe('YouTube event recap collection', () => {
           ],
         });
       }
+      if (url.pathname.endsWith('/commentThreads')) {
+        expect(url.searchParams.get('videoId')).toBe('newVideo001');
+        return jsonResponse({
+          items: [
+            {
+              id: 'thread-1',
+              snippet: {
+                videoId: 'newVideo001',
+                totalReplyCount: 2,
+                topLevelComment: {
+                  id: 'comment-1',
+                  snippet: {
+                    authorDisplayName: 'Builder Viewer',
+                    authorChannelUrl: 'https://www.youtube.com/@builderviewer',
+                    authorProfileImageUrl: 'https://yt3.ggpht.com/viewer.jpg',
+                    textOriginal: 'Loved the practical eval examples from AI Engineer Singapore.',
+                    likeCount: 7,
+                    publishedAt: '2026-05-17T04:00:00.000Z',
+                  },
+                },
+              },
+            },
+          ],
+        });
+      }
+      if (url.pathname.endsWith('/liveChat/messages')) {
+        expect(url.searchParams.get('liveChatId')).toBe('chat-1');
+        return jsonResponse({
+          items: [
+            {
+              id: 'chat-message-1',
+              snippet: {
+                liveChatId: 'chat-1',
+                type: 'textMessageEvent',
+                publishedAt: '2026-05-17T03:30:00.000Z',
+                textMessageDetails: {
+                  messageText: 'This live demo is useful for agent builders.',
+                },
+              },
+              authorDetails: {
+                channelId: 'viewer-channel',
+                channelUrl: 'https://www.youtube.com/channel/viewer-channel',
+                displayName: 'Live Viewer',
+                profileImageUrl: 'https://yt3.ggpht.com/live.jpg',
+                isVerified: true,
+              },
+            },
+          ],
+        });
+      }
       return jsonResponse({}, 404);
     }) as unknown as typeof fetch;
 
@@ -75,13 +128,15 @@ describe('YouTube event recap collection', () => {
         maxItems: 2,
         maxQueries: 1,
         seenPostUrls: ['https://www.youtube.com/watch?v=seenVideo01'],
+        maxCommentsPerVideo: 1,
+        maxLiveChatMessagesPerVideo: 1,
       },
       { YOUTUBE_API_KEY: 'test-key' },
       fetcher
     );
 
     expect(result.platform).toBe('youtube');
-    expect(result.posts).toHaveLength(1);
+    expect(result.posts).toHaveLength(3);
     expect(result.posts[0]).toMatchObject({
       platform: 'youtube',
       url: 'https://www.youtube.com/watch?v=newVideo001',
@@ -113,6 +168,22 @@ describe('YouTube event recap collection', () => {
     expect(result.posts[0].tags).toEqual(
       expect.arrayContaining(['youtube-video', 'youtube-search', 'yt-tag:AI Engineer'])
     );
+    expect(result.posts[1]).toMatchObject({
+      platform: 'youtube',
+      url: 'https://www.youtube.com/watch?v=newVideo001&lc=comment-1',
+      authorName: 'Builder Viewer',
+      authorHandle: '@builderviewer',
+      text: 'Loved the practical eval examples from AI Engineer Singapore.',
+      metrics: { likes: 7, replies: 2, comments: 2 },
+      tags: expect.arrayContaining(['youtube-comment', 'comment', 'conversation']),
+    });
+    expect(result.posts[2]).toMatchObject({
+      platform: 'youtube',
+      authorName: 'Live Viewer',
+      authorHandle: 'viewer-channel',
+      text: 'This live demo is useful for agent builders.',
+      tags: expect.arrayContaining(['youtube-live-chat', 'comment', 'conversation']),
+    });
   });
 
   it('returns official approximate search counts with sample URLs', async () => {

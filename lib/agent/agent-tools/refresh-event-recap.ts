@@ -40,7 +40,7 @@ const tool: Anthropic.Messages.Tool = {
         type: 'string',
         enum: ['search-fetch', 'browser-direct'],
         description:
-          'LinkedIn collection mode. search-fetch is cheaper and skips seen URLs before Fetch; browser-direct spends Agent credits and may require warm_linkedin_session.',
+          'LinkedIn collection mode. search-fetch is cheaper and skips seen URLs before Fetch; browser-direct spends Agent credits, uses TinyFish Vault/profile, can follow warm_linkedin_session human handoff, and captures visible metadata/views/impressions only when LinkedIn renders them.',
       },
       xProvider: {
         type: 'string',
@@ -67,6 +67,25 @@ const tool: Anthropic.Messages.Tool = {
         type: 'boolean',
         description:
           'When true, collect post-content media. X keeps attached media, YouTube keeps video thumbnails, LinkedIn Search+Fetch can only keep indexed feedshare images, and LinkedIn browser-direct performs a richer logged-in post-card media pass while excluding page chrome/profile/cover assets.',
+      },
+      includeYouTubeComments: {
+        type: 'boolean',
+        description:
+          'Defaults true. When true, collect YouTube top-level comments and API-visible live chat messages as conversation rows for clustering and sentiment.',
+      },
+      maxYouTubeCommentVideos: {
+        type: 'number',
+        description:
+          'Maximum fetched YouTube videos to enrich with comments/live chat. Default 25; cap 50 to control API quota.',
+      },
+      maxYouTubeCommentsPerVideo: {
+        type: 'number',
+        description: 'Maximum top-level YouTube comments per enriched video. Default 10; cap 100.',
+      },
+      maxYouTubeLiveChatMessagesPerVideo: {
+        type: 'number',
+        description:
+          'Maximum API-visible live chat messages per YouTube livestream video. Default 25; archived replay chat may require a separate browser/TinyFish pass if YouTube does not expose activeLiveChatId.',
       },
       seenPostUrls: {
         type: 'array',

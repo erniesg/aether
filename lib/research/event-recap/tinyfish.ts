@@ -1357,7 +1357,7 @@ function buildScrapeGoal(input: {
       ? 'Exclude job ads, generic hiring spam, and profile-only matches. On profile/activity pages, include visible reposted/shared posts when the original post is event-relevant even if the profile added no commentary; tag these as account-discovered and repost.'
       : 'Exclude job ads, generic hiring spam, profile-only matches, and duplicate reposts unless the repost text adds new commentary.',
     'Return ONLY valid JSON shaped as {"posts":[...]} with no markdown wrapper.',
-    'For each post include url, author_name, author_handle, author_url, author_headline, author_location, author_followers, text, posted_at, likes/reposts/replies/comments/reactions/impressions/views when visible, and tags.',
+    'For each post include url, author_name, author_handle, author_url, author_headline, author_location, author_followers, text, posted_at, likes/reposts/replies/comments/reactions/impressions/views when visible, and tags. Never invent impressions/views; if the UI hides them, omit those fields.',
     input.platform === 'linkedin' && input.includeMedia
       ? 'For LinkedIn rich media, inspect each visible post card. Include image_urls/media_urls/media only for actual post attachments: feed images, videos, document/PDF carousel previews, or external link preview images attached to the post. Exclude profile photos, company logos, company/profile cover images, emoji sprites, tracking pixels, and LinkedIn static UI assets. When only a video poster or document thumbnail is visible, include it as preview_url and type video/document/image as appropriate.'
       : '',
