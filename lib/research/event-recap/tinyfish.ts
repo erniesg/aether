@@ -323,6 +323,7 @@ export async function scrapePlatformViaTinyFish(
     windowEnd: string;
     maxItems: number;
     credentialItemIds?: string[];
+    includeMedia?: boolean;
   },
   fetcher: Fetcher = fetch
 ): Promise<PlatformScrapeResult> {
@@ -402,6 +403,7 @@ export async function scrapePlatformFrontierViaTinyFish(
     credentialItemIds?: string[];
     maxQueries?: number;
     seenPostUrls?: string[];
+    includeMedia?: boolean;
   },
   fetcher: Fetcher = fetch
 ): Promise<PlatformScrapeResult> {
@@ -423,6 +425,7 @@ export async function scrapePlatformFrontierViaTinyFish(
         windowEnd: input.windowEnd,
         maxItems: maxPerQuery,
         credentialItemIds: input.credentialItemIds,
+        includeMedia: input.includeMedia,
       },
       fetcher
     );
@@ -1156,6 +1159,7 @@ export function platformFrontierQueries(
 }
 
 export function linkedinQueryVariants(source: string): string[] {
+  if (isPlatformUrl('linkedin', source)) return [source.trim()];
   const stripped = stripLinkedInQueryHandleSyntax(source);
   const spaced = splitCamelCaseHandles(stripped);
   return normalizeQuerySet([
@@ -1340,6 +1344,7 @@ function buildScrapeGoal(input: {
   windowStart: string;
   windowEnd: string;
   maxItems: number;
+  includeMedia?: boolean;
 }): string {
   const label = input.platform === 'x' ? 'X/Twitter' : 'LinkedIn';
   return [
@@ -1352,6 +1357,9 @@ function buildScrapeGoal(input: {
       : 'Exclude job ads, generic hiring spam, profile-only matches, and duplicate reposts unless the repost text adds new commentary.',
     'Return ONLY valid JSON shaped as {"posts":[...]} with no markdown wrapper.',
     'For each post include url, author_name, author_handle, author_url, author_headline, author_location, author_followers, text, posted_at, likes/reposts/replies/comments/reactions/impressions/views when visible, and tags.',
+    input.platform === 'linkedin' && input.includeMedia
+      ? 'For LinkedIn rich media, inspect each visible post card. Include image_urls/media_urls/media only for actual post attachments: feed images, videos, document/PDF carousel previews, or external link preview images attached to the post. Exclude profile photos, company logos, company/profile cover images, emoji sprites, tracking pixels, and LinkedIn static UI assets. When only a video poster or document thumbnail is visible, include it as preview_url and type video/document/image as appropriate.'
+      : '',
     input.platform === 'linkedin'
       ? 'Use LinkedIn content search directly. If a query looks like a person, company, or account name and content search is sparse, open the most relevant LinkedIn profile/company page and its Posts/Activity tab, then collect event-relevant posts from there. When a post has visible comments, include up to 5 substantive attendee comments in comments_list with author_name, author_handle, author_url, author_headline, text, posted_at, likes/reactions. Avoid generic congratulations-only comments.'
       : 'Prefer posts with visible reach or engagement, but keep a mix of high-reach voices and useful niche commentary.',
@@ -1685,6 +1693,7 @@ function mediaFromTinyFishPost(
   for (const item of objectArray(post.media ?? post.images)) {
     const url = stringValue(item.url ?? item.src ?? item.href ?? item.image_url ?? item.imageUrl);
     if (!url) continue;
+    if (platform === 'linkedin' && !likelyLinkedInContentImage(url)) continue;
     addMedia({
       url,
       type: mediaTypeFromValue(stringValue(item.type), url),

@@ -306,6 +306,7 @@ export async function refreshEventRecap(
                       credentialItemIds: linkedinCredentialItemIds(),
                       maxQueries: linkedinFrontierQueryLimit(),
                       seenPostUrls,
+                      includeMedia: input.includeMedia,
                     })
                   : await scrapePlatformViaTinyFish({
                       platform,
