@@ -761,7 +761,7 @@ export async function warmLinkedInSessionViaTinyFish(
     };
   }
 
-  const holdMinutes = clampInteger(input.holdMinutes, 1, 20, 10);
+  const holdMinutes = clampInteger(input.holdMinutes, 1, 45, 10);
   const payload: Record<string, unknown> = {
     url: input.targetUrl ?? 'https://www.linkedin.com/feed/',
     goal: buildLinkedInWarmGoal(holdMinutes),
@@ -851,9 +851,10 @@ function buildLinkedInWarmGoal(holdMinutes: number): string {
     'Warm a LinkedIn session for an event recap collection workflow.',
     'Use the selected Vault credential and the default browser profile if available.',
     'Do not post, like, follow, message, search, or change account settings.',
-    'If LinkedIn asks for login, identity verification, 2FA, checkpoint, captcha, or any human action, stop on that page and keep the browser active.',
-    `Wait up to ${holdMinutes} minutes for a human to complete verification through the DevTools inspector.`,
-    'If the LinkedIn feed is visible, leave the browser on LinkedIn and return JSON only shaped as {"status":"ready"}.',
+    'If LinkedIn asks for login, identity verification, 2FA, checkpoint, captcha, or any human action, stop on that page and keep the browser active for the handoff.',
+    `Keep the browser session alive for about ${holdMinutes} minutes so another tool can attach to the same DevTools page after the human handoff.`,
+    'If the LinkedIn feed is visible, leave the browser on LinkedIn and continue waiting; do not finish immediately just because login is complete.',
+    'Near the end of the hold window, if the feed is visible, return JSON only shaped as {"status":"ready"}.',
     'If the handoff window ends before the feed is visible, return JSON only shaped as {"status":"needs_human_verification","reason":"human handoff window ended"}.',
   ].join('\n');
 }
