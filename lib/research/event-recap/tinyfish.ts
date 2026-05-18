@@ -382,6 +382,15 @@ export async function scrapePlatformViaTinyFish(
       raw: complete.error ?? events,
     });
   }
+  if (input.platform === 'linkedin' && failedFromValue(complete.result)) {
+    const message = `TinyFish Agent LinkedIn run was blocked: ${stringifyShort(complete.result)}`;
+    throw new TinyFishAgentRunError(message, {
+      status: 'blocked',
+      streamingUrl,
+      needsHumanVerification: needsHumanFromValue(complete.result),
+      raw: complete.result ?? events,
+    });
+  }
 
   const posts = normalizeTinyFishPosts(input.platform, complete.result);
   return {
