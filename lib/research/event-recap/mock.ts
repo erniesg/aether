@@ -180,6 +180,7 @@ export function mockScrapePlatform(
   runId: string,
   maxItems: number
 ): PlatformScrapeResult {
+  const now = Date.now();
   const posts = scorePostsByPlatform(
     SEEDS.filter((seed) => seed.platform === platform)
       .slice(0, maxItems)
@@ -195,7 +196,8 @@ export function mockScrapePlatform(
         authorMeta: seed.authorMeta,
         text: seed.text,
         postedAt: seed.postedAt,
-        capturedAt: Date.now(),
+        capturedAt: now,
+        updatedAt: now,
         metrics: seed.metrics,
         media: seed.media,
         reachScore: 0,
@@ -205,7 +207,14 @@ export function mockScrapePlatform(
   );
   return {
     platform,
-    posts: posts.map(({ eventId: _eventId, runId: _runId, capturedAt: _capturedAt, reachScore: _reachScore, ...post }) => post),
+    posts: posts.map(({
+      eventId: _eventId,
+      runId: _runId,
+      capturedAt: _capturedAt,
+      updatedAt: _updatedAt,
+      reachScore: _reachScore,
+      ...post
+    }) => post),
     streamingUrl: `https://agent.tinyfish.ai/mock/${eventId}/${runId}/${platform}`,
     warnings: ['mock platform scrape; no TinyFish Agent credits used'],
     raw: { seedCount: posts.length },
