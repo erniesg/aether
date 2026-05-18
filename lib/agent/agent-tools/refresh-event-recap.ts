@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'refresh_event_recap',
   description:
-    'Delta-refresh an event recap corpus. Uses stored posts as a seen set, then fills toward targetItemsPerPlatform without re-fetching already archived X/LinkedIn URLs. X can use official search or Apify; LinkedIn defaults to TinyFish Search+Fetch for lower cost; browser-direct is only for logged-in probes.',
+    'Delta-refresh an event recap corpus. Uses stored posts as a seen set, then fills toward targetItemsPerPlatform without re-fetching already archived X, LinkedIn, or YouTube URLs. X can use official search or Apify; LinkedIn defaults to TinyFish Search+Fetch for lower cost; YouTube uses the configured Data API and keeps video/channel metadata plus thumbnails.',
   input_schema: {
     type: 'object',
     properties: {
@@ -19,8 +19,8 @@ const tool: Anthropic.Messages.Tool = {
       },
       platforms: {
         type: 'array',
-        items: { type: 'string', enum: ['x', 'linkedin'] },
-        description: 'Optional platform subset. Defaults to X and LinkedIn.',
+        items: { type: 'string', enum: ['x', 'linkedin', 'youtube'] },
+        description: 'Optional platform subset. Defaults to X, LinkedIn, and YouTube.',
       },
       maxItemsPerPlatform: {
         type: 'number',
@@ -66,7 +66,7 @@ const tool: Anthropic.Messages.Tool = {
       includeMedia: {
         type: 'boolean',
         description:
-          'When true, collect post-content media. LinkedIn Search+Fetch can only keep indexed feedshare images; LinkedIn browser-direct performs a richer logged-in post-card media pass and excludes page chrome/profile/cover assets.',
+          'When true, collect post-content media. X keeps attached media, YouTube keeps video thumbnails, LinkedIn Search+Fetch can only keep indexed feedshare images, and LinkedIn browser-direct performs a richer logged-in post-card media pass while excluding page chrome/profile/cover assets.',
       },
       seenPostUrls: {
         type: 'array',
@@ -97,7 +97,7 @@ export const refreshEventRecap: AgentTool = {
   dispatch: {
     registryId: 'event-recap-refresh',
     path: '/api/events/refresh',
-    provider: 'x-and-tinyfish',
+    provider: 'event-recap-providers',
     model: 'event-recap-delta-refresh',
     toBody: (input) => input,
   },

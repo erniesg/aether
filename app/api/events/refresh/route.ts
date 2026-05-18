@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { refreshEventRecap } from '@/lib/research/event-recap/pipeline';
+import { isEventPlatform } from '@/lib/research/event-recap/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,9 +34,7 @@ export async function POST(request: Request) {
           ? input.dedupeAgainstExisting
           : undefined,
       platforms: Array.isArray(input.platforms)
-        ? input.platforms.filter((platform): platform is 'x' | 'linkedin' =>
-            platform === 'x' || platform === 'linkedin'
-          )
+        ? input.platforms.filter(isEventPlatform)
         : undefined,
       linkedinMode:
         input.linkedinMode === 'browser-direct' || input.linkedinMode === 'search-fetch'

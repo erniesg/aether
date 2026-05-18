@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'query_event_posts',
   description:
-    'Search a stored event recap corpus across X and LinkedIn posts. Returns cited posts with URLs, authors, metrics, and reach score.',
+    'Search a stored event recap corpus across X, LinkedIn, and YouTube posts/videos. Returns cited posts with URLs, authors, media, metrics, and reach score.',
   input_schema: {
     type: 'object',
     properties: {
@@ -18,7 +18,7 @@ const tool: Anthropic.Messages.Tool = {
       },
       platform: {
         type: 'string',
-        enum: ['x', 'linkedin'],
+        enum: ['x', 'linkedin', 'youtube'],
         description: 'Optional platform filter.',
       },
       limit: {
@@ -67,6 +67,7 @@ export const queryEventPosts: AgentTool = {
         url: post.url,
         text: post.text,
         metrics: post.metrics,
+        media: post.media,
         reachScore: post.reachScore,
       })),
     });

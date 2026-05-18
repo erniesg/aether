@@ -1346,7 +1346,8 @@ function buildScrapeGoal(input: {
   maxItems: number;
   includeMedia?: boolean;
 }): string {
-  const label = input.platform === 'x' ? 'X/Twitter' : 'LinkedIn';
+  const label =
+    input.platform === 'x' ? 'X/Twitter' : input.platform === 'linkedin' ? 'LinkedIn' : 'YouTube';
   return [
     `Search ${label} public posts for this event recap corpus.`,
     `Queries: ${input.querySet.join(' | ')}`,
@@ -1372,6 +1373,7 @@ function platformSearchUrl(platform: EventPlatform, querySet: string[]): string 
   if (directUrl) return directUrl;
   const q = encodeURIComponent(querySet.slice(0, 3).join(' OR '));
   if (platform === 'x') return `https://x.com/search?q=${q}&src=typed_query&f=live`;
+  if (platform === 'youtube') return `https://www.youtube.com/results?search_query=${q}`;
   return `https://www.linkedin.com/search/results/content/?keywords=${q}`;
 }
 
@@ -1379,6 +1381,7 @@ function isPlatformUrl(platform: EventPlatform, value: string): boolean {
   try {
     const url = new URL(value);
     if (platform === 'x') return /(^|\.)x\.com$/i.test(url.hostname);
+    if (platform === 'youtube') return /(^|\.)youtube\.com$|(^|\.)youtu\.be$/i.test(url.hostname);
     return /(^|\.)linkedin\.com$/i.test(url.hostname);
   } catch {
     return false;
@@ -1388,12 +1391,16 @@ function isPlatformUrl(platform: EventPlatform, value: string): boolean {
 function platformSearchFallbackQuery(platform: EventPlatform, querySet: string[]): string {
   const quotedEvent = querySet.find((query) => query.startsWith('"')) ?? `"${querySet[0] ?? ''}"`;
   if (platform === 'x') return `site:x.com ${quotedEvent}`;
+  if (platform === 'youtube') return `site:youtube.com/watch ${quotedEvent}`;
   return `site:linkedin.com/posts ${quotedEvent}`;
 }
 
 function isPlatformPostUrl(platform: EventPlatform, url?: string): boolean {
   if (!url) return false;
   if (platform === 'x') return /^https:\/\/x\.com\/[^/]+\/status\/\d+/i.test(url);
+  if (platform === 'youtube') {
+    return /^https:\/\/(?:www\.)?youtube\.com\/watch\?v=|^https:\/\/youtu\.be\//i.test(url);
+  }
   return /^https:\/\/(?:www\.)?linkedin\.com\/(?:posts\/|feed\/update\/)/i.test(url);
 }
 
@@ -1468,6 +1475,7 @@ function authorFromSearchResult(
   const title = result.title?.trim();
   if (!title) return handleFromUrl(platform, result.url ?? '') ?? 'unknown';
   if (platform === 'linkedin') return title.split(' - LinkedIn')[0]?.trim() || title;
+  if (platform === 'youtube') return title.replace(/\s+-\s+YouTube$/i, '').trim() || title;
   return title.split(' on X')[0]?.trim() || handleFromUrl(platform, result.url ?? '') || title;
 }
 
@@ -1476,6 +1484,13 @@ function handleFromUrl(platform: EventPlatform, url: string): string | undefined
     const parsed = new URL(url);
     if (platform === 'x') return parsed.pathname.split('/').filter(Boolean)[0];
     if (platform === 'linkedin') return parsed.pathname.split('/')[2]?.split('_')[0];
+    if (platform === 'youtube') {
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      if (parts[0]?.startsWith('@')) return parts[0];
+      if (parts[0] === 'channel') return parts[1];
+      if (parts[0] === 'user' || parts[0] === 'c') return parts[1];
+      return undefined;
+    }
   } catch {
     return undefined;
   }
@@ -1486,6 +1501,11 @@ function profileUrlFromPostUrl(platform: EventPlatform, url: string): string | u
   const handle = handleFromUrl(platform, url);
   if (!handle) return undefined;
   if (platform === 'x') return `https://x.com/${handle}`;
+  if (platform === 'youtube') {
+    return handle.startsWith('@')
+      ? `https://www.youtube.com/${handle}`
+      : `https://www.youtube.com/channel/${handle}`;
+  }
   return `https://www.linkedin.com/in/${handle}/`;
 }
 

@@ -1,7 +1,7 @@
 import { mutationGeneric, queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
 
-const PLATFORM = v.union(v.literal('x'), v.literal('linkedin'));
+const PLATFORM = v.union(v.literal('x'), v.literal('linkedin'), v.literal('youtube'));
 const MODE = v.union(v.literal('mock'), v.literal('tinyfish'));
 const EVENT_STATUS = v.union(
   v.literal('draft'),
@@ -25,6 +25,17 @@ const METRICS = v.object({
   reactions: v.optional(v.number()),
   impressions: v.optional(v.number()),
   views: v.optional(v.number()),
+});
+
+const MEDIA = v.object({
+  url: v.string(),
+  type: v.union(v.literal('image'), v.literal('video'), v.literal('gif'), v.literal('unknown')),
+  source: v.optional(v.string()),
+  previewUrl: v.optional(v.string()),
+  altText: v.optional(v.string()),
+  width: v.optional(v.number()),
+  height: v.optional(v.number()),
+  localPath: v.optional(v.string()),
 });
 
 interface EventDoc {
@@ -256,6 +267,7 @@ export const upsertPosts = mutationGeneric({
         postedAt: v.optional(v.string()),
         capturedAt: v.number(),
         metrics: METRICS,
+        media: v.optional(v.array(MEDIA)),
         reachScore: v.number(),
         tags: v.array(v.string()),
         raw: v.any(),

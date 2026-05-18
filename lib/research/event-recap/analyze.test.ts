@@ -19,7 +19,7 @@ function post(input: Partial<EventPost> & Pick<EventPost, 'postId' | 'platform' 
 }
 
 describe('event recap analysis', () => {
-  it('clusters one X + LinkedIn corpus and keeps cited evidence URLs', () => {
+  it('clusters one X + LinkedIn + YouTube corpus and keeps cited evidence URLs', () => {
     const posts = scorePostsByPlatform([
       post({
         postId: 'x_evals',
@@ -36,6 +36,15 @@ describe('event recap analysis', () => {
         authorHandle: 'li-builder',
         text: 'Long recap from AI Engineer Singapore: product teams need owned evaluation datasets, observable workflows, and explicit provenance for AI systems.',
         metrics: { reactions: 140, comments: 24, impressions: 9000 },
+      }),
+      post({
+        postId: 'yt_keynote',
+        platform: 'youtube',
+        authorName: 'AI Engineer',
+        authorHandle: '@aiDotEngineer',
+        text: 'AI Engineer Singapore Day 1 video recap: practical agents, eval loops, and Vivian Balakrishnan on building a personal AI agent.',
+        metrics: { views: 20000, likes: 300, comments: 8 },
+        media: [{ url: 'https://i.ytimg.com/vi/yt_keynote/hqdefault.jpg', type: 'image' }],
       }),
       post({
         postId: 'x_hiring',
@@ -59,12 +68,13 @@ describe('event recap analysis', () => {
     expect(result.voices.map((voice) => voice.platform).sort()).toEqual([
       'linkedin',
       'x',
+      'youtube',
     ]);
 
     const summaries = result.themes.map((theme) => theme.summary).join('\n');
     expect(summaries).toContain('https://example.com/');
     expect(result.themes.flatMap((theme) => theme.postIds)).toEqual(
-      expect.arrayContaining(['x_evals', 'li_evals'])
+      expect.arrayContaining(['x_evals', 'li_evals', 'yt_keynote'])
     );
     expect(result.themes.flatMap((theme) => theme.postIds)).not.toContain('x_announcement');
     expect(result.themes.flatMap((theme) => theme.postIds)).not.toContain('x_hiring');

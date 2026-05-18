@@ -1,4 +1,4 @@
-import type { EventExpansionAnchor, EventExpansionPlan } from './types';
+import { emptyEventPlatformCounts, type EventExpansionAnchor, type EventExpansionPlan } from './types';
 import { normalizeQuerySet } from './utils';
 
 export interface FrontierSpeakerInput {
@@ -215,7 +215,7 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
   return {
     eventName,
     generatedAt: Date.now(),
-    corpus: { posts: 0, platforms: { x: 0, linkedin: 0 } },
+    corpus: { posts: 0, platforms: emptyEventPlatformCounts() },
     anchors,
     querySet,
     warnings: ['Seed frontier has no corpus yet; use it for recall, then re-rank from scraped posts.'],

@@ -4,7 +4,7 @@ import type { AgentTool } from './types';
 const tool: Anthropic.Messages.Tool = {
   name: 'estimate_event_counts',
   description:
-    'Estimate how many matching public posts exist across X and LinkedIn before scraping. LinkedIn can use cheap search-index estimates or a logged-in TinyFish/Vault browser probe. For efficient collection after estimating, call refresh_event_recap with targetItemsPerPlatform so stored posts are skipped before expensive fetches.',
+    'Estimate how many matching public posts/videos exist across X, LinkedIn, and YouTube before scraping. LinkedIn can use cheap search-index estimates or a logged-in TinyFish/Vault browser probe; YouTube uses official Data API approximate search counts. For efficient collection after estimating, call refresh_event_recap with targetItemsPerPlatform so stored posts are skipped before expensive fetches.',
   input_schema: {
     type: 'object',
     properties: {
@@ -14,8 +14,8 @@ const tool: Anthropic.Messages.Tool = {
       querySet: { type: 'array', items: { type: 'string' }, description: 'Optional explicit queries.' },
       platforms: {
         type: 'array',
-        items: { type: 'string', enum: ['x', 'linkedin'] },
-        description: 'Platforms to estimate. Defaults to both.',
+        items: { type: 'string', enum: ['x', 'linkedin', 'youtube'] },
+        description: 'Platforms to estimate. Defaults to X, LinkedIn, and YouTube.',
       },
       windowStart: { type: 'string', description: 'Optional ISO start time.' },
       windowEnd: { type: 'string', description: 'Optional ISO end time.' },
@@ -45,7 +45,7 @@ export const estimateEventCounts: AgentTool = {
   dispatch: {
     registryId: 'event-count-estimates',
     path: '/api/events/counts',
-    provider: 'x-and-tinyfish',
+    provider: 'event-recap-providers',
     model: 'event-count-estimator',
     toBody: (input) => input,
   },

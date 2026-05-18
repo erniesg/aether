@@ -8,9 +8,10 @@ import {
   isTinyFishAgentRunError,
   scrapePlatformFrontierViaTinyFish,
 } from './tinyfish';
-import type { EventPlatform } from './types';
+import { EVENT_PLATFORMS, type EventPlatform } from './types';
 import { normalizeQuerySet } from './utils';
 import { countXRecentQueries } from './x-api';
+import { countYouTubeQueries } from './youtube';
 
 export type LinkedInCountMode = 'search-index' | 'browser-direct';
 
@@ -76,7 +77,7 @@ export async function estimateEventCounts(input: EventCountEstimateInput) {
     new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
   const windowEnd =
     input.windowEnd ?? bundle?.runs[0]?.windowEnd ?? new Date(Date.now() - 60_000).toISOString();
-  const platforms = input.platforms?.length ? input.platforms : (['x', 'linkedin'] as EventPlatform[]);
+  const platforms = input.platforms?.length ? input.platforms : [...EVENT_PLATFORMS];
   const estimates = [];
 
   if (platforms.includes('x')) {
@@ -90,7 +91,18 @@ export async function estimateEventCounts(input: EventCountEstimateInput) {
     );
   }
 
-  for (const platform of platforms.filter((platform) => platform !== 'x')) {
+  if (platforms.includes('youtube')) {
+    estimates.push(
+      await countYouTubeQueries({
+        querySet,
+        windowStart,
+        windowEnd,
+        maxQueries: input.maxQueries,
+      })
+    );
+  }
+
+  for (const platform of platforms.filter((platform) => platform !== 'x' && platform !== 'youtube')) {
     if (platform === 'linkedin' && input.linkedinMode === 'browser-direct') {
       estimates.push(
         await countLinkedInViaTinyFishBrowser({
