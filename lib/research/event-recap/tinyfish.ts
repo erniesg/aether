@@ -1434,11 +1434,22 @@ function mediaFromLinkedInImageLinks(imageLinks?: string[]): EventPostMedia[] | 
 function likelyLinkedInContentImage(url: string): boolean {
   const lower = url.toLowerCase();
   if (!lower.includes('media.licdn.com') || !lower.includes('/image')) return false;
-  return ![
+  if ([
     'profile-displayphoto',
     'profile-displaybackgroundimage',
     'company-logo',
+    'company-background',
+    'image-scale_191_1128',
+    '_cover',
     'static.licdn.com',
+  ].some((marker) => lower.includes(marker))) {
+    return false;
+  }
+  return [
+    'feedshare-shrink',
+    'feedshare-image',
+    'document-cover',
+    'video-thumbnail',
   ].some((marker) => lower.includes(marker));
 }
 
@@ -1662,6 +1673,7 @@ function mediaFromTinyFishPost(
     post.mediaUrls,
   ]) {
     for (const url of stringArray(source)) {
+      if (platform === 'linkedin' && !likelyLinkedInContentImage(url)) continue;
       addMedia({
         url,
         type: mediaTypeFromUrl(url, 'image'),
