@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 
 const EVENT_DIR = path.resolve(process.cwd(), 'outputs/event-recap-ai-engineer-singapore');
@@ -31,6 +32,11 @@ function mediaPath(localPath: unknown): string | undefined {
   return localPath.slice(index + marker.length).split(path.sep).join('/');
 }
 
+function mediaHash(localPath: unknown): string | undefined {
+  if (typeof localPath !== 'string' || !fs.existsSync(localPath)) return undefined;
+  return crypto.createHash('sha256').update(fs.readFileSync(localPath)).digest('hex');
+}
+
 function trimPost(post: AnyRecord): AnyRecord {
   return {
     postId: post.postId,
@@ -59,6 +65,7 @@ function trimPost(post: AnyRecord): AnyRecord {
       bytes: item.bytes,
       downloadedAt: item.downloadedAt,
       path: mediaPath(item.localPath),
+      hash: mediaHash(item.localPath),
     })),
   };
 }
