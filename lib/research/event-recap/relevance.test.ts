@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasAiEngineeringOrProgramSignal, isLowSignalEventOnlyText } from './relevance';
+import { hasAiEngineeringOrProgramSignal, hasEventContextSignal, isLowSignalEventOnlyText } from './relevance';
 
 describe('event recap relevance signals', () => {
   it('keeps event posts with AI engineering or program evidence', () => {
@@ -25,5 +25,13 @@ describe('event recap relevance signals', () => {
       isLowSignalEventOnlyText('The talks might have been ace but this is the defining image of AI Engineer Singapore.')
     ).toBe(true);
     expect(isLowSignalEventOnlyText('The defining image of AI Engineer Singapore was a NanoClaw demo on stage.')).toBe(false);
+  });
+
+  it('keeps event texture as context without making it core evidence', () => {
+    expect(hasEventContextSignal('I am in Singapore for AI Engineer!!')).toBe(true);
+    expect(hasEventContextSignal('The AI Engineer Singapore venue turned into a club after day 1.')).toBe(true);
+    expect(hasEventContextSignal('Coffee tips near AIE Singapore before the afterparty.')).toBe(true);
+    expect(hasEventContextSignal('Made it to Day 2 #AIEngineerSingapore')).toBe(true);
+    expect(hasEventContextSignal('Cool! Is there a hashtag for @aiDotEngineer Singapore event? #AIESg')).toBe(true);
   });
 });

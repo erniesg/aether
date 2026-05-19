@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { analyzePosts, measureClusterQuality } from '../lib/research/event-recap/analyze';
 import { enrichPostConversationTags } from '../lib/research/event-recap/conversation';
 import { deriveExpansionPlan } from '../lib/research/event-recap/expand';
-import { hasAiEngineeringOrProgramSignal, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
+import { hasAiEngineeringOrProgramSignal, hasEventContextSignal, isIncidentalAieMention, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
 import type { EventPlatform, EventPost, EventPostMedia, EventTheme } from '../lib/research/event-recap/types';
 import { makePostId, scorePostsByPlatform, shortExcerpt } from '../lib/research/event-recap/utils';
 
@@ -202,22 +202,33 @@ function isRelevant(post: EventPost): boolean {
   return !(post.tags ?? []).includes('irrelevant:event');
 }
 
+type EventRelevanceTier = 'core' | 'context' | 'irrelevant';
+
 function curatePosts(posts: EventPost[]): { posts: EventPost[]; changed: number; hidden: number } {
   let changed = 0;
   let hidden = 0;
   const curated = posts.map((post) => {
     const text = cleanPrimaryText(post);
-    const relevant = eventRelevant(post, text);
+    const tier = classifyEventRelevance(post, text);
+    const relevant = tier !== 'irrelevant';
     const tags = (post.tags ?? []).filter(
       (tag) =>
         tag !== 'relevant:event' &&
         tag !== 'irrelevant:event' &&
-        tag !== 'irrelevant:incidental-event-mention'
+        tag !== 'irrelevant:incidental-event-mention' &&
+        tag !== 'context:event' &&
+        !tag.startsWith('relevance:')
     );
     if (!relevant && isIncidentalEventMentionPost(post, text)) {
       tags.push('irrelevant:incidental-event-mention');
     }
-    tags.push(relevant ? 'relevant:event' : 'irrelevant:event');
+    if (tier === 'core') {
+      tags.push('relevant:event', 'relevance:core');
+    } else if (tier === 'context') {
+      tags.push('relevant:event', 'context:event', 'relevance:context');
+    } else {
+      tags.push('irrelevant:event');
+    }
     if (!relevant) hidden += 1;
     const next = enrichPostConversationTags({
       ...post,
@@ -229,6 +240,12 @@ function curatePosts(posts: EventPost[]): { posts: EventPost[]; changed: number;
     return next;
   });
   return { posts: curated, changed, hidden };
+}
+
+function classifyEventRelevance(post: EventPost, text = cleanPrimaryText(post)): EventRelevanceTier {
+  if (eventRelevant(post, text)) return 'core';
+  if (eventContextRelevant(post, text)) return 'context';
+  return 'irrelevant';
 }
 
 function cleanPrimaryText(post: EventPost): string {
@@ -274,7 +291,7 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
     /\bai engineer summit singapore\b/i.test(blob) ||
     /\bai engineer conference singapore\b/i.test(blob) ||
     /\baie singapore\b/i.test(blob) ||
-    /#aiengineersingapore\b/i.test(blob) ||
+    /#(?:aiengineersingapore|aiengineersg|aiesg)\b/i.test(blob) ||
     hasAiDotEngineerSingaporeSignal(blob) ||
     /\bai\.engineer[\/\s]+singapore\b/i.test(blob) ||
     /\broad to aie\b/i.test(blob);
@@ -300,6 +317,23 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
     /\b65labs\b/i.test(blob) &&
     hasKnownPersonEventSignal(blob);
   return (knownPeopleAnchor || known65LabsAnchor) && hasAiEngineeringOrProgramSignal(blob);
+}
+
+function eventContextRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean {
+  if (post.platform === 'youtube') return false;
+  const blob = `${text} ${post.authorHandle ?? ''} ${post.authorName ?? ''} ${post.url}`;
+  const lower = blob.toLowerCase();
+  if (isHardNoise(lower)) return false;
+  if (isAdjacentGrabMapsHackathonNoise(lower)) return false;
+  if (isAdjacent65LabsProgramNoise(lower)) return false;
+  if (isAdjacentGenericAiEngineeringNoise(lower)) return false;
+  if (isGenericAiCareerNoise(lower)) return false;
+  if (isGenericHiringNoise(lower)) return false;
+  if (isIncidentalExactEventMention(blob) || isIncidentalAieMention(blob)) return false;
+
+  const eventAnchor = hasExplicitAieSignal(blob) || hasAieSingaporePhrase(blob);
+  if (!eventAnchor) return false;
+  return hasEventContextSignal(blob) || Boolean(post.media?.length);
 }
 
 function youtubeRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean {
@@ -352,8 +386,8 @@ function isAdjacentGrabMapsHackathonNoise(text: string): boolean {
   if (!grabMapsHackathon) return false;
 
   return !(
-    /\b(ai engineer|aie|road to aie|#aiengineersingapore)\b.{0,140}\bhackathon\b/i.test(text) ||
-    /\bhackathon\b.{0,140}\b(ai engineer|aie|road to aie|#aiengineersingapore)\b/i.test(text) ||
+    (/(\b(ai engineer|aie|road to aie)\b|#(?:aiengineersingapore|aiengineersg|aiesg)\b).{0,140}\bhackathon\b/i.test(text) ||
+      /\bhackathon\b.{0,140}(\b(ai engineer|aie|road to aie)\b|#(?:aiengineersingapore|aiengineersg|aiesg)\b)/i.test(text)) ||
     /\bspent\s+7\s+hours\b.{0,140}\b(ai engineer|aie)\b/i.test(text) ||
     /\bwhen ai engineer sg opened registration\b/i.test(text)
   );
@@ -397,14 +431,17 @@ function isGenericAiCareerNoise(text: string): boolean {
 
 function isGenericHiringNoise(text: string): boolean {
   const hiring =
-    /\b(hiring|we'?re hiring|job opening|job posting|job ad|jobs page|open roles?|open positions?|vacancy|resume|cv|apply now|candidate|recruiting|software engineer|data engineer|machine learning engineer)\b/i.test(text);
-  const event = /\b(ai engineer singapore|aie singapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text);
+    /\b(hiring|we'?re hiring|job opening|job posting|job ad|jobs page|open roles?|rewarding roles?|explore more roles?|open positions?|vacancy|resume|cv|apply now|candidate|recruiting|kerry consulting|distributing training|software engineer|data engineer|machine learning engineer)\b/i.test(text);
+  const event =
+    /\b(ai engineer singapore|aie singapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text) ||
+    /#(?:aiengineersingapore|aiengineersg|aiesg)\b/i.test(text);
   return hiring && !event;
 }
 
 function hasExplicitAieSignal(text: string): boolean {
   return (
-    /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|#aiengineersingapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text) ||
+    (/\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text) ||
+      /#(?:aiengineersingapore|aiengineersg|aiesg)\b/i.test(text)) ||
     hasAiDotEngineerSingaporeSignal(text)
   );
 }
@@ -431,7 +468,7 @@ function hasKnownPersonEventSignal(text: string): boolean {
 function isIncidentalExactEventMention(text: string): boolean {
   const exactMentions = [
     ...text.matchAll(
-      /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie singapore|#aiengineersingapore|ai\.engineer[\/\s]+singapore|road to aie)\b/gi
+      /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie singapore|ai\.engineer[\/\s]+singapore|road to aie)\b|#(?:aiengineersingapore|aiengineersg|aiesg)\b/gi
     ),
   ].length;
   if (exactMentions !== 1 || text.length < 900) return false;
@@ -584,7 +621,7 @@ async function summarizeThemesWithLLM(themes: EventTheme[], posts: EventPost[]):
     label: theme.label,
     keywords: theme.keywords.slice(0, 8),
     postCount: theme.postIds.length,
-    evidence: theme.postIds
+    evidence: (theme.rootPostIds?.length ? theme.rootPostIds : theme.postIds)
       .map((postId) => byId.get(postId))
       .filter((post): post is EventPost => Boolean(post))
       .sort((a, b) => b.reachScore - a.reachScore)
@@ -1222,6 +1259,11 @@ function computeStats(posts: EventPost[]) {
     mediaByPlatform,
     metricTotalsByPlatform,
     relevantTotal: relevantPosts.length,
+    relevanceTiers: {
+      core: relevantPosts.filter((post) => post.tags.includes('relevance:core')).length,
+      context: relevantPosts.filter((post) => post.tags.includes('context:event')).length,
+      irrelevant: posts.length - relevantPosts.length,
+    },
     metricTotalsRelevantByPlatform,
     mediaRelevantByPlatform,
   };
