@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { analyzePosts, measureClusterQuality } from '../lib/research/event-recap/analyze';
 import { enrichPostConversationTags } from '../lib/research/event-recap/conversation';
 import { deriveExpansionPlan } from '../lib/research/event-recap/expand';
+import { hasAiEngineeringOrProgramSignal, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
 import type { EventPlatform, EventPost, EventPostMedia, EventTheme } from '../lib/research/event-recap/types';
 import { makePostId, scorePostsByPlatform, shortExcerpt } from '../lib/research/event-recap/utils';
 
@@ -264,6 +265,7 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
   if (isAdjacent65LabsProgramNoise(lower)) return false;
   if (isAdjacentGenericAiEngineeringNoise(lower)) return false;
   if (isGenericAiCareerNoise(lower)) return false;
+  if (isLowSignalEventOnlyText(blob)) return false;
 
   const exactEvent =
     /\bai engineer singapore\b/i.test(blob) ||
@@ -276,10 +278,10 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
     hasAiDotEngineerSingaporeSignal(blob) ||
     /\bai\.engineer[\/\s]+singapore\b/i.test(blob) ||
     /\broad to aie\b/i.test(blob);
-  if (exactEvent) return !isIncidentalExactEventMention(blob);
+  if (exactEvent) return !isIncidentalExactEventMention(blob) && hasAiEngineeringOrProgramSignal(blob);
 
   const eventPhrase = hasAieSingaporePhrase(blob);
-  if (eventPhrase) return !isGenericHiringNoise(lower);
+  if (eventPhrase) return !isGenericHiringNoise(lower) && hasAiEngineeringOrProgramSignal(blob);
 
   const ministerKeynote =
     /\b(vivian balakrishnan|foreign minister|minister for foreign affairs|vivianbala)\b/i.test(blob) &&
@@ -297,7 +299,7 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
   const known65LabsAnchor =
     /\b65labs\b/i.test(blob) &&
     hasKnownPersonEventSignal(blob);
-  return knownPeopleAnchor || known65LabsAnchor;
+  return (knownPeopleAnchor || known65LabsAnchor) && hasAiEngineeringOrProgramSignal(blob);
 }
 
 function youtubeRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean {
@@ -316,13 +318,7 @@ function youtubeRelevant(post: EventPost, text = cleanPrimaryText(post)): boolea
     .trim();
   if (isLowSignalYoutubeComment(normalized)) return false;
 
-  return (
-    normalized.length >= 48 ||
-    hasExplicitAieSignal(normalized) ||
-    /\b(vivian|balakrishnan|foreign minister|minister|nanoclaw|raspberry|second brain|keynote|codex|workshop|speaker|aie|ai engineer|singapore)\b/i.test(
-      normalized
-    )
-  );
+  return hasExplicitAieSignal(normalized) || hasAiEngineeringOrProgramSignal(normalized);
 }
 
 function isLowSignalYoutubeComment(text: string): boolean {
