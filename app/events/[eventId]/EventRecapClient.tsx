@@ -21,6 +21,7 @@ import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import type {
   EventPlatform,
+  EventClusterQuality,
   EventPost,
   EventRecapBundle,
   EventRecapRecord,
@@ -34,9 +35,9 @@ type Lens = 'posts' | 'themes' | 'timeline' | 'voices';
 type PlatformFilter = 'all' | EventPlatform;
 const MEDIA_WALL_PAGE_SIZE = 15;
 const POST_SCORE_HELP =
-  'Raw = likes/reactions + 2x comments/reposts/replies + views/200. Score = same-platform z-score; 0 is average.';
+  'Engagement score compares this ref with other refs on the same platform. 0 is typical; higher is above-platform average. Signals include public reactions, comments, reposts, and views where the platform exposes them.';
 const VOICE_SCORE_HELP =
-  'Voice = positive post scores + log(total raw engagement).';
+  'Voice score highlights people with repeated high-signal refs and public engagement.';
 
 export default function EventRecapClient({
   eventId,
@@ -328,7 +329,12 @@ export default function EventRecapClient({
         </Surface>
 
         <Surface as="aside" taxonomy="tool" border="soft" className="order-2 h-fit min-w-0 overflow-hidden p-4 min-[1500px]:order-1">
-          <CollectionSummary event={event} runs={bundle?.runs ?? []} posts={relevantPosts} />
+          <CollectionSummary
+            event={event}
+            runs={bundle?.runs ?? []}
+            posts={relevantPosts}
+            clustering={bundle?.clustering}
+          />
 
           <div className="mt-5 flex items-center gap-2 border-t border-border-soft pt-5">
             <MessageSquareText size={16} strokeWidth={1.75} className="text-accent" />
@@ -417,10 +423,12 @@ function CollectionSummary({
   event,
   runs,
   posts,
+  clustering,
 }: {
   event?: EventRecapRecord;
   runs: EventScrapeRun[];
   posts: EventPost[];
+  clustering?: EventClusterQuality;
 }) {
   const terms = event?.querySet ?? [];
   const refDates = dateRange(posts);
@@ -481,11 +489,29 @@ function CollectionSummary({
           <ul className="space-y-2">
             <li>Refs are deduped and tagged for event relevance before clustering.</li>
             <li>This is an evidence-seeking public recap corpus, not a representative survey.</li>
-            <li>Clusters map relevant root refs with deterministic TF-IDF similarity and LLM labels.</li>
+            <li>
+              Clusters map relevant root refs with deterministic TF-IDF graph similarity; labels are
+              rewritten from cited evidence.
+            </li>
             <li>Replies and comments are viewable, but are not cluster anchors by default.</li>
             <li>LinkedIn public collection does not expose impressions or views.</li>
             <li>Engagement score is platform-normalized public engagement, not raw reach.</li>
           </ul>
+          {clustering ? (
+            <details className="rounded-sm border border-border-soft bg-surface-panel p-2">
+              <summary className="cursor-pointer font-mono text-2xs uppercase text-ink-dim">
+                cluster diagnostics
+              </summary>
+              <p className="mt-2 font-caption text-xs leading-5 text-ink-dim">
+                Selected {clustering.clusterCount} clusters from {clustering.rootRefCount} root
+                refs using an elbow-weighted silhouette sweep. Best raw silhouette was{' '}
+                {clustering.silhouetteClusterCount ?? 'n/a'} clusters; elbow point was{' '}
+                {clustering.elbowClusterCount ?? clustering.clusterCount}. Current silhouette{' '}
+                {clustering.silhouetteScore.toFixed(4)}, inertia{' '}
+                {(clustering.inertia ?? 0).toFixed(4)}.
+              </p>
+            </details>
+          ) : null}
           <details className="rounded-sm border border-border-soft bg-surface-panel p-2">
             <summary className="cursor-pointer font-mono text-2xs uppercase text-ink-dim">
               show generated query terms
@@ -512,6 +538,7 @@ function CollectionSummary({
 
 interface VibeStats {
   rootRefs: number;
+  contextRefs: number;
   totalRefs: number;
   voices: number;
   clusters: number;
@@ -581,7 +608,7 @@ function VibeOverview({
       </div>
 
       <div className="mt-5 grid gap-2 sm:grid-cols-2 min-[1200px]:grid-cols-4">
-        <VibeMetric label="relevant refs" value={formatCompact(stats.totalRefs)} detail={`${formatCompact(stats.rootRefs)} root`} />
+        <VibeMetric label="primary refs" value={formatCompact(stats.rootRefs)} detail={`${formatCompact(stats.contextRefs)} context`} />
         <VibeMetric label="known views" value={formatCompact(stats.knownViews)} detail="X + YouTube only" />
         <VibeMetric label="public reactions" value={formatCompact(stats.reactions)} detail={`${formatCompact(stats.comments)} comments`} />
         <VibeMetric label="media assets" value={formatCompact(stats.mediaItems)} detail={`${formatCompact(stats.localMediaItems)} local`} />
@@ -725,9 +752,7 @@ function ScoreBadge({
         <HelpCircle size={12} strokeWidth={1.75} aria-hidden="true" />
       </summary>
       <div className="absolute left-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border-soft bg-surface-panel p-3 shadow-lg">
-        <p className="font-caption text-2xs uppercase text-ink-dim">
-          score math
-        </p>
+        <p className="font-caption text-2xs uppercase text-ink-dim">score</p>
         <p className="mt-2 font-mono text-2xs leading-5 text-ink-dim">{help}</p>
         {subject === 'ref' ? (
           <p className="mt-2 font-caption text-xs leading-5 text-ink-dim">
@@ -1618,6 +1643,7 @@ function summarizeVibes(
   voices: EventVoice[]
 ): VibeStats {
   const rootRefs = posts.filter((post) => !isReplyPost(post)).length;
+  const contextRefs = posts.length - rootRefs;
   const platformMix = platformMixFromPosts(posts);
   const knownViews = posts.reduce(
     (sum, post) =>
@@ -1668,6 +1694,7 @@ function summarizeVibes(
 
   return {
     rootRefs,
+    contextRefs,
     totalRefs: posts.length,
     voices: voices.length,
     clusters: themes.length,
@@ -1795,7 +1822,15 @@ function isIrrelevantPost(post: EventPost): boolean {
 }
 
 function isReplyPost(post: EventPost): boolean {
-  return post.tags.includes('x-reply') || post.tags.includes('linkedin-comment') || post.url.includes('#comment-');
+  const tags = post.tags.map((tag) => tag.toLowerCase());
+  return (
+    tags.includes('x-reply') ||
+    tags.includes('linkedin-comment') ||
+    tags.includes('youtube-comment') ||
+    tags.includes('comment') ||
+    post.url.includes('#comment-') ||
+    (post.platform === 'youtube' && post.url.includes('&lc='))
+  );
 }
 
 function platformMix(posts: EventPost[]): Record<EventPlatform, number> {

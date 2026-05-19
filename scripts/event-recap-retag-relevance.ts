@@ -11,6 +11,7 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
   const text = `${post.text} ${post.authorHandle ?? ''} ${post.authorName ?? ''} ${post.url}`;
   const lower = text.toLowerCase();
   if (isHardNoise(lower)) return false;
+  if (isAdjacentGrabMapsHackathonNoise(lower)) return false;
   const exactEvent =
     /\bai engineer singapore\b/i.test(text) ||
     /\bai engineers singapore\b/i.test(text) ||
@@ -47,6 +48,21 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
 
 function isHardNoise(text: string): boolean {
   return /\b(austcham|australian international school|sandboxaq|nigerian english|cerebras ipo|bnpl|buy now, pay later|crypto vc fund partner|drugging a girl's drink)\b/i.test(text);
+}
+
+function isAdjacentGrabMapsHackathonNoise(text: string): boolean {
+  const grabMapsHackathon =
+    /\bgrabmaps\b.{0,100}\bhackathon\b/i.test(text) ||
+    /\bhackathon\b.{0,100}\bgrabmaps\b/i.test(text) ||
+    /\bunreleased grabmaps apis\b/i.test(text);
+  if (!grabMapsHackathon) return false;
+
+  return !(
+    /\b(ai engineer|aie|road to aie|#aiengineersingapore)\b.{0,140}\bhackathon\b/i.test(text) ||
+    /\bhackathon\b.{0,140}\b(ai engineer|aie|road to aie|#aiengineersingapore)\b/i.test(text) ||
+    /\bspent\s+7\s+hours\b.{0,140}\b(ai engineer|aie)\b/i.test(text) ||
+    /\bwhen ai engineer sg opened registration\b/i.test(text)
+  );
 }
 
 function isGenericHiringNoise(text: string): boolean {
@@ -167,6 +183,7 @@ function main() {
   archive.stats = computeStats(scored, archive.youtube);
   archive.themes = analysis.themes;
   archive.voices = analysis.voices;
+  archive.clustering = analysis.clusterQuality;
   archive.expansion = expansion;
   archive.updatedAt = new Date().toISOString();
   archive.enrichment = [

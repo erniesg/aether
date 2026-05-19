@@ -1,5 +1,6 @@
 import type {
   EventPlatform,
+  EventClusterQuality,
   EventPost,
   EventTheme,
   EventThemeDraft,
@@ -22,9 +23,27 @@ interface SimilarityNeighbor {
   weight: number;
 }
 
+interface ClusterSelection {
+  clusters: number[][];
+  selected: ClusterCandidateScore;
+  candidateScores: ClusterCandidateScore[];
+}
+
+interface ClusterCandidateScore {
+  requestedClusterCount: number;
+  clusterCount: number;
+  silhouetteScore: number;
+  inertia: number;
+  elbowScore: number;
+  selectionScore: number;
+  clusterSizeMin: number;
+  clusterSizeMedian: number;
+  clusterSizeMax: number;
+}
+
 const MAX_VECTOR_TERMS = 80;
 const CLUSTER_ITERATIONS = 5;
-const MAX_CLUSTERS = 12;
+const MAX_CLUSTERS = 24;
 const MAX_GRAPH_NEIGHBORS = 12;
 const MIN_GRAPH_SIMILARITY = 0.055;
 const CLUSTER_STOPWORDS = new Set([
@@ -146,6 +165,7 @@ const CLUSTER_STOPWORDS = new Set([
 export interface AnalyzePostsResult {
   themes: EventTheme[];
   voices: EventVoice[];
+  clusterQuality: EventClusterQuality;
 }
 
 export function analyzePosts(eventId: string, posts: EventPost[]): AnalyzePostsResult {
@@ -153,17 +173,23 @@ export function analyzePosts(eventId: string, posts: EventPost[]): AnalyzePostsR
   const clusterPostsSource = voicePosts.length ? voicePosts : posts;
   const drafts = clusterPosts(clusterPostsSource);
   const rootThemes = drafts.map((draft) => toTheme(eventId, draft));
+  const themes = attachContextPostsToThemes(rootThemes, posts);
   return {
-    themes: attachContextPostsToThemes(rootThemes, posts),
+    themes,
     voices: rankVoices(eventId, voicePosts.length ? voicePosts : posts),
+    clusterQuality: measureClusterQuality(clusterPostsSource, rootThemes),
   };
 }
 
 function isReplyPost(post: EventPost): boolean {
+  const tags = post.tags.map((tag) => tag.toLowerCase());
   return (
-    post.tags.includes('x-reply') ||
-    post.tags.includes('linkedin-comment') ||
-    post.url.includes('#comment-')
+    tags.includes('x-reply') ||
+    tags.includes('linkedin-comment') ||
+    tags.includes('youtube-comment') ||
+    tags.includes('comment') ||
+    post.url.includes('#comment-') ||
+    (post.platform === 'youtube' && post.url.includes('&lc='))
   );
 }
 
@@ -295,8 +321,8 @@ export function clusterPosts(posts: EventPost[]): EventThemeDraft[] {
   const docs = buildDocuments(posts);
   if (!docs.length) return [];
 
-  const targetCount = targetClusterCount(docs.length);
-  const clusters = graphClusterDocuments(docs, targetCount);
+  const selection = selectClustersBySilhouette(docs);
+  const clusters = selection.clusters;
 
   return clusters
     .map((indexes) => indexes.map((index) => docs[index].post))
@@ -324,6 +350,185 @@ export function clusterPosts(posts: EventPost[]): EventThemeDraft[] {
     });
 }
 
+function selectClustersBySilhouette(docs: ClusterDocument[]): ClusterSelection {
+  const evaluated = applySelectionScores(evaluateClusterCandidates(docs));
+  const best = selectOptimalClusterCandidate(evaluated);
+
+  return {
+    clusters: best?.clusters ?? graphClusterDocuments(docs, targetClusterCount(docs.length)),
+    selected: best?.score ?? clusterCandidateScore(docs, graphClusterDocuments(docs, targetClusterCount(docs.length)), targetClusterCount(docs.length)),
+    candidateScores: evaluated
+      .map(({ score }) => roundClusterCandidateScore(score))
+      .sort((a, b) => a.requestedClusterCount - b.requestedClusterCount),
+  };
+}
+
+export function measureClusterQuality(posts: EventPost[], themes: EventTheme[]): EventClusterQuality {
+  const docs = buildDocuments(posts);
+  const indexByPostId = new Map(docs.map((doc, index) => [doc.post.postId, index]));
+  const clusters = themes
+    .map((theme) =>
+      (theme.rootPostIds?.length ? theme.rootPostIds : theme.postIds)
+        .map((postId) => indexByPostId.get(postId))
+        .filter((index): index is number => index !== undefined)
+    )
+    .filter((cluster) => cluster.length > 0);
+  const sizes = clusters.map((cluster) => cluster.length).sort((a, b) => a - b);
+  const median = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0;
+  const candidates = candidateClusterScores(docs);
+  const silhouetteBest = candidates.reduce(
+    (best, item) => (item.silhouetteScore > best.silhouetteScore ? item : best),
+    candidates[0] ?? roundClusterCandidateScore(clusterCandidateScore(docs, clusters, clusters.length))
+  );
+  const elbowBest = candidates.reduce(
+    (best, item) => (item.elbowScore > best.elbowScore ? item : best),
+    candidates[0] ?? roundClusterCandidateScore(clusterCandidateScore(docs, clusters, clusters.length))
+  );
+  return {
+    algorithm: 'local TF-IDF graph communities with recursive splitting; cluster count selected from elbow/inertia plus silhouette sweep',
+    selectedBy: 'elbow-weighted silhouette score over deterministic local candidates',
+    silhouetteScore: Number(silhouetteForClusters(docs, clusters).toFixed(4)),
+    silhouetteClusterCount: silhouetteBest.clusterCount,
+    elbowClusterCount: elbowBest.clusterCount,
+    inertia: Number(clusterInertia(docs, clusters).toFixed(4)),
+    clusterCount: clusters.length,
+    rootRefCount: docs.length,
+    sampleSize: docs.length,
+    clusterSizeMin: sizes[0] ?? 0,
+    clusterSizeMedian: median,
+    clusterSizeMax: sizes.at(-1) ?? 0,
+    candidateScores: candidates,
+  };
+}
+
+function candidateClusterScores(docs: ClusterDocument[]): ClusterCandidateScore[] {
+  if (docs.length < 10) return [];
+  return applySelectionScores(evaluateClusterCandidates(docs))
+    .map(({ score }) => roundClusterCandidateScore(score))
+    .sort((a, b) => a.requestedClusterCount - b.requestedClusterCount);
+}
+
+function evaluateClusterCandidates(docs: ClusterDocument[]): Array<{ clusters: number[][]; score: ClusterCandidateScore }> {
+  const candidates = clusterCandidateCounts(docs.length);
+  const evaluated = candidates.map((candidate) => {
+    const clusters = graphClusterDocuments(docs, candidate);
+    return {
+      clusters,
+      score: clusterCandidateScore(docs, clusters, candidate),
+    };
+  });
+  return applyElbowScores(evaluated);
+}
+
+function selectOptimalClusterCandidate(
+  evaluated: Array<{ clusters: number[][]; score: ClusterCandidateScore }>
+): { clusters: number[][]; score: ClusterCandidateScore } | undefined {
+  if (!evaluated.length) return undefined;
+  return evaluated.sort((a, b) => {
+    if (b.score.selectionScore !== a.score.selectionScore) return b.score.selectionScore - a.score.selectionScore;
+    if (b.score.silhouetteScore !== a.score.silhouetteScore) return b.score.silhouetteScore - a.score.silhouetteScore;
+    return a.score.clusterCount - b.score.clusterCount;
+  })[0];
+}
+
+function applySelectionScores(
+  evaluated: Array<{ clusters: number[][]; score: ClusterCandidateScore }>
+): Array<{ clusters: number[][]; score: ClusterCandidateScore }> {
+  if (!evaluated.length) return evaluated;
+  const scores = evaluated.map(({ score }) => score.silhouetteScore);
+  const minSilhouette = Math.min(...scores);
+  const maxSilhouette = Math.max(...scores);
+  const range = Math.max(0.0001, maxSilhouette - minSilhouette);
+
+  return evaluated.map((item) => {
+    const normalizedSilhouette = (item.score.silhouetteScore - minSilhouette) / range;
+    const assignedCount = item.clusters.reduce((sum, cluster) => sum + cluster.length, 0);
+    const largestShare = item.score.clusterSizeMax / Math.max(1, assignedCount);
+    const fragmentationPenalty = item.score.clusterSizeMin <= 2 ? 0.08 : 0;
+    const imbalancePenalty = largestShare > 0.75 ? 0.05 : 0;
+    const selectionScore =
+      item.score.elbowScore * 0.55 +
+      normalizedSilhouette * 0.35 +
+      Math.min(0.05, Math.log1p(item.score.clusterCount) / 80) -
+      fragmentationPenalty -
+      imbalancePenalty;
+    return {
+      ...item,
+      score: {
+        ...item.score,
+        selectionScore,
+      },
+    };
+  });
+}
+
+function clusterCandidateCounts(count: number): number[] {
+  if (count <= 1) return [count];
+  if (count < 10) return [Math.min(2, count)];
+  if (count < 30) return Array.from({ length: Math.min(4, count) - 2 + 1 }, (_, index) => index + 2);
+  const lower = Math.max(5, Math.floor(Math.sqrt(count / 20)));
+  const upper = Math.min(MAX_CLUSTERS, Math.max(12, Math.ceil(Math.sqrt(count))));
+  return Array.from({ length: upper - lower + 1 }, (_, index) => lower + index);
+}
+
+function applyElbowScores(
+  evaluated: Array<{ clusters: number[][]; score: ClusterCandidateScore }>
+): Array<{ clusters: number[][]; score: ClusterCandidateScore }> {
+  if (evaluated.length < 3) return evaluated;
+  const ordered = [...evaluated].sort((a, b) => a.score.requestedClusterCount - b.score.requestedClusterCount);
+  const first = ordered[0].score;
+  const last = ordered[ordered.length - 1].score;
+  const xRange = Math.max(1, last.requestedClusterCount - first.requestedClusterCount);
+  const yRange = Math.max(0.0001, first.inertia - last.inertia);
+  const distances = ordered.map(({ score }) => {
+    const x = (score.requestedClusterCount - first.requestedClusterCount) / xRange;
+    const y = (score.inertia - last.inertia) / yRange;
+    return Math.abs(x + y - 1) / Math.SQRT2;
+  });
+  const maxDistance = Math.max(0.0001, ...distances);
+  return ordered.map((item, index) => ({
+    ...item,
+    score: {
+      ...item.score,
+      elbowScore: distances[index] / maxDistance,
+    },
+  }));
+}
+
+function clusterCandidateScore(
+  docs: ClusterDocument[],
+  clusters: number[][],
+  requestedClusterCount = clusters.length
+): ClusterCandidateScore {
+  const sizes = clusters.map((cluster) => cluster.length).filter(Boolean).sort((a, b) => a - b);
+  const median = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0;
+  return {
+    requestedClusterCount,
+    clusterCount: clusters.filter((cluster) => cluster.length > 0).length,
+    silhouetteScore: silhouetteForClusters(docs, clusters),
+    inertia: clusterInertia(docs, clusters),
+    elbowScore: 0,
+    selectionScore: 0,
+    clusterSizeMin: sizes[0] ?? 0,
+    clusterSizeMedian: median,
+    clusterSizeMax: sizes.at(-1) ?? 0,
+  };
+}
+
+function roundClusterCandidateScore(score: ClusterCandidateScore): ClusterCandidateScore {
+  return {
+    requestedClusterCount: score.requestedClusterCount,
+    clusterCount: score.clusterCount,
+    silhouetteScore: Number(score.silhouetteScore.toFixed(4)),
+    inertia: Number(score.inertia.toFixed(4)),
+    elbowScore: Number(score.elbowScore.toFixed(4)),
+    selectionScore: Number(score.selectionScore.toFixed(4)),
+    clusterSizeMin: score.clusterSizeMin,
+    clusterSizeMedian: score.clusterSizeMedian,
+    clusterSizeMax: score.clusterSizeMax,
+  };
+}
+
 function buildDocuments(posts: EventPost[]): ClusterDocument[] {
   const termsByPost = posts.map((post) => termsForPost(post));
   const documentFrequency = new Map<string, number>();
@@ -343,6 +548,45 @@ function buildDocuments(posts: EventPost[]): ClusterDocument[] {
       weight: postWeight(post),
     };
   });
+}
+
+function partitionDocuments(docs: ClusterDocument[], targetCount: number): number[][] {
+  if (docs.length <= 1) return docs.map((_, index) => [index]);
+  const clusterCount = Math.min(Math.max(1, targetCount), docs.length);
+  const anchors = pickAnchorIndexes(docs, clusterCount);
+  let centroids = anchors.map((index) => docs[index].vector);
+  let clusters = assignDocuments(docs, centroids);
+  fillEmptyClusters(docs, clusters);
+
+  for (let iteration = 0; iteration < CLUSTER_ITERATIONS + 4; iteration++) {
+    centroids = clusters.map((cluster, index) =>
+      cluster.length ? centroidFor(docs, cluster) : centroids[index] ?? docs[anchors[0]].vector
+    );
+    clusters = assignDocuments(docs, centroids);
+    fillEmptyClusters(docs, clusters);
+  }
+
+  return clusters.filter((cluster) => cluster.length > 0);
+}
+
+function fillEmptyClusters(docs: ClusterDocument[], clusters: number[][]): void {
+  for (let emptyIndex = 0; emptyIndex < clusters.length; emptyIndex++) {
+    if (clusters[emptyIndex].length) continue;
+    const donorIndex = clusters.reduce(
+      (bestIndex, cluster, index) => (cluster.length > clusters[bestIndex].length ? index : bestIndex),
+      0
+    );
+    if (clusters[donorIndex].length <= 1) continue;
+    const donorCentroid = centroidFor(docs, clusters[donorIndex]);
+    const farthestPosition = clusters[donorIndex].reduce((bestPosition, docIndex, position) => {
+      const bestDocIndex = clusters[donorIndex][bestPosition];
+      return cosine(docs[docIndex].vector, donorCentroid) < cosine(docs[bestDocIndex].vector, donorCentroid)
+        ? position
+        : bestPosition;
+    }, 0);
+    const [moved] = clusters[donorIndex].splice(farthestPosition, 1);
+    if (moved !== undefined) clusters[emptyIndex].push(moved);
+  }
 }
 
 function graphClusterDocuments(docs: ClusterDocument[], targetCount: number): number[][] {
@@ -404,7 +648,7 @@ function consolidateCommunities(
   targetCount: number
 ): number[][] {
   const minSize = docs.length >= 80 ? 4 : 1;
-  const maxClusters = Math.min(MAX_CLUSTERS, Math.max(targetCount, Math.ceil(docs.length / 70)));
+  const maxClusters = Math.min(MAX_CLUSTERS, Math.max(1, targetCount));
   const clusters = communities
     .filter((community) => community.length > 0)
     .sort((a, b) => clusterScore(b.map((index) => docs[index].post)) - clusterScore(a.map((index) => docs[index].post)));
@@ -424,7 +668,7 @@ function consolidateCommunities(
     mergeIndexesIntoNearest(docs, stable, smallest);
   }
 
-  return stable.filter((cluster) => cluster.length > 0);
+  return rebalanceLargeClusters(docs, stable.filter((cluster) => cluster.length > 0), targetCount);
 }
 
 function mergeIndexesIntoNearest(
@@ -661,6 +905,68 @@ function cosine(a: SparseVector, b: SparseVector): number {
   const [small, large] = a.size <= b.size ? [a, b] : [b, a];
   for (const [term, value] of small) score += value * (large.get(term) ?? 0);
   return score;
+}
+
+function silhouetteForClusters(docs: ClusterDocument[], clusters: number[][]): number {
+  const usableClusters = clusters.filter((cluster) => cluster.length > 0);
+  if (usableClusters.length <= 1 || docs.length <= 1) return 0;
+
+  const clusterIndexByDoc = new Map<number, number>();
+  usableClusters.forEach((cluster, clusterIndex) => {
+    for (const index of cluster) clusterIndexByDoc.set(index, clusterIndex);
+  });
+
+  let total = 0;
+  let count = 0;
+  for (let index = 0; index < docs.length; index++) {
+    const ownClusterIndex = clusterIndexByDoc.get(index);
+    if (ownClusterIndex === undefined) continue;
+    const ownCluster = usableClusters[ownClusterIndex];
+    if (ownCluster.length <= 1) {
+      count += 1;
+      continue;
+    }
+    const ownDistance = averageCosineDistance(docs, index, ownCluster.filter((item) => item !== index));
+    let nearestOtherDistance = Infinity;
+    for (let clusterIndex = 0; clusterIndex < usableClusters.length; clusterIndex++) {
+      if (clusterIndex === ownClusterIndex) continue;
+      nearestOtherDistance = Math.min(
+        nearestOtherDistance,
+        averageCosineDistance(docs, index, usableClusters[clusterIndex])
+      );
+    }
+    if (!Number.isFinite(nearestOtherDistance)) continue;
+    const denominator = Math.max(ownDistance, nearestOtherDistance);
+    const silhouette = denominator > 0 ? (nearestOtherDistance - ownDistance) / denominator : 0;
+    total += silhouette;
+    count += 1;
+  }
+  return count ? total / count : 0;
+}
+
+function clusterInertia(docs: ClusterDocument[], clusters: number[][]): number {
+  const usableClusters = clusters.filter((cluster) => cluster.length > 0);
+  if (!usableClusters.length) return 0;
+  let total = 0;
+  let count = 0;
+  for (const cluster of usableClusters) {
+    const centroid = centroidFor(docs, cluster);
+    for (const index of cluster) {
+      const distance = 1 - cosine(docs[index].vector, centroid);
+      total += distance * distance;
+      count += 1;
+    }
+  }
+  return count ? total / count : 0;
+}
+
+function averageCosineDistance(docs: ClusterDocument[], index: number, others: number[]): number {
+  if (!others.length) return 0;
+  const total = others.reduce(
+    (sum, otherIndex) => sum + (1 - cosine(docs[index].vector, docs[otherIndex].vector)),
+    0
+  );
+  return total / others.length;
 }
 
 function topKeywords(posts: EventPost[], fallback: string[] = []): string[] {

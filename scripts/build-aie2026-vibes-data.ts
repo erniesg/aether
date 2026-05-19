@@ -12,7 +12,15 @@ function isRelevant(post: AnyRecord): boolean {
 }
 
 function isReply(post: AnyRecord): boolean {
-  return (post.tags ?? []).some((tag: string) => tag.toLowerCase() === 'x-reply');
+  const tags = (post.tags ?? []).map((tag: string) => tag.toLowerCase());
+  return (
+    tags.includes('x-reply') ||
+    tags.includes('linkedin-comment') ||
+    tags.includes('youtube-comment') ||
+    tags.includes('comment') ||
+    String(post.url ?? '').includes('#comment-') ||
+    (post.platform === 'youtube' && String(post.url ?? '').includes('&lc='))
+  );
 }
 
 function mediaPath(localPath: unknown): string | undefined {
@@ -133,6 +141,7 @@ const publicData = {
     ],
   },
   stats: archive.stats,
+  clustering: archive.clustering,
   clusterCoverage: clusterCoverage(posts, archive.themes ?? []),
   posts,
   themes: archive.themes ?? [],

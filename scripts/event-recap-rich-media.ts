@@ -744,6 +744,7 @@ async function main() {
     archive.stats = computeStats(scored, archive.youtube);
     archive.themes = analysis.themes;
     archive.voices = analysis.voices;
+    archive.clustering = analysis.clusterQuality;
     archive.expansion = expansion;
     archive.updatedAt = generatedAt;
     archive.enrichment = [

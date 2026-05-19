@@ -10,6 +10,7 @@ import { makePostId, scorePostsByPlatform, shortExcerpt } from '../lib/research/
 const ARCHIVE_PATH = 'outputs/event-recap-ai-engineer-singapore/archive.json';
 const RUN_ID = `event_recap_finalize_analysis_${Date.now()}`;
 const DEFAULT_MODEL = 'claude-opus-4-7';
+const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
 
 const THEME_REWRITE_SCHEMA = {
   type: 'object',
@@ -45,6 +46,28 @@ const THEME_REWRITE_SCHEMA = {
     },
   },
   required: ['themes'],
+};
+
+type ThemeRewritePayloadItem = {
+  themeId: string;
+  label: string;
+  keywords: string[];
+  postCount: number;
+  evidence: Array<{
+    platform: EventPlatform;
+    author: string;
+    url: string;
+    metrics: EventPost['metrics'];
+    text: string;
+  }>;
+};
+
+type ThemeSummaryResult = {
+  themes: EventTheme[];
+  model?: string;
+  error?: string;
+  warning?: string;
+  strategy?: string;
 };
 
 const CURATED_THEME_COPY: Record<string, { label: string; summary: string }> = {
@@ -215,6 +238,7 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
   const blob = `${text} ${post.authorHandle ?? ''} ${post.authorName ?? ''} ${post.url}`;
   const lower = blob.toLowerCase();
   if (isHardNoise(lower)) return false;
+  if (isAdjacentGrabMapsHackathonNoise(lower)) return false;
 
   const exactEvent =
     /\bai engineer singapore\b/i.test(blob) ||
@@ -255,6 +279,21 @@ function isHardNoise(text: string): boolean {
     return true;
   }
   return false;
+}
+
+function isAdjacentGrabMapsHackathonNoise(text: string): boolean {
+  const grabMapsHackathon =
+    /\bgrabmaps\b.{0,100}\bhackathon\b/i.test(text) ||
+    /\bhackathon\b.{0,100}\bgrabmaps\b/i.test(text) ||
+    /\bunreleased grabmaps apis\b/i.test(text);
+  if (!grabMapsHackathon) return false;
+
+  return !(
+    /\b(ai engineer|aie|road to aie|#aiengineersingapore)\b.{0,140}\bhackathon\b/i.test(text) ||
+    /\bhackathon\b.{0,140}\b(ai engineer|aie|road to aie|#aiengineersingapore)\b/i.test(text) ||
+    /\bspent\s+7\s+hours\b.{0,140}\b(ai engineer|aie)\b/i.test(text) ||
+    /\bwhen ai engineer sg opened registration\b/i.test(text)
+  );
 }
 
 function isGenericHiringNoise(text: string): boolean {
@@ -388,17 +427,12 @@ function mergeMedia(previous: EventPost['media'], incoming: EventPost['media']):
   return Array.from(byUrl.values());
 }
 
-async function summarizeThemesWithAnthropic(themes: EventTheme[], posts: EventPost[]): Promise<{
-  themes: EventTheme[];
-  model?: string;
-  error?: string;
-}> {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey || process.env.EVENT_RECAP_FINALIZE_LLM === '0') {
-    return { themes: applyCuratedThemeCopy(themes) };
+async function summarizeThemesWithLLM(themes: EventTheme[], posts: EventPost[]): Promise<ThemeSummaryResult> {
+  if (process.env.EVENT_RECAP_FINALIZE_LLM === '0') {
+    return { themes: applyCuratedThemeCopy(themes), strategy: 'local-fallback-disabled-llm' };
   }
   const byId = new Map(posts.map((post) => [post.postId, post]));
-  const payload = themes.map((theme) => ({
+  const payload: ThemeRewritePayloadItem[] = themes.map((theme) => ({
     themeId: theme.themeId,
     label: theme.label,
     keywords: theme.keywords.slice(0, 8),
@@ -410,63 +444,456 @@ async function summarizeThemesWithAnthropic(themes: EventTheme[], posts: EventPo
       .slice(0, 8)
       .map((post) => ({
         platform: post.platform,
-        author: post.authorHandle ?? post.authorName,
+        author: post.authorHandle ?? post.authorName ?? 'unknown',
         url: post.url,
         metrics: post.metrics,
         text: shortExcerpt(post.text, 260),
       })),
   }));
+  const allThemeIds = new Set(themes.map((theme) => theme.themeId));
+  const errors: string[] = [];
+  let triedOpenAI = false;
+  const tryOpenAI = async () => {
+    if (triedOpenAI) return undefined;
+    triedOpenAI = true;
+    return tryOpenAIThemeRewrite({ themes, payload, allThemeIds, priorErrors: errors });
+  };
+
+  if (process.env.EVENT_RECAP_FINALIZE_PRIMARY?.toLowerCase() === 'openai') {
+    const openaiResult = await tryOpenAI();
+    if (openaiResult) return openaiResult;
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) {
+    const openaiResult = await tryOpenAI();
+    if (openaiResult) return openaiResult;
+    return { themes: applyCuratedThemeCopy(themes), strategy: 'local-fallback-disabled-llm' };
+  }
   const model = process.env.EVENT_RECAP_FINALIZE_MODEL?.trim() || DEFAULT_MODEL;
+  const client = new Anthropic({ apiKey });
+
   try {
-    const client = new Anthropic({ apiKey });
-    const msg = await client.messages.parse({
+    const byThemeId = await requestThemeRewriteWithRetry(
+      {
+        client,
+        model,
+        payload,
+        allowedThemeIds: allThemeIds,
+        maxTokens: envNumber('EVENT_RECAP_FINALIZE_FULL_MAX_TOKENS', 5200, 1200, 12000),
+        instruction:
+          'Rewrite these event-recap cluster labels and summaries. Keep every themeId unchanged. Return one entry per supplied theme.',
+      },
+      { attempts: 2, retryParseErrors: false }
+    );
+    return {
       model,
-      max_tokens: 2600,
-      system:
-        'You write concise creator-facing research cluster summaries. Preserve evidence and provenance, avoid ops language, and do not invent facts beyond the supplied posts.',
-      output_config: {
-        format: {
-          type: 'json_schema',
+      strategy: 'full-structured',
+      themes: applyThemeRewrite(themes, byThemeId),
+    };
+  } catch (err) {
+    errors.push(`full structured relabel failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const chunkSize = envNumber('EVENT_RECAP_FINALIZE_LLM_CHUNK_SIZE', 4, 1, 8);
+  const byThemeId = new Map<string, { label: string; summary: string }>();
+  for (let index = 0; index < payload.length; index += chunkSize) {
+    const chunk = payload.slice(index, index + chunkSize);
+    await requestThemeRewriteChunk({
+      client,
+      model,
+      chunk,
+      chunkLabel: `${Math.floor(index / chunkSize) + 1}`,
+      byThemeId,
+      errors,
+      depth: 0,
+    });
+  }
+
+  const missingThemeIds = Array.from(allThemeIds).filter((themeId) => !byThemeId.has(themeId));
+  if (!missingThemeIds.length) {
+    return {
+      model,
+      strategy: `chunked-structured-${chunkSize}`,
+      themes: applyThemeRewrite(themes, byThemeId),
+      warning: errors.join(' | ') || undefined,
+    };
+  }
+
+  errors.push(
+    `structured relabel incomplete; missing theme ids: ${missingThemeIds.join(', ')}`
+  );
+  const openaiResult = await tryOpenAI();
+  if (openaiResult) return openaiResult;
+
+  const error = [
+    ...errors,
+  ].join(' | ');
+  if (process.env.EVENT_RECAP_FINALIZE_ALLOW_LABEL_FALLBACK === '1') {
+    return {
+      themes: applyCuratedThemeCopy(themes),
+      model,
+      strategy: 'local-fallback-after-llm-error',
+      error,
+    };
+  }
+  throw new Error(error);
+}
+
+async function tryOpenAIThemeRewrite(input: {
+  themes: EventTheme[];
+  payload: ThemeRewritePayloadItem[];
+  allThemeIds: Set<string>;
+  priorErrors: string[];
+}): Promise<ThemeSummaryResult | undefined> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return undefined;
+  const model = process.env.EVENT_RECAP_FINALIZE_OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
+  const errors: string[] = [];
+
+  try {
+    const byThemeId = await requestOpenAIThemeRewriteWithRetry(
+      {
+        apiKey,
+        model,
+        payload: input.payload,
+        allowedThemeIds: input.allThemeIds,
+        maxTokens: envNumber('EVENT_RECAP_FINALIZE_OPENAI_FULL_MAX_TOKENS', 5200, 1200, 12000),
+        instruction:
+          'Rewrite these event-recap cluster labels and summaries. Keep every themeId unchanged. Return one entry per supplied theme.',
+      },
+      { attempts: 2, retryParseErrors: false }
+    );
+    return {
+      model: `openai:${model}`,
+      strategy: 'openai-full-structured',
+      themes: applyThemeRewrite(input.themes, byThemeId),
+      warning: input.priorErrors.join(' | ') || undefined,
+    };
+  } catch (err) {
+    errors.push(`openai full structured relabel failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const chunkSize = envNumber('EVENT_RECAP_FINALIZE_OPENAI_CHUNK_SIZE', 4, 1, 8);
+  const byThemeId = new Map<string, { label: string; summary: string }>();
+  for (let index = 0; index < input.payload.length; index += chunkSize) {
+    await requestOpenAIThemeRewriteChunk({
+      apiKey,
+      model,
+      chunk: input.payload.slice(index, index + chunkSize),
+      chunkLabel: `${Math.floor(index / chunkSize) + 1}`,
+      byThemeId,
+      errors,
+    });
+  }
+
+  const missingThemeIds = Array.from(input.allThemeIds).filter((themeId) => !byThemeId.has(themeId));
+  if (!missingThemeIds.length) {
+    return {
+      model: `openai:${model}`,
+      strategy: `openai-chunked-structured-${chunkSize}`,
+      themes: applyThemeRewrite(input.themes, byThemeId),
+      warning: [...input.priorErrors, ...errors].join(' | ') || undefined,
+    };
+  }
+
+  input.priorErrors.push(
+    ...errors,
+    `openai structured relabel incomplete; missing theme ids: ${missingThemeIds.join(', ')}`
+  );
+  return undefined;
+}
+
+async function requestOpenAIThemeRewriteChunk(input: {
+  apiKey: string;
+  model: string;
+  chunk: ThemeRewritePayloadItem[];
+  chunkLabel: string;
+  byThemeId: Map<string, { label: string; summary: string }>;
+  errors: string[];
+}): Promise<void> {
+  const chunkThemeIds = new Set(input.chunk.map((theme) => theme.themeId));
+  try {
+    const chunkRewrite = await requestOpenAIThemeRewriteWithRetry(
+      {
+        apiKey: input.apiKey,
+        model: input.model,
+        payload: input.chunk,
+        allowedThemeIds: chunkThemeIds,
+        maxTokens: envNumber('EVENT_RECAP_FINALIZE_OPENAI_CHUNK_MAX_TOKENS', 2200, 800, 6000),
+        instruction:
+          'Rewrite this smaller batch of event-recap cluster labels and summaries. Keep every themeId unchanged. Return one entry per supplied theme.',
+      },
+      {
+        attempts: envNumber('EVENT_RECAP_FINALIZE_OPENAI_RETRIES', 4, 1, 10),
+        retryParseErrors: true,
+      }
+    );
+    for (const [themeId, rewrite] of chunkRewrite) input.byThemeId.set(themeId, rewrite);
+    return;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (input.chunk.length <= 1) {
+      input.errors.push(`openai chunk ${input.chunkLabel} relabel failed: ${message}`);
+      return;
+    }
+    input.errors.push(
+      `openai chunk ${input.chunkLabel} relabel failed; retrying as smaller batches: ${message}`
+    );
+  }
+
+  const midpoint = Math.ceil(input.chunk.length / 2);
+  await requestOpenAIThemeRewriteChunk({
+    ...input,
+    chunk: input.chunk.slice(0, midpoint),
+    chunkLabel: `${input.chunkLabel}a`,
+  });
+  await requestOpenAIThemeRewriteChunk({
+    ...input,
+    chunk: input.chunk.slice(midpoint),
+    chunkLabel: `${input.chunkLabel}b`,
+  });
+}
+
+async function requestOpenAIThemeRewriteWithRetry(
+  input: {
+    apiKey: string;
+    model: string;
+    payload: unknown[];
+    allowedThemeIds: Set<string>;
+    maxTokens: number;
+    instruction: string;
+  },
+  options: { attempts: number; retryParseErrors: boolean }
+): Promise<Map<string, { label: string; summary: string }>> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
+    try {
+      return await requestOpenAIThemeRewrite(input);
+    } catch (err) {
+      lastError = err;
+      if (attempt >= options.attempts || !shouldRetryThemeRewrite(err, options.retryParseErrors)) break;
+      const baseMs = envNumber('EVENT_RECAP_FINALIZE_LLM_RETRY_BASE_MS', 1500, 250, 10000);
+      await sleep(baseMs * attempt * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+async function requestOpenAIThemeRewrite(input: {
+  apiKey: string;
+  model: string;
+  payload: unknown[];
+  allowedThemeIds: Set<string>;
+  maxTokens: number;
+  instruction: string;
+}): Promise<Map<string, { label: string; summary: string }>> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: input.model,
+      max_completion_tokens: input.maxTokens,
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'event_recap_theme_rewrite',
+          strict: true,
           schema: THEME_REWRITE_SCHEMA,
         },
       },
       messages: [
         {
+          role: 'system',
+          content:
+            'You write concise creator-facing research cluster summaries. Preserve evidence and provenance, avoid ops language, and do not invent facts beyond the supplied posts.',
+        },
+        {
           role: 'user',
-          content: [
-            {
-              type: 'text',
-              text:
-                'Rewrite these event-recap cluster labels and summaries. Keep every themeId unchanged. Return one entry per supplied theme.\n\n' +
-                JSON.stringify(payload),
-            },
-          ],
+          content: `${input.instruction}\n\n${JSON.stringify(input.payload)}`,
         },
       ],
-    });
-    const byThemeId = parseThemeRewriteInput(
-      (msg as unknown as { parsed_output?: unknown }).parsed_output,
-      new Set(themes.map((theme) => theme.themeId))
-    );
-    return {
-      model,
-      themes: themes.map((theme) => {
-        const next = byThemeId.get(theme.themeId);
-        return {
-          ...theme,
-          label: next?.label?.trim() || theme.label,
-          summary: next?.summary?.trim() || theme.summary,
-          updatedAt: Date.now(),
-        };
-      }),
-    };
-  } catch (err) {
-    return {
-      themes: applyCuratedThemeCopy(themes),
-      model,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    }),
+  });
+  const raw = await response.text();
+  if (!response.ok) {
+    throw new Error(`OpenAI ${response.status}: ${redactSecret(raw).slice(0, 700)}`);
   }
+  const json = JSON.parse(raw) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+  };
+  const content = json.choices?.[0]?.message?.content;
+  if (!content) throw new Error('OpenAI response did not include structured content');
+  return parseThemeRewriteInput(JSON.parse(content), input.allowedThemeIds);
+}
+
+async function requestThemeRewriteChunk(input: {
+  client: Anthropic;
+  model: string;
+  chunk: ThemeRewritePayloadItem[];
+  chunkLabel: string;
+  byThemeId: Map<string, { label: string; summary: string }>;
+  errors: string[];
+  depth: number;
+}): Promise<void> {
+  const chunkThemeIds = new Set(input.chunk.map((theme) => theme.themeId));
+  try {
+    const chunkRewrite = await requestThemeRewriteWithRetry(
+      {
+        client: input.client,
+        model: input.model,
+        payload: input.chunk,
+        allowedThemeIds: chunkThemeIds,
+        maxTokens: envNumber('EVENT_RECAP_FINALIZE_CHUNK_MAX_TOKENS', 2200, 800, 6000),
+        instruction:
+          'Rewrite this smaller batch of event-recap cluster labels and summaries. Keep every themeId unchanged. Return one entry per supplied theme.',
+      },
+      {
+        attempts: envNumber('EVENT_RECAP_FINALIZE_LLM_RETRIES', 5, 1, 10),
+        retryParseErrors: true,
+      }
+    );
+    for (const [themeId, rewrite] of chunkRewrite) input.byThemeId.set(themeId, rewrite);
+    return;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (input.chunk.length <= 1) {
+      input.errors.push(`chunk ${input.chunkLabel} relabel failed: ${message}`);
+      return;
+    }
+    input.errors.push(
+      `chunk ${input.chunkLabel} relabel failed; retrying as smaller batches: ${message}`
+    );
+  }
+
+  const midpoint = Math.ceil(input.chunk.length / 2);
+  await requestThemeRewriteChunk({
+    ...input,
+    chunk: input.chunk.slice(0, midpoint),
+    chunkLabel: `${input.chunkLabel}a`,
+    depth: input.depth + 1,
+  });
+  await requestThemeRewriteChunk({
+    ...input,
+    chunk: input.chunk.slice(midpoint),
+    chunkLabel: `${input.chunkLabel}b`,
+    depth: input.depth + 1,
+  });
+}
+
+async function requestThemeRewriteWithRetry(
+  input: {
+    client: Anthropic;
+    model: string;
+    payload: unknown[];
+    allowedThemeIds: Set<string>;
+    maxTokens: number;
+    instruction: string;
+  },
+  options: { attempts: number; retryParseErrors: boolean }
+): Promise<Map<string, { label: string; summary: string }>> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
+    try {
+      return await requestThemeRewrite(input);
+    } catch (err) {
+      lastError = err;
+      if (attempt >= options.attempts || !shouldRetryThemeRewrite(err, options.retryParseErrors)) break;
+      const baseMs = envNumber('EVENT_RECAP_FINALIZE_LLM_RETRY_BASE_MS', 1500, 250, 10000);
+      await sleep(baseMs * attempt * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function shouldRetryThemeRewrite(err: unknown, retryParseErrors: boolean): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/\b(429|529|overloaded|rate.?limit|timeout|ECONNRESET|ETIMEDOUT|temporar)/i.test(message)) {
+    return true;
+  }
+  return retryParseErrors && /parse structured output|unterminated string|not valid json|JSON/i.test(message);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function redactSecret(text: string): string {
+  return text.replace(/(?:sk|ant|apify_api)_[A-Za-z0-9_-]{12,}/g, '[redacted]');
+}
+
+async function requestThemeRewrite(input: {
+  client: Anthropic;
+  model: string;
+  payload: unknown[];
+  allowedThemeIds: Set<string>;
+  maxTokens: number;
+  instruction: string;
+}): Promise<Map<string, { label: string; summary: string }>> {
+  const msg = await input.client.messages.parse({
+    model: input.model,
+    max_tokens: input.maxTokens,
+    system:
+      'You write concise creator-facing research cluster summaries. Preserve evidence and provenance, avoid ops language, and do not invent facts beyond the supplied posts.',
+    output_config: {
+      format: {
+        type: 'json_schema',
+        schema: THEME_REWRITE_SCHEMA,
+      },
+    },
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `${input.instruction}\n\n${JSON.stringify(input.payload)}`,
+          },
+        ],
+      },
+    ],
+  });
+  return parseThemeRewriteInput(parsedThemeRewriteOutput(msg), input.allowedThemeIds);
+}
+
+function applyThemeRewrite(
+  themes: EventTheme[],
+  byThemeId: Map<string, { label: string; summary: string }>
+): EventTheme[] {
+  const updatedAt = Date.now();
+  return themes.map((theme) => {
+    const next = byThemeId.get(theme.themeId);
+    if (!next) {
+      throw new Error(`Missing relabel for theme ${theme.themeId}`);
+    }
+    return {
+      ...theme,
+      label: next.label.trim(),
+      summary: next.summary.trim(),
+      updatedAt,
+    };
+  });
+}
+
+function envNumber(name: string, fallback: number, min: number, max: number): number {
+  const value = Number(process.env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
+}
+
+function parsedThemeRewriteOutput(message: unknown): unknown {
+  const parsed = (message as { parsed_output?: unknown }).parsed_output;
+  if (parsed) return parsed;
+  const text = (message as { content?: Array<{ type?: string; text?: string }> }).content
+    ?.map((item) => (item.type === 'text' ? item.text ?? '' : ''))
+    .join('\n')
+    .trim();
+  if (!text) return parsed;
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  return JSON.parse(fenced ?? text);
 }
 
 function parseThemeRewriteInput(
@@ -641,7 +1068,7 @@ async function main() {
   const scored = scorePostsByPlatform(curated.posts);
   const relevant = scored.filter(isRelevant);
   const analysis = analyzePosts(String(archive.eventId), relevant);
-  const summarized = await summarizeThemesWithAnthropic(analysis.themes, relevant);
+  const summarized = await summarizeThemesWithLLM(analysis.themes, relevant);
   const expansion = deriveExpansionPlan(archive.eventName ?? archive.eventId, relevant, {
     baseQueries: archive.expansion?.querySet ?? [],
     maxQueries: 24,
@@ -653,6 +1080,7 @@ async function main() {
   archive.stats = computeStats(scored);
   archive.themes = summarized.themes;
   archive.voices = analysis.voices;
+  archive.clustering = analysis.clusterQuality;
   archive.expansion = expansion;
   archive.updatedAt = generatedAt;
   archive.enrichment = [
@@ -674,8 +1102,11 @@ async function main() {
         relevant: relevant.length,
         themes: archive.themes.length,
         voices: archive.voices.length,
+        clustering: analysis.clusterQuality,
         llmModel: summarized.model,
         llmError: summarized.error,
+        llmWarning: summarized.warning,
+        llmStrategy: summarized.strategy,
       },
     },
   ];
@@ -700,8 +1131,11 @@ async function main() {
     llm: {
       model: summarized.model,
       error: summarized.error,
+      warning: summarized.warning,
+      strategy: summarized.strategy,
     },
     stats: archive.stats,
+    clustering: archive.clustering,
     themes: archive.themes,
     voices: archive.voices,
   };
