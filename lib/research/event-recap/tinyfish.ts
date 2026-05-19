@@ -6,7 +6,7 @@ import type {
 } from './types';
 import { deriveSeedFrontier } from './frontier';
 import { fetchOfficialScheduleFrontier } from './official-schedule';
-import { makePostId, normalizeQuerySet } from './utils';
+import { bestDisplayAuthorName, extractAuthorNameFromTitle, makePostId, normalizeQuerySet } from './utils';
 
 const SEARCH_ENDPOINT = 'https://api.search.tinyfish.ai';
 const FETCH_ENDPOINT = 'https://api.fetch.tinyfish.ai';
@@ -1439,8 +1439,8 @@ function authorFromFetchedLinkedIn(
   url: string
 ): string {
   const title = result.title?.trim();
-  const titleAuthor = title?.split('|').pop()?.trim();
-  if (titleAuthor && !/^linkedin$/i.test(titleAuthor)) return titleAuthor;
+  const titleAuthor = extractAuthorNameFromTitle(title);
+  if (titleAuthor) return titleAuthor;
   return authorFromSearchResult('linkedin', { title, url });
 }
 
@@ -1596,7 +1596,13 @@ export function normalizeTinyFishPosts(platform: EventPlatform, value: unknown) 
     .flatMap((post) => {
       const text = stringValue(post.text);
       const url = stringValue(post.url) || platformSearchUrl(platform, [text.slice(0, 60)]);
-      const authorName = stringValue(post.author_name ?? post.authorName) || 'unknown';
+      const authorHandle = stringValue(post.author_handle ?? post.authorHandle) || undefined;
+      const authorName = bestDisplayAuthorName({
+        platform,
+        authorName: stringValue(post.author_name ?? post.authorName) || undefined,
+        authorHandle,
+        raw: post,
+      });
       const baseTags = Array.isArray(post.tags)
         ? post.tags.filter((tag): tag is string => typeof tag === 'string')
         : [];
@@ -1605,7 +1611,7 @@ export function normalizeTinyFishPosts(platform: EventPlatform, value: unknown) 
         platform,
         url,
         authorName,
-        authorHandle: stringValue(post.author_handle ?? post.authorHandle) || undefined,
+        authorHandle,
         authorUrl: stringValue(post.author_url ?? post.authorUrl) || undefined,
         authorMeta: {
           headline: stringValue(post.author_headline ?? post.authorHeadline) || undefined,

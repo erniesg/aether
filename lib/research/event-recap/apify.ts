@@ -1,5 +1,5 @@
 import type { EventAuthorMeta, EventPostMedia, PlatformScrapeResult } from './types';
-import { makePostId, normalizeQuerySet } from './utils';
+import { bestDisplayAuthorName, makePostId, normalizeQuerySet } from './utils';
 
 type ApifyEnv = Partial<Record<string, string | undefined>>;
 type Fetcher = typeof fetch;
@@ -297,7 +297,12 @@ export function normalizeApifyLinkedInPost(
     postId: makePostId('linkedin', url, text),
     platform: 'linkedin',
     url,
-    authorName: stringValue(author.name ?? record.authorName ?? record.author_name) || handle || 'unknown',
+    authorName: bestDisplayAuthorName({
+      platform: 'linkedin',
+      authorName: stringValue(author.name ?? record.authorName ?? record.author_name) || undefined,
+      authorHandle: handle,
+      raw: record,
+    }),
     authorHandle: handle,
     authorUrl,
     authorMeta: authorMetaFromApifyLinkedIn(author),

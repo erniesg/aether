@@ -7,7 +7,7 @@ import type {
   EventVoice,
   ThemeEvidenceSample,
 } from './types';
-import { engagement, shortExcerpt, slugify, tokenize } from './utils';
+import { bestDisplayAuthorName, engagement, shortExcerpt, slugify, tokenize } from './utils';
 
 type SparseVector = Map<string, number>;
 
@@ -1069,7 +1069,7 @@ export function rankVoices(eventId: string, posts: EventPost[]): EventVoice[] {
         voiceId: slugify(`${first.platform}-${first.authorHandle ?? first.authorName}`),
         eventId,
         platform: first.platform,
-        name: first.authorName,
+        name: bestVoiceName(group),
         handle: first.authorHandle,
         profileUrl: first.authorUrl,
         postCount: group.length,
@@ -1083,4 +1083,18 @@ export function rankVoices(eventId: string, posts: EventPost[]): EventVoice[] {
       } satisfies EventVoice;
     })
     .sort((a, b) => b.reachScore - a.reachScore);
+}
+
+function bestVoiceName(group: EventPost[]): string {
+  const cleanPost = group
+    .map((post) =>
+      bestDisplayAuthorName({
+        platform: post.platform,
+        authorName: post.authorName,
+        authorHandle: post.authorHandle,
+        raw: post.raw,
+      })
+    )
+    .find((name) => name !== 'unknown');
+  return cleanPost ?? group[0]?.authorName ?? 'unknown';
 }

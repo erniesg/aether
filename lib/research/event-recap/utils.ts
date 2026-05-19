@@ -119,6 +119,87 @@ export function makePostId(platform: EventPlatform, url: string, text: string): 
   return `${platform}_${textHash(`${url}:${text.slice(0, 240)}`)}`;
 }
 
+export function cleanDisplayAuthorName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const name = value.replace(/\s+/g, ' ').trim();
+  if (!name) return undefined;
+  if (/^(unknown|linkedin)$/i.test(name)) return undefined;
+  if (/^\d+(\.\d+)?\s+(comments?|reactions?|likes?|followers?)$/i.test(name)) return undefined;
+  if (/^https?:\/\//i.test(name)) return undefined;
+  if (name.includes('#')) return undefined;
+  if (name.includes('|')) return undefined;
+  if (/\bposted on the topic\b/i.test(name)) return undefined;
+  if (/\s+-\s+linkedin$/i.test(name)) return undefined;
+  if (name.length > 96) return undefined;
+  return name;
+}
+
+export function extractAuthorNameFromTitle(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const title = value.replace(/\s+/g, ' ').trim();
+  if (!title) return undefined;
+
+  const pipeSegments = title
+    .split('|')
+    .map((segment) => cleanDisplayAuthorName(segment))
+    .filter((segment): segment is string => Boolean(segment));
+  if (pipeSegments.length) return pipeSegments.at(-1);
+
+  return cleanDisplayAuthorName(title.replace(/\s+-\s+LinkedIn$/i, ''));
+}
+
+export function displayNameFromHandle(
+  handle: string | undefined,
+  platform?: EventPlatform
+): string | undefined {
+  const cleanHandle = handle?.replace(/^@/, '').trim();
+  if (!cleanHandle) return undefined;
+  if (platform === 'x') return `@${cleanHandle}`;
+
+  const parts = cleanHandle
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .filter((part, index, all) => {
+      const isLast = index === all.length - 1;
+      return !(isLast && (/\d/.test(part) || /^[a-f0-9]{6,}$/i.test(part)));
+    });
+  if (parts.length < 2) return cleanHandle;
+  return parts.map(titleCaseHandlePart).join(' ');
+}
+
+export function bestDisplayAuthorName(input: {
+  platform?: EventPlatform;
+  authorName?: string;
+  authorHandle?: string;
+  raw?: unknown;
+}): string {
+  const raw = input.raw && typeof input.raw === 'object' ? (input.raw as Record<string, unknown>) : {};
+  const candidates = [
+    input.authorName,
+    raw.author,
+    raw.authorName,
+    raw.author_name,
+    extractAuthorNameFromTitle(raw.title),
+    extractAuthorNameFromTitle(raw.ogTitle),
+  ];
+  const clean = candidates
+    .map((candidate) => cleanDisplayAuthorName(candidate))
+    .find((candidate): candidate is string => Boolean(candidate));
+  return (
+    clean ??
+    displayNameFromHandle(input.authorHandle, input.platform) ??
+    cleanDisplayAuthorName(input.authorName) ??
+    input.authorName ??
+    'unknown'
+  );
+}
+
+function titleCaseHandlePart(value: string): string {
+  const lower = value.toLowerCase();
+  if (/^(ai|api|asean|cto|gcp|io|llm|llms|ml|sg|usa|vc)$/i.test(value)) return lower.toUpperCase();
+  return `${lower.slice(0, 1).toUpperCase()}${lower.slice(1)}`;
+}
+
 export function engagement(metrics: EventPostMetrics): number {
   return (
     (metrics.likes ?? 0) +
