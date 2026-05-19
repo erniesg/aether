@@ -197,7 +197,15 @@ function curatePosts(posts: EventPost[]): { posts: EventPost[]; changed: number;
   const curated = posts.map((post) => {
     const text = cleanPrimaryText(post);
     const relevant = eventRelevant(post, text);
-    const tags = (post.tags ?? []).filter((tag) => tag !== 'relevant:event' && tag !== 'irrelevant:event');
+    const tags = (post.tags ?? []).filter(
+      (tag) =>
+        tag !== 'relevant:event' &&
+        tag !== 'irrelevant:event' &&
+        tag !== 'irrelevant:incidental-event-mention'
+    );
+    if (!relevant && isIncidentalEventMentionPost(post, text)) {
+      tags.push('irrelevant:incidental-event-mention');
+    }
     tags.push(relevant ? 'relevant:event' : 'irrelevant:event');
     if (!relevant) hidden += 1;
     const next = enrichPostConversationTags({
@@ -251,7 +259,7 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
     /\baidotengineer\b/i.test(blob) ||
     /\bai\.engineer[\/\s]+singapore\b/i.test(blob) ||
     /\broad to aie\b/i.test(blob);
-  if (exactEvent) return true;
+  if (exactEvent) return !isIncidentalExactEventMention(blob);
 
   const eventPhrase =
     /\bai engineer(?:ing)?\b.{0,100}\b(singapore|sg|capitol|kempinski|pullman|65labs|conference|summit|hackathon|workshop)\b/i.test(blob) ||
@@ -274,8 +282,12 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
   return knownEventAnchor;
 }
 
+function isIncidentalEventMentionPost(post: EventPost, text = cleanPrimaryText(post)): boolean {
+  return isIncidentalExactEventMention(`${text} ${post.authorHandle ?? ''} ${post.authorName ?? ''} ${post.url}`);
+}
+
 function isHardNoise(text: string): boolean {
-  if (/\b(austcham|australian international school|sandboxaq|nigerian english|cerebras ipo|bnpl|buy now, pay later|crypto vc fund partner|drugging a girl's drink)\b/i.test(text)) {
+  if (/\b(austcham|australian international school|sandboxaq|nigerian english|cerebras ipo|bnpl|buy now, pay later|crypto vc fund partner|drugging a girl's drink|ai everything\s*\(aie\)|ai everything singapore)\b/i.test(text)) {
     return true;
   }
   return false;
@@ -301,6 +313,28 @@ function isGenericHiringNoise(text: string): boolean {
     /\b(hiring|we'?re hiring|job opening|job posting|job ad|jobs page|open roles?|open positions?|vacancy|resume|cv|apply now|candidate|recruiting|software engineer|data engineer|machine learning engineer)\b/i.test(text);
   const event = /\b(ai engineer singapore|aie singapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text);
   return hiring && !event;
+}
+
+function isIncidentalExactEventMention(text: string): boolean {
+  const exactMentions = [
+    ...text.matchAll(
+      /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie singapore|#aiengineersingapore|aidotengineer|ai\.engineer[\/\s]+singapore|road to aie)\b/gi
+    ),
+  ].length;
+  if (exactMentions !== 1 || text.length < 900) return false;
+
+  const eventSpecificSignal =
+    /\b(vivian balakrishnan|vivianbala|foreign minister|keynote|conference|summit|takeaways?|presented|workshops?|technical workshop|speakers?|talks?|panels?|sessions?|stage|booths?|sponsors?|side event|live demos?|capitol|kempinski|pullman|singapore management university|smu|65labs|openai|codex|cursor|google deepmind|deepmind|nanoclaw|llamaindex|cerebras|vercel|day\s*[123]|recap|livestream|unconference|project6|ralphthon|sherry jiang|sherrypeek|agrim singh|rachael de foe|gabriel chua|yee chien cheot)\b/i.test(
+      text
+    );
+  if (eventSpecificSignal) return false;
+
+  const aieHackathonBuildArtifact =
+    /\b(built|shipped|launched|demoed|submitted|won|created)\b.{0,120}\b(aie singapore|ai engineer singapore|ai engineer sg)\b.{0,80}\bhackathon\b/i.test(text) ||
+    /\b(aie singapore|ai engineer singapore|ai engineer sg)\b.{0,80}\bhackathon\b.{0,120}\b(built|shipped|launched|demoed|submitted|won|created)\b/i.test(text);
+  if (aieHackathonBuildArtifact) return false;
+
+  return true;
 }
 
 function youtubePostsFromArchive(archive: Record<string, any>): EventPost[] {
