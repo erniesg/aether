@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { ConvexHttpClient } from 'convex/browser';
 import { anyApi } from 'convex/server';
 import type {
@@ -15,6 +17,15 @@ interface EventMemoryState {
   posts: Map<string, EventPost[]>;
   themes: Map<string, EventTheme[]>;
   voices: Map<string, EventVoice[]>;
+}
+
+interface EventArchiveObject {
+  body?: ReadableStream;
+  text?: () => Promise<string>;
+}
+
+interface EventArchiveBucket {
+  get(key: string): Promise<EventArchiveObject | null>;
 }
 
 const GLOBAL_KEY = '__aether_event_recap_store__';
@@ -77,7 +88,7 @@ export async function getEventBundle(eventId: string): Promise<EventRecapBundle 
 
   const state = memory();
   const event = state.events.get(eventId);
-  if (!event) return null;
+  if (!event) return await readArchiveBundle(eventId);
   return {
     event,
     runs: state.runs.get(eventId) ?? [],
@@ -85,6 +96,147 @@ export async function getEventBundle(eventId: string): Promise<EventRecapBundle 
     themes: state.themes.get(eventId) ?? [],
     voices: state.voices.get(eventId) ?? [],
   };
+}
+
+async function readArchiveBundle(eventId: string): Promise<EventRecapBundle | null> {
+  const archiveJson = await readArchiveJson(eventId);
+  if (!archiveJson) return null;
+  try {
+    const querySet = flattenQuerySet(archiveJson.querySet);
+    const updatedAt = dateMs(archiveJson.updatedAt) ?? Date.now();
+    const generatedAt = dateMs(archiveJson.generatedAt) ?? updatedAt;
+    const event: EventRecapRecord = {
+      eventId: String(archiveJson.eventId ?? eventId),
+      name: String(archiveJson.eventName ?? archiveJson.eventId ?? eventId),
+      canonicalName: String(archiveJson.eventName ?? archiveJson.eventId ?? eventId),
+      location: archiveJson.location,
+      startsAt: archiveJson.windowStart,
+      endsAt: archiveJson.windowEnd,
+      daysBefore: 0,
+      daysAfter: 0,
+      refreshIntervalHours: 24,
+      maxItemsPerPlatform: archiveJson.stats?.total ?? archiveJson.posts?.length ?? 0,
+      monthlyCreditBudget: 0,
+      liveMode: 'tinyfish',
+      status: 'ready',
+      usedCredits: 0,
+      querySet,
+      sourceUrls: [],
+      lastRunAt: generatedAt,
+      createdAt: generatedAt,
+      updatedAt,
+    };
+    return {
+      event,
+      runs: archiveRuns(archiveJson, event.eventId, querySet),
+      posts: ((archiveJson.posts ?? []) as EventPost[]).map(normalizePost),
+      themes: (archiveJson.themes ?? []) as EventTheme[],
+      voices: (archiveJson.voices ?? []) as EventVoice[],
+    };
+  } catch (err) {
+    console.error('[event-recap/store] archive fallback read failed', err);
+    return null;
+  }
+}
+
+async function readArchiveJson(eventId: string): Promise<Record<string, any> | null> {
+  if (process.env.NODE_ENV === 'production') {
+    const r2Archive = await readR2Archive(eventId);
+    if (r2Archive) return r2Archive;
+  }
+
+  const archivePath = resolveArchivePath(eventId);
+  if (!archivePath) return null;
+  return JSON.parse(fs.readFileSync(archivePath, 'utf8')) as Record<string, any>;
+}
+
+async function readR2Archive(eventId: string): Promise<Record<string, any> | null> {
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const { env } = await getCloudflareContext({ async: true });
+    const bucket = (env as CloudflareEnv & { AETHER_ASSETS?: EventArchiveBucket }).AETHER_ASSETS;
+    const object = await bucket?.get(`event-recap-${eventId}/archive.json`);
+    if (!object) return null;
+    const text =
+      typeof object.text === 'function'
+        ? await object.text()
+        : object.body
+          ? await new Response(object.body).text()
+          : '';
+    return text ? (JSON.parse(text) as Record<string, any>) : null;
+  } catch (err) {
+    console.error('[event-recap/store] archive R2 read failed', err);
+    return null;
+  }
+}
+
+function resolveArchivePath(eventId: string): string | null {
+  const direct = path.resolve(process.cwd(), 'outputs', `event-recap-${eventId}`, 'archive.json');
+  if (fs.existsSync(direct)) return direct;
+  const outputsDir = path.resolve(process.cwd(), 'outputs');
+  if (!fs.existsSync(outputsDir)) return null;
+  for (const entry of fs.readdirSync(outputsDir)) {
+    if (!entry.startsWith('event-recap-')) continue;
+    const candidate = path.join(outputsDir, entry, 'archive.json');
+    if (!fs.existsSync(candidate)) continue;
+    try {
+      const archive = JSON.parse(fs.readFileSync(candidate, 'utf8')) as { eventId?: string };
+      if (archive.eventId === eventId) return candidate;
+    } catch {
+      // Ignore malformed local artifacts.
+    }
+  }
+  return null;
+}
+
+function flattenQuerySet(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (!value || typeof value !== 'object') return [];
+  const out = new Set<string>();
+  for (const item of Object.values(value as Record<string, unknown>)) {
+    if (!Array.isArray(item)) continue;
+    for (const query of item) {
+      if (typeof query === 'string' && query.trim()) out.add(query.trim());
+    }
+  }
+  return Array.from(out);
+}
+
+function archiveRuns(archive: Record<string, any>, eventId: string, querySet: string[]): EventScrapeRun[] {
+  const enrichments = Array.isArray(archive.enrichment) ? archive.enrichment : [];
+  return enrichments
+    .slice(-10)
+    .reverse()
+    .map((entry: Record<string, any>, index: number) => {
+      const generatedAt = dateMs(entry.generatedAt) ?? dateMs(archive.updatedAt) ?? Date.now();
+      return {
+        runId: String(entry.runId ?? `${archive.runId ?? 'archive'}_${index}`),
+        eventId,
+        status: 'completed',
+        mode: 'tinyfish',
+        provider: String(entry.mode ?? 'archive-enrichment'),
+        platforms: ['x', 'linkedin', 'youtube'],
+        querySet,
+        windowStart: String(archive.windowStart ?? ''),
+        windowEnd: String(archive.windowEnd ?? ''),
+        maxItemsPerPlatform: archive.stats?.total ?? archive.posts?.length ?? 0,
+        estimatedCredits: 0,
+        actualCredits: 0,
+        streamingUrls: [],
+        warnings: [],
+        inputs: entry.input ?? {},
+        outputs: entry,
+        startedAt: generatedAt,
+        finishedAt: generatedAt,
+      } satisfies EventScrapeRun;
+    });
+}
+
+function dateMs(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return undefined;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : undefined;
 }
 
 export async function saveEvent(event: EventRecapRecord): Promise<void> {

@@ -20,7 +20,7 @@ function post(input: Partial<EventPost> & Pick<EventPost, 'postId' | 'platform' 
 }
 
 describe('event recap analysis', () => {
-  it('clusters one X + LinkedIn + YouTube corpus and keeps cited evidence URLs', () => {
+  it('clusters one X + LinkedIn + YouTube corpus and attaches context refs', () => {
     const posts = scorePostsByPlatform([
       post({
         postId: 'x_evals',
@@ -61,6 +61,22 @@ describe('event recap analysis', () => {
         text: 'Join us at AI Engineer Singapore for a keynote and panel session. Register now.',
         metrics: { likes: 200, reposts: 60, views: 50000 },
       }),
+      post({
+        postId: 'li_comment',
+        platform: 'linkedin',
+        authorName: 'Commenter',
+        text: 'This was useful context from the Singapore session.',
+        tags: ['linkedin-comment'],
+        metrics: { reactions: 5 },
+      }),
+      post({
+        postId: 'x_reply',
+        platform: 'x',
+        authorName: 'Reply Voice',
+        text: 'The Vivian keynote line about governing technology was the standout Singapore moment.',
+        tags: ['x-reply', 'conversation:vivian'],
+        metrics: { likes: 4 },
+      }),
     ]);
 
     const result = analyzePosts('ai-engineer-summit-singapore', posts);
@@ -69,15 +85,30 @@ describe('event recap analysis', () => {
     expect(result.voices.map((voice) => voice.platform).sort()).toEqual([
       'linkedin',
       'x',
+      'x',
+      'x',
       'youtube',
     ]);
 
     const summaries = result.themes.map((theme) => theme.summary).join('\n');
     expect(summaries).toContain('https://example.com/');
     expect(result.themes.flatMap((theme) => theme.postIds)).toEqual(
-      expect.arrayContaining(['x_evals', 'li_evals', 'yt_keynote'])
+      expect.arrayContaining([
+        'x_evals',
+        'li_evals',
+        'yt_keynote',
+        'x_announcement',
+        'x_hiring',
+        'li_comment',
+        'x_reply',
+      ])
     );
-    expect(result.themes.flatMap((theme) => theme.postIds)).not.toContain('x_announcement');
-    expect(result.themes.flatMap((theme) => theme.postIds)).not.toContain('x_hiring');
+    expect(result.themes.flatMap((theme) => theme.rootPostIds ?? [])).toEqual(
+      expect.arrayContaining(['x_evals', 'li_evals', 'yt_keynote', 'x_announcement', 'x_hiring'])
+    );
+    expect(result.themes.flatMap((theme) => theme.rootPostIds ?? [])).not.toContain('li_comment');
+    expect(result.themes.flatMap((theme) => theme.attachedPostIds ?? [])).toEqual(
+      expect.arrayContaining(['li_comment', 'x_reply'])
+    );
   });
 });

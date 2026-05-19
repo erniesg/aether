@@ -40,7 +40,24 @@ interface XTweet {
   conversation_id?: string;
   in_reply_to_user_id?: string;
   referenced_tweets?: Array<{ type: string; id: string }>;
+  entities?: {
+    urls?: Array<{
+      url?: string;
+      expanded_url?: string;
+      unwound_url?: string;
+      display_url?: string;
+      title?: string;
+      description?: string;
+      images?: Array<{ url?: string; width?: number; height?: number }>;
+    }>;
+  };
   lang?: string;
+}
+
+interface XMediaVariant {
+  bit_rate?: number;
+  content_type?: string;
+  url?: string;
 }
 
 interface XMedia {
@@ -51,6 +68,8 @@ interface XMedia {
   alt_text?: string;
   width?: number;
   height?: number;
+  duration_ms?: number;
+  variants?: XMediaVariant[];
 }
 
 interface XQueryPlan {
@@ -66,6 +85,41 @@ export interface XCountEstimate {
 }
 
 let cachedAppOnlyBearerToken: string | undefined;
+
+const X_EXPANSIONS = ['author_id', 'attachments.media_keys'];
+const X_TWEET_FIELDS = [
+  'attachments',
+  'author_id',
+  'conversation_id',
+  'created_at',
+  'entities',
+  'in_reply_to_user_id',
+  'public_metrics',
+  'referenced_tweets',
+  'lang',
+];
+const X_USER_FIELDS = [
+  'description',
+  'location',
+  'name',
+  'profile_image_url',
+  'public_metrics',
+  'username',
+  'verified',
+  'verified_type',
+];
+const X_MEDIA_FIELDS = [
+  'alt_text',
+  'duration_ms',
+  'height',
+  'media_key',
+  'preview_image_url',
+  'public_metrics',
+  'type',
+  'url',
+  'variants',
+  'width',
+];
 
 export function isXSearchConfigured(
   env: XSearchEnv = process.env
@@ -154,36 +208,10 @@ export async function searchXViaOfficialApi(
     try {
       const paginator = (await client.v2.search(plan.query, {
         max_results: Math.max(10, Math.min(100, perQuery)),
-        expansions: ['author_id', 'attachments.media_keys'],
-        'tweet.fields': [
-          'attachments',
-          'author_id',
-          'conversation_id',
-          'created_at',
-          'in_reply_to_user_id',
-          'public_metrics',
-          'referenced_tweets',
-          'lang',
-        ],
-        'user.fields': [
-          'description',
-          'location',
-          'name',
-          'profile_image_url',
-          'public_metrics',
-          'username',
-          'verified',
-          'verified_type',
-        ],
-        'media.fields': [
-          'alt_text',
-          'height',
-          'media_key',
-          'preview_image_url',
-          'type',
-          'url',
-          'width',
-        ],
+        expansions: X_EXPANSIONS,
+        'tweet.fields': X_TWEET_FIELDS,
+        'user.fields': X_USER_FIELDS,
+        'media.fields': X_MEDIA_FIELDS,
         start_time: timeWindow.startTime,
         end_time: timeWindow.endTime,
       } as never)) as unknown as AsyncIterable<XTweet> & {
@@ -249,7 +277,7 @@ export async function searchXViaOfficialApi(
 
   return {
     platform: 'x',
-    posts: tweets.map((tweet) => toEventPost(tweet, users, media)),
+    posts: tweets.map((tweet) => toEventPost(tweet, users, media, 'x-api')),
     warnings:
       tweets.length > 0
         ? []
@@ -258,6 +286,85 @@ export async function searchXViaOfficialApi(
       queries: rawQueries,
       replyQueries: rawReplyQueries,
       timeWindow,
+    },
+  };
+}
+
+export async function lookupXPostsByIds(
+  input: {
+    tweetIds: string[];
+    maxItems?: number;
+  },
+  env: XSearchEnv = process.env
+): Promise<PlatformScrapeResult> {
+  if (!isXSearchConfigured(env)) {
+    return {
+      platform: 'x',
+      posts: [],
+      warnings: ['X official lookup not configured'],
+      raw: {},
+    };
+  }
+
+  const client = new TwitterApi({
+    appKey: env.X_API_KEY!.trim(),
+    appSecret: env.X_API_KEY_SECRET!.trim(),
+    accessToken: env.X_ACCESS_TOKEN!.trim(),
+    accessSecret: env.X_ACCESS_TOKEN_SECRET!.trim(),
+  });
+  const tweetIds = dedupeTweetIds(input.tweetIds).slice(0, input.maxItems ?? input.tweetIds.length);
+  const users = new Map<string, XUser>();
+  const media = new Map<string, XMedia>();
+  const tweetsById = new Map<string, XTweet>();
+  const rawBatches: Array<{
+    requested: number;
+    fetched: number;
+    errors?: unknown[];
+    error?: string;
+  }> = [];
+
+  for (let index = 0; index < tweetIds.length; index += 100) {
+    const batch = tweetIds.slice(index, index + 100);
+    try {
+      const result = (await client.v2.tweets(batch, {
+        expansions: X_EXPANSIONS,
+        'tweet.fields': X_TWEET_FIELDS,
+        'user.fields': X_USER_FIELDS,
+        'media.fields': X_MEDIA_FIELDS,
+      } as never)) as unknown as {
+        data?: XTweet[];
+        includes?: { media?: XMedia[]; users?: XUser[] };
+        errors?: unknown[];
+      };
+      for (const user of result.includes?.users ?? []) users.set(user.id, user);
+      for (const item of result.includes?.media ?? []) media.set(item.media_key, item);
+      for (const tweet of result.data ?? []) tweetsById.set(tweet.id, tweet);
+      rawBatches.push({
+        requested: batch.length,
+        fetched: result.data?.length ?? 0,
+        errors: result.errors?.length ? result.errors : undefined,
+      });
+    } catch (err) {
+      rawBatches.push({
+        requested: batch.length,
+        fetched: 0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const tweets = Array.from(tweetsById.values());
+  return {
+    platform: 'x',
+    posts: tweets.map((tweet) => toEventPost(tweet, users, media, 'x-lookup')),
+    warnings:
+      tweets.length > 0
+        ? []
+        : [`X official lookup returned no posts for ${tweetIds.length} tweet IDs`],
+    raw: {
+      batches: rawBatches,
+      requested: tweetIds.length,
+      fetched: tweets.length,
     },
   };
 }
@@ -306,36 +413,10 @@ async function fetchRepliesForTopPosts(input: {
     try {
       const paginator = (await input.client.v2.search(query, {
         max_results: Math.max(10, Math.min(100, perRoot)),
-        expansions: ['author_id', 'attachments.media_keys'],
-        'tweet.fields': [
-          'attachments',
-          'author_id',
-          'conversation_id',
-          'created_at',
-          'in_reply_to_user_id',
-          'public_metrics',
-          'referenced_tweets',
-          'lang',
-        ],
-        'user.fields': [
-          'description',
-          'location',
-          'name',
-          'profile_image_url',
-          'public_metrics',
-          'username',
-          'verified',
-          'verified_type',
-        ],
-        'media.fields': [
-          'alt_text',
-          'height',
-          'media_key',
-          'preview_image_url',
-          'type',
-          'url',
-          'width',
-        ],
+        expansions: X_EXPANSIONS,
+        'tweet.fields': X_TWEET_FIELDS,
+        'user.fields': X_USER_FIELDS,
+        'media.fields': X_MEDIA_FIELDS,
         start_time: input.timeWindow.startTime,
         end_time: input.timeWindow.endTime,
       } as never)) as unknown as AsyncIterable<XTweet> & {
@@ -461,7 +542,12 @@ async function countRecentPosts(
   }
 }
 
-function toEventPost(tweet: XTweet, users: Map<string, XUser>, media: Map<string, XMedia>) {
+function toEventPost(
+  tweet: XTweet,
+  users: Map<string, XUser>,
+  media: Map<string, XMedia>,
+  mediaSource: string
+) {
   const user = tweet.author_id ? users.get(tweet.author_id) : undefined;
   const handle = user?.username;
   const url = handle
@@ -489,7 +575,7 @@ function toEventPost(tweet: XTweet, users: Map<string, XUser>, media: Map<string
       impressions: metrics.impression_count,
       views: metrics.impression_count,
     },
-    media: mediaFromTweet(tweet, media),
+    media: mediaFromTweet(tweet, media, mediaSource),
     tags,
     raw: tweet,
   };
@@ -511,21 +597,53 @@ function authorMetaFromXUser(user?: XUser): EventAuthorMeta | undefined {
   };
 }
 
-function mediaFromTweet(tweet: XTweet, media: Map<string, XMedia>): EventPostMedia[] | undefined {
+function mediaFromTweet(
+  tweet: XTweet,
+  media: Map<string, XMedia>,
+  source: string
+): EventPostMedia[] | undefined {
   const items = (tweet.attachments?.media_keys ?? [])
     .map((key) => media.get(key))
     .filter((item): item is XMedia => Boolean(item))
-    .map((item) => ({
-      url: item.url ?? item.preview_image_url ?? '',
-      type: xMediaType(item.type),
-      source: 'x-api',
-      previewUrl: item.preview_image_url,
-      altText: item.alt_text,
-      width: item.width,
-      height: item.height,
-    }))
+    .map((item) => mediaItemFromXMedia(item, source))
     .filter((item) => item.url.length > 0);
   return items.length ? items : undefined;
+}
+
+function mediaItemFromXMedia(item: XMedia, source: string): EventPostMedia {
+  const type = xMediaType(item.type);
+  const variant = type === 'video' || type === 'gif' ? bestVideoVariant(item.variants) : undefined;
+  return {
+    url: variant?.url ?? item.url ?? item.preview_image_url ?? '',
+    type,
+    source,
+    previewUrl: item.preview_image_url,
+    altText: item.alt_text,
+    width: item.width,
+    height: item.height,
+    contentType: variant?.contentType,
+    durationMs: item.duration_ms,
+    variants: mediaVariants(item.variants),
+  };
+}
+
+type EventMediaVariant = NonNullable<EventPostMedia['variants']>[number];
+
+function bestVideoVariant(variants?: XMediaVariant[]): EventMediaVariant | undefined {
+  return mediaVariants(variants)
+    ?.filter((variant) => variant.contentType === 'video/mp4')
+    .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))[0];
+}
+
+function mediaVariants(variants?: XMediaVariant[]): EventPostMedia['variants'] | undefined {
+  const normalized = (variants ?? [])
+    .map((variant) => ({
+      url: variant.url?.trim() ?? '',
+      contentType: variant.content_type,
+      bitrate: variant.bit_rate,
+    }))
+    .filter((variant) => variant.url.length > 0);
+  return normalized.length ? normalized : undefined;
 }
 
 function xMediaType(type?: string): EventPostMedia['type'] {
@@ -585,6 +703,18 @@ function maxScannedPerQuery(value: number | undefined, perQuery: number): number
 
 function tweetIdFromUrl(url: string): string | undefined {
   return url.match(/\/status\/(\d+)/)?.[1];
+}
+
+function dedupeTweetIds(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const id = value.trim().match(/\d{5,}/)?.[0];
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
 }
 
 function toXSecondTimestamp(value: string): string {

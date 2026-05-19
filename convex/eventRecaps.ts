@@ -31,11 +31,25 @@ const MEDIA = v.object({
   url: v.string(),
   type: v.union(v.literal('image'), v.literal('video'), v.literal('gif'), v.literal('unknown')),
   source: v.optional(v.string()),
+  pageUrl: v.optional(v.string()),
   previewUrl: v.optional(v.string()),
   altText: v.optional(v.string()),
   width: v.optional(v.number()),
   height: v.optional(v.number()),
   localPath: v.optional(v.string()),
+  contentType: v.optional(v.string()),
+  bytes: v.optional(v.number()),
+  downloadedAt: v.optional(v.number()),
+  durationMs: v.optional(v.number()),
+  variants: v.optional(
+    v.array(
+      v.object({
+        url: v.string(),
+        contentType: v.optional(v.string()),
+        bitrate: v.optional(v.number()),
+      })
+    )
+  ),
 });
 
 interface EventDoc {
