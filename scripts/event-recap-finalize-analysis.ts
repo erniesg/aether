@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
-import { analyzePosts } from '../lib/research/event-recap/analyze';
+import { analyzePosts, measureClusterQuality } from '../lib/research/event-recap/analyze';
 import { enrichPostConversationTags } from '../lib/research/event-recap/conversation';
 import { deriveExpansionPlan } from '../lib/research/event-recap/expand';
 import type { EventPlatform, EventPost, EventPostMedia, EventTheme } from '../lib/research/event-recap/types';
@@ -71,6 +71,11 @@ type ThemeSummaryResult = {
 };
 
 const CURATED_THEME_COPY: Record<string, { label: string; summary: string }> = {
+  'story-vivian-builder-keynote': {
+    label: "Vivian's builder keynote",
+    summary:
+      'Foreign Minister Vivian Balakrishnan, NanoClaw, Raspberry Pi, and the "briefed on" line are one story: the keynote travelled because governance was framed through a minister visibly building and using his own AI workflow.',
+  },
   'atlas-01-minister-balakrishnan-built': {
     label: "Minister's builder keynote",
     summary:
@@ -237,12 +242,16 @@ function cleanPrimaryText(post: EventPost): string {
       const index = text.indexOf(marker);
       if (index > 0) text = text.slice(0, index).trim();
     }
+    text = text
+      .replace(/\s*## Sign in to view more content[\s\S]*$/i, '')
+      .replace(/\s*To view or add a comment, sign in[\s\S]*$/i, '')
+      .trim();
   }
   return text.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean {
-  if (post.platform === 'youtube') return true;
+  if (post.platform === 'youtube') return youtubeRelevant(post, text);
   const blob = `${text} ${post.authorHandle ?? ''} ${post.authorName ?? ''} ${post.url}`;
   const lower = blob.toLowerCase();
   if (isHardNoise(lower)) return false;
@@ -286,6 +295,43 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
     /\b65labs\b/i.test(blob) &&
     /\b(ai engineer singapore|ai engineer sg|aie singapore|road to aie|ai\.engineer[\/\s]+singapore|capitol|kempinski|pullman|keynote|speaker|sponsor|conference|summit|codex|openai|cursor|google deepmind)\b/i.test(blob);
   return knownPeopleAnchor || known65LabsAnchor;
+}
+
+function youtubeRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean {
+  const tags = (post.tags ?? []).map((tag) => tag.toLowerCase());
+  if (tags.includes('youtube-video')) return true;
+  const isComment =
+    tags.includes('youtube-comment') ||
+    tags.includes('youtube-live-chat') ||
+    post.url.includes('&lc=') ||
+    post.url.includes('#live-chat-');
+  if (!isComment) return true;
+
+  const normalized = text
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (isLowSignalYoutubeComment(normalized)) return false;
+
+  return (
+    normalized.length >= 48 ||
+    hasExplicitAieSignal(normalized) ||
+    /\b(vivian|balakrishnan|foreign minister|minister|nanoclaw|raspberry|second brain|keynote|codex|workshop|speaker|aie|ai engineer|singapore)\b/i.test(
+      normalized
+    )
+  );
+}
+
+function isLowSignalYoutubeComment(text: string): boolean {
+  if (!text) return true;
+  if (/^(thank(s| you)?|thanks!|thank you!|great|nice|awesome|cool|fantastic|love this|loved this|amazing|super|wow)[.!\s]*$/i.test(text)) {
+    return true;
+  }
+  if (/^(starts?\s+at|timestamp|time stamp|please add (the )?transcript|transcript please)\b/i.test(text)) {
+    return true;
+  }
+  if (text.length < 32 && !hasExplicitAieSignal(text)) return true;
+  return false;
 }
 
 function isIncidentalEventMentionPost(post: EventPost, text = cleanPrimaryText(post)): boolean {
@@ -1016,6 +1062,102 @@ function applyCuratedThemeCopy(themes: EventTheme[]): EventTheme[] {
   });
 }
 
+function consolidateAiEngineerSingaporeStories(themes: EventTheme[], posts: EventPost[]): EventTheme[] {
+  const byId = new Map(posts.map((post) => [post.postId, post]));
+  const vivianThemes = themes.filter((theme) => isVivianBuilderTheme(theme, byId));
+  if (vivianThemes.length < 2) return themes;
+
+  const vivianIds = new Set(vivianThemes.map((theme) => theme.themeId));
+  const insertIndex = themes.findIndex((theme) => vivianIds.has(theme.themeId));
+  const merged = mergeThemes('story-vivian-builder-keynote', "Vivian's builder keynote", vivianThemes, posts);
+  return [
+    ...themes.slice(0, insertIndex),
+    merged,
+    ...themes.slice(insertIndex).filter((theme) => !vivianIds.has(theme.themeId)),
+  ];
+}
+
+function isVivianBuilderTheme(theme: EventTheme, byId: Map<string, EventPost>): boolean {
+  const rootPosts = (theme.rootPostIds ?? theme.postIds)
+    .map((postId) => byId.get(postId))
+    .filter((post): post is EventPost => Boolean(post));
+  const matchingRoots = rootPosts.filter(isVivianBuilderPost).length;
+  const rootShare = rootPosts.length ? matchingRoots / rootPosts.length : 0;
+  if (rootShare >= 0.35 || (matchingRoots >= 12 && rootShare >= 0.2)) return true;
+
+  const blob = `${theme.label} ${theme.summary} ${(theme.keywords ?? []).join(' ')}`.toLowerCase();
+  const ministerSignal = /\b(vivian|balakrishnan|foreign minister|minister for foreign affairs|cabinet minister|vivianbala)\b/i.test(blob);
+  const builderSignal =
+    /\b(nanoclaw|raspberry|second brain|personal ai|ai agent|whatsapp|sqlite|graph memory|govern a technology|briefed on|built|builder keynote)\b/i.test(
+      blob
+    );
+  const eventSignal = /\b(ai engineer|aie|keynote|conference|summit|stage|talk|livestream)\b/i.test(blob);
+  const nanoclawRaspberry =
+    /\bnanoclaw\b/i.test(blob) &&
+    /\b(raspberry|second brain|personal ai|govern|briefed|minister|vivian|cabinet)\b/i.test(blob);
+
+  return (ministerSignal && builderSignal && eventSignal) || (nanoclawRaspberry && eventSignal);
+}
+
+function isVivianBuilderPost(post: EventPost): boolean {
+  const blob = `${post.text} ${post.authorName} ${post.authorHandle ?? ''} ${post.url}`.toLowerCase();
+  const ministerSignal = /\b(vivian|balakrishnan|foreign minister|minister for foreign affairs|cabinet minister|vivianbala)\b/i.test(blob);
+  const builderSignal =
+    /\b(nanoclaw|raspberry|second brain|personal ai|ai agent|whatsapp|sqlite|graph memory|govern a technology|briefed on|learn by doing)\b/i.test(
+      blob
+    );
+  const eventSignal = /\b(ai engineer|aie|keynote|conference|summit|stage|talk|livestream|aidotengineer)\b/i.test(blob);
+  const nanoclawRaspberry =
+    /\bnanoclaw\b/i.test(blob) &&
+    /\b(raspberry|second brain|personal ai|govern|briefed|minister|vivian|cabinet)\b/i.test(blob);
+  return (ministerSignal && builderSignal) || (nanoclawRaspberry && (eventSignal || ministerSignal));
+}
+
+function mergeThemes(themeId: string, label: string, themes: EventTheme[], posts: EventPost[]): EventTheme {
+  const byId = new Map(posts.map((post) => [post.postId, post]));
+  const rootPostIds = uniqueIds(themes.flatMap((theme) => theme.rootPostIds ?? theme.postIds));
+  const attachedPostIds = uniqueIds(themes.flatMap((theme) => theme.attachedPostIds ?? []));
+  const postIds = uniqueIds([...rootPostIds, ...attachedPostIds, ...themes.flatMap((theme) => theme.postIds)]);
+  const keywords = uniqueIds([
+    'vivian balakrishnan',
+    'builder keynote',
+    'nanoclaw',
+    'raspberry pi',
+    'second brain',
+    'foreign minister',
+    'govern technology',
+    ...themes.flatMap((theme) => theme.keywords ?? []),
+  ]).slice(0, 24);
+  const score = themes.reduce((sum, theme) => sum + (theme.score ?? 0), 0);
+  const topEvidence = postIds
+    .map((postId) => byId.get(postId))
+    .filter((post): post is EventPost => Boolean(post))
+    .sort((a, b) => b.reachScore - a.reachScore)
+    .slice(0, 4)
+    .map((post) => post.authorHandle ?? post.authorName)
+    .filter(Boolean);
+
+  return {
+    themeId,
+    eventId: themes[0]?.eventId ?? posts[0]?.eventId ?? 'ai-engineer-singapore',
+    label,
+    summary:
+      topEvidence.length > 0
+        ? `Foreign Minister Vivian Balakrishnan, NanoClaw, Raspberry Pi, and the "briefed on" line form one story, with top refs from ${topEvidence.join(', ')}.`
+        : 'Foreign Minister Vivian Balakrishnan, NanoClaw, Raspberry Pi, and the "briefed on" line form one story about hands-on AI governance.',
+    keywords,
+    postIds,
+    rootPostIds,
+    attachedPostIds,
+    score: Number(score.toFixed(3)),
+    updatedAt: Date.now(),
+  };
+}
+
+function uniqueIds(values: Array<string | undefined>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
 function computeStats(posts: EventPost[]) {
   const total = posts.length;
   const byPlatform = countByPlatform(posts);
@@ -1146,7 +1288,15 @@ async function main() {
   const scored = scorePostsByPlatform(curated.posts);
   const relevant = scored.filter(isRelevant);
   const analysis = analyzePosts(String(archive.eventId), relevant);
-  const summarized = await summarizeThemesWithLLM(analysis.themes, relevant);
+  const storyThemes = consolidateAiEngineerSingaporeStories(analysis.themes, relevant);
+  const rootThemeIds = new Set(storyThemes.flatMap((theme) => theme.rootPostIds ?? theme.postIds));
+  const rootPosts = relevant.filter((post) => rootThemeIds.has(post.postId));
+  const clustering = {
+    ...measureClusterQuality(rootPosts.length ? rootPosts : relevant, storyThemes),
+    rawClusterCount: analysis.themes.length,
+    storyClusterCount: storyThemes.length,
+  };
+  const summarized = await summarizeThemesWithLLM(storyThemes, relevant);
   const expansion = deriveExpansionPlan(archive.eventName ?? archive.eventId, relevant, {
     baseQueries: archive.expansion?.querySet ?? [],
     maxQueries: 24,
@@ -1158,7 +1308,7 @@ async function main() {
   archive.stats = computeStats(scored);
   archive.themes = summarized.themes;
   archive.voices = analysis.voices;
-  archive.clustering = analysis.clusterQuality;
+  archive.clustering = clustering;
   archive.expansion = expansion;
   archive.updatedAt = generatedAt;
   archive.enrichment = [
@@ -1180,7 +1330,7 @@ async function main() {
         relevant: relevant.length,
         themes: archive.themes.length,
         voices: archive.voices.length,
-        clustering: analysis.clusterQuality,
+        clustering,
         llmModel: summarized.model,
         llmError: summarized.error,
         llmWarning: summarized.warning,
