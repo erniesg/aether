@@ -12,6 +12,7 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
   const lower = text.toLowerCase();
   if (isHardNoise(lower)) return false;
   if (isAdjacentGrabMapsHackathonNoise(lower)) return false;
+  if (isAdjacent65LabsProgramNoise(lower)) return false;
   const exactEvent =
     /\bai engineer singapore\b/i.test(text) ||
     /\bai engineers singapore\b/i.test(text) ||
@@ -40,10 +41,13 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
     /\b(ai engineer|aie|conference|summit|keynote|minister|vivian|cabinet minister)\b/i.test(text);
   if (nanoClawEvent) return true;
 
-  const knownAnchor =
-    /\b(sherry yan jiang|sherrypeek|agrim singh|65labs|gabriel chua|gavriel_cohen|nanoclaw|ryo lu|jj geewax)\b/i.test(text) &&
+  const knownPeopleAnchor =
+    /\b(sherry yan jiang|sherrypeek|agrim singh|gabriel chua|gavriel_cohen|nanoclaw|ryo lu|jj geewax)\b/i.test(text) &&
     /\b(ai engineer|aie|codex|cursor|openai|capitol|keynote|workshop|conference|summit)\b/i.test(text);
-  return knownAnchor;
+  const known65LabsAnchor =
+    /\b65labs\b/i.test(text) &&
+    /\b(ai engineer singapore|ai engineer sg|aie singapore|road to aie|ai\.engineer[\/\s]+singapore|capitol|kempinski|pullman|keynote|speaker|sponsor|conference|summit|codex|openai|cursor|google deepmind)\b/i.test(text);
+  return knownPeopleAnchor || known65LabsAnchor;
 }
 
 function isHardNoise(text: string): boolean {
@@ -63,6 +67,15 @@ function isAdjacentGrabMapsHackathonNoise(text: string): boolean {
     /\bspent\s+7\s+hours\b.{0,140}\b(ai engineer|aie)\b/i.test(text) ||
     /\bwhen ai engineer sg opened registration\b/i.test(text)
   );
+}
+
+function isAdjacent65LabsProgramNoise(text: string): boolean {
+  const adjacentProgram =
+    /\b65labs\b/i.test(text) &&
+    /\b(code with ai|coding with ai|vibe[-\s]?coding|ai workshop|workshop frees up coding time|classes?|cohort)\b/i.test(text);
+  if (!adjacentProgram) return false;
+
+  return !/\b(ai engineer singapore|ai engineer sg|aie singapore|road to aie|ai\.engineer[\/\s]+singapore|capitol|kempinski|pullman|may\s*1[5-7]|conference|summit|speaker reveal|main conference)\b/i.test(text);
 }
 
 function isGenericHiringNoise(text: string): boolean {
