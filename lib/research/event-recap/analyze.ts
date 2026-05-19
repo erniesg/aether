@@ -108,6 +108,7 @@ const CLUSTER_STOPWORDS = new Set([
   'model',
   'models',
   'need',
+  'new',
   'now',
   'one',
   'only',
@@ -125,6 +126,7 @@ const CLUSTER_STOPWORDS = new Set([
   'sherryyanjiang',
   'sign',
   'singh',
+  'search',
   'singapore',
   'some',
   'something',
@@ -134,6 +136,7 @@ const CLUSTER_STOPWORDS = new Set([
   'team',
   'thank',
   'thanks',
+  'them',
   'thing',
   'things',
   'most',
@@ -142,6 +145,7 @@ const CLUSTER_STOPWORDS = new Set([
   'today',
   'together',
   'use',
+  'user',
   'using',
   'want',
   'way',
@@ -155,8 +159,15 @@ const CLUSTER_STOPWORDS = new Set([
   'well',
   'work',
   'world',
+  'would',
   'www',
   'twitter',
+  'aie',
+  'continue',
+  'clicking',
+  'say',
+  'said',
+  'says',
   'next',
   'still',
   'think',
@@ -170,7 +181,8 @@ export interface AnalyzePostsResult {
 
 export function analyzePosts(eventId: string, posts: EventPost[]): AnalyzePostsResult {
   const voicePosts = posts.filter((post) => !isReplyPost(post));
-  const clusterPostsSource = voicePosts.length ? voicePosts : posts;
+  const rootPosts = voicePosts.filter(isClusterRootPost);
+  const clusterPostsSource = rootPosts.length ? rootPosts : voicePosts.length ? voicePosts : posts;
   const drafts = clusterPosts(clusterPostsSource);
   const rootThemes = drafts.map((draft) => toTheme(eventId, draft));
   const themes = attachContextPostsToThemes(rootThemes, posts);
@@ -309,6 +321,36 @@ function largestThemeIndex(themes: EventTheme[]): number | undefined {
     (bestIndex, theme, index) => (theme.postIds.length > themes[bestIndex].postIds.length ? index : bestIndex),
     0
   );
+}
+
+function isClusterRootPost(post: EventPost): boolean {
+  if (isReplyPost(post)) return false;
+
+  const text = String(post.text ?? '');
+  const terms = tokenize(text).filter(isClusterTerm);
+  const hasMedia = Boolean(post.media?.length);
+  const publicEngagement = engagement(post.metrics);
+  const views = post.metrics.views ?? post.metrics.impressions ?? 0;
+  const explicitEvent =
+    /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|aie singapore|#aiengineersingapore|aidotengineer|road to aie)\b/i.test(
+      text
+    );
+  const storySignal =
+    /\b(keynote|workshop|speaker|talk|panel|session|stage|booth|sponsor|student|hackathon|livestream|recap|takeaway|attended|attending|presented|demo|codex|cursor|openai|google deepmind|deepmind|llamaindex|cerebras|vercel|x402|65labs|vivian|balakrishnan|foreign minister|nanoclaw|raspberry|second brain)\b/i.test(
+      text
+    );
+
+  if (terms.length >= 16) return true;
+  if (terms.length >= 8 && storySignal) return true;
+  if (hasMedia && (explicitEvent || storySignal)) return true;
+  if (
+    (publicEngagement >= 25 || views >= 5000 || post.reachScore > 0.35) &&
+    (terms.length >= 4 || explicitEvent)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
