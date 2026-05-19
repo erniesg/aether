@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzePosts } from './analyze';
+import { analyzePosts, rankVoices } from './analyze';
 import type { EventPost } from './types';
 import { scorePostsByPlatform } from './utils';
 
@@ -110,5 +110,28 @@ describe('event recap analysis', () => {
     expect(result.themes.flatMap((theme) => theme.attachedPostIds ?? [])).toEqual(
       expect.arrayContaining(['li_comment', 'x_reply'])
     );
+  });
+
+  it('does not promote LinkedIn hashtag slugs as voice names', () => {
+    const voices = rankVoices('ai-engineer-summit-singapore', [
+      post({
+        postId: 'li_hashtag_author',
+        platform: 'linkedin',
+        authorName: '#aiesingapore #aiengineer',
+        authorHandle: 'shaohuan-li',
+        authorUrl: 'https://www.linkedin.com/in/shaohuan-li/',
+        text: 'AI Engineer Singapore event recap with practical agent takeaways.',
+        metrics: { reactions: 55, comments: 5 },
+        raw: {
+          author: 'Shaohuan(Shao) LI',
+          title: '#aiesingapore #aiengineer | Shaohuan(Shao) LI',
+        },
+      }),
+    ]);
+
+    expect(voices[0]).toMatchObject({
+      name: 'Shaohuan(Shao) LI',
+      handle: 'shaohuan-li',
+    });
   });
 });

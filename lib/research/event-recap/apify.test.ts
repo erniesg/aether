@@ -180,6 +180,24 @@ describe('Apify LinkedIn event recap collection', () => {
     });
   });
 
+  it('uses LinkedIn title author when the scraped author name is only hashtags', () => {
+    const post = normalizeApifyLinkedInPost({
+      id: '7461344657520701441',
+      linkedinUrl:
+        'https://www.linkedin.com/posts/shaohuan-li_aiesingapore-aiengineer-activity-7461344657520701441-OaER',
+      content: 'Attending the AI Engineer Singapore event today.',
+      authorName: '#aiesingapore #aiengineer',
+      authorHandle: 'shaohuan-li',
+      title: '#aiesingapore #aiengineer | Shaohuan(Shao) LI',
+      engagement: { likes: 65 },
+    });
+
+    expect(post).toMatchObject({
+      authorName: 'Shaohuan(Shao) LI',
+      authorHandle: 'shaohuan-li',
+    });
+  });
+
   it('skips seen LinkedIn activity URLs and builds a bounded Apify post-search input', async () => {
     const seenUrl =
       'https://www.linkedin.com/posts/seenbuilder_ai-engineer-singapore-activity-7462130000000000000-abcd';
