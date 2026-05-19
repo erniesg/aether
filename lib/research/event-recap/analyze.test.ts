@@ -127,11 +127,139 @@ describe('event recap analysis', () => {
           title: '#aiesingapore #aiengineer | Shaohuan(Shao) LI',
         },
       }),
+      post({
+        postId: 'li_event_title_author',
+        platform: 'linkedin',
+        authorName: 'AI Engineer Singapore (May 15-17, 2026)',
+        authorHandle: 'pranav-pappu-2a6bba1bb',
+        text: 'Looking forward to AI Engineer Singapore.',
+        metrics: { reactions: 20 },
+        raw: {
+          author: 'Pranav Pappu',
+          title: 'AI Engineer Singapore (May 15-17, 2026) | Pranav Pappu',
+        },
+      }),
+      post({
+        postId: 'li_handle_alias_author',
+        platform: 'linkedin',
+        authorName: 'Linhnguyenkhanh',
+        authorHandle: 'linhnguyenkhanh',
+        text: 'AI Engineer Singapore stage recap.',
+        metrics: { reactions: 18 },
+        raw: {
+          author: 'Linh Nguyen',
+          title: '#aiengineer #aiengineersingapore #startup #obello | Linh Nguyen',
+        },
+      }),
+      post({
+        postId: 'li_space_name_matches_handle',
+        platform: 'linkedin',
+        authorName: 'Daphne Tay',
+        authorHandle: 'daphnetay',
+        text: 'AI Engineer Singapore related MCP note.',
+        metrics: { reactions: 10 },
+        raw: {
+          author: 'Daphne Tay',
+          title:
+            'Bluente MCP Server Translates 40-Page Contracts with Formatting Preserved | Daphne Tay posted on the topic | LinkedIn',
+        },
+      }),
+      post({
+        postId: 'li_long_post_title_author',
+        platform: 'linkedin',
+        authorName: 'Tibo, aka the Codex Credit God. Come and join us for AI engineer day Singapore',
+        authorHandle: 'sun-weiran',
+        text: 'Codex speaker note for AI Engineer Singapore.',
+        metrics: { reactions: 8 },
+        raw: {
+          author: 'Sun Weiran',
+          title:
+            'Tibo, aka the Codex Credit God. Come and join us for AI engineer day Singapore | Sun Weiran',
+        },
+      }),
+      post({
+        postId: 'x_event_status_name',
+        platform: 'x',
+        authorName: 'Sherry Jiang is at ai engineer singapore',
+        authorHandle: 'SherryYanJiang',
+        text: 'AI Engineer Singapore recap.',
+        metrics: { likes: 12, views: 1000 },
+      }),
+      post({
+        postId: 'x_event_sg_status_name',
+        platform: 'x',
+        authorName: 'rachael is at ai engineer sg!!',
+        authorHandle: 'unprofeshme',
+        text: 'AI Engineer Singapore hallway recap.',
+        metrics: { likes: 8, views: 800 },
+      }),
+      post({
+        postId: 'x_event_suffix_name',
+        platform: 'x',
+        authorName: 'PicoCreator - AI builder @ AIE 🇸🇬',
+        authorHandle: 'picocreator',
+        text: 'AI Engineer Singapore demo recap.',
+        metrics: { likes: 6, views: 600 },
+      }),
+      post({
+        postId: 'x_event_at_name',
+        platform: 'x',
+        authorName: 'Vineet @AI Eng Singapore',
+        authorHandle: 'vineetwts',
+        text: 'AI Engineer Singapore workshop recap.',
+        metrics: { likes: 4, views: 400 },
+      }),
+      post({
+        postId: 'x_event_abbrev_name',
+        platform: 'x',
+        authorName: 'Gokul at AI Eng SG',
+        authorHandle: 'gokulboopathy',
+        text: 'AI Engineer Singapore recap.',
+        metrics: { likes: 3, views: 300 },
+      }),
+      post({
+        postId: 'x_event_was_at_name',
+        platform: 'x',
+        authorName: 'abhijit was at ai engineer summit 🇸🇬',
+        authorHandle: 'mohantyabhijit',
+        text: 'AI Engineer Singapore recap.',
+        metrics: { likes: 2, views: 200 },
+      }),
     ]);
 
-    expect(voices[0]).toMatchObject({
+    expect(voices.find((voice) => voice.handle === 'shaohuan-li')).toMatchObject({
       name: 'Shaohuan(Shao) LI',
       handle: 'shaohuan-li',
+    });
+    expect(voices.find((voice) => voice.handle === 'pranav-pappu-2a6bba1bb')).toMatchObject({
+      name: 'Pranav Pappu',
+    });
+    expect(voices.find((voice) => voice.handle === 'linhnguyenkhanh')).toMatchObject({
+      name: 'Linh Nguyen',
+    });
+    expect(voices.find((voice) => voice.handle === 'daphnetay')).toMatchObject({
+      name: 'Daphne Tay',
+    });
+    expect(voices.find((voice) => voice.handle === 'sun-weiran')).toMatchObject({
+      name: 'Sun Weiran',
+    });
+    expect(voices.find((voice) => voice.handle === 'SherryYanJiang')).toMatchObject({
+      name: 'Sherry Jiang',
+    });
+    expect(voices.find((voice) => voice.handle === 'unprofeshme')).toMatchObject({
+      name: 'Rachael',
+    });
+    expect(voices.find((voice) => voice.handle === 'picocreator')).toMatchObject({
+      name: 'PicoCreator',
+    });
+    expect(voices.find((voice) => voice.handle === 'vineetwts')).toMatchObject({
+      name: 'Vineet',
+    });
+    expect(voices.find((voice) => voice.handle === 'gokulboopathy')).toMatchObject({
+      name: 'Gokul',
+    });
+    expect(voices.find((voice) => voice.handle === 'mohantyabhijit')).toMatchObject({
+      name: 'Abhijit',
     });
   });
 });

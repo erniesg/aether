@@ -121,7 +121,7 @@ export function makePostId(platform: EventPlatform, url: string, text: string): 
 
 export function cleanDisplayAuthorName(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const name = value.replace(/\s+/g, ' ').trim();
+  const name = stripEventStatusFromAuthorName(value.replace(/\s+/g, ' ').trim());
   if (!name) return undefined;
   if (/^(unknown|linkedin)$/i.test(name)) return undefined;
   if (/^\d+(\.\d+)?\s+(comments?|reactions?|likes?|followers?)$/i.test(name)) return undefined;
@@ -130,6 +130,14 @@ export function cleanDisplayAuthorName(value: unknown): string | undefined {
   if (name.includes('|')) return undefined;
   if (/\bposted on the topic\b/i.test(name)) return undefined;
   if (/\s+-\s+linkedin$/i.test(name)) return undefined;
+  if (/\s+·\s+(luma|events calendar)$/i.test(name)) return undefined;
+  if (/^ai engineer singapore\b/i.test(name)) return undefined;
+  if (/\b(workshop|hackathon|meetup|conference|event|happy hour)\b.*\bai engineer singapore\b/i.test(name)) {
+    return undefined;
+  }
+  if (/\bcome and join us\b.*\bai engineer\b/i.test(name)) return undefined;
+  if (/\bai engineer day singapore\b/i.test(name)) return undefined;
+  if (/^(i'?ll|i am|here at|hehe i am)\b.*\b(ai engineer|aie)\b/i.test(name)) return undefined;
   if (name.length > 96) return undefined;
   return name;
 }
@@ -182,9 +190,12 @@ export function bestDisplayAuthorName(input: {
     extractAuthorNameFromTitle(raw.title),
     extractAuthorNameFromTitle(raw.ogTitle),
   ];
-  const clean = candidates
+  const cleanCandidates = candidates
     .map((candidate) => cleanDisplayAuthorName(candidate))
-    .find((candidate): candidate is string => Boolean(candidate));
+    .filter((candidate): candidate is string => Boolean(candidate));
+  const clean =
+    cleanCandidates.find((candidate) => !matchesHandle(candidate, input.authorHandle)) ??
+    cleanCandidates[0];
   return (
     clean ??
     displayNameFromHandle(input.authorHandle, input.platform) ??
@@ -198,6 +209,34 @@ function titleCaseHandlePart(value: string): string {
   const lower = value.toLowerCase();
   if (/^(ai|api|asean|cto|gcp|io|llm|llms|ml|sg|usa|vc)$/i.test(value)) return lower.toUpperCase();
   return `${lower.slice(0, 1).toUpperCase()}${lower.slice(1)}`;
+}
+
+function stripEventStatusFromAuthorName(value: string): string {
+  const stripped = value
+    .replace(/\s+(?:is\s+)?at\s+(?:the\s+)?ai\s+engineer\s+singapore.*$/i, '')
+    .replace(/\s+(?:(?:is|was)\s+)?at\s+(?:the\s+)?(?:ai\s+eng\s+sg|ai\s+engineer\s+sg|ai\s+engineer\s+summit|aie\s+sg).*$/i, '')
+    .replace(/\s+@\s+ai\s+engineer\s+singapore.*$/i, '')
+    .replace(/\s+@\s*(?:ai\s*(?:eng|engineer)\s*(?:singapore|sg)|aie\s*sg|aie)\b.*$/i, '')
+    .replace(/\s*[-–—]\s*.*\b(?:ai\s+builder\s+@\s+aie|aie\s+sg|ai\s+eng(?:ineer)?\s+singapore)\b.*$/i, '')
+    .replace(/\s*[-–—]\s*ai\s+builder\s*$/i, '')
+    .replace(/\s*\([^)]*\b(?:aie\s+sg|ai\s+engineer)\b[^)]*\)\s*$/i, '')
+    .replace(/\s+at\s+aie\s+singapore.*$/i, '')
+    .trim();
+  return /^[a-z]+(?:\s+[a-z]+)*$/.test(stripped) ? titleCaseWords(stripped) : stripped;
+}
+
+function matchesHandle(name: string, handle: string | undefined): boolean {
+  if (!handle) return false;
+  if (/\s/.test(name.trim())) return false;
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return normalize(name) === normalize(handle.replace(/^@/, ''));
+}
+
+function titleCaseWords(value: string): string {
+  return value
+    .split(/\s+/)
+    .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
 }
 
 export function engagement(metrics: EventPostMetrics): number {
