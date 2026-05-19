@@ -273,7 +273,7 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
     /\bai engineer conference singapore\b/i.test(blob) ||
     /\baie singapore\b/i.test(blob) ||
     /#aiengineersingapore\b/i.test(blob) ||
-    /\baidotengineer\b/i.test(blob) ||
+    hasAiDotEngineerSingaporeSignal(blob) ||
     /\bai\.engineer[\/\s]+singapore\b/i.test(blob) ||
     /\broad to aie\b/i.test(blob);
   if (exactEvent) return !isIncidentalExactEventMention(blob);
@@ -397,7 +397,19 @@ function isGenericHiringNoise(text: string): boolean {
 }
 
 function hasExplicitAieSignal(text: string): boolean {
-  return /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|#aiengineersingapore|aidotengineer|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text);
+  return (
+    /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|#aiengineersingapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text) ||
+    hasAiDotEngineerSingaporeSignal(text)
+  );
+}
+
+function hasAiDotEngineerSingaporeSignal(text: string): boolean {
+  return (
+    /\baidotengineer\b[\s\S]{0,160}\b(singapore|sg|capitol|kempinski|pullman)\b/i.test(text) ||
+    /\b(singapore|sg|capitol|kempinski|pullman)\b[\s\S]{0,160}\baidotengineer\b/i.test(text) ||
+    /\baidotengineer\b[\s\S]{0,100}🇸🇬/i.test(text) ||
+    /🇸🇬[\s\S]{0,100}\baidotengineer\b/i.test(text)
+  );
 }
 
 function hasKnownPersonEventSignal(text: string): boolean {
@@ -413,7 +425,7 @@ function hasKnownPersonEventSignal(text: string): boolean {
 function isIncidentalExactEventMention(text: string): boolean {
   const exactMentions = [
     ...text.matchAll(
-      /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie singapore|#aiengineersingapore|aidotengineer|ai\.engineer[\/\s]+singapore|road to aie)\b/gi
+      /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie singapore|#aiengineersingapore|ai\.engineer[\/\s]+singapore|road to aie)\b/gi
     ),
   ].length;
   if (exactMentions !== 1 || text.length < 900) return false;
