@@ -59,11 +59,21 @@ export interface EventPostMedia {
   url: string;
   type: 'image' | 'video' | 'gif' | 'unknown';
   source?: string;
+  pageUrl?: string;
   previewUrl?: string;
   altText?: string;
   width?: number;
   height?: number;
   localPath?: string;
+  contentType?: string;
+  bytes?: number;
+  downloadedAt?: number;
+  durationMs?: number;
+  variants?: Array<{
+    url: string;
+    contentType?: string;
+    bitrate?: number;
+  }>;
 }
 
 export interface EventAuthorMeta {
@@ -107,6 +117,8 @@ export interface EventTheme {
   summary: string;
   keywords: string[];
   postIds: string[];
+  rootPostIds?: string[];
+  attachedPostIds?: string[];
   score: number;
   updatedAt: number;
 }

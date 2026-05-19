@@ -395,7 +395,8 @@ export async function refreshEventRecap(
       baseQueries: activeQuerySet,
       maxQueries: 12,
     });
-    const analysis = analyzePosts(config.eventId, merged);
+    const relevantMerged = merged.filter((post) => !post.tags.includes('irrelevant:event'));
+    const analysis = analyzePosts(config.eventId, relevantMerged);
 
     await savePosts(config.eventId, posts);
     await saveThemes(config.eventId, analysis.themes);

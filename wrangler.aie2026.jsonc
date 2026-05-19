@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aether-vibes-aie2026",
+  "main": "workers/aie2026-vibes.ts",
+  "compatibility_date": "2026-02-28",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "routes": [
+    {
+      "pattern": "aether.berlayar.ai/vibes/aie2026*",
+      "zone_name": "berlayar.ai"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AETHER_ASSETS",
+      "bucket_name": "aether-assets",
+      "preview_bucket_name": "aether-assets"
+    }
+  ],
+  "vars": {
+    "AETHER_ENV": "production",
+    "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai"
+  }
+}
