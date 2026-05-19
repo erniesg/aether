@@ -121,11 +121,12 @@ export function makePostId(platform: EventPlatform, url: string, text: string): 
 
 export function cleanDisplayAuthorName(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const name = stripEventStatusFromAuthorName(value.replace(/\s+/g, ' ').trim());
+  const name = stripEventStatusFromAuthorName(decodeHtmlEntities(value).replace(/\s+/g, ' ').trim());
   if (!name) return undefined;
   if (/^(unknown|linkedin)$/i.test(name)) return undefined;
   if (/^\d+(\.\d+)?\s+(comments?|reactions?|likes?|followers?)$/i.test(name)) return undefined;
   if (/^https?:\/\//i.test(name)) return undefined;
+  if (/^\{.*\btitle\b/i.test(name) || /["']?\btitle["']?\s*:/i.test(name)) return undefined;
   if (name.includes('#')) return undefined;
   if (name.includes('|')) return undefined;
   if (/\bposted on the topic\b/i.test(name)) return undefined;
@@ -144,12 +145,12 @@ export function cleanDisplayAuthorName(value: unknown): string | undefined {
 
 export function extractAuthorNameFromTitle(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const title = value.replace(/\s+/g, ' ').trim();
+  const title = decodeHtmlEntities(value).replace(/\s+/g, ' ').trim();
   if (!title) return undefined;
 
   const pipeSegments = title
     .split('|')
-    .map((segment) => cleanDisplayAuthorName(segment))
+    .map((segment) => cleanDisplayAuthorName(segment.replace(/\s+posted on the topic\b.*$/i, '')))
     .filter((segment): segment is string => Boolean(segment));
   if (pipeSegments.length) return pipeSegments.at(-1);
 
@@ -184,6 +185,7 @@ export function bestDisplayAuthorName(input: {
   const raw = input.raw && typeof input.raw === 'object' ? (input.raw as Record<string, unknown>) : {};
   const candidates = [
     input.authorName,
+    extractAuthorNameFromTitle(input.authorName),
     raw.author,
     raw.authorName,
     raw.author_name,
@@ -203,6 +205,22 @@ export function bestDisplayAuthorName(input: {
     input.authorName ??
     'unknown'
   );
+}
+
+function decodeHtmlEntities(value: string): string {
+  let out = value;
+  for (let pass = 0; pass < 2; pass += 1) {
+    out = out
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+      .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 10)))
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+  return out;
 }
 
 function titleCaseHandlePart(value: string): string {
