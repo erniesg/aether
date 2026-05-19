@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import sharp from 'sharp';
+import { bestDisplayAuthorName } from '../lib/research/event-recap/utils';
 
 const EVENT_DIR = path.resolve(process.cwd(), 'outputs/event-recap-ai-engineer-singapore');
 const archivePath = path.join(EVENT_DIR, 'archive.json');
@@ -78,7 +79,7 @@ async function trimPost(post: AnyRecord): Promise<AnyRecord> {
     postId: post.postId,
     platform: post.platform,
     url: post.url,
-    authorName: post.authorName,
+    authorName: bestDisplayAuthorName(post),
     authorHandle: post.authorHandle,
     authorUrl: post.authorUrl,
     text: post.text,

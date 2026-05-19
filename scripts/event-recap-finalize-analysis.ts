@@ -248,6 +248,8 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
   if (isHardNoise(lower)) return false;
   if (isAdjacentGrabMapsHackathonNoise(lower)) return false;
   if (isAdjacent65LabsProgramNoise(lower)) return false;
+  if (isAdjacentGenericAiEngineeringNoise(lower)) return false;
+  if (isGenericAiCareerNoise(lower)) return false;
 
   const exactEvent =
     /\bai engineer singapore\b/i.test(blob) ||
@@ -263,8 +265,8 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
   if (exactEvent) return !isIncidentalExactEventMention(blob);
 
   const eventPhrase =
-    /\bai engineer(?:ing)?\b.{0,100}\b(singapore|sg|capitol|kempinski|pullman|65labs|conference|summit|hackathon|workshop)\b/i.test(blob) ||
-    /\b(singapore|sg|capitol|kempinski|pullman)\b.{0,80}\b(for|at|@|during|to)\s+(?:the\s+)?ai engineer(?:ing)?\b/i.test(blob);
+    /\bai engineer\b.{0,100}\b(singapore|sg|capitol|kempinski|pullman|65labs|conference|summit|hackathon|workshop)\b/i.test(blob) ||
+    /\b(singapore|sg|capitol|kempinski|pullman)\b.{0,80}\b(for|at|@|during|to)\s+(?:the\s+)?ai engineer\b/i.test(blob);
   if (eventPhrase) return !isGenericHiringNoise(lower);
 
   const ministerKeynote =
@@ -279,7 +281,7 @@ function eventRelevant(post: EventPost, text = cleanPrimaryText(post)): boolean 
 
   const knownPeopleAnchor =
     /\b(sherry yan jiang|sherrypeek|agrim singh|gabriel chua|gavriel_cohen|nanoclaw|ryo lu|jj geewax)\b/i.test(blob) &&
-    /\b(ai engineer|aie|codex|cursor|openai|capitol|keynote|workshop|conference|summit)\b/i.test(blob);
+    hasKnownPersonEventSignal(blob);
   const known65LabsAnchor =
     /\b65labs\b/i.test(blob) &&
     /\b(ai engineer singapore|ai engineer sg|aie singapore|road to aie|ai\.engineer[\/\s]+singapore|capitol|kempinski|pullman|keynote|speaker|sponsor|conference|summit|codex|openai|cursor|google deepmind)\b/i.test(blob);
@@ -321,11 +323,40 @@ function isAdjacent65LabsProgramNoise(text: string): boolean {
   return !/\b(ai engineer singapore|ai engineer sg|aie singapore|road to aie|ai\.engineer[\/\s]+singapore|capitol|kempinski|pullman|may\s*1[5-7]|conference|summit|speaker reveal|main conference)\b/i.test(text);
 }
 
+function isAdjacentGenericAiEngineeringNoise(text: string): boolean {
+  const genericAiEngineering =
+    /\b(ai engineering|ai & data engineering|data & ai engineering|ai in production|ai engineering in production)\b/i.test(text) ||
+    /#aiengineering\b/i.test(text);
+  if (!genericAiEngineering || hasExplicitAieSignal(text)) return false;
+
+  return /\b(singapore data meetup|red hat singapore|zenika|rag in production|data engineering session|singapore airlines|palo it|github copilot|aiap|ai apprenticeship|career forward|suntec singapore|career as an ai engineer)\b/i.test(text);
+}
+
+function isGenericAiCareerNoise(text: string): boolean {
+  const career =
+    /\b(career forward|job seekers?|admission is free|aiap|ai apprenticeship|kickstart your career|becoming an ai engineer|building a career as an ai engineer|career in ai)\b/i.test(text);
+  return career && !hasExplicitAieSignal(text);
+}
+
 function isGenericHiringNoise(text: string): boolean {
   const hiring =
     /\b(hiring|we'?re hiring|job opening|job posting|job ad|jobs page|open roles?|open positions?|vacancy|resume|cv|apply now|candidate|recruiting|software engineer|data engineer|machine learning engineer)\b/i.test(text);
   const event = /\b(ai engineer singapore|aie singapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text);
   return hiring && !event;
+}
+
+function hasExplicitAieSignal(text: string): boolean {
+  return /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|#aiengineersingapore|aidotengineer|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text);
+}
+
+function hasKnownPersonEventSignal(text: string): boolean {
+  const venueOrDate = /\b(capitol|kempinski|pullman|may\s*1[5-7])\b/i.test(text);
+  const programSignal =
+    /\b(codex booth|codex technical workshop|codex for everyone workshop|fde @ openai|fde lunchtime chat)\b/i.test(text);
+  const stageSignal =
+    /\b(main conference|conference day|day\s*[123]|keynote)\b/i.test(text) &&
+    /\b(ai engineer|aie|singapore|65labs|openai|codex|cursor|google deepmind|deepmind|nanoclaw)\b/i.test(text);
+  return hasExplicitAieSignal(text) || venueOrDate || programSignal || stageSignal;
 }
 
 function isIncidentalExactEventMention(text: string): boolean {
