@@ -142,6 +142,22 @@ function clusterCoverage(posts: AnyRecord[], themes: AnyRecord[]): AnyRecord {
   };
 }
 
+function sourceLinks(archive: AnyRecord): AnyRecord[] {
+  const byUrl = new Map<string, AnyRecord>();
+  for (const entry of archive.enrichment ?? []) {
+    for (const source of entry.sourceSurfaces ?? []) {
+      if (!source?.url || byUrl.has(source.url)) continue;
+      byUrl.set(source.url, {
+        platform: source.platform,
+        url: source.url,
+        label: source.label,
+        note: source.note,
+      });
+    }
+  }
+  return Array.from(byUrl.values());
+}
+
 async function main() {
   const archive = JSON.parse(fs.readFileSync(archivePath, 'utf8')) as AnyRecord;
   const posts = await Promise.all((archive.posts ?? []).filter(isRelevant).map(trimPost));
@@ -171,6 +187,7 @@ async function main() {
       },
       querySet: archive.querySet,
       expansionQueries: archive.expansion?.querySet ?? [],
+      sourceLinks: sourceLinks(archive),
       youtubeQueries: archive.youtube?.queries ?? [],
       youtubeSources: (archive.youtube?.topVideos ?? []).map((video: AnyRecord) => ({
         title: video.title,

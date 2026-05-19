@@ -77,7 +77,7 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
     /\bai engineer conference singapore\b/i.test(text) ||
     /\baie singapore\b/i.test(text) ||
     /#aiengineersingapore\b/i.test(text) ||
-    /\baidotengineer\b/i.test(text) ||
+    hasAiDotEngineerSingaporeSignal(text) ||
     /\bai\.engineer\/singapore\b/i.test(text) ||
     /\broad to aie\b/i.test(text);
   if (exactEvent) return true;
@@ -151,12 +151,26 @@ function isGenericAiCareerNoise(text: string): boolean {
 
 function isGenericHiringNoise(text: string): boolean {
   const hiring = /\b(hiring|we'?re hiring|job opening|job posting|job ad|jobs page|open roles?|open positions?|vacancy|resume|cv|apply now|candidate|recruiting|software engineer|data engineer|machine learning engineer)\b/i.test(text);
-  const event = /\b(ai engineer singapore|aie singapore|aidotengineer|road to aie|ai\.engineer[\/\s]+singapore)\b/i.test(text);
+  const event =
+    /\b(ai engineer singapore|aie singapore|road to aie|ai\.engineer[\/\s]+singapore)\b/i.test(text) ||
+    hasAiDotEngineerSingaporeSignal(text);
   return hiring && !event;
 }
 
 function hasExplicitAieSignal(text: string): boolean {
-  return /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|#aiengineersingapore|aidotengineer|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text);
+  return (
+    /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|#aiengineersingapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text) ||
+    hasAiDotEngineerSingaporeSignal(text)
+  );
+}
+
+function hasAiDotEngineerSingaporeSignal(text: string): boolean {
+  return (
+    /\baidotengineer\b[\s\S]{0,160}\b(singapore|sg|capitol|kempinski|pullman)\b/i.test(text) ||
+    /\b(singapore|sg|capitol|kempinski|pullman)\b[\s\S]{0,160}\baidotengineer\b/i.test(text) ||
+    /\baidotengineer\b[\s\S]{0,100}🇸🇬/i.test(text) ||
+    /🇸🇬[\s\S]{0,100}\baidotengineer\b/i.test(text)
+  );
 }
 
 function hasKnownPersonEventSignal(text: string): boolean {
