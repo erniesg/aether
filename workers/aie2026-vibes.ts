@@ -10,7 +10,7 @@ interface Env {
 
 const DATA_KEY = 'event-recap-ai-engineer-singapore/public.json';
 const MEDIA_PREFIX = 'event-recap-ai-engineer-singapore/media/';
-const DATA_VERSION = 'root781-context175-dedup-media-auto-wall-1779200716';
+const DATA_VERSION = 'root781-context175-visual-media-auto-wall-1779200716';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -143,7 +143,7 @@ const date=(v)=>v?new Date(v).toLocaleDateString('en-SG',{day:'numeric',month:'s
 const isImageUrl=(v)=>/\\.(jpe?g|png|webp|avif|gif)(\\?|$)/i.test(String(v||''));
 const mediaUrl=(m)=>m.path&&isImageUrl(m.path)?'/vibes/aie2026/media?path='+encodeURIComponent(m.path):isImageUrl(m.previewUrl)?m.previewUrl:isImageUrl(m.url)?m.url:'';
 const isImageMedia=(m)=>Boolean(mediaUrl(m));
-const mediaKey=(m)=>m.hash||m.path||m.url;
+const mediaKey=(m)=>m.visualHash||(m.path&&isImageUrl(m.path)?m.hash:undefined)||mediaUrl(m)||m.hash||m.path||m.url;
 const raw=(p)=> ((p.metrics||{}).likes||0)+((p.metrics||{}).reactions||0)+2*((p.metrics||{}).comments||0)+2*((p.metrics||{}).reposts||0)+2*((p.metrics||{}).replies||0)+((((p.metrics||{}).views??(p.metrics||{}).impressions)??0)/200);
 const score=(v,kind='eng')=>{const voice=kind==='voice';const help=voice?'Voice score highlights people with repeated high-signal refs and public engagement.':'Engagement score compares this ref with other refs on the same platform. 0 is typical; higher is above-platform average. Signals include public reactions, comments, reposts, and views where the platform exposes them.';return '<details class="score" title="'+help+'"><summary>'+kind+' '+Number(v||0).toFixed(2)+' ?</summary><div>'+help+(voice?'':'<br><br>LinkedIn impressions are not exposed here, so LinkedIn uses public reactions/comments/reposts only.')+'</div></details>'};
 function platformCounts(ids){const mix={x:0,linkedin:0,youtube:0};for(const id of ids||[]){const p=state.data.postsById[id];if(p&&Object.prototype.hasOwnProperty.call(mix,p.platform))mix[p.platform]++}return mix}
