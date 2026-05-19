@@ -121,6 +121,11 @@ const CURATED_THEME_COPY: Record<string, { label: string; summary: string }> = {
     summary:
       'Google DeepMind, Vercel, Cursor, and other sponsor or partner signals appeared through official livestreams, booth photos, happy-hour posts, and broader ecosystem recaps.',
   },
+  'atlas-09-hackathon-talk-openai': {
+    label: 'Around AIE: talks and side events',
+    summary:
+      'This story captures the wider AIE week around the main conference: talk recordings, sponsor booths, VIP dinners, hackathon notes, Ralphthon and AI Tinkerers side events, and visiting-builder recaps.',
+  },
   'atlas-10-looking-kaspar-hidayat-codex': {
     label: 'Speakers and returning builders',
     summary:
