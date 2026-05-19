@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import sharp from 'sharp';
 
 const EVENT_DIR = path.resolve(process.cwd(), 'outputs/event-recap-ai-engineer-singapore');
 const archivePath = path.join(EVENT_DIR, 'archive.json');
@@ -37,7 +38,42 @@ function mediaHash(localPath: unknown): string | undefined {
   return crypto.createHash('sha256').update(fs.readFileSync(localPath)).digest('hex');
 }
 
-function trimPost(post: AnyRecord): AnyRecord {
+function isImagePath(localPath: unknown): boolean {
+  return typeof localPath === 'string' && /\.(jpe?g|png|webp|avif|gif)$/i.test(localPath);
+}
+
+async function mediaVisualHash(localPath: unknown): Promise<string | undefined> {
+  if (!isImagePath(localPath) || typeof localPath !== 'string' || !fs.existsSync(localPath)) {
+    return undefined;
+  }
+
+  try {
+    const width = 16;
+    const height = 16;
+    const { data } = await sharp(localPath)
+      .resize(width + 1, height, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    let bits = '';
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        bits += data[y * (width + 1) + x] > data[y * (width + 1) + x + 1] ? '1' : '0';
+      }
+    }
+
+    let hex = '';
+    for (let index = 0; index < bits.length; index += 4) {
+      hex += Number.parseInt(bits.slice(index, index + 4), 2).toString(16);
+    }
+    return hex;
+  } catch {
+    return undefined;
+  }
+}
+
+async function trimPost(post: AnyRecord): Promise<AnyRecord> {
   return {
     postId: post.postId,
     platform: post.platform,
@@ -53,7 +89,7 @@ function trimPost(post: AnyRecord): AnyRecord {
     metrics: post.metrics ?? {},
     tags: post.tags ?? [],
     isReply: isReply(post),
-    media: (post.media ?? []).map((item: AnyRecord) => ({
+    media: await Promise.all((post.media ?? []).map(async (item: AnyRecord) => ({
       url: item.url,
       type: item.type,
       source: item.source,
@@ -66,7 +102,8 @@ function trimPost(post: AnyRecord): AnyRecord {
       downloadedAt: item.downloadedAt,
       path: mediaPath(item.localPath),
       hash: mediaHash(item.localPath),
-    })),
+      visualHash: await mediaVisualHash(item.localPath),
+    }))),
   };
 }
 
@@ -104,56 +141,60 @@ function clusterCoverage(posts: AnyRecord[], themes: AnyRecord[]): AnyRecord {
   };
 }
 
-const archive = JSON.parse(fs.readFileSync(archivePath, 'utf8')) as AnyRecord;
-const posts = (archive.posts ?? []).filter(isRelevant).map(trimPost);
-const postedTimes = posts
-  .map((post: AnyRecord) => new Date(post.postedAt ?? post.capturedAt ?? 0).getTime())
-  .filter((value: number) => Number.isFinite(value) && value > 0);
-const sourceDateRange = postedTimes.length
-  ? {
-      start: new Date(Math.min(...postedTimes)).toISOString(),
-      end: new Date(Math.max(...postedTimes)).toISOString(),
-    }
-  : undefined;
-const publicData = {
-  eventId: archive.eventId,
-  eventName: archive.eventName,
-  windowStart: archive.windowStart,
-  windowEnd: archive.windowEnd,
-  generatedAt: archive.generatedAt,
-  updatedAt: archive.updatedAt,
-  querySet: archive.querySet,
-  methodology: {
-    label: 'seeded digital snowball sampling',
-    sourceDateRange,
-    collectionWindow: {
-      start: archive.windowStart,
-      end: archive.windowEnd,
-    },
+async function main() {
+  const archive = JSON.parse(fs.readFileSync(archivePath, 'utf8')) as AnyRecord;
+  const posts = await Promise.all((archive.posts ?? []).filter(isRelevant).map(trimPost));
+  const postedTimes = posts
+    .map((post: AnyRecord) => new Date(post.postedAt ?? post.capturedAt ?? 0).getTime())
+    .filter((value: number) => Number.isFinite(value) && value > 0);
+  const sourceDateRange = postedTimes.length
+    ? {
+        start: new Date(Math.min(...postedTimes)).toISOString(),
+        end: new Date(Math.max(...postedTimes)).toISOString(),
+      }
+    : undefined;
+  const publicData = {
+    eventId: archive.eventId,
+    eventName: archive.eventName,
+    windowStart: archive.windowStart,
+    windowEnd: archive.windowEnd,
+    generatedAt: archive.generatedAt,
+    updatedAt: archive.updatedAt,
     querySet: archive.querySet,
-    expansionQueries: archive.expansion?.querySet ?? [],
-    youtubeQueries: archive.youtube?.queries ?? [],
-    youtubeSources: (archive.youtube?.topVideos ?? []).map((video: AnyRecord) => ({
-      title: video.title,
-      url: video.url,
-      channel: video.channel,
-      views: video.viewCount,
-      comments: video.commentCount,
-    })),
-    limitations: [
-      'The corpus is a public evidence sample, not a representative survey or full social-listening panel.',
-      'X and YouTube expose public views; LinkedIn public collection here does not expose impressions.',
-      'Query counts are not additive because surfaces rank, dedupe, and expose search differently.',
-      'Clusters are built from root refs, then replies/comments/context refs are attached to their nearest evidence cluster.',
-    ],
-  },
-  stats: archive.stats,
-  clustering: archive.clustering,
-  clusterCoverage: clusterCoverage(posts, archive.themes ?? []),
-  posts,
-  themes: archive.themes ?? [],
-  voices: archive.voices ?? [],
-};
+    methodology: {
+      label: 'seeded digital snowball sampling',
+      sourceDateRange,
+      collectionWindow: {
+        start: archive.windowStart,
+        end: archive.windowEnd,
+      },
+      querySet: archive.querySet,
+      expansionQueries: archive.expansion?.querySet ?? [],
+      youtubeQueries: archive.youtube?.queries ?? [],
+      youtubeSources: (archive.youtube?.topVideos ?? []).map((video: AnyRecord) => ({
+        title: video.title,
+        url: video.url,
+        channel: video.channel,
+        views: video.viewCount,
+        comments: video.commentCount,
+      })),
+      limitations: [
+        'The corpus is a public evidence sample, not a representative survey or full social-listening panel.',
+        'X and YouTube expose public views; LinkedIn public collection here does not expose impressions.',
+        'Query counts are not additive because surfaces rank, dedupe, and expose search differently.',
+        'Clusters are built from root refs, then replies/comments/context refs are attached to their nearest evidence cluster.',
+      ],
+    },
+    stats: archive.stats,
+    clustering: archive.clustering,
+    clusterCoverage: clusterCoverage(posts, archive.themes ?? []),
+    posts,
+    themes: archive.themes ?? [],
+    voices: archive.voices ?? [],
+  };
 
-fs.writeFileSync(outPath, `${JSON.stringify(publicData)}\n`);
-console.log(`wrote ${outPath} (${posts.length} relevant refs)`);
+  fs.writeFileSync(outPath, `${JSON.stringify(publicData)}\n`);
+  console.log(`wrote ${outPath} (${posts.length} relevant refs)`);
+}
+
+void main();
