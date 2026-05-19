@@ -132,6 +132,7 @@ async function readArchiveBundle(eventId: string): Promise<EventRecapBundle | nu
       posts: ((archiveJson.posts ?? []) as EventPost[]).map(normalizePost),
       themes: (archiveJson.themes ?? []) as EventTheme[],
       voices: (archiveJson.voices ?? []) as EventVoice[],
+      clustering: archiveJson.clustering,
     };
   } catch (err) {
     console.error('[event-recap/store] archive fallback read failed', err);
@@ -335,6 +336,7 @@ function normalizeBundle(bundle: EventRecapBundle): EventRecapBundle {
     posts: bundle.posts.map(normalizePost),
     themes: bundle.themes.map(stripConvexMeta),
     voices: bundle.voices.map(stripConvexMeta),
+    clustering: bundle.clustering,
   };
 }
 

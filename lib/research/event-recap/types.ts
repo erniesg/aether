@@ -123,6 +123,32 @@ export interface EventTheme {
   updatedAt: number;
 }
 
+export interface EventClusterQuality {
+  algorithm: string;
+  selectedBy: string;
+  silhouetteScore: number;
+  silhouetteClusterCount?: number;
+  elbowClusterCount?: number;
+  inertia?: number;
+  clusterCount: number;
+  rootRefCount: number;
+  sampleSize: number;
+  clusterSizeMin: number;
+  clusterSizeMedian: number;
+  clusterSizeMax: number;
+  candidateScores?: Array<{
+    requestedClusterCount: number;
+    clusterCount: number;
+    silhouetteScore: number;
+    inertia: number;
+    elbowScore: number;
+    selectionScore: number;
+    clusterSizeMin: number;
+    clusterSizeMedian: number;
+    clusterSizeMax: number;
+  }>;
+}
+
 export interface EventVoice {
   voiceId: string;
   eventId: string;
@@ -165,6 +191,7 @@ export interface EventRecapBundle {
   posts: EventPost[];
   themes: EventTheme[];
   voices: EventVoice[];
+  clustering?: EventClusterQuality;
 }
 
 export interface EventResolution {
