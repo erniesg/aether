@@ -165,6 +165,15 @@ describe('event recap analysis', () => {
         },
       }),
       post({
+        postId: 'li_encoded_json_title_author',
+        platform: 'linkedin',
+        authorName:
+          '{&quot;title&quot;: &quot;Singapore&#39;s Dr. Vivian Balakrishnan&#39;s AI &quot;Second Brain&quot; and the Security Gap&quot;} | Dan Mountstephen posted on the topic | LinkedIn',
+        authorHandle: 'danmountstephen',
+        text: 'AI Engineer Singapore adjacent NanoClaw commentary.',
+        metrics: { reactions: 7 },
+      }),
+      post({
         postId: 'li_long_post_title_author',
         platform: 'linkedin',
         authorName: 'Tibo, aka the Codex Credit God. Come and join us for AI engineer day Singapore',
@@ -239,6 +248,9 @@ describe('event recap analysis', () => {
     });
     expect(voices.find((voice) => voice.handle === 'daphnetay')).toMatchObject({
       name: 'Daphne Tay',
+    });
+    expect(voices.find((voice) => voice.handle === 'danmountstephen')).toMatchObject({
+      name: 'Dan Mountstephen',
     });
     expect(voices.find((voice) => voice.handle === 'sun-weiran')).toMatchObject({
       name: 'Sun Weiran',
