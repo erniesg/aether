@@ -76,6 +76,22 @@ export interface EventPostMedia {
   }>;
 }
 
+export type EventPostStoryType =
+  | 'single_story'
+  | 'broad_recap'
+  | 'side_event'
+  | 'logistics'
+  | 'sponsor'
+  | 'context';
+
+export interface EventStoryMention {
+  storyId: string;
+  label: string;
+  role: 'primary' | 'secondary';
+  confidence: number;
+  evidence?: string;
+}
+
 export interface EventAuthorMeta {
   description?: string;
   headline?: string;
@@ -107,6 +123,9 @@ export interface EventPost {
   media?: EventPostMedia[];
   reachScore: number;
   tags: string[];
+  storyType?: EventPostStoryType;
+  primaryStoryId?: string;
+  storyMentions?: EventStoryMention[];
   raw: unknown;
 }
 
@@ -119,6 +138,9 @@ export interface EventTheme {
   postIds: string[];
   rootPostIds?: string[];
   attachedPostIds?: string[];
+  storyId?: string;
+  storyType?: 'story_assignment' | 'tfidf_cluster';
+  sourceThemeIds?: string[];
   score: number;
   updatedAt: number;
 }
@@ -147,6 +169,16 @@ export interface EventClusterQuality {
     clusterSizeMedian: number;
     clusterSizeMax: number;
   }>;
+  rawClusterCount?: number;
+  storyClusterCount?: number;
+  assignmentMethod?: string;
+  storyAssignment?: {
+    totalRefs: number;
+    rootRefs: number;
+    attachedRefs: number;
+    multiMentionRefs: number;
+    broadRecapRefs: number;
+  };
 }
 
 export interface EventVoice {

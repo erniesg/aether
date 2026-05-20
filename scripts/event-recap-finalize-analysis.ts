@@ -5,6 +5,7 @@ import { analyzePosts, measureClusterQuality } from '../lib/research/event-recap
 import { enrichPostConversationTags } from '../lib/research/event-recap/conversation';
 import { deriveExpansionPlan } from '../lib/research/event-recap/expand';
 import { hasAiEngineeringOrProgramSignal, hasEventContextSignal, isIncidentalAieMention, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
+import { buildStoryAssignedThemes } from '../lib/research/event-recap/story-assignment';
 import type { EventPlatform, EventPost, EventPostMedia, EventTheme } from '../lib/research/event-recap/types';
 import { makePostId, scorePostsByPlatform, shortExcerpt } from '../lib/research/event-recap/utils';
 
@@ -1352,25 +1353,39 @@ async function main() {
   const curated = curatePosts(merged.posts);
   const scored = scorePostsByPlatform(curated.posts);
   const relevant = scored.filter(isRelevant);
-  const analysis = analyzePosts(String(archive.eventId), relevant);
-  const storyThemes = consolidateAiEngineerSingaporeStories(analysis.themes, relevant);
+  const storyAssignment = buildStoryAssignedThemes(String(archive.eventId), relevant);
+  const storyAssignedPostsById = new Map(storyAssignment.posts.map((post) => [post.postId, post]));
+  const scoredWithStories = scored.map((post) => storyAssignedPostsById.get(post.postId) ?? post);
+  const relevantWithStories = scoredWithStories.filter(isRelevant);
+  const analysis = analyzePosts(String(archive.eventId), relevantWithStories);
+  const storyThemes = storyAssignment.themes;
   const rootThemeIds = new Set(storyThemes.flatMap((theme) => theme.rootPostIds ?? theme.postIds));
-  const rootPosts = relevant.filter((post) => rootThemeIds.has(post.postId));
+  const rootPosts = relevantWithStories.filter((post) => rootThemeIds.has(post.postId));
   const clustering = {
-    ...measureClusterQuality(rootPosts.length ? rootPosts : relevant, storyThemes),
+    ...measureClusterQuality(rootPosts.length ? rootPosts : relevantWithStories, storyThemes),
+    algorithm:
+      'story-aware assignment over whole posts with primary stories plus secondary story mentions; TF-IDF retained only for diagnostics',
+    selectedBy:
+      'deterministic story ontology over full post text, with broad recaps kept as their own story instead of being split into chunks',
     rawClusterCount: analysis.themes.length,
     storyClusterCount: storyThemes.length,
+    assignmentMethod: 'whole-post story assignment with broad-recap detection and secondary mentions',
+    storyAssignment: storyAssignment.stats,
+    tfidfBaseline: analysis.clusterQuality,
   };
-  const summarized = await summarizeThemesWithLLM(storyThemes, relevant);
-  const expansion = deriveExpansionPlan(archive.eventName ?? archive.eventId, relevant, {
+  const summarized: ThemeSummaryResult = {
+    themes: storyThemes,
+    strategy: 'deterministic-story-assignment',
+  };
+  const expansion = deriveExpansionPlan(archive.eventName ?? archive.eventId, relevantWithStories, {
     baseQueries: archive.expansion?.querySet ?? [],
     maxQueries: 24,
   });
   const generatedAt = new Date().toISOString();
   const backupPath = `${ARCHIVE_PATH}.bak-${Date.now()}`;
   fs.copyFileSync(ARCHIVE_PATH, backupPath);
-  archive.posts = scored;
-  archive.stats = computeStats(scored);
+  archive.posts = scoredWithStories;
+  archive.stats = computeStats(scoredWithStories);
   archive.themes = summarized.themes;
   archive.voices = analysis.voices;
   archive.clustering = clustering;
