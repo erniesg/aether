@@ -10,7 +10,7 @@ interface Env {
 
 const DATA_KEY = 'event-recap-ai-engineer-singapore/public.json';
 const MEDIA_PREFIX = 'event-recap-ai-engineer-singapore/media/';
-const DATA_VERSION = 'story-aware-12-root701-1779286135';
+const DATA_VERSION = 'story-aware-11-root701-1779287898';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
