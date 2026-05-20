@@ -487,15 +487,26 @@ function CollectionSummary({
             </p>
           ) : null}
           <ul className="space-y-2">
-            <li>Refs are deduped and tagged for event relevance before clustering.</li>
+            <li>
+              Refs are deduped, then filtered for an AI Engineer Singapore anchor plus program,
+              speaker, sponsor, workshop, demo, media, logistics, or recap evidence.
+            </li>
+            <li>
+              Incidental attendance or adjacent AI-in-Singapore posts are excluded unless they add
+              source media, useful logistics, speaker/program context, or concrete event texture.
+            </li>
             <li>This is an evidence-seeking public recap corpus, not a representative survey.</li>
             <li>
-              Clusters map relevant root refs with deterministic TF-IDF graph similarity; labels are
-              rewritten from cited evidence.
+              Visible clusters use whole-post story assignment with precedence checks; broad recaps
+              stay intact and can carry secondary story mentions.
             </li>
-            <li>Replies and comments are viewable, but are not cluster anchors by default.</li>
+            <li>
+              Root refs anchor stories. Replies, comments, logistics, media-only refs, and other
+              context are attached for browsing rather than treated as story anchors.
+            </li>
             <li>LinkedIn public collection does not expose impressions or views.</li>
             <li>Engagement score is platform-normalized public engagement, not raw reach.</li>
+            <li>TF-IDF is retained for overlap diagnostics, not as the public cluster label source.</li>
           </ul>
           {clustering ? (
             <details className="rounded-sm border border-border-soft bg-surface-panel p-2">
@@ -503,11 +514,9 @@ function CollectionSummary({
                 cluster diagnostics
               </summary>
               <p className="mt-2 font-caption text-xs leading-5 text-ink-dim">
-                Selected {clustering.clusterCount} clusters from {clustering.rootRefCount} root
-                refs using an elbow-weighted silhouette sweep. Best raw silhouette was{' '}
-                {clustering.silhouetteClusterCount ?? 'n/a'} clusters; elbow point was{' '}
-                {clustering.elbowClusterCount ?? clustering.clusterCount}. Current silhouette{' '}
-                {clustering.silhouetteScore.toFixed(4)}, inertia{' '}
+                Showing {clustering.storyClusterCount ?? clustering.clusterCount} reviewed story
+                clusters from {clustering.rootRefCount} root refs. Diagnostic TF-IDF baseline:
+                silhouette {clustering.silhouetteScore.toFixed(4)}, inertia{' '}
                 {(clustering.inertia ?? 0).toFixed(4)}.
               </p>
             </details>
