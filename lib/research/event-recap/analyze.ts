@@ -325,6 +325,7 @@ function largestThemeIndex(themes: EventTheme[]): number | undefined {
 
 function isClusterRootPost(post: EventPost): boolean {
   if (isReplyPost(post)) return false;
+  if (post.tags.some((tag) => tag.toLowerCase() === 'context:event')) return false;
 
   const text = String(post.text ?? '');
   const terms = tokenize(text).filter(isClusterTerm);

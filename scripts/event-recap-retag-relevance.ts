@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import { analyzePosts } from '../lib/research/event-recap/analyze';
 import { enrichPostConversationTags } from '../lib/research/event-recap/conversation';
 import { deriveExpansionPlan } from '../lib/research/event-recap/expand';
-import { hasAiEngineeringOrProgramSignal, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
+import { hasAiEngineeringOrProgramSignal, hasEventContextSignal, isIncidentalAieMention, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
 import type { EventPlatform, EventPost } from '../lib/research/event-recap/types';
 import { scorePostsByPlatform } from '../lib/research/event-recap/utils';
 
 const ARCHIVE_PATH = 'outputs/event-recap-ai-engineer-singapore/archive.json';
+
+type EventRelevanceTier = 'core' | 'context' | 'irrelevant';
 
 function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle' | 'authorName' | 'url'>): boolean {
   const text = `${post.text} ${post.authorHandle ?? ''} ${post.authorName ?? ''} ${post.url}`;
@@ -24,11 +26,11 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
     /\bai engineer summit singapore\b/i.test(text) ||
     /\bai engineer conference singapore\b/i.test(text) ||
     /\baie(?:\s+here\s+in)?\s+singapore\b/i.test(text) ||
-    /#aiengineersingapore\b/i.test(text) ||
+    /#(?:aiengineersingapore|aiengineersg|aiesg)\b/i.test(text) ||
     hasAiDotEngineerSingaporeSignal(text) ||
     /\bai\.engineer[\/\s]+singapore\b/i.test(text) ||
     /\broad to aie\b/i.test(text);
-  if (exactEvent) return hasAiEngineeringOrProgramSignal(text);
+  if (exactEvent) return !isIncidentalAieMention(text) && hasAiEngineeringOrProgramSignal(text);
 
   const eventPhrase = hasAieSingaporePhrase(text);
   if (eventPhrase) return !isGenericHiringNoise(lower) && hasAiEngineeringOrProgramSignal(text);
@@ -52,6 +54,29 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
   return (knownPeopleAnchor || known65LabsAnchor) && hasAiEngineeringOrProgramSignal(text);
 }
 
+function eventContextRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle' | 'authorName' | 'url' | 'media'>): boolean {
+  if (post.platform === 'youtube') return false;
+  const text = `${post.text} ${post.authorHandle ?? ''} ${post.authorName ?? ''} ${post.url}`;
+  const lower = text.toLowerCase();
+  if (isHardNoise(lower)) return false;
+  if (isAdjacentGrabMapsHackathonNoise(lower)) return false;
+  if (isAdjacent65LabsProgramNoise(lower)) return false;
+  if (isAdjacentGenericAiEngineeringNoise(lower)) return false;
+  if (isGenericAiCareerNoise(lower)) return false;
+  if (isGenericHiringNoise(lower)) return false;
+  if (isIncidentalAieMention(text)) return false;
+
+  const eventAnchor = hasExplicitAieSignal(text) || hasAieSingaporePhrase(text);
+  if (!eventAnchor) return false;
+  return hasEventContextSignal(text) || Boolean(post.media?.length);
+}
+
+function classifyEventRelevance(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle' | 'authorName' | 'url' | 'media'>): EventRelevanceTier {
+  if (eventRelevant(post)) return 'core';
+  if (eventContextRelevant(post)) return 'context';
+  return 'irrelevant';
+}
+
 function isHardNoise(text: string): boolean {
   return /\b(austcham|australian international school|sandboxaq|nigerian english|cerebras ipo|bnpl|buy now, pay later|crypto vc fund partner|drugging a girl's drink)\b/i.test(text);
 }
@@ -64,8 +89,8 @@ function isAdjacentGrabMapsHackathonNoise(text: string): boolean {
   if (!grabMapsHackathon) return false;
 
   return !(
-    /\b(ai engineer|aie|road to aie|#aiengineersingapore)\b.{0,140}\bhackathon\b/i.test(text) ||
-    /\bhackathon\b.{0,140}\b(ai engineer|aie|road to aie|#aiengineersingapore)\b/i.test(text) ||
+    (/(\b(ai engineer|aie|road to aie)\b|#(?:aiengineersingapore|aiengineersg|aiesg)\b).{0,140}\bhackathon\b/i.test(text) ||
+      /\bhackathon\b.{0,140}(\b(ai engineer|aie|road to aie)\b|#(?:aiengineersingapore|aiengineersg|aiesg)\b)/i.test(text)) ||
     /\bspent\s+7\s+hours\b.{0,140}\b(ai engineer|aie)\b/i.test(text) ||
     /\bwhen ai engineer sg opened registration\b/i.test(text)
   );
@@ -108,16 +133,18 @@ function isGenericAiCareerNoise(text: string): boolean {
 }
 
 function isGenericHiringNoise(text: string): boolean {
-  const hiring = /\b(hiring|we'?re hiring|job opening|job posting|job ad|jobs page|open roles?|open positions?|vacancy|resume|cv|apply now|candidate|recruiting|software engineer|data engineer|machine learning engineer)\b/i.test(text);
+  const hiring = /\b(hiring|we'?re hiring|job opening|job posting|job ad|jobs page|open roles?|rewarding roles?|explore more roles?|open positions?|vacancy|resume|cv|apply now|candidate|recruiting|kerry consulting|distributing training|software engineer|data engineer|machine learning engineer)\b/i.test(text);
   const event =
     /\b(ai engineer singapore|aie singapore|road to aie|ai\.engineer[\/\s]+singapore)\b/i.test(text) ||
+    /#(?:aiengineersingapore|aiengineersg|aiesg)\b/i.test(text) ||
     hasAiDotEngineerSingaporeSignal(text);
   return hiring && !event;
 }
 
 function hasExplicitAieSignal(text: string): boolean {
   return (
-    /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|#aiengineersingapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text) ||
+    (/\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie(?:\s+here\s+in)?\s+singapore|ai\.engineer[\/\s]+singapore|road to aie)\b/i.test(text) ||
+      /#(?:aiengineersingapore|aiengineersg|aiesg)\b/i.test(text)) ||
     hasAiDotEngineerSingaporeSignal(text)
   );
 }
@@ -174,6 +201,11 @@ function computeStats(posts: EventPost[], youtube: any) {
     mediaByPlatform: mediaStats(posts),
     metricTotalsByPlatform: metricTotals(posts),
     relevantTotal: relevantPosts.length,
+    relevanceTiers: {
+      core: relevantPosts.filter((post) => post.tags.includes('relevance:core')).length,
+      context: relevantPosts.filter((post) => post.tags.includes('context:event')).length,
+      irrelevant: posts.length - relevantPosts.length,
+    },
     metricTotalsRelevantByPlatform,
     mediaRelevantByPlatform: mediaStats(relevantPosts),
   };
@@ -236,8 +268,21 @@ function main() {
       post.tags?.includes('x-official-expanded-discovery') ||
       post.tags?.includes('apify-linkedin-expanded-discovery');
     if (!shouldRetag) return post;
-    const tags = (post.tags ?? []).filter((tag) => tag !== 'relevant:event' && tag !== 'irrelevant:event');
-    tags.push(eventRelevant(post) ? 'relevant:event' : 'irrelevant:event');
+    const tags = (post.tags ?? []).filter(
+      (tag) =>
+        tag !== 'relevant:event' &&
+        tag !== 'irrelevant:event' &&
+        tag !== 'context:event' &&
+        !tag.startsWith('relevance:')
+    );
+    const tier = classifyEventRelevance(post);
+    if (tier === 'core') {
+      tags.push('relevant:event', 'relevance:core');
+    } else if (tier === 'context') {
+      tags.push('relevant:event', 'context:event', 'relevance:context');
+    } else {
+      tags.push('irrelevant:event');
+    }
     return enrichPostConversationTags({ ...post, tags });
   });
   const scored = scorePostsByPlatform(posts);
