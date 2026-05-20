@@ -5,6 +5,7 @@ import { analyzePosts } from '../lib/research/event-recap/analyze';
 import { searchLinkedInViaApify, type ApifyLinkedInContentType, type ApifyLinkedInSort } from '../lib/research/event-recap/apify';
 import { enrichPostConversationTags } from '../lib/research/event-recap/conversation';
 import { deriveExpansionPlan } from '../lib/research/event-recap/expand';
+import { hasAiEngineeringOrProgramSignal, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
 import type { EventPlatform, EventPost, EventPostMedia } from '../lib/research/event-recap/types';
 import { makePostId, scorePostsByPlatform } from '../lib/research/event-recap/utils';
 import { searchXViaOfficialApi } from '../lib/research/event-recap/x-api';
@@ -69,6 +70,7 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
   if (isAdjacent65LabsProgramNoise(lower)) return false;
   if (isAdjacentGenericAiEngineeringNoise(lower)) return false;
   if (isGenericAiCareerNoise(lower)) return false;
+  if (isLowSignalEventOnlyText(text)) return false;
   const exactEvent =
     /\bai engineer singapore\b/i.test(text) ||
     /\bai engineers singapore\b/i.test(text) ||
@@ -80,10 +82,10 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
     hasAiDotEngineerSingaporeSignal(text) ||
     /\bai\.engineer\/singapore\b/i.test(text) ||
     /\broad to aie\b/i.test(text);
-  if (exactEvent) return true;
+  if (exactEvent) return hasAiEngineeringOrProgramSignal(text);
 
   const eventPhrase = hasAieSingaporePhrase(text);
-  if (eventPhrase) return !isGenericHiringNoise(lower);
+  if (eventPhrase) return !isGenericHiringNoise(lower) && hasAiEngineeringOrProgramSignal(text);
 
   const ministerKeynote =
     /\b(vivian balakrishnan|foreign minister|minister for foreign affairs|vivianbala)\b/i.test(text) &&
@@ -101,7 +103,7 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
   const known65LabsAnchor =
     /\b65labs\b/i.test(text) &&
     hasKnownPersonEventSignal(text);
-  return knownPeopleAnchor || known65LabsAnchor;
+  return (knownPeopleAnchor || known65LabsAnchor) && hasAiEngineeringOrProgramSignal(text);
 }
 
 function isHardNoise(text: string): boolean {
