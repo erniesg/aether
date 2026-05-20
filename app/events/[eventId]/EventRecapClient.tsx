@@ -265,7 +265,7 @@ export default function EventRecapClient({
                   : 'border-border-soft text-ink-dim hover:border-ink-dim'
               }`}
             >
-              {showReplies ? 'including replies' : 'root refs'}
+              {showReplies ? 'including replies' : 'primary refs'}
             </button>
             {debug ? (
               <button
@@ -289,7 +289,7 @@ export default function EventRecapClient({
             ) : null}
             <span className="ml-auto font-caption text-xs text-ink-dim">
               {lens === 'themes'
-                ? `${clusteredRootCount} root refs clustered`
+                ? `${clusteredRootCount} primary refs clustered`
                 : `${filteredPosts.length} refs visible`}
             </span>
           </div>
@@ -515,7 +515,7 @@ function CollectionSummary({
               </summary>
               <p className="mt-2 font-caption text-xs leading-5 text-ink-dim">
                 Showing {clustering.storyClusterCount ?? clustering.clusterCount} reviewed story
-                clusters from {clustering.rootRefCount} root refs. Diagnostic TF-IDF baseline:
+                clusters from {clustering.rootRefCount} primary refs. Diagnostic TF-IDF baseline:
                 silhouette {clustering.silhouetteScore.toFixed(4)}, inertia{' '}
                 {(clustering.inertia ?? 0).toFixed(4)}.
               </p>
@@ -1223,7 +1223,7 @@ function ClusterAtlas({
         <Sparkles size={15} strokeWidth={1.75} className="text-accent" />
         <h2 className="font-display text-base">cluster atlas</h2>
         <span className="ml-auto font-mono text-xs text-ink-dim">
-          {totalRefs} root refs mapped
+          {totalRefs} primary refs mapped
         </span>
       </div>
 
