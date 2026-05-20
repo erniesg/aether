@@ -199,6 +199,7 @@ async function main() {
       limitations: [
         'The corpus is a public evidence sample, not a representative survey or full social-listening panel.',
         'Core refs seed cluster labels and summaries; context refs are event texture, media, replies, or logistics attached for browsing but not used as cluster roots.',
+        'Attendance-only posts without media, source detail, or event substance are excluded; attendance posts with media or useful logistics are kept as context.',
         'X and YouTube expose public views; LinkedIn public collection here does not expose impressions.',
         'Query counts are not additive because surfaces rank, dedupe, and expose search differently.',
         'Clusters are built from root refs, then replies/comments/context refs are attached to their nearest evidence cluster.',
