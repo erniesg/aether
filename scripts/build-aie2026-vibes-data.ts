@@ -204,7 +204,7 @@ async function main() {
         'Refs are deduped, then filtered for an AIE Singapore anchor plus substantive event evidence: program, speakers, sponsors, workshops, demos, media, logistics, or recap detail.',
         'Incidental attendance or adjacent AI-in-Singapore posts are excluded unless they add source media, useful logistics, speaker/program context, or concrete event texture.',
         'Clusters are whole-post story assignments with deterministic story rules and precedence checks. Broad recaps stay intact as recap refs and can carry secondary story mentions.',
-        'Core refs act as story roots; context refs are replies, comments, media, logistics, or event texture attached for browsing but not used as story anchors.',
+        'Primary refs act as story anchors; context refs are replies, comments, media, logistics, or event texture attached for browsing but not used as story anchors.',
         'X and YouTube expose public views; LinkedIn public collection here does not expose impressions.',
         'Query counts are not additive because surfaces rank, dedupe, and expose search differently.',
         'TF-IDF diagnostics are retained for overlap auditability, but visible clusters use reviewed story labels rather than raw keyword clusters.',
