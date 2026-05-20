@@ -42,14 +42,15 @@ const STORY_DEFINITIONS: StoryDefinition[] = [
   },
   {
     storyId: 'overall-event-recaps',
-    label: 'Full-event recaps and takeaways',
+    label: 'Event recaps and hallway dispatches',
     summary:
-      'Broad attendee recaps pulled multiple signals together: keynote, workshops, sponsor booths, side events, hallway energy, and the sense that Singapore had a real builder room.',
-    keywords: ['recaps', 'takeaways', 'highlights', 'buzzing', 'conference format'],
+      'Broad recaps and short dispatches captured the whole AIE Singapore texture: keynote, workshops, booths, hallway energy, side events, speaker moments, and the sense of a real builder room.',
+    keywords: ['recaps', 'takeaways', 'highlights', 'hallway notes', 'conference format'],
     signals: [
       { pattern: /\b(recap|takeaways?|highlights?|still buzzing|what stuck|sessions? that stuck|favorite talks?|favourite talks?)\b/i, weight: 4 },
       { pattern: /\b(day one|day 1|day two|day 2|past three days|3 days|weekend at ai engineer|full weekend)\b/i, weight: 3 },
       { pattern: /\b(best conference|single track|family style|builder-first|conference format|whole event)\b/i, weight: 3 },
+      { pattern: /\b(early bird|tickets?|agenda|what your ticket gets|lineups?|speaker lineup|speaker announcement|come say hi|in town for)\b/i, weight: 2 },
     ],
   },
   {
@@ -66,14 +67,15 @@ const STORY_DEFINITIONS: StoryDefinition[] = [
   },
   {
     storyId: 'agentic-workshops',
-    label: 'Agentic workflow workshops',
+    label: 'Workshops and agentic workflows',
     summary:
-      'Workshop refs centered on practical AI engineering craft: LlamaIndex, agentic document workflows, x402/pay.sh, Vercel, Stripe, Convex, Cerebras, and hands-on implementation sessions.',
-    keywords: ['workshops', 'agentic workflows', 'llamaindex', 'x402', 'vercel'],
+      'Hands-on sessions and leadership-track notes centered on AI engineering craft: LlamaIndex, agentic document workflows, x402/pay.sh, coding agents, evals, orchestration, and software-factory patterns.',
+    keywords: ['workshops', 'agentic workflows', 'llamaindex', 'x402', 'software factories'],
     signals: [
       { pattern: /\b(workshop|workshops|hands-on|hands on|agentic workflow|agentic document|llamaindex|beyond rag|rag)\b/i, weight: 4 },
-      { pattern: /\b(x402|pay\.sh|stripe|vercel|convex|cerebras|inference|parsing|reranking|evaluation)\b/i, weight: 3 },
-      { pattern: /\b(enterprise pdf|document workflow|technical workshop|workshop-heavy)\b/i, weight: 4 },
+      { pattern: /\b(agentic engineering|coding agents?|code knowledge|business rules|repeatable system|software factories|software factory|leadership track)\b/i, weight: 4 },
+      { pattern: /\b(x402|pay\.sh|agentic rag|enterprise documents?|document workflows?|evals?|evaluation|retrieval|parsing|reranking|orchestration|multi-agentic workflows?)\b/i, weight: 3 },
+      { pattern: /\b(enterprise pdf|technical workshop|workshop-heavy|packed workshops?)\b/i, weight: 4 },
     ],
   },
   {
@@ -90,7 +92,7 @@ const STORY_DEFINITIONS: StoryDefinition[] = [
   },
   {
     storyId: 'students-organizers-community',
-    label: 'Students, organizers and community love',
+    label: 'Students, organizers and community gratitude',
     summary:
       'Community refs focused on student tickets, scholarship seats, organizer gratitude, volunteer energy, and warm posts naming Sherry Jiang, Agrim Singh, 65labs, Kaspar Hidayat, Ivan Leo, and Rachael De Foe.',
     keywords: ['students', 'organizers', '65labs', 'scholarships', 'community'],
@@ -102,10 +104,10 @@ const STORY_DEFINITIONS: StoryDefinition[] = [
   },
   {
     storyId: 'sponsors-booths-hiring',
-    label: 'Sponsors, booths and hiring',
+    label: 'Sponsor booths, partner rooms and hiring',
     summary:
-      'Sponsor and partner refs covered booth presence, hiring, credits, partner selfies, and ecosystem participation from Google DeepMind, Exa, Arize, Vercel, Cloudflare, Cursor, and others.',
-    keywords: ['sponsors', 'booths', 'hiring', 'partners', 'credits'],
+      'Sponsor and partner refs covered booth presence, VIP dinners, founder happy hours, hiring, credits, partner selfies, and ecosystem participation from Google DeepMind, Exa, Arize, Vercel, Cloudflare, Cursor, and others.',
+    keywords: ['sponsors', 'booths', 'hiring', 'partner rooms', 'credits'],
     signals: [
       { pattern: /\b(sponsor|sponsors|partner|partners|booth|expo|hiring|credits?|api credits?|giveaway)\b/i, weight: 4 },
       { pattern: /\b(google deepmind|deepmind|exa|arize|cloudflare|cursor|vercel|convex|aws|stripe|daytona|featherless|nebius|posthog)\b/i, weight: 3 },
@@ -114,7 +116,7 @@ const STORY_DEFINITIONS: StoryDefinition[] = [
   },
   {
     storyId: 'side-events-meetups',
-    label: 'Side events and meetups',
+    label: 'Road to AIE side events and meetups',
     summary:
       'Side-event refs covered AI Tinkerers, Tencent Cloud, Ralphthon, GFTN, Road to AIE meetups, Convex boba, happy hours, and the broader build-week circuit around the main conference.',
     keywords: ['side events', 'meetups', 'ai tinkerers', 'ralphthon', 'road to aie'],
@@ -126,13 +128,13 @@ const STORY_DEFINITIONS: StoryDefinition[] = [
   },
   {
     storyId: 'hackathon-build-week',
-    label: 'Hackathons and build-week prizes',
+    label: 'Hackathons and build-week demos',
     summary:
-      'Hackathon refs captured Road to AIE build nights, prize money, sponsor challenges, API-credit offers, 300-builder rooms, and related pre-conference demos.',
+      'Hackathon refs captured Road to AIE build nights, Ralphthon, project demos, prize money, sponsor challenges, API-credit offers, and 300-builder pre-conference rooms.',
     keywords: ['hackathon', 'build night', 'prizes', 'api credits', 'road to aie'],
     signals: [
-      { pattern: /\b(hackathon|hackathons|build night|builder night|300 builders|7 hours|cash prizes?|sgd|\$3k|\$2k|\$1k)\b/i, weight: 5 },
-      { pattern: /\b(prizes?|credits?|api credits?|adaption labs|smithery|mastra|challenge)\b/i, weight: 3 },
+      { pattern: /\b(ai engineer\s*(singapore\s*)?#?hackathon|aie\s*(singapore\s*)?hackathon|road to aie hackathon|ralphthon|build night|builder night|300 builders|7 hours|cash prizes?|sgd|\$3k|\$2k|\$1k)\b/i, weight: 5 },
+      { pattern: /\b(prizes?|track prizes?|sponsor challenges?|api credits?|openai credits?|platform credits?|adaption labs credits?|smithery|mastra)\b/i, weight: 3 },
       { pattern: /\b(on-demand 3d panoramas|wiki ?racer|winning|won 2nd|demo vid)\b/i, weight: 3 },
     ],
   },
@@ -184,6 +186,7 @@ const STORY_DEFINITIONS: StoryDefinition[] = [
 ];
 
 const STORY_BY_ID = new Map(STORY_DEFINITIONS.map((story) => [story.storyId, story]));
+const SMALL_STORY_MERGE_TARGETS = new Map<string, string>([['leadership-enterprise', 'agentic-workshops']]);
 
 export function buildStoryAssignedThemes(eventId: string, posts: EventPost[]): StoryAssignmentResult {
   let assignedPosts = posts.map(assignPostStories);
@@ -199,25 +202,26 @@ export function buildStoryAssignedThemes(eventId: string, posts: EventPost[]): S
   const smallStoryIds = new Set<string>();
   for (const [storyId, group] of grouped) {
     const rootCount = group.filter(isRootPost).length;
-    if (storyId !== 'overall-event-recaps' && group.length < 6 && rootCount < 4) {
+    if (storyId !== 'overall-event-recaps' && group.length < 8 && rootCount < 6) {
       smallStoryIds.add(storyId);
     }
   }
 
   if (smallStoryIds.size) {
-    const overall = grouped.get('overall-event-recaps') ?? [];
     const reassignedById = new Map<string, EventPost>();
     for (const storyId of smallStoryIds) {
+      const targetStoryId = SMALL_STORY_MERGE_TARGETS.get(storyId) ?? 'overall-event-recaps';
+      const target = grouped.get(targetStoryId) ?? [];
       const group = grouped.get(storyId) ?? [];
-      const reassigned = group.map((post) => reassignPost(post, 'overall-event-recaps', 'secondary'));
-      overall.push(...reassigned);
+      const reassigned = group.map((post) => reassignPost(post, targetStoryId, 'secondary'));
+      target.push(...reassigned);
       for (const post of reassigned) {
         reassignedById.set(post.postId, post);
       }
       grouped.delete(storyId);
+      grouped.set(targetStoryId, target);
     }
     assignedPosts = assignedPosts.map((post) => reassignedById.get(post.postId) ?? post);
-    grouped.set('overall-event-recaps', overall);
   }
 
   const themes = Array.from(grouped.entries())
@@ -247,7 +251,7 @@ function assignPostStories(post: EventPost): EventPost {
     .map((item, index) => toMention(item.story, item.score, index === 0 ? 'primary' : 'secondary'));
 
   const broad = isBroadRecap(post, mentions);
-  const primaryStoryId = choosePrimaryStory(scores, mentions, broad);
+  const primaryStoryId = primaryStoryOverride(post) ?? choosePrimaryStory(scores, mentions, broad);
   const primaryStory = STORY_BY_ID.get(primaryStoryId) ?? STORY_BY_ID.get('overall-event-recaps')!;
   const primaryMention = toMention(primaryStory, scores.find((item) => item.story.storyId === primaryStoryId)?.score ?? 3, 'primary');
   const finalMentions = uniqueMentions([
@@ -268,6 +272,36 @@ function assignPostStories(post: EventPost): EventPost {
     storyMentions: finalMentions,
     tags,
   };
+}
+
+function primaryStoryOverride(post: EventPost): string | undefined {
+  const text = storyText(post);
+  if (/\b(codex booth|openai @ ai engineer|openai at ai engineer|codexmaxxing|codex for everyone|codex technical workshop|show me something crazy.*codex|fde @ openai|forward deployed engineers? at openai)\b/i.test(text)) {
+    return 'openai-codex-presence';
+  }
+  if (/\b(vivian|balakrishnan|foreign minister|minister for foreign affairs|nanoclaw|nano claw|raspberry pi|second brain|briefed on|govern a technology)\b/i.test(text)) {
+    return 'vivian-builder-keynote';
+  }
+  if (/\b(don'?t want to dunk on singapore|delusional takes|mostly a trading hub|next silicon valley)\b/i.test(text)) {
+    return 'overall-event-recaps';
+  }
+  if (/\b(20 students?|sponsored ticket|student tickets?|scholarship seats?|fully sponsored ticket)\b/i.test(text)) {
+    return 'students-organizers-community';
+  }
+  if (/\b(diamond sponsor|platinum sponsor|gold sponsor|biggest sponsors?|sponsor lineup|first wave of sponsors|sponsor announcement|joining us as[\s\S]{0,80}sponsor|partnering up with 65labs)\b/i.test(text)) {
+    if (/\b(openai codex|codex)\b/i.test(text)) return 'openai-codex-presence';
+    return 'sponsors-booths-hiring';
+  }
+  if (/\b(leadership track|software factories|software factory|deploying ai coding agents inside organizations)\b/i.test(text)) {
+    return 'agentic-workshops';
+  }
+  if (/\b(ai engineer speaker reveal|speaker reveal:|early bird tickets|prices go up|what your ticket gets|tickets are live|ticket gets you)\b/i.test(text)) {
+    return 'overall-event-recaps';
+  }
+  if (/\b(massive shoutout to 65labs|shoutout to 65labs|thank you to 65labs|organizing team|organising team|entire organizing team|entire organising team)\b/i.test(text)) {
+    return 'students-organizers-community';
+  }
+  return undefined;
 }
 
 function scoreStories(post: EventPost): Array<{ story: StoryDefinition; score: number }> {
@@ -407,7 +441,8 @@ function isReplyPost(post: EventPost): boolean {
 }
 
 function storyText(post: EventPost): string {
-  return `${post.text} ${post.authorName} ${post.authorHandle ?? ''} ${(post.tags ?? []).join(' ')} ${shortExcerpt(
+  const stableTags = (post.tags ?? []).filter((tag) => !tag.startsWith('story:') && !tag.startsWith('story-type:'));
+  return `${post.text} ${post.authorName} ${post.authorHandle ?? ''} ${stableTags.join(' ')} ${shortExcerpt(
     post.text,
     240
   )}`.toLowerCase();
