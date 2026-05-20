@@ -82,9 +82,7 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
     /\broad to aie\b/i.test(text);
   if (exactEvent) return true;
 
-  const eventPhrase =
-    /\bai engineer\b.{0,100}\b(singapore|sg|capitol|kempinski|pullman|65labs|conference|summit|hackathon|workshop)\b/i.test(text) ||
-    /\b(singapore|sg|capitol|kempinski|pullman)\b.{0,80}\b(for|at|@|during|to)\s+(?:the\s+)?ai engineer\b/i.test(text);
+  const eventPhrase = hasAieSingaporePhrase(text);
   if (eventPhrase) return !isGenericHiringNoise(lower);
 
   const ministerKeynote =
@@ -102,7 +100,7 @@ function eventRelevant(post: Pick<EventPost, 'platform' | 'text' | 'authorHandle
     hasKnownPersonEventSignal(text);
   const known65LabsAnchor =
     /\b65labs\b/i.test(text) &&
-    /\b(ai engineer singapore|ai engineer sg|aie singapore|road to aie|ai\.engineer[\/\s]+singapore|capitol|kempinski|pullman|keynote|speaker|sponsor|conference|summit|codex|openai|cursor|google deepmind)\b/i.test(text);
+    hasKnownPersonEventSignal(text);
   return knownPeopleAnchor || known65LabsAnchor;
 }
 
@@ -122,6 +120,18 @@ function isAdjacentGrabMapsHackathonNoise(text: string): boolean {
     /\bhackathon\b.{0,140}\b(ai engineer|aie|road to aie|#aiengineersingapore)\b/i.test(text) ||
     /\bspent\s+7\s+hours\b.{0,140}\b(ai engineer|aie)\b/i.test(text) ||
     /\bwhen ai engineer sg opened registration\b/i.test(text)
+  );
+}
+
+function hasAieSingaporePhrase(text: string): boolean {
+  const eventPlace = /\b(singapore|sg|capitol|kempinski|pullman|65labs|may\s*1[5-7])\b/i;
+  return (
+    /\bai engineer\b[\s\S]{0,100}\b(singapore|sg|capitol|kempinski|pullman|65labs)\b/i.test(text) ||
+    /\b(singapore|sg|capitol|kempinski|pullman)\b[\s\S]{0,80}\b(for|at|@|during|to)\s+(?:the\s+)?ai engineer\b/i.test(text) ||
+    (/\b(ai engineer|aie)\b[\s\S]{0,100}\b(conference|summit|hackathon|workshops?|speaker|stage|program)\b/i.test(text) &&
+      eventPlace.test(text)) ||
+    (/\b(conference|summit|hackathon|workshops?|speaker|stage|program)\b[\s\S]{0,100}\b(ai engineer|aie)\b/i.test(text) &&
+      eventPlace.test(text))
   );
 }
 
