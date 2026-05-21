@@ -478,6 +478,51 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_event', ['eventId']),
 
+  // Vibes product API access. Logto authenticates the human user; Aether issues
+  // app API keys for managed research agents and stores only hashed key values.
+  vibesApiKey: defineTable({
+    keyId: v.string(),
+    userId: v.string(),
+    userEmail: v.optional(v.string()),
+    name: v.string(),
+    keyHash: v.string(),
+    keyPrefix: v.string(),
+    status: v.union(v.literal('active'), v.literal('revoked')),
+    dailyLimit: v.number(),
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index('by_key_id', ['keyId'])
+    .index('by_key_hash', ['keyHash'])
+    .index('by_user', ['userId']),
+
+  vibesDailyUsage: defineTable({
+    userId: v.string(),
+    day: v.string(),
+    used: v.number(),
+    dailyLimit: v.number(),
+    updatedAt: v.number(),
+  }).index('by_user_day', ['userId', 'day']),
+
+  vibesUsageEvent: defineTable({
+    eventId: v.string(),
+    userId: v.optional(v.string()),
+    userEmail: v.optional(v.string()),
+    keyId: v.optional(v.string()),
+    source: v.union(v.literal('logto'), v.literal('api-key'), v.literal('dev')),
+    route: v.string(),
+    action: v.string(),
+    day: v.string(),
+    status: v.union(v.literal('accepted'), v.literal('rejected')),
+    reason: v.optional(v.union(v.literal('invalid_api_key'), v.literal('quota_exceeded'))),
+    metadata: v.any(),
+    createdAt: v.number(),
+  })
+    .index('by_event_id', ['eventId'])
+    .index('by_user_day', ['userId', 'day'])
+    .index('by_key_day', ['keyId', 'day']),
+
   // ─── canvas ────────────────────────────────────────────────────────────
   // wsId is optional for the same reason it is on capabilityRun / clusterCard /
   // signalSubscription: pre-Phase-5 the canvas writes snapshots without a

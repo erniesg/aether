@@ -10,6 +10,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
@@ -93,6 +98,8 @@ export async function POST(
           : undefined,
       maxQueries:
         typeof input.maxQueries === 'number' ? input.maxQueries : undefined,
+      extraQuerySet: stringArray(input.extraQuerySet ?? input.querySet),
+      sourceUrls: stringArray(input.sourceUrls),
       maxSearchPagesPerQuery:
         typeof input.maxSearchPagesPerQuery === 'number'
           ? input.maxSearchPagesPerQuery
