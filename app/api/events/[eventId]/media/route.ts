@@ -77,5 +77,8 @@ function contentTypeFromPath(value: string): string {
   if (ext === '.webp') return 'image/webp';
   if (ext === '.gif') return 'image/gif';
   if (ext === '.avif') return 'image/avif';
+  if (ext === '.mp4' || ext === '.m4v') return 'video/mp4';
+  if (ext === '.mov') return 'video/quicktime';
+  if (ext === '.webm') return 'video/webm';
   return 'application/octet-stream';
 }

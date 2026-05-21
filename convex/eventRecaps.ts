@@ -52,6 +52,10 @@ const MEDIA = v.object({
   ),
 });
 
+const RAW_ACCESS_ACTION = v.union(v.literal('download'), v.literal('inspect'));
+const RAW_ACCESS_FORMAT = v.union(v.literal('json'), v.literal('csv'));
+const RAW_ACCESS_SCOPE = v.union(v.literal('raw'), v.literal('posts'));
+
 interface EventDoc {
   _id: unknown;
   eventId: string;
@@ -365,5 +369,30 @@ export const replaceVoices = mutationGeneric({
     for (const doc of existing) await ctx.db.delete(doc._id as any);
     for (const voice of args.voices) await ctx.db.insert('eventVoice', voice);
     return args.voices.length;
+  },
+});
+
+export const recordRawAccess = mutationGeneric({
+  args: {
+    accessId: v.string(),
+    eventId: v.string(),
+    action: RAW_ACCESS_ACTION,
+    format: RAW_ACCESS_FORMAT,
+    scope: RAW_ACCESS_SCOPE,
+    postCount: v.number(),
+    mediaCount: v.number(),
+    userAgent: v.optional(v.string()),
+    referer: v.optional(v.string()),
+    ipHash: v.optional(v.string()),
+    createdAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('eventRawAccess')
+      .withIndex('by_access_id', (q: any) => q.eq('accessId', args.accessId))
+      .unique();
+    if (existing) return args.accessId;
+    await ctx.db.insert('eventRawAccess', args);
+    return args.accessId;
   },
 });

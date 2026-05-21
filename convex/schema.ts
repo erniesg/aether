@@ -478,6 +478,23 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_event', ['eventId']),
 
+  eventRawAccess: defineTable({
+    accessId: v.string(),
+    eventId: v.string(),
+    action: v.union(v.literal('download'), v.literal('inspect')),
+    format: v.union(v.literal('json'), v.literal('csv')),
+    scope: v.union(v.literal('raw'), v.literal('posts')),
+    postCount: v.number(),
+    mediaCount: v.number(),
+    userAgent: v.optional(v.string()),
+    referer: v.optional(v.string()),
+    ipHash: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_access_id', ['accessId'])
+    .index('by_event', ['eventId'])
+    .index('by_event_created', ['eventId', 'createdAt']),
+
   // Vibes product API access. Logto authenticates the human user; Aether issues
   // app API keys for managed research agents and stores only hashed key values.
   vibesApiKey: defineTable({

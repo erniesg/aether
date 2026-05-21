@@ -6,14 +6,18 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Download,
   ExternalLink,
   Filter,
+  FileJson,
+  FileText,
   HelpCircle,
-  MessageSquareText,
+  Play,
   RefreshCw,
   Search,
   Sparkles,
   Users,
+  X as XIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Chip, type ChipTone } from '@/components/ui/Chip';
@@ -29,6 +33,11 @@ import type {
   EventTheme,
   EventVoice,
 } from '@/lib/research/event-recap/types';
+import {
+  buildEventMediaTiles,
+  type EventMediaTile,
+  type EventMediaUrlTarget,
+} from '@/lib/research/event-recap/media';
 import { engagement } from '@/lib/research/event-recap/utils';
 
 type Lens = 'posts' | 'themes' | 'timeline' | 'voices';
@@ -56,8 +65,6 @@ export default function EventRecapClient({
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
   const [showReplies, setShowReplies] = useState(false);
   const [showIrrelevant, setShowIrrelevant] = useState(false);
-  const [ask, setAsk] = useState('');
-  const [answer, setAnswer] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -98,32 +105,6 @@ export default function EventRecapClient({
     } finally {
       setRefreshing(false);
     }
-  }
-
-  async function askCorpus() {
-    if (!ask.trim()) return;
-    const res = await fetch('/api/events/query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId, query: ask, limit: 6 }),
-    });
-    const json = (await res.json()) as {
-      ok?: boolean;
-      posts?: EventPost[];
-      error?: string;
-    };
-    if (!json.ok) {
-      setAnswer(json.error ?? 'query failed');
-      return;
-    }
-    const lines = (json.posts ?? []).map(
-      (post) =>
-        `- [${post.platform}] ${post.authorHandle ?? post.authorName}: ${post.text.slice(
-          0,
-          180
-        )}${post.text.length > 180 ? '...' : ''} (${post.url})`
-    );
-    setAnswer(lines.length ? lines.join('\n') : 'No matching references yet.');
   }
 
   useEffect(() => {
@@ -335,32 +316,7 @@ export default function EventRecapClient({
             posts={relevantPosts}
             clustering={bundle?.clustering}
           />
-
-          <div className="mt-5 flex items-center gap-2 border-t border-border-soft pt-5">
-            <MessageSquareText size={16} strokeWidth={1.75} className="text-accent" />
-            <h2 className="font-display text-base tracking-tight">ask references</h2>
-          </div>
-          <textarea
-            value={ask}
-            onChange={(e) => setAsk(e.target.value)}
-            rows={3}
-            placeholder="e.g. what are people saying about evals?"
-            className="mt-3 w-full resize-y rounded-md border border-border-soft bg-surface-base px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
-          />
-          <Button
-            variant="primary"
-            size="sm"
-            className="mt-3 w-full"
-            onClick={askCorpus}
-            disabled={!ask.trim()}
-          >
-            ask refs
-          </Button>
-          {answer && (
-            <pre className="mt-4 whitespace-pre-wrap rounded-md border border-border-soft bg-surface-base p-3 font-mono text-xs leading-5 text-ink-muted">
-              {answer}
-            </pre>
-          )}
+          {bundle ? <SourcePack eventId={eventId} bundle={bundle} debug={debug} /> : null}
 
           {debug && latestRun?.streamingUrls.length ? (
             <div className="mt-5 space-y-2">
@@ -545,6 +501,113 @@ function CollectionSummary({
   );
 }
 
+function SourcePack({
+  eventId,
+  bundle,
+  debug,
+}: {
+  eventId: string;
+  bundle: EventRecapBundle;
+  debug: boolean;
+}) {
+  const encodedEventId = encodeURIComponent(eventId);
+  const sourceJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=posts&download=1`;
+  const postsCsvUrl = `/api/events/${encodedEventId}/raw?format=csv&scope=posts&download=1`;
+  const inspectJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=raw&download=0`;
+  const latestRun = bundle.runs[0];
+  const mediaCount = bundle.posts.reduce((sum, post) => sum + (post.media?.length ?? 0), 0);
+
+  return (
+    <div className="mt-5 border-t border-border-soft pt-5">
+      <div className="flex items-center gap-2">
+        <Download size={15} strokeWidth={1.75} className="text-accent" />
+        <h2 className="font-display text-base tracking-tight">source pack</h2>
+      </div>
+      <p className="mt-2 font-caption text-xs leading-5 text-ink-dim">
+        Downloadable evidence bundle with posts, media metadata, clusters, voices, and run
+        provenance.
+      </p>
+      <div className="mt-3 grid gap-2">
+        <SourcePackLink
+          href={sourceJsonUrl}
+          icon={<FileJson size={14} strokeWidth={1.75} />}
+          label="source json"
+          detail="posts, media, clusters, provenance"
+        />
+        <SourcePackLink
+          href={postsCsvUrl}
+          icon={<FileText size={14} strokeWidth={1.75} />}
+          label="posts csv"
+          detail="spreadsheet-friendly post index"
+        />
+      </div>
+      <details className="mt-3 rounded-sm border border-border-soft bg-surface-base p-2">
+        <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
+          metadata
+        </summary>
+        <dl className="mt-3 grid grid-cols-2 gap-2 font-mono text-2xs text-ink-dim">
+          <MetaPair label="refs" value={String(bundle.posts.length)} />
+          <MetaPair label="media" value={String(mediaCount)} />
+          <MetaPair label="clusters" value={String(bundle.themes.length)} />
+          <MetaPair label="voices" value={String(bundle.voices.length)} />
+          <MetaPair label="runs" value={String(bundle.runs.length)} />
+          <MetaPair label="query terms" value={String(bundle.event.querySet.length)} />
+          {latestRun ? <MetaPair label="latest run" value={latestRun.runId} /> : null}
+          {latestRun ? <MetaPair label="provider" value={latestRun.provider} /> : null}
+        </dl>
+      </details>
+      {debug ? (
+        <a
+          href={inspectJsonUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-border-soft px-2 py-1.5 font-mono text-xs text-ink-dim hover:border-accent hover:text-accent"
+        >
+          inspect provider JSON
+          <ExternalLink size={12} strokeWidth={1.75} />
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+function SourcePackLink({
+  href,
+  icon,
+  label,
+  detail,
+}: {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <a
+      href={href}
+      download
+      className="flex items-center gap-2 rounded-sm border border-border-soft bg-surface-base px-2 py-2 text-left hover:border-accent hover:text-accent"
+    >
+      <span className="text-accent">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-mono text-xs text-ink-muted">{label}</span>
+        <span className="block truncate font-caption text-2xs text-ink-dim">{detail}</span>
+      </span>
+    </a>
+  );
+}
+
+function MetaPair({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="uppercase">{label}</dt>
+      <dd className="mt-0.5 truncate text-ink-muted" title={value}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 interface VibeStats {
   rootRefs: number;
   contextRefs: number;
@@ -558,16 +621,10 @@ interface VibeStats {
   mediaItems: number;
   mediaPosts: number;
   localMediaItems: number;
+  videoItems: number;
   platformMix: Record<EventPlatform, number>;
   sentiment: Array<{ label: string; count: number }>;
-  media: Array<{
-    key: string;
-    url: string;
-    postUrl: string;
-    alt: string;
-    platform: EventPlatform;
-    postId: string;
-  }>;
+  media: EventMediaTile[];
 }
 
 function VibeOverview({
@@ -580,6 +637,7 @@ function VibeOverview({
   stats: VibeStats;
 }) {
   const [mediaPage, setMediaPage] = useState(0);
+  const [selectedMedia, setSelectedMedia] = useState<EventMediaTile | null>(null);
   const leadTheme = themes[0];
   const eventName = event?.canonicalName ?? event?.name ?? 'event recap';
   const headline = leadTheme?.label ?? 'Event signal';
@@ -596,6 +654,15 @@ function VibeOverview({
   useEffect(() => {
     if (mediaPage >= mediaPageCount) setMediaPage(0);
   }, [mediaPage, mediaPageCount]);
+
+  useEffect(() => {
+    if (!selectedMedia) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedMedia(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedMedia]);
 
   return (
     <section className="mb-5 overflow-hidden border-b border-border-soft pb-5">
@@ -620,7 +687,7 @@ function VibeOverview({
         <VibeMetric label="primary refs" value={formatCompact(stats.rootRefs)} detail={`${formatCompact(stats.contextRefs)} context`} />
         <VibeMetric label="known views" value={formatCompact(stats.knownViews)} detail="X + YouTube only" />
         <VibeMetric label="public reactions" value={formatCompact(stats.reactions)} detail={`${formatCompact(stats.comments)} comments`} />
-        <VibeMetric label="media assets" value={formatCompact(stats.mediaItems)} detail={`${formatCompact(stats.localMediaItems)} local`} />
+        <VibeMetric label="media assets" value={formatCompact(stats.mediaItems)} detail={`${formatCompact(stats.videoItems)} videos`} />
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
@@ -656,29 +723,15 @@ function VibeOverview({
 
       <div className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-6">
         {visibleMedia.map((item, index) => (
-          <a
+          <MediaWallTile
             key={item.key}
-            href={item.postUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`open ${item.platform} reference`}
-            title={`open ${item.platform} reference`}
-            className={`group relative overflow-hidden rounded-sm border border-border-soft bg-surface-panel ${
-              index === 0 ? 'col-span-2 row-span-2' : ''
-            }`}
-          >
-            <img
-              src={item.url}
-              alt={item.alt}
-              className="aspect-[4/3] h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
-              loading="lazy"
-            />
-            <span className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-sm border border-surface-panel/70 bg-surface-panel/80 text-ink-dim opacity-0 transition group-hover:opacity-100">
-              <ExternalLink size={12} strokeWidth={1.75} />
-            </span>
-          </a>
+            item={item}
+            featured={index === 0}
+            onPlay={setSelectedMedia}
+          />
         ))}
       </div>
+      <MediaViewer media={selectedMedia} onClose={() => setSelectedMedia(null)} />
 
       <div className="mt-4 grid gap-3 min-[1100px]:grid-cols-[1.15fr_0.85fr]">
         <div className="rounded-md border border-border-soft bg-surface-base p-3">
@@ -725,6 +778,136 @@ function VibeOverview({
         </div>
       </div>
     </section>
+  );
+}
+
+function MediaWallTile({
+  item,
+  featured,
+  onPlay,
+}: {
+  item: EventMediaTile;
+  featured: boolean;
+  onPlay: (item: EventMediaTile) => void;
+}) {
+  const playable = Boolean(item.playbackUrl || item.embedUrl);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (playable) {
+          onPlay(item);
+          return;
+        }
+        window.open(item.postUrl, '_blank', 'noopener,noreferrer');
+      }}
+      aria-label={playable ? `play ${item.platform} video` : `open ${item.platform} reference`}
+      title={playable ? `play ${item.platform} video` : `open ${item.platform} reference`}
+      className={`group relative min-h-0 overflow-hidden rounded-sm border border-border-soft bg-surface-panel text-left ${
+        featured ? 'col-span-2 row-span-2' : ''
+      }`}
+    >
+      {item.posterUrl ? (
+        <img
+          src={item.posterUrl}
+          alt={item.alt}
+          className="aspect-[4/3] h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex aspect-[4/3] h-full w-full items-center justify-center bg-surface-base text-ink-dim">
+          <Play size={featured ? 26 : 18} strokeWidth={1.75} />
+        </div>
+      )}
+      <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-sm border border-surface-panel/70 bg-surface-panel/85 px-1.5 py-1 font-mono text-2xs uppercase text-ink-dim">
+        {playable ? <Play size={11} fill="currentColor" strokeWidth={1.75} /> : null}
+        {item.type === 'video' ? 'video' : item.platform}
+      </span>
+      {item.refCount > 1 ? (
+        <span className="absolute bottom-1.5 left-1.5 rounded-sm border border-surface-panel/70 bg-surface-panel/85 px-1.5 py-1 font-mono text-2xs text-ink-dim">
+          {item.refCount} refs
+        </span>
+      ) : null}
+      <span className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-sm border border-surface-panel/70 bg-surface-panel/85 text-ink-dim opacity-0 transition group-hover:opacity-100">
+        {playable ? <Play size={12} fill="currentColor" strokeWidth={1.75} /> : <ExternalLink size={12} strokeWidth={1.75} />}
+      </span>
+    </button>
+  );
+}
+
+function MediaViewer({
+  media,
+  onClose,
+}: {
+  media: EventMediaTile | null;
+  onClose: () => void;
+}) {
+  if (!media) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="media viewer"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base/85 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl overflow-hidden rounded-md border border-border-soft bg-surface-panel shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex flex-wrap items-center gap-2 border-b border-border-soft px-3 py-2">
+          <Chip size="sm" tone={platformTone(media.platform)}>
+            {media.platform}
+          </Chip>
+          {media.refCount > 1 ? (
+            <Chip size="sm" tone="neutral">
+              {media.refCount} refs
+            </Chip>
+          ) : null}
+          <a
+            href={media.postUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto inline-flex items-center gap-1 rounded-sm border border-border-soft px-2 py-1 font-mono text-xs text-ink-dim hover:border-accent hover:text-accent"
+          >
+            source
+            <ExternalLink size={12} strokeWidth={1.75} />
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="close media viewer"
+            title="close"
+            className="grid size-7 place-items-center rounded-sm border border-border-soft text-ink-dim hover:border-accent hover:text-accent"
+          >
+            <XIcon size={14} strokeWidth={1.75} />
+          </button>
+        </div>
+        <div className="bg-black">
+          {media.embedUrl ? (
+            <iframe
+              src={media.embedUrl}
+              title={media.alt}
+              className="aspect-video w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          ) : media.playbackUrl ? (
+            <video
+              controls
+              autoPlay
+              playsInline
+              poster={media.posterUrl}
+              className="max-h-[76vh] w-full bg-black object-contain"
+            >
+              <source src={media.playbackUrl} type={videoSourceType(media.playbackUrl)} />
+            </video>
+          ) : media.posterUrl ? (
+            <img src={media.posterUrl} alt={media.alt} className="max-h-[76vh] w-full object-contain" />
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1035,6 +1218,8 @@ interface AtlasNode {
   width: number;
   mix: Record<EventPlatform, number>;
   index: number;
+  rank: number;
+  lead: boolean;
 }
 
 interface AtlasLink {
@@ -1061,7 +1246,8 @@ function ThemeLens({
   return (
     <div className="mt-4 grid gap-4">
       <ClusterAtlas clusters={clusters} selectedTheme={selectedTheme} onSelect={onSelect} />
-      {clusters.map(({ theme, cited, media, mix }) => {
+      {clusters.map(({ theme, cited, media, mix }, index) => {
+        const lead = index === 0;
         return (
           <button
             key={theme.themeId}
@@ -1071,26 +1257,36 @@ function ThemeLens({
               selectedTheme === theme.themeId
                 ? 'border-accent bg-accent/10'
                 : 'border-border-soft bg-surface-base hover:border-accent'
-            }`}
+            } ${lead ? 'grid min-[1100px]:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]' : ''}`}
           >
             {media.length ? (
-              <div className="grid grid-cols-4 gap-px bg-border-soft">
-                {media.slice(0, 4).map((item) => (
+              <div
+                className={`grid gap-px bg-border-soft ${
+                  lead ? 'grid-cols-4 min-[1100px]:grid-cols-3' : 'grid-cols-4'
+                }`}
+              >
+                {media.slice(0, lead ? 5 : 4).map((item, mediaIndex) => (
                   <img
                     key={`${theme.themeId}:${item.key}`}
                     src={item.url}
                     alt={item.alt}
-                    className="aspect-[4/3] w-full bg-surface-panel object-cover"
+                    className={`w-full bg-surface-panel object-cover ${
+                      lead && mediaIndex === 0
+                        ? 'col-span-2 row-span-2 aspect-[4/3] h-full'
+                        : 'aspect-[4/3]'
+                    }`}
                     loading="lazy"
                   />
                 ))}
               </div>
             ) : null}
-            <div className="p-4">
+            <div className={lead ? 'p-5 sm:p-6' : 'p-4'}>
               <div className="flex items-center gap-2">
-                <Sparkles size={15} strokeWidth={1.75} className="text-accent" />
-                <h3 className="font-display text-base">{theme.label}</h3>
-                <Chip size="sm" tone="neutral" className="ml-auto">
+                <Sparkles size={lead ? 18 : 15} strokeWidth={1.75} className="text-accent" />
+                <h3 className={`font-display ${lead ? 'text-2xl leading-tight' : 'text-base'}`}>
+                  {theme.label}
+                </h3>
+                <Chip size="sm" tone={lead ? 'info' : 'neutral'} className="ml-auto">
                   {theme.postIds.length} refs
                 </Chip>
               </div>
@@ -1101,9 +1297,11 @@ function ThemeLens({
                   </Chip>
                 ))}
               </div>
-              <p className="mt-3 text-sm leading-6 text-ink-muted">{theme.summary}</p>
+              <p className={`mt-3 text-ink-muted ${lead ? 'text-base leading-7' : 'text-sm leading-6'}`}>
+                {theme.summary}
+              </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {theme.keywords.slice(0, 6).map((keyword) => (
+                {theme.keywords.slice(0, lead ? 8 : 6).map((keyword) => (
                   <Chip key={keyword} size="sm" tone="neutral">
                     {keyword}
                   </Chip>
@@ -1127,46 +1325,53 @@ function ThemeLens({
 
 function buildThemeClusters(themes: EventTheme[], posts: EventPost[]): ThemeClusterView[] {
   const postById = new Map(posts.map((post) => [post.postId, post]));
-  return themes.map((theme) => {
-    const clusterPosts = theme.postIds
-      .map((postId) => postById.get(postId))
-      .filter(Boolean) as EventPost[];
-    const scoredPosts = clusterPosts
-      .map((post) => ({ post, evidenceScore: themeEvidenceScore(theme, post) }))
-      .sort(
+  return themes
+    .map((theme) => {
+      const clusterPosts = theme.postIds
+        .map((postId) => postById.get(postId))
+        .filter(Boolean) as EventPost[];
+      const scoredPosts = clusterPosts
+        .map((post) => ({ post, evidenceScore: themeEvidenceScore(theme, post) }))
+        .sort(
+          (a, b) =>
+            b.evidenceScore - a.evidenceScore ||
+            b.post.reachScore - a.post.reachScore
+        );
+      const cited = scoredPosts.map(({ post }) => post).slice(0, 8);
+      const media = uniqueMediaItems(
+        scoredPosts
+          .filter(({ evidenceScore }) => evidenceScore > 0)
+          .flatMap(({ post, evidenceScore }) =>
+            (post.media ?? [])
+              .map((item) => ({
+                key: mediaAssetKey(item),
+                post,
+                evidenceScore,
+                url: mediaDisplayUrl(post, item),
+                alt: item.altText ?? post.authorHandle ?? post.authorName,
+                type: item.type,
+              }))
+              .filter(isRenderableMedia)
+          )
+      ).sort(
         (a, b) =>
           b.evidenceScore - a.evidenceScore ||
           b.post.reachScore - a.post.reachScore
       );
-    const cited = scoredPosts.map(({ post }) => post).slice(0, 8);
-    const media = uniqueMediaItems(
-      scoredPosts
-        .filter(({ evidenceScore }) => evidenceScore > 0)
-        .flatMap(({ post, evidenceScore }) =>
-          (post.media ?? [])
-            .map((item) => ({
-              key: mediaAssetKey(item),
-              post,
-              evidenceScore,
-              url: mediaDisplayUrl(post, item),
-              alt: item.altText ?? post.authorHandle ?? post.authorName,
-              type: item.type,
-            }))
-            .filter(isRenderableMedia)
-        )
-    ).sort(
+      return {
+        theme,
+        posts: clusterPosts,
+        cited,
+        media,
+        mix: platformMix(clusterPosts),
+      };
+    })
+    .sort(
       (a, b) =>
-        b.evidenceScore - a.evidenceScore ||
-        b.post.reachScore - a.post.reachScore
+        b.posts.length - a.posts.length ||
+        b.theme.score - a.theme.score ||
+        a.theme.label.localeCompare(b.theme.label)
     );
-    return {
-      theme,
-      posts: clusterPosts,
-      cited,
-      media,
-      mix: platformMix(clusterPosts),
-    };
-  });
 }
 
 function themeEvidenceScore(theme: EventTheme, post: EventPost): number {
@@ -1262,20 +1467,32 @@ function ClusterAtlas({
                 top: `${node.y * 100}%`,
                 width: `${node.width}px`,
               }}
-              className={`absolute min-h-24 -translate-x-1/2 -translate-y-1/2 rounded-md border p-3 text-left shadow-sm transition ${
+              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-md border text-left shadow-sm transition ${
+                node.lead ? 'min-h-36 p-4 shadow-lg' : 'min-h-24 p-3'
+              } ${
                 active
                   ? 'border-accent bg-accent/10'
-                  : 'border-border-soft bg-surface-base/95 hover:border-accent'
+                  : node.lead
+                    ? 'border-accent/60 bg-surface-base hover:border-accent'
+                    : 'border-border-soft bg-surface-base/95 hover:border-accent'
               }`}
             >
               <div className="flex items-start gap-2">
                 <span
-                  className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${clusterAccent(node.index)}`}
+                  className={`mt-1 shrink-0 rounded-full ${node.lead ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5'} ${clusterAccent(node.index)}`}
                 />
-                <h3 className="min-w-0 flex-1 break-words font-display text-sm leading-5">
+                <h3
+                  className={`min-w-0 flex-1 break-words font-display ${
+                    node.lead ? 'text-2xl leading-7' : 'text-sm leading-5'
+                  }`}
+                >
                   {node.label}
                 </h3>
-                <span className="font-mono text-xs text-ink-dim">{node.count}</span>
+                <span
+                  className={`font-mono text-ink-dim ${node.lead ? 'text-sm' : 'text-xs'}`}
+                >
+                  {node.count}
+                </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {Object.entries(node.mix)
@@ -1336,17 +1553,23 @@ function buildAtlasLayout(clusters: ThemeClusterView[]): {
   const vectors = buildClusterVectors(clusters);
   const maxRefs = Math.max(...clusters.map((cluster) => cluster.posts.length), 1);
   const nodes: AtlasNode[] = clusters.map((cluster, index) => {
-    const angle = (index / Math.max(1, clusters.length)) * Math.PI * 2 - Math.PI / 2;
-    const radius = 0.34;
+    const lead = index === 0;
+    const orbitIndex = Math.max(0, index - 1);
+    const orbitCount = Math.max(1, clusters.length - 1);
+    const angle = (orbitIndex / orbitCount) * Math.PI * 2 - Math.PI / 2;
+    const radius = 0.36 + (orbitIndex % 2) * 0.04;
+    const scale = cluster.posts.length / maxRefs;
     return {
       themeId: cluster.theme.themeId,
       label: cluster.theme.label,
       count: cluster.posts.length,
-      x: 0.5 + Math.cos(angle) * radius,
-      y: 0.5 + Math.sin(angle) * radius,
-      width: 170 + Math.round((cluster.posts.length / maxRefs) * 42),
+      x: lead ? 0.5 : 0.5 + Math.cos(angle) * radius,
+      y: lead ? 0.5 : 0.5 + Math.sin(angle) * radius,
+      width: lead ? 330 : 150 + Math.round(scale * 54),
       mix: cluster.mix,
       index,
+      rank: index + 1,
+      lead,
     };
   });
 
@@ -1376,8 +1599,13 @@ function buildAtlasLayout(clusters: ThemeClusterView[]): {
       pair.target.y -= moveY;
     }
     for (const node of nodes) {
-      node.x += (0.5 - node.x) * 0.004;
-      node.y += (0.5 - node.y) * 0.004;
+      if (node.lead) {
+        node.x = 0.5;
+        node.y = 0.5;
+        continue;
+      }
+      node.x += (0.5 - node.x) * 0.002;
+      node.y += (0.5 - node.y) * 0.002;
       node.x = clamp(node.x, 0.14, 0.86);
       node.y = clamp(node.y, 0.12, 0.88);
     }
@@ -1601,18 +1829,44 @@ function mediaAssetKey(item: PostMediaItem): string {
   return normalizeMediaIdentity(item.previewUrl ?? item.url ?? item.localPath ?? '');
 }
 
-function mediaDisplayUrl(post: EventPost, item: PostMediaItem): string {
-  if (process.env.NODE_ENV === 'production') return item.previewUrl ?? item.url;
-  const localUrl = localImageMediaUrl(post.eventId, item);
-  return localUrl ?? item.previewUrl ?? item.url;
+function resolveEventMediaUrl(
+  post: EventPost,
+  item: PostMediaItem,
+  target: EventMediaUrlTarget
+): string | undefined {
+  if (target === 'playback') return mediaPlaybackUrl(post, item);
+  return mediaPosterUrl(post, item);
 }
 
-function localImageMediaUrl(eventId: string, item: PostMediaItem): string | undefined {
-  if (!item.localPath || !isLocalImageMedia(item)) return undefined;
+function mediaDisplayUrl(post: EventPost, item: PostMediaItem): string {
+  return mediaPosterUrl(post, item) ?? item.url;
+}
+
+function mediaPosterUrl(post: EventPost, item: PostMediaItem): string | undefined {
+  if (item.previewUrl) return item.previewUrl;
+  if (!isLocalImageMedia(item)) return isImageUrl(item.url) ? item.url : undefined;
+  if (process.env.NODE_ENV !== 'production') {
+    const localUrl = localEventMediaUrl(post.eventId, item);
+    if (localUrl) return localUrl;
+  }
+  return item.url;
+}
+
+function mediaPlaybackUrl(post: EventPost, item: PostMediaItem): string | undefined {
+  if (!isPlayableVideoMedia(item)) return undefined;
+  return localEventMediaUrl(post.eventId, item) ?? item.url;
+}
+
+function localEventMediaUrl(eventId: string, item: PostMediaItem): string | undefined {
+  if (!item.localPath) return undefined;
   const marker = '/outputs/';
   const index = item.localPath.indexOf(marker);
-  if (index < 0) return undefined;
-  const relativePath = item.localPath.slice(index + marker.length);
+  const relativePath =
+    index >= 0
+      ? item.localPath.slice(index + marker.length)
+      : item.localPath.startsWith('outputs/')
+        ? item.localPath.slice('outputs/'.length)
+        : item.localPath;
   if (!relativePath.includes('/media/')) return undefined;
   return `/api/events/${encodeURIComponent(eventId)}/media?path=${encodeURIComponent(relativePath)}`;
 }
@@ -1620,6 +1874,27 @@ function localImageMediaUrl(eventId: string, item: PostMediaItem): string | unde
 function isLocalImageMedia(item: PostMediaItem): boolean {
   if (item.contentType?.startsWith('image/')) return true;
   return /\.(jpe?g|png|webp|gif|avif)$/i.test(item.localPath ?? '');
+}
+
+function isPlayableVideoMedia(item: PostMediaItem): boolean {
+  if (item.type === 'video') return true;
+  if (item.contentType?.startsWith('video/')) return true;
+  return isVideoUrl(item.url) || isVideoUrl(item.localPath);
+}
+
+function isImageUrl(value?: string): boolean {
+  return /\.(jpe?g|png|webp|gif|avif)(?:$|\?)/i.test(value ?? '');
+}
+
+function isVideoUrl(value?: string): boolean {
+  return /\.(mp4|mov|webm|m4v)(?:$|\?)/i.test(value ?? '');
+}
+
+function videoSourceType(value: string): string {
+  const pathname = value.split('?')[0].toLowerCase();
+  if (pathname.endsWith('.webm')) return 'video/webm';
+  if (pathname.endsWith('.mov')) return 'video/quicktime';
+  return 'video/mp4';
 }
 
 function normalizeMediaIdentity(value: string): string {
@@ -1675,31 +1950,15 @@ function summarizeVibes(
     (sum, post) => sum + (post.media ?? []).filter((media) => media.localPath).length,
     0
   );
-  const media = uniqueMediaItems(
-    posts
-      .flatMap((post) =>
-        (post.media ?? []).map((item) => ({
-          key: mediaAssetKey(item),
-          url: mediaDisplayUrl(post, item),
-          postUrl: post.url,
-          alt: item.altText ?? post.authorHandle ?? post.authorName,
-          platform: post.platform,
-          postId: post.postId,
-          reachScore: post.reachScore,
-          type: item.type,
-        }))
-      )
-      .filter(isRenderableMedia)
-  )
-    .sort((a, b) => b.reachScore - a.reachScore)
-    .map(({ key, url, postUrl, alt, platform, postId }) => ({
-      key,
-      url,
-      postUrl,
-      alt,
-      platform,
-      postId,
-    }));
+  const videoItems = posts.reduce(
+    (sum, post) =>
+      sum +
+      (post.media ?? []).filter(
+        (media) => media.type === 'video' || media.contentType?.startsWith('video/')
+      ).length,
+    0
+  );
+  const media = buildEventMediaTiles(posts, { resolveMediaUrl: resolveEventMediaUrl });
 
   return {
     rootRefs,
@@ -1714,6 +1973,7 @@ function summarizeVibes(
     mediaItems,
     mediaPosts,
     localMediaItems,
+    videoItems,
     platformMix,
     sentiment: sentimentCounts(posts),
     media,
