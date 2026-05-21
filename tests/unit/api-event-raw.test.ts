@@ -22,18 +22,24 @@ describe('/api/events/[eventId]/raw', () => {
 
   it('exports raw JSON with metadata and tracks download metadata', async () => {
     mocks.getEventBundle.mockResolvedValueOnce(bundle());
+    mocks.recordEventRawAccess.mockResolvedValueOnce('raw_test_access');
     const { GET } = await import('@/app/api/events/[eventId]/raw/route');
     const res = await GET(
       new Request('http://localhost/api/events/ai-engineer-singapore/raw?format=json&scope=raw', {
         headers: {
           'user-agent': 'vitest',
+          'accept-language': 'en-SG,en;q=0.9',
           'cf-connecting-ip': '203.0.113.10',
+          'cf-ipcountry': 'SG',
+          'cf-colo': 'SIN',
+          'cf-ray': 'test-ray',
         },
       }),
       { params: Promise.resolve({ eventId: 'ai-engineer-singapore' }) }
     );
 
     expect(res.status).toBe(200);
+    expect(res.headers.get('x-aether-access-id')).toBe('raw_test_access');
     expect(res.headers.get('content-disposition')).toContain('ai-engineer-singapore-source-pack.json');
     const json = await res.json();
     expect(json.metadata).toMatchObject({
@@ -51,8 +57,16 @@ describe('/api/events/[eventId]/raw', () => {
         scope: 'raw',
         postCount: 1,
         mediaCount: 1,
+        schemaVersion: 'event-recap.raw.v1',
+        latestRunId: 'run_1',
+        requestPath: '/api/events/ai-engineer-singapore/raw',
+        requestQuery: 'format=json&scope=raw',
         userAgent: 'vitest',
+        acceptLanguage: 'en-SG,en;q=0.9',
         ip: '203.0.113.10',
+        cfCountry: 'SG',
+        cfColo: 'SIN',
+        cfRay: 'test-ray',
       })
     );
   });

@@ -10,9 +10,19 @@ export interface EventRawAccessInput {
   scope: EventRawExportScope;
   postCount: number;
   mediaCount: number;
+  schemaVersion: string;
+  latestRunId?: string;
+  requestPath: string;
+  requestQuery: string;
   userAgent?: string;
+  acceptLanguage?: string;
+  browserPlatform?: string;
+  browserBrands?: string;
   referer?: string;
   ip?: string;
+  cfCountry?: string;
+  cfColo?: string;
+  cfRay?: string;
 }
 
 const eventRecapsApi = (anyApi as unknown as {
@@ -35,7 +45,7 @@ function convexClient(): ConvexHttpClient | null {
   return client;
 }
 
-export async function recordEventRawAccess(input: EventRawAccessInput): Promise<void> {
+export async function recordEventRawAccess(input: EventRawAccessInput): Promise<string> {
   const convex = convexClient();
   const record = {
     accessId: `raw_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
@@ -45,15 +55,26 @@ export async function recordEventRawAccess(input: EventRawAccessInput): Promise<
     scope: input.scope,
     postCount: input.postCount,
     mediaCount: input.mediaCount,
+    schemaVersion: input.schemaVersion.slice(0, 80),
+    latestRunId: input.latestRunId?.slice(0, 120),
+    requestPath: input.requestPath.slice(0, 240),
+    requestQuery: input.requestQuery.slice(0, 500),
     userAgent: input.userAgent?.slice(0, 180),
+    acceptLanguage: input.acceptLanguage?.slice(0, 120),
+    browserPlatform: input.browserPlatform?.slice(0, 80),
+    browserBrands: input.browserBrands?.slice(0, 180),
     referer: input.referer?.slice(0, 240),
     ipHash: input.ip ? hashIp(input.ip) : undefined,
+    visitorHash: visitorHash(input),
+    cfCountry: input.cfCountry?.slice(0, 8),
+    cfColo: input.cfColo?.slice(0, 16),
+    cfRay: input.cfRay?.slice(0, 80),
     createdAt: Date.now(),
   };
 
   if (!convex) {
     memoryAccessLog().push(record);
-    return;
+    return record.accessId;
   }
 
   try {
@@ -62,11 +83,24 @@ export async function recordEventRawAccess(input: EventRawAccessInput): Promise<
     console.error('[event-recap/access-log] recordRawAccess Convex write failed', err);
     memoryAccessLog().push(record);
   }
+  return record.accessId;
 }
 
 function hashIp(ip: string): string {
   const salt = process.env.EVENT_ACCESS_LOG_SALT?.trim() ?? '';
   return `sha256:${createHash('sha256').update(salt).update(ip).digest('hex')}`;
+}
+
+function visitorHash(input: EventRawAccessInput): string | undefined {
+  const parts = [
+    input.ip?.trim(),
+    input.userAgent?.trim(),
+    input.acceptLanguage?.trim(),
+    input.browserPlatform?.trim(),
+  ].filter(Boolean);
+  if (!parts.length) return undefined;
+  const salt = process.env.EVENT_ACCESS_LOG_SALT?.trim() ?? '';
+  return `sha256:${createHash('sha256').update(salt).update(parts.join('|')).digest('hex')}`;
 }
 
 function memoryAccessLog(): unknown[] {
