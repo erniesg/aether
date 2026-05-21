@@ -19,6 +19,24 @@ export default {
     if (url.pathname === '/vibes/aie2026/data') {
       const object = await env.AETHER_ASSETS.get(DATA_KEY);
       if (!object) return json({ ok: false, error: 'recap data not found' }, 404);
+      const format = url.searchParams.get('format');
+      const download = url.searchParams.get('download') === '1';
+      if (format && format !== 'json' && format !== 'csv') {
+        return json({ ok: false, error: 'unsupported format' }, 400);
+      }
+      if (format || download) {
+        const data = JSON.parse(await objectText(object));
+        const exportFormat = format === 'csv' ? 'csv' : 'json';
+        const accessId = logEvidenceAccess(request, url, data, exportFormat, download);
+        if (exportFormat === 'csv') {
+          return new Response(postsCsv(data.posts || []), {
+            headers: exportHeaders('text/csv; charset=utf-8', 'ai-engineer-singapore-posts.csv', download, accessId),
+          });
+        }
+        return new Response(JSON.stringify(sourcePack(data), null, 2), {
+          headers: exportHeaders('application/json; charset=utf-8', 'ai-engineer-singapore-source.json', download, accessId),
+        });
+      }
       return new Response(object.body, {
         headers: {
           'cache-control': 'public, max-age=120',
@@ -52,6 +70,104 @@ export default {
     return new Response('Not found', { status: 404 });
   },
 };
+
+async function objectText(object: { body: ReadableStream; text?: () => Promise<string> }): Promise<string> {
+  if (object.text) return object.text();
+  return new Response(object.body).text();
+}
+
+function exportHeaders(contentType: string, filename: string, download: boolean, accessId: string): HeadersInit {
+  return {
+    'cache-control': 'private, no-store',
+    'content-type': contentType,
+    'x-aether-access-id': accessId,
+    ...(download ? { 'content-disposition': `attachment; filename="${filename}"` } : {}),
+  };
+}
+
+function logEvidenceAccess(
+  request: Request,
+  url: URL,
+  data: Record<string, any>,
+  format: string,
+  download: boolean
+): string {
+  const accessId = `raw_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  const mediaItems = posts.reduce((count, post) => count + (Array.isArray(post.media) ? post.media.length : 0), 0);
+  console.log(
+    '[aie2026/evidence-access]',
+    JSON.stringify({
+      accessId,
+      action: download ? 'download' : 'inspect',
+      format,
+      path: url.pathname,
+      query: url.searchParams.toString(),
+      postCount: posts.length,
+      mediaCount: mediaItems,
+      userAgent: request.headers.get('user-agent')?.slice(0, 180),
+      referer: request.headers.get('referer')?.slice(0, 240),
+      acceptLanguage: request.headers.get('accept-language')?.slice(0, 120),
+      cfCountry: request.headers.get('cf-ipcountry')?.slice(0, 8),
+      cfRay: request.headers.get('cf-ray')?.slice(0, 80),
+      createdAt: Date.now(),
+    })
+  );
+  return accessId;
+}
+
+function sourcePack(data: Record<string, any>): Record<string, any> {
+  const posts = Array.isArray(data.posts) ? data.posts : [];
+  return {
+    metadata: {
+      schemaVersion: 'aie2026.public-source.v1',
+      exportedAt: new Date().toISOString(),
+      source: 'aether.berlayar.ai/vibes/aie2026',
+      postCount: posts.length,
+      mediaCount: posts.reduce((count, post) => count + (Array.isArray(post.media) ? post.media.length : 0), 0),
+      themeCount: Array.isArray(data.themes) ? data.themes.length : 0,
+    },
+    event: data.event,
+    summary: data.summary,
+    themes: data.themes,
+    posts,
+  };
+}
+
+function postsCsv(posts: Record<string, any>[]): string {
+  const headers = [
+    'postId',
+    'platform',
+    'authorHandle',
+    'authorName',
+    'postedAt',
+    'url',
+    'text',
+    'reachScore',
+    'mediaCount',
+    'storyType',
+    'sentiment',
+  ];
+  const rows = posts.map((post) =>
+    headers
+      .map((key) => {
+        const value =
+          key === 'mediaCount'
+            ? Array.isArray(post.media)
+              ? post.media.length
+              : 0
+            : post[key] ?? '';
+        return csvCell(value);
+      })
+      .join(',')
+  );
+  return `${headers.join(',')}\n${rows.join('\n')}\n`;
+}
+
+function csvCell(value: unknown): string {
+  const text = Array.isArray(value) || (value && typeof value === 'object') ? JSON.stringify(value) : String(value ?? '');
+  return `"${text.replaceAll('"', '""')}"`;
+}
 
 function json(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
@@ -128,9 +244,9 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
         <p class="eyebrow">evidence</p>
         <p>Download the auditable source pack without leaving the published report.</p>
         <div class="evidence-actions">
-          <a href="/api/events/ai-engineer-singapore/raw?format=json&scope=posts&download=1">source json</a>
-          <a href="/api/events/ai-engineer-singapore/raw?format=csv&scope=posts&download=1">posts csv</a>
-          <a class="debug-only" href="/api/events/ai-engineer-singapore/raw?format=json&scope=raw&download=0" target="_blank" rel="noreferrer">provider json</a>
+          <a href="/vibes/aie2026/data?format=json&download=1">source json</a>
+          <a href="/vibes/aie2026/data?format=csv&download=1">posts csv</a>
+          <a class="debug-only" href="/vibes/aie2026/data?format=json" target="_blank" rel="noreferrer">inspect json</a>
         </div>
       </div>
     </div>
