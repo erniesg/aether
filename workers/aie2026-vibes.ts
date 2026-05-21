@@ -72,13 +72,14 @@ function contentType(key: string): string {
   return 'application/octet-stream';
 }
 
-function renderHtml(): string {
+export function renderHtml(): string {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Engineer Singapore vibes</title>
+<script>if(location.search.includes('debug=1'))document.documentElement.classList.add('debug')</script>
 <style>
 :root{color-scheme:light;--bg:#fbfaf7;--panel:#fffdfa;--ink:#24211f;--muted:#706960;--dim:#9b9186;--line:#e9e1d7;--accent:#de7340;--soft:#f4eee7}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -86,6 +87,7 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
 .side{position:sticky;top:24px;max-height:calc(100dvh - 48px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border:1px solid var(--line);background:var(--panel);padding:22px}.eyebrow,.chip,.meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em}
 .eyebrow{font-size:12px;color:var(--dim)}h1{font-family:Georgia,serif;font-size:clamp(32px,3vw,42px);line-height:1.04;margin:10px 0 16px;overflow-wrap:anywhere}h2{font-family:Georgia,serif;font-size:28px;line-height:1.14;margin:0}h3{font-family:Georgia,serif;font-size:22px;line-height:1.18;margin:0}
 .meta{font-size:12px;color:var(--muted)}.method{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}.method summary{cursor:pointer}.method-line{display:grid;gap:2px;margin:10px 0 0;color:var(--muted);font-size:13px;line-height:1.35}.method-line b{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em;color:#514b45}.method-facts{display:grid;gap:7px;margin-top:12px}.method-facts span{border:1px solid var(--line);background:#fff;padding:7px 9px;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.method details details{margin-top:10px}.method details details summary{font-size:11px}.method ul{max-height:180px;overflow:auto;margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12px}.method li{margin:4px 0}.method code{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.evidence{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}.evidence p{margin:4px 0 0;color:var(--muted);font-size:13px;line-height:1.35}.evidence-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.evidence-actions a{border:1px solid var(--line);background:#fff;padding:6px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;text-decoration:none;color:var(--muted)}.evidence-actions a:hover{border-color:var(--accent);color:var(--accent)}.debug-only{display:none}html.debug .debug-only{display:inline-block}
 .main{min-width:0}.hero{border:1px solid var(--line);background:var(--panel);padding:24px}.lede{max-width:none;font-size:18px;color:#5b554e;margin:10px 0 0}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 .chip{border:1px solid var(--line);border-radius:999px;background:#fff;padding:4px 10px;font-size:12px;color:#6f655c}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:22px}
 .freshness{margin:10px 0 0;color:var(--muted);font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em}
@@ -122,6 +124,15 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
         <p class="method-line"><b>Reach</b><span>X/YouTube views; LinkedIn public engagement.</span></p>
         <div id="methodDetails"></div>
       </details>
+      <div class="evidence">
+        <p class="eyebrow">evidence</p>
+        <p>Download the auditable source pack without leaving the published report.</p>
+        <div class="evidence-actions">
+          <a href="/api/events/ai-engineer-singapore/raw?format=json&scope=posts&download=1">source json</a>
+          <a href="/api/events/ai-engineer-singapore/raw?format=csv&scope=posts&download=1">posts csv</a>
+          <a class="debug-only" href="/api/events/ai-engineer-singapore/raw?format=json&scope=raw&download=0" target="_blank" rel="noreferrer">provider json</a>
+        </div>
+      </div>
     </div>
   </aside>
   <main class="main">
