@@ -31,6 +31,18 @@ const tool: Anthropic.Messages.Tool = {
         type: 'number',
         description: 'Maximum expansion source queries to use. Default comes from the event settings.',
       },
+      extraQuerySet: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Creator-reviewed keywords, hashtags, account queries, or source-derived terms to merge into this refresh.',
+      },
+      sourceUrls: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Creator-reviewed source links used as auditable seed context for this refresh.',
+      },
       maxSearchPagesPerQuery: {
         type: 'number',
         description:

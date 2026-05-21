@@ -374,14 +374,15 @@ function toAnchor(candidate: Candidate, eventName: string): EventExpansionAnchor
 }
 
 function queryForAnchor(candidate: Candidate, eventName: string): string {
+  const isAiEngineer = /\bai\s*engineer\b/i.test(eventName);
   if (/^@?aiDotEngineer$/i.test(candidate.value) || /ai\.engineer/i.test(candidate.value)) {
     return '@aiDotEngineer Singapore';
   }
   if (candidate.kind === 'query') return queryForPhrase(candidate.value, eventName);
-  if (candidate.kind === 'hashtag') return `${candidate.value} Singapore`;
-  if (candidate.kind === 'mention') return `${candidate.value} Singapore`;
+  if (candidate.kind === 'hashtag') return isAiEngineer ? `${candidate.value} Singapore` : `${candidate.value} "${eventName}"`;
+  if (candidate.kind === 'mention') return isAiEngineer ? `${candidate.value} Singapore` : `${candidate.value} "${eventName}"`;
   if (candidate.kind === 'author') return `${candidate.value} "${eventName}"`;
-  return `${candidate.value} "AI Engineer" Singapore`;
+  return isAiEngineer ? `${candidate.value} "AI Engineer" Singapore` : `${candidate.value} "${eventName}"`;
 }
 
 function queryForPhrase(value: string, eventName: string): string {

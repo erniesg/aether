@@ -23,6 +23,19 @@ describe('event recap seed frontier', () => {
     });
   });
 
+  it('does not inject AI Engineer-specific seed queries for generic vibe research', () => {
+    const plan = deriveSeedFrontier({
+      eventName: 'Nothing Phone launch',
+      contextHint: 'camera samples, preorder reactions, creator posts',
+      officialUrl: 'https://nothing.tech/',
+    });
+
+    expect(plan.querySet).not.toContain('"AI engineer" Singapore');
+    expect(plan.querySet).toEqual(
+      expect.arrayContaining(['Nothing Phone launch', '"Nothing Phone launch"'])
+    );
+  });
+
   it('fans out official keynote speaker names into reusable search anchors', () => {
     const plan = deriveSeedFrontier({
       eventName: 'AI Engineer Singapore',

@@ -88,6 +88,32 @@ describe('event recap expansion planning', () => {
     expect(agentic?.query).toBe('#AgenticAI Singapore');
   });
 
+  it('keeps generic product expansion queries scoped to the subject', () => {
+    const posts = scorePostsByPlatform([
+      post({
+        postId: 'x_camera',
+        platform: 'x',
+        eventId: 'nothing-phone-launch',
+        authorName: 'Phone Reviewer',
+        authorHandle: 'phonereviewer',
+        text: 'Nothing Phone launch samples are all about #ShotOnNothing and Creator Kit clips.',
+        metrics: { likes: 30, reposts: 4, views: 5000 },
+      }),
+    ]);
+
+    const plan = deriveExpansionPlan('Nothing Phone launch', posts, {
+      maxAnchors: 10,
+      maxQueries: 8,
+    });
+    const creatorKit = plan.anchors.find((anchor) => anchor.value === 'Creator Kit');
+
+    expect(plan.querySet.join('\n')).not.toMatch(/AI Engineer/);
+    expect(creatorKit?.query).toBe('Creator Kit "Nothing Phone launch"');
+    expect(plan.anchors.find((anchor) => anchor.value === '#ShotOnNothing')?.query).toBe(
+      '#ShotOnNothing "Nothing Phone launch"'
+    );
+  });
+
   it('mines corpus phrase clues from sampled posts into follow-on queries', () => {
     const posts = scorePostsByPlatform([
       post({

@@ -51,6 +51,8 @@ interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   name?: string;
   eventId: string;
   platforms?: EventPlatform[];
+  extraQuerySet?: string[];
+  sourceUrls?: string[];
   targetItemsPerPlatform?: number;
   dedupeAgainstExisting?: boolean;
   linkedinMode?: LinkedInRefreshMode;
@@ -77,22 +79,32 @@ interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
 }
 
 export async function createEventRecap(
-  input: Partial<EventRecapConfig> & { name: string }
+  input: Partial<EventRecapConfig> & {
+    name: string;
+    initialQuerySet?: string[];
+    sourceUrls?: string[];
+  }
 ): Promise<EventRecapRecord> {
   const config = clampConfig(input);
   const now = Date.now();
   const existing = await getEventBundle(config.eventId);
   if (existing?.event) return existing.event;
+  const seedFrontier = deriveSeedFrontier({
+    eventName: config.name,
+    contextHint: config.contextHint,
+    sourceUrls: input.sourceUrls,
+    maxQueries: Math.max(12, Math.min(input.initialQuerySet?.length ?? 12, 32)),
+  });
 
   const event: EventRecapRecord = {
     ...config,
     status: 'draft',
     usedCredits: 0,
-    querySet: deriveSeedFrontier({
-      eventName: config.name,
-      contextHint: config.contextHint,
-    }).querySet,
-    sourceUrls: [],
+    querySet: normalizeQuerySet(
+      [...(input.initialQuerySet ?? []), ...seedFrontier.querySet],
+      Math.max(24, input.initialQuerySet?.length ?? 0)
+    ),
+    sourceUrls: normalizeQuerySet(input.sourceUrls ?? [], 50),
     createdAt: now,
     updatedAt: now,
   };
@@ -140,8 +152,12 @@ export async function refreshEventRecap(
     daysAfter: config.daysAfter,
   });
   const activeQuerySet = normalizeQuerySet(
-    [...resolution.querySet, ...(base?.querySet ?? [])],
-    Math.max(input.maxQueries ?? 24, 24)
+    [...resolution.querySet, ...(base?.querySet ?? []), ...(input.extraQuerySet ?? [])],
+    Math.max(input.maxQueries ?? 24, input.extraQuerySet?.length ?? 0, 24)
+  );
+  const activeSourceUrls = normalizeQuerySet(
+    [...resolution.sourceUrls, ...(base?.sourceUrls ?? []), ...(input.sourceUrls ?? [])],
+    100
   );
   const platforms = sanitizePlatforms(input.platforms);
   const targetItemsPerPlatform = clampOptionalTarget(input.targetItemsPerPlatform);
@@ -192,7 +208,7 @@ export async function refreshEventRecap(
       startsAt: resolution.startsAt,
       endsAt: resolution.endsAt,
       querySet: activeQuerySet,
-      sourceUrls: resolution.sourceUrls,
+      sourceUrls: activeSourceUrls,
       usedCredits,
       nextRefreshAt: nextRefreshAt(config.refreshIntervalHours),
       updatedAt: Date.now(),
@@ -234,7 +250,7 @@ export async function refreshEventRecap(
     startsAt: resolution.startsAt,
     endsAt: resolution.endsAt,
     querySet: activeQuerySet,
-    sourceUrls: resolution.sourceUrls,
+    sourceUrls: activeSourceUrls,
     updatedAt: Date.now(),
   });
   await saveEvent(refreshingEvent);
@@ -243,7 +259,12 @@ export async function refreshEventRecap(
     const platformResults =
       config.liveMode === 'mock'
         ? platforms.map((platform) =>
-            mockScrapePlatform(platform, config.eventId, runId, platformBudgets[platform] ?? config.maxItemsPerPlatform)
+            mockScrapePlatform(
+              platform,
+              config.eventId,
+              runId,
+              platformBudgets[platform] ?? config.maxItemsPerPlatform
+            )
           )
         : await Promise.all(
             platforms.map(async (platform) => {
@@ -393,7 +414,7 @@ export async function refreshEventRecap(
     const merged = mergePosts(previousPosts, posts);
     const expansion = deriveExpansionPlan(resolution.canonicalName ?? config.name, merged, {
       baseQueries: activeQuerySet,
-      maxQueries: 12,
+      maxQueries: Math.max(12, Math.min(activeQuerySet.length + 12, 48)),
     });
     const relevantMerged = merged.filter((post) => !post.tags.includes('irrelevant:event'));
     const analysis = analyzePosts(config.eventId, relevantMerged);
@@ -438,7 +459,7 @@ export async function refreshEventRecap(
       startsAt: resolution.startsAt,
       endsAt: resolution.endsAt,
       querySet: expansion.querySet,
-      sourceUrls: resolution.sourceUrls,
+      sourceUrls: activeSourceUrls,
       usedCredits: usedCredits + estimatedCredits,
       lastRunAt: finishedRun.finishedAt,
       nextRefreshAt: nextRefreshAt(config.refreshIntervalHours),

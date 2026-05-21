@@ -10,6 +10,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -41,6 +46,8 @@ export async function POST(request: Request) {
           ? body.monthlyCreditBudget
           : undefined,
       liveMode: body.liveMode === 'tinyfish' ? 'tinyfish' : 'mock',
+      initialQuerySet: stringArray(body.initialQuerySet ?? body.querySet),
+      sourceUrls: stringArray(body.sourceUrls),
     });
 
     const shouldRefresh = body.refresh !== false;
@@ -56,6 +63,8 @@ export async function POST(request: Request) {
           ? body.targetItemsPerPlatform
           : undefined,
       maxQueries: typeof body.maxQueries === 'number' ? body.maxQueries : undefined,
+      extraQuerySet: stringArray(body.extraQuerySet ?? body.querySet ?? body.initialQuerySet),
+      sourceUrls: stringArray(body.sourceUrls),
       maxSearchPagesPerQuery:
         typeof body.maxSearchPagesPerQuery === 'number'
           ? body.maxSearchPagesPerQuery

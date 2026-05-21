@@ -34,6 +34,7 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
   const maxQueries = input.maxQueries ?? 12;
   const eventName = input.eventName.trim();
   const context = input.contextHint?.trim();
+  const aiEngineerSignal = /\bai\s*engineer\b/i.test(`${eventName} ${context ?? ''}`);
   const anchors: EventExpansionAnchor[] = [
     anchor({
       kind: 'query',
@@ -63,15 +64,20 @@ export function deriveSeedFrontier(input: SeedFrontierInput): EventExpansionPlan
           }),
         ]
       : []),
-    anchor({
-      kind: 'query',
-      sourceKind: 'broad-public-search',
-      value: '"AI engineer" Singapore',
-      query: '"AI engineer" Singapore',
-      score: 68,
-      bias: 'topic keyword search; mixes event conversation with general role/career posts',
-    }),
   ];
+
+  if (aiEngineerSignal) {
+    anchors.push(
+      anchor({
+        kind: 'query',
+        sourceKind: 'broad-public-search',
+        value: '"AI engineer" Singapore',
+        query: '"AI engineer" Singapore',
+        score: 68,
+        bias: 'topic keyword search; mixes event conversation with general role/career posts',
+      })
+    );
+  }
 
   if (/\bai\s*engineer\b/i.test(eventName)) {
     anchors.push(
