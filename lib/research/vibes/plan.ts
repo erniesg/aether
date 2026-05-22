@@ -150,6 +150,8 @@ export function buildVibesPlan(input: BuildVibesPlanInput): VibesPlan {
   const sourceLinks = normalizeUrls([...(input.sourceLinks ?? []), ...extracted.sourceLinks]);
   const accounts = normalizeAccounts([...(input.accounts ?? []), ...extracted.accounts]);
   const hashtags = normalizeHashtags([...(input.hashtags ?? []), ...extracted.hashtags]);
+  const hashtagBareTokens = new Set(hashtags.map((tag) => tag.replace(/^#/, '').toLowerCase()));
+  const accountBareTokens = new Set(accounts.map((account) => account.replace(/^@/, '').toLowerCase()));
   const keywords = normalizeQuerySet(
     [
       subject,
@@ -159,7 +161,10 @@ export function buildVibesPlan(input: BuildVibesPlanInput): VibesPlan {
       ...accounts.map((account) => account.replace(/^@/, '')),
     ],
     18
-  );
+  ).filter((keyword) => {
+    const lower = keyword.toLowerCase();
+    return !hashtagBareTokens.has(lower) && !accountBareTokens.has(lower);
+  });
   const platforms = normalizePlatforms(input.platforms);
   const contextHint = buildContextHint({
     brief,

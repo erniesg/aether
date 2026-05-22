@@ -26,6 +26,31 @@ describe('vibes research planning', () => {
     ]);
   });
 
+  it('deduplicates keywords derived from hashtag/account bare tokens', () => {
+    const plan = buildVibesPlan({
+      brief:
+        'Track AI Engineer Summit Singapore across X and LinkedIn. Add @aiDotEngineer, #AIE2026, workshops, side events, sponsor booths.',
+      platforms: ['x', 'linkedin'],
+    });
+
+    // hashtags/accounts chips must remain intact
+    expect(plan.hashtags).toContain('#AIE2026');
+    expect(plan.accounts).toContain('@aiDotEngineer');
+
+    // the bare token must NOT appear as a keyword chip
+    const lowerKeywords = plan.keywords.map((k) => k.toLowerCase());
+    expect(lowerKeywords).not.toContain('aie2026');
+    expect(lowerKeywords).not.toContain('aidotEngineer'.toLowerCase());
+
+    // querySet entries built from hashtags/accounts must still exist
+    expect(plan.querySet).toEqual(
+      expect.arrayContaining([
+        '#AIE2026 "AI Engineer Summit Singapore"',
+        '@aiDotEngineer "AI Engineer Summit Singapore"',
+      ])
+    );
+  });
+
   it('keeps product and brand briefs provider-neutral and generic', () => {
     const plan = buildVibesPlan({
       brief:
