@@ -28,5 +28,8 @@ export default defineConfig({
         url: `http://localhost:${PORT}`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
+        // Give the local dev server Vibes quota so the /vibes smoke can run a
+        // mock report (default daily limit is 0 — no free calls).
+        env: { VIBES_DAILY_CALL_LIMIT: process.env.VIBES_DAILY_CALL_LIMIT || '200' },
       },
 });
