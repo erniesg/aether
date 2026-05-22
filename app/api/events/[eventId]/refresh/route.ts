@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { refreshEventRecap } from '@/lib/research/event-recap/pipeline';
+import { toPublicEventBundle } from '@/lib/research/event-recap/public-bundle';
 import { isEventPlatform } from '@/lib/research/event-recap/types';
 
 export const runtime = 'nodejs';
@@ -23,6 +24,8 @@ export async function POST(
   const { eventId } = await params;
   const body = await request.json().catch(() => ({}));
   const input = isObject(body) ? body : {};
+  const debug =
+    new URL(request.url).searchParams.get('debug') === '1' || input.debug === true;
   const authResponse = await authorizeEventApiRequest(request, {
     route: '/api/events/:eventId/refresh',
     action: 'refresh-event',
@@ -138,7 +141,10 @@ export async function POST(
           ? input.monthlyCreditBudget
           : undefined,
     });
-    return NextResponse.json({ ok: true, bundle });
+    return NextResponse.json({
+      ok: true,
+      bundle: bundle ? toPublicEventBundle(bundle, { debug }) : bundle,
+    });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : String(err) },
