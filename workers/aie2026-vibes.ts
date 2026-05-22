@@ -1,3 +1,6 @@
+import JSZip from 'jszip';
+import type { EventPostCapture, EventPostCaptureRun } from '../lib/research/event-recap/post-capture';
+
 interface Env {
   AETHER_ASSETS: {
     get(key: string): Promise<{
@@ -10,30 +13,50 @@ interface Env {
 
 const DATA_KEY = 'event-recap-ai-engineer-singapore/public.json';
 const MEDIA_PREFIX = 'event-recap-ai-engineer-singapore/media/';
+const CAPTURE_RUN_ID = 'both-platforms-top100-post-only-v1';
+const CAPTURE_PREFIX = 'event-recap-ai-engineer-singapore/captures/';
 const DATA_VERSION = 'story-aware-11-method-map-1779337008';
+
+type EventCaptureExportFormat = 'json' | 'csv' | 'zip';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === '/vibes/aie2026/data') {
-      const object = await env.AETHER_ASSETS.get(DATA_KEY);
-      if (!object) return json({ ok: false, error: 'recap data not found' }, 404);
       const format = url.searchParams.get('format');
       const download = url.searchParams.get('download') === '1';
+      const scope = url.searchParams.get('scope');
+      const runId = url.searchParams.get('captureRunId') ?? url.searchParams.get('runId');
+
+      if (scope === 'captures') {
+        const captureRun = await readCaptureRun(env, runId);
+        if (!captureRun) return json({ ok: false, error: 'capture run not found' }, 404);
+        const exportFormat = parseCaptureFormat(format);
+        const accessId = logEvidenceAccess(request, url, { posts: [], captureRun }, `captures-${exportFormat}`, download);
+        return captureResponse(env, captureRun, exportFormat, download, accessId);
+      }
+
+      if (scope && scope !== 'source') {
+        return json({ ok: false, error: 'unsupported scope' }, 400);
+      }
       if (format && format !== 'json' && format !== 'csv') {
         return json({ ok: false, error: 'unsupported format' }, 400);
       }
+
+      const object = await env.AETHER_ASSETS.get(DATA_KEY);
+      if (!object) return json({ ok: false, error: 'recap data not found' }, 404);
       if (format || download) {
         const data = JSON.parse(await objectText(object));
         const exportFormat = format === 'csv' ? 'csv' : 'json';
+        const captureRun = await readCaptureRun(env, runId);
         const accessId = logEvidenceAccess(request, url, data, exportFormat, download);
         if (exportFormat === 'csv') {
-          return new Response(postsCsv(data.posts || []), {
+          return new Response(postsCsv(data.posts || [], captureRun), {
             headers: exportHeaders('text/csv; charset=utf-8', 'ai-engineer-singapore-posts.csv', download, accessId),
           });
         }
-        return new Response(JSON.stringify(sourcePack(data), null, 2), {
+        return new Response(JSON.stringify(sourcePack(data, captureRun), null, 2), {
           headers: exportHeaders('application/json; charset=utf-8', 'ai-engineer-singapore-source.json', download, accessId),
         });
       }
@@ -76,6 +99,47 @@ async function objectText(object: { body: ReadableStream; text?: () => Promise<s
   return new Response(object.body).text();
 }
 
+function parseCaptureFormat(value: string | null): EventCaptureExportFormat {
+  if (value === 'zip') return 'zip';
+  return value === 'csv' ? 'csv' : 'json';
+}
+
+async function readCaptureRun(env: Env, runId?: string | null): Promise<EventPostCaptureRun | null> {
+  const safeRunId = safeSegment(runId || CAPTURE_RUN_ID);
+  const object = await env.AETHER_ASSETS.get(`${CAPTURE_PREFIX}${safeRunId}/manifest.json`);
+  if (!object) return null;
+  return JSON.parse(await objectText(object)) as EventPostCaptureRun;
+}
+
+async function captureResponse(
+  env: Env,
+  run: EventPostCaptureRun,
+  format: EventCaptureExportFormat,
+  download: boolean,
+  accessId: string
+): Promise<Response> {
+  const filename = `ai-engineer-singapore-captures-${run.runId}.${format}`;
+  if (format === 'zip') {
+    const object = await env.AETHER_ASSETS.get(`${CAPTURE_PREFIX}${safeSegment(run.runId)}/captures.zip`);
+    if (object) {
+      return new Response(object.body, {
+        headers: exportHeaders('application/zip', filename, download, accessId),
+      });
+    }
+    return new Response(await captureZip(env, run), {
+      headers: exportHeaders('application/zip', filename, download, accessId),
+    });
+  }
+  if (format === 'csv') {
+    return new Response(eventCapturesCsv(run), {
+      headers: exportHeaders('text/csv; charset=utf-8', filename, download, accessId),
+    });
+  }
+  return new Response(JSON.stringify(publicCaptureRun(run), null, 2), {
+    headers: exportHeaders('application/json; charset=utf-8', filename, download, accessId),
+  });
+}
+
 function exportHeaders(contentType: string, filename: string, download: boolean, accessId: string): HeadersInit {
   return {
     'cache-control': 'private, no-store',
@@ -116,25 +180,34 @@ function logEvidenceAccess(
   return accessId;
 }
 
-function sourcePack(data: Record<string, any>): Record<string, any> {
+function sourcePack(data: Record<string, any>, captureRun: EventPostCaptureRun | null): Record<string, any> {
   const posts = Array.isArray(data.posts) ? data.posts : [];
+  const captures = captureByPostUrl(captureRun);
   return {
     metadata: {
-      schemaVersion: 'aie2026.public-source.v1',
+      schemaVersion: 'aie2026.public-source.v2',
       exportedAt: new Date().toISOString(),
       source: 'aether.berlayar.ai/vibes/aie2026',
       postCount: posts.length,
       mediaCount: posts.reduce((count, post) => count + (Array.isArray(post.media) ? post.media.length : 0), 0),
       themeCount: Array.isArray(data.themes) ? data.themes.length : 0,
+      captureRunId: captureRun?.runId,
+      captureCount: captureRun?.captures.length ?? 0,
+      capturedCount: captureRun?.capturedCount ?? 0,
     },
     event: data.event,
     summary: data.summary,
     themes: data.themes,
-    posts,
+    captureRun: captureRun ? publicCaptureRun(captureRun).run : null,
+    posts: posts.map((post) => {
+      const capture = captures.get(postUrlKey(String(post.url ?? '')));
+      return capture ? { ...post, capture: publicCapture(capture) } : post;
+    }),
   };
 }
 
-function postsCsv(posts: Record<string, any>[]): string {
+function postsCsv(posts: Record<string, any>[], captureRun: EventPostCaptureRun | null): string {
+  const captures = captureByPostUrl(captureRun);
   const headers = [
     'postId',
     'platform',
@@ -147,21 +220,168 @@ function postsCsv(posts: Record<string, any>[]): string {
     'mediaCount',
     'storyType',
     'sentiment',
+    'captureRunId',
+    'captureStatus',
+    'captureScreenshot',
+    'captureWarnings',
   ];
-  const rows = posts.map((post) =>
-    headers
+  const rows = posts.map((post) => {
+    const capture = captures.get(postUrlKey(String(post.url ?? '')));
+    return headers
       .map((key) => {
         const value =
           key === 'mediaCount'
             ? Array.isArray(post.media)
               ? post.media.length
               : 0
-            : post[key] ?? '';
+            : key === 'captureRunId'
+              ? capture?.runId ?? ''
+              : key === 'captureStatus'
+                ? capture?.status ?? ''
+                : key === 'captureScreenshot'
+                  ? capture?.screenshotRelPath ?? ''
+                  : key === 'captureWarnings'
+                    ? capture?.warnings.join('|') ?? ''
+                    : post[key] ?? '';
         return csvCell(value);
       })
-      .join(',')
-  );
+      .join(',');
+  });
   return `${headers.join(',')}\n${rows.join('\n')}\n`;
+}
+
+function publicCaptureRun(run: EventPostCaptureRun) {
+  return {
+    ok: true,
+    run: {
+      eventId: run.eventId,
+      runId: run.runId,
+      provider: run.provider,
+      targetCount: run.targetCount,
+      capturedCount: run.capturedCount,
+      resumedCount: run.resumedCount,
+      pageCapturedCount: run.pageCapturedCount,
+      blockedCount: run.blockedCount,
+      failedCount: run.failedCount,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      captures: run.captures.map(publicCapture),
+    },
+  };
+}
+
+function publicCapture(capture: EventPostCapture) {
+  return {
+    eventId: capture.eventId,
+    runId: capture.runId,
+    provider: capture.provider,
+    status: capture.status,
+    platform: capture.platform,
+    url: capture.url,
+    finalUrl: capture.finalUrl,
+    postId: capture.postId,
+    authorName: capture.authorName,
+    authorHandle: capture.authorHandle,
+    capturedAt: capture.capturedAt,
+    screenshotRelPath: capture.screenshotRelPath,
+    screenshotBytes: capture.screenshotBytes,
+    screenshotSha256: capture.screenshotSha256,
+    viewport: capture.viewport,
+    elementSelector: capture.elementSelector,
+    blockedReason: capture.blockedReason,
+    warnings: capture.warnings,
+    error: capture.error,
+    bodyExcerpt: capture.bodyExcerpt,
+    resumed: capture.resumed,
+  };
+}
+
+function eventCapturesCsv(run: EventPostCaptureRun): string {
+  const header = [
+    'eventId',
+    'runId',
+    'platform',
+    'status',
+    'url',
+    'finalUrl',
+    'postId',
+    'authorName',
+    'authorHandle',
+    'capturedAt',
+    'screenshotRelPath',
+    'screenshotBytes',
+    'screenshotSha256',
+    'blockedReason',
+    'warnings',
+  ];
+  const rows = run.captures.map((capture) => [
+    capture.eventId,
+    capture.runId,
+    capture.platform,
+    capture.status,
+    capture.url,
+    capture.finalUrl ?? '',
+    capture.postId ?? '',
+    capture.authorName ?? '',
+    capture.authorHandle ?? '',
+    String(capture.capturedAt),
+    capture.screenshotRelPath ?? '',
+    capture.screenshotBytes === undefined ? '' : String(capture.screenshotBytes),
+    capture.screenshotSha256 ?? '',
+    capture.blockedReason ?? '',
+    capture.warnings.join('|'),
+  ]);
+  return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
+}
+
+async function captureZip(env: Env, run: EventPostCaptureRun): Promise<ArrayBuffer> {
+  const zip = new JSZip();
+  zip.file('manifest.json', JSON.stringify(publicCaptureRun(run), null, 2));
+  zip.file('captures.csv', eventCapturesCsv(run));
+  for (const capture of run.captures) {
+    if (!capture.screenshotRelPath) continue;
+    const key = captureR2Key(capture.screenshotRelPath);
+    if (!key.startsWith(CAPTURE_PREFIX)) continue;
+    const object = await env.AETHER_ASSETS.get(key);
+    if (!object) continue;
+    zip.file(`screenshots/${basename(key)}`, await new Response(object.body).arrayBuffer());
+  }
+  return zip.generateAsync({
+    type: 'arraybuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+}
+
+function captureByPostUrl(run: EventPostCaptureRun | null | undefined): Map<string, EventPostCapture> {
+  const byUrl = new Map<string, EventPostCapture>();
+  for (const capture of run?.captures ?? []) byUrl.set(postUrlKey(capture.url), capture);
+  return byUrl;
+}
+
+function postUrlKey(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    parsed.hash = '';
+    parsed.search = '';
+    parsed.hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString().toLowerCase();
+  } catch {
+    return url.trim().split(/[?#]/)[0].replace(/\/+$/, '').toLowerCase();
+  }
+}
+
+function captureR2Key(screenshotRelPath: string): string {
+  return screenshotRelPath.replace(/^outputs\//, '').replace(/^\/+/, '');
+}
+
+function basename(value: string): string {
+  return value.split('/').filter(Boolean).pop() || 'capture.png';
+}
+
+function safeSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, '-');
 }
 
 function csvCell(value: unknown): string {
@@ -242,10 +462,13 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
       </details>
       <div class="evidence">
         <p class="eyebrow">evidence</p>
-        <p>Download the auditable source pack without leaving the published report.</p>
+        <p>Download the source pack and screenshot evidence without leaving the published report.</p>
         <div class="evidence-actions">
           <a href="/vibes/aie2026/data?format=json&download=1">source json</a>
           <a href="/vibes/aie2026/data?format=csv&download=1">posts csv</a>
+          <a href="/vibes/aie2026/data?scope=captures&format=csv&download=1">captures csv</a>
+          <a href="/vibes/aie2026/data?scope=captures&format=zip&download=1">captures zip</a>
+          <a href="/vibes/aie2026/data?scope=captures&format=json&download=1">captures json</a>
           <a class="debug-only" href="/vibes/aie2026/data?format=json" target="_blank" rel="noreferrer">inspect json</a>
         </div>
       </div>
