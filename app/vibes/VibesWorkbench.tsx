@@ -7,12 +7,15 @@ import {
   AtSign,
   Bot,
   Check,
+  Copy,
   ExternalLink,
   Hash,
   KeyRound,
   Link as LinkIcon,
   Loader2,
+  LockKeyhole,
   Plus,
+  Radio,
   Search,
   Sparkles,
   Trash2,
@@ -21,25 +24,18 @@ import { Button } from '@/components/ui/Button';
 import { Chip, type ChipTone } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { useVibesAuth, type VibesAuthValue } from '@/components/vibes/vibes-auth';
+import { RunEventTimeline, summarizeRunEvents } from '@/components/vibes/RunEventTimeline';
 import type { EventPlatform, EventRecapBundle } from '@/lib/research/event-recap/types';
 import type { VibesPlan, VibesTermKind } from '@/lib/research/vibes/plan';
 
 type LiveMode = 'mock' | 'tinyfish';
 
-export type VibesAuthHeaderGetter = () => Promise<string | null>;
-
-export interface VibesWorkbenchProps {
-  getAuthHeader?: VibesAuthHeaderGetter;
-  disabled?: boolean;
-}
-
 const EXAMPLE_BRIEF =
   'Track AI Engineer Summit Singapore across X, LinkedIn, and YouTube. Include @aiDotEngineer, #AIE2026, speaker recaps, sponsor booths, workshops, and side events.';
 
-export default function VibesWorkbench({
-  getAuthHeader,
-  disabled = false,
-}: VibesWorkbenchProps) {
+export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
+  const auth = useVibesAuth();
   const [brief, setBrief] = useState(EXAMPLE_BRIEF);
   const [plan, setPlan] = useState<VibesPlan | null>(null);
   const [bundle, setBundle] = useState<EventRecapBundle | null>(null);
@@ -57,23 +53,33 @@ export default function VibesWorkbench({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const visibleQuerySet = useMemo(
-    () => plan?.querySet.slice(0, 18) ?? [],
-    [plan?.querySet]
-  );
-  const reportCounts = useMemo(() => summarizeBundle(bundle), [bundle]);
+  const visibleQuerySet = useMemo(() => plan?.querySet.slice(0, 18) ?? [], [plan?.querySet]);
+
+  async function jsonHeaders(): Promise<HeadersInit> {
+    return { 'Content-Type': 'application/json', ...(await auth.getAuthHeaders()) };
+  }
 
   async function draftPlan() {
     setPlanning(true);
     setError(null);
     try {
-      const nextPlan = await postPlan();
-      setPlan(nextPlan);
-      setKeywords(nextPlan.keywords);
-      setHashtags(nextPlan.hashtags);
-      setAccounts(nextPlan.accounts);
-      setSourceLinks(nextPlan.sourceLinks);
-      setPlatforms(nextPlan.platforms);
+      const res = await fetch('/api/vibes/plan', {
+        method: 'POST',
+        headers: await jsonHeaders(),
+        body: JSON.stringify({
+          brief,
+          subject: plan?.subject,
+          subjectKind: plan?.subjectKind,
+          keywords,
+          hashtags,
+          accounts,
+          sourceLinks,
+          platforms,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; plan?: VibesPlan; error?: string };
+      if (!json.ok || !json.plan) throw apiError(res.status, json.error);
+      applyPlan(json.plan);
       setBundle(null);
       setReportUrl(null);
     } catch (err) {
@@ -87,10 +93,9 @@ export default function VibesWorkbench({
     setRunning(true);
     setError(null);
     try {
-      const headers = await buildJsonHeaders(getAuthHeader);
       const res = await fetch('/api/vibes', {
         method: 'POST',
-        headers,
+        headers: await jsonHeaders(),
         body: JSON.stringify({
           brief,
           subject: plan?.subject,
@@ -115,12 +120,7 @@ export default function VibesWorkbench({
         error?: string;
       };
       if (!json.ok || !json.plan) throw apiError(res.status, json.error);
-      setPlan(json.plan);
-      setKeywords(json.plan.keywords);
-      setHashtags(json.plan.hashtags);
-      setAccounts(json.plan.accounts);
-      setSourceLinks(json.plan.sourceLinks);
-      setPlatforms(json.plan.platforms);
+      applyPlan(json.plan);
       setBundle(json.bundle ?? null);
       setReportUrl(json.reportUrl ?? `/events/${json.plan.eventId}`);
     } catch (err) {
@@ -130,25 +130,13 @@ export default function VibesWorkbench({
     }
   }
 
-  async function postPlan(): Promise<VibesPlan> {
-    const headers = await buildJsonHeaders(getAuthHeader);
-    const res = await fetch('/api/vibes/plan', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        brief,
-        subject: plan?.subject,
-        subjectKind: plan?.subjectKind,
-        keywords,
-        hashtags,
-        accounts,
-        sourceLinks,
-        platforms,
-      }),
-    });
-    const json = (await res.json()) as { ok?: boolean; plan?: VibesPlan; error?: string };
-    if (!json.ok || !json.plan) throw apiError(res.status, json.error);
-    return json.plan;
+  function applyPlan(next: VibesPlan) {
+    setPlan(next);
+    setKeywords(next.keywords);
+    setHashtags(next.hashtags);
+    setAccounts(next.accounts);
+    setSourceLinks(next.sourceLinks);
+    setPlatforms(next.platforms);
   }
 
   function addTerm(e: FormEvent) {
@@ -161,6 +149,8 @@ export default function VibesWorkbench({
     if (termKind === 'source') setSourceLinks((items) => addUnique(items, value));
     setTermValue('');
   }
+
+  const busy = planning || running;
 
   return (
     <main className="flex min-h-screen flex-col bg-surface-base text-ink">
@@ -179,33 +169,24 @@ export default function VibesWorkbench({
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/vibes/aie2026"
-            className="hidden items-center gap-1 rounded-sm border border-border-soft px-2 py-1 font-mono text-xs text-ink-dim hover:border-accent hover:text-accent sm:inline-flex"
-          >
-            aie2026
-            <ExternalLink size={12} strokeWidth={1.75} />
-          </Link>
+          <VibesAccessMenu auth={auth} />
           <ThemeToggle />
         </div>
       </header>
 
       <section className="grid flex-1 gap-4 overflow-hidden px-4 py-4 min-[1180px]:grid-cols-[360px_minmax(0,1fr)] sm:px-6">
-        <Surface
-          as="section"
-          taxonomy="input"
-          border="soft"
-          className="flex min-h-0 flex-col overflow-hidden"
-        >
+        <Surface as="section" taxonomy="input" border="soft" className="flex min-h-0 flex-col overflow-hidden">
           <div className="border-b border-border-soft p-4">
             <div className="flex items-center gap-2">
               <Search size={16} strokeWidth={1.75} className="text-accent" />
               <h1 className="font-display text-lg tracking-tight">research seeds</h1>
             </div>
             <textarea
+              data-testid="vibes-brief"
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
-              rows={7}
+              rows={6}
+              placeholder="Describe an event, product, brand, or campaign to listen for."
               className="mt-4 w-full resize-none rounded-md border border-border-soft bg-surface-base px-3 py-2 font-mono text-sm leading-6 text-ink outline-none focus:border-accent"
             />
 
@@ -240,7 +221,7 @@ export default function VibesWorkbench({
                   min={5}
                   max={1000}
                   value={targetItems}
-                  onChange={(event) => setTargetItems(Number(event.target.value))}
+                  onChange={(e) => setTargetItems(Number(e.target.value))}
                   className="h-7 w-16 rounded-sm border border-border-soft bg-surface-base px-2 text-ink outline-none focus:border-accent"
                 />
               </label>
@@ -296,7 +277,7 @@ export default function VibesWorkbench({
             <div className="mt-2 flex gap-2">
               <input
                 value={termValue}
-                onChange={(event) => setTermValue(event.target.value)}
+                onChange={(e) => setTermValue(e.target.value)}
                 placeholder="add seed"
                 className="min-w-0 flex-1 rounded-sm border border-border-soft bg-surface-base px-3 py-2 font-mono text-sm text-ink outline-none placeholder:text-ink-dim focus:border-accent"
               />
@@ -311,8 +292,9 @@ export default function VibesWorkbench({
                 variant="outline"
                 size="md"
                 onClick={draftPlan}
-                disabled={disabled || planning || running || !brief.trim()}
+                disabled={busy || !brief.trim()}
                 icon={planning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                data-testid="vibes-frontier"
               >
                 frontier
               </Button>
@@ -321,8 +303,9 @@ export default function VibesWorkbench({
                 variant="primary"
                 size="md"
                 onClick={makeReport}
-                disabled={disabled || running || planning || !brief.trim()}
+                disabled={busy || !brief.trim()}
                 trailing={running ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+                data-testid="vibes-report"
               >
                 report
               </Button>
@@ -330,98 +313,390 @@ export default function VibesWorkbench({
           </form>
         </Surface>
 
-        <Surface
-          as="section"
-          taxonomy="output"
-          border="soft"
-          className="min-h-0 overflow-auto p-4 sm:p-5"
-        >
+        <Surface as="section" taxonomy="output" border="soft" className="min-h-0 overflow-auto p-4 sm:p-5">
           {plan ? (
-            <div className="grid gap-4 min-[1320px]:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Chip tone={subjectTone(plan.subjectKind)} size="sm">
-                    {plan.subjectKind}
-                  </Chip>
-                  <Chip tone="neutral" size="sm">
-                    {plan.eventId}
-                  </Chip>
-                  {reportUrl ? (
-                    <Link
-                      href={reportUrl}
-                      className="ml-auto inline-flex items-center gap-1 rounded-sm border border-accent px-2 py-1 font-mono text-xs text-accent hover:bg-accent hover:text-ink-on-accent"
-                    >
-                      open report
-                      <ExternalLink size={12} strokeWidth={1.75} />
-                    </Link>
-                  ) : null}
-                </div>
-
-                <h2 className="mt-3 font-display text-3xl leading-tight tracking-tight sm:text-4xl">
-                  {plan.subject}
-                </h2>
-
-                <div className="mt-5 grid gap-2 sm:grid-cols-2 min-[1320px]:grid-cols-4">
-                  <Metric label="queries" value={plan.querySet.length} detail={`${plan.keywords.length} keywords`} />
-                  <Metric label="accounts" value={plan.accounts.length} detail={`${plan.hashtags.length} hashtags`} />
-                  <Metric label="sources" value={plan.sourceLinks.length} detail={plan.platforms.join(' + ')} />
-                  <Metric label="refs" value={reportCounts.posts} detail={`${reportCounts.clusters} clusters`} />
-                </div>
-
-                {bundle ? (
-                  <ReportSnapshot bundle={bundle} />
-                ) : (
-                  <div className="mt-5 grid gap-3 min-[980px]:grid-cols-2">
-                    <QuerySetList queries={visibleQuerySet} />
-                    <AnchorList plan={plan} />
-                  </div>
-                )}
-              </div>
-
-              <aside className="min-w-0">
-                <TracePanel plan={plan} />
-                <RuntimePanel plan={plan} />
-                <details className="mt-4 rounded-md border border-border-soft bg-surface-base p-3">
-                  <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
-                    api shape
-                  </summary>
-                  <pre className="mt-3 overflow-auto whitespace-pre-wrap font-mono text-2xs leading-5 text-ink-dim">
-                    {JSON.stringify(
-                      {
-                        create: plan.apiShape.create,
-                        report: plan.apiShape.report,
-                        refresh: plan.apiShape.refresh,
-                        body: {
-                          brief,
-                          keywords,
-                          hashtags,
-                          accounts,
-                          sourceLinks,
-                          platforms,
-                          liveMode,
-                        },
-                      },
-                      null,
-                      2
-                    )}
-                  </pre>
-                </details>
-              </aside>
-            </div>
+            <PlanView
+              plan={plan}
+              bundle={bundle}
+              reportUrl={reportUrl}
+              liveMode={liveMode}
+              brief={brief}
+              visibleQuerySet={visibleQuerySet}
+              debug={debug}
+            />
           ) : (
-            <div className="grid min-h-[calc(100vh-9rem)] place-items-center">
-              <div className="max-w-xl text-center">
-                <Bot size={30} strokeWidth={1.5} className="mx-auto text-accent" />
-                <h2 className="mt-4 font-display text-3xl tracking-tight">vibe research</h2>
-                <p className="mt-3 text-sm leading-6 text-ink-muted">
-                  Awaiting frontier.
-                </p>
-              </div>
-            </div>
+            <EmptyState />
           )}
         </Surface>
       </section>
     </main>
+  );
+}
+
+function PlanView({
+  plan,
+  bundle,
+  reportUrl,
+  liveMode,
+  brief,
+  visibleQuerySet,
+  debug,
+}: {
+  plan: VibesPlan;
+  bundle: EventRecapBundle | null;
+  reportUrl: string | null;
+  liveMode: LiveMode;
+  brief: string;
+  visibleQuerySet: string[];
+  debug: boolean;
+}) {
+  const counts = useMemo(() => summarizeBundle(bundle), [bundle]);
+  return (
+    <div className="mx-auto max-w-3xl">
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip tone={subjectTone(plan.subjectKind)} size="sm">
+          {plan.subjectKind}
+        </Chip>
+        <Chip tone="neutral" size="sm">
+          {plan.eventId}
+        </Chip>
+        <Chip tone={liveMode === 'tinyfish' ? 'warn' : 'neutral'} size="sm">
+          {liveMode === 'tinyfish' ? 'live' : 'review'}
+        </Chip>
+      </div>
+
+      <h2 className="mt-3 font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+        {plan.subject}
+      </h2>
+
+      <div className="mt-5 grid gap-2 sm:grid-cols-2 min-[1180px]:grid-cols-4">
+        <Metric label="queries" value={plan.querySet.length} detail={`${plan.keywords.length} keywords`} />
+        <Metric label="accounts" value={plan.accounts.length} detail={`${plan.hashtags.length} hashtags`} />
+        <Metric label="sources" value={plan.sourceLinks.length} detail={plan.platforms.join(' + ')} />
+        <Metric
+          label="refs"
+          value={counts.posts}
+          detail={bundle ? `${counts.clusters} clusters` : 'run a report'}
+        />
+      </div>
+
+      {bundle ? (
+        <ReportSummary bundle={bundle} reportUrl={reportUrl} />
+      ) : (
+        <div className="mt-5 grid gap-3 min-[980px]:grid-cols-2">
+          <QuerySetList queries={visibleQuerySet} />
+          <AnchorList plan={plan} />
+        </div>
+      )}
+
+      <ProvenanceDisclosure plan={plan} />
+      {debug ? <DebugDrawer plan={plan} brief={brief} liveMode={liveMode} /> : null}
+    </div>
+  );
+}
+
+function ReportSummary({
+  bundle,
+  reportUrl,
+}: {
+  bundle: EventRecapBundle;
+  reportUrl: string | null;
+}) {
+  const mediaCount = bundle.posts.reduce((sum, post) => sum + (post.media?.length ?? 0), 0);
+  const runEvents = bundle.runEvents ?? [];
+  const summary = summarizeRunEvents(runEvents);
+  const warnings = bundle.runs[0]?.warnings ?? [];
+  const themes = bundle.themes.slice(0, 5);
+  const voices = bundle.voices.slice(0, 5);
+  const runTone: ChipTone =
+    summary.status === 'failed' ? 'error' : summary.status === 'done' ? 'ok' : 'info';
+
+  return (
+    <section data-testid="vibes-report-summary" className="mt-5">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border-soft bg-surface-base p-3">
+        <Chip tone={runTone} size="sm">
+          run {summary.status}
+        </Chip>
+        <span className="font-mono text-xs text-ink-dim">{summary.steps} steps</span>
+        {summary.warnings > 0 ? (
+          <Chip tone="warn" size="sm">
+            {summary.warnings} warnings
+          </Chip>
+        ) : null}
+        {reportUrl ? (
+          <Link
+            href={reportUrl}
+            data-testid="vibes-open-report"
+            className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-sm border border-accent bg-accent px-2.5 text-xs font-medium text-ink-on-accent transition-colors hover:border-accent-strong hover:bg-accent-strong"
+          >
+            open report
+            <ExternalLink size={13} strokeWidth={1.75} />
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 min-[980px]:grid-cols-4">
+        <Metric label="refs" value={bundle.posts.length} detail="collected" />
+        <Metric label="media" value={mediaCount} detail="images + video" />
+        <Metric label="clusters" value={bundle.themes.length} detail="grouped ideas" />
+        <Metric label="voices" value={bundle.voices.length} detail="repeat posters" />
+      </div>
+
+      {runEvents.length ? (
+        <details className="mt-3 rounded-md border border-border-soft bg-surface-base p-3" open>
+          <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
+            run timeline
+          </summary>
+          <div className="mt-3">
+            <RunEventTimeline events={runEvents} />
+          </div>
+        </details>
+      ) : null}
+
+      {warnings.length ? (
+        <details className="mt-3 rounded-md border border-border-soft bg-surface-base p-3">
+          <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
+            {warnings.length} run warnings
+          </summary>
+          <ul className="mt-3 space-y-1.5 font-caption text-xs leading-5 text-ink-dim">
+            {warnings.slice(0, 12).map((warning, index) => (
+              <li key={`${index}:${warning}`}>{warning}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
+      {themes.length ? (
+        <div className="mt-3 rounded-md border border-border-soft bg-surface-base p-3">
+          <p className="font-caption text-xs uppercase text-ink-dim">clusters</p>
+          <div className="mt-3 divide-y divide-border-soft">
+            {themes.map((theme) => (
+              <div key={theme.themeId} className="py-2.5 first:pt-0 last:pb-0">
+                <p className="font-display text-base tracking-tight">{theme.label}</p>
+                <p className="mt-1 line-clamp-2 text-sm leading-6 text-ink-muted">{theme.summary}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {voices.length ? (
+        <div className="mt-3 rounded-md border border-border-soft bg-surface-base p-3">
+          <p className="font-caption text-xs uppercase text-ink-dim">voices</p>
+          <div className="mt-3 space-y-2">
+            {voices.map((voice) => (
+              <div
+                key={voice.voiceId}
+                className="flex items-center gap-2 rounded-sm border border-border-soft p-2"
+              >
+                <Chip size="sm" tone={platformTone(voice.platform)}>
+                  {voice.platform}
+                </Chip>
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-muted">
+                  {voice.handle ?? voice.name}
+                </span>
+                <span className="font-mono text-xs text-ink-dim">{voice.postCount}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function ProvenanceDisclosure({ plan }: { plan: VibesPlan }) {
+  return (
+    <details className="mt-4 rounded-md border border-border-soft bg-surface-base p-3">
+      <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
+        provenance
+      </summary>
+      <div className="mt-3 space-y-2">
+        {plan.auditSteps.map((step) => (
+          <div key={step.id} className="rounded-sm border border-border-soft p-2">
+            <div className="flex items-center gap-2">
+              <Check size={13} strokeWidth={1.75} className="text-accent" />
+              <span className="font-mono text-xs text-ink-muted">{step.label}</span>
+              <Chip tone={step.status === 'ready' ? 'ok' : 'neutral'} size="sm" className="ml-auto">
+                {step.status}
+              </Chip>
+            </div>
+            <p className="mt-1 font-caption text-2xs uppercase text-ink-dim">
+              {step.provider} · {step.telemetry.join(', ')}
+            </p>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function DebugDrawer({
+  plan,
+  brief,
+  liveMode,
+}: {
+  plan: VibesPlan;
+  brief: string;
+  liveMode: LiveMode;
+}) {
+  return (
+    <details className="mt-4 rounded-md border border-dashed border-border-soft bg-surface-base p-3">
+      <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
+        debug — runtime adapters + api shape
+      </summary>
+      <div className="mt-3 space-y-2">
+        {plan.managedRuntimes.map((runtime) => (
+          <div key={runtime.provider} className="rounded-sm border border-border-soft p-2">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-ink-muted">{runtime.label}</span>
+              <Chip tone={runtime.status === 'active' ? 'ok' : 'neutral'} size="sm" className="ml-auto">
+                {runtime.status}
+              </Chip>
+            </div>
+            <p className="mt-1 font-caption text-xs leading-5 text-ink-dim">{runtime.fit}</p>
+          </div>
+        ))}
+      </div>
+      <pre className="mt-3 overflow-auto whitespace-pre-wrap rounded-sm border border-border-soft bg-surface-panel p-2 font-mono text-2xs leading-5 text-ink-dim">
+        {JSON.stringify(
+          {
+            api: plan.apiShape,
+            body: { brief, platforms: plan.platforms, liveMode },
+          },
+          null,
+          2
+        )}
+      </pre>
+      <Link
+        href="/vibes/aie2026"
+        className="mt-2 inline-flex items-center gap-1 rounded-sm border border-border-soft px-2 py-1 font-mono text-xs text-ink-dim hover:border-accent hover:text-accent"
+      >
+        aie2026 demo
+        <ExternalLink size={12} strokeWidth={1.75} />
+      </Link>
+    </details>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="grid min-h-[calc(100vh-9rem)] place-items-center">
+      <div className="max-w-md text-center">
+        <Bot size={28} strokeWidth={1.5} className="mx-auto text-accent" />
+        <h2 className="mt-4 font-display text-2xl tracking-tight">vibe research</h2>
+        <p className="mt-2 font-caption text-sm leading-6 text-ink-dim">
+          Draft a frontier from the brief, review the seeds, then run a report.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function VibesAccessMenu({ auth }: { auth: VibesAuthValue }) {
+  const [copied, setCopied] = useState(false);
+
+  const status: { tone: ChipTone; label: string } = auth.hasKey
+    ? { tone: 'ok', label: 'key set' }
+    : auth.isAuthenticated
+      ? { tone: 'info', label: 'signed in' }
+      : { tone: 'neutral', label: 'access' };
+
+  async function copyKey() {
+    if (!auth.apiKey) return;
+    await navigator.clipboard.writeText(auth.apiKey);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }
+
+  return (
+    <details className="relative">
+      <summary
+        data-testid="vibes-access"
+        className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-sm border border-border-soft px-2 font-mono text-xs text-ink-dim hover:border-accent hover:text-accent [&::-webkit-details-marker]:hidden"
+      >
+        <KeyRound size={13} strokeWidth={1.75} />
+        <Chip tone={status.tone} size="sm" variant="ghost">
+          {status.label}
+        </Chip>
+      </summary>
+      <div className="absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border-soft bg-surface-panel p-3 shadow-lg">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-caption text-xs uppercase text-ink-dim">vibes access</p>
+          <span className="font-mono text-2xs text-ink-dim">100 calls / day</span>
+        </div>
+
+        {auth.configured ? (
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate font-mono text-xs text-ink-muted">
+              {auth.isAuthenticated ? auth.userLabel ?? 'signed in' : 'not signed in'}
+            </span>
+            {auth.isAuthenticated ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => void auth.signOut()}>
+                sign out
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                icon={
+                  auth.isLoading ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <LockKeyhole size={13} />
+                  )
+                }
+                onClick={() => void auth.signIn()}
+              >
+                sign in
+              </Button>
+            )}
+          </div>
+        ) : (
+          <p className="mt-3 font-caption text-xs text-ink-dim">
+            Sign-in is not configured here — paste an existing Vibes API key.
+          </p>
+        )}
+
+        <div className="mt-3 rounded-sm border border-border-soft bg-surface-base p-2">
+          <p className="font-caption text-2xs uppercase text-ink-dim">api key</p>
+          <div className="mt-2 flex gap-1.5">
+            <input
+              value={auth.apiKey}
+              onChange={(e) => auth.setApiKey(e.target.value)}
+              placeholder="vibes_vk_..."
+              className="min-w-0 flex-1 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-mono text-xs text-ink outline-none placeholder:text-ink-dim focus:border-accent"
+            />
+            <button
+              type="button"
+              onClick={() => void copyKey()}
+              disabled={!auth.apiKey}
+              className="grid h-8 w-8 place-items-center rounded-sm border border-border-soft text-ink-dim hover:border-accent hover:text-accent disabled:opacity-40"
+              title="copy key"
+              aria-label="copy key"
+            >
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+            </button>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              type="button"
+              variant="subtle"
+              size="sm"
+              onClick={() => void auth.createApiKey()}
+              icon={auth.keyBusy ? <Loader2 size={13} className="animate-spin" /> : <Radio size={13} />}
+            >
+              {auth.isAuthenticated ? 'create key' : 'sign in for key'}
+            </Button>
+            <span className="font-caption text-2xs text-ink-dim">stored on this device</span>
+          </div>
+          {auth.keyError ? (
+            <p className="mt-2 font-caption text-2xs text-signal-error">{auth.keyError}</p>
+          ) : null}
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -533,95 +808,11 @@ function AnchorList({ plan }: { plan: VibesPlan }) {
               </Chip>
               <span className="min-w-0 truncate font-mono text-xs text-ink-muted">{anchor.value}</span>
             </div>
-            <p className="mt-2 line-clamp-2 font-caption text-xs leading-5 text-ink-dim">
-              {anchor.bias}
-            </p>
+            <p className="mt-2 line-clamp-2 font-caption text-xs leading-5 text-ink-dim">{anchor.bias}</p>
           </div>
         ))}
       </div>
     </div>
-  );
-}
-
-function ReportSnapshot({ bundle }: { bundle: EventRecapBundle }) {
-  const themes = bundle.themes.slice(0, 6);
-  const voices = bundle.voices.slice(0, 5);
-  return (
-    <div className="mt-5 grid gap-3 min-[980px]:grid-cols-[1fr_0.8fr]">
-      <div className="rounded-md border border-border-soft bg-surface-base p-3">
-        <p className="font-caption text-xs uppercase text-ink-dim">clusters</p>
-        <div className="mt-3 divide-y divide-border-soft">
-          {themes.map((theme) => (
-            <div key={theme.themeId} className="py-3">
-              <p className="font-display text-base tracking-tight">{theme.label}</p>
-              <p className="mt-1 line-clamp-2 text-sm leading-6 text-ink-muted">{theme.summary}</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {theme.keywords.slice(0, 5).map((keyword) => (
-                  <Chip key={keyword} size="sm" tone="neutral" variant="ghost">
-                    {keyword}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="rounded-md border border-border-soft bg-surface-base p-3">
-        <p className="font-caption text-xs uppercase text-ink-dim">voices</p>
-        <div className="mt-3 space-y-2">
-          {voices.map((voice) => (
-            <div key={voice.voiceId} className="flex items-center gap-2 rounded-sm border border-border-soft p-2">
-              <Chip size="sm" tone={platformTone(voice.platform)}>
-                {voice.platform}
-              </Chip>
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-muted">
-                {voice.handle ?? voice.name}
-              </span>
-              <span className="font-mono text-xs text-ink-dim">{voice.postCount}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TracePanel({ plan }: { plan: VibesPlan }) {
-  return (
-    <div className="rounded-md border border-border-soft bg-surface-base p-3">
-      <p className="font-caption text-xs uppercase text-ink-dim">provenance</p>
-      <div className="mt-3 space-y-2">
-        {plan.auditSteps.map((step) => (
-          <div key={step.id} className="rounded-sm border border-border-soft p-2">
-            <div className="flex items-center gap-2">
-              <Check size={13} strokeWidth={1.75} className="text-accent" />
-              <span className="font-mono text-xs text-ink-muted">{step.label}</span>
-            </div>
-            <p className="mt-1 font-caption text-2xs uppercase text-ink-dim">
-              {step.provider} · {step.telemetry.join(', ')}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RuntimePanel({ plan }: { plan: VibesPlan }) {
-  return (
-    <details className="mt-4 rounded-md border border-border-soft bg-surface-base p-3">
-      <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
-        managed runtimes
-      </summary>
-      <div className="mt-3 space-y-2">
-        {plan.managedRuntimes.map((runtime) => (
-          <div key={runtime.provider} className="rounded-sm border border-border-soft p-2">
-            <p className="font-mono text-xs text-ink-muted">{runtime.label}</p>
-            <p className="mt-1 font-caption text-xs leading-5 text-ink-dim">{runtime.fit}</p>
-          </div>
-        ))}
-      </div>
-    </details>
   );
 }
 
@@ -661,19 +852,8 @@ function platformTone(platform: EventPlatform): ChipTone {
   return 'ok';
 }
 
-async function buildJsonHeaders(getAuthHeader?: VibesAuthHeaderGetter): Promise<HeadersInit> {
-  const authorization = await getAuthHeader?.();
-  if (!authorization) {
-    throw new Error('Sign in or add a Vibes API key before running managed research.');
-  }
-  return {
-    'Content-Type': 'application/json',
-    Authorization: authorization,
-  };
-}
-
 function apiError(status: number, message?: string): Error {
-  if (status === 401) return new Error('Sign in or add a valid Vibes API key.');
+  if (status === 401) return new Error('Add a Vibes API key or sign in — see access, top right.');
   if (status === 429) return new Error(message ?? 'Daily Vibes API limit reached.');
   return new Error(message ?? `HTTP ${status}`);
 }
