@@ -67,7 +67,9 @@ export async function POST(
           ? input.linkedinMode
           : undefined,
       xProvider:
-        input.xProvider === 'official' || input.xProvider === 'apify'
+        input.xProvider === 'official' ||
+        input.xProvider === 'apify' ||
+        input.xProvider === 'xquik'
           ? input.xProvider
           : undefined,
       apifyActorId: typeof input.apifyActorId === 'string' ? input.apifyActorId : undefined,
