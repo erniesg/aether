@@ -1,10 +1,9 @@
 'use client';
 
-// Signal-subscription store facade. Mirrors the lib/store/runs pattern: when
-// NEXT_PUBLIC_CONVEX_URL is set, reads come from `useQuery(api.signals.list)`
-// and writes go through ConvexReactClient.mutation. When empty, everything
-// falls back to a localStorage-backed in-memory store so the slice works end-
-// to-end in dev and Playwright without Convex provisioning.
+// Signal-subscription store facade. Broad Convex live reads are opt-in via
+// NEXT_PUBLIC_AETHER_LIVE_MODE=all. Otherwise everything falls back to a
+// localStorage-backed in-memory store so the slice works end-to-end in dev and
+// Playwright without mounting whole-workspace signal subscriptions.
 
 import { isConvexEnabled } from '@/lib/convex/client';
 import {

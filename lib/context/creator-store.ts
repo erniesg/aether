@@ -3,7 +3,11 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
-import { getConvexClient, isConvexEnabled } from '@/lib/convex/client';
+import {
+  getConvexClient,
+  isConvexConfigured,
+  isConvexEnabled,
+} from '@/lib/convex/client';
 import { useReferences } from '@/lib/references/store';
 import { useSignals, isMuted, displaySignalValue } from '@/lib/signals/store';
 import type { SignalRecord } from '@/lib/signals/types';
@@ -275,6 +279,26 @@ function saveMemory<T>(
   return normalized;
 }
 
+function persistCreatorMutation(
+  mutation: unknown,
+  args: unknown,
+  label: string,
+  onError?: (err: unknown) => void
+): void {
+  if (!isConvexEnabled() && !isConvexConfigured()) return;
+  const client = getConvexClient();
+  if (!client) return;
+  client.mutation(mutation as never, args as never).catch((err: unknown) => {
+    if (
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('debug') === '1'
+    ) {
+      console.error(`[aether] ${label} mutation failed:`, err);
+    }
+    onError?.(err);
+  });
+}
+
 export function useBrandContext(workspaceId?: string): BrandContext {
   /* eslint-disable react-hooks/rules-of-hooks */
   if (isConvexEnabled()) {
@@ -298,34 +322,23 @@ export function saveBrandContext(
   workspaceId?: string,
   onError?: (err: unknown) => void
 ): void {
-  if (isConvexEnabled()) {
-    const client = getConvexClient();
-    if (client) {
-      client
-        .mutation(creatorContextApi.saveBrand as never, {
-          workspaceId: workspaceKey(workspaceId),
-          brand: coerceBrandContext(context) ?? DEMO_CREATOR_CONTEXT.brand,
-        } as never)
-        .catch((err: unknown) => {
-          if (
-            typeof window !== 'undefined' &&
-            new URLSearchParams(window.location.search).get('debug') === '1'
-          ) {
-            console.error('[aether] saveBrand mutation failed:', err);
-          }
-          onError?.(err);
-        });
-    }
-    return;
+  const normalized = coerceBrandContext(context) ?? DEMO_CREATOR_CONTEXT.brand;
+  if (!isConvexEnabled()) {
+    saveMemory(
+      'brand',
+      workspaceId,
+      normalized,
+      coerceBrandContext,
+      DEMO_CREATOR_CONTEXT.brand,
+      brandCache,
+      BRAND_CONTEXT_STORAGE_KEY
+    );
   }
-  saveMemory(
-    'brand',
-    workspaceId,
-    context,
-    coerceBrandContext,
-    DEMO_CREATOR_CONTEXT.brand,
-    brandCache,
-    BRAND_CONTEXT_STORAGE_KEY
+  persistCreatorMutation(
+    creatorContextApi.saveBrand,
+    { workspaceId: workspaceKey(workspaceId), brand: normalized },
+    'saveBrand',
+    onError
   );
 }
 
@@ -351,34 +364,23 @@ export function saveOfferContext(
   workspaceId?: string,
   onError?: (err: unknown) => void
 ): void {
-  if (isConvexEnabled()) {
-    const client = getConvexClient();
-    if (client) {
-      client
-        .mutation(creatorContextApi.saveOffer as never, {
-          workspaceId: workspaceKey(workspaceId),
-          offer: coerceOfferContext(context) ?? DEMO_CREATOR_CONTEXT.offer,
-        } as never)
-        .catch((err: unknown) => {
-          if (
-            typeof window !== 'undefined' &&
-            new URLSearchParams(window.location.search).get('debug') === '1'
-          ) {
-            console.error('[aether] saveOffer mutation failed:', err);
-          }
-          onError?.(err);
-        });
-    }
-    return;
+  const normalized = coerceOfferContext(context) ?? DEMO_CREATOR_CONTEXT.offer;
+  if (!isConvexEnabled()) {
+    saveMemory(
+      'offer',
+      workspaceId,
+      normalized,
+      coerceOfferContext,
+      DEMO_CREATOR_CONTEXT.offer,
+      offerCache,
+      OFFER_CONTEXT_STORAGE_KEY
+    );
   }
-  saveMemory(
-    'offer',
-    workspaceId,
-    context,
-    coerceOfferContext,
-    DEMO_CREATOR_CONTEXT.offer,
-    offerCache,
-    OFFER_CONTEXT_STORAGE_KEY
+  persistCreatorMutation(
+    creatorContextApi.saveOffer,
+    { workspaceId: workspaceKey(workspaceId), offer: normalized },
+    'saveOffer',
+    onError
   );
 }
 
@@ -404,34 +406,23 @@ export function saveCampaignContext(
   workspaceId?: string,
   onError?: (err: unknown) => void
 ): void {
-  if (isConvexEnabled()) {
-    const client = getConvexClient();
-    if (client) {
-      client
-        .mutation(creatorContextApi.saveCampaign as never, {
-          workspaceId: workspaceKey(workspaceId),
-          campaign: coerceCampaignContext(context) ?? DEMO_CREATOR_CONTEXT.campaign,
-        } as never)
-        .catch((err: unknown) => {
-          if (
-            typeof window !== 'undefined' &&
-            new URLSearchParams(window.location.search).get('debug') === '1'
-          ) {
-            console.error('[aether] saveCampaign mutation failed:', err);
-          }
-          onError?.(err);
-        });
-    }
-    return;
+  const normalized = coerceCampaignContext(context) ?? DEMO_CREATOR_CONTEXT.campaign;
+  if (!isConvexEnabled()) {
+    saveMemory(
+      'campaign',
+      workspaceId,
+      normalized,
+      coerceCampaignContext,
+      DEMO_CREATOR_CONTEXT.campaign,
+      campaignCache,
+      CAMPAIGN_CONTEXT_STORAGE_KEY
+    );
   }
-  saveMemory(
-    'campaign',
-    workspaceId,
-    context,
-    coerceCampaignContext,
-    DEMO_CREATOR_CONTEXT.campaign,
-    campaignCache,
-    CAMPAIGN_CONTEXT_STORAGE_KEY
+  persistCreatorMutation(
+    creatorContextApi.saveCampaign,
+    { workspaceId: workspaceKey(workspaceId), campaign: normalized },
+    'saveCampaign',
+    onError
   );
 }
 
@@ -454,24 +445,21 @@ export function useWorkspaceInputSet(workspaceId?: string): InputSetDraft {
 
 export function saveWorkspaceInputSet(inputSet: InputSetDraft, workspaceId?: string): void {
   const normalized = coerceInputSet(inputSet) ?? DEMO_CREATOR_CONTEXT.inputSet;
-  if (isConvexEnabled()) {
-    const client = getConvexClient();
-    if (client) {
-      void client.mutation(creatorContextApi.saveWorkspaceContext as never, {
-        workspaceId: workspaceKey(workspaceId),
-        inputSet: normalized,
-      } as never);
-    }
-    return;
+  if (!isConvexEnabled()) {
+    saveMemory(
+      'inputSet',
+      workspaceId,
+      normalized,
+      coerceInputSet,
+      DEMO_CREATOR_CONTEXT.inputSet,
+      inputSetCache,
+      WORKSPACE_CONTEXT_STORAGE_KEY
+    );
   }
-  saveMemory(
-    'inputSet',
-    workspaceId,
-    normalized,
-    coerceInputSet,
-    DEMO_CREATOR_CONTEXT.inputSet,
-    inputSetCache,
-    WORKSPACE_CONTEXT_STORAGE_KEY
+  persistCreatorMutation(
+    creatorContextApi.saveWorkspaceContext,
+    { workspaceId: workspaceKey(workspaceId), inputSet: normalized },
+    'saveWorkspaceContext'
   );
 }
 
@@ -492,7 +480,7 @@ function signalToContext(record: SignalRecord): SignalContext {
 /**
  * Workspace scoping — how data isolation works per workspaceId
  *
- * Convex-enabled (NEXT_PUBLIC_CONVEX_URL set):
+ * Broad live mode (NEXT_PUBLIC_AETHER_LIVE_MODE=all):
  *   Every slice — brand, offer, campaign, inputSet, signals, references — issues
  *   a Convex query keyed on `workspaceId`. A fresh workspace returns `null` for
  *   all slices; the coerce helpers fall back to DEMO_CREATOR_CONTEXT defaults
@@ -502,9 +490,11 @@ function signalToContext(record: SignalRecord): SignalContext {
  *   Once resolved, a genuinely-empty workspace shows "3 pinned" (brand+offer+campaign)
  *   and "Slow Morning Drop" (DEMO fallback) until the creator saves their own context.
  *
- * localStorage fallback (no Convex):
+ * Live-off / canvas-only fallback:
  *   brandCache / offerCache / campaignCache / inputSetCache are keyed by
  *   `workspaceKey(workspaceId)`, writing to keys like `aether.brand.v1:my-ws`.
+ *   When NEXT_PUBLIC_CONVEX_URL is configured, saves also fire an explicit
+ *   Convex mutation so remote persistence happens only on creator changes.
  *   References use a SINGLE global key `aether.references.v1` — they are NOT
  *   workspace-scoped in localStorage mode. This is a known limitation of the
  *   local fallback path; it is not a bug in the Convex path.

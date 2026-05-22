@@ -5,10 +5,9 @@
  * (useRuns / startRun / stepRun / finishRun / failRun). The only extra export
  * is `resetRunsForTests`, which is — as the name says — test-only plumbing.
  *
- * When NEXT_PUBLIC_CONVEX_URL is set, reads come from `useQuery(api.runs.list)`
- * and writes go through ConvexReactClient.mutation against `runs:*` functions.
- * When the flag is empty, everything falls back to the original in-memory
- * store so staging keeps working before Convex is provisioned.
+ * Broad Convex live reads are opt-in via NEXT_PUBLIC_AETHER_LIVE_MODE=all.
+ * Otherwise this facade uses the original in-memory store so staging keeps
+ * working without mounting whole-workspace run subscriptions.
  */
 
 import {
@@ -45,7 +44,7 @@ function genClientRunId(): string {
 }
 
 export function useRuns(): CapabilityRunRecord[] {
-  // NEXT_PUBLIC_CONVEX_URL is inlined at build time by Next.js, so this
+  // NEXT_PUBLIC_AETHER_LIVE_MODE is inlined at build time by Next.js, so this
   // branch is stable across a given browser session — safe under React's
   // rules of hooks.
   /* eslint-disable react-hooks/rules-of-hooks */
@@ -117,7 +116,7 @@ export async function abortStuckRuns(
  * Test-only helper — empties the in-memory listener-backed store so each
  * test starts from a clean slate. No production UI invokes a "clear runs"
  * action, so there's nothing to dispatch to Convex here; the tests that
- * call this always run with `NEXT_PUBLIC_CONVEX_URL` empty, which routes
+ * call this always run with broad live mode off, which routes
  * all reads/writes through memory anyway. If we ever grow a real
  * "delete my run history" feature for creators, that becomes a separate
  * server-side mutation, not this.

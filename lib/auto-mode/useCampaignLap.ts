@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
-import { isConvexEnabled } from '@/lib/convex/client';
+import { isCanvasLiveEnabled } from '@/lib/convex/client';
 import type {
   AutoModeCampaignView,
   AutoModeVariationView,
@@ -13,11 +13,10 @@ import type {
 /**
  * useCampaignLap — subscribe to a running or recently-completed Auto-Mode lap.
  *
- * When Convex is enabled, uses reactive useQuery subscriptions so the right
- * rail updates in real-time as the agent loop writes rows. When Convex is
- * disabled (no NEXT_PUBLIC_CONVEX_URL), falls back to polling
- * /api/campaigns/[id]/trace every 8 seconds so the demo still works without
- * a Convex deployment.
+ * In `NEXT_PUBLIC_AETHER_LIVE_MODE=canvas` or `all`, uses scoped useQuery
+ * subscriptions for the active campaign so the right rail can stream run
+ * progress. With live mode off, falls back to polling /api/campaigns/[id]/trace
+ * every 8 seconds so the demo still works without realtime subscriptions.
  *
  * The hook returns a stable { campaign, variations } pair — the AutoModePanel
  * can pass these through as props without any further fetching.
@@ -150,12 +149,12 @@ const lapEventAnyApi = (anyApi as unknown as {
 
 function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
   // Convex useQuery requires a stable args object; pass `'skip'` when there is
-  // no campaign id so the query is a no-op. When Convex is not provisioned,
-  // also skip to avoid the "no ConvexProvider" error in test / local envs.
+  // no campaign id so the query is a no-op. When canvas live mode is not
+  // enabled, also skip to avoid the "no ConvexProvider" error in test/local envs.
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const result = useQuery(
     campaignsAnyApi.get as never,
-    campaignId && isConvexEnabled() ? ({ campaignId } as never) : 'skip'
+    campaignId && isCanvasLiveEnabled() ? ({ campaignId } as never) : 'skip'
   ) as {
     campaign: {
       id: string;
@@ -197,12 +196,12 @@ function useConvexCampaignLap(campaignId: string | null): CampaignLapState {
   } | null | undefined;
 
   // Live lap events — separate Convex subscription (one query per row table).
-  // 'skip' until campaignId + Convex are available so test envs don't bind
-  // to a non-existent provider.
+  // 'skip' until campaignId + canvas live mode are available so test envs
+  // don't bind to a non-existent provider.
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const eventsResult = useQuery(
     lapEventAnyApi.listByCampaign as never,
-    campaignId && isConvexEnabled() ? ({ campaignId, limit: 200 } as never) : 'skip'
+    campaignId && isCanvasLiveEnabled() ? ({ campaignId, limit: 200 } as never) : 'skip'
   ) as
     | Array<{
         id: string;
@@ -423,18 +422,18 @@ function usePollingCampaignLap(campaignId: string | null): CampaignLapState {
  * useCampaignLap(campaignId)
  *
  * Returns { campaign, variations } for the given campaign, or { null, [] }
- * when no campaignId is provided. Uses Convex reactive subscriptions when
- * NEXT_PUBLIC_CONVEX_URL is set; falls back to polling /api/campaigns/trace
+ * when no campaignId is provided. Uses scoped Convex reactive subscriptions
+ * in `canvas` / `all` live mode; falls back to polling /api/campaigns/trace
  * otherwise.
  *
  * The eslint-disable below is intentional — we follow the same pattern as
- * `lib/context/creator-store.ts` where `isConvexEnabled()` is determined at
+ * `lib/context/creator-store.ts` where `isCanvasLiveEnabled()` is determined at
  * module-load time (stable env var check) so the conditional branch is
  * constant across a render session, making the rule technically satisfied.
  */
 export function useCampaignLap(campaignId: string | null): CampaignLapState {
   /* eslint-disable react-hooks/rules-of-hooks */
-  if (isConvexEnabled()) {
+  if (isCanvasLiveEnabled()) {
     return useConvexCampaignLap(campaignId);
   }
   return usePollingCampaignLap(campaignId);

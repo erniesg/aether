@@ -19,10 +19,9 @@ import {
 } from './convex';
 
 /**
- * Client-side facade for the publisher seam. Picks a persistence backend
- * based on NEXT_PUBLIC_CONVEX_URL the same way lib/signals/store.ts does —
- * Convex when provisioned, localStorage memory otherwise — so the feature
- * works end-to-end in dev and Playwright without Convex running.
+ * Client-side facade for the publisher seam. Broad Convex live reads are
+ * opt-in via NEXT_PUBLIC_AETHER_LIVE_MODE=all; otherwise localStorage memory
+ * keeps the preview flow immediate in dev and Playwright.
  */
 
 export type { ScheduledPost };

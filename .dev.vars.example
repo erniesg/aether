@@ -87,6 +87,9 @@ SOCIAL_AUTO_UPLOAD_TOKEN=
 
 # Convex — set after `npx convex dev` creates a project
 NEXT_PUBLIC_CONVEX_URL=https://<deployment>.convex.cloud
+# off = no client realtime subscriptions, canvas = only active canvas/run live,
+# all = legacy whole-workspace Convex reactivity.
+NEXT_PUBLIC_AETHER_LIVE_MODE=off
 CONVEX_DEPLOY_KEY=...
 
 # social-auto-upload sidecar (Modal) — CJK platforms: TikTok/Douyin/XHS/Bilibili/Kuaishou.
