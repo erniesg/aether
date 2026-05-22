@@ -27,8 +27,14 @@ export interface VibesAuditStep {
   telemetry: string[];
 }
 
-export interface VibesManagedRuntime {
+export interface VibesRuntimeAdapter {
   provider: 'anthropic' | 'openai' | 'aether';
+  /**
+   * `active` — runs in this plan. `available` — a wired adapter that is NOT
+   * invoked here. Vibes plans run the deterministic frontier planner, not a
+   * hosted Claude/OpenAI agent, so only the `aether` runtime is `active`.
+   */
+  status: 'active' | 'available';
   label: string;
   fit: string;
   auditHook: string;
@@ -48,7 +54,7 @@ export interface VibesPlan {
   querySet: string[];
   frontier: EventExpansionPlan;
   auditSteps: VibesAuditStep[];
-  managedRuntimes: VibesManagedRuntime[];
+  managedRuntimes: VibesRuntimeAdapter[];
   apiShape: {
     create: string;
     report: string;
@@ -416,25 +422,28 @@ function auditSteps(): VibesAuditStep[] {
   ];
 }
 
-function managedRuntimes(): VibesManagedRuntime[] {
+function managedRuntimes(): VibesRuntimeAdapter[] {
   return [
     {
       provider: 'anthropic',
-      label: 'Claude Managed Agents',
-      fit: 'Hosted Agent + Environment + Session + Events for long-running social listening tasks.',
-      auditHook: 'Persist session id, event stream ids, tool calls, and environment version on each run.',
+      status: 'available',
+      label: 'Claude agent adapter',
+      fit: 'Wired adapter for agentic frontier expansion. Not invoked — this plan uses the deterministic frontier planner.',
+      auditHook: 'When enabled, would persist session id, tool calls, and environment version per run.',
     },
     {
       provider: 'openai',
-      label: 'OpenAI AgentKit / Agents SDK',
-      fit: 'Code-first agents with hosted tools, handoffs, background work, and traces.',
-      auditHook: 'Persist response/run ids, trace ids, tool-call items, and background status transitions.',
+      status: 'available',
+      label: 'OpenAI agent adapter',
+      fit: 'Wired adapter for agentic frontier expansion. Not invoked — this plan uses the deterministic frontier planner.',
+      auditHook: 'When enabled, would persist response/run ids, trace ids, and tool-call items.',
     },
     {
       provider: 'aether',
-      label: 'Aether graph',
-      fit: 'Provider-neutral report storage in Convex plus artifact-first references on the canvas.',
-      auditHook: 'Persist query sets, source refs, clusters, top voices, and exported report provenance.',
+      status: 'active',
+      label: 'Aether frontier + event recap',
+      fit: 'Active runtime: deterministic natural-language frontier planning, then multi-provider event recap collection and clustering.',
+      auditHook: 'Persists query sets, source refs, run events, clusters, top voices, and exported report provenance.',
     },
   ];
 }
