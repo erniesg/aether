@@ -36,9 +36,12 @@ import {
   type EventPost,
   type EventRecapConfig,
   type EventRecapRecord,
+  type EventResolution,
+  type EventRunEventLevel,
   type EventScrapeRun,
   type PlatformScrapeResult,
 } from './types';
+import { logEventRunEvent } from './run-events';
 import { clampConfig, eventWindow, normalizeQuerySet, scorePostsByPlatform } from './utils';
 import { searchYouTubeVideos } from './youtube';
 
@@ -133,6 +136,41 @@ export async function refreshEventRecap(
     liveMode: input.liveMode ?? base?.liveMode ?? defaultMode(),
   });
 
+  const runId = `event_${config.eventId}_${Date.now().toString(36)}`;
+  const isMock = config.liveMode === 'mock';
+  const logRun = (
+    tag: string,
+    message: string,
+    extra?: {
+      level?: EventRunEventLevel;
+      platform?: EventPlatform;
+      data?: Record<string, unknown>;
+    }
+  ) =>
+    logEventRunEvent({
+      eventId: config.eventId,
+      runId,
+      tag,
+      message,
+      level: extra?.level,
+      platform: extra?.platform,
+      data: extra?.data,
+    });
+  const platforms = sanitizePlatforms(input.platforms);
+  logRun(
+    'plan.ready',
+    `frontier received — ${input.extraQuerySet?.length ?? 0} seed queries · ` +
+      `${input.sourceUrls?.length ?? 0} sources · ${isMock ? 'mock' : 'live'} mode`,
+    {
+      data: {
+        liveMode: config.liveMode,
+        platforms,
+        seedQueries: input.extraQuerySet?.length ?? 0,
+        seedSources: input.sourceUrls?.length ?? 0,
+      },
+    }
+  );
+
   const resolvingEvent = toEventRecord(base, config, {
     status: 'resolving',
     updatedAt: Date.now(),
@@ -140,10 +178,35 @@ export async function refreshEventRecap(
   });
   await saveEvent(resolvingEvent);
 
-  const resolution =
-    config.liveMode === 'tinyfish'
-      ? await resolveEventViaTinyFish(config)
-      : mockResolveEvent(config.name, config.contextHint);
+  logRun(
+    'resolve.start',
+    isMock
+      ? 'resolving the event window from the fixed mock corpus'
+      : 'resolving the event window and seed frontier'
+  );
+  let resolution: EventResolution;
+  try {
+    resolution =
+      config.liveMode === 'tinyfish'
+        ? await resolveEventViaTinyFish(config)
+        : mockResolveEvent(config.name, config.contextHint);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logRun('resolve.fail', `event resolution failed — ${message}`, { level: 'error' });
+    logRun('run.fail', 'run aborted before collection', {
+      level: 'error',
+      data: { error: message },
+    });
+    throw err;
+  }
+  logRun('resolve.ok', `resolved "${resolution.canonicalName}"`, {
+    data: {
+      canonicalName: resolution.canonicalName,
+      resolvedQueries: resolution.querySet.length,
+      resolvedSources: resolution.sourceUrls.length,
+      warnings: resolution.warnings.length,
+    },
+  });
 
   const { windowStart, windowEnd } = eventWindow({
     startsAt: resolution.startsAt,
@@ -159,7 +222,6 @@ export async function refreshEventRecap(
     [...resolution.sourceUrls, ...(base?.sourceUrls ?? []), ...(input.sourceUrls ?? [])],
     100
   );
-  const platforms = sanitizePlatforms(input.platforms);
   const targetItemsPerPlatform = clampOptionalTarget(input.targetItemsPerPlatform);
   const platformBudgets = scrapeBudgetsByPlatform({
     platforms,
@@ -179,7 +241,23 @@ export async function refreshEventRecap(
         })
       : 0;
   const usedCredits = base?.usedCredits ?? 0;
-  const runId = `event_${config.eventId}_${Date.now().toString(36)}`;
+
+  logRun(
+    'budget.ready',
+    isMock
+      ? 'mock mode — 0 credits, fixed mock corpus'
+      : `budget ready — ~${estimatedCredits} credits estimated`,
+    {
+      data: {
+        estimatedCredits,
+        usedCredits,
+        monthlyCreditBudget: config.monthlyCreditBudget,
+        queries: activeQuerySet.length,
+        targetItemsPerPlatform,
+        platformBudgets,
+      },
+    }
+  );
 
   if (
     config.monthlyCreditBudget > 0 &&
@@ -214,6 +292,14 @@ export async function refreshEventRecap(
       updatedAt: Date.now(),
     });
     await saveEvent(event);
+    logRun('run.done', 'run skipped — monthly credit budget would be exceeded', {
+      level: 'warn',
+      data: {
+        status: 'skipped',
+        estimatedCredits,
+        monthlyCreditBudget: config.monthlyCreditBudget,
+      },
+    });
     return getEventBundle(config.eventId);
   }
 
@@ -258,16 +344,30 @@ export async function refreshEventRecap(
   try {
     const platformResults =
       config.liveMode === 'mock'
-        ? platforms.map((platform) =>
-            mockScrapePlatform(
+        ? platforms.map((platform) => {
+            logRun(`collect.${platform}.start`, `collecting mock ${platform} corpus`, {
+              platform,
+            });
+            const collected = mockScrapePlatform(
               platform,
               config.eventId,
               runId,
               platformBudgets[platform] ?? config.maxItemsPerPlatform
-            )
-          )
+            );
+            logRun(
+              `collect.${platform}.ok`,
+              `mock ${platform} corpus — ${collected.posts.length} seed posts`,
+              { platform, data: { posts: collected.posts.length, mode: 'mock' } }
+            );
+            return collected;
+          })
         : await Promise.all(
             platforms.map(async (platform) => {
+              logRun(`collect.${platform}.start`, `collecting ${platform} via live providers`, {
+                platform,
+              });
+              try {
+                const collected = await (async (): Promise<PlatformScrapeResult> => {
               const maxItems = platformBudgets[platform] ?? config.maxItemsPerPlatform;
               const seenPostUrls =
                 input.dedupeAgainstExisting === false
@@ -406,22 +506,67 @@ export async function refreshEventRecap(
                 warnings: [...result.warnings, ...fallback.warnings],
                 raw: { agent: result.raw, fallback: fallback.raw },
               };
+                })();
+                logRun(
+                  `collect.${platform}.ok`,
+                  `${platform} collected — ${collected.posts.length} posts`,
+                  {
+                    platform,
+                    data: {
+                      posts: collected.posts.length,
+                      warnings: collected.warnings.length,
+                    },
+                  }
+                );
+                return collected;
+              } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                logRun(
+                  `collect.${platform}.fail`,
+                  `${platform} collection failed — ${message}`,
+                  { level: 'error', platform, data: { error: message } }
+                );
+                throw err;
+              }
             })
           );
 
     const posts = materializePosts(config.eventId, runId, platformResults);
     const previousPosts = existing?.posts ?? [];
     const merged = mergePosts(previousPosts, posts);
+    logRun(
+      'enrich.ok',
+      `materialized ${posts.length} new refs — ${merged.length} in the corpus`,
+      { data: { newRefs: posts.length, mergedRefs: merged.length } }
+    );
     const expansion = deriveExpansionPlan(resolution.canonicalName ?? config.name, merged, {
       baseQueries: activeQuerySet,
       maxQueries: Math.max(12, Math.min(activeQuerySet.length + 12, 48)),
     });
     const relevantMerged = merged.filter((post) => !post.tags.includes('irrelevant:event'));
     const analysis = analyzePosts(config.eventId, relevantMerged);
+    logRun(
+      'cluster.ok',
+      `clustered ${analysis.themes.length} themes · ${analysis.voices.length} voices`,
+      {
+        data: {
+          themes: analysis.themes.length,
+          voices: analysis.voices.length,
+          relevantRefs: relevantMerged.length,
+        },
+      }
+    );
 
     await savePosts(config.eventId, posts);
     await saveThemes(config.eventId, analysis.themes);
     await saveVoices(config.eventId, analysis.voices);
+    logRun('export.ready', 'report saved — clusters, voices, and source pack ready', {
+      data: {
+        posts: posts.length,
+        themes: analysis.themes.length,
+        voices: analysis.voices.length,
+      },
+    });
 
     const finishedRun: EventScrapeRun = {
       ...run,
@@ -467,9 +612,28 @@ export async function refreshEventRecap(
       updatedAt: Date.now(),
     });
     await saveEvent(event);
+    logRun(
+      'run.done',
+      `run complete — ${merged.length} refs · ${analysis.themes.length} clusters · ` +
+        `${analysis.voices.length} voices`,
+      {
+        data: {
+          status: 'completed',
+          refs: merged.length,
+          themes: analysis.themes.length,
+          voices: analysis.voices.length,
+          warnings: finishedRun.warnings.length,
+          mode: config.liveMode,
+        },
+      }
+    );
     return getEventBundle(config.eventId);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    logRun('run.fail', `run failed — ${message}`, {
+      level: 'error',
+      data: { error: message },
+    });
     await saveRunFinish({
       ...run,
       status: 'failed',
