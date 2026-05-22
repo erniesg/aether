@@ -7,6 +7,7 @@ import {
   type ApifyLinkedInSort,
   type ApifyXSort,
 } from './apify';
+import { isXquikConfigured, searchXViaXquik } from './xquik';
 import { enrichPostConversationTags } from './conversation';
 import { deriveExpansionPlan } from './expand';
 import { deriveSeedFrontier } from './frontier';
@@ -48,7 +49,7 @@ import { searchYouTubeVideos } from './youtube';
 const PLATFORMS: EventPlatform[] = [...EVENT_PLATFORMS];
 
 type LinkedInRefreshMode = 'search-fetch' | 'browser-direct' | 'apify';
-type XRefreshProvider = 'official' | 'apify';
+type XRefreshProvider = 'official' | 'apify' | 'xquik';
 
 interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   name?: string;
@@ -407,6 +408,16 @@ export async function refreshEventRecap(
                   maxLiveChatMessagesPerVideo: input.maxYouTubeLiveChatMessagesPerVideo,
                 });
               }
+              if (platform === 'x' && input.xProvider === 'xquik') {
+                return searchXViaXquik({
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  seenPostUrls,
+                });
+              }
               if (platform === 'x' && input.xProvider === 'apify') {
                 return searchXViaApify({
                   querySet: activeQuerySet,
@@ -444,6 +455,17 @@ export async function refreshEventRecap(
                   seenPostUrls,
                 });
                 if (apify.posts.length > 0) return apify;
+              }
+              if (platform === 'x' && isXquikConfigured()) {
+                const xquik = await searchXViaXquik({
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  seenPostUrls,
+                });
+                if (xquik.posts.length > 0) return xquik;
               }
               if (platform === 'linkedin' && input.linkedinMode === 'apify') {
                 return searchLinkedInViaApify({
