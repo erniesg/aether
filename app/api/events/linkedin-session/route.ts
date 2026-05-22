@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { warmLinkedInSessionViaTinyFish } from '@/lib/research/event-recap/tinyfish';
 
 export const runtime = 'nodejs';
@@ -14,6 +15,15 @@ export async function POST(request: Request) {
   if (!isObject(body)) {
     return NextResponse.json({ ok: false, error: 'JSON object body is required' }, { status: 400 });
   }
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/linkedin-session',
+    action: 'warm-linkedin-session',
+    metadata: {
+      hasTargetUrl: typeof body.targetUrl === 'string' && Boolean(body.targetUrl.trim()),
+      syncVault: typeof body.syncVault === 'boolean' ? body.syncVault : undefined,
+    },
+  });
+  if (authResponse) return authResponse;
 
   try {
     const session = await warmLinkedInSessionViaTinyFish({

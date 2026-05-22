@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { createEventRecap, refreshEventRecap } from '@/lib/research/event-recap/pipeline';
 import { isEventPlatform } from '@/lib/research/event-recap/types';
 
@@ -25,6 +26,18 @@ export async function POST(request: Request) {
   if (!isObject(body) || typeof body.name !== 'string' || !body.name.trim()) {
     return NextResponse.json({ ok: false, error: 'name is required' }, { status: 400 });
   }
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events',
+    action: body.refresh === false ? 'create-event-draft' : 'create-event',
+    metadata: {
+      eventName: body.name.trim(),
+      liveMode: body.liveMode === 'tinyfish' ? 'tinyfish' : 'mock',
+      refresh: body.refresh !== false,
+      sourceCount: stringArray(body.sourceUrls)?.length ?? 0,
+      queryCount: stringArray(body.initialQuerySet ?? body.querySet)?.length ?? 0,
+    },
+  });
+  if (authResponse) return authResponse;
 
   try {
     const event = await createEventRecap({

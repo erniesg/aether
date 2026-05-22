@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { estimateEventCounts } from '@/lib/research/event-recap/counts';
 import { isEventPlatform, type EventPlatform } from '@/lib/research/event-recap/types';
 
@@ -26,6 +27,19 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/counts',
+    action: 'estimate-counts',
+    metadata: {
+      eventId: typeof body.eventId === 'string' ? body.eventId : undefined,
+      eventName: typeof body.eventName === 'string' ? body.eventName : undefined,
+      platformCount: platforms(body.platforms)?.length ?? 0,
+      queryCount: Array.isArray(body.querySet)
+        ? body.querySet.filter((item): item is string => typeof item === 'string').length
+        : 0,
+    },
+  });
+  if (authResponse) return authResponse;
 
   try {
     const counts = await estimateEventCounts({

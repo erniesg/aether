@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  await params;
+  const { eventId } = await params;
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/:eventId/media',
+    action: 'read-media',
+    metadata: { eventId },
+  });
+  if (authResponse) return authResponse;
+
   const mediaPath = new URL(request.url).searchParams.get('path');
   if (!mediaPath) {
     return NextResponse.json({ ok: false, error: 'path is required' }, { status: 400 });

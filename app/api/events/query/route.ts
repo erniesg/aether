@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { getEventBundle } from '@/lib/research/event-recap/store';
 import { isEventPlatform, type EventPlatform } from '@/lib/research/event-recap/types';
 
@@ -18,6 +19,16 @@ export async function POST(request: Request) {
   if (!isObject(body) || typeof body.eventId !== 'string') {
     return NextResponse.json({ ok: false, error: 'eventId is required' }, { status: 400 });
   }
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/query',
+    action: 'query-posts',
+    metadata: {
+      eventId: body.eventId,
+      platform: platform(body.platform),
+      hasQuery: typeof body.query === 'string' && Boolean(body.query.trim()),
+    },
+  });
+  if (authResponse) return authResponse;
 
   const bundle = await getEventBundle(body.eventId);
   if (!bundle) {

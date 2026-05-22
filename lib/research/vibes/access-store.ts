@@ -67,7 +67,7 @@ interface MemoryState {
 }
 
 const MEMORY_KEY = '__aether_vibes_access_store__';
-const DEFAULT_DAILY_LIMIT = 100;
+const DEFAULT_DAILY_LIMIT = 0;
 
 const vibesApi = (anyApi as unknown as {
   vibes: {
@@ -108,8 +108,10 @@ function convexClient(): ConvexHttpClient | null {
 }
 
 export function vibesDailyLimit(env: NodeJS.ProcessEnv = process.env): number {
-  const parsed = Number(env.VIBES_DAILY_CALL_LIMIT);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_DAILY_LIMIT;
+  const raw = env.VIBES_DAILY_CALL_LIMIT?.trim();
+  if (!raw) return DEFAULT_DAILY_LIMIT;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : DEFAULT_DAILY_LIMIT;
 }
 
 export function dayKey(date = new Date()): string {

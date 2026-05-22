@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { getEventBundle } from '@/lib/research/event-recap/store';
 
 export const runtime = 'nodejs';
@@ -13,6 +14,13 @@ export async function POST(request: Request) {
   if (!isObject(body) || typeof body.eventId !== 'string') {
     return NextResponse.json({ ok: false, error: 'eventId is required' }, { status: 400 });
   }
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/themes',
+    action: 'read-themes',
+    metadata: { eventId: body.eventId },
+  });
+  if (authResponse) return authResponse;
+
   const bundle = await getEventBundle(body.eventId);
   if (!bundle) {
     return NextResponse.json({ ok: false, error: 'event not found' }, { status: 404 });
