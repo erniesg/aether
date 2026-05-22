@@ -51,4 +51,18 @@ test.describe('vibes smoke', () => {
     });
     await expect(page.getByRole('button', { name: 'clusters' })).toBeVisible();
   });
+
+  test('estimate action and scope controls are in the shell', async ({ page }) => {
+    await page.goto('/vibes');
+
+    // Pre-flight: estimate (dry run) sits alongside frontier and report.
+    await expect(page.getByTestId('vibes-estimate')).toBeVisible();
+
+    // Scope is a collapsed disclosure — progressive disclosure, not a wall of knobs.
+    const scope = page.getByTestId('vibes-scope');
+    await expect(scope).toBeVisible();
+    await expect(page.getByPlaceholder('auto').first()).toBeHidden();
+    await scope.locator('summary').click();
+    await expect(page.getByPlaceholder('auto').first()).toBeVisible();
+  });
 });
