@@ -2,12 +2,18 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 const ORIGINAL_CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
+const ORIGINAL_LIVE_MODE = process.env.NEXT_PUBLIC_AETHER_LIVE_MODE;
 
 afterEach(() => {
   if (ORIGINAL_CONVEX_URL === undefined) {
     delete process.env.NEXT_PUBLIC_CONVEX_URL;
   } else {
     process.env.NEXT_PUBLIC_CONVEX_URL = ORIGINAL_CONVEX_URL;
+  }
+  if (ORIGINAL_LIVE_MODE === undefined) {
+    delete process.env.NEXT_PUBLIC_AETHER_LIVE_MODE;
+  } else {
+    process.env.NEXT_PUBLIC_AETHER_LIVE_MODE = ORIGINAL_LIVE_MODE;
   }
   vi.resetModules();
   vi.doUnmock('convex/react');
@@ -17,6 +23,7 @@ afterEach(() => {
 describe('signals store — in-memory fallback (NEXT_PUBLIC_CONVEX_URL unset)', () => {
   beforeEach(() => {
     delete process.env.NEXT_PUBLIC_CONVEX_URL;
+    delete process.env.NEXT_PUBLIC_AETHER_LIVE_MODE;
     window.localStorage.clear();
     vi.resetModules();
   });
@@ -146,6 +153,7 @@ describe('signals store — in-memory fallback (NEXT_PUBLIC_CONVEX_URL unset)', 
 describe('signals store — Convex backend (NEXT_PUBLIC_CONVEX_URL set, useQuery mocked)', () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_CONVEX_URL = 'https://example.convex.cloud';
+    process.env.NEXT_PUBLIC_AETHER_LIVE_MODE = 'all';
     vi.resetModules();
   });
 

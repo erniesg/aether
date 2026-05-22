@@ -4,7 +4,7 @@
  * Regression test for the brand-name-revert-on-reload bug.
  *
  * Root cause: wrangler.jsonc had NEXT_PUBLIC_CONVEX_URL="" in the staging
- * environment, so isConvexEnabled() returned false. Changes were written to
+ * environment, so there was no remote write target. Changes were written to
  * in-memory brandCache + localStorage (via saveMemory), neither of which
  * survives a Cloudflare Workers page reload. The "saved" UI feedback came from
  * setSaveState('saved') firing after saveMemory() — which always succeeds
@@ -19,13 +19,25 @@
  * requiring a live deployment.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as convexClientModule from '@/lib/convex/client';
 import {
   saveBrandContext,
   coerceBrandContext,
 } from '@/lib/context/creator-store';
 import { DEMO_CREATOR_CONTEXT } from '@/lib/context/model';
+
+const ORIGINAL_CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  window.localStorage.clear();
+  if (ORIGINAL_CONVEX_URL === undefined) {
+    delete process.env.NEXT_PUBLIC_CONVEX_URL;
+  } else {
+    process.env.NEXT_PUBLIC_CONVEX_URL = ORIGINAL_CONVEX_URL;
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -140,6 +152,31 @@ describe('saveBrandContext – localStorage path', () => {
     const raw = window.localStorage.getItem('aether.brand.v1');
     expect(raw).not.toBeNull();
     expect(JSON.parse(raw!).name).toBe('LocalOnly');
+  });
+});
+
+describe('saveBrandContext – live-off Convex write-through', () => {
+  let mockClient: ReturnType<typeof makeMockConvexClient>;
+
+  beforeEach(() => {
+    mockClient = makeMockConvexClient();
+    process.env.NEXT_PUBLIC_CONVEX_URL = 'https://example.convex.cloud';
+    vi.spyOn(convexClientModule, 'isConvexEnabled').mockReturnValue(false);
+    vi.spyOn(convexClientModule, 'getConvexClient').mockReturnValue(
+      mockClient as unknown as ReturnType<typeof convexClientModule.getConvexClient>
+    );
+  });
+
+  it('updates the local mirror and persists only on explicit save', () => {
+    saveBrandContext(
+      { ...DEMO_CREATOR_CONTEXT.brand, name: 'LiveOffWriteThrough' },
+      'demo-ws'
+    );
+
+    const raw = window.localStorage.getItem('aether.brand.v1');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw!).name).toBe('LiveOffWriteThrough');
+    expect(mockClient.mutation).toHaveBeenCalledTimes(1);
   });
 });
 

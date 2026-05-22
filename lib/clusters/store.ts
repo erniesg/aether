@@ -1,9 +1,8 @@
 'use client';
 
-// Cluster-kanban store facade. Identical shape to lib/signals/store: when
-// NEXT_PUBLIC_CONVEX_URL is set, reads come from Convex; otherwise the
-// localStorage-backed memory store drives the UI so Playwright and dev work
-// without provisioning.
+// Cluster-kanban store facade. Broad Convex live reads are opt-in via
+// NEXT_PUBLIC_AETHER_LIVE_MODE=all; otherwise the localStorage-backed memory
+// store drives the UI so Playwright and dev work without realtime subscriptions.
 
 import { isConvexEnabled } from '@/lib/convex/client';
 import {
