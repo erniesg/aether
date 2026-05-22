@@ -98,7 +98,7 @@ export const consumeApiKeyCall = mutationGeneric({
       return {
         allowed: false,
         source: 'api-key',
-        dailyLimit: args.dailyLimit ?? 100,
+        dailyLimit: args.dailyLimit ?? 0,
         remaining: 0,
         reason: 'invalid_api_key',
       };

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { getEventBundle } from '@/lib/research/event-recap/store';
 import {
   buildEventRawExport,
@@ -21,6 +22,13 @@ export async function GET(
   const format = parseFormat(url.searchParams.get('format'));
   const scope = parseScope(url.searchParams.get('scope'));
   const download = url.searchParams.get('download') !== '0';
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/:eventId/raw',
+    action: download ? 'download-source-pack' : 'inspect-source-pack',
+    metadata: { eventId, format, scope, download },
+  });
+  if (authResponse) return authResponse;
+
   const bundle = await getEventBundle(eventId);
 
   if (!bundle) {

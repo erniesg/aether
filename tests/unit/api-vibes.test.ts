@@ -48,21 +48,23 @@ describe('/api/vibes', () => {
       voices: [],
     });
 
-    const { POST } = await import('@/app/api/vibes/route');
-    const res = await POST(
-      new Request('http://localhost/api/vibes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-vibes-dev-user': 'user-vibes-report' },
-        body: JSON.stringify({
-          brief:
-            'Social listening for Nothing Phone launch with #LaunchDay, @nothing, and https://nothing.tech/',
-          hashtags: ['#LaunchDay'],
-          accounts: ['@nothing'],
-          sourceLinks: ['https://nothing.tech/'],
-          refresh: true,
-        }),
-      })
-    );
+    const res = await withDailyLimit('1', async () => {
+      const { POST } = await import('@/app/api/vibes/route');
+      return await POST(
+        new Request('http://localhost/api/vibes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-vibes-dev-user': 'user-vibes-report' },
+          body: JSON.stringify({
+            brief:
+              'Social listening for Nothing Phone launch with #LaunchDay, @nothing, and https://nothing.tech/',
+            hashtags: ['#LaunchDay'],
+            accounts: ['@nothing'],
+            sourceLinks: ['https://nothing.tech/'],
+            refresh: true,
+          }),
+        })
+      );
+    });
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -112,10 +114,24 @@ describe('/api/vibes', () => {
     expect(await res.json()).toMatchObject({ ok: false, code: 'missing_auth' });
   });
 
+  it('defaults signed-in users to zero free Vibes calls', async () => {
+    const { POST } = await import('@/app/api/vibes/plan/route');
+    const res = await withDailyLimit(undefined, () =>
+      POST(
+        new Request('http://localhost/api/vibes/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-vibes-dev-user': 'user-vibes-zero-free' },
+          body: JSON.stringify({ brief: 'Track a product launch' }),
+        })
+      )
+    );
+
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({ ok: false, code: 'quota_exceeded' });
+  });
+
   it('enforces the per-user daily Vibes quota', async () => {
-    const previous = process.env.VIBES_DAILY_CALL_LIMIT;
-    process.env.VIBES_DAILY_CALL_LIMIT = '1';
-    try {
+    await withDailyLimit('1', async () => {
       const { POST } = await import('@/app/api/vibes/plan/route');
       const request = () =>
         POST(
@@ -130,9 +146,21 @@ describe('/api/vibes', () => {
       const limited = await request();
       expect(limited.status).toBe(429);
       expect(await limited.json()).toMatchObject({ ok: false, code: 'quota_exceeded' });
-    } finally {
-      if (previous === undefined) delete process.env.VIBES_DAILY_CALL_LIMIT;
-      else process.env.VIBES_DAILY_CALL_LIMIT = previous;
-    }
+    });
   });
 });
+
+async function withDailyLimit<T>(
+  value: string | undefined,
+  fn: () => Promise<T>
+): Promise<T> {
+  const previous = process.env.VIBES_DAILY_CALL_LIMIT;
+  if (value === undefined) delete process.env.VIBES_DAILY_CALL_LIMIT;
+  else process.env.VIBES_DAILY_CALL_LIMIT = value;
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined) delete process.env.VIBES_DAILY_CALL_LIMIT;
+    else process.env.VIBES_DAILY_CALL_LIMIT = previous;
+  }
+}

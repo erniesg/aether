@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventRecapBundle } from '@/lib/research/event-recap/types';
 
 const mocks = vi.hoisted(() => ({
@@ -14,10 +14,31 @@ vi.mock('@/lib/research/event-recap/access-log', () => ({
   recordEventRawAccess: mocks.recordEventRawAccess,
 }));
 
+const originalDailyLimit = process.env.VIBES_DAILY_CALL_LIMIT;
+
 describe('/api/events/[eventId]/raw', () => {
+  beforeEach(() => {
+    process.env.VIBES_DAILY_CALL_LIMIT = '10';
+  });
+
   afterEach(() => {
+    if (originalDailyLimit === undefined) delete process.env.VIBES_DAILY_CALL_LIMIT;
+    else process.env.VIBES_DAILY_CALL_LIMIT = originalDailyLimit;
     mocks.getEventBundle.mockReset();
     mocks.recordEventRawAccess.mockReset();
+  });
+
+  it('requires Vibes auth before exporting source data', async () => {
+    const { GET } = await import('@/app/api/events/[eventId]/raw/route');
+    const res = await GET(
+      new Request('http://localhost/api/events/ai-engineer-singapore/raw?format=json&scope=raw'),
+      { params: Promise.resolve({ eventId: 'ai-engineer-singapore' }) }
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ ok: false, code: 'missing_auth' });
+    expect(mocks.getEventBundle).not.toHaveBeenCalled();
+    expect(mocks.recordEventRawAccess).not.toHaveBeenCalled();
   });
 
   it('exports raw JSON with metadata and tracks download metadata', async () => {
@@ -27,6 +48,7 @@ describe('/api/events/[eventId]/raw', () => {
     const res = await GET(
       new Request('http://localhost/api/events/ai-engineer-singapore/raw?format=json&scope=raw', {
         headers: {
+          'x-vibes-dev-user': 'user-event-raw-json',
           'user-agent': 'vitest',
           'accept-language': 'en-SG,en;q=0.9',
           'cf-connecting-ip': '203.0.113.10',
@@ -75,7 +97,9 @@ describe('/api/events/[eventId]/raw', () => {
     mocks.getEventBundle.mockResolvedValueOnce(bundle());
     const { GET } = await import('@/app/api/events/[eventId]/raw/route');
     const res = await GET(
-      new Request('http://localhost/api/events/ai-engineer-singapore/raw?format=csv'),
+      new Request('http://localhost/api/events/ai-engineer-singapore/raw?format=csv', {
+        headers: { 'x-vibes-dev-user': 'user-event-raw-csv' },
+      }),
       { params: Promise.resolve({ eventId: 'ai-engineer-singapore' }) }
     );
 
@@ -91,7 +115,9 @@ describe('/api/events/[eventId]/raw', () => {
     mocks.getEventBundle.mockResolvedValueOnce(bundle());
     const { GET } = await import('@/app/api/events/[eventId]/raw/route');
     const res = await GET(
-      new Request('http://localhost/api/events/ai-engineer-singapore/raw?format=json'),
+      new Request('http://localhost/api/events/ai-engineer-singapore/raw?format=json', {
+        headers: { 'x-vibes-dev-user': 'user-event-raw-posts' },
+      }),
       { params: Promise.resolve({ eventId: 'ai-engineer-singapore' }) }
     );
 

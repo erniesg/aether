@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { refreshEventRecap } from '@/lib/research/event-recap/pipeline';
 import { isEventPlatform } from '@/lib/research/event-recap/types';
 
@@ -22,6 +23,17 @@ export async function POST(
   const { eventId } = await params;
   const body = await request.json().catch(() => ({}));
   const input = isObject(body) ? body : {};
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/:eventId/refresh',
+    action: 'refresh-event',
+    metadata: {
+      eventId,
+      liveMode: input.liveMode === 'tinyfish' ? 'tinyfish' : 'stored',
+      platformCount: Array.isArray(input.platforms) ? input.platforms.filter(isEventPlatform).length : 0,
+      queryCount: stringArray(input.extraQuerySet ?? input.querySet)?.length ?? 0,
+    },
+  });
+  if (authResponse) return authResponse;
 
   try {
     const bundle = await refreshEventRecap({

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
 import { refreshEventRecap } from '@/lib/research/event-recap/pipeline';
 import { isEventPlatform } from '@/lib/research/event-recap/types';
 
@@ -21,6 +22,17 @@ export async function POST(request: Request) {
   if (typeof input.eventId !== 'string' || !input.eventId.trim()) {
     return NextResponse.json({ ok: false, error: 'eventId is required' }, { status: 400 });
   }
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/refresh',
+    action: 'refresh-event',
+    metadata: {
+      eventId: input.eventId,
+      liveMode: input.liveMode === 'tinyfish' ? 'tinyfish' : 'stored',
+      platformCount: Array.isArray(input.platforms) ? input.platforms.filter(isEventPlatform).length : 0,
+      queryCount: stringArray(input.extraQuerySet ?? input.querySet)?.length ?? 0,
+    },
+  });
+  if (authResponse) return authResponse;
 
   try {
     const bundle = await refreshEventRecap({
