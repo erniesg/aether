@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createEventRecap, refreshEventRecap } from '@/lib/research/event-recap/pipeline';
+import { toPublicEventBundle } from '@/lib/research/event-recap/public-bundle';
 import { isEventPlatform, type EventPlatform } from '@/lib/research/event-recap/types';
 import { authorizeVibesRequest, vibesAuthResponse } from '@/lib/research/vibes/access';
 import { buildVibesPlan } from '@/lib/research/vibes/plan';
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
       ok: true,
       plan,
       event: bundle?.event ?? event,
-      bundle,
+      bundle: bundle ? toPublicEventBundle(bundle, { debug: body.debug === true }) : bundle,
       reportUrl: `/events/${event.eventId}`,
     });
   } catch (err) {
