@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
+  Activity,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
   FileJson,
   FileText,
   HelpCircle,
+  Loader2,
   Play,
   RefreshCw,
   Search,
@@ -23,12 +25,16 @@ import { Button } from '@/components/ui/Button';
 import { Chip, type ChipTone } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { useVibesAuth } from '@/components/vibes/vibes-auth';
+import { VibesAccessMenu } from '@/components/vibes/VibesAccessMenu';
+import { RunEventTimeline, summarizeRunEvents } from '@/components/vibes/RunEventTimeline';
 import type {
   EventPlatform,
   EventClusterQuality,
   EventPost,
   EventRecapBundle,
   EventRecapRecord,
+  EventRecapRunEvent,
   EventScrapeRun,
   EventTheme,
   EventVoice,
@@ -55,6 +61,7 @@ export default function EventRecapClient({
   eventId: string;
   debug: boolean;
 }) {
+  const auth = useVibesAuth();
   const [bundle, setBundle] = useState<EventRecapBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,12 +75,18 @@ export default function EventRecapClient({
 
   async function load() {
     try {
-      const res = await fetch(`/api/events/${eventId}`, { cache: 'no-store' });
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(eventId)}${debug ? '?debug=1' : ''}`,
+        { cache: 'no-store', headers: await auth.getAuthHeaders() }
+      );
       const json = (await res.json()) as {
         ok?: boolean;
         bundle?: EventRecapBundle;
         error?: string;
       };
+      if (res.status === 401) {
+        throw new Error('Add a Vibes API key or sign in (top right) to view this report.');
+      }
       if (!json.ok || !json.bundle) throw new Error(json.error ?? `HTTP ${res.status}`);
       setBundle(json.bundle);
       setError(null);
@@ -88,16 +101,22 @@ export default function EventRecapClient({
     setRefreshing(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(eventId)}/refresh${debug ? '?debug=1' : ''}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await auth.getAuthHeaders()) },
+          body: JSON.stringify({}),
+        }
+      );
       const json = (await res.json()) as {
         ok?: boolean;
         bundle?: EventRecapBundle;
         error?: string;
       };
+      if (res.status === 401) {
+        throw new Error('Add a Vibes API key or sign in (top right) to refresh.');
+      }
       if (!json.ok || !json.bundle) throw new Error(json.error ?? `HTTP ${res.status}`);
       setBundle(json.bundle);
     } catch (err) {
@@ -161,7 +180,6 @@ export default function EventRecapClient({
   );
 
   const event = bundle?.event;
-  const latestRun = bundle?.runs[0];
 
   return (
     <main className="min-h-screen bg-surface-base text-ink">
@@ -189,6 +207,7 @@ export default function EventRecapClient({
           >
             {refreshing ? 'refreshing' : 'refresh'}
           </Button>
+          <VibesAccessMenu />
           <ThemeToggle />
         </div>
       </header>
@@ -309,7 +328,18 @@ export default function EventRecapClient({
           )}
         </Surface>
 
-        <Surface as="aside" taxonomy="tool" border="soft" className="order-2 h-fit min-w-0 overflow-hidden p-4 min-[1500px]:order-1">
+        <Surface
+          as="aside"
+          taxonomy="metadata"
+          border="soft"
+          className="order-2 h-fit min-w-0 overflow-hidden p-4 min-[1500px]:order-1"
+        >
+          <EventRunPanel
+            event={event}
+            runs={bundle?.runs ?? []}
+            runEvents={bundle?.runEvents ?? []}
+            debug={debug}
+          />
           <CollectionSummary
             event={event}
             runs={bundle?.runs ?? []}
@@ -317,35 +347,6 @@ export default function EventRecapClient({
             clustering={bundle?.clustering}
           />
           {bundle ? <SourcePack eventId={eventId} bundle={bundle} debug={debug} /> : null}
-
-          {debug && latestRun?.streamingUrls.length ? (
-            <div className="mt-5 space-y-2">
-              <p className="font-caption text-xs text-ink-dim">live preview</p>
-              {latestRun.streamingUrls.map((stream) => (
-                <a
-                  key={`${stream.platform}:${stream.url}`}
-                  href={stream.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between rounded-sm border border-border-soft px-2 py-1.5 font-mono text-xs text-ink-muted hover:border-accent hover:text-accent"
-                >
-                  <span>{stream.platform}</span>
-                  <ExternalLink size={13} strokeWidth={1.75} />
-                </a>
-              ))}
-            </div>
-          ) : null}
-
-          {debug && latestRun ? (
-            <details className="mt-5 rounded-md border border-border-soft p-3">
-              <summary className="cursor-pointer font-caption text-xs text-ink-dim">
-                debug
-              </summary>
-              <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap font-mono text-2xs text-ink-dim">
-                {JSON.stringify(latestRun, null, 2)}
-              </pre>
-            </details>
-          ) : null}
         </Surface>
       </section>
     </main>
@@ -375,6 +376,117 @@ function LensButton({
   );
 }
 
+function EventRunPanel({
+  event,
+  runs,
+  runEvents,
+  debug,
+}: {
+  event?: EventRecapRecord;
+  runs: EventScrapeRun[];
+  runEvents: EventRecapRunEvent[];
+  debug: boolean;
+}) {
+  const latestRun = runs[0];
+  const summary = summarizeRunEvents(runEvents);
+  const statusTone: ChipTone =
+    summary.status === 'failed' ? 'error' : summary.status === 'done' ? 'ok' : 'info';
+  const mode = event?.liveMode === 'tinyfish' ? 'live' : 'mock';
+  const platforms = latestRun?.platforms ?? [];
+  const streamingUrls = latestRun?.streamingUrls ?? [];
+
+  return (
+    <div className="mb-5 border-b border-border-soft pb-5">
+      <div className="flex items-center gap-2">
+        <Activity size={15} strokeWidth={1.75} className="text-accent" />
+        <h2 className="font-display text-base tracking-tight">run</h2>
+        <Chip tone={statusTone} size="sm" className="ml-auto">
+          {summary.status}
+        </Chip>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <Chip tone={mode === 'live' ? 'warn' : 'neutral'} size="sm">
+          {mode}
+        </Chip>
+        {platforms.map((platform) => (
+          <Chip key={platform} tone={platformTone(platform)} size="sm">
+            {platform}
+          </Chip>
+        ))}
+        {summary.warnings > 0 ? (
+          <Chip tone="warn" size="sm">
+            {summary.warnings} warnings
+          </Chip>
+        ) : null}
+        {summary.errors > 0 ? (
+          <Chip tone="error" size="sm">
+            {summary.errors} errors
+          </Chip>
+        ) : null}
+      </div>
+
+      {runEvents.length ? (
+        <details className="mt-3 rounded-sm border border-border-soft bg-surface-base p-2" open>
+          <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
+            run steps · {summary.steps}
+          </summary>
+          <div className="mt-3">
+            <RunEventTimeline events={runEvents} />
+          </div>
+          {latestRun ? (
+            <p className="mt-3 font-mono text-2xs text-ink-dim">
+              credits — estimated {latestRun.estimatedCredits} · used {latestRun.actualCredits ?? 0}
+            </p>
+          ) : null}
+        </details>
+      ) : (
+        <p className="mt-3 font-caption text-xs text-ink-dim">
+          No run steps recorded yet — refresh to collect.
+        </p>
+      )}
+
+      {debug && latestRun ? (
+        <details className="mt-3 rounded-sm border border-dashed border-border-soft bg-surface-base p-2">
+          <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
+            debug — raw run
+          </summary>
+          {streamingUrls.length ? (
+            <div className="mt-3 space-y-1.5">
+              {streamingUrls.map((stream) => (
+                <a
+                  key={`${stream.platform}:${stream.url}`}
+                  href={stream.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between rounded-sm border border-border-soft px-2 py-1.5 font-mono text-xs text-ink-muted hover:border-accent hover:text-accent"
+                >
+                  <span>{stream.platform} stream</span>
+                  <ExternalLink size={13} strokeWidth={1.75} />
+                </a>
+              ))}
+            </div>
+          ) : null}
+          <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap font-mono text-2xs text-ink-dim">
+            {JSON.stringify(latestRun, null, 2)}
+          </pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 function CollectionSummary({
   event,
   runs,
@@ -387,6 +499,7 @@ function CollectionSummary({
   clustering?: EventClusterQuality;
 }) {
   const terms = event?.querySet ?? [];
+  const subject = event?.canonicalName ?? event?.name ?? 'the subject';
   const refDates = dateRange(posts);
   const latestRun = runs[0];
   const sources = sourceSummary(posts);
@@ -444,12 +557,12 @@ function CollectionSummary({
           ) : null}
           <ul className="space-y-2">
             <li>
-              Refs are deduped, then filtered for an AI Engineer Singapore anchor plus program,
-              speaker, sponsor, workshop, demo, media, logistics, or recap evidence.
+              Refs are deduped, then filtered for a {subject} anchor plus program, speaker,
+              sponsor, session, demo, media, logistics, or recap evidence.
             </li>
             <li>
-              Incidental attendance or adjacent AI-in-Singapore posts are excluded unless they add
-              source media, useful logistics, speaker/program context, or concrete event texture.
+              Incidental or loosely adjacent posts are excluded unless they add source media,
+              useful logistics, speaker/program context, or concrete texture.
             </li>
             <li>This is an evidence-seeking public recap corpus, not a representative survey.</li>
             <li>
@@ -510,15 +623,105 @@ function SourcePack({
   bundle: EventRecapBundle;
   debug: boolean;
 }) {
+  const auth = useVibesAuth();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const encodedEventId = encodeURIComponent(eventId);
-  const sourceJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=posts&includeCaptures=1&download=1`;
-  const postsCsvUrl = `/api/events/${encodedEventId}/raw?format=csv&scope=posts&includeCaptures=1&download=1`;
-  const capturesJsonUrl = `/api/events/${encodedEventId}/captures?format=json&download=1`;
-  const capturesCsvUrl = `/api/events/${encodedEventId}/captures?format=csv&download=1`;
-  const capturesZipUrl = `/api/events/${encodedEventId}/captures?format=zip&download=1`;
-  const inspectJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=raw&download=0`;
   const latestRun = bundle.runs[0];
   const mediaCount = bundle.posts.reduce((sum, post) => sum + (post.media?.length ?? 0), 0);
+  const inspectJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=raw&download=0`;
+
+  // Source-pack endpoints are auth-gated, so a plain <a download> would 401.
+  // Fetch with the Vibes auth header, then download / open the blob — the key
+  // never lands in a URL.
+  async function fetchAsset(url: string): Promise<Response> {
+    const res = await fetch(url, { headers: await auth.getAuthHeaders() });
+    if (!res.ok) {
+      throw new Error(
+        res.status === 401
+          ? 'Add a Vibes API key or sign in (top right) to download the source pack.'
+          : `download failed — HTTP ${res.status}`
+      );
+    }
+    return res;
+  }
+
+  async function runAsset(key: string, action: () => Promise<void>) {
+    setError(null);
+    setBusy(key);
+    try {
+      await action();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const download = (key: string, url: string, filename: string) =>
+    runAsset(key, async () => {
+      const res = await fetchAsset(url);
+      triggerBlobDownload(await res.blob(), filename);
+    });
+
+  const inspect = (key: string, url: string) =>
+    runAsset(key, async () => {
+      const res = await fetchAsset(url);
+      const objectUrl = URL.createObjectURL(await res.blob());
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    });
+
+  const assets: Array<{
+    key: string;
+    icon: ReactNode;
+    label: string;
+    detail: string;
+    url: string;
+    filename: string;
+  }> = [
+    {
+      key: 'source-json',
+      icon: <FileJson size={14} strokeWidth={1.75} />,
+      label: 'source json',
+      detail: 'posts, media, clusters, captures',
+      url: `/api/events/${encodedEventId}/raw?format=json&scope=posts&includeCaptures=1&download=1`,
+      filename: `${eventId}-source-pack.json`,
+    },
+    {
+      key: 'posts-csv',
+      icon: <FileText size={14} strokeWidth={1.75} />,
+      label: 'posts csv',
+      detail: 'spreadsheet-friendly post + capture index',
+      url: `/api/events/${encodedEventId}/raw?format=csv&scope=posts&includeCaptures=1&download=1`,
+      filename: `${eventId}-posts.csv`,
+    },
+    {
+      key: 'captures-csv',
+      icon: <FileText size={14} strokeWidth={1.75} />,
+      label: 'captures csv',
+      detail: 'screenshot paths, statuses, hashes',
+      url: `/api/events/${encodedEventId}/captures?format=csv&download=1`,
+      filename: `${eventId}-captures.csv`,
+    },
+    {
+      key: 'captures-zip',
+      icon: <Download size={14} strokeWidth={1.75} />,
+      label: 'captures zip',
+      detail: 'manifest, CSV, screenshots',
+      url: `/api/events/${encodedEventId}/captures?format=zip&download=1`,
+      filename: `${eventId}-captures.zip`,
+    },
+    {
+      key: 'captures-json',
+      icon: <FileJson size={14} strokeWidth={1.75} />,
+      label: 'captures json',
+      detail: 'latest screenshot manifest',
+      url: `/api/events/${encodedEventId}/captures?format=json&download=1`,
+      filename: `${eventId}-captures.json`,
+    },
+  ];
 
   return (
     <div className="mt-5 border-t border-border-soft pt-5">
@@ -531,37 +734,18 @@ function SourcePack({
         provenance.
       </p>
       <div className="mt-3 grid gap-2">
-        <SourcePackLink
-          href={sourceJsonUrl}
-          icon={<FileJson size={14} strokeWidth={1.75} />}
-          label="source json"
-          detail="posts, media, clusters, captures"
-        />
-        <SourcePackLink
-          href={postsCsvUrl}
-          icon={<FileText size={14} strokeWidth={1.75} />}
-          label="posts csv"
-          detail="spreadsheet-friendly post + capture index"
-        />
-        <SourcePackLink
-          href={capturesCsvUrl}
-          icon={<FileText size={14} strokeWidth={1.75} />}
-          label="captures csv"
-          detail="screenshot paths, statuses, hashes"
-        />
-        <SourcePackLink
-          href={capturesZipUrl}
-          icon={<Download size={14} strokeWidth={1.75} />}
-          label="captures zip"
-          detail="manifest, CSV, screenshots"
-        />
-        <SourcePackLink
-          href={capturesJsonUrl}
-          icon={<FileJson size={14} strokeWidth={1.75} />}
-          label="captures json"
-          detail="latest screenshot manifest"
-        />
+        {assets.map((asset) => (
+          <SourcePackButton
+            key={asset.key}
+            icon={asset.icon}
+            label={asset.label}
+            detail={asset.detail}
+            busy={busy === asset.key}
+            onClick={() => void download(asset.key, asset.url, asset.filename)}
+          />
+        ))}
       </div>
+      {error ? <p className="mt-2 font-caption text-2xs text-signal-error">{error}</p> : null}
       <details className="mt-3 rounded-sm border border-border-soft bg-surface-base p-2">
         <summary className="cursor-pointer font-caption text-xs uppercase text-ink-dim">
           metadata
@@ -578,43 +762,53 @@ function SourcePack({
         </dl>
       </details>
       {debug ? (
-        <a
-          href={inspectJsonUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-border-soft px-2 py-1.5 font-mono text-xs text-ink-dim hover:border-accent hover:text-accent"
+        <button
+          type="button"
+          onClick={() => void inspect('inspect', inspectJsonUrl)}
+          disabled={busy === 'inspect'}
+          className="mt-2 inline-flex items-center gap-1 rounded-sm border border-border-soft px-2 py-1.5 font-mono text-xs text-ink-dim hover:border-accent hover:text-accent disabled:opacity-50"
         >
+          {busy === 'inspect' ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <ExternalLink size={12} strokeWidth={1.75} />
+          )}
           inspect provider JSON
-          <ExternalLink size={12} strokeWidth={1.75} />
-        </a>
+        </button>
       ) : null}
     </div>
   );
 }
 
-function SourcePackLink({
-  href,
+function SourcePackButton({
   icon,
   label,
   detail,
+  busy,
+  onClick,
 }: {
-  href: string;
   icon: ReactNode;
   label: string;
   detail: string;
+  busy: boolean;
+  onClick: () => void;
 }) {
   return (
-    <a
-      href={href}
-      download
-      className="flex items-center gap-2 rounded-sm border border-border-soft bg-surface-base px-2 py-2 text-left hover:border-accent hover:text-accent"
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="flex items-center gap-2 rounded-sm border border-border-soft bg-surface-base px-2 py-2 text-left hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <span className="text-accent">{icon}</span>
+      <span className="text-accent">
+        {busy ? <Loader2 size={14} className="animate-spin" /> : icon}
+      </span>
       <span className="min-w-0 flex-1">
         <span className="block font-mono text-xs text-ink-muted">{label}</span>
         <span className="block truncate font-caption text-2xs text-ink-dim">{detail}</span>
       </span>
-    </a>
+      <Download size={13} strokeWidth={1.75} className="shrink-0 text-ink-dim" />
+    </button>
   );
 }
 
