@@ -8,12 +8,14 @@ import {
   Bot,
   Check,
   ExternalLink,
+  Gauge,
   Hash,
   KeyRound,
   Link as LinkIcon,
   Loader2,
   Plus,
   Search,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -28,6 +30,37 @@ import type { EventPlatform, EventRecapBundle } from '@/lib/research/event-recap
 import type { VibesPlan, VibesTermKind } from '@/lib/research/vibes/plan';
 
 type LiveMode = 'mock' | 'tinyfish';
+
+/** Optional scope overrides — empty strings mean "use the subject-aware default". */
+interface ScopeState {
+  daysBefore: string;
+  daysAfter: string;
+  refreshIntervalHours: string;
+  monthlyCreditBudget: string;
+}
+
+const emptyScope: ScopeState = {
+  daysBefore: '',
+  daysAfter: '',
+  refreshIntervalHours: '',
+  monthlyCreditBudget: '',
+};
+
+/** Shape returned by POST /api/vibes/estimate `counts` (estimateEventCounts). */
+interface EstimateCounts {
+  eventName: string;
+  querySet: string[];
+  windowStart: string;
+  windowEnd: string;
+  estimates: Array<{
+    platform: string;
+    totalLowerBound?: number;
+    totalApproximate?: number;
+    status?: string;
+    mode?: string;
+  }>;
+  warnings: string[];
+}
 
 const EXAMPLE_BRIEF =
   'Track AI Engineer Summit Singapore across X, LinkedIn, and YouTube. Include @aiDotEngineer, #AIE2026, speaker recaps, sponsor booths, workshops, and side events.';
@@ -47,14 +80,31 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
   const [termValue, setTermValue] = useState('');
   const [liveMode, setLiveMode] = useState<LiveMode>('mock');
   const [targetItems, setTargetItems] = useState(25);
+  const [scope, setScope] = useState<ScopeState>(emptyScope);
+  const [estimateCounts, setEstimateCounts] = useState<EstimateCounts | null>(null);
   const [planning, setPlanning] = useState(false);
+  const [estimating, setEstimating] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const visibleQuerySet = useMemo(() => plan?.querySet.slice(0, 18) ?? [], [plan?.querySet]);
+  const busy = planning || estimating || running;
 
   async function jsonHeaders(): Promise<HeadersInit> {
     return { 'Content-Type': 'application/json', ...(await auth.getAuthHeaders()) };
+  }
+
+  function seedBody() {
+    return {
+      brief,
+      subject: plan?.subject,
+      subjectKind: plan?.subjectKind,
+      keywords,
+      hashtags,
+      accounts,
+      sourceLinks,
+      platforms,
+    };
   }
 
   async function draftPlan() {
@@ -64,26 +114,45 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
       const res = await fetch('/api/vibes/plan', {
         method: 'POST',
         headers: await jsonHeaders(),
-        body: JSON.stringify({
-          brief,
-          subject: plan?.subject,
-          subjectKind: plan?.subjectKind,
-          keywords,
-          hashtags,
-          accounts,
-          sourceLinks,
-          platforms,
-        }),
+        body: JSON.stringify(seedBody()),
       });
       const json = (await res.json()) as { ok?: boolean; plan?: VibesPlan; error?: string };
       if (!json.ok || !json.plan) throw apiError(res.status, json.error);
       applyPlan(json.plan);
+      setEstimateCounts(null);
       setBundle(null);
       setReportUrl(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setPlanning(false);
+    }
+  }
+
+  async function runEstimate() {
+    setEstimating(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/vibes/estimate', {
+        method: 'POST',
+        headers: await jsonHeaders(),
+        body: JSON.stringify({ ...seedBody(), ...scopeBody(scope) }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        plan?: VibesPlan;
+        counts?: EstimateCounts;
+        error?: string;
+      };
+      if (!json.ok || !json.plan) throw apiError(res.status, json.error);
+      applyPlan(json.plan);
+      setEstimateCounts(json.counts ?? null);
+      setBundle(null);
+      setReportUrl(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEstimating(false);
     }
   }
 
@@ -95,19 +164,13 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
         method: 'POST',
         headers: await jsonHeaders(),
         body: JSON.stringify({
-          brief,
-          subject: plan?.subject,
-          subjectKind: plan?.subjectKind,
-          keywords,
-          hashtags,
-          accounts,
-          sourceLinks,
-          platforms,
+          ...seedBody(),
           liveMode,
           targetItemsPerPlatform: targetItems,
           maxItemsPerPlatform: targetItems,
           includeMedia: true,
           includeYouTubeComments: true,
+          ...scopeBody(scope),
         }),
       });
       const json = (await res.json()) as {
@@ -147,8 +210,6 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
     if (termKind === 'source') setSourceLinks((items) => addUnique(items, value));
     setTermValue('');
   }
-
-  const busy = planning || running;
 
   return (
     <main className="flex min-h-screen flex-col bg-surface-base text-ink">
@@ -224,9 +285,14 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
                 />
               </label>
             </div>
+
+            <ScopePanel scope={scope} onChange={setScope} liveMode={liveMode} />
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto p-4">
+            <p className="mb-3 font-caption text-2xs leading-4 text-ink-dim">
+              Seeds derived from the brief — edit freely, then re-run.
+            </p>
             <TermGroup
               title="keywords"
               icon={<KeyRound size={14} strokeWidth={1.75} />}
@@ -298,16 +364,28 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
               </Button>
               <Button
                 type="button"
-                variant="primary"
+                variant="outline"
                 size="md"
-                onClick={makeReport}
+                onClick={runEstimate}
                 disabled={busy || !brief.trim()}
-                trailing={running ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-                data-testid="vibes-report"
+                icon={estimating ? <Loader2 size={14} className="animate-spin" /> : <Gauge size={14} />}
+                data-testid="vibes-estimate"
               >
-                report
+                estimate
               </Button>
             </div>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={makeReport}
+              disabled={busy || !brief.trim()}
+              trailing={running ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+              className="mt-2 w-full"
+              data-testid="vibes-report"
+            >
+              {bundle ? 're-run report' : 'report'}
+            </Button>
           </form>
         </Surface>
 
@@ -320,6 +398,7 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
               liveMode={liveMode}
               brief={brief}
               visibleQuerySet={visibleQuerySet}
+              estimateCounts={estimateCounts}
               debug={debug}
             />
           ) : (
@@ -338,6 +417,7 @@ function PlanView({
   liveMode,
   brief,
   visibleQuerySet,
+  estimateCounts,
   debug,
 }: {
   plan: VibesPlan;
@@ -346,6 +426,7 @@ function PlanView({
   liveMode: LiveMode;
   brief: string;
   visibleQuerySet: string[];
+  estimateCounts: EstimateCounts | null;
   debug: boolean;
 }) {
   const counts = useMemo(() => summarizeBundle(bundle), [bundle]);
@@ -378,6 +459,8 @@ function PlanView({
         />
       </div>
 
+      {estimateCounts && !bundle ? <EstimatePanel counts={estimateCounts} /> : null}
+
       {bundle ? (
         <ReportSummary bundle={bundle} reportUrl={reportUrl} />
       ) : (
@@ -390,6 +473,63 @@ function PlanView({
       <ProvenanceDisclosure plan={plan} />
       {debug ? <DebugDrawer plan={plan} brief={brief} liveMode={liveMode} /> : null}
     </div>
+  );
+}
+
+function EstimatePanel({ counts }: { counts: EstimateCounts }) {
+  return (
+    <section
+      data-testid="vibes-estimate-panel"
+      className="mt-5 rounded-md border border-border-soft bg-surface-base p-3"
+    >
+      <div className="flex items-center gap-2">
+        <Gauge size={15} strokeWidth={1.75} className="text-accent" />
+        <h3 className="font-display text-base tracking-tight">estimated reach</h3>
+        <Chip tone="neutral" size="sm" className="ml-auto">
+          dry run
+        </Chip>
+      </div>
+      <p className="mt-1 font-caption text-xs text-ink-dim">
+        Projected public matches before any collection — {formatWindow(counts.windowStart, counts.windowEnd)}.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {counts.estimates.map((estimate) => (
+          <div key={estimate.platform} className="rounded-sm border border-border-soft p-2">
+            <div className="flex items-center gap-2">
+              <Chip size="sm" tone="neutral">
+                {estimate.platform}
+              </Chip>
+              {estimate.status && estimate.status !== 'completed' ? (
+                <span className="truncate font-mono text-2xs text-ink-dim">{estimate.status}</span>
+              ) : null}
+            </div>
+            <p className="mt-2 font-display text-xl leading-none">
+              {formatCount(estimate.totalApproximate ?? estimate.totalLowerBound ?? 0)}
+            </p>
+            <p className="mt-1 font-caption text-2xs uppercase text-ink-dim">
+              {estimate.totalApproximate != null ? 'approx matches' : 'known floor'}
+            </p>
+          </div>
+        ))}
+        {counts.estimates.length === 0 ? (
+          <p className="font-caption text-xs text-ink-dim">
+            No estimates — provider keys are not configured in this environment.
+          </p>
+        ) : null}
+      </div>
+      {counts.warnings.length ? (
+        <details className="mt-3">
+          <summary className="cursor-pointer font-caption text-2xs uppercase text-ink-dim">
+            {counts.warnings.length} notes
+          </summary>
+          <ul className="mt-2 space-y-1 font-caption text-xs leading-5 text-ink-dim">
+            {counts.warnings.map((warning, index) => (
+              <li key={`${index}:${warning}`}>{warning}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </section>
   );
 }
 
@@ -503,6 +643,86 @@ function ReportSummary({
   );
 }
 
+function ScopePanel({
+  scope,
+  onChange,
+  liveMode,
+}: {
+  scope: ScopeState;
+  onChange: (next: ScopeState) => void;
+  liveMode: LiveMode;
+}) {
+  const set = (key: keyof ScopeState, value: string) => onChange({ ...scope, [key]: value });
+  const overrides = Object.values(scope).filter((value) => value.trim() !== '').length;
+  return (
+    <details className="mt-3 rounded-md border border-border-soft bg-surface-base" data-testid="vibes-scope">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-caption text-xs uppercase text-ink-dim [&::-webkit-details-marker]:hidden">
+        <SlidersHorizontal size={13} strokeWidth={1.75} />
+        scope
+        {overrides > 0 ? (
+          <Chip tone="accent" size="sm" variant="ghost">
+            {overrides} set
+          </Chip>
+        ) : (
+          <span className="font-mono text-2xs lowercase text-ink-dim">auto</span>
+        )}
+      </summary>
+      <div className="grid grid-cols-2 gap-2 border-t border-border-soft p-3">
+        <ScopeField
+          label="days before"
+          value={scope.daysBefore}
+          placeholder="auto"
+          onChange={(value) => set('daysBefore', value)}
+        />
+        <ScopeField
+          label="days after"
+          value={scope.daysAfter}
+          placeholder="auto"
+          onChange={(value) => set('daysAfter', value)}
+        />
+        <ScopeField
+          label="refresh (h)"
+          value={scope.refreshIntervalHours}
+          placeholder="24"
+          onChange={(value) => set('refreshIntervalHours', value)}
+        />
+        <ScopeField
+          label="credit cap"
+          value={scope.monthlyCreditBudget}
+          placeholder={liveMode === 'tinyfish' ? '0 = none' : 'live only'}
+          onChange={(value) => set('monthlyCreditBudget', value)}
+        />
+      </div>
+    </details>
+  );
+}
+
+function ScopeField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 font-caption text-2xs uppercase text-ink-dim">
+      {label}
+      <input
+        type="number"
+        min={0}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 rounded-sm border border-border-soft bg-surface-panel px-2 font-mono text-xs text-ink outline-none placeholder:text-ink-dim focus:border-accent"
+      />
+    </label>
+  );
+}
+
 function ProvenanceDisclosure({ plan }: { plan: VibesPlan }) {
   return (
     <details className="mt-4 rounded-md border border-border-soft bg-surface-base p-3">
@@ -584,7 +804,7 @@ function EmptyState() {
         <Bot size={28} strokeWidth={1.5} className="mx-auto text-accent" />
         <h2 className="mt-4 font-display text-2xl tracking-tight">vibe research</h2>
         <p className="mt-2 font-caption text-sm leading-6 text-ink-dim">
-          Draft a frontier from the brief, review the seeds, then run a report.
+          Draft a frontier from the brief, estimate the reach, then run a report.
         </p>
       </div>
     </div>
@@ -723,6 +943,17 @@ function togglePlatform(items: EventPlatform[], platform: EventPlatform): EventP
   return [...items, platform];
 }
 
+function scopeBody(scope: ScopeState): Record<string, number> {
+  const body: Record<string, number> = {};
+  for (const key of Object.keys(scope) as Array<keyof ScopeState>) {
+    const raw = scope[key].trim();
+    if (raw === '') continue;
+    const value = Number(raw);
+    if (Number.isFinite(value) && value >= 0) body[key] = value;
+  }
+  return body;
+}
+
 function summarizeBundle(bundle: EventRecapBundle | null) {
   return {
     posts: bundle?.posts.length ?? 0,
@@ -741,6 +972,20 @@ function platformTone(platform: EventPlatform): ChipTone {
   if (platform === 'x') return 'neutral';
   if (platform === 'linkedin') return 'info';
   return 'ok';
+}
+
+function formatCount(value: number): string {
+  return new Intl.NumberFormat('en-SG', { notation: 'compact', maximumFractionDigits: 1 }).format(
+    value
+  );
+}
+
+function formatWindow(start: string, end: string): string {
+  const day = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toISOString().slice(0, 10);
+  };
+  return `${day(start)} → ${day(end)}`;
 }
 
 function apiError(status: number, message?: string): Error {
