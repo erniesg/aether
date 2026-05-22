@@ -10,6 +10,7 @@ import type {
   EventTheme,
   EventVoice,
 } from './types';
+import { listEventRunEvents } from './run-events';
 
 interface EventMemoryState {
   events: Map<string, EventRecapRecord>;
@@ -73,6 +74,13 @@ const eventRecapsApi = (anyApi as unknown as {
 }).eventRecaps;
 
 export async function getEventBundle(eventId: string): Promise<EventRecapBundle | null> {
+  const bundle = await loadEventBundle(eventId);
+  if (!bundle) return null;
+  bundle.runEvents = await listEventRunEvents(eventId, { limit: 400 });
+  return bundle;
+}
+
+async function loadEventBundle(eventId: string): Promise<EventRecapBundle | null> {
   const convex = convexClient();
   if (convex) {
     try {

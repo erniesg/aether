@@ -506,6 +506,30 @@ export default defineSchema({
     .index('by_event', ['eventId'])
     .index('by_event_created', ['eventId', 'createdAt']),
 
+  // Phased run-event log for event recap refreshes. One row per pipeline
+  // stage (resolve, budget, per-platform collection, clustering, finish) so
+  // the report page can render a timeline instead of raw run JSON. `tag` is
+  // hierarchical (e.g. "collect.x.ok", "run.done"); `data` holds only safe
+  // counts / ids — never raw provider payloads.
+  eventRecapRunEvent: defineTable({
+    eventId: v.string(),
+    runId: v.string(),
+    tag: v.string(),
+    level: v.union(
+      v.literal('debug'),
+      v.literal('info'),
+      v.literal('warn'),
+      v.literal('error')
+    ),
+    message: v.string(),
+    platform: v.optional(EVENT_PLATFORM),
+    data: v.optional(v.any()),
+    ts: v.number(),
+  })
+    .index('by_event', ['eventId'])
+    .index('by_event_ts', ['eventId', 'ts'])
+    .index('by_run', ['runId']),
+
   // Vibes product API access. Logto authenticates the human user; Aether issues
   // app API keys for managed research agents and stores only hashed key values.
   vibesApiKey: defineTable({

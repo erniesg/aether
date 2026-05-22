@@ -217,6 +217,28 @@ export interface EventScrapeRun {
   finishedAt?: number;
 }
 
+export type EventRunEventLevel = 'debug' | 'info' | 'warn' | 'error';
+
+/**
+ * One structured step in a refresh run — emitted by the pipeline as it
+ * resolves the event, budgets credits, collects each platform, clusters,
+ * and finishes. Persisted through Convex with an in-memory fallback (mirrors
+ * the `lapEvent` pattern). `tag` is a dot-delimited hierarchy so the UI can
+ * group by stage (`collect.x.ok`, `cluster.ok`, `run.done`). `data` carries
+ * only safe counts/ids — never raw provider payloads.
+ */
+export interface EventRecapRunEvent {
+  id: string;
+  eventId: string;
+  runId: string;
+  tag: string;
+  level: EventRunEventLevel;
+  message: string;
+  platform?: EventPlatform;
+  data?: Record<string, unknown>;
+  ts: number;
+}
+
 export interface EventRecapBundle {
   event: EventRecapRecord;
   runs: EventScrapeRun[];
@@ -224,6 +246,8 @@ export interface EventRecapBundle {
   themes: EventTheme[];
   voices: EventVoice[];
   clustering?: EventClusterQuality;
+  /** Phased timeline for the visible runs — oldest event first. */
+  runEvents?: EventRecapRunEvent[];
 }
 
 export interface EventResolution {
