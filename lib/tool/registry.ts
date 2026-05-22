@@ -105,6 +105,15 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  'post-capture': {
+    kind: 'tool',
+    id: 'post-capture',
+    version: 1,
+    artifactKind: 'image',
+    label: 'Post capture',
+    outputKind: 'image',
+    status: 'draft',
+  },
   // NOTE: `datetime` is intentionally NOT in the registry — registry entries
   // require an `artifactKind` from the canvas-artifact union, but datetime is
   // an agent-context tool that never produces a canvas artifact. The

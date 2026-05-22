@@ -511,8 +511,11 @@ function SourcePack({
   debug: boolean;
 }) {
   const encodedEventId = encodeURIComponent(eventId);
-  const sourceJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=posts&download=1`;
-  const postsCsvUrl = `/api/events/${encodedEventId}/raw?format=csv&scope=posts&download=1`;
+  const sourceJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=posts&includeCaptures=1&download=1`;
+  const postsCsvUrl = `/api/events/${encodedEventId}/raw?format=csv&scope=posts&includeCaptures=1&download=1`;
+  const capturesJsonUrl = `/api/events/${encodedEventId}/captures?format=json&download=1`;
+  const capturesCsvUrl = `/api/events/${encodedEventId}/captures?format=csv&download=1`;
+  const capturesZipUrl = `/api/events/${encodedEventId}/captures?format=zip&download=1`;
   const inspectJsonUrl = `/api/events/${encodedEventId}/raw?format=json&scope=raw&download=0`;
   const latestRun = bundle.runs[0];
   const mediaCount = bundle.posts.reduce((sum, post) => sum + (post.media?.length ?? 0), 0);
@@ -532,13 +535,31 @@ function SourcePack({
           href={sourceJsonUrl}
           icon={<FileJson size={14} strokeWidth={1.75} />}
           label="source json"
-          detail="posts, media, clusters, provenance"
+          detail="posts, media, clusters, captures"
         />
         <SourcePackLink
           href={postsCsvUrl}
           icon={<FileText size={14} strokeWidth={1.75} />}
           label="posts csv"
-          detail="spreadsheet-friendly post index"
+          detail="spreadsheet-friendly post + capture index"
+        />
+        <SourcePackLink
+          href={capturesCsvUrl}
+          icon={<FileText size={14} strokeWidth={1.75} />}
+          label="captures csv"
+          detail="screenshot paths, statuses, hashes"
+        />
+        <SourcePackLink
+          href={capturesZipUrl}
+          icon={<Download size={14} strokeWidth={1.75} />}
+          label="captures zip"
+          detail="manifest, CSV, screenshots"
+        />
+        <SourcePackLink
+          href={capturesJsonUrl}
+          icon={<FileJson size={14} strokeWidth={1.75} />}
+          label="captures json"
+          detail="latest screenshot manifest"
         />
       </div>
       <details className="mt-3 rounded-sm border border-border-soft bg-surface-base p-2">

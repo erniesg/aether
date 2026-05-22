@@ -24,6 +24,7 @@ import { generateEventSearchFrontier } from './generate-event-search-frontier';
 import { estimateEventCounts } from './estimate-event-counts';
 import { refreshEventRecap } from './refresh-event-recap';
 import { warmLinkedInSession } from './warm-linkedin-session';
+import { captureEventPosts } from './capture-event-posts';
 import type { AgentTool } from './types';
 
 export type { AgentTool, ToolDispatchSpec } from './types';
@@ -43,5 +44,6 @@ export function listAgentTools(): AgentTool[] {
     estimateEventCounts,
     refreshEventRecap,
     warmLinkedInSession,
+    captureEventPosts,
   ];
 }

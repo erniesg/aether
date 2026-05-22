@@ -20,6 +20,7 @@ describe('listAgentTools', () => {
     expect(names).toContain('estimate_event_counts');
     expect(names).toContain('refresh_event_recap');
     expect(names).toContain('warm_linkedin_session');
+    expect(names).toContain('capture_event_posts');
   });
 
   it('every tool exposes a non-empty Anthropic SDK Tool shape', () => {

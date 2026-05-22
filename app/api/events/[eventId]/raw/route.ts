@@ -9,6 +9,7 @@ import {
   type EventRawExportScope,
 } from '@/lib/research/event-recap/raw-export';
 import { recordEventRawAccess } from '@/lib/research/event-recap/access-log';
+import { findEventCaptureRun } from '@/lib/research/event-recap/capture-export';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,10 +23,15 @@ export async function GET(
   const format = parseFormat(url.searchParams.get('format'));
   const scope = parseScope(url.searchParams.get('scope'));
   const download = url.searchParams.get('download') !== '0';
+  const captureRunId = url.searchParams.get('captureRunId');
+  const includeCaptures =
+    Boolean(captureRunId) ||
+    url.searchParams.get('includeCaptures') === '1' ||
+    url.searchParams.get('captures') === '1';
   const authResponse = await authorizeEventApiRequest(request, {
     route: '/api/events/:eventId/raw',
     action: download ? 'download-source-pack' : 'inspect-source-pack',
-    metadata: { eventId, format, scope, download },
+    metadata: { eventId, format, scope, download, includeCaptures, captureRunId },
   });
   if (authResponse) return authResponse;
 
@@ -35,7 +41,8 @@ export async function GET(
     return NextResponse.json({ ok: false, error: 'event not found' }, { status: 404 });
   }
 
-  const metadata = eventRawExportMetadata(bundle, scope);
+  const captureRun = includeCaptures ? findEventCaptureRun(eventId, captureRunId) : null;
+  const metadata = eventRawExportMetadata(bundle, scope, captureRun);
   const accessId = await recordEventRawAccess({
     eventId,
     action: download ? 'download' : 'inspect',
@@ -62,12 +69,12 @@ export async function GET(
 
   const filename = rawFilename(bundle.event.eventId, format);
   if (format === 'csv') {
-    return new NextResponse(eventPostsCsv(bundle), {
+    return new NextResponse(eventPostsCsv(bundle, captureRun), {
       headers: rawHeaders('text/csv; charset=utf-8', filename, download, accessId),
     });
   }
 
-  return NextResponse.json(buildEventRawExport(bundle, scope), {
+  return NextResponse.json(buildEventRawExport(bundle, scope, captureRun), {
     headers: rawHeaders('application/json; charset=utf-8', filename, download, accessId),
   });
 }
