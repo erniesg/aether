@@ -1,3 +1,4 @@
+import type { EventPostCaptureRun } from './post-capture';
 import type { EventRecapBundle } from './types';
 
 export interface PublicEventBundleOptions {
@@ -35,5 +36,18 @@ export function toPublicEventBundle(
       inputs: REDACTED,
       streamingUrls: [],
     })),
+    captureRun: bundle.captureRun ? sanitizeCaptureRun(bundle.captureRun) : undefined,
+  };
+}
+
+/**
+ * Strip absolute server-side filesystem paths from a capture run before it
+ * leaves an API response. `screenshotPath` is absolute and must be dropped;
+ * `screenshotRelPath` is repo-relative and safe to expose.
+ */
+function sanitizeCaptureRun(run: EventPostCaptureRun): EventPostCaptureRun {
+  return {
+    ...run,
+    captures: run.captures.map(({ screenshotPath: _screenshotPath, ...rest }) => rest),
   };
 }

@@ -39,6 +39,7 @@ import type {
   EventTheme,
   EventVoice,
 } from '@/lib/research/event-recap/types';
+import type { EventPostCapture } from '@/lib/research/event-recap/post-capture';
 import {
   buildEventMediaTiles,
   type EventMediaTile,
@@ -72,6 +73,9 @@ export default function EventRecapClient({
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
   const [showReplies, setShowReplies] = useState(false);
   const [showIrrelevant, setShowIrrelevant] = useState(false);
+  const [capturePending, setCapturePending] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [triggeredCaptureForRun, setTriggeredCaptureForRun] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -139,6 +143,53 @@ export default function EventRecapClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, bundle?.event.status, bundle?.event.nextRefreshAt]);
 
+  async function autoCapture(runId: string, perPlatform: number) {
+    setCapturePending(true);
+    setCaptureError(null);
+    try {
+      const res = await fetch('/api/events/captures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await auth.getAuthHeaders()) },
+        body: JSON.stringify({
+          eventId,
+          all: true,
+          perPlatform,
+          runId,
+          resume: true,
+        }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? `HTTP ${res.status}`);
+      }
+      await load();
+    } catch (err) {
+      setCaptureError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCapturePending(false);
+    }
+  }
+
+  // Auto-trigger per-post screenshots for the latest live scrape run so each
+  // post has its own capture tied to the scrape runId. `resume:true` means
+  // already-captured posts are skipped if the user comes back later.
+  useEffect(() => {
+    if (!bundle || capturePending) return;
+    if (bundle.event.liveMode !== 'tinyfish') return;
+    const latestRun = bundle.runs[0];
+    if (!latestRun) return;
+    if (triggeredCaptureForRun === latestRun.runId) return;
+    const capturable = bundle.posts.filter(
+      (post) => post.platform === 'x' || post.platform === 'linkedin'
+    );
+    if (capturable.length === 0) return;
+    const existing = bundle.captureRun?.captures.length ?? 0;
+    if (existing >= capturable.length) return;
+    setTriggeredCaptureForRun(latestRun.runId);
+    void autoCapture(latestRun.runId, Math.min(capturable.length, 30));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundle?.runs[0]?.runId, bundle?.event.liveMode, bundle?.captureRun?.captures.length]);
+
   const filteredPosts = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (bundle?.posts ?? [])
@@ -178,6 +229,11 @@ export default function EventRecapClient({
     () => summarizeVibes(relevantPosts, bundle?.themes ?? [], bundle?.voices ?? []),
     [bundle?.themes, bundle?.voices, relevantPosts]
   );
+  const captureByUrl = useMemo(() => {
+    const map = new Map<string, EventPostCapture>();
+    for (const capture of bundle?.captureRun?.captures ?? []) map.set(capture.url, capture);
+    return map;
+  }, [bundle?.captureRun]);
 
   const event = bundle?.event;
 
@@ -198,6 +254,15 @@ export default function EventRecapClient({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {capturePending ? (
+            <Chip tone="info" size="sm">
+              capturing posts…
+            </Chip>
+          ) : captureError ? (
+            <Chip tone="warn" size="sm" title={captureError}>
+              capture failed
+            </Chip>
+          ) : null}
           <Button
             variant="subtle"
             size="sm"
@@ -324,7 +389,13 @@ export default function EventRecapClient({
           ) : lens === 'voices' ? (
             <VoiceLens voices={bundle?.voices ?? []} />
           ) : (
-            <PostList posts={filteredPosts} debug={debug} />
+            <PostList
+              posts={filteredPosts}
+              debug={debug}
+              eventId={eventId}
+              captureByUrl={captureByUrl}
+              getAuthHeaders={auth.getAuthHeaders}
+            />
           )}
         </Surface>
 
@@ -1191,13 +1262,27 @@ function ScoreMethodNote() {
   );
 }
 
-function PostList({ posts, debug }: { posts: EventPost[]; debug: boolean }) {
+function PostList({
+  posts,
+  debug,
+  eventId,
+  captureByUrl,
+  getAuthHeaders,
+}: {
+  posts: EventPost[];
+  debug: boolean;
+  eventId: string;
+  captureByUrl: Map<string, EventPostCapture>;
+  getAuthHeaders: () => Promise<Record<string, string>>;
+}) {
   if (!posts.length) {
     return <p className="mt-8 font-caption text-sm text-ink-dim">no references yet</p>;
   }
   return (
     <div className="mt-4 divide-y divide-border-soft">
-      {posts.map((post) => (
+      {posts.map((post) => {
+        const capture = captureByUrl.get(post.url);
+        return (
         <article key={post.postId} className="py-4">
           <div className="flex flex-wrap items-center gap-2">
             <Chip tone={platformTone(post.platform)} size="sm">
@@ -1212,6 +1297,16 @@ function PostList({ posts, debug }: { posts: EventPost[]; debug: boolean }) {
               </span>
             ) : null}
             <ScoreBadge value={post.reachScore} />
+            {capture ? (
+              <Chip
+                tone={capture.status === 'failed' ? 'warn' : 'ok'}
+                size="sm"
+                variant="ghost"
+                title={`capture ${capture.status}`}
+              >
+                📷 {capture.status === 'failed' ? 'fail' : 'capture'}
+              </Chip>
+            ) : null}
             <a
               href={post.url}
               target="_blank"
@@ -1222,6 +1317,13 @@ function PostList({ posts, debug }: { posts: EventPost[]; debug: boolean }) {
               <ExternalLink size={14} strokeWidth={1.75} />
             </a>
           </div>
+          {capture && capture.screenshotRelPath && capture.status !== 'failed' ? (
+            <CaptureThumbnail
+              eventId={eventId}
+              capture={capture}
+              getAuthHeaders={getAuthHeaders}
+            />
+          ) : null}
           {post.media?.length ? (
             <div className="mt-3 grid grid-cols-4 gap-2">
               {post.media.slice(0, 4).map((media) => {
@@ -1248,8 +1350,77 @@ function PostList({ posts, debug }: { posts: EventPost[]; debug: boolean }) {
           </div>
           <PostInfo post={post} debug={debug} />
         </article>
-      ))}
+        );
+      })}
     </div>
+  );
+}
+
+function CaptureThumbnail({
+  eventId,
+  capture,
+  getAuthHeaders,
+}: {
+  eventId: string;
+  capture: EventPostCapture;
+  getAuthHeaders: () => Promise<Record<string, string>>;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!capture.screenshotRelPath) {
+      setFailed(true);
+      return;
+    }
+    let revoke: string | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const url = `/api/events/${encodeURIComponent(eventId)}/media?path=${encodeURIComponent(
+          capture.screenshotRelPath as string
+        )}`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        revoke = objectUrl;
+        if (!cancelled) setSrc(objectUrl);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
+  }, [capture.screenshotRelPath, eventId, getAuthHeaders]);
+
+  if (failed) {
+    return (
+      <p className="mt-3 font-caption text-2xs text-ink-dim">
+        capture unavailable in this environment — see source pack.
+      </p>
+    );
+  }
+  if (!src) {
+    return (
+      <div className="mt-3 grid h-32 max-w-xs place-items-center rounded-sm border border-border-soft bg-surface-base">
+        <span className="font-caption text-2xs text-ink-dim">capturing…</span>
+      </div>
+    );
+  }
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-3 inline-block overflow-hidden rounded-sm border border-border-soft hover:border-accent"
+      title="open capture"
+    >
+      <img src={src} alt="post capture" className="max-h-72 w-auto max-w-xs object-contain" />
+    </a>
   );
 }
 
