@@ -973,4 +973,39 @@ export default defineSchema({
   })
     .index('by_campaign', ['campaignId'])
     .index('by_campaign_ts', ['campaignId', 'ts']),
+
+  // ─── event recap config ───────────────────────────────────────────────
+  // Per-event configuration that drives the recap pipeline: stories,
+  // signal patterns, corpus phrase rules, atlas lanes, curated theme
+  // copy, etc. See lib/research/event-recap/event-config-serialize.ts
+  // for the data shape. The library deserializes this blob into a typed
+  // EventConfig at runtime.
+  //
+  // `data` uses v.any() because the shape carries RegExp pattern strings
+  // and structured-but-deep nesting; the runtime contract is enforced by
+  // the SerializedEventConfig TypeScript type + deserialize step.
+  eventConfig: defineTable({
+    eventId: v.string(),
+    data: v.any(),
+    /** Tracks who wrote this revision (analyst handle or 'system'). */
+    updatedBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_eventId', ['eventId']),
+
+  // ─── event recap run state (HITL juncture machine) ────────────────────
+  // Persistence wrapper around the pure state machine in
+  // lib/research/event-recap/recap-run-state.ts. One row per runId; the
+  // state blob mirrors the RecapRunState shape including the audit log.
+  recapRunState: defineTable({
+    eventId: v.string(),
+    runId: v.string(),
+    mode: v.union(v.literal('auto'), v.literal('hitl')),
+    /** RecapRunState shape from recap-run-state.ts. */
+    state: v.any(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_eventId', ['eventId'])
+    .index('by_runId', ['runId']),
 });

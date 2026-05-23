@@ -128,14 +128,29 @@ const REGISTRY: Map<string, ConfigLoader> = new Map([
 ]);
 
 /**
- * Load the EventConfig for a given eventId. Returns undefined if no
- * config is registered.
- *
- * Registration today is via the in-process REGISTRY map; a future slice
- * adds a Convex `eventConfig` table loader that this function consults
- * before falling back to the in-process registry.
+ * Optional Convex-backed source. When set (via setConvexConfigSource),
+ * loadEventConfig consults Convex first and falls back to the in-process
+ * registry if Convex doesn't have the event yet. Keeps the registry as
+ * a sync default for tests + bootstrap.
+ */
+type ConvexConfigSource = (eventId: string) => Promise<EventConfig | undefined>;
+let convexConfigSource: ConvexConfigSource | undefined;
+
+export function setConvexConfigSource(source: ConvexConfigSource | undefined): void {
+  convexConfigSource = source;
+}
+
+/**
+ * Load the EventConfig for a given eventId. Resolution order:
+ *  1. Convex (if a ConvexConfigSource is installed)
+ *  2. In-process REGISTRY (fixtures shipped in the repo)
+ *  3. undefined
  */
 export async function loadEventConfig(eventId: string): Promise<EventConfig | undefined> {
+  if (convexConfigSource) {
+    const fromConvex = await convexConfigSource(eventId);
+    if (fromConvex) return fromConvex;
+  }
   const loader = REGISTRY.get(eventId);
   if (!loader) return undefined;
   return loader();
