@@ -9,6 +9,7 @@ import {
 } from './types';
 import { classifyConversationPost } from './conversation';
 import { engagement, normalizeQuerySet, tokenize } from './utils';
+import aie2026Config from './fixtures/aie-2026.config';
 
 const HIRING_NOISE = new Set([
   '#career',
@@ -54,27 +55,12 @@ const GENERIC_ENTITIES = new Set([
   'Why',
 ]);
 
-const SINGLE_TOKEN_ENTITY_ALLOWLIST = new Set([
-  'AIE',
-  'Arize',
-  'Cerebras',
-  'Claude',
-  'Codex',
-  'Convex',
-  'Cursor',
-  'Daytona',
-  'Exa',
-  'Gemini',
-  'HuggingFace',
-  'MiniMax',
-  'Minister',
-  'NanoClaw',
-  'OpenAI',
-  'Pullman',
-  'SMU',
-  'Tusk',
-  'Vercel',
-]);
+/**
+ * @deprecated Event-specific allowlist now lives in EventConfig.singleTokenEntityAllowlist
+ *   on each event's fixture. Kept as backwards-compat default; new callers should pass
+ *   `singleTokenEntityAllowlist` via DeriveExpansionOptions.
+ */
+const DEFAULT_SINGLE_TOKEN_ENTITY_ALLOWLIST = new Set(aie2026Config.singleTokenEntityAllowlist);
 
 const STRONG_TERMS = new Set([
   'agent',
@@ -99,37 +85,29 @@ const STRONG_TERMS = new Set([
   'summit',
 ]);
 
-const CORPUS_PHRASE_RULES: Array<{ value: string; pattern: RegExp }> = [
-  { value: 'Road to AIE', pattern: /\broad to (?:aie|ai engineer(?: singapore)?)\b/i },
-  { value: 'AI Engineer SG', pattern: /\bai engineer sg\b/i },
-  { value: 'AIE SG', pattern: /\baie\s+sg\b/i },
-  { value: 'AIE2026', pattern: /\b#?aie2026\b/i },
-  { value: 'AI Engineer Summit Singapore', pattern: /\bai engineer summit singapore\b/i },
-  { value: 'AI Engineer side event', pattern: /\b(?:ai engineer\s+)?side events?\b/i },
-  { value: 'AI Engineer workshop', pattern: /\b(?:ai engineer\s+)?workshops?\b/i },
-  { value: 'AI Engineer hackathon', pattern: /\b(?:ai engineer\s+)?hackathon\b/i },
-  { value: 'Codex Booth', pattern: /\bcodex booth\b/i },
-  { value: 'feel-the-AGI', pattern: /\bfeel[-\s]the[-\s]agi\b/i },
-  { value: 'Second Brain', pattern: /\bsecond brain\b/i },
-  { value: 'personal AI stack', pattern: /\bpersonal ai stack\b/i },
-  { value: 'Cabinet Minister', pattern: /\bcabinet minister\b/i },
-  { value: 'Foreign Affairs', pattern: /\bforeign affairs\b/i },
-  { value: 'NanoClaw', pattern: /\bnanoclaw\b/i },
-  { value: 'long-running agents', pattern: /\blong[-\s]running agents\b/i },
-  { value: 'agentic AI', pattern: /\bagentic ai\b/i },
-  { value: 'vibe coding', pattern: /\bvibe[-\s]coding\b/i },
-  { value: 'AI Builders Meetup', pattern: /\bai builders meetup\b/i },
-  { value: 'student ticket', pattern: /\b(?:student|sponsored) tickets?\b/i },
-  { value: 'fully sponsored ticket', pattern: /\bfully sponsored ticket\b/i },
-  { value: 'Capitol Kempinski', pattern: /\bcapitol kempinski\b/i },
-  { value: 'Pullman', pattern: /\bpullman\b/i },
-  { value: 'SMU', pattern: /\bsmu\b/i },
-];
+/**
+ * @deprecated Event-specific phrase rules now live in EventConfig.corpusPhraseRules
+ *   on each event's fixture. Kept as backwards-compat default; new callers should pass
+ *   `corpusPhraseRules` via DeriveExpansionOptions.
+ */
+const DEFAULT_CORPUS_PHRASE_RULES: Array<{ value: string; pattern: RegExp }> = aie2026Config.corpusPhraseRules;
 
 interface DeriveExpansionOptions {
   baseQueries?: string[];
   maxAnchors?: number;
   maxQueries?: number;
+  /**
+   * Event-specific phrase rules surfaced from the corpus. When omitted,
+   * defaults to the AIE 2026 fixture for backwards compatibility. Pass [] to
+   * disable phrase mining; pass your own rules for a different event.
+   */
+  corpusPhraseRules?: Array<{ value: string; pattern: RegExp }>;
+  /**
+   * Event-specific allowlist of single-token entities (e.g. brand names like
+   * "Codex" or "NanoClaw") that survive the single-word entity filter.
+   * Defaults to the AIE 2026 fixture if omitted.
+   */
+  singleTokenEntityAllowlist?: readonly string[];
 }
 
 interface Candidate {
@@ -150,6 +128,10 @@ export function deriveExpansionPlan(
 ): EventExpansionPlan {
   const maxAnchors = options.maxAnchors ?? 20;
   const maxQueries = options.maxQueries ?? 12;
+  const corpusPhraseRules = options.corpusPhraseRules ?? DEFAULT_CORPUS_PHRASE_RULES;
+  const singleTokenAllowlist = options.singleTokenEntityAllowlist
+    ? new Set(options.singleTokenEntityAllowlist)
+    : DEFAULT_SINGLE_TOKEN_ENTITY_ALLOWLIST;
   const eventTokens = new Set([...tokenize(eventName), ...STRONG_TERMS]);
   const candidates = new Map<string, Candidate>();
   const platformCounts: Record<EventPlatform, number> = emptyEventPlatformCounts();
@@ -159,7 +141,7 @@ export function deriveExpansionPlan(
     const relevance = relevanceScore(post, eventTokens);
     const classification = classifyConversationPost(post);
     const noisy = isHiringNoise(post) || classification.intent === 'announcement';
-    for (const anchor of extractAnchors(post, eventName)) {
+    for (const anchor of extractAnchors(post, eventName, corpusPhraseRules, singleTokenAllowlist)) {
       if (
         anchor.kind === 'hashtag' &&
         (HIRING_NOISE.has(anchor.value.toLowerCase()) ||
@@ -220,7 +202,9 @@ export function deriveExpansionPlan(
 
 function extractAnchors(
   post: EventPost,
-  eventName: string
+  eventName: string,
+  corpusPhraseRules: Array<{ value: string; pattern: RegExp }>,
+  singleTokenAllowlist: Set<string>
 ): Array<{ kind: EventExpansionAnchorKind; value: string }> {
   const anchors: Array<{ kind: EventExpansionAnchorKind; value: string }> = [];
   for (const hashtag of post.text.match(/#[A-Za-z][A-Za-z0-9_]{2,40}/g) ?? []) {
@@ -240,24 +224,27 @@ function extractAnchors(
   if (authorName && usefulAuthorName(authorName)) {
     anchors.push({ kind: 'author', value: authorName });
   }
-  for (const entity of extractEntities(post.text, eventName)) {
+  for (const entity of extractEntities(post.text, eventName, singleTokenAllowlist)) {
     anchors.push({ kind: 'entity', value: entity });
   }
-  for (const phrase of extractCorpusPhrases(post.text)) {
+  for (const phrase of extractCorpusPhrases(post.text, corpusPhraseRules)) {
     anchors.push({ kind: 'query', value: phrase });
   }
   return dedupeAnchors(anchors);
 }
 
-function extractCorpusPhrases(text: string): string[] {
+function extractCorpusPhrases(
+  text: string,
+  rules: Array<{ value: string; pattern: RegExp }>
+): string[] {
   const out: string[] = [];
-  for (const rule of CORPUS_PHRASE_RULES) {
+  for (const rule of rules) {
     if (rule.pattern.test(text)) out.push(rule.value);
   }
   return out;
 }
 
-function extractEntities(text: string, eventName: string): string[] {
+function extractEntities(text: string, eventName: string, singleTokenAllowlist: Set<string>): string[] {
   const eventLower = eventName.toLowerCase();
   const eventTokens = new Set(tokenize(eventName));
   const matches = text.match(/\b[A-Z][A-Za-z0-9.+&-]{2,}(?:\s+[A-Z][A-Za-z0-9.+&-]{2,}){0,3}\b/g) ?? [];
@@ -277,7 +264,7 @@ function extractEntities(text: string, eventName: string): string[] {
     if (
       entityTokens.length === 1 &&
       value !== value.toUpperCase() &&
-      !SINGLE_TOKEN_ENTITY_ALLOWLIST.has(value)
+      !singleTokenAllowlist.has(value)
     ) {
       continue;
     }
