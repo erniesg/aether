@@ -125,16 +125,28 @@ pkill -f "wrangler dev"
 
 ### Layer 4 — Playbook smoke (3 min)
 
-The skill playbook (separate branch) should be readable:
+The skill playbook ships on this branch (cherry-picked from `skill/event-recap-playbook`) so you have code + playbook in one place. This is what makes the parameterization PR usable as a repeatable "all past AIE summits" workflow:
 
 ```bash
-git fetch origin
-ls -la docs/playbooks/event-recap/ 2>/dev/null || echo "playbook lives on skill/event-recap-playbook branch — check that branch separately"
+ls docs/playbooks/event-recap/
+# Expect: README.md  SKILL.md  prompts/  references/
 
-# Also verify the user-level Claude Code shim:
-cat ~/.claude/skills/event-recap/SKILL.md 2>/dev/null | head -5
-# Expect: short pointer to the canonical playbook location
+ls docs/playbooks/event-recap/references/
+# Expect 9 files: aie2026-walkthrough.md, aie2026-stories.md, aie2026-methodology.md,
+# aie2026-atlas-lanes.md, stakeholder-angles.md, thesis-rubric.md,
+# human-loop-junctures.md, cluster-quality-checklist.md, signal-pattern-cheatsheet.md
+
+ls docs/playbooks/event-recap/prompts/
+# Expect 8 prompts: draft-theses, cluster-sniff-test, draft-stories,
+# signal-pattern-author, thesis-balance-check, lede-composer,
+# angle-synthesizer, relabel-themes
+
+# Also verify the user-level Claude Code shim points here:
+cat ~/.claude/skills/event-recap/SKILL.md 2>/dev/null | head -10
+# Expect: short pointer to /Users/erniesg/code/erniesg/aether/docs/playbooks/event-recap/
 ```
+
+To re-run the AIE 2026 recap end-to-end (or run for a new event), open `docs/playbooks/event-recap/SKILL.md` and follow the 14-step loop. The AIE 2026 fixture in `lib/research/event-recap/fixtures/aie-2026.config.ts` is the canonical worked example — copy + adjust for a different event.
 
 ---
 
