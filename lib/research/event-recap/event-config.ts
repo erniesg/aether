@@ -16,12 +16,19 @@
  * config drives. Each field maps to a step in that loop.
  */
 
+import type { EventPostStoryType } from './types';
+
 export interface StoryDefinitionConfig {
   storyId: string;
   label: string;
   summary: string;
   keywords: string[];
   signals: Array<{ pattern: RegExp; weight: number }>;
+  /**
+   * Default story type for posts assigned to this story. Broad-recap and
+   * reply detection can still override this per post.
+   */
+  storyType?: EventPostStoryType;
 }
 
 export interface AtlasLaneConfig {
@@ -92,6 +99,16 @@ export interface EventConfig {
   /** Operating mode: full-auto vs human-in-the-loop (slice 6). */
   recapMode: RecapMode;
 }
+
+/**
+ * Narrowed config slice consumed by buildStoryAssignedThemes in
+ * story-assignment.ts. Lets callers pass just the relevant subset of an
+ * EventConfig without coupling to the full schema.
+ */
+export type StoryAssignmentConfig = Pick<
+  EventConfig,
+  'stories' | 'smallStoryMergeTargets' | 'primaryStoryOverrides'
+>;
 
 type ConfigLoader = () => Promise<EventConfig>;
 
