@@ -1,5 +1,12 @@
 import JSZip from 'jszip';
 import type { EventPostCapture, EventPostCaptureRun } from '../lib/research/event-recap/post-capture';
+import {
+  buildEmbedHeaders,
+  buildEmbedSnippet,
+  DEFAULT_EMBED_ALLOWLIST,
+  parseTheme,
+  type EmbedTheme,
+} from '../lib/research/event-recap/embed-headers';
 
 interface Env {
   AETHER_ASSETS: {
@@ -81,18 +88,64 @@ export default {
       });
     }
 
+    if (url.pathname === '/vibes/aie2026/embed-snippet') {
+      const snippet = buildEmbedSnippet({
+        url: `${url.origin}/vibes/aie2026?theme=dark`,
+        height: 900,
+        title: 'AI Engineer Singapore 2026 — Recap',
+      });
+      return new Response(snippet, {
+        headers: buildEmbedHeaders({
+          contentType: 'text/plain; charset=utf-8',
+          maxAge: 3600,
+          cors: true,
+        }),
+      });
+    }
+
     if (url.pathname === '/vibes/aie2026' || url.pathname === '/vibes/aie2026/') {
-      return new Response(renderHtml(), {
-        headers: {
-          'cache-control': 'public, max-age=60',
-          'content-type': 'text/html; charset=utf-8',
-        },
+      const theme: EmbedTheme = parseTheme(url, 'light');
+      return new Response(renderHtml({ theme }), {
+        headers: buildEmbedHeaders({
+          contentType: 'text/html; charset=utf-8',
+          maxAge: 60,
+          frameAncestors: [...DEFAULT_EMBED_ALLOWLIST],
+        }),
       });
     }
 
     return new Response('Not found', { status: 404 });
   },
+
+  /**
+   * Workers Cron trigger. Configured in wrangler.aie2026.jsonc via
+   * `triggers.crons`. Fires per the schedule (daily) and enqueues a
+   * refresh against the main aether worker's `/api/events/:id/refresh`
+   * route. Refresh itself is run by the aether app, not by this static
+   * reader worker — keeping the worker thin.
+   *
+   * v1 implementation: log the trigger so we can see it firing in
+   * Workers observability before wiring the actual refresh call.
+   */
+  async scheduled(event: ScheduledEvent, _env: Env, _ctx: ExecutionContext): Promise<void> {
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify({
+      event: 'aie2026-vibes.scheduled',
+      cron: event.cron,
+      scheduledTime: event.scheduledTime,
+      message: 'cron fired — refresh wiring lands in a follow-up; main aether app owns the refresh pipeline',
+    }));
+  },
 };
+
+interface ScheduledEvent {
+  cron: string;
+  scheduledTime: number;
+}
+
+interface ExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
 
 async function objectText(object: { body: ReadableStream; text?: () => Promise<string> }): Promise<string> {
   if (object.text) return object.text();
@@ -408,16 +461,24 @@ function contentType(key: string): string {
   return 'application/octet-stream';
 }
 
-export function renderHtml(): string {
+export function renderHtml(options: { theme?: EmbedTheme } = {}): string {
+  const theme: EmbedTheme = options.theme ?? 'light';
+  const themeAttr = ` data-theme="${theme}"`;
+  // Dark theme rebinds the same CSS custom properties; light keeps the
+  // original paper-texture palette. Both share the same SVG/layout below.
+  const themeCss =
+    theme === 'dark'
+      ? `:root{color-scheme:dark;--bg:#0c0a08;--panel:#15110d;--ink:#f1ece5;--muted:#9c9388;--dim:#766c61;--line:#2a221b;--accent:#de7340;--soft:#1a140f}`
+      : `:root{color-scheme:light;--bg:#fbfaf7;--panel:#fffdfa;--ink:#24211f;--muted:#706960;--dim:#9b9186;--line:#e9e1d7;--accent:#de7340;--soft:#f4eee7}`;
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${themeAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Engineer Singapore vibes</title>
 <script>if(location.search.includes('debug=1'))document.documentElement.classList.add('debug')</script>
 <style>
-:root{color-scheme:light;--bg:#fbfaf7;--panel:#fffdfa;--ink:#24211f;--muted:#706960;--dim:#9b9186;--line:#e9e1d7;--accent:#de7340;--soft:#f4eee7}
+${themeCss}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button,a,summary{touch-action:manipulation}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.shell{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:22px;max-width:1680px;margin:0 auto;padding:28px}
 .side{position:sticky;top:24px;max-height:calc(100dvh - 48px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border:1px solid var(--line);background:var(--panel);padding:22px}.eyebrow,.chip,.meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em}

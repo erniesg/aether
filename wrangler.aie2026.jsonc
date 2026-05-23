@@ -13,6 +13,12 @@
       "zone_name": "berlayar.ai"
     }
   ],
+  // Daily refresh at 06:00 UTC. The worker's scheduled handler logs the
+  // trigger; the actual refresh pipeline lives in the main aether app
+  // (POST /api/events/:eventId/refresh) and will be wired in a follow-up.
+  "triggers": {
+    "crons": ["0 6 * * *"]
+  },
   "r2_buckets": [
     {
       "binding": "AETHER_ASSETS",
