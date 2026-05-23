@@ -2,7 +2,7 @@
 
 ## What this PR ships
 
-Eleven TDD slices (commits `7e95dc61`..`74058927`) lift every AIE-2026-specific hardcoded constant into typed per-event config, add an HITL state machine + REST surface, make the worker embeddable on third-party sites, and wire a daily cron refresh. **152 tests across 26 files, all green; typecheck clean.**
+Eleven TDD slices (commits `7e95dc61`..`74058927`) lift every AIE-2026-specific hardcoded constant into typed per-event config, add an HITL state machine + REST surface, make the worker embeddable on third-party sites, and wire a daily cron refresh. **154 tests across 26 files, all green; typecheck clean.**
 
 Branch: `feat/event-recap-event-config` from `codex/event-recap-tinyfish`.
 
@@ -20,7 +20,7 @@ Branch: `feat/event-recap-event-config` from `codex/event-recap-tinyfish`.
 | `ac8e125e` | 10 | HITL Convex persistence + `/api/events/:eventId/runs/:runId/junctures` REST API |
 | `74058927` | 11 | Worker cron handler → POSTs to `/api/events/aie-2026/refresh` |
 
-Playbook docs at `docs/playbooks/event-recap/` (separate branch `skill/event-recap-playbook`) describe the full workflow.
+Playbook docs at `docs/playbooks/event-recap/` ship on this branch and describe the full repeatable workflow.
 
 ---
 
@@ -34,7 +34,7 @@ You're picking this up to validate that the changes work end-to-end. Three layer
 cd /Users/erniesg/code/erniesg/aether
 git checkout feat/event-recap-event-config
 npx vitest run lib/research/event-recap/ 2>&1 | tail -6
-# Expect: Test Files 26 passed, Tests 152 passed
+# Expect: Test Files 26 passed, Tests 154 passed
 
 npx tsc --noEmit --project tsconfig.json
 # Expect: no output, exit code 0
