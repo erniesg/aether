@@ -264,7 +264,80 @@ const config: EventConfig = {
     'Tusk',
     'Vercel',
   ],
-  curatedThemeCopy: {},
+  curatedThemeCopy: {
+    'story-vivian-builder-keynote': {
+      label: "Vivian's builder keynote",
+      summary:
+        'Foreign Minister Vivian Balakrishnan, NanoClaw, Raspberry Pi, and the "briefed on" line are one story: the keynote travelled because governance was framed through a minister visibly building and using his own AI workflow.',
+    },
+    'atlas-01-minister-balakrishnan-built': {
+      label: "Minister's builder keynote",
+      summary:
+        'Foreign Minister Vivian Balakrishnan, NanoClaw, and the "briefed on" line drove the largest cross-platform spike, carried by high-view X clips plus LinkedIn recaps from Rachael De Foe, Sherry Jiang, and Yee Chien Cheot.',
+    },
+    'atlas-02-openai-cursor-codex': {
+      label: 'OpenAI Codex presence',
+      summary:
+        'OpenAI showed up through the Codex booth, technical workshops, FDE lunch chat, Gabriel Chua daily recaps, and student-seat posts that treated the workshops as core event value.',
+    },
+    'atlas-03-agrimsingh-hackathon-second-brain': {
+      label: 'Singapore builder debate',
+      summary:
+        'This cluster holds the argument around Singapore as a serious AI builder hub: organizer context from Agrim and 65labs, attendee day-two recaps, livestream reactions, and skeptical X pushback.',
+    },
+    'atlas-04-hackathon-kaspar-hidayat-video': {
+      label: 'Livestreams and demos',
+      summary:
+        'Video and livestream refs made the event visible beyond the room, from Vivian Bala personal-agent posts to Day 2 YouTube coverage, Google DeepMind booth notes, and demo-stage moments.',
+    },
+    'atlas-05-aie-software-own': {
+      label: 'Hallway energy',
+      summary:
+        'Attendees described dense hallway and VIP-dinner energy: startup/operator meetings, reconnections, practical leadership-track takeaways, and the feeling of many builders in one room.',
+    },
+    'atlas-06-openai-codex-kaspar-hidayat': {
+      label: 'Scene afterglow',
+      summary:
+        'Post-event reflection clustered around "you are the scene", speaker recaps, OpenAI/Codex context, and people still processing how intense the weekend felt.',
+    },
+    'atlas-07-hackathon-live-say': {
+      label: 'Side events and travel',
+      summary:
+        'Ralphthon, demo-stage posts, travel notes, sponsor side events, and livestream pointers show the broader AI week orbiting the main conference.',
+    },
+    'atlas-08-codex-night-hack': {
+      label: 'Hack nights and unconference',
+      summary:
+        'Hack nights, unconference threads, Codex realtime experiments, and Road to AIE meetups turned the conference into a longer builder circuit rather than a single weekend.',
+    },
+    'atlas-09-google-google-deepmind-deepmind': {
+      label: 'Sponsor ecosystem',
+      summary:
+        'Google DeepMind, Vercel, Cursor, and other sponsor or partner signals appeared through official livestreams, booth photos, happy-hour posts, and broader ecosystem recaps.',
+    },
+    'atlas-09-hackathon-talk-openai': {
+      label: 'Around AIE: talks and side events',
+      summary:
+        'This story captures the wider AIE week around the main conference: talk recordings, sponsor booths, VIP dinners, hackathon notes, Ralphthon and AI Tinkerers side events, and visiting-builder recaps.',
+    },
+    'atlas-10-looking-kaspar-hidayat-codex': {
+      label: 'Speakers and returning builders',
+      summary:
+        'Speakers and visiting builders used the event to reconnect the regional scene, with posts from Mark Doyle, Jim, Yong Quan, and others arranging talks, meetups, and return visits.',
+    },
+    'atlas-11-code-workshop-agentic': {
+      label: 'Workshops and agentic workflows',
+      summary:
+        'Workshop-heavy refs centered on agentic workflows, x402 and payments, LlamaIndex enterprise-document sessions, Cerebras inference, and concrete implementation craft.',
+    },
+  },
+  incidentalMentionPatterns: {
+    exactMentions:
+      /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie singapore|ai\.engineer[\/\s]+singapore|road to aie)\b|#(?:aiengineersingapore|aiengineersg|aiesg)\b/gi,
+    specificEventSignal:
+      /\b(vivian balakrishnan|vivianbala|foreign minister|keynote|conference|summit|takeaways?|presented|workshops?|technical workshop|speakers?|talks?|panels?|sessions?|stage|booths?|sponsors?|side event|live demos?|capitol|kempinski|pullman|singapore management university|smu|65labs|openai|codex|cursor|google deepmind|deepmind|nanoclaw|llamaindex|cerebras|vercel|day\s*[123]|recap|livestream|unconference|project6|ralphthon|sherry jiang|sherrypeek|agrim singh|rachael de foe|gabriel chua|yee chien cheot)\b/i,
+    minLength: 900,
+  },
   atlasLanes: [],
   recapMode: 'auto',
 };
