@@ -1,3 +1,6 @@
+import type { IncidentalMentionConfig } from './event-config';
+import aie2026Config from './fixtures/aie-2026.config';
+
 const AI_ENGINEERING_TERMS =
   /\b(agents?|agentic?|ai agents?|agent sandboxes?|sandboxes?|personal ai agent|ai assistant|second brain|codex|cursor|nanoclaw|raspberry pi|sqlite|graph memory|whatsapp|claude|openai|google deepmind|deepmind|llms?|large[-\s]?language models?|llamaindex|llama index|hugging face|elevenlabs|vercel|cloudflare|stripe|arize|exa|convex|greptile|featherless|miromind|z\.ai|magicpath|govtech|openclaw|opengraph|reactor|bifrost|minimax|sakana|cerebras|x402|pay\.sh|evals?|inference|computation|foundation models?|world models?|model launch|own stack|robotics?|robots?|brain[-\s]?computer|bci|synthetic data|developer|engineering|software|code|coding|api|workflows?|deploy(?:ed|ing)?|ai builders?|ai stuff|physical ai|creative ai models?|future of work|public infrastructure)\b/i;
 
@@ -43,20 +46,39 @@ export function hasEventContextSignal(text: string): boolean {
   );
 }
 
-export function isIncidentalAieMention(text: string): boolean {
+const DEFAULT_INCIDENTAL_CONFIG: IncidentalMentionConfig =
+  aie2026Config.incidentalMentionPatterns ?? {
+    exactMentions: /(?!)/gi,
+    specificEventSignal: /(?!)/i,
+    minLength: 900,
+  };
+
+/**
+ * Detect long posts (default >= 900 chars) that mention the event exactly once
+ * but without specific event-narrative signals nearby — these are usually
+ * incidental name-drops, not substantive coverage of the event.
+ *
+ * Pass a config to scope this to a different event's mention patterns. When
+ * omitted, defaults to the AIE 2026 patterns for backwards compatibility.
+ */
+export function isIncidentalEventMention(
+  text: string,
+  config: IncidentalMentionConfig = DEFAULT_INCIDENTAL_CONFIG
+): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim();
-  const exactMentions = [
-    ...normalized.matchAll(
-      /\b(ai engineer singapore|ai engineers singapore|ai engineer sg|ai engineer summit singapore|ai engineer conference singapore|aie singapore|ai\.engineer[\/\s]+singapore|road to aie)\b|#(?:aiengineersingapore|aiengineersg|aiesg)\b/gi
-    ),
-  ];
-  if (exactMentions.length !== 1 || normalized.length < 900) return false;
+  const exactMentions = [...normalized.matchAll(config.exactMentions)];
+  const minLength = config.minLength ?? 900;
+  if (exactMentions.length !== 1 || normalized.length < minLength) return false;
 
   const matchIndex = exactMentions[0]?.index ?? 0;
   const mentionWindow = normalized.slice(Math.max(0, matchIndex - 280), matchIndex + 420);
-  const specificEventSignal =
-    /\b(vivian balakrishnan|vivianbala|foreign minister|keynote|conference|summit|takeaways?|presented|workshops?|technical workshop|speakers?|talks?|panels?|sessions?|stage|booths?|sponsors?|side event|live demos?|capitol|kempinski|pullman|singapore management university|smu|65labs|openai|codex|cursor|google deepmind|deepmind|nanoclaw|llamaindex|cerebras|vercel|day\s*[123]|recap|livestream|unconference|project6|ralphthon|sherry jiang|sherrypeek|agrim singh|rachael de foe|gabriel chua|yee chien cheot)\b/i.test(
-      mentionWindow
-    );
-  return !specificEventSignal;
+  return !config.specificEventSignal.test(mentionWindow);
+}
+
+/**
+ * @deprecated Use isIncidentalEventMention() with an event-specific config.
+ *   This alias preserves backwards compatibility and uses the AIE 2026 config.
+ */
+export function isIncidentalAieMention(text: string): boolean {
+  return isIncidentalEventMention(text);
 }
