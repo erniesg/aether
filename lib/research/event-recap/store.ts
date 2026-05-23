@@ -11,6 +11,7 @@ import type {
   EventVoice,
 } from './types';
 import { listEventRunEvents } from './run-events';
+import { findEventCaptureRun } from './capture-export';
 
 interface EventMemoryState {
   events: Map<string, EventRecapRecord>;
@@ -77,6 +78,7 @@ export async function getEventBundle(eventId: string): Promise<EventRecapBundle 
   const bundle = await loadEventBundle(eventId);
   if (!bundle) return null;
   bundle.runEvents = await listEventRunEvents(eventId, { limit: 400 });
+  bundle.captureRun = findEventCaptureRun(eventId) ?? undefined;
   return bundle;
 }
 

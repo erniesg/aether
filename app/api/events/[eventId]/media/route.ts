@@ -32,7 +32,7 @@ export async function GET(
   if (!mediaPath) {
     return NextResponse.json({ ok: false, error: 'path is required' }, { status: 400 });
   }
-  if (!mediaPath.includes('/media/')) {
+  if (!mediaPath.includes('/media/') && !mediaPath.includes('/post-capture-')) {
     return NextResponse.json({ ok: false, error: 'invalid media path' }, { status: 400 });
   }
 

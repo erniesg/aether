@@ -1,3 +1,7 @@
+import type { EventPostCaptureRun } from './post-capture';
+
+export type { EventPostCaptureRun };
+
 export const EVENT_PLATFORMS = ['x', 'linkedin', 'youtube'] as const;
 export type EventPlatform = (typeof EVENT_PLATFORMS)[number];
 export type EventRecapMode = 'mock' | 'tinyfish';
@@ -248,6 +252,8 @@ export interface EventRecapBundle {
   clustering?: EventClusterQuality;
   /** Phased timeline for the visible runs — oldest event first. */
   runEvents?: EventRecapRunEvent[];
+  /** Latest capture run from the post-screenshot engine, if one exists on disk. */
+  captureRun?: EventPostCaptureRun;
 }
 
 export interface EventResolution {
