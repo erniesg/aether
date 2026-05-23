@@ -68,6 +68,10 @@ export interface EmbedSnippetOptions {
   height?: number;
   /** Accessible iframe title. Defaults to "Event recap". */
   title?: string;
+  /** iframe sandbox policy. Defaults to the AIE/Tessera-compatible policy. */
+  sandbox?: string | false;
+  /** Optional CSS background to avoid a white flash before the iframe paints. */
+  background?: string;
 }
 
 /**
@@ -78,6 +82,8 @@ export interface EmbedSnippetOptions {
 export function buildEmbedSnippet(options: EmbedSnippetOptions): string {
   const height = options.height ?? 900;
   const title = escapeHtml(options.title ?? 'Event recap');
+  const sandbox = options.sandbox === undefined ? DEFAULT_EMBED_SANDBOX : options.sandbox;
+  const style = `border:0;display:block;width:100%${options.background ? `;background:${options.background}` : ''}`;
   return [
     `<iframe`,
     `  src="${options.url}"`,
@@ -86,7 +92,8 @@ export function buildEmbedSnippet(options: EmbedSnippetOptions): string {
     `  width="100%"`,
     `  loading="lazy"`,
     `  allow="fullscreen"`,
-    `  style="border:0;display:block;width:100%"`,
+    ...(sandbox ? [`  sandbox="${escapeHtml(sandbox)}"`] : []),
+    `  style="${escapeHtml(style)}"`,
     `></iframe>`,
   ].join('\n');
 }
@@ -112,3 +119,5 @@ export const DEFAULT_EMBED_ALLOWLIST: readonly string[] = [
   'https://berlayar.ai',
   'https://*.berlayar.ai',
 ];
+
+export const DEFAULT_EMBED_SANDBOX = 'allow-scripts allow-same-origin allow-popups allow-top-navigation allow-forms';

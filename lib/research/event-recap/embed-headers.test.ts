@@ -83,6 +83,7 @@ describe('embed headers (slice 7)', () => {
       expect(snippet).toContain('title="AI Engineer Singapore 2026 — Recap"');
       expect(snippet).toContain('loading="lazy"');
       expect(snippet).toContain('allow="fullscreen"');
+      expect(snippet).toContain('sandbox="allow-scripts allow-same-origin allow-popups allow-top-navigation allow-forms"');
     });
 
     it('defaults to height 900 and a generic title when not supplied', () => {
@@ -98,6 +99,22 @@ describe('embed headers (slice 7)', () => {
       });
       expect(snippet).not.toContain('<script>');
       expect(snippet).toContain('&lt;script&gt;');
+    });
+
+    it('can include a background color to avoid iframe paint flash', () => {
+      const snippet = buildEmbedSnippet({
+        url: 'https://aether.berlayar.ai/vibes/aie2026?theme=dark',
+        background: '#070808',
+      });
+      expect(snippet).toContain('background:#070808');
+    });
+
+    it('can omit sandboxing for embedders that explicitly disallow it', () => {
+      const snippet = buildEmbedSnippet({
+        url: 'https://example.com/embed',
+        sandbox: false,
+      });
+      expect(snippet).not.toContain('sandbox=');
     });
   });
 });

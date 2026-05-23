@@ -89,6 +89,7 @@ export default {
         url: `${url.origin}/vibes/${parsed.eventId}?theme=dark`,
         height: 900,
         title: `${parsed.eventId} — Recap`,
+        background: '#0c0a08',
       });
       return new Response(snippet, {
         headers: buildEmbedHeaders({
