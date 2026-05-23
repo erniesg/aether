@@ -34,13 +34,18 @@ export interface StoryDefinitionConfig {
 export interface AtlasLaneConfig {
   id: string;
   label: string;
+  /**
+   * Horizontal position (0-1) of this lane's column center in the atlas
+   * layout. Lower x = left side, higher = right.
+   */
   x: number;
-  matchers: {
-    primary: RegExp;
-    program?: RegExp;
-    tools?: RegExp;
-    community?: RegExp;
-  };
+  /**
+   * Themes whose label, summary, or keyword text match this regex are
+   * assigned to this lane. The atlas layout checks label first (strict),
+   * then full text (broad) before falling through to the next lane. A lane
+   * without a matcher acts as the catch-all fallback.
+   */
+  matcher?: RegExp;
 }
 
 export interface PrimaryStoryOverride {
