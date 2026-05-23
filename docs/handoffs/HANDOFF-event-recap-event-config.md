@@ -159,12 +159,31 @@ cat ~/.claude/skills/event-recap/SKILL.md 2>/dev/null | head -5
 
 ---
 
+## AIE site investigation (concrete evidence)
+
+Pulled `https://www.ai.engineer/singapore/2026` directly:
+- **Stack**: Next.js on Vercel (`server: Vercel`, `x-nextjs-rewritten-path: /singapore`)
+- **Headers**: `access-control-allow-origin: *`. No `X-Frame-Options`, no CSP, no COEP/COOP — host page won't block our iframe.
+- **Body bg**: `#070808` — dark-themed. Our dark theme palette now matches.
+- **Fonts** (Google Fonts): `Inter` (primary sans), `Instrument Sans`, `Instrument Serif`, `Inconsolata`, `JetBrains Mono`, `Azeret Mono`. Our dark theme now loads `Inter` + `Instrument Serif` + `JetBrains Mono` from the same Google Fonts CDN.
+- **Existing iframe pattern**: Tessera ticket checkout — `sandbox="allow-scripts allow-same-origin allow-popups allow-top-navigation allow-forms"`, `loading="lazy"`. AIE site is comfortable with permissive-sandbox iframes.
+- **Section structure**: About → Tracks → Speakers → Sponsors → Schedule → Venue → Tickets. Recap would land between Schedule and Venue, or after Tickets (post-event).
+
+## CORS story end-to-end
+
+| Use case | CORS needed? | Status |
+|---|---|---|
+| iframe embed on ai.engineer (HTML + same-origin /data fetch from inside iframe) | No | ✓ works |
+| iframe loads + parent JS reads CSP via DevTools | n/a | ✓ frame-ancestors set |
+| AIE site's JS does `fetch('https://aether.berlayar.ai/vibes/aie2026/data')` cross-origin | Yes | ✓ AIE worker now emits `Access-Control-Allow-Origin: *` on /data + /media + error responses |
+| Other domain embeds via iframe | No (same as above) | ✓ frame-ancestors allowlist covers ai.engineer + *.ai.engineer + berlayar.ai + *.berlayar.ai |
+| postMessage between iframe and parent for resize/event passing | Not CORS — needs JS on both sides | Not implemented (future enhancement if needed) |
+
 ## Known gaps (intentional — not bugs)
 
 These were called out in the PR notes and are NOT regressions:
 
-1. **AIE-specific worker `/data` endpoint doesn't emit CORS** — the AIE worker (`workers/aie2026-vibes.ts`) has its own pre-existing `/data` route that wasn't refactored to use `buildEmbedHeaders`. Cross-origin JS fetches against the AIE data endpoint won't work yet. The generic worker (`workers/event-recap-vibes.ts`) DOES emit CORS on `/data`. Either fold the AIE data route into `buildEmbedHeaders` (small follow-up) or leave it alone if cross-origin fetch isn't needed (iframe embed works either way).
-2. **AIE worker's dark theme is variable-rebind only** — the CSS custom properties switch but a few cards (`.wall`, `.cluster-card`) may still show light-palette bleed. A CSS audit pass is queued.
+1. **AIE worker's dark theme is variable-rebind only** — the CSS custom properties switch but a few cards (`.wall`, `.cluster-card`) may still show light-palette bleed. Body bg matches AIE's `#070808`; fonts match AIE's Google Fonts stack. A CSS audit pass for component-level dark palette is queued.
 3. **Cron→refresh requires `VIBES_REFRESH_API_KEY` wrangler secret** — the scheduled handler skips cleanly if absent and logs `aie2026-vibes.scheduled.skipped`. To enable:
    ```bash
    wrangler secret put VIBES_REFRESH_API_KEY --config wrangler.aie2026.jsonc
