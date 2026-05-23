@@ -7,6 +7,7 @@ import {
   parseTheme,
   type EmbedTheme,
 } from '../lib/research/event-recap/embed-headers';
+import { enqueueEventRecapRefresh } from '../lib/research/event-recap/refresh-trigger';
 
 interface Env {
   AETHER_ASSETS: {
@@ -16,6 +17,18 @@ interface Env {
       text?: () => Promise<string>;
     } | null>;
   };
+  /**
+   * Set to e.g. "https://aether.berlayar.ai" so the cron handler knows
+   * which aether deployment to ping. Configured in wrangler.aie2026.jsonc
+   * vars; secrets like VIBES_REFRESH_API_KEY come from wrangler secret.
+   */
+  AETHER_BASE_URL?: string;
+  /**
+   * vibes_-prefixed API key with refresh permissions. Configured as a
+   * wrangler secret (NOT in vars). Without it, the scheduled handler
+   * logs the trigger and exits without calling the refresh endpoint.
+   */
+  VIBES_REFRESH_API_KEY?: string;
 }
 
 const DATA_KEY = 'event-recap-ai-engineer-singapore/public.json';
@@ -119,22 +132,54 @@ export default {
 
   /**
    * Workers Cron trigger. Configured in wrangler.aie2026.jsonc via
-   * `triggers.crons`. Fires per the schedule (daily) and enqueues a
-   * refresh against the main aether worker's `/api/events/:id/refresh`
-   * route. Refresh itself is run by the aether app, not by this static
-   * reader worker — keeping the worker thin.
+   * `triggers.crons`. Fires per the schedule (daily at 06:00 UTC).
+   * Calls the main aether app's /api/events/aie-2026/refresh route
+   * to trigger a fresh scrape + cluster + R2 publish. The static
+   * worker stays a thin reader — the refresh pipeline lives in
+   * the main aether deployment.
    *
-   * v1 implementation: log the trigger so we can see it firing in
-   * Workers observability before wiring the actual refresh call.
+   * Auth: VIBES_REFRESH_API_KEY (wrangler secret) is sent as the
+   * x-api-key header so the refresh route's auth accepts it. Without
+   * the secret, the handler logs the trigger and exits cleanly.
    */
-  async scheduled(event: ScheduledEvent, _env: Env, _ctx: ExecutionContext): Promise<void> {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const baseUrl = env.AETHER_BASE_URL ?? 'https://aether.berlayar.ai';
+    const apiKey = env.VIBES_REFRESH_API_KEY;
+
+    if (!apiKey) {
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify({
+        event: 'aie2026-vibes.scheduled.skipped',
+        cron: event.cron,
+        scheduledTime: event.scheduledTime,
+        message: 'VIBES_REFRESH_API_KEY not configured; skipping refresh',
+      }));
+      return;
+    }
+
     // eslint-disable-next-line no-console
     console.log(JSON.stringify({
-      event: 'aie2026-vibes.scheduled',
+      event: 'aie2026-vibes.scheduled.fired',
       cron: event.cron,
       scheduledTime: event.scheduledTime,
-      message: 'cron fired — refresh wiring lands in a follow-up; main aether app owns the refresh pipeline',
+      baseUrl,
     }));
+
+    ctx.waitUntil(
+      enqueueEventRecapRefresh({
+        baseUrl,
+        eventId: 'aie-2026',
+        apiKey,
+        liveMode: 'tinyfish',
+      }).then((result) => {
+        // eslint-disable-next-line no-console
+        console.log(JSON.stringify({
+          event: result.ok ? 'aie2026-vibes.refresh.ok' : 'aie2026-vibes.refresh.failed',
+          status: result.status,
+          error: result.error,
+        }));
+      })
+    );
   },
 };
 
