@@ -306,7 +306,7 @@ async function captureTargetsWithLocalPlaywright(
     viewport: { width: number; height: number };
   }
 ): Promise<EventPostCapture[]> {
-  const { chromium } = await import('@playwright/test');
+  const { chromium } = await loadPlaywright();
   const opened = await openLocalBrowserContext(chromium, input);
   try {
     const captures: EventPostCapture[] = new Array(targets.length);
@@ -330,6 +330,12 @@ async function captureTargetsWithLocalPlaywright(
   } finally {
     await opened.close();
   }
+}
+
+async function loadPlaywright(): Promise<typeof import('@playwright/test')> {
+  // Keep Playwright out of OpenNext's Cloudflare bundle; post capture runs in local Node contexts.
+  const packageName = '@playwright/test';
+  return import(packageName);
 }
 
 async function openLocalBrowserContext(
