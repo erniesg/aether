@@ -81,10 +81,11 @@ export default {
         });
       }
       return new Response(object.body, {
-        headers: {
-          'cache-control': 'public, max-age=120',
-          'content-type': object.httpMetadata?.contentType ?? 'application/json; charset=utf-8',
-        },
+        headers: buildEmbedHeaders({
+          contentType: object.httpMetadata?.contentType ?? 'application/json; charset=utf-8',
+          maxAge: 120,
+          cors: true,
+        }),
       });
     }
 
@@ -94,10 +95,11 @@ export default {
       const object = await env.AETHER_ASSETS.get(key);
       if (!object) return json({ ok: false, error: 'media not found' }, 404);
       return new Response(object.body, {
-        headers: {
-          'cache-control': 'public, max-age=86400',
-          'content-type': object.httpMetadata?.contentType ?? contentType(key),
-        },
+        headers: buildEmbedHeaders({
+          contentType: object.httpMetadata?.contentType ?? contentType(key),
+          maxAge: 86400,
+          cors: true,
+        }),
       });
     }
 
@@ -239,10 +241,15 @@ async function captureResponse(
 }
 
 function exportHeaders(contentType: string, filename: string, download: boolean, accessId: string): HeadersInit {
+  // Export responses also serve embedders: include CORS so JS on
+  // ai.engineer (or any embedder) can fetch them.
   return {
     'cache-control': 'private, no-store',
     'content-type': contentType,
     'x-aether-access-id': accessId,
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'vary': 'Origin',
     ...(download ? { 'content-disposition': `attachment; filename="${filename}"` } : {}),
   };
 }
@@ -490,7 +497,11 @@ function csvCell(value: unknown): string {
 function json(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      // CORS-friendly so error responses are readable cross-origin too.
+      'access-control-allow-origin': '*',
+    },
   });
 }
 
@@ -509,21 +520,46 @@ function contentType(key: string): string {
 export function renderHtml(options: { theme?: EmbedTheme } = {}): string {
   const theme: EmbedTheme = options.theme ?? 'light';
   const themeAttr = ` data-theme="${theme}"`;
-  // Dark theme rebinds the same CSS custom properties; light keeps the
-  // original paper-texture palette. Both share the same SVG/layout below.
+  // Dark theme matches ai.engineer/singapore/2026 (body #070808). Light
+  // theme keeps the original paper-texture palette for the standalone
+  // page. Both share the same SVG/layout below.
   const themeCss =
     theme === 'dark'
-      ? `:root{color-scheme:dark;--bg:#0c0a08;--panel:#15110d;--ink:#f1ece5;--muted:#9c9388;--dim:#766c61;--line:#2a221b;--accent:#de7340;--soft:#1a140f}`
+      ? `:root{color-scheme:dark;--bg:#070808;--panel:#0e0f10;--ink:#f1ece5;--muted:#9c9388;--dim:#766c61;--line:#1c1d1e;--accent:#de7340;--soft:#101113}`
       : `:root{color-scheme:light;--bg:#fbfaf7;--panel:#fffdfa;--ink:#24211f;--muted:#706960;--dim:#9b9186;--line:#e9e1d7;--accent:#de7340;--soft:#f4eee7}`;
+  // When dark (embed mode for ai.engineer), load the same Google Fonts
+  // the host site uses (Inter / Instrument Serif / JetBrains Mono) so
+  // the iframe doesn't visually clash. Light mode keeps the system
+  // font stack to stay fast on the standalone page.
+  const fontLink =
+    theme === 'dark'
+      ? `<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500;600&display=swap" />`
+      : '';
+  const bodyFontStack =
+    theme === 'dark'
+      ? `Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,sans-serif`
+      : `ui-monospace,SFMono-Regular,Menlo,monospace`;
+  const serifFontStack =
+    theme === 'dark'
+      ? `'Instrument Serif',Georgia,'Times New Roman',serif`
+      : `Georgia,'Times New Roman',serif`;
+  const monoFontStack =
+    theme === 'dark'
+      ? `'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace`
+      : `ui-monospace,SFMono-Regular,Menlo,monospace`;
   return `<!doctype html>
 <html lang="en"${themeAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Engineer Singapore vibes</title>
+${fontLink}
 <script>if(location.search.includes('debug=1'))document.documentElement.classList.add('debug')</script>
 <style>
 ${themeCss}
+body{font-family:${bodyFontStack}}
+h1,h2,h3,h4{font-family:${serifFontStack}}
+.meta,.eyebrow,.chip,code,pre,.atlas-key span,.coverage-item span,.atlas-lane span{font-family:${monoFontStack}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button,a,summary{touch-action:manipulation}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.shell{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:22px;max-width:1680px;margin:0 auto;padding:28px}
 .side{position:sticky;top:24px;max-height:calc(100dvh - 48px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border:1px solid var(--line);background:var(--panel);padding:22px}.eyebrow,.chip,.meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em}
