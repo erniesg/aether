@@ -338,7 +338,35 @@ const config: EventConfig = {
       /\b(vivian balakrishnan|vivianbala|foreign minister|keynote|conference|summit|takeaways?|presented|workshops?|technical workshop|speakers?|talks?|panels?|sessions?|stage|booths?|sponsors?|side event|live demos?|capitol|kempinski|pullman|singapore management university|smu|65labs|openai|codex|cursor|google deepmind|deepmind|nanoclaw|llamaindex|cerebras|vercel|day\s*[123]|recap|livestream|unconference|project6|ralphthon|sherry jiang|sherrypeek|agrim singh|rachael de foe|gabriel chua|yee chien cheot)\b/i,
     minLength: 900,
   },
-  atlasLanes: [],
+  // Atlas lanes mirror the regex matchers from workers/aie2026-vibes.ts:605-606.
+  // Order matters: assignLane scans label-first then text-broad, so keynote is
+  // checked before program/tools/community to give Vivian-shaped themes priority.
+  atlasLanes: [
+    {
+      id: 'keynote',
+      label: 'keynote + stage signal',
+      x: 0.38,
+      matcher: /\b(vivian|minister|balakrishnan|raspberry|nanoclaw|keynote|foreign affairs|second brain|stage moments?)\b/i,
+    },
+    {
+      id: 'program',
+      label: 'talks + research',
+      x: 0.13,
+      matcher: /\b(research|talks?|track|speaker|inference|world models?|leadership|program|sessions?)\b/i,
+    },
+    {
+      id: 'tools',
+      label: 'hands-on tools + demos',
+      x: 0.62,
+      matcher: /\b(codex|cursor|hack|api|credit|agentic|workflow|workshops?|demo|reachy|rap|creative|openai|software factories)\b/i,
+    },
+    {
+      id: 'community',
+      label: 'community + sponsors',
+      x: 0.86,
+      matcher: /\b(students?|organizers?|organisers?|sponsors?|booths?|hiring|happy hour|meetups?|dinners?|afterglow|side events?|tinkerers|tencent|road to|livestream|shoutouts?)\b/i,
+    },
+  ],
   recapMode: 'auto',
 };
 
