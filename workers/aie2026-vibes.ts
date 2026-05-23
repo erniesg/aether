@@ -108,6 +108,7 @@ export default {
         url: `${url.origin}/vibes/aie2026?theme=dark`,
         height: 900,
         title: 'AI Engineer Singapore 2026 — Recap',
+        background: '#070808',
       });
       return new Response(snippet, {
         headers: buildEmbedHeaders({
