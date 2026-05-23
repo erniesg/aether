@@ -1,0 +1,2148 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AIE2026 recap-reel · design mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+<style>
+  /* ───────────────────────────────────────────────────────────────
+     palette — mirrors workers/aie2026-vibes.ts dark + light themes
+     ─────────────────────────────────────────────────────────────── */
+  :root {
+    --bg: #070808;
+    --panel: #0e0f10;
+    --ink: #f1ece5;
+    --muted: #9c9388;
+    --dim: #766c61;
+    --line: #1c1d1e;
+    --line-strong: #2a2b2c;
+    --accent: #de7340;
+    --accent-soft: #de734020;
+    --soft: #101113;
+    --tier-diamond: #b9d8ff;
+    --tier-platinum: #d8d8d8;
+    --tier-gold: #d4a45a;
+  }
+  html[data-theme="light"] {
+    --bg: #fbfaf7;
+    --panel: #fffdfa;
+    --ink: #24211f;
+    --muted: #706960;
+    --dim: #9b9186;
+    --line: #e9e1d7;
+    --line-strong: #d6cabd;
+    --accent: #de7340;
+    --accent-soft: #de73401a;
+    --soft: #f4eee7;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+  }
+  .eyebrow, .meta, .chip, .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  /* ───────────────────────────────────────────────────────────────
+     page chrome — mock label + theme toggle
+     ─────────────────────────────────────────────────────────────── */
+  .page-chrome {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .page-chrome .left { display: flex; gap: 12px; align-items: baseline; }
+  .page-chrome .mock-pill {
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 2px 8px;
+    font: 10px/1 'JetBrains Mono', ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border-radius: 2px;
+  }
+  .page-chrome .route { color: var(--muted); font: 12px/1 'JetBrains Mono', ui-monospace, monospace; }
+  .page-chrome .right { display: flex; gap: 8px; }
+  .toggle-btn {
+    border: 1px solid var(--line-strong);
+    background: var(--panel);
+    color: var(--ink);
+    padding: 6px 10px;
+    font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .toggle-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+  /* ───────────────────────────────────────────────────────────────
+     section frame — each mock gets a labeled wrapper
+     ─────────────────────────────────────────────────────────────── */
+  .mock-section { max-width: 1480px; margin: 0 auto; padding: 56px 24px 24px; }
+  .mock-section + .mock-section { border-top: 1px dashed var(--line-strong); }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .section-head .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    border-radius: 999px;
+  }
+  .section-head h2 {
+    margin: 0;
+    font-size: clamp(28px, 3vw, 38px);
+    line-height: 1.05;
+  }
+  .section-head .integration {
+    font: 12px/1.4 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    border-radius: 2px;
+    background: var(--panel);
+  }
+  .section-head .note {
+    flex: 1 1 100%;
+    color: var(--muted);
+    font-size: 15px;
+    margin: 4px 0 0;
+    max-width: 86ch;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     SECTION A — HERO REEL STRIP
+     ═══════════════════════════════════════════════════════════════ */
+  .hero-reel {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 28px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 32px;
+    overflow: hidden;
+    position: relative;
+  }
+  .hero-left { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .hero-left .eyebrow-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .hero-left .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent);
+    animation: pulseDot 2s ease-out infinite;
+  }
+  @keyframes pulseDot {
+    0% { box-shadow: 0 0 0 0 var(--accent); }
+    70% { box-shadow: 0 0 0 14px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .hero-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .hero-stat .number {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(64px, 9vw, 112px);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .hero-stat .label {
+    font: 12px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+  .hero-quote {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(28px, 2.6vw, 38px);
+    line-height: 1.1;
+    margin: 0;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  .hero-quote em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .hero-quote .word {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: wordIn 0.6s ease-out forwards;
+  }
+  @keyframes wordIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hero-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .hero-chip {
+    border: 1px solid var(--line-strong);
+    background: var(--soft);
+    color: var(--muted);
+    padding: 6px 10px;
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-radius: 999px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease-out forwards;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    padding: 12px 18px;
+    font: 12px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: 999px;
+    cursor: pointer;
+    align-self: flex-start;
+    margin-top: 8px;
+    transition: transform 0.16s ease, box-shadow 0.16s ease;
+  }
+  .hero-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(222,115,64,0.4); }
+  .hero-cta .play-dot {
+    width: 8px;
+    height: 8px;
+    background: #fff;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+  }
+
+  /* media stack on the right */
+  .hero-right {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 160px);
+    gap: 8px;
+    position: relative;
+  }
+  .reel-tile {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--soft);
+    opacity: 0;
+    animation: tileIn 0.7s ease-out forwards;
+  }
+  @keyframes tileIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .reel-tile .pic {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--c1, #4a5fad), var(--c2, #de7340));
+    animation: kenBurns 12s ease-in-out infinite alternate;
+  }
+  @keyframes kenBurns {
+    from { transform: scale(1) translate(0, 0); }
+    to { transform: scale(1.15) translate(-3%, 2%); }
+  }
+  .reel-tile .pic::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), transparent 50%),
+      radial-gradient(circle at 70% 70%, rgba(0,0,0,0.32), transparent 50%);
+  }
+  .reel-tile .pic::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.06) 0 1px, transparent 1px 3px);
+  }
+  .reel-tile .tag {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    z-index: 2;
+    padding: 3px 6px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    font: 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .reel-tile .caption {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    right: 8px;
+    z-index: 2;
+    color: #fff;
+    font: 12px/1.2 Inter, sans-serif;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  }
+  .reel-tile .play-overlay {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 42px;
+    height: 42px;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(255,255,255,0.7);
+    border-radius: 999px;
+    background: rgba(0,0,0,0.4);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .reel-tile .play-overlay::before {
+    content: "";
+    width: 0;
+    height: 0;
+    margin-left: 3px;
+    border-top: 7px solid transparent;
+    border-bottom: 7px solid transparent;
+    border-left: 11px solid #fff;
+  }
+  .reel-tile.is-big { grid-column: span 2; grid-row: span 2; }
+  .reel-tile:hover .pic { animation-play-state: paused; }
+  .reel-tile:hover { outline: 1px solid var(--accent); outline-offset: -1px; }
+  .reel-tile:nth-child(1) { animation-delay: 0.0s; }
+  .reel-tile:nth-child(2) { animation-delay: 0.1s; }
+  .reel-tile:nth-child(3) { animation-delay: 0.2s; }
+  .reel-tile:nth-child(4) { animation-delay: 0.3s; }
+  .reel-tile:nth-child(5) { animation-delay: 0.4s; }
+  .reel-tile:nth-child(6) { animation-delay: 0.5s; }
+  .reel-tile:nth-child(7) { animation-delay: 0.6s; }
+
+  /* ═══════════════════════════════════════════════════════════════
+     SECTION B — SPONSOR TIERS + VOICE CAROUSEL
+     ═══════════════════════════════════════════════════════════════ */
+  .sponsor-band {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 28px 32px;
+    overflow: hidden;
+  }
+  .sponsor-band h3 {
+    font-size: 22px;
+    margin: 0 0 18px;
+  }
+  .tier-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .tier-row:last-child { border-bottom: 0; }
+  .tier-row .tier-label {
+    flex: 0 0 96px;
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tier-row .tier-label::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--tier-color, #888);
+  }
+  .tier-row.diamond .tier-label { --tier-color: var(--tier-diamond); }
+  .tier-row.platinum .tier-label { --tier-color: var(--tier-platinum); }
+  .tier-row.gold .tier-label { --tier-color: var(--tier-gold); }
+  .tier-row .logos {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+    min-width: 0;
+  }
+  .sponsor-card {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--line);
+    background: var(--soft);
+    padding: 14px 16px;
+    min-width: 0;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    cursor: pointer;
+  }
+  .sponsor-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.3);
+  }
+  .sponsor-card .name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 24px;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .sponsor-card .meta {
+    font: 10px/1.2 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .sponsor-card.is-large { padding: 22px 26px; }
+  .sponsor-card.is-large .name { font-size: 36px; }
+  .sponsor-card.is-medium .name { font-size: 22px; }
+  .sponsor-card.is-small { padding: 10px 14px; }
+  .sponsor-card.is-small .name { font-size: 16px; }
+  .sponsor-card .booth-thumb {
+    margin-top: 6px;
+    width: 100%;
+    height: 56px;
+    border: 1px solid var(--line-strong);
+    background: linear-gradient(135deg, var(--c1, #2d4a7a), var(--c2, #4a7a2d));
+    position: relative;
+    overflow: hidden;
+  }
+  .sponsor-card .booth-thumb::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: 4px;
+    left: 6px;
+    font: 9px/1 'JetBrains Mono', monospace;
+    color: rgba(255,255,255,0.85);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  /* gold marquee — infinite scroll */
+  .marquee-wrap {
+    flex: 1 1 auto;
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .marquee {
+    display: flex;
+    gap: 14px;
+    width: max-content;
+    animation: marquee 36s linear infinite;
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* voice carousel */
+  .voice-carousel {
+    margin-top: 32px;
+  }
+  .voice-carousel h3 {
+    font-size: 22px;
+    margin: 0 0 18px;
+  }
+  .voice-track {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .voice-card {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeUp 0.6s ease-out forwards;
+  }
+  .voice-card:nth-child(1) { animation-delay: 0.1s; }
+  .voice-card:nth-child(2) { animation-delay: 0.2s; }
+  .voice-card:nth-child(3) { animation-delay: 0.3s; }
+  .voice-card:nth-child(4) { animation-delay: 0.4s; }
+  .voice-card:nth-child(5) { animation-delay: 0.5s; }
+  .voice-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.32);
+  }
+  .voice-card .voice-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .voice-card .avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--av1, #de7340), var(--av2, #4a5fad));
+    flex: 0 0 44px;
+    position: relative;
+    overflow: hidden;
+  }
+  .voice-card .avatar::after {
+    content: attr(data-initial);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+  }
+  .voice-card .voice-meta { min-width: 0; }
+  .voice-card .voice-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 19px;
+    line-height: 1.1;
+    color: var(--ink);
+  }
+  .voice-card .voice-handle {
+    font: 11px/1.2 'JetBrains Mono', monospace;
+    color: var(--muted);
+  }
+  .voice-card .voice-quote {
+    font: 14px/1.5 Inter, sans-serif;
+    color: var(--ink);
+    border-left: 2px solid var(--accent);
+    padding-left: 10px;
+    margin: 0;
+  }
+  .voice-card .voice-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font: 10px/1 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .voice-card .voice-bar {
+    margin-top: 4px;
+    height: 4px;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    position: relative;
+    overflow: hidden;
+  }
+  .voice-card .voice-bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    width: var(--score, 50%);
+    animation: barFill 1.2s ease-out forwards;
+    transform-origin: left center;
+  }
+  @keyframes barFill {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     SECTION C — REMOTION MP4 PREVIEW (9:16 + 16:9 SIDE BY SIDE)
+     ═══════════════════════════════════════════════════════════════ */
+  .mp4-preview {
+    display: grid;
+    grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+  }
+  .mp4-card {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 14px;
+  }
+  .mp4-card .format-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .mp4-card .format {
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+  }
+  .mp4-card .targets {
+    font: 10px/1 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .mp4-stage {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+  }
+  .mp4-stage.vert {
+    aspect-ratio: 9 / 16;
+    width: 100%;
+  }
+  .mp4-stage.horiz {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+  }
+  /* progress bar that scrubs across the bottom */
+  .mp4-scrub {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+    width: 0;
+    z-index: 10;
+    animation: scrub 16s linear infinite;
+  }
+  @keyframes scrub {
+    0% { width: 0; }
+    100% { width: 100%; }
+  }
+  .mp4-time {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 11;
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    padding: 3px 6px;
+    border-radius: 2px;
+    font: 10px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  /* scene cycling — 8 scenes over 16s total, each ~2s */
+  .scene {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    padding: 24px;
+    text-align: center;
+    overflow: hidden;
+  }
+  /* 8 scenes, total 16s cycle, each ~2s window with 0.2s crossfade */
+  @keyframes show0 { 0%, 12.5% { opacity: 1; } 13.7%, 100% { opacity: 0; } }
+  @keyframes show1 { 0%, 12.5% { opacity: 0; } 13.7%, 25% { opacity: 1; } 26.2%, 100% { opacity: 0; } }
+  @keyframes show2 { 0%, 25% { opacity: 0; } 26.2%, 37.5% { opacity: 1; } 38.7%, 100% { opacity: 0; } }
+  @keyframes show3 { 0%, 37.5% { opacity: 0; } 38.7%, 50% { opacity: 1; } 51.2%, 100% { opacity: 0; } }
+  @keyframes show4 { 0%, 50% { opacity: 0; } 51.2%, 62.5% { opacity: 1; } 63.7%, 100% { opacity: 0; } }
+  @keyframes show5 { 0%, 62.5% { opacity: 0; } 63.7%, 75% { opacity: 1; } 76.2%, 100% { opacity: 0; } }
+  @keyframes show6 { 0%, 75% { opacity: 0; } 76.2%, 87.5% { opacity: 1; } 88.7%, 100% { opacity: 0; } }
+  @keyframes show7 { 0%, 87.5% { opacity: 0; } 88.7%, 100% { opacity: 1; } }
+  .scene.s0 { animation: show0 16s linear infinite; }
+  .scene.s1 { animation: show1 16s linear infinite; }
+  .scene.s2 { animation: show2 16s linear infinite; }
+  .scene.s3 { animation: show3 16s linear infinite; }
+  .scene.s4 { animation: show4 16s linear infinite; }
+  .scene.s5 { animation: show5 16s linear infinite; }
+  .scene.s6 { animation: show6 16s linear infinite; }
+  .scene.s7 { animation: show7 16s linear infinite; }
+
+  /* scene 0 — title */
+  .scene-title {
+    background: radial-gradient(ellipse at 50% 60%, #1a1612 0%, #000 70%);
+    flex-direction: column;
+    gap: 12px;
+  }
+  .scene-title .ai {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(28px, 6vw, 64px);
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .scene-title .ai em { color: var(--accent); font-style: italic; }
+  .scene-title .sub {
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    color: var(--muted);
+  }
+  /* letter-by-letter reveal (only animates when scene is active) */
+  .letter {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: letterIn 16s linear infinite;
+  }
+  @keyframes letterIn {
+    0%, 1% { opacity: 0; transform: translateY(8px); }
+    8%, 12.5% { opacity: 1; transform: translateY(0); }
+    13.7%, 100% { opacity: 0; transform: translateY(8px); }
+  }
+
+  /* scene 1 — big stat */
+  .scene-stat {
+    background: linear-gradient(180deg, #0a0a0a, #000);
+    flex-direction: column;
+    gap: 14px;
+  }
+  .scene-stat .big {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(56px, 11vw, 128px);
+    line-height: 0.9;
+    color: var(--accent);
+    letter-spacing: -0.03em;
+  }
+  .scene-stat .lbl {
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    color: #fff;
+  }
+  .scene-stat .breakdown {
+    display: flex;
+    gap: 14px;
+    margin-top: 8px;
+  }
+  .scene-stat .breakdown span {
+    font: 10px/1.4 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .scene-stat .breakdown b { color: #fff; font-weight: 500; }
+
+  /* scene 2 — story ranking */
+  .scene-ranking {
+    background: linear-gradient(180deg, #0c0a08, #000);
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px;
+  }
+  .scene-ranking h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    margin: 0 0 8px;
+    text-align: left;
+  }
+  .scene-ranking .bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 50px;
+    gap: 10px;
+    align-items: center;
+  }
+  .scene-ranking .bar-name {
+    font: 11px/1.4 Inter, sans-serif;
+    color: #fff;
+    text-align: left;
+  }
+  .scene-ranking .bar-count {
+    font: 10px/1 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-align: right;
+  }
+  .scene-ranking .bar-track {
+    grid-column: 1 / -1;
+    height: 5px;
+    background: var(--soft);
+    overflow: hidden;
+    position: relative;
+  }
+  .scene-ranking .bar-fill {
+    height: 100%;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: barIn 16s linear infinite;
+  }
+  @keyframes barIn {
+    0%, 25% { transform: scaleX(0); }
+    34%, 37.5% { transform: scaleX(var(--w, 1)); }
+    38.7%, 100% { transform: scaleX(0); }
+  }
+
+  /* scene 3 — vivian video moment */
+  .scene-moment {
+    background: linear-gradient(135deg, #4a3520, #1a1610);
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 28px;
+    text-align: left;
+  }
+  .scene-moment::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 60% 40%, rgba(222,115,64,0.3), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.4) 0 2px, transparent 2px 4px);
+    animation: scanlines 0.8s steps(8) infinite, kenBurns 8s ease-in-out infinite alternate;
+  }
+  @keyframes scanlines {
+    from { background-position: 0 0; }
+    to { background-position: 0 4px; }
+  }
+  .scene-moment .play-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .scene-moment .play-badge::after {
+    content: "";
+    width: 0;
+    height: 0;
+    margin-left: 4px;
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-left: 18px solid #fff;
+  }
+  .scene-moment .quote {
+    position: relative;
+    z-index: 2;
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(20px, 4vw, 36px);
+    line-height: 1.1;
+    color: #fff;
+    max-width: 18ch;
+    margin: 0;
+  }
+  .scene-moment .quote em { color: var(--accent); font-style: italic; }
+  .scene-moment .attrib {
+    position: relative;
+    z-index: 2;
+    font: 11px/1 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    margin-top: 12px;
+  }
+
+  /* scene 4 — booth montage */
+  .scene-montage {
+    background: #000;
+    padding: 0;
+  }
+  .scene-montage .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+  }
+  .scene-montage .cell {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--c1), var(--c2));
+  }
+  .scene-montage .cell::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    font: 10px/1 'JetBrains Mono', monospace;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .scene-montage .label {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 2;
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    color: #fff;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+  }
+
+  /* scene 5 — workshop cascade */
+  .scene-cascade {
+    background: linear-gradient(180deg, #08100c, #000);
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    padding: 28px;
+    gap: 6px;
+  }
+  .scene-cascade .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    border-left: 2px solid var(--accent);
+    background: rgba(222,115,64,0.06);
+    color: #fff;
+    font: 12px/1.3 Inter, sans-serif;
+    transform: translateX(-30px);
+    opacity: 0;
+    animation: rowIn 16s linear infinite;
+  }
+  .scene-cascade .row .meta {
+    font: 10px/1 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  @keyframes rowIn {
+    0%, 62.5% { transform: translateX(-30px); opacity: 0; }
+    66%, 73% { transform: translateX(0); opacity: 1; }
+    76.2%, 100% { transform: translateX(-30px); opacity: 0; }
+  }
+  .scene-cascade h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    margin: 0 0 6px;
+    text-align: left;
+  }
+
+  /* scene 6 — sponsor wall */
+  .scene-sponsors {
+    background: linear-gradient(180deg, #0a0a0c, #000);
+    flex-direction: column;
+    gap: 14px;
+    padding: 28px;
+  }
+  .scene-sponsors h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    margin: 0;
+  }
+  .scene-sponsors .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .scene-sponsors .logo {
+    aspect-ratio: 2 / 1;
+    background: var(--soft);
+    border: 1px solid var(--line-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Instrument Serif', serif;
+    font-size: 14px;
+    color: var(--ink);
+    transform: scale(0.8);
+    opacity: 0;
+    animation: logoIn 16s linear infinite;
+  }
+  @keyframes logoIn {
+    0%, 75% { transform: scale(0.8); opacity: 0; }
+    78%, 87.5% { transform: scale(1); opacity: 1; }
+    88.7%, 100% { transform: scale(0.8); opacity: 0; }
+  }
+
+  /* scene 7 — outro */
+  .scene-outro {
+    background: radial-gradient(ellipse at 50% 50%, #2a1e15 0%, #000 70%);
+    flex-direction: column;
+    gap: 16px;
+  }
+  .scene-outro .you {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: clamp(28px, 6vw, 56px);
+    line-height: 1;
+    color: #fff;
+    text-align: center;
+  }
+  .scene-outro .url {
+    font: 11px/1 'JetBrains Mono', monospace;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  /* mp4 controls / metadata */
+  .mp4-controls {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mp4-controls .download-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .mp4-controls .btn {
+    border: 1px solid var(--line-strong);
+    background: var(--soft);
+    color: var(--ink);
+    padding: 8px 12px;
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    border-radius: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+  }
+  .mp4-controls .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .mp4-controls .btn.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .mp4-controls .btn.primary:hover { color: #fff; background: color-mix(in srgb, var(--accent) 88%, #000); }
+  .mp4-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font: 11px/1.4 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .mp4-meta b { color: var(--ink); font-weight: 500; }
+
+  /* render path explanation */
+  .render-modes {
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .render-modes .mode {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .render-modes .mode-label {
+    font: 10px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+  }
+  .render-modes .mode-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .render-modes .mode-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .render-modes .mode code {
+    font: 11px/1.4 'JetBrains Mono', monospace;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    padding: 2px 4px;
+    border-radius: 2px;
+    color: var(--ink);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     SECTION D — /vibes/aie/ AGGREGATE
+     ═══════════════════════════════════════════════════════════════ */
+  .aggregate-head {
+    text-align: center;
+    padding: 32px 0 28px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    margin-bottom: 14px;
+  }
+  .aggregate-head .super {
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .aggregate-head h1 {
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 1;
+    margin: 0;
+  }
+  .aggregate-head p {
+    color: var(--muted);
+    font-size: 15px;
+    margin: 8px 0 0;
+  }
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .event-card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    overflow: hidden;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .event-card:hover { border-color: var(--accent); transform: translateY(-4px); }
+  .event-hero {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--c1), var(--c2));
+  }
+  .event-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 40% 30%, rgba(255,255,255,0.18), transparent 50%),
+      radial-gradient(circle at 70% 80%, rgba(0,0,0,0.36), transparent 50%);
+    animation: kenBurns 14s ease-in-out infinite alternate;
+  }
+  .event-hero .overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.7));
+  }
+  .event-hero .city {
+    position: absolute;
+    left: 18px;
+    bottom: 14px;
+    color: #fff;
+    font-family: 'Instrument Serif', serif;
+    font-size: 32px;
+    line-height: 1;
+    z-index: 2;
+  }
+  .event-hero .city .year {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .event-hero .badge {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    z-index: 2;
+    padding: 4px 8px;
+    border: 1px solid rgba(255,255,255,0.5);
+    color: #fff;
+    font: 9px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .event-body {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .event-body .dates {
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .event-body .summary {
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+  .event-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  .event-stat .num {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .event-stat .lbl {
+    font: 9px/1 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+  .event-body .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 11px/1 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+  }
+
+  /* cross-event consolidation */
+  .cross-event {
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 28px 32px;
+  }
+  .cross-event h3 {
+    font-size: 24px;
+    margin: 0 0 18px;
+  }
+  .cross-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 24px;
+    padding: 18px 0;
+    border-top: 1px solid var(--line);
+  }
+  .cross-row .label {
+    font: 11px/1.4 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .cross-row .label small {
+    display: block;
+    margin-top: 4px;
+    color: var(--dim);
+    font-size: 10px;
+    text-transform: none;
+    letter-spacing: 0.04em;
+  }
+  .cross-row .body { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .cross-row .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line-strong);
+    background: var(--soft);
+    padding: 6px 10px;
+    font: 12px/1 Inter, sans-serif;
+    color: var(--ink);
+  }
+  .cross-row .pill b {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .cross-row .pill .events-dots {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .cross-row .pill .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    opacity: 0.5;
+  }
+  .cross-row .pill .dot.filled { opacity: 1; }
+
+  /* theme drift chart */
+  .drift-chart {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+  .drift-row { display: contents; }
+  .drift-name {
+    font: 11px/1.2 Inter, sans-serif;
+    color: var(--ink);
+    text-align: right;
+  }
+  .drift-bars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    align-items: end;
+    height: 28px;
+  }
+  .drift-bar {
+    background: var(--accent);
+    height: var(--h, 30%);
+    min-height: 3px;
+    border-radius: 1px 1px 0 0;
+    position: relative;
+  }
+  .drift-bar.dim { background: var(--line-strong); }
+  .drift-bar::after {
+    content: attr(data-year);
+    position: absolute;
+    bottom: -16px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font: 9px/1 'JetBrains Mono', monospace;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .drift-row + .drift-row .drift-bar::after { content: ""; }
+
+  /* ───────────────────────────────────────────────────────────────
+     footer notes — how this fits together
+     ─────────────────────────────────────────────────────────────── */
+  .integration-notes {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    border-top: 1px dashed var(--line-strong);
+  }
+  .integration-notes h3 {
+    font-size: 28px;
+    margin: 0 0 18px;
+  }
+  .integration-notes ol {
+    padding-left: 20px;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.7;
+    max-width: 84ch;
+  }
+  .integration-notes ol li { margin-bottom: 8px; }
+  .integration-notes code {
+    font: 13px/1.4 'JetBrains Mono', monospace;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 2px;
+    color: var(--ink);
+  }
+  .pipe-diagram {
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 24px;
+    font: 13px/1.6 'JetBrains Mono', monospace;
+    color: var(--muted);
+    overflow-x: auto;
+  }
+  .pipe-diagram b { color: var(--accent); }
+
+  /* ───────────────────────────────────────────────────────────────
+     responsive
+     ─────────────────────────────────────────────────────────────── */
+  @media (max-width: 1100px) {
+    .hero-reel { grid-template-columns: 1fr; }
+    .hero-right { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 120px); }
+    .voice-track { grid-template-columns: repeat(2, 1fr); }
+    .mp4-preview { grid-template-columns: 1fr; }
+    .event-grid { grid-template-columns: 1fr; }
+    .render-modes { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    .hero-right { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 96px); }
+    .reel-tile.is-big { grid-column: span 2; grid-row: span 2; }
+    .voice-track { grid-template-columns: 1fr; }
+    .cross-row { grid-template-columns: 1fr; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ PAGE CHROME ═══════════════ -->
+<div class="page-chrome">
+  <div class="left">
+    <span class="mock-pill">mock</span>
+    <span class="route">/vibes/aie2026 · recap-reel design preview</span>
+  </div>
+  <div class="right">
+    <button class="toggle-btn active" data-theme="dark">dark</button>
+    <button class="toggle-btn" data-theme="light">light</button>
+  </div>
+</div>
+
+<!-- ═══════════════ SECTION A: HERO REEL ═══════════════ -->
+<section class="mock-section">
+  <div class="section-head">
+    <span class="badge">A</span>
+    <h2>Hero reel strip</h2>
+    <span class="integration">slots above existing /vibes/aie2026 hero · in-page · no MP4 render</span>
+    <p class="note">Cycling screencap stack with a single big stat and one anchor quote. Replaces nothing — slots above the existing synthesis copy so the editorial spine stays intact. Auto-cycles on a 5.2s interval (matches the existing media-wall AUTO_MEDIA_MS).</p>
+  </div>
+
+  <div class="hero-reel">
+    <div class="hero-left">
+      <div class="eyebrow-row">
+        <span class="live-dot"></span>
+        <span class="eyebrow">AIE Singapore · 2026 · May 17–19 · Pullman + Capitol Kempinski</span>
+      </div>
+      <div class="hero-stat">
+        <span class="number" id="counter">11.4M</span>
+        <span class="label">known views · 2.4k public reactions · 384 refs</span>
+      </div>
+      <h3 class="hero-quote" aria-label="Vivian's Raspberry Pi was the line that travelled.">
+        <span class="word" style="animation-delay:0.1s">Vivian's</span>
+        <span class="word" style="animation-delay:0.25s"><em>Raspberry&nbsp;Pi</em></span><br>
+        <span class="word" style="animation-delay:0.4s">was</span>
+        <span class="word" style="animation-delay:0.5s">the</span>
+        <span class="word" style="animation-delay:0.6s">line</span>
+        <span class="word" style="animation-delay:0.7s">that</span>
+        <span class="word" style="animation-delay:0.82s">travelled.</span>
+      </h3>
+      <div class="hero-chips">
+        <span class="hero-chip" style="animation-delay:1.0s">6 story families</span>
+        <span class="hero-chip" style="animation-delay:1.1s">41 playable videos</span>
+        <span class="hero-chip" style="animation-delay:1.2s">12 sponsors</span>
+        <span class="hero-chip" style="animation-delay:1.3s">65labs · org</span>
+        <span class="hero-chip" style="animation-delay:1.4s">x · linkedin · youtube</span>
+      </div>
+      <button class="hero-cta" style="animation: fadeUp 0.6s 1.6s ease-out backwards;">
+        <span class="play-dot"></span>
+        Watch the 60s recap
+      </button>
+    </div>
+
+    <div class="hero-right" id="reel-grid">
+      <button class="reel-tile is-big" style="--c1:#4a2814;--c2:#de7340">
+        <div class="pic"></div>
+        <span class="tag">keynote · 2.1m views</span>
+        <span class="play-overlay" aria-hidden="true"></span>
+        <span class="caption">Vivian Balakrishnan — "I don't think you can govern a technology you've only been briefed on."</span>
+      </button>
+      <button class="reel-tile" style="--c1:#1f2d4a;--c2:#3b6dc2">
+        <div class="pic"></div>
+        <span class="tag">openai · codex booth</span>
+      </button>
+      <button class="reel-tile" style="--c1:#2d4a2d;--c2:#6da650">
+        <div class="pic"></div>
+        <span class="tag">workshop · llamaindex</span>
+      </button>
+      <button class="reel-tile" style="--c1:#4a2d4a;--c2:#a6509b">
+        <div class="pic"></div>
+        <span class="tag">video · day 2 recap</span>
+        <span class="play-overlay" aria-hidden="true"></span>
+      </button>
+      <button class="reel-tile" style="--c1:#4a3d20;--c2:#d4a45a">
+        <div class="pic"></div>
+        <span class="tag">happy hour · cursor</span>
+      </button>
+      <button class="reel-tile" style="--c1:#1f4a4a;--c2:#3bb8b8">
+        <div class="pic"></div>
+        <span class="tag">side event · ralphthon</span>
+      </button>
+      <button class="reel-tile" style="--c1:#4a1f1f;--c2:#c23b3b">
+        <div class="pic"></div>
+        <span class="tag">reachy · stage demo</span>
+        <span class="play-overlay" aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION B: SPONSOR + VOICE ═══════════════ -->
+<section class="mock-section">
+  <div class="section-head">
+    <span class="badge">B</span>
+    <h2>Sponsor tier band + voice carousel</h2>
+    <span class="integration">slots between hero + atlas · in-page · click → filtered cluster</span>
+    <p class="note">Sponsor tier visibility (you said feature them prominently) — diamond is full sponsor cards with booth thumbs, platinum is medium, gold scrolls in a marquee. Voice carousel promotes the top 5 contributors from a tab into a band: avatar, named ref count, anchor quote, score bar. Each card click filters the existing cluster view.</p>
+  </div>
+
+  <div class="sponsor-band">
+    <h3>Partners</h3>
+
+    <div class="tier-row diamond">
+      <div class="tier-label">diamond</div>
+      <div class="logos">
+        <div class="sponsor-card is-large">
+          <span class="name">OpenAI</span>
+          <span class="meta">Codex booth · workshop · FDE chat · 38 refs</span>
+          <div class="booth-thumb" data-label="codex booth" style="--c1:#0f1820;--c2:#3b6dc2"></div>
+        </div>
+        <div class="sponsor-card is-large">
+          <span class="name">Google&nbsp;DeepMind</span>
+          <span class="meta">Booth · happy hour · 24 refs</span>
+          <div class="booth-thumb" data-label="deepmind booth" style="--c1:#3b3b3b;--c2:#6da650"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tier-row platinum">
+      <div class="tier-label">platinum</div>
+      <div class="logos">
+        <div class="sponsor-card is-medium">
+          <span class="name">Cursor</span>
+          <span class="meta">Happy hour · 18 refs</span>
+        </div>
+        <div class="sponsor-card is-medium">
+          <span class="name">Vercel</span>
+          <span class="meta">Booth · 14 refs</span>
+        </div>
+        <div class="sponsor-card is-medium">
+          <span class="name">Convex</span>
+          <span class="meta">Boba · 11 refs</span>
+        </div>
+        <div class="sponsor-card is-medium">
+          <span class="name">Cerebras</span>
+          <span class="meta">Inference talk · 9 refs</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tier-row gold">
+      <div class="tier-label">gold</div>
+      <div class="marquee-wrap">
+        <div class="marquee">
+          <div class="sponsor-card is-small"><span class="name">Cloudflare</span><span class="meta">7 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Stripe</span><span class="meta">6 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Daytona</span><span class="meta">5 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Exa</span><span class="meta">5 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Arize</span><span class="meta">4 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">PostHog</span><span class="meta">4 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Featherless</span><span class="meta">3 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Nebius</span><span class="meta">3 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">MiroMind</span><span class="meta">3 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Tencent&nbsp;Cloud</span><span class="meta">2 refs</span></div>
+          <!-- duplicate for seamless marquee -->
+          <div class="sponsor-card is-small"><span class="name">Cloudflare</span><span class="meta">7 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Stripe</span><span class="meta">6 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Daytona</span><span class="meta">5 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Exa</span><span class="meta">5 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Arize</span><span class="meta">4 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">PostHog</span><span class="meta">4 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Featherless</span><span class="meta">3 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Nebius</span><span class="meta">3 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">MiroMind</span><span class="meta">3 refs</span></div>
+          <div class="sponsor-card is-small"><span class="name">Tencent&nbsp;Cloud</span><span class="meta">2 refs</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="voice-carousel">
+    <h3>Voices</h3>
+    <div class="voice-track">
+      <div class="voice-card">
+        <div class="voice-head">
+          <div class="avatar" data-initial="V" style="--av1:#de7340;--av2:#4a2814"></div>
+          <div class="voice-meta">
+            <div class="voice-name">Vivian Balakrishnan</div>
+            <div class="voice-handle">@vivianbala · x</div>
+          </div>
+        </div>
+        <blockquote class="voice-quote">"I don't think you can govern a technology you've only been briefed on."</blockquote>
+        <div class="voice-foot"><span>4 refs · 2.1m views</span><span>voice 1.84</span></div>
+        <div class="voice-bar" style="--score:92%"></div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-head">
+          <div class="avatar" data-initial="S" style="--av1:#a6509b;--av2:#4a2d4a"></div>
+          <div class="voice-meta">
+            <div class="voice-name">Sherry Jiang</div>
+            <div class="voice-handle">@sherrypeek · linkedin</div>
+          </div>
+        </div>
+        <blockquote class="voice-quote">"Day 2 closed with proof Singapore can host a serious AI builder room."</blockquote>
+        <div class="voice-foot"><span>18 refs · 41k reactions</span><span>voice 1.42</span></div>
+        <div class="voice-bar" style="--score:78%"></div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-head">
+          <div class="avatar" data-initial="G" style="--av1:#3b6dc2;--av2:#1f2d4a"></div>
+          <div class="voice-meta">
+            <div class="voice-name">Gabriel Chua</div>
+            <div class="voice-handle">@gabriel-chua · linkedin</div>
+          </div>
+        </div>
+        <blockquote class="voice-quote">"Codex day-by-day. Hack night. Realtime. Receipts from the room."</blockquote>
+        <div class="voice-foot"><span>12 refs · 28k reactions</span><span>voice 1.21</span></div>
+        <div class="voice-bar" style="--score:64%"></div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-head">
+          <div class="avatar" data-initial="R" style="--av1:#6da650;--av2:#2d4a2d"></div>
+          <div class="voice-meta">
+            <div class="voice-name">Rachael De Foe</div>
+            <div class="voice-handle">@rachaeldefoe · linkedin</div>
+          </div>
+        </div>
+        <blockquote class="voice-quote">"This was Singapore showing up — not flown in. 65labs built the scene."</blockquote>
+        <div class="voice-foot"><span>9 refs · 19k reactions</span><span>voice 0.94</span></div>
+        <div class="voice-bar" style="--score:54%"></div>
+      </div>
+      <div class="voice-card">
+        <div class="voice-head">
+          <div class="avatar" data-initial="A" style="--av1:#d4a45a;--av2:#4a3d20"></div>
+          <div class="voice-meta">
+            <div class="voice-name">Agrim Singh</div>
+            <div class="voice-handle">@agrimsingh · x</div>
+          </div>
+        </div>
+        <blockquote class="voice-quote">"20 student tickets. 65labs sponsored seats. The scene shows up for the next ones."</blockquote>
+        <div class="voice-foot"><span>7 refs · 14k views</span><span>voice 0.81</span></div>
+        <div class="voice-bar" style="--score:46%"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION C: REMOTION MP4 PREVIEW ═══════════════ -->
+<section class="mock-section">
+  <div class="section-head">
+    <span class="badge">C</span>
+    <h2>Remotion MP4 preview · 9:16 + 16:9</h2>
+    <span class="integration">renders to R2 · cron + on-demand variants · share-ready URLs</span>
+    <p class="note">One Remotion composition (<code>src/remotion/EventRecap/index.tsx</code>), parameterised by <code>EventRecapBundle</code> + <code>EventConfig</code>. Renders both 9:16 (TikTok/Reels/Shorts) and 16:9 (YouTube/LinkedIn/X video) from the same source. Preview below is compressed to a 16s loop showing all 8 scenes — real render is 60s with motion-graphics easing, scored to a royalty-free track.</p>
+  </div>
+
+  <div class="mp4-preview">
+    <!-- 9:16 vertical (TikTok/Reels) -->
+    <div class="mp4-card">
+      <div class="format-row">
+        <span class="format">9 : 16</span>
+        <span class="targets">tiktok · reels · shorts</span>
+      </div>
+      <div class="mp4-stage vert" role="img" aria-label="9:16 recap preview cycling through 8 scenes">
+        <!-- scene 0: title -->
+        <div class="scene s0 scene-title">
+          <span class="ai">
+            <span class="letter" style="animation-delay:0.0s">A</span><span class="letter" style="animation-delay:0.06s">I</span>
+            <span class="letter" style="animation-delay:0.18s">&nbsp;</span>
+            <span class="letter" style="animation-delay:0.24s">E</span><span class="letter" style="animation-delay:0.30s">n</span><span class="letter" style="animation-delay:0.36s">g</span><span class="letter" style="animation-delay:0.42s">i</span><span class="letter" style="animation-delay:0.48s">n</span><span class="letter" style="animation-delay:0.54s">e</span><span class="letter" style="animation-delay:0.60s">e</span><span class="letter" style="animation-delay:0.66s">r</span>
+          </span>
+          <span class="ai"><em>Singapore</em></span>
+          <span class="sub">2026 · may 17 – 19</span>
+        </div>
+        <!-- scene 1: stat -->
+        <div class="scene s1 scene-stat">
+          <span class="big">11.4M</span>
+          <span class="lbl">known views</span>
+          <div class="breakdown">
+            <span><b>X</b> · 8.2m</span>
+            <span><b>YT</b> · 3.2m</span>
+            <span><b>LI</b> · public</span>
+          </div>
+        </div>
+        <!-- scene 2: story bars -->
+        <div class="scene s2 scene-ranking">
+          <h3>What travelled</h3>
+          <div class="bar"><span class="bar-name">Vivian's builder keynote</span><span class="bar-count">128</span><span class="bar-track"><span class="bar-fill" style="--w:1"></span></span></div>
+          <div class="bar"><span class="bar-name">OpenAI Codex presence</span><span class="bar-count">71</span><span class="bar-track"><span class="bar-fill" style="--w:0.56"></span></span></div>
+          <div class="bar"><span class="bar-name">Workshops + agentic flow</span><span class="bar-count">62</span><span class="bar-track"><span class="bar-fill" style="--w:0.48"></span></span></div>
+          <div class="bar"><span class="bar-name">Students + organizers</span><span class="bar-count">48</span><span class="bar-track"><span class="bar-fill" style="--w:0.38"></span></span></div>
+          <div class="bar"><span class="bar-name">Sponsors + booths</span><span class="bar-count">42</span><span class="bar-track"><span class="bar-fill" style="--w:0.33"></span></span></div>
+          <div class="bar"><span class="bar-name">Side events + meetups</span><span class="bar-count">33</span><span class="bar-track"><span class="bar-fill" style="--w:0.26"></span></span></div>
+        </div>
+        <!-- scene 3: vivian moment -->
+        <div class="scene s3 scene-moment">
+          <span class="play-badge" aria-hidden="true"></span>
+          <h3 class="quote">"<em>Briefed on</em>" was the line that travelled.</h3>
+          <span class="attrib">— Vivian Balakrishnan · keynote</span>
+        </div>
+        <!-- scene 4: booth montage -->
+        <div class="scene s4 scene-montage">
+          <span class="label">OpenAI @ AIE</span>
+          <div class="grid">
+            <div class="cell" data-label="codex booth" style="--c1:#0f1820;--c2:#3b6dc2"></div>
+            <div class="cell" data-label="codex workshop" style="--c1:#1a1410;--c2:#de7340"></div>
+            <div class="cell" data-label="fde lunch" style="--c1:#102018;--c2:#4a9d6a"></div>
+            <div class="cell" data-label="hack night" style="--c1:#1c1020;--c2:#a6509b"></div>
+          </div>
+        </div>
+        <!-- scene 5: workshop cascade -->
+        <div class="scene s5 scene-cascade">
+          <h3>Hands on</h3>
+          <div class="row" style="animation-delay:0.0s">LlamaIndex · agentic documents<span class="meta">workshop</span></div>
+          <div class="row" style="animation-delay:0.1s">x402 + pay.sh · agent payments<span class="meta">talk</span></div>
+          <div class="row" style="animation-delay:0.2s">Cerebras inference · MoE<span class="meta">research</span></div>
+          <div class="row" style="animation-delay:0.3s">Reachy · stage demo<span class="meta">creative</span></div>
+          <div class="row" style="animation-delay:0.4s">Codex for Everyone<span class="meta">workshop</span></div>
+        </div>
+        <!-- scene 6: sponsor wall -->
+        <div class="scene s6 scene-sponsors">
+          <h3>Partners</h3>
+          <div class="grid">
+            <div class="logo" style="animation-delay:0.0s">OpenAI</div>
+            <div class="logo" style="animation-delay:0.05s">DeepMind</div>
+            <div class="logo" style="animation-delay:0.10s">Cursor</div>
+            <div class="logo" style="animation-delay:0.15s">Vercel</div>
+            <div class="logo" style="animation-delay:0.20s">Convex</div>
+            <div class="logo" style="animation-delay:0.25s">Cerebras</div>
+            <div class="logo" style="animation-delay:0.30s">Cloudflare</div>
+            <div class="logo" style="animation-delay:0.35s">Stripe</div>
+            <div class="logo" style="animation-delay:0.40s">Daytona</div>
+          </div>
+        </div>
+        <!-- scene 7: outro -->
+        <div class="scene s7 scene-outro">
+          <span class="you">you are the scene</span>
+          <span class="url">aether.berlayar.ai/vibes/aie2026 ↗</span>
+        </div>
+
+        <div class="mp4-time mono">0:00 / 1:00</div>
+        <div class="mp4-scrub"></div>
+      </div>
+
+      <div class="mp4-controls">
+        <div class="download-row">
+          <a class="btn primary" href="#">↓ recap-9x16.mp4</a>
+          <a class="btn" href="#">↓ .webm</a>
+          <a class="btn" href="#">⎘ share</a>
+        </div>
+        <div class="mp4-meta">
+          <span>size</span><b>1080 × 1920 · ~14 MB</b>
+          <span>renders</span><b>cron + on-demand</b>
+          <span>codec</span><b>h264 + aac</b>
+        </div>
+      </div>
+    </div>
+
+    <!-- 16:9 horizontal (YouTube/LinkedIn/X) -->
+    <div class="mp4-card">
+      <div class="format-row">
+        <span class="format">16 : 9</span>
+        <span class="targets">youtube · linkedin · x video · web embed</span>
+      </div>
+      <div class="mp4-stage horiz" role="img" aria-label="16:9 recap preview cycling through 8 scenes in horizontal composition">
+        <!-- same 8 scenes, horizontal compositions -->
+        <div class="scene s0 scene-title">
+          <span class="ai">
+            <span class="letter" style="animation-delay:0.0s">A</span><span class="letter" style="animation-delay:0.05s">I</span>
+            <span class="letter" style="animation-delay:0.15s">&nbsp;</span>
+            <span class="letter" style="animation-delay:0.20s">E</span><span class="letter" style="animation-delay:0.25s">n</span><span class="letter" style="animation-delay:0.30s">g</span><span class="letter" style="animation-delay:0.35s">i</span><span class="letter" style="animation-delay:0.40s">n</span><span class="letter" style="animation-delay:0.45s">e</span><span class="letter" style="animation-delay:0.50s">e</span><span class="letter" style="animation-delay:0.55s">r</span>
+            &nbsp;<em>Singapore</em>
+          </span>
+          <span class="sub">2026 · may 17 – 19 · pullman + capitol kempinski</span>
+        </div>
+        <div class="scene s1 scene-stat" style="flex-direction:row;gap:36px;justify-content:center;align-items:center">
+          <span class="big" style="font-size:clamp(64px,12vw,144px)">11.4M</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px">
+            <span class="lbl">known views</span>
+            <div class="breakdown" style="flex-direction:column;gap:6px;margin:0">
+              <span><b>X</b> · 8.2m</span>
+              <span><b>YouTube</b> · 3.2m</span>
+              <span><b>LinkedIn</b> · public reactions only</span>
+            </div>
+          </div>
+        </div>
+        <div class="scene s2 scene-ranking">
+          <h3>What travelled</h3>
+          <div class="bar"><span class="bar-name">Vivian's builder keynote · "briefed on"</span><span class="bar-count">128</span><span class="bar-track"><span class="bar-fill" style="--w:1"></span></span></div>
+          <div class="bar"><span class="bar-name">OpenAI Codex presence</span><span class="bar-count">71</span><span class="bar-track"><span class="bar-fill" style="--w:0.56"></span></span></div>
+          <div class="bar"><span class="bar-name">Workshops + agentic workflows</span><span class="bar-count">62</span><span class="bar-track"><span class="bar-fill" style="--w:0.48"></span></span></div>
+          <div class="bar"><span class="bar-name">Students + organizers</span><span class="bar-count">48</span><span class="bar-track"><span class="bar-fill" style="--w:0.38"></span></span></div>
+          <div class="bar"><span class="bar-name">Sponsors + booths</span><span class="bar-count">42</span><span class="bar-track"><span class="bar-fill" style="--w:0.33"></span></span></div>
+        </div>
+        <div class="scene s3 scene-moment" style="justify-content:center;align-items:flex-start;padding:48px">
+          <span class="play-badge" aria-hidden="true"></span>
+          <h3 class="quote" style="max-width:24ch">"<em>Briefed on</em>" was the line that travelled.</h3>
+          <span class="attrib">— Vivian Balakrishnan · foreign minister · keynote</span>
+        </div>
+        <div class="scene s4 scene-montage">
+          <span class="label">OpenAI @ AIE Singapore</span>
+          <div class="grid" style="grid-template-columns:repeat(4, 1fr);grid-template-rows:1fr">
+            <div class="cell" data-label="codex booth" style="--c1:#0f1820;--c2:#3b6dc2"></div>
+            <div class="cell" data-label="codex workshop" style="--c1:#1a1410;--c2:#de7340"></div>
+            <div class="cell" data-label="fde lunch" style="--c1:#102018;--c2:#4a9d6a"></div>
+            <div class="cell" data-label="hack night" style="--c1:#1c1020;--c2:#a6509b"></div>
+          </div>
+        </div>
+        <div class="scene s5 scene-cascade">
+          <h3>Hands on · workshops + research</h3>
+          <div class="row" style="animation-delay:0.0s">LlamaIndex · agentic documents · enterprise PDF<span class="meta">workshop</span></div>
+          <div class="row" style="animation-delay:0.1s">x402 + pay.sh · agent payments<span class="meta">talk</span></div>
+          <div class="row" style="animation-delay:0.2s">Cerebras inference · MoE · world models<span class="meta">research</span></div>
+          <div class="row" style="animation-delay:0.3s">Reachy · stage demo · creative AI<span class="meta">creative</span></div>
+          <div class="row" style="animation-delay:0.4s">Codex for Everyone · realtime hack night<span class="meta">workshop</span></div>
+        </div>
+        <div class="scene s6 scene-sponsors">
+          <h3>Partners · 12 across the floor</h3>
+          <div class="grid" style="grid-template-columns:repeat(5,1fr)">
+            <div class="logo" style="animation-delay:0.0s">OpenAI</div>
+            <div class="logo" style="animation-delay:0.04s">DeepMind</div>
+            <div class="logo" style="animation-delay:0.08s">Cursor</div>
+            <div class="logo" style="animation-delay:0.12s">Vercel</div>
+            <div class="logo" style="animation-delay:0.16s">Convex</div>
+            <div class="logo" style="animation-delay:0.20s">Cerebras</div>
+            <div class="logo" style="animation-delay:0.24s">Cloudflare</div>
+            <div class="logo" style="animation-delay:0.28s">Stripe</div>
+            <div class="logo" style="animation-delay:0.32s">Daytona</div>
+            <div class="logo" style="animation-delay:0.36s">Exa</div>
+          </div>
+        </div>
+        <div class="scene s7 scene-outro">
+          <span class="you">you are the scene</span>
+          <span class="url">aether.berlayar.ai/vibes/aie2026 ↗</span>
+        </div>
+
+        <div class="mp4-time mono">0:00 / 1:00</div>
+        <div class="mp4-scrub"></div>
+      </div>
+
+      <div class="mp4-controls">
+        <div class="download-row">
+          <a class="btn primary" href="#">↓ recap-16x9.mp4</a>
+          <a class="btn" href="#">↓ .webm</a>
+          <a class="btn" href="#">⎘ embed</a>
+        </div>
+        <div class="mp4-meta">
+          <span>size</span><b>1920 × 1080 · ~22 MB</b>
+          <span>renders</span><b>cron + on-demand</b>
+          <span>codec</span><b>h264 + aac</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="render-modes">
+    <div class="mode">
+      <span class="mode-label">cron-driven default</span>
+      <span class="mode-title">After each refresh, Remotion renders both formats to R2.</span>
+      <p class="mode-desc">
+        Slice 11 already wires <code>cron → refreshEventRecap()</code>. We hook in a <code>renderRecapReel(bundle, config)</code> step. Outputs land at <code>event-recap-{eventId}/recap-9x16.mp4</code> + <code>recap-16x9.mp4</code>. Worker serves them statically with <code>Cache-Control: public, max-age=3600</code>. Share URLs are stable and warm.
+      </p>
+    </div>
+    <div class="mode">
+      <span class="mode-label">on-demand variant</span>
+      <span class="mode-title">User parameter overrides → Lambda / Modal render → signed URL.</span>
+      <p class="mode-desc">
+        From the recap page, a <code>variant</code> form lets a creator override sponsor tier visibility, music track, locale (en / zh / id), or scene order. Worker posts to <code>POST /api/recap-reel/render</code> with the override payload, returns a render-job id, polls until ready, opens the signed R2 URL. Typical latency 30–90s on Lambda / Modal.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION D: /vibes/aie/ AGGREGATE ═══════════════ -->
+<section class="mock-section">
+  <div class="section-head">
+    <span class="badge">D</span>
+    <h2>/vibes/aie/ — all AIE events</h2>
+    <span class="integration">new route · index of every AIE event + cross-event consolidation</span>
+    <p class="note">New top-level route that lists every AIE event we've recapped, each with a hero card → recap link. Below the grid: cross-event consolidation showing recurring sponsors, repeating voices, and theme drift across cities + years. Reuses the same <code>&lt;EventCard&gt;</code> and the EventConfig per event — adding the next AIE city is a config commit, not a page rebuild.</p>
+  </div>
+
+  <header class="aggregate-head">
+    <div class="super">AI Engineer</div>
+    <h1>all events</h1>
+    <p>one builder scene · across cities + years</p>
+  </header>
+
+  <div class="event-grid">
+    <a class="event-card" href="/vibes/aie2026">
+      <div class="event-hero" style="--c1:#4a2814;--c2:#de7340">
+        <div class="overlay"></div>
+        <span class="badge">live recap</span>
+        <span class="city">Singapore<span class="year">2026 · may 17–19</span></span>
+      </div>
+      <div class="event-body">
+        <span class="dates">May 17–19, 2026 · Pullman + Capitol Kempinski</span>
+        <p class="summary">Vivian's Raspberry Pi line travelled. 65labs built the scene. OpenAI Codex booth + workshops + side events.</p>
+        <div class="event-stats">
+          <div class="event-stat"><div class="num">11.4M</div><div class="lbl">views</div></div>
+          <div class="event-stat"><div class="num">384</div><div class="lbl">refs</div></div>
+          <div class="event-stat"><div class="num">12</div><div class="lbl">sponsors</div></div>
+        </div>
+        <span class="cta">open recap →</span>
+      </div>
+    </a>
+
+    <a class="event-card" href="/vibes/aie-ny-2025">
+      <div class="event-hero" style="--c1:#1f2d4a;--c2:#3b6dc2">
+        <div class="overlay"></div>
+        <span class="badge">archived</span>
+        <span class="city">New York<span class="year">2025 · oct 2–4</span></span>
+      </div>
+      <div class="event-body">
+        <span class="dates">Oct 2–4, 2025 · Javits</span>
+        <p class="summary">Agentic workflows took the keynote. Enterprise deploy stories. Anthropic Claude + OpenAI Codex split the room.</p>
+        <div class="event-stats">
+          <div class="event-stat"><div class="num">7.2M</div><div class="lbl">views</div></div>
+          <div class="event-stat"><div class="num">512</div><div class="lbl">refs</div></div>
+          <div class="event-stat"><div class="num">18</div><div class="lbl">sponsors</div></div>
+        </div>
+        <span class="cta">open recap →</span>
+      </div>
+    </a>
+
+    <a class="event-card" href="/vibes/aie-sf-2025">
+      <div class="event-hero" style="--c1:#2d4a2d;--c2:#6da650">
+        <div class="overlay"></div>
+        <span class="badge">archived</span>
+        <span class="city">San Francisco<span class="year">2025 · jun 2–5</span></span>
+      </div>
+      <div class="event-body">
+        <span class="dates">Jun 2–5, 2025 · Marriott Marquis</span>
+        <p class="summary">World Fair scale. World models + sovereign AI + RAG retired the term. Cursor coronation week.</p>
+        <div class="event-stats">
+          <div class="event-stat"><div class="num">18.1M</div><div class="lbl">views</div></div>
+          <div class="event-stat"><div class="num">1.2k</div><div class="lbl">refs</div></div>
+          <div class="event-stat"><div class="num">42</div><div class="lbl">sponsors</div></div>
+        </div>
+        <span class="cta">open recap →</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="cross-event">
+    <h3>Cross-event consolidation</h3>
+
+    <div class="cross-row">
+      <div class="label">recurring sponsors<small>appeared at ≥2 AIE events</small></div>
+      <div class="body">
+        <span class="pill"><b>3×</b> OpenAI <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span></span></span>
+        <span class="pill"><b>3×</b> Cursor <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span></span></span>
+        <span class="pill"><b>3×</b> Vercel <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span></span></span>
+        <span class="pill"><b>2×</b> Cloudflare <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span></span></span>
+        <span class="pill"><b>2×</b> Convex <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span></span></span>
+        <span class="pill"><b>2×</b> Stripe <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span></span></span>
+        <span class="pill"><b>2×</b> Cerebras <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span></span></span>
+      </div>
+    </div>
+
+    <div class="cross-row">
+      <div class="label">repeating voices<small>posted from ≥2 AIE events</small></div>
+      <div class="body">
+        <span class="pill"><b>swyx</b> · sf, ny, sg <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot filled"></span></span></span>
+        <span class="pill"><b>Sherry Jiang</b> · ny, sg <span class="events-dots"><span class="dot"></span><span class="dot filled"></span><span class="dot filled"></span></span></span>
+        <span class="pill"><b>Gabriel Chua</b> · sf, sg <span class="events-dots"><span class="dot filled"></span><span class="dot"></span><span class="dot filled"></span></span></span>
+        <span class="pill"><b>Hrishi Olickel</b> · ny, sg <span class="events-dots"><span class="dot"></span><span class="dot filled"></span><span class="dot filled"></span></span></span>
+        <span class="pill"><b>Vibhu Sapra</b> · sf, ny <span class="events-dots"><span class="dot filled"></span><span class="dot filled"></span><span class="dot"></span></span></span>
+      </div>
+    </div>
+
+    <div class="cross-row">
+      <div class="label">theme drift<small>where the room's attention sat, sf → ny → sg</small></div>
+      <div class="body" style="display:block">
+        <div class="drift-chart">
+          <div class="drift-row">
+            <span class="drift-name">RAG</span>
+            <div class="drift-bars">
+              <span class="drift-bar" style="--h:88%" data-year="sf 25"></span>
+              <span class="drift-bar dim" style="--h:32%" data-year="ny 25"></span>
+              <span class="drift-bar dim" style="--h:6%" data-year="sg 26"></span>
+            </div>
+          </div>
+          <div class="drift-row" style="margin-top:24px">
+            <span class="drift-name">agentic</span>
+            <div class="drift-bars">
+              <span class="drift-bar dim" style="--h:24%" data-year=""></span>
+              <span class="drift-bar" style="--h:78%" data-year=""></span>
+              <span class="drift-bar" style="--h:92%" data-year=""></span>
+            </div>
+          </div>
+          <div class="drift-row" style="margin-top:24px">
+            <span class="drift-name">world models</span>
+            <div class="drift-bars">
+              <span class="drift-bar" style="--h:48%" data-year=""></span>
+              <span class="drift-bar" style="--h:42%" data-year=""></span>
+              <span class="drift-bar dim" style="--h:28%" data-year=""></span>
+            </div>
+          </div>
+          <div class="drift-row" style="margin-top:24px">
+            <span class="drift-name">infra + inference</span>
+            <div class="drift-bars">
+              <span class="drift-bar dim" style="--h:30%" data-year=""></span>
+              <span class="drift-bar" style="--h:54%" data-year=""></span>
+              <span class="drift-bar" style="--h:64%" data-year=""></span>
+            </div>
+          </div>
+          <div class="drift-row" style="margin-top:24px">
+            <span class="drift-name">creative AI</span>
+            <div class="drift-bars">
+              <span class="drift-bar" style="--h:36%" data-year=""></span>
+              <span class="drift-bar dim" style="--h:24%" data-year=""></span>
+              <span class="drift-bar" style="--h:48%" data-year=""></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ INTEGRATION NOTES ═══════════════ -->
+<section class="integration-notes">
+  <h3>How this slots into the existing event-recap stack</h3>
+  <ol>
+    <li>Mocks <b>A</b> + <b>B</b> live in <code>workers/aie2026-vibes.ts</code> (and the generic <code>event-recap-vibes.ts</code> template) — adding a <code>renderHeroReel()</code> + <code>renderSponsorBand()</code> next to the existing <code>renderShell()</code>. Data already exists in <code>EventRecapBundle</code>: top reach posts (for reel tiles), <code>storyId: 'sponsors-booths-hiring'</code> + sponsor allowlist (for tier band), <code>voices</code> (for the carousel).</li>
+    <li>Mock <b>C</b> introduces a Remotion composition at <code>src/remotion/EventRecap/{index.tsx,Title.tsx,StatScene.tsx,RankingScene.tsx,MomentScene.tsx,MontageScene.tsx,CascadeScene.tsx,SponsorScene.tsx,Outro.tsx}</code>. <code>renderRecapReel(bundle, config, variant)</code> uses <code>@remotion/renderer</code> on Lambda/Modal, writes <code>recap-9x16.mp4</code> + <code>recap-16x9.mp4</code> to R2 at <code>event-recap-{eventId}/</code>. Cron hook in slice 11 calls it post-refresh.</li>
+    <li>Mock <b>D</b> is a new Next.js route at <code>app/vibes/aie/page.tsx</code>. Reads each AIE <code>EventConfig</code>, fetches public bundles in parallel, renders the grid + cross-event consolidation. Cross-event computation lives in <code>lib/research/event-recap/aggregate.ts</code> — pure function over `EventRecapBundle[]`.</li>
+    <li>Reusability: the recap reel + sponsor band + voice carousel are React components that take <code>EventRecapBundle</code> + <code>EventConfig</code>. The generic <code>event-recap-vibes.ts</code> worker template already supports per-event config — adding a new event (e.g. AIE Tokyo 2026) is a config commit + worker route, no UI fork.</li>
+    <li>Provenance (CLAUDE.md hard rule #8): each rendered MP4 records a versioned <code>ToolRef</code> with <code>{ inputs: bundle.id, outputs: r2Path, beforeSnapshotRef, afterSnapshotRef, variant }</code> so reruns are auditable.</li>
+  </ol>
+
+  <div class="pipe-diagram">
+<b>data path</b>
+
+  refreshEventRecap()                                                     (lib/research/event-recap/pipeline.ts)
+       │
+       ├─→ EventRecapBundle  ────────────────────────────────────────────┐
+       │                                                                  │
+       ├─→ R2 public.json                                                 │
+       │       │                                                          │
+       │       └─→ &lt;HeroReel&gt; + &lt;SponsorBand&gt; + &lt;VoiceCarousel&gt;          │
+       │             (worker-rendered HTML, mock <b>A</b> + <b>B</b>)             │
+       │                                                                  │
+       └─→ <b>renderRecapReel(bundle, config, variant)</b>                       │
+              │                                                           │
+              ├─→ Remotion composition  (mock <b>C</b>)                       │
+              │     ├─→ recap-9x16.mp4   (TikTok / Reels / Shorts)        │
+              │     └─→ recap-16x9.mp4   (YouTube / LinkedIn / X video)   │
+              │                                                           │
+              └─→ R2 event-recap-{eventId}/recap-{format}.mp4             │
+                                                                          │
+  /vibes/aie/  ───────────────────────────────────────────────────────────┘
+       │
+       └─→ aggregate over EventRecapBundle[]   (mock <b>D</b>)
+             ├─→ event grid
+             └─→ cross-event consolidation (sponsors / voices / theme drift)
+  </div>
+</section>
+
+<script>
+  /* ───────── theme toggle ───────── */
+  document.querySelectorAll('.toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const theme = btn.dataset.theme;
+      document.documentElement.setAttribute('data-theme', theme);
+      document.querySelectorAll('.toggle-btn').forEach((b) => b.classList.toggle('active', b.dataset.theme === theme));
+    });
+  });
+
+  /* ───────── counter animation for hero stat ───────── */
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+  function animateCounter(el, target, duration = 2000) {
+    const start = performance.now();
+    function frame(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = easeOutCubic(t);
+      const v = target * eased;
+      el.textContent = v >= 1_000_000
+        ? (v / 1_000_000).toFixed(1) + 'M'
+        : v >= 1_000
+        ? (v / 1_000).toFixed(0) + 'k'
+        : Math.floor(v).toString();
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+  const counter = document.getElementById('counter');
+  if (counter) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          animateCounter(counter, 11_400_000);
+          io.disconnect();
+        }
+      });
+    });
+    io.observe(counter);
+  }
+
+  /* ───────── scrub timer text — keeps the MP4 stage timestamps moving ───────── */
+  const TOTAL_SEC = 60;
+  const LOOP_MS = 16_000;
+  const startedAt = performance.now();
+  function fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m + ':' + String(sec).padStart(2, '0');
+  }
+  function tick() {
+    const t = ((performance.now() - startedAt) % LOOP_MS) / LOOP_MS;
+    const live = t * TOTAL_SEC;
+    document.querySelectorAll('.mp4-time').forEach((el) => {
+      el.textContent = fmtTime(live) + ' / ' + fmtTime(TOTAL_SEC);
+    });
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  /* ───────── reel-tile cycle — randomly swap two tiles every 5.2s ───────── */
+  const grid = document.getElementById('reel-grid');
+  if (grid) {
+    setInterval(() => {
+      const tiles = Array.from(grid.querySelectorAll('.reel-tile:not(.is-big)'));
+      if (tiles.length < 2) return;
+      const a = tiles[Math.floor(Math.random() * tiles.length)];
+      const b = tiles[Math.floor(Math.random() * tiles.length)];
+      if (a === b) return;
+      a.style.transition = 'opacity 0.4s ease';
+      b.style.transition = 'opacity 0.4s ease';
+      a.style.opacity = '0';
+      b.style.opacity = '0';
+      setTimeout(() => {
+        const aP = a.parentNode;
+        const aN = a.nextSibling;
+        b.parentNode.insertBefore(a, b);
+        aP.insertBefore(b, aN);
+        a.style.opacity = '1';
+        b.style.opacity = '1';
+      }, 420);
+    }, 5200);
+  }
+</script>
+</body>
+</html>
