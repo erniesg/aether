@@ -1,6 +1,6 @@
 {
   "schema": "aether.event-recap-validation.v1",
-  "validatedHead": "f6884b868f4c720435974c5ced6b454fbdf761c7",
+  "validatedHead": "becb2ef7c28aa21cbade6c55f018416c56d6be07",
   "branch": "feat/event-recap-event-config",
   "base": "codex/event-recap-tinyfish",
   "localChecks": [
@@ -15,6 +15,12 @@
       "command": "npx tsc --noEmit --project tsconfig.json",
       "exitCode": 0,
       "summary": "no output; exit code 0"
+    },
+    {
+      "name": "cloudflare build",
+      "command": "npm run cf-build",
+      "exitCode": 0,
+      "summary": "OpenNext build complete; Worker saved in .open-next/worker.js"
     }
   ],
   "workerSmoke": {
