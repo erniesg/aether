@@ -1831,29 +1831,31 @@
 
       <!-- X post card -->
       <div class="lib-cell">
-        <span class="lib-label">component · x post</span>
+        <span class="lib-label">component · x post · real post x_1w635a6 · reach 30.018</span>
         <span class="lib-name">XPostCard <code>&lt;XPostCard post={EventPost} /&gt;</code></span>
-        <p class="lib-note">Renders a real X post tile from <code>EventPost</code>: avatar (gradient from authorMeta), name, verified badge, handle, time, post text, media area (image + video badge + duration), and the four standard X stats (replies, reposts, likes, views) pulled from <code>EventPostMetrics</code>.</p>
+        <p class="lib-note">Renders a real X post tile from <code>EventPost</code>: avatar (gradient from authorMeta), name, verified badge, handle, time, post text, media area (image + video badge + duration), and the four standard X stats (replies, reposts, likes, views) pulled from <code>EventPostMetrics</code>. <b>Media URLs are served through the worker's <code>/vibes/aie2026/media?path=…</code> proxy so the in-page renderer + the Remotion composition share the same R2-backed source.</b></p>
         <div class="x-post" style="--c1:#4a2814;--c2:#de7340">
-          <div class="x-av">V</div>
+          <div class="x-av">M</div>
           <div class="x-body">
             <div class="x-head">
-              <span class="x-name">Vivian Bala</span>
+              <span class="x-name">Melissa Chen</span>
               <svg class="x-verified"><use href="#i-verified"/></svg>
-              <span class="x-handle">@vivianbala</span>
+              <span class="x-handle">@MsMelChen</span>
               <span class="x-time">May 18</span>
             </div>
-            <p class="x-text">Spent the weekend at <em>@aiengineer Singapore</em>. I don't think you can govern a technology you've only been briefed on — so I built my own personal AI on a Raspberry Pi.</p>
-            <div class="x-media" style="--m1:#2a1a10;--m2:#de7340">
-              <span class="media-tag">keynote</span>
-              <span class="media-label">"briefed on"</span>
+            <p class="x-text">Singapore's Foreign Minister, Dr Balakrishnan casually explaining how he built his own AI agent (a 2nd brain for diplomacy) using Claude &amp; WhatsApp integration etc. on a Raspberry Pi
+
+<em>"You cannot govern a technology you have only been briefed on."</em> 🇸🇬</p>
+            <div class="x-media" style="position:relative;aspect-ratio:16/9;background:#000;overflow:hidden">
+              <video src="https://video.twimg.com/amplify_video/2055576946046881792/vid/avc1/1920x1080/Sq_MjxoyJULCgLWj.mp4" muted playsinline loop autoplay preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block"></video>
+              <span class="media-tag">x video · keynote</span>
               <span class="video-badge">1:24</span>
             </div>
             <div class="x-stats">
-              <span class="x-stat"><svg><use href="#i-reply"/></svg><b>412</b></span>
-              <span class="x-stat"><svg><use href="#i-repost"/></svg><b>1.8K</b></span>
-              <span class="x-stat"><svg><use href="#i-like"/></svg><b>6.2K</b></span>
-              <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.1M</b></span>
+              <span class="x-stat"><svg><use href="#i-reply"/></svg><b>173</b></span>
+              <span class="x-stat"><svg><use href="#i-repost"/></svg><b>2.4K</b></span>
+              <span class="x-stat"><svg><use href="#i-like"/></svg><b>11K</b></span>
+              <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.2M</b></span>
             </div>
           </div>
         </div>
@@ -1861,22 +1863,24 @@
 
       <!-- LinkedIn post card -->
       <div class="lib-cell">
-        <span class="lib-label">component · linkedin post</span>
+        <span class="lib-label">component · linkedin post · real post linkedin_1hewawq · reach 7.122</span>
         <span class="lib-name">LinkedInPostCard <code>&lt;LinkedInPostCard post={EventPost} /&gt;</code></span>
-        <p class="lib-note">Same shape, LinkedIn chrome: square avatar, name + headline + LinkedIn verified, time, post text, media, reactions stack (like / celebrate / support) + comment + repost counts.</p>
+        <p class="lib-note">Same shape, LinkedIn chrome: square avatar, name + headline + LinkedIn verified, time, post text, media (real <code>media.licdn.com</code> CDN URL), reactions stack + comment + repost counts.</p>
         <div class="li-post">
           <div class="li-head">
-            <div class="li-av" style="--c1:#a6509b;--c2:#4a2d4a">S</div>
+            <div class="li-av" style="--c1:#2d4a2d;--c2:#6da650">R</div>
             <div class="li-meta">
-              <div class="li-name">Sherry Jiang <svg><use href="#i-li-verified"/></svg></div>
-              <div class="li-headline">Founder, SherryPeek · ex-Stripe</div>
+              <div class="li-name">Rachael De Foe <svg><use href="#i-li-verified"/></svg></div>
+              <div class="li-headline">Building 65labs · Singapore AI builder scene</div>
               <div class="li-time">1d · Edited</div>
             </div>
             <div class="li-platform">in</div>
           </div>
-          <p class="li-text">Day 2 closed with proof Singapore can host a serious AI builder room. Vivian Balakrishnan walking through his Raspberry Pi stack. <em>Codex booth</em> open all day. Workshops packed. 65labs delivered the scene.</p>
-          <div class="li-media" style="--m1:#1f2d4a;--m2:#3b6dc2">
-            <span class="media-label">Day 2 · main floor</span>
+          <p class="li-text"><em>"You cannot govern a technology you've only been briefed on."</em>
+
+This morning, Singapore's Minister for Foreign Affairs, Dr Vivian Balakrishnan walked into a room full of builders and did something that genuinely mattered: he showed up as one himself. He opened up his actual workflow, talked through the second brain he's been building…</p>
+          <div class="li-media" style="position:relative;aspect-ratio:16/9;background:#000;overflow:hidden">
+            <img src="https://media.licdn.com/dms/image/v2/D5622AQEJCNp8iSdsbg/feedshare-image-high-res/B56Z4vi8B3K0AU-/0/1778914148747?e=1780531200&v=beta&t=6WzLPZk3eHoivt39G-Hdzp4CGeLtnO86VQ075KoMDqk" loading="lazy" alt="Rachael De Foe LinkedIn post media" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.style.background='linear-gradient(135deg,#2d4a2d,#6da650)'">
           </div>
           <div class="li-foot">
             <span class="li-reactions">
@@ -1885,9 +1889,9 @@
                 <span class="li-rx celebrate">👏</span>
                 <span class="li-rx support">💗</span>
               </span>
-              847 reactions
+              392 reactions
             </span>
-            <span>42 comments · 18 reposts</span>
+            <span>15 comments · 19 reposts</span>
           </div>
         </div>
       </div>
@@ -1989,36 +1993,36 @@
     </div>
 
     <div class="hero-right" id="reel-grid" style="display:grid;grid-template-columns:1.4fr 1fr;grid-template-rows:auto auto;gap:14px;align-items:stretch">
-      <!-- big: full X-post (Vivian's keynote moment) -->
+      <!-- big: real X-post · Melissa Chen on Vivian (reachScore 30.018, 2.2M views) -->
       <div style="grid-row:span 2">
         <div class="x-post" style="--c1:#4a2814;--c2:#de7340;height:100%">
-          <div class="x-av">V</div>
+          <div class="x-av">M</div>
           <div class="x-body">
             <div class="x-head">
-              <span class="x-name">Vivian Bala</span>
+              <span class="x-name">Melissa Chen</span>
               <svg class="x-verified"><use href="#i-verified"/></svg>
-              <span class="x-handle">@vivianbala</span>
+              <span class="x-handle">@MsMelChen</span>
               <span class="x-time">May 18</span>
             </div>
-            <p class="x-text">At <em>@aiengineer</em> Singapore this weekend. I don't think you can govern a technology you've only been briefed on — so I built a personal AI on a Raspberry Pi.
+            <p class="x-text">Singapore's Foreign Minister, Dr Balakrishnan casually explaining how he built his own AI agent (a 2nd brain for diplomacy) using Claude &amp; WhatsApp integration etc. on a Raspberry Pi
 
-NanoClaw + WhatsApp + my own second brain. Receipts attached.</p>
-            <div class="x-media" style="--m1:#2a1a10;--m2:#de7340">
-              <span class="media-tag">keynote</span>
-              <span class="media-label">"briefed on"</span>
+<em>"You cannot govern a technology you have only been briefed on."</em> 🇸🇬</p>
+            <div class="x-media" style="position:relative;aspect-ratio:16/9;background:#000;overflow:hidden">
+              <video src="https://video.twimg.com/amplify_video/2055576946046881792/vid/avc1/1920x1080/Sq_MjxoyJULCgLWj.mp4" muted playsinline loop autoplay preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block"></video>
+              <span class="media-tag">x video · 2.2m views</span>
               <span class="video-badge">1:24</span>
             </div>
             <div class="x-stats">
-              <span class="x-stat"><svg><use href="#i-reply"/></svg><b>412</b></span>
-              <span class="x-stat"><svg><use href="#i-repost"/></svg><b>1.8K</b></span>
-              <span class="x-stat"><svg><use href="#i-like"/></svg><b>6.2K</b></span>
-              <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.1M</b></span>
+              <span class="x-stat"><svg><use href="#i-reply"/></svg><b>173</b></span>
+              <span class="x-stat"><svg><use href="#i-repost"/></svg><b>2.4K</b></span>
+              <span class="x-stat"><svg><use href="#i-like"/></svg><b>11K</b></span>
+              <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.2M</b></span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- top-right: YouTube card -->
+      <!-- top-right: YouTube card (real Day 1 keynote) -->
       <div class="yt-card">
         <div class="yt-thumb" style="--c1:#1c0d0d;--c2:#de4040">
           <span class="yt-label">Day 1 · keynote</span>
@@ -2034,27 +2038,27 @@ NanoClaw + WhatsApp + my own second brain. Receipts attached.</p>
         </div>
       </div>
 
-      <!-- bottom-right: LinkedIn post mini -->
+      <!-- bottom-right: real LinkedIn post · Mumshad Mannambeth (431 reactions) -->
       <div class="li-post" style="font-size:13px">
         <div class="li-head" style="padding:10px 12px 6px">
-          <div class="li-av" style="--c1:#a6509b;--c2:#4a2d4a;width:36px;height:36px;font-size:16px;flex-basis:36px">S</div>
+          <div class="li-av" style="--c1:#1f3a4a;--c2:#3b6dc2;width:36px;height:36px;font-size:16px;flex-basis:36px">M</div>
           <div class="li-meta">
-            <div class="li-name" style="font-size:13px">Sherry Jiang</div>
-            <div class="li-headline" style="font-size:11px">Founder, SherryPeek</div>
-            <div class="li-time">1d</div>
+            <div class="li-name" style="font-size:13px">Mumshad Mannambeth</div>
+            <div class="li-headline" style="font-size:11px">KodeKloud · DevOps + AI</div>
+            <div class="li-time">2d</div>
           </div>
           <div class="li-platform">in</div>
         </div>
-        <p class="li-text" style="padding:0 12px;font-size:12px;line-height:1.45">Day 2 closed with proof Singapore can host a serious AI builder room. <em>65labs</em> delivered the scene.</p>
+        <p class="li-text" style="padding:0 12px;font-size:12px;line-height:1.45">3 days at <em>AI Engineer Singapore</em>. THE biggest conference for people who actually build AI stuff. Engineers, founders, researchers showing what they're shipping.</p>
         <div class="li-foot" style="padding:8px 12px;font-size:11px;margin-top:8px">
           <span class="li-reactions">
             <span class="li-reaction-stack">
               <span class="li-rx like" style="width:14px;height:14px;font-size:8px">👍</span>
               <span class="li-rx celebrate" style="width:14px;height:14px;font-size:8px">👏</span>
             </span>
-            847
+            431
           </span>
-          <span>42 comments</span>
+          <span>3 comments</span>
         </div>
       </div>
     </div>
@@ -2250,47 +2254,47 @@ NanoClaw + WhatsApp + my own second brain. Receipts attached.</p>
             <span><b>972</b> media</span>
           </div>
         </div>
-        <!-- scene 2: story bars -->
+        <!-- scene 2: story bars · real theme post counts from public.json -->
         <div class="scene s2 scene-ranking">
-          <h3>What travelled · 872 refs</h3>
-          <div class="bar"><span class="bar-name">Vivian's builder keynote</span><span class="bar-count">218</span><span class="bar-track"><span class="bar-fill" style="--w:1"></span></span></div>
-          <div class="bar"><span class="bar-name">OpenAI Codex presence</span><span class="bar-count">139</span><span class="bar-track"><span class="bar-fill" style="--w:0.64"></span></span></div>
-          <div class="bar"><span class="bar-name">Workshops + agentic flow</span><span class="bar-count">113</span><span class="bar-track"><span class="bar-fill" style="--w:0.52"></span></span></div>
-          <div class="bar"><span class="bar-name">Students + organizers</span><span class="bar-count">96</span><span class="bar-track"><span class="bar-fill" style="--w:0.44"></span></span></div>
-          <div class="bar"><span class="bar-name">Sponsors + booths</span><span class="bar-count">79</span><span class="bar-track"><span class="bar-fill" style="--w:0.36"></span></span></div>
-          <div class="bar"><span class="bar-name">Side events + meetups</span><span class="bar-count">61</span><span class="bar-track"><span class="bar-fill" style="--w:0.28"></span></span></div>
+          <h3>What travelled · 872 refs · 11 stories</h3>
+          <div class="bar"><span class="bar-name">Vivian's builder keynote</span><span class="bar-count">145</span><span class="bar-track"><span class="bar-fill" style="--w:1"></span></span></div>
+          <div class="bar"><span class="bar-name">Event recaps + hallway</span><span class="bar-count">89</span><span class="bar-track"><span class="bar-fill" style="--w:0.61"></span></span></div>
+          <div class="bar"><span class="bar-name">Sponsors + booths + hiring</span><span class="bar-count">76</span><span class="bar-track"><span class="bar-fill" style="--w:0.52"></span></span></div>
+          <div class="bar"><span class="bar-name">OpenAI Codex presence</span><span class="bar-count">68</span><span class="bar-track"><span class="bar-fill" style="--w:0.47"></span></span></div>
+          <div class="bar"><span class="bar-name">Students + organizers · 65labs</span><span class="bar-count">54</span><span class="bar-track"><span class="bar-fill" style="--w:0.37"></span></span></div>
+          <div class="bar"><span class="bar-name">Workshops + agentic workflows</span><span class="bar-count">42</span><span class="bar-track"><span class="bar-fill" style="--w:0.29"></span></span></div>
         </div>
-        <!-- scene 3: vivian moment · X-post card + delayed pull-quote -->
+        <!-- scene 3: vivian moment · real Melissa Chen X-post + delayed pull-quote -->
         <div class="scene s3" style="background:linear-gradient(180deg,#1a1410 0%,#000 100%);padding:24px 18px;justify-content:flex-start;align-items:stretch">
           <div style="flex:0 0 auto;width:100%;background:#000;padding:0">
             <div class="x-post" style="--c1:#4a2814;--c2:#de7340;background:#0f0c0a;border-color:#2a1f18">
-              <div class="x-av">V</div>
+              <div class="x-av">M</div>
               <div class="x-body">
                 <div class="x-head">
-                  <span class="x-name" style="color:#fff">Vivian Bala</span>
+                  <span class="x-name" style="color:#fff">Melissa Chen</span>
                   <svg class="x-verified"><use href="#i-verified"/></svg>
-                  <span class="x-handle">@vivianbala</span>
+                  <span class="x-handle">@MsMelChen</span>
                   <span class="x-time">May 18</span>
                 </div>
-                <p class="x-text" style="color:#fff">At <em>@aiengineer</em> Singapore. I don't think you can govern a technology you've only been briefed on — so I built my own personal AI on a Raspberry Pi.</p>
-                <div class="x-media" style="--m1:#2a1a10;--m2:#de7340">
-                  <span class="media-tag">keynote</span>
-                  <span class="media-label">"briefed on"</span>
+                <p class="x-text" style="color:#fff">Singapore's Foreign Minister, Dr Balakrishnan casually explaining how he built his own AI agent on a Raspberry Pi 🇸🇬</p>
+                <div class="x-media" style="position:relative;aspect-ratio:16/9;background:#000;overflow:hidden">
+                  <video src="https://video.twimg.com/amplify_video/2055576946046881792/vid/avc1/1920x1080/Sq_MjxoyJULCgLWj.mp4" muted playsinline loop autoplay preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block"></video>
+                  <span class="media-tag">x video · 2.2m views</span>
                   <span class="video-badge">1:24</span>
                 </div>
                 <div class="x-stats">
-                  <span class="x-stat"><svg><use href="#i-reply"/></svg><b>412</b></span>
-                  <span class="x-stat"><svg><use href="#i-repost"/></svg><b>1.8K</b></span>
-                  <span class="x-stat"><svg><use href="#i-like"/></svg><b>6.2K</b></span>
-                  <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.1M</b></span>
+                  <span class="x-stat"><svg><use href="#i-reply"/></svg><b>173</b></span>
+                  <span class="x-stat"><svg><use href="#i-repost"/></svg><b>2.4K</b></span>
+                  <span class="x-stat"><svg><use href="#i-like"/></svg><b>11K</b></span>
+                  <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.2M</b></span>
                 </div>
               </div>
             </div>
           </div>
           <!-- pull-quote slides up halfway through scene -->
           <div class="pull-quote">
-            <span class="pq-text">"<em>Briefed on</em>" was<br>the line that travelled.</span>
-            <span class="pq-attrib">Vivian Balakrishnan · keynote</span>
+            <span class="pq-text">"You cannot govern a<br>technology you have<br>only been <em>briefed on</em>."</span>
+            <span class="pq-attrib">Vivian Balakrishnan · keynote · 2.2m views</span>
           </div>
         </div>
         <!-- scene 4: booth montage -->
@@ -2408,44 +2412,43 @@ NanoClaw + WhatsApp + my own second brain. Receipts attached.</p>
           </div>
         </div>
         <div class="scene s2 scene-ranking">
-          <h3>What travelled · 872 refs across 12 story families</h3>
-          <div class="bar"><span class="bar-name">Vivian's builder keynote · "briefed on"</span><span class="bar-count">218</span><span class="bar-track"><span class="bar-fill" style="--w:1"></span></span></div>
-          <div class="bar"><span class="bar-name">OpenAI Codex presence</span><span class="bar-count">139</span><span class="bar-track"><span class="bar-fill" style="--w:0.64"></span></span></div>
-          <div class="bar"><span class="bar-name">Workshops + agentic workflows</span><span class="bar-count">113</span><span class="bar-track"><span class="bar-fill" style="--w:0.52"></span></span></div>
-          <div class="bar"><span class="bar-name">Students + organizers · 65labs</span><span class="bar-count">96</span><span class="bar-track"><span class="bar-fill" style="--w:0.44"></span></span></div>
-          <div class="bar"><span class="bar-name">Sponsors + booths</span><span class="bar-count">79</span><span class="bar-track"><span class="bar-fill" style="--w:0.36"></span></span></div>
+          <h3>What travelled · 872 refs across 11 story families</h3>
+          <div class="bar"><span class="bar-name">Vivian's builder keynote · "briefed on"</span><span class="bar-count">145</span><span class="bar-track"><span class="bar-fill" style="--w:1"></span></span></div>
+          <div class="bar"><span class="bar-name">Event recaps + hallway dispatches</span><span class="bar-count">89</span><span class="bar-track"><span class="bar-fill" style="--w:0.61"></span></span></div>
+          <div class="bar"><span class="bar-name">Sponsor booths + partner rooms + hiring</span><span class="bar-count">76</span><span class="bar-track"><span class="bar-fill" style="--w:0.52"></span></span></div>
+          <div class="bar"><span class="bar-name">OpenAI Codex presence</span><span class="bar-count">68</span><span class="bar-track"><span class="bar-fill" style="--w:0.47"></span></span></div>
+          <div class="bar"><span class="bar-name">Students + organizers + community · 65labs</span><span class="bar-count">54</span><span class="bar-track"><span class="bar-fill" style="--w:0.37"></span></span></div>
         </div>
-        <!-- scene 3 (16:9): post tile left, pull-quote right -->
+        <!-- scene 3 (16:9): real Melissa Chen X-post + pull-quote -->
         <div class="scene s3" style="background:linear-gradient(135deg,#1a1410 0%,#000 100%);padding:36px;justify-content:center;align-items:center;gap:36px;flex-direction:row">
           <div style="flex:0 0 44%;max-width:520px">
             <div class="x-post" style="--c1:#4a2814;--c2:#de7340;background:#0f0c0a;border-color:#2a1f18">
-              <div class="x-av">V</div>
+              <div class="x-av">M</div>
               <div class="x-body">
                 <div class="x-head">
-                  <span class="x-name" style="color:#fff">Vivian Bala</span>
+                  <span class="x-name" style="color:#fff">Melissa Chen</span>
                   <svg class="x-verified"><use href="#i-verified"/></svg>
-                  <span class="x-handle">@vivianbala</span>
+                  <span class="x-handle">@MsMelChen</span>
                   <span class="x-time">May 18</span>
                 </div>
-                <p class="x-text" style="color:#fff">At <em>@aiengineer</em> Singapore. I don't think you can govern a technology you've only been briefed on — so I built a personal AI on a Raspberry Pi. NanoClaw + WhatsApp + my own second brain.</p>
-                <div class="x-media" style="--m1:#2a1a10;--m2:#de7340">
-                  <span class="media-tag">keynote</span>
-                  <span class="media-label">"briefed on"</span>
+                <p class="x-text" style="color:#fff">Singapore's Foreign Minister, Dr Balakrishnan casually explaining how he built his own AI agent (a 2nd brain for diplomacy) using Claude &amp; WhatsApp on a Raspberry Pi 🇸🇬</p>
+                <div class="x-media" style="position:relative;aspect-ratio:16/9;background:#000;overflow:hidden">
+                  <video src="https://video.twimg.com/amplify_video/2055576946046881792/vid/avc1/1920x1080/Sq_MjxoyJULCgLWj.mp4" muted playsinline loop autoplay preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block"></video>
+                  <span class="media-tag">x video · 2.2m views</span>
                   <span class="video-badge">1:24</span>
                 </div>
                 <div class="x-stats">
-                  <span class="x-stat"><svg><use href="#i-reply"/></svg><b>412</b></span>
-                  <span class="x-stat"><svg><use href="#i-repost"/></svg><b>1.8K</b></span>
-                  <span class="x-stat"><svg><use href="#i-like"/></svg><b>6.2K</b></span>
-                  <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.1M</b></span>
+                  <span class="x-stat"><svg><use href="#i-reply"/></svg><b>173</b></span>
+                  <span class="x-stat"><svg><use href="#i-repost"/></svg><b>2.4K</b></span>
+                  <span class="x-stat"><svg><use href="#i-like"/></svg><b>11K</b></span>
+                  <span class="x-stat"><svg><use href="#i-view"/></svg><b>2.2M</b></span>
                 </div>
               </div>
             </div>
           </div>
-          <!-- pull-quote slides up mid-scene -->
           <div class="pull-quote" style="position:relative;left:auto;right:auto;bottom:auto;max-width:18ch">
-            <span class="pq-text">"<em>Briefed on</em>"<br>was the line<br>that travelled.</span>
-            <span class="pq-attrib">Vivian Balakrishnan · keynote</span>
+            <span class="pq-text">"You cannot govern<br>a technology you have<br>only been <em>briefed on</em>."</span>
+            <span class="pq-attrib">Vivian Balakrishnan · 2.2m views</span>
           </div>
         </div>
         <div class="scene s4 scene-montage">
