@@ -25,10 +25,18 @@
     "codex:issue-context": "node scripts/codex-issue-context.mjs",
     "codex:apply-patch": "node scripts/codex-apply-patch.mjs",
     "codex:subscription:preflight": "node scripts/codex-subscription-preflight.mjs",
-    "provision:managed-agents": "tsx scripts/provision-managed-agents.ts"
+    "provision:managed-agents": "tsx scripts/provision-managed-agents.ts",
+    "recap:studio": "remotion studio src/remotion/index.tsx",
+    "recap:render": "tsx scripts/render-recap.ts",
+    "recap:render:vert": "remotion render src/remotion/index.tsx EventRecapVertical out/recap-9x16.mp4",
+    "recap:render:horiz": "remotion render src/remotion/index.tsx EventRecapHorizontal out/recap-16x9.mp4"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "remotion": "^4.0.0",
     "@google/genai": "^1.50.1",
     "@opennextjs/cloudflare": "^1.19.0",
     "@radix-ui/react-dialog": "^1.1.0",
