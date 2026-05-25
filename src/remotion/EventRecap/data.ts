@@ -96,6 +96,21 @@ export interface MediaAsset {
   platform: Platform;
   storyId: string;
   reachScore: number;
+  /**
+   * Smart-crop focal point — 0-1 normalized (x, y) where (0,0) is top-left
+   * and (1,1) is bottom-right. The single most important point to keep
+   * visible when cropping for 9:16 vertical or 16:9 horizontal frames
+   * (faces, eyes, key text, central subject). Tagged via VLM in
+   * scripts/tag-media-focal.ts. When omitted, MediaBackdrop falls back to
+   * a centered 50%/50% crop (the historical behavior).
+   */
+  focal?: { x: number; y: number };
+  /**
+   * Subject bounding box — 0-1 normalized rectangle covering the key content
+   * (the speaker, the slide text, the group of people). Useful for Ken Burns
+   * pans that want to start wide and zoom toward `focal`.
+   */
+  subjectBox?: { x: number; y: number; w: number; h: number };
 }
 
 /**
@@ -108,22 +123,22 @@ const PROXY = 'https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-a
 
 export const aie2026MediaPool: MediaAsset[] = [
   { url: PROXY + 'x/b0c024c34177c5fb.mp4', type: 'video', authorName: 'Melissa Chen', platform: 'x', storyId: 'vivian-builder-keynote', reachScore: 30.018 },
-  { url: PROXY + 'linkedin/7283684d73974e93.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 8.339 },
-  { url: PROXY + 'linkedin/80cf2056f23e190e.jpg', type: 'image', authorName: 'Rachael De Foe', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 7.122 },
-  { url: PROXY + 'linkedin/2eb07f40745ef693.jpg', type: 'image', authorName: 'Mumshad Mannambeth', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 6.777 },
-  { url: PROXY + 'linkedin/5a4bd68babd06646.jpg', type: 'image', authorName: 'Anil Srinivas Chilla', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 6.349 },
-  { url: PROXY + 'linkedin/3c189a8fde95029c.jpg', type: 'image', authorName: 'Val Yap', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 5.873 },
-  { url: PROXY + 'linkedin/8f93e50c8c6d7199.jpg', type: 'image', authorName: 'Sherry Jiang', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 5.511 },
-  { url: PROXY + 'linkedin/73c0f3f39dafe410.jpg', type: 'image', authorName: 'Agrim Singh', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 5.264 },
-  { url: PROXY + 'youtube/_xQnSNlBP_w-f56869a8.jpg', type: 'image', authorName: 'AI Engineer', platform: 'youtube', storyId: 'vivian-builder-keynote', reachScore: 4.136 },
-  { url: PROXY + 'linkedin/735cb1756d419c7e.jpg', type: 'image', authorName: 'Linh Nguyen', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 4.113 },
-  { url: PROXY + 'x/da5a79bdec2220ff-81cfaec4b5f94124.jpg', type: 'image', authorName: 'Vivian Balakrishnan', platform: 'x', storyId: 'vivian-builder-keynote', reachScore: 3.813 },
-  { url: PROXY + 'linkedin/47da1b228c7650df.jpg', type: 'image', authorName: 'Saad Hamid', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 3.719 },
-  { url: PROXY + 'linkedin/24bdcda6b7901a2f.jpg', type: 'image', authorName: 'Saad Hamid (Google)', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 3.653 },
-  { url: PROXY + 'linkedin/4d9d2e5d23486bbe.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 3.275 },
-  { url: PROXY + 'linkedin/09f71a35995d1f78.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 3.028 },
-  { url: PROXY + 'linkedin/89cbef6a75c1c863.jpg', type: 'image', authorName: 'Thu Ya K.', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 2.979 },
-  { url: PROXY + 'linkedin/fb1b9d9b6054f12d.jpg', type: 'image', authorName: 'Lavanya Garg', platform: 'linkedin', storyId: 'students-organizers-community', reachScore: 2.93 },
+  { url: PROXY + 'linkedin/7283684d73974e93.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 8.339, focal: { x: 0.442, y: 0.653 }, subjectBox: { x: 0.156, y: 0.577, w: 0.571, h: 0.417 } },
+  { url: PROXY + 'linkedin/80cf2056f23e190e.jpg', type: 'image', authorName: 'Rachael De Foe', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 7.122, focal: { x: 0.690, y: 0.420 }, subjectBox: { x: 0.140, y: 0.180, w: 0.770, h: 0.780 } },
+  { url: PROXY + 'linkedin/2eb07f40745ef693.jpg', type: 'image', authorName: 'Mumshad Mannambeth', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 6.777, focal: { x: 0.490, y: 0.430 }, subjectBox: { x: 0.270, y: 0.360, w: 0.460, h: 0.640 } },
+  { url: PROXY + 'linkedin/5a4bd68babd06646.jpg', type: 'image', authorName: 'Anil Srinivas Chilla', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 6.349, focal: { x: 0.270, y: 0.600 }, subjectBox: { x: 0.210, y: 0.410, w: 0.280, h: 0.470 } },
+  { url: PROXY + 'linkedin/3c189a8fde95029c.jpg', type: 'image', authorName: 'Val Yap', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 5.873, focal: { x: 0.705, y: 0.330 }, subjectBox: { x: 0.090, y: 0.200, w: 0.800, h: 0.720 } },
+  { url: PROXY + 'linkedin/8f93e50c8c6d7199.jpg', type: 'image', authorName: 'Sherry Jiang', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 5.511, focal: { x: 0.526, y: 0.380 }, subjectBox: { x: 0.000, y: 0.170, w: 1.000, h: 0.820 } },
+  { url: PROXY + 'linkedin/73c0f3f39dafe410.jpg', type: 'image', authorName: 'Agrim Singh', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 5.264, focal: { x: 0.173, y: 0.481 }, subjectBox: { x: 0.000, y: 0.273, w: 1.000, h: 0.726 } },
+  { url: PROXY + 'youtube/_xQnSNlBP_w-f56869a8.jpg', type: 'image', authorName: 'AI Engineer', platform: 'youtube', storyId: 'vivian-builder-keynote', reachScore: 4.136, focal: { x: 0.780, y: 0.340 }, subjectBox: { x: 0.000, y: 0.000, w: 1.000, h: 1.000 } },
+  { url: PROXY + 'linkedin/735cb1756d419c7e.jpg', type: 'image', authorName: 'Linh Nguyen', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 4.113, focal: { x: 0.503, y: 0.571 }, subjectBox: { x: 0.000, y: 0.390, w: 1.000, h: 0.610 } },
+  { url: PROXY + 'x/da5a79bdec2220ff-81cfaec4b5f94124.jpg', type: 'image', authorName: 'Vivian Balakrishnan', platform: 'x', storyId: 'vivian-builder-keynote', reachScore: 3.813, focal: { x: 0.199, y: 0.615 }, subjectBox: { x: 0.120, y: 0.370, w: 0.190, h: 0.390 } },
+  { url: PROXY + 'linkedin/47da1b228c7650df.jpg', type: 'image', authorName: 'Saad Hamid', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 3.719, focal: { x: 0.430, y: 0.510 }, subjectBox: { x: 0.000, y: 0.430, w: 1.000, h: 0.570 } },
+  { url: PROXY + 'linkedin/24bdcda6b7901a2f.jpg', type: 'image', authorName: 'Saad Hamid (Google)', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 3.653, focal: { x: 0.651, y: 0.548 }, subjectBox: { x: 0.120, y: 0.290, w: 0.790, h: 0.710 } },
+  { url: PROXY + 'linkedin/4d9d2e5d23486bbe.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 3.275, focal: { x: 0.270, y: 0.310 }, subjectBox: { x: 0.080, y: 0.180, w: 0.360, h: 0.660 } },
+  { url: PROXY + 'linkedin/09f71a35995d1f78.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 3.028, focal: { x: 0.454, y: 0.829 }, subjectBox: { x: 0.000, y: 0.372, w: 1.000, h: 0.628 } },
+  { url: PROXY + 'linkedin/89cbef6a75c1c863.jpg', type: 'image', authorName: 'Thu Ya K.', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 2.979, focal: { x: 0.290, y: 0.480 }, subjectBox: { x: 0.140, y: 0.300, w: 0.560, h: 0.700 } },
+  { url: PROXY + 'linkedin/fb1b9d9b6054f12d.jpg', type: 'image', authorName: 'Lavanya Garg', platform: 'linkedin', storyId: 'students-organizers-community', reachScore: 2.93, focal: { x: 0.500, y: 0.430 }, subjectBox: { x: 0.140, y: 0.160, w: 0.720, h: 0.660 } },
 ];
 
 /**
@@ -239,6 +254,19 @@ export const aie2026SampleBundle: RecapBundle = {
     { name: 'Codex for Everyone · realtime hack night', meta: 'workshop' },
   ],
 };
+
+/**
+ * Returns the CSS `objectPosition` value for a tagged MediaAsset, or
+ * the neutral `'50% 50%'` for assets that have no focal point yet. Use
+ * this everywhere a photo is laid down with `objectFit: 'cover'` so the
+ * subject (face, key text) stays in frame across both 9:16 and 16:9.
+ */
+export function focalObjectPosition(asset: Pick<MediaAsset, 'focal'>): string {
+  if (!asset.focal) return '50% 50%';
+  const x = Math.max(0, Math.min(1, asset.focal.x)) * 100;
+  const y = Math.max(0, Math.min(1, asset.focal.y)) * 100;
+  return `${x.toFixed(2)}% ${y.toFixed(2)}%`;
+}
 
 /**
  * Production fetcher — hits the worker's data endpoint and reshapes

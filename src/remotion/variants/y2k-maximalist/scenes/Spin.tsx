@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool } from '../../../EventRecap/data';
+import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -74,6 +74,7 @@ export const Spin: React.FC<Props> = ({ bundle, orientation }) => {
                 width: w,
                 height: h,
                 objectFit: 'cover',
+                objectPosition: focalObjectPosition(p),
                 filter: 'saturate(1.4) contrast(1.05)',
               }}
             />

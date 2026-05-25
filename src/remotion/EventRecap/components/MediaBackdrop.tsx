@@ -80,14 +80,21 @@ const Tile: React.FC<{ asset: MediaAsset; scale: number; opacity: number }> = ({
   scale,
   opacity,
 }) => {
+  // Smart crop: if the asset was VLM-tagged with a focal point we honor it;
+  // otherwise fall back to the historical 50%/50% centered cover. Same
+  // origin is used for both `objectPosition` and `transformOrigin` so that
+  // the ken-burns scale-up stays anchored to the subject.
+  const fx = asset.focal ? asset.focal.x * 100 : 50;
+  const fy = asset.focal ? asset.focal.y * 100 : 50;
   const style: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    objectPosition: `${fx}% ${fy}%`,
     transform: `scale(${scale})`,
-    transformOrigin: 'center',
+    transformOrigin: `${fx}% ${fy}%`,
     opacity,
   };
   if (asset.type === 'video') {

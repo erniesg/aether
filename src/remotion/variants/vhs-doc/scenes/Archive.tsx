@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool } from '../../../EventRecap/data';
+import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -43,6 +43,7 @@ export const Archive: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
+          objectPosition: focalObjectPosition(img),
           transform: `translate(${wobbleX}px, ${wobbleY}px) scale(1.06)`,
           filter: 'saturate(0.4) contrast(1.0) brightness(0.65) sepia(0.2)',
         }}
