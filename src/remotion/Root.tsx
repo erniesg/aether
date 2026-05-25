@@ -5,6 +5,7 @@ import { aie2026SampleBundle } from './EventRecap/data';
 import { SundanceDoc } from './variants/sundance-doc/Composition';
 import { MrBeastHyper } from './variants/mrbeast-hyper/Composition';
 import { AppleKeynote } from './variants/apple-keynote/Composition';
+import { SynthwaveCyber } from './variants/synthwave-cyber/Composition';
 
 /**
  * Compositions:
@@ -58,6 +59,7 @@ const VARIANTS: VariantSpec[] = [
   { slug: 'sundance-doc', component: SundanceDoc as VariantSpec['component'] },
   { slug: 'mrbeast-hyper', component: MrBeastHyper as VariantSpec['component'] },
   { slug: 'apple-keynote', component: AppleKeynote as VariantSpec['component'] },
+  { slug: 'synthwave-cyber', component: SynthwaveCyber as VariantSpec['component'] },
 ];
 
 export const RemotionRoot: React.FC = () => {
