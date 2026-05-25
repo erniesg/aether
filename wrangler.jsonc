@@ -19,7 +19,8 @@
     "staging": {
       "name": "aether-stg",
       "routes": [
-        { "pattern": "aether-stg.berlayar.ai", "custom_domain": true }
+        { "pattern": "aether-stg.berlayar.ai", "custom_domain": true },
+        { "pattern": "s-stg.berlayar.ai", "custom_domain": true }
       ],
       "r2_buckets": [
         {
@@ -31,6 +32,7 @@
       "vars": {
         "AETHER_ENV": "staging",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai",
+        "NEXT_PUBLIC_AETHER_SHARE_DOMAIN": "s-stg.berlayar.ai",
         "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
         "VOICE_PROVIDER": "gemini-live",
         "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
@@ -58,7 +60,8 @@
     "production": {
       "name": "aether",
       "routes": [
-        { "pattern": "aether.berlayar.ai", "custom_domain": true }
+        { "pattern": "aether.berlayar.ai", "custom_domain": true },
+        { "pattern": "s.berlayar.ai", "custom_domain": true }
       ],
       "r2_buckets": [
         {
@@ -70,6 +73,7 @@
       "vars": {
         "AETHER_ENV": "production",
         "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai",
+        "NEXT_PUBLIC_AETHER_SHARE_DOMAIN": "s.berlayar.ai",
         "NEXT_PUBLIC_CONVEX_URL": "https://oceanic-dolphin-808.convex.cloud",
         "VOICE_PROVIDER": "gemini-live",
         "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",

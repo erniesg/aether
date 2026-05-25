@@ -25,6 +25,7 @@ import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useVibesAuth } from '@/components/vibes/vibes-auth';
 import { VibesAccessMenu } from '@/components/vibes/VibesAccessMenu';
+import { VibesShareMenu } from '@/components/share/VibesShareMenu';
 import { RunEventTimeline, summarizeRunEvents } from '@/components/vibes/RunEventTimeline';
 import type { EventPlatform, EventRecapBundle } from '@/lib/research/event-recap/types';
 import type { VibesPlan, VibesTermKind } from '@/lib/research/vibes/plan';
@@ -228,6 +229,18 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
+          {bundle?.event ? (
+            <VibesShareMenu
+              objectType="vibes_page"
+              objectId={bundle.event.eventId}
+              slug={bundle.event.eventId}
+              canonicalPath={reportUrl ?? `/events/${encodeURIComponent(bundle.event.eventId)}`}
+              title={`${bundle.event.canonicalName ?? bundle.event.name} vibes`}
+              description={`References, clusters, media, and voices for ${bundle.event.canonicalName ?? bundle.event.name}.`}
+              shareText={`sampled the socmed vibes for ${bundle.event.canonicalName ?? bundle.event.name}`}
+              hashtags={bundle.event.querySet.filter((term) => term.startsWith('#')).slice(0, 4)}
+            />
+          ) : null}
           <VibesAccessMenu />
           <ThemeToggle />
         </div>

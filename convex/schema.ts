@@ -2,6 +2,44 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 const EVENT_PLATFORM = v.union(v.literal('x'), v.literal('linkedin'), v.literal('youtube'));
+const SHARE_PLATFORM = v.union(
+  v.literal('x'),
+  v.literal('linkedin'),
+  v.literal('facebook'),
+  v.literal('whatsapp'),
+  v.literal('telegram'),
+  v.literal('copy'),
+  v.literal('native'),
+  v.literal('unknown')
+);
+const SHARE_OBJECT_TYPE = v.union(
+  v.literal('vibes_page'),
+  v.literal('event_recap'),
+  v.literal('brand_page'),
+  v.literal('canvas'),
+  v.literal('render'),
+  v.literal('pack'),
+  v.literal('moodboard')
+);
+const SHARE_EVENT_TYPE = v.union(
+  v.literal('share_link_created'),
+  v.literal('platform_clicked'),
+  v.literal('copy_link'),
+  v.literal('copy_clean_link'),
+  v.literal('native_share_success'),
+  v.literal('native_share_error'),
+  v.literal('share_link_visit'),
+  v.literal('share_link_bot_preview'),
+  v.literal('conversion')
+);
+const PUBLIC_MENTION_CONFIDENCE = v.union(
+  v.literal('direct_tracked_url'),
+  v.literal('direct_canonical_url'),
+  v.literal('redirect_resolved'),
+  v.literal('text_match'),
+  v.literal('manual'),
+  v.literal('published')
+);
 const EVENT_POST_MEDIA = v.object({
   url: v.string(),
   type: v.union(v.literal('image'), v.literal('video'), v.literal('gif'), v.literal('unknown')),
@@ -505,6 +543,97 @@ export default defineSchema({
     .index('by_access_id', ['accessId'])
     .index('by_event', ['eventId'])
     .index('by_event_created', ['eventId', 'createdAt']),
+
+  // Share graph for creator-facing public pages. `shareTarget` is the
+  // canonical page identity; `shareLink` is a short generated URL such as
+  // s.berlayar.ai/mavo that resolves back to the target.
+  shareTarget: defineTable({
+    canonicalUrl: v.string(),
+    objectType: SHARE_OBJECT_TYPE,
+    objectId: v.string(),
+    slug: v.optional(v.string()),
+    title: v.string(),
+    description: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_canonical_url', ['canonicalUrl'])
+    .index('by_object', ['objectType', 'objectId'])
+    .index('by_slug', ['slug']),
+
+  shareLink: defineTable({
+    code: v.string(),
+    targetId: v.id('shareTarget'),
+    targetCanonicalUrl: v.string(),
+    platform: SHARE_PLATFORM,
+    label: v.optional(v.string()),
+    actorId: v.optional(v.string()),
+    actorLabel: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
+    shareTextHash: v.optional(v.string()),
+    visitCount: v.number(),
+    botVisitCount: v.number(),
+    createdAt: v.number(),
+    lastVisitedAt: v.optional(v.number()),
+  })
+    .index('by_code', ['code'])
+    .index('by_target', ['targetId'])
+    .index('by_target_platform', ['targetId', 'platform']),
+
+  shareEvent: defineTable({
+    eventId: v.string(),
+    targetId: v.optional(v.id('shareTarget')),
+    linkId: v.optional(v.id('shareLink')),
+    code: v.optional(v.string()),
+    targetCanonicalUrl: v.optional(v.string()),
+    eventType: SHARE_EVENT_TYPE,
+    platform: SHARE_PLATFORM,
+    requestPath: v.optional(v.string()),
+    referer: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    acceptLanguage: v.optional(v.string()),
+    ipHash: v.optional(v.string()),
+    visitorHash: v.optional(v.string()),
+    cfCountry: v.optional(v.string()),
+    cfColo: v.optional(v.string()),
+    cfRay: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index('by_target', ['targetId'])
+    .index('by_link', ['linkId'])
+    .index('by_type_created', ['eventType', 'createdAt']),
+
+  publicMention: defineTable({
+    targetId: v.id('shareTarget'),
+    platform: v.union(v.literal('x'), v.literal('linkedin'), v.literal('facebook')),
+    externalId: v.optional(v.string()),
+    externalUrl: v.string(),
+    authorName: v.optional(v.string()),
+    authorHandle: v.optional(v.string()),
+    matchedUrl: v.string(),
+    normalizedCanonicalUrl: v.string(),
+    matchedCode: v.optional(v.string()),
+    metrics: v.object({
+      likes: v.optional(v.number()),
+      reposts: v.optional(v.number()),
+      quotes: v.optional(v.number()),
+      replies: v.optional(v.number()),
+      comments: v.optional(v.number()),
+      reactions: v.optional(v.number()),
+      views: v.optional(v.number()),
+      impressions: v.optional(v.number()),
+    }),
+    confidence: PUBLIC_MENTION_CONFIDENCE,
+    raw: v.optional(v.any()),
+    firstSeenAt: v.number(),
+    lastCheckedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index('by_target', ['targetId'])
+    .index('by_platform_external', ['platform', 'externalId'])
+    .index('by_external_url', ['externalUrl']),
 
   // Phased run-event log for event recap refreshes. One row per pipeline
   // stage (resolve, budget, per-platform collection, clustering, finish) so

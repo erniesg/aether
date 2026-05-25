@@ -27,6 +27,7 @@ import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useVibesAuth } from '@/components/vibes/vibes-auth';
 import { VibesAccessMenu } from '@/components/vibes/VibesAccessMenu';
+import { VibesShareMenu } from '@/components/share/VibesShareMenu';
 import { RunEventTimeline, summarizeRunEvents } from '@/components/vibes/RunEventTimeline';
 import type {
   EventPlatform,
@@ -236,6 +237,9 @@ export default function EventRecapClient({
   }, [bundle?.captureRun]);
 
   const event = bundle?.event;
+  const shareEventId = event?.eventId ?? eventId;
+  const shareEventName = event?.canonicalName ?? event?.name ?? humanizeEventId(eventId);
+  const shareHashtags = event?.querySet.filter((term) => term.startsWith('#')).slice(0, 4) ?? [];
 
   return (
     <main className="min-h-screen bg-surface-base text-ink">
@@ -272,6 +276,17 @@ export default function EventRecapClient({
           >
             {refreshing ? 'refreshing' : 'refresh'}
           </Button>
+          <VibesShareMenu
+            objectType="event_recap"
+            objectId={shareEventId}
+            slug={shareEventId}
+            canonicalPath={canonicalVibesPath(shareEventId)}
+            title={`${shareEventName} vibes`}
+            description={`References, clusters, media, and voices for ${shareEventName}.`}
+            shareText={`sampled the socmed vibes for ${shareEventName}`}
+            hashtags={shareHashtags}
+            showMetrics
+          />
           <VibesAccessMenu />
           <ThemeToggle />
         </div>
@@ -445,6 +460,19 @@ function LensButton({
       {children}
     </button>
   );
+}
+
+function canonicalVibesPath(eventId: string): string {
+  if (eventId === 'ai-engineer-singapore' || eventId === 'aie2026' || eventId === 'aie-2026') {
+    return '/vibes/aie2026/';
+  }
+  return `/events/${encodeURIComponent(eventId)}`;
+}
+
+function humanizeEventId(eventId: string): string {
+  const words = eventId.split(/[-_]+/).filter(Boolean);
+  if (words.length === 0) return 'event recap';
+  return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
 function EventRunPanel({
