@@ -2,6 +2,8 @@ import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { theme } from '../theme';
 import type { RecapBundle } from '../data';
+import { aie2026MediaPool } from '../data';
+import { MediaBackdrop } from '../components/MediaBackdrop';
 
 interface Props {
   bundle: RecapBundle;
@@ -22,16 +24,17 @@ export const RankingScene: React.FC<Props> = ({ bundle, orientation }) => {
     extrapolateRight: 'clamp',
   });
   return (
+    <AbsoluteFill style={{ background: '#000', opacity: exit }}>
+      <MediaBackdrop pool={aie2026MediaPool} holdFrames={22} tintOpacity={0.75} kenBurns={0.12} startIndex={6} />
     <AbsoluteFill
       style={{
-        background: 'linear-gradient(180deg,#0c0a08,#000)',
+        background: 'transparent',
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         padding: orientation === 'vertical' ? '64px 48px' : '80px 120px',
         gap: 14,
-        opacity: exit,
         fontFamily: theme.sans,
       }}
     >
@@ -88,6 +91,7 @@ export const RankingScene: React.FC<Props> = ({ bundle, orientation }) => {
           </div>
         );
       })}
+    </AbsoluteFill>
     </AbsoluteFill>
   );
 };

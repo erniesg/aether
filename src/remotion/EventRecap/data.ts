@@ -85,9 +85,50 @@ export interface RecapBundle {
 }
 
 /**
+ * Real media pool — 18 captured photos + 1 video from the public bundle,
+ * lifted verbatim from /vibes/aie2026/data on 2026-05-24. Cross-cuts
+ * these BEHIND every scene so the recap feels like video, not a PDF.
+ */
+export interface MediaAsset {
+  url: string;
+  type: 'image' | 'video';
+  authorName: string;
+  platform: Platform;
+  storyId: string;
+  reachScore: number;
+}
+
+/**
+ * URLs route through the worker's media proxy — R2-backed, CORS-open,
+ * and stable. Direct LinkedIn CDN URLs (media.licdn.com) refuse hotlinks
+ * from headless Chrome during Remotion renders; the proxy serves the
+ * same bytes Cloudflare-edge-cached.
+ */
+const PROXY = 'https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/';
+
+export const aie2026MediaPool: MediaAsset[] = [
+  { url: PROXY + 'x/b0c024c34177c5fb.mp4', type: 'video', authorName: 'Melissa Chen', platform: 'x', storyId: 'vivian-builder-keynote', reachScore: 30.018 },
+  { url: PROXY + 'linkedin/7283684d73974e93.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 8.339 },
+  { url: PROXY + 'linkedin/80cf2056f23e190e.jpg', type: 'image', authorName: 'Rachael De Foe', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 7.122 },
+  { url: PROXY + 'linkedin/2eb07f40745ef693.jpg', type: 'image', authorName: 'Mumshad Mannambeth', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 6.777 },
+  { url: PROXY + 'linkedin/5a4bd68babd06646.jpg', type: 'image', authorName: 'Anil Srinivas Chilla', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 6.349 },
+  { url: PROXY + 'linkedin/3c189a8fde95029c.jpg', type: 'image', authorName: 'Val Yap', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 5.873 },
+  { url: PROXY + 'linkedin/8f93e50c8c6d7199.jpg', type: 'image', authorName: 'Sherry Jiang', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 5.511 },
+  { url: PROXY + 'linkedin/73c0f3f39dafe410.jpg', type: 'image', authorName: 'Agrim Singh', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 5.264 },
+  { url: PROXY + 'youtube/_xQnSNlBP_w-f56869a8.jpg', type: 'image', authorName: 'AI Engineer', platform: 'youtube', storyId: 'vivian-builder-keynote', reachScore: 4.136 },
+  { url: PROXY + 'linkedin/735cb1756d419c7e.jpg', type: 'image', authorName: 'Linh Nguyen', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 4.113 },
+  { url: PROXY + 'x/da5a79bdec2220ff-81cfaec4b5f94124.jpg', type: 'image', authorName: 'Vivian Balakrishnan', platform: 'x', storyId: 'vivian-builder-keynote', reachScore: 3.813 },
+  { url: PROXY + 'linkedin/47da1b228c7650df.jpg', type: 'image', authorName: 'Saad Hamid', platform: 'linkedin', storyId: 'vivian-builder-keynote', reachScore: 3.719 },
+  { url: PROXY + 'linkedin/24bdcda6b7901a2f.jpg', type: 'image', authorName: 'Saad Hamid (Google)', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 3.653 },
+  { url: PROXY + 'linkedin/4d9d2e5d23486bbe.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 3.275 },
+  { url: PROXY + 'linkedin/09f71a35995d1f78.jpg', type: 'image', authorName: 'Gabriel Chua', platform: 'linkedin', storyId: 'openai-codex-presence', reachScore: 3.028 },
+  { url: PROXY + 'linkedin/89cbef6a75c1c863.jpg', type: 'image', authorName: 'Thu Ya K.', platform: 'linkedin', storyId: 'sponsors-booths-hiring', reachScore: 2.979 },
+  { url: PROXY + 'linkedin/fb1b9d9b6054f12d.jpg', type: 'image', authorName: 'Lavanya Garg', platform: 'linkedin', storyId: 'students-organizers-community', reachScore: 2.93 },
+];
+
+/**
  * Real data lifted from https://aether.berlayar.ai/vibes/aie2026/data
- * (validated 2026-05-24). Hero moment is Melissa Chen's tweet — highest
- * reachScore (30.018) post about Vivian's keynote with playable video.
+ * (validated 2026-05-24).
  */
 export const aie2026SampleBundle: RecapBundle = {
   eventId: 'aie2026',

@@ -2,7 +2,9 @@ import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { theme } from '../theme';
 import type { RecapBundle } from '../data';
+import { aie2026MediaPool } from '../data';
 import { SponsorLogo } from '../components/SponsorLogo';
+import { MediaBackdrop } from '../components/MediaBackdrop';
 
 interface Props {
   bundle: RecapBundle;
@@ -31,9 +33,11 @@ export const SponsorScene: React.FC<Props> = ({ bundle, orientation }) => {
   ];
 
   return (
+    <AbsoluteFill style={{ background: '#000', opacity: exit }}>
+      <MediaBackdrop pool={aie2026MediaPool} holdFrames={20} tintOpacity={0.75} kenBurns={0.1} startIndex={11} />
     <AbsoluteFill
       style={{
-        background: 'linear-gradient(180deg,#0a0a0c,#000)',
+        background: 'transparent',
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
@@ -106,6 +110,7 @@ export const SponsorScene: React.FC<Props> = ({ bundle, orientation }) => {
           </div>
         );
       })}
+    </AbsoluteFill>
     </AbsoluteFill>
   );
 };
