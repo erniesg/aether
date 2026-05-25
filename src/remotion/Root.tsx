@@ -4,6 +4,7 @@ import { EventRecap, type EventRecapProps } from './EventRecap/EventRecap';
 import { aie2026SampleBundle } from './EventRecap/data';
 import { SundanceDoc } from './variants/sundance-doc/Composition';
 import { MrBeastHyper } from './variants/mrbeast-hyper/Composition';
+import { AppleKeynote } from './variants/apple-keynote/Composition';
 
 /**
  * Compositions:
@@ -56,6 +57,7 @@ interface VariantSpec {
 const VARIANTS: VariantSpec[] = [
   { slug: 'sundance-doc', component: SundanceDoc as VariantSpec['component'] },
   { slug: 'mrbeast-hyper', component: MrBeastHyper as VariantSpec['component'] },
+  { slug: 'apple-keynote', component: AppleKeynote as VariantSpec['component'] },
 ];
 
 export const RemotionRoot: React.FC = () => {
