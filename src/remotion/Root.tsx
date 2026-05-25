@@ -10,6 +10,7 @@ import { EditorialNewspaper } from './variants/editorial-newspaper/Composition';
 import { Y2KMaximalist } from './variants/y2k-maximalist/Composition';
 import { VHSDoc } from './variants/vhs-doc/Composition';
 import { BrandSizzle } from './variants/brand-sizzle/Composition';
+import { SwissMinimal } from './variants/swiss-minimal/Composition';
 
 /**
  * Compositions:
@@ -68,6 +69,7 @@ const VARIANTS: VariantSpec[] = [
   { slug: 'y2k-maximalist', component: Y2KMaximalist as VariantSpec['component'] },
   { slug: 'vhs-doc', component: VHSDoc as VariantSpec['component'] },
   { slug: 'brand-sizzle', component: BrandSizzle as VariantSpec['component'] },
+  { slug: 'swiss-minimal', component: SwissMinimal as VariantSpec['component'] },
 ];
 
 export const RemotionRoot: React.FC = () => {
