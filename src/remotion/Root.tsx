@@ -6,6 +6,7 @@ import { SundanceDoc } from './variants/sundance-doc/Composition';
 import { MrBeastHyper } from './variants/mrbeast-hyper/Composition';
 import { AppleKeynote } from './variants/apple-keynote/Composition';
 import { SynthwaveCyber } from './variants/synthwave-cyber/Composition';
+import { EditorialNewspaper } from './variants/editorial-newspaper/Composition';
 
 /**
  * Compositions:
@@ -60,6 +61,7 @@ const VARIANTS: VariantSpec[] = [
   { slug: 'mrbeast-hyper', component: MrBeastHyper as VariantSpec['component'] },
   { slug: 'apple-keynote', component: AppleKeynote as VariantSpec['component'] },
   { slug: 'synthwave-cyber', component: SynthwaveCyber as VariantSpec['component'] },
+  { slug: 'editorial-newspaper', component: EditorialNewspaper as VariantSpec['component'] },
 ];
 
 export const RemotionRoot: React.FC = () => {
