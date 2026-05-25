@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -27,6 +27,13 @@ export const Archive: React.FC<Props> = ({ bundle, orientation }) => {
   // Wobble jitter on photo
   const wobbleX = Math.sin(frame * 0.5) * 6;
   const wobbleY = Math.cos(frame * 0.4) * 3;
+  // Mini Ken Burns within each slot: slow pan from subjectBox center
+  // toward focal across the 26-frame hold.
+  const kb = defaultKenBurns(img);
+  const slotT = cyclePhase / cycleLen;
+  const px = interpolate(slotT, [0, 1], [kb.from.x, kb.to.x]) * 100;
+  const py = interpolate(slotT, [0, 1], [kb.from.y, kb.to.y]) * 100;
+  const scale = interpolate(slotT, [0, 1], [1.06, 1.12]);
 
   // Narration line based on current slot
   const themeIdx = slot % themes.length;
@@ -43,8 +50,9 @@ export const Archive: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(img),
-          transform: `translate(${wobbleX}px, ${wobbleY}px) scale(1.06)`,
+          objectPosition: `${px}% ${py}%`,
+          transformOrigin: `${px}% ${py}%`,
+          transform: `translate(${wobbleX}px, ${wobbleY}px) scale(${scale})`,
           filter: 'saturate(0.4) contrast(1.0) brightness(0.65) sepia(0.2)',
         }}
       />

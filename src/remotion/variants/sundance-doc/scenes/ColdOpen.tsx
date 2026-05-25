@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -22,8 +22,13 @@ export const ColdOpen: React.FC<Props> = ({ bundle, orientation }) => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  // Very slow ken-burns over the 4s
-  const scale = interpolate(frame, [0, 120], [1.0, 1.08]);
+  // Ken Burns: slow drift from wide subject-box framing toward the focal
+  // face. 4s scene = 120 frames; pan + zoom in lockstep with the fade-in.
+  const kb = defaultKenBurns(photo);
+  const t = interpolate(frame, [0, 120], [0, 1]);
+  const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
+  const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;
+  const scale = interpolate(t, [0, 1], [kb.from.scale, kb.to.scale]);
 
   // Vivian quote
   const quote = bundle.voices[0]?.sampleQuote ?? 'You cannot govern a technology you have only been briefed on.';
@@ -41,9 +46,9 @@ export const ColdOpen: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(photo),
+          objectPosition: `${px}% ${py}%`,
           transform: `scale(${scale})`,
-          transformOrigin: focalObjectPosition(photo),
+          transformOrigin: `${px}% ${py}%`,
           opacity: photoOpacity,
           filter: 'brightness(0.75) contrast(0.95) saturate(0.78)',
         }}

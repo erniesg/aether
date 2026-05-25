@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -20,9 +20,17 @@ export const Singapore: React.FC<Props> = ({ bundle, orientation }) => {
   // Crowd / hallway shot — Linh Nguyen's sponsors+booths
   const photo = aie2026MediaPool[9];
 
-  // Photo fades in slow + slight scale-in
+  // Photo fades in slow + ultra-slow rise — Ken Burns "rise" feel: the
+  // photo settles inward, scale 1.06 → 1.0, drift y bias 0.55 → 0.45 so
+  // it lifts gently while losing its zoom.
   const photoOpacity = interpolate(frame, [10, 60], [0, 0.7], { extrapolateRight: 'clamp', easing: easeInOutCubic });
-  const photoScale = interpolate(frame, [10, 120], [1.04, 1.0]);
+  const kb = defaultKenBurns(photo);
+  const t = interpolate(frame, [10, 120], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  // Start slightly below the focal, settle on it (the "rise").
+  const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
+  const pyRaw = interpolate(t, [0, 1], [kb.from.y + 0.05, kb.to.y - 0.05]);
+  const py = Math.max(0, Math.min(1, pyRaw)) * 100;
+  const photoScale = interpolate(t, [0, 1], [1.06, 1.0]);
 
   // Title fades in even slower
   const titleOpacity = interpolate(frame, [22, 68], [0, 1], { extrapolateRight: 'clamp', easing: easeInOutCubic });
@@ -43,8 +51,8 @@ export const Singapore: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(photo),
-          transformOrigin: focalObjectPosition(photo),
+          objectPosition: `${px}% ${py}%`,
+          transformOrigin: `${px}% ${py}%`,
           opacity: photoOpacity,
           transform: `scale(${photoScale})`,
           filter: 'brightness(0.55) contrast(1.05) saturate(0.85)',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -20,9 +20,16 @@ export const Tracking: React.FC<Props> = ({ bundle, orientation }) => {
 
   // Photo fades in slowly with extra grain in first 12 frames
   const photoOpacity = interpolate(frame, [10, 40], [0, 0.8], { extrapolateRight: 'clamp' });
-  // Wobble jitter
+  // Wobble jitter — VHS tracking instability stays on top of the deliberate
+  // Ken Burns drift.
   const wobbleX = Math.sin(frame * 0.4) * 4;
   const wobbleY = Math.cos(frame * 0.3) * 2;
+  // Ken Burns base pan: subjectBox → focal, slow zoom-in 1.04 → 1.10.
+  const kb = defaultKenBurns(photo);
+  const t = interpolate(frame, [0, 120], [0, 1]);
+  const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
+  const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;
+  const scale = interpolate(t, [0, 1], [1.04, 1.10]);
 
   // Title types in
   const title = 'AI ENGINEER · SINGAPORE · 2026';
@@ -44,9 +51,10 @@ export const Tracking: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(photo),
+          objectPosition: `${px}% ${py}%`,
+          transformOrigin: `${px}% ${py}%`,
           opacity: photoOpacity,
-          transform: `translate(${wobbleX}px, ${wobbleY}px) scale(1.04)`,
+          transform: `translate(${wobbleX}px, ${wobbleY}px) scale(${scale})`,
           filter: 'saturate(0.35) contrast(0.95) brightness(0.6) sepia(0.18)',
         }}
       />

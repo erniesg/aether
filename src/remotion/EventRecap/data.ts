@@ -269,6 +269,49 @@ export function focalObjectPosition(asset: Pick<MediaAsset, 'focal'>): string {
 }
 
 /**
+ * A Ken Burns keyframe — `(x, y)` is the `objectPosition` 0-1 normalized
+ * and `scale` is a `transform: scale()` multiplier (1.0 = no zoom).
+ */
+export interface KenBurnsKey {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+/**
+ * Derive a default Ken Burns pan for a tagged MediaAsset. The motion
+ * starts wide and slowly zooms toward the focal point — every variant
+ * that wants the bare default can just call this. Motion-rich variants
+ * may override with custom keys per scene.
+ *
+ *   - `from`: a wider framing centered on the subjectBox at scale 1.02
+ *   - `to`:   zoomed slightly toward the focal point at scale 1.12
+ *
+ * If the asset has neither focal nor subjectBox, the pan collapses to a
+ * gentle center zoom (the historical "ken burns 1.0 → 1.08" feel).
+ */
+export function defaultKenBurns(
+  asset: Pick<MediaAsset, 'focal' | 'subjectBox'>
+): { from: KenBurnsKey; to: KenBurnsKey } {
+  const focal = asset.focal;
+  const box = asset.subjectBox;
+  if (!focal && !box) {
+    return {
+      from: { x: 0.5, y: 0.5, scale: 1.0 },
+      to: { x: 0.5, y: 0.5, scale: 1.08 },
+    };
+  }
+  // Center of the subject box (or focal if no box)
+  const cx = box ? box.x + box.w / 2 : focal!.x;
+  const cy = box ? box.y + box.h / 2 : focal!.y;
+  // Start framing on the subject center wide, end zoomed toward the focal.
+  return {
+    from: { x: cx, y: cy, scale: 1.02 },
+    to: { x: focal?.x ?? cx, y: focal?.y ?? cy, scale: 1.12 },
+  };
+}
+
+/**
  * Production fetcher — hits the worker's data endpoint and reshapes
  * into RecapBundle. Used by scripts/render-recap.ts to render fresh
  * MP4s after each cron refresh.

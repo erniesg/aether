@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -23,10 +23,16 @@ const fmt = (n: number) => {
 export const Headline: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
 
-  // Slow tracking pan
+  // Slow tracking pan — Ken Burns drift across Vivian's keynote photo.
+  // Use a custom horizontal-led pan to read as "produced parallax" rather
+  // than the static plate the reviewer flagged.
   const photo = aie2026MediaPool[10];
-  const panX = interpolate(frame, [0, 120], [-2, 2]);
-  const scale = interpolate(frame, [0, 120], [1.05, 1.12]);
+  const kb = defaultKenBurns(photo);
+  // Bias the pan horizontally so the motion is read as parallax, not zoom.
+  const t = interpolate(frame, [0, 120], [0, 1]);
+  const px = interpolate(t, [0, 1], [kb.from.x - 0.05, kb.to.x + 0.05]) * 100;
+  const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;
+  const scale = interpolate(t, [0, 1], [1.08, 1.14]);
 
   // Stat reveal
   const statOpacity = interpolate(frame, [10, 32], [0, 1], {
@@ -57,9 +63,9 @@ export const Headline: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(photo),
-          transformOrigin: focalObjectPosition(photo),
-          transform: `scale(${scale}) translateX(${panX}%)`,
+          objectPosition: `${px}% ${py}%`,
+          transformOrigin: `${px}% ${py}%`,
+          transform: `scale(${scale})`,
           filter: 'saturate(1.1) contrast(1.05) brightness(0.55) hue-rotate(-8deg)',
         }}
       />

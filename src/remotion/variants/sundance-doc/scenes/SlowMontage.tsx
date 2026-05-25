@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
 
 interface Props {
   bundle: RecapBundle;
@@ -32,9 +32,16 @@ export const SlowMontage: React.FC<Props> = ({ bundle, orientation }) => {
           extrapolateRight: 'clamp',
         });
         const localFrame = frame - start;
-        const scale = interpolate(localFrame, [0, 50], [1.05, 1.18]);
-        // Pan-X drift
-        const panX = interpolate(localFrame, [0, 50], [-3, 3]);
+        // Ken Burns: each photo's own subjectBox → focal pan over 50 frames.
+        // Bumped scale a touch (1.05 → 1.18) for documentary punch.
+        const kb = defaultKenBurns(p);
+        const t = interpolate(localFrame, [0, 50], [0, 1], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+        });
+        const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
+        const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;
+        const scale = interpolate(t, [0, 1], [1.05, 1.18]);
         return (
           <Img
             key={p.url}
@@ -45,9 +52,9 @@ export const SlowMontage: React.FC<Props> = ({ bundle, orientation }) => {
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              objectPosition: focalObjectPosition(p),
-              transformOrigin: focalObjectPosition(p),
-              transform: `scale(${scale}) translateX(${panX}%)`,
+              objectPosition: `${px}% ${py}%`,
+              transformOrigin: `${px}% ${py}%`,
+              transform: `scale(${scale})`,
               opacity: op,
               filter: 'brightness(0.78) contrast(0.96) saturate(0.74) sepia(0.08)',
             }}
