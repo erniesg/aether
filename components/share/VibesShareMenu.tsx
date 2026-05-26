@@ -80,10 +80,13 @@ export function VibesShareMenu({
 }: VibesShareMenuProps) {
   const [busy, setBusy] = useState<SharePlatform | null>(null);
   const [copied, setCopied] = useState<'tracked' | null>(null);
+  const [latestCopyUrl, setLatestCopyUrl] = useState<string | null>(null);
+  const [latestCopyCode, setLatestCopyCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ShareSummary | null>(null);
 
   const cleanUrl = useMemo(() => absolutePublicUrl(canonicalPath), [canonicalPath]);
+  const displayedCopyUrl = latestCopyUrl ?? cleanUrl;
   const target = useMemo(
     () => ({
       objectType,
@@ -211,10 +214,18 @@ export function VibesShareMenu({
     setBusy('copy');
     setError(null);
     try {
-      const link = await createLink('copy');
-      await navigator.clipboard.writeText(link.shortUrl);
+      let url = latestCopyUrl;
+      let code = latestCopyCode ?? undefined;
+      if (!url) {
+        const link = await createLink('copy');
+        url = link.shortUrl;
+        code = link.code;
+        setLatestCopyUrl(link.shortUrl);
+        setLatestCopyCode(link.code);
+      }
+      await navigator.clipboard.writeText(url);
       setCopied('tracked');
-      await record('copy_link', 'copy', link.code);
+      await record('copy_link', 'copy', code);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -279,9 +290,14 @@ export function VibesShareMenu({
                 <Copy size={13} />
               )
             }
-            className="justify-start"
+            className="col-span-2 h-auto min-h-7 justify-start py-1.5"
           >
-            <span className="min-w-0 flex-1 truncate text-left">Copy link</span>
+            <span className="flex min-w-0 flex-1 flex-col items-start text-left leading-tight">
+              <span>Copy link</span>
+              <span className="max-w-full truncate font-mono text-2xs font-normal text-ink-dim">
+                {displayedCopyUrl}
+              </span>
+            </span>
           </Button>
         </div>
 
@@ -354,9 +370,14 @@ export function VibesShareMenu({
                   <Copy size={13} />
                 )
               }
-              className="justify-start"
+              className="col-span-2 h-auto min-h-7 justify-start py-1.5"
             >
-              <span className="min-w-0 flex-1 truncate text-left">Copy link</span>
+              <span className="flex min-w-0 flex-1 flex-col items-start text-left leading-tight">
+                <span>Copy link</span>
+                <span className="max-w-full truncate font-mono text-2xs font-normal text-ink-dim">
+                  {displayedCopyUrl}
+                </span>
+              </span>
             </Button>
           </div>
 
