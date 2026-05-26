@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareKenBurns } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -15,6 +16,8 @@ interface Props {
  */
 export const Archive: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
+  const { width: compW, height: compH } = useVideoConfig();
+  const ar = compW / compH;
   const images = aie2026MediaPool.filter((m) => m.type === 'image');
   const themes = bundle.themes.slice(0, 5);
 
@@ -29,7 +32,7 @@ export const Archive: React.FC<Props> = ({ bundle, orientation }) => {
   const wobbleY = Math.cos(frame * 0.4) * 3;
   // Mini Ken Burns within each slot: slow pan from subjectBox center
   // toward focal across the 26-frame hold.
-  const kb = defaultKenBurns(img);
+  const kb = faceAwareKenBurns(img, ar);
   const slotT = cyclePhase / cycleLen;
   const px = interpolate(slotT, [0, 1], [kb.from.x, kb.to.x]) * 100;
   const py = interpolate(slotT, [0, 1], [kb.from.y, kb.to.y]) * 100;

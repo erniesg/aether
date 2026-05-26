@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareKenBurns } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -16,6 +17,7 @@ const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2
  */
 export const Singapore: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
+  const { width: compW, height: compH } = useVideoConfig();
 
   // Crowd / hallway shot — Linh Nguyen's sponsors+booths
   const photo = aie2026MediaPool[9];
@@ -24,7 +26,7 @@ export const Singapore: React.FC<Props> = ({ bundle, orientation }) => {
   // photo settles inward, scale 1.06 → 1.0, drift y bias 0.55 → 0.45 so
   // it lifts gently while losing its zoom.
   const photoOpacity = interpolate(frame, [10, 60], [0, 0.7], { extrapolateRight: 'clamp', easing: easeInOutCubic });
-  const kb = defaultKenBurns(photo);
+  const kb = faceAwareKenBurns(photo, compW / compH);
   const t = interpolate(frame, [10, 120], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   // Start slightly below the focal, settle on it (the "rise").
   const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;

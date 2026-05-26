@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareKenBurns } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -15,6 +16,8 @@ interface Props {
  */
 export const SlowMontage: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
+  const { width: compW, height: compH } = useVideoConfig();
+  const ar = compW / compH;
   // Hand-picked portraits/landscapes — natural-doc feel
   const picks = [
     aie2026MediaPool[2], // Rachael De Foe
@@ -34,7 +37,7 @@ export const SlowMontage: React.FC<Props> = ({ bundle, orientation }) => {
         const localFrame = frame - start;
         // Ken Burns: each photo's own subjectBox → focal pan over 50 frames.
         // Bumped scale a touch (1.05 → 1.18) for documentary punch.
-        const kb = defaultKenBurns(p);
+        const kb = faceAwareKenBurns(p, ar);
         const t = interpolate(localFrame, [0, 50], [0, 1], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',

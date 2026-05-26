@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareKenBurns } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -15,6 +16,7 @@ interface Props {
  */
 export const Tracking: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
+  const { width: compW, height: compH } = useVideoConfig();
 
   const photo = aie2026MediaPool[2]; // Rachael De Foe portrait
 
@@ -25,7 +27,7 @@ export const Tracking: React.FC<Props> = ({ bundle, orientation }) => {
   const wobbleX = Math.sin(frame * 0.4) * 4;
   const wobbleY = Math.cos(frame * 0.3) * 2;
   // Ken Burns base pan: subjectBox → focal, slow zoom-in 1.04 → 1.10.
-  const kb = defaultKenBurns(photo);
+  const kb = faceAwareKenBurns(photo, compW / compH);
   const t = interpolate(frame, [0, 120], [0, 1]);
   const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
   const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;

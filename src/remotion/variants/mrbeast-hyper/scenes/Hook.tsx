@@ -1,7 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { useFaceAwareObjectPosition } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -29,6 +30,10 @@ export const Hook: React.FC<Props> = ({ bundle, orientation }) => {
   // Flash montage: 1 image every 4 frames
   const idx = Math.floor(frame / 4) % images.length;
   const current = images[idx];
+  // 4-frame flashes are too short to perceive panning — request t=0 so each
+  // flash lands on the face-aware crop's `from` keyframe (= "show LEFT
+  // edge of face union" — the safest single static frame).
+  const currentObjectPosition = useFaceAwareObjectPosition(current, 0);
 
   // Beat-locked screen-shake on number
   const shake = frame >= 40 ? Math.sin(frame * 0.9) * 4 : 0;
@@ -62,7 +67,7 @@ export const Hook: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(current),
+          objectPosition: currentObjectPosition,
           filter: 'saturate(1.15) contrast(1.1)',
         }}
       />

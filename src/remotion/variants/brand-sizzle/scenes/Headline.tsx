@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareKenBurns } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -22,15 +23,15 @@ const fmt = (n: number) => {
  */
 export const Headline: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
+  const { width: compW, height: compH } = useVideoConfig();
 
-  // Slow tracking pan — Ken Burns drift across Vivian's keynote photo.
-  // Use a custom horizontal-led pan to read as "produced parallax" rather
-  // than the static plate the reviewer flagged.
+  // Slow tracking pan — face-aware drift across Vivian's keynote photo. If
+  // his face fits at the container aspect, we get a static zoom anchored on
+  // him; if the audience seats overflow, we pan across the seat row.
   const photo = aie2026MediaPool[10];
-  const kb = defaultKenBurns(photo);
-  // Bias the pan horizontally so the motion is read as parallax, not zoom.
+  const kb = faceAwareKenBurns(photo, compW / compH);
   const t = interpolate(frame, [0, 120], [0, 1]);
-  const px = interpolate(t, [0, 1], [kb.from.x - 0.05, kb.to.x + 0.05]) * 100;
+  const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
   const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;
   const scale = interpolate(t, [0, 1], [1.08, 1.14]);
 

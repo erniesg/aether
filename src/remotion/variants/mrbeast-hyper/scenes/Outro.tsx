@@ -1,7 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareObjectPosition } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -20,6 +21,9 @@ export const Outro: React.FC<Props> = ({ bundle, orientation }) => {
 
   // Use Vivian portrait as hero photo
   const hero = aie2026MediaPool[10];
+  // Polaroid sticker uses a fixed aspect (square on vertical, 3:2 on horizontal).
+  const stickerAspect = orientation === 'vertical' ? 560 / 560 : 720 / 480;
+  const heroPosition = faceAwareObjectPosition(hero, stickerAspect, 0);
   const stickerSpring = spring({ frame, fps, config: { damping: 9, stiffness: 200 } });
   const ctaSpring = spring({ frame: frame - 16, fps, config: { damping: 9, stiffness: 200 } });
   // Finger bobs
@@ -48,7 +52,7 @@ export const Outro: React.FC<Props> = ({ bundle, orientation }) => {
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              objectPosition: focalObjectPosition(hero),
+              objectPosition: heroPosition,
               filter: 'saturate(1.15) contrast(1.1)',
             }}
           />

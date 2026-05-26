@@ -1,7 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { useFaceAwareObjectPosition } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -25,6 +26,7 @@ export const Reveal: React.FC<Props> = ({ bundle, orientation }) => {
   // Background flashes between two photos with cyan flash on beat
   const bgIdx1 = Math.floor(frame / 6) % images.length;
   const bg = images[bgIdx1];
+  const bgObjectPosition = useFaceAwareObjectPosition(bg, 0);
 
   const colors = [HYPER_YELLOW, '#FF2D2D', HYPER_CYAN];
 
@@ -38,7 +40,7 @@ export const Reveal: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(bg),
+          objectPosition: bgObjectPosition,
           filter: 'saturate(0.6) contrast(1.4) brightness(0.4)',
         }}
       />

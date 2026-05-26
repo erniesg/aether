@@ -1,7 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, focalObjectPosition } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { useFaceAwareObjectPosition } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -31,6 +32,9 @@ export const GlitchMontage: React.FC<Props> = ({ bundle, orientation }) => {
   const inNoise = cyclePhase < 2;
   const slot = Math.floor(frame / cycleLen) % images.length;
   const img = images[slot];
+  // Pan across each per-image cycle so face-union scans don't stall on the
+  // pan's `from` keyframe for the whole 12-frame hold.
+  const imgObjectPosition = useFaceAwareObjectPosition(img, cyclePhase / cycleLen);
 
   // Stat readouts cycle with photos
   const stats = [
@@ -58,7 +62,7 @@ export const GlitchMontage: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(img),
+          objectPosition: imgObjectPosition,
           filter: 'saturate(0.4) contrast(1.4) brightness(0.6) hue-rotate(160deg)',
           transform: `translateX(${-offset}px)`,
           mixBlendMode: 'screen',
@@ -74,7 +78,7 @@ export const GlitchMontage: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(img),
+          objectPosition: imgObjectPosition,
           filter: 'saturate(0.4) contrast(1.4) brightness(0.6) hue-rotate(-40deg)',
           transform: `translateX(${offset}px)`,
           mixBlendMode: 'screen',
@@ -90,7 +94,7 @@ export const GlitchMontage: React.FC<Props> = ({ bundle, orientation }) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: focalObjectPosition(img),
+          objectPosition: imgObjectPosition,
           filter: 'saturate(0.7) contrast(1.2) brightness(0.55)',
           opacity: 0.7,
         }}

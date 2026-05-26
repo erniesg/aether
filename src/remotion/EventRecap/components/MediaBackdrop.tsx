@@ -1,7 +1,7 @@
 import React from 'react';
-import { Img, OffthreadVideo, interpolate, useCurrentFrame } from 'remotion';
-import { theme } from '../theme';
+import { Img, OffthreadVideo, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { MediaAsset } from '../data';
+import { computeFaceAwareTransform, type CropResult } from '../crop';
 
 interface Props {
   /** Pool of media to cycle through. */
@@ -21,6 +21,10 @@ interface Props {
  * images are visible at once with a feathered cross-fade, plus a per-image
  * ken-burns scale-up so nothing ever sits still. This is what turns a
  * black-bg PDF into something that reads as video.
+ *
+ * Each tile uses the face-aware crop math (lib/EventRecap/crop.ts): if the
+ * asset has SAM3-tagged faces, we keep the union visible at cover scale;
+ * when the union can't fit, we pan across it during the hold.
  */
 export const MediaBackdrop: React.FC<Props> = ({
   pool,
@@ -30,6 +34,8 @@ export const MediaBackdrop: React.FC<Props> = ({
   startIndex = 0,
 }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const containerAspect = width / height;
   const images = pool.filter((m) => m.type === 'image');
   if (images.length === 0) return null;
 
@@ -50,8 +56,20 @@ export const MediaBackdrop: React.FC<Props> = ({
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#000' }}>
-      <Tile asset={current} scale={1 + kenBurns * kbProgress} opacity={1 - xfade} />
-      <Tile asset={next} scale={1 + kenBurns * (kbProgress - 1)} opacity={xfade} />
+      <Tile
+        asset={current}
+        scale={1 + kenBurns * kbProgress}
+        opacity={1 - xfade}
+        containerAspect={containerAspect}
+        holdProgress={kbProgress}
+      />
+      <Tile
+        asset={next}
+        scale={1 + kenBurns * (kbProgress - 1)}
+        opacity={xfade}
+        containerAspect={containerAspect}
+        holdProgress={kbProgress}
+      />
       {/* dark tint so foreground text stays legible */}
       <div
         style={{
@@ -75,26 +93,38 @@ export const MediaBackdrop: React.FC<Props> = ({
   );
 };
 
-const Tile: React.FC<{ asset: MediaAsset; scale: number; opacity: number }> = ({
-  asset,
-  scale,
-  opacity,
-}) => {
-  // Smart crop: if the asset was VLM-tagged with a focal point we honor it;
-  // otherwise fall back to the historical 50%/50% centered cover. Same
-  // origin is used for both `objectPosition` and `transformOrigin` so that
-  // the ken-burns scale-up stays anchored to the subject.
-  const fx = asset.focal ? asset.focal.x * 100 : 50;
-  const fy = asset.focal ? asset.focal.y * 100 : 50;
+interface TileProps {
+  asset: MediaAsset;
+  scale: number;
+  opacity: number;
+  containerAspect: number;
+  /** 0..1 progress through this asset's hold. Used to interpolate pan keys. */
+  holdProgress: number;
+}
+
+const Tile: React.FC<TileProps> = ({ asset, scale, opacity, containerAspect, holdProgress }) => {
+  const crop: CropResult = computeFaceAwareTransform(asset, containerAspect, { allowPan: true });
+
+  const objectPosition =
+    crop.mode === 'pan'
+      ? interpolateObjectPosition(crop.from.objectPosition, crop.to.objectPosition, holdProgress)
+      : crop.objectPosition;
+
+  const objectFit = crop.mode === 'letterbox' ? 'contain' : 'cover';
+  const baseScale = crop.mode === 'letterbox' ? crop.scale : 1;
+  const finalScale = scale * baseScale;
+
+  // Anchor transforms to the same point we crop around, so ken-burns
+  // doesn't slide AWAY from the focal/face region.
   const style: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
-    objectFit: 'cover',
-    objectPosition: `${fx}% ${fy}%`,
-    transform: `scale(${scale})`,
-    transformOrigin: `${fx}% ${fy}%`,
+    objectFit,
+    objectPosition,
+    transform: `scale(${finalScale})`,
+    transformOrigin: objectPosition,
     opacity,
   };
   if (asset.type === 'video') {
@@ -102,3 +132,19 @@ const Tile: React.FC<{ asset: MediaAsset; scale: number; opacity: number }> = ({
   }
   return <Img src={asset.url} style={style} />;
 };
+
+/**
+ * Linearly interpolate between two CSS `object-position` strings of shape
+ * `"X.XX% Y.YY%"`. Used by Tile when the crop math returns a pan arc.
+ */
+function interpolateObjectPosition(from: string, to: string, t: number): string {
+  const parse = (s: string) => {
+    const parts = s.split(/\s+/);
+    return [parseFloat(parts[0]), parseFloat(parts[1])];
+  };
+  const [fx, fy] = parse(from);
+  const [tx, ty] = parse(to);
+  const x = fx + (tx - fx) * t;
+  const y = fy + (ty - fy) * t;
+  return `${x.toFixed(2)}% ${y.toFixed(2)}%`;
+}

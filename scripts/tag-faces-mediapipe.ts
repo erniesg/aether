@@ -141,7 +141,12 @@ async function tagInPage(
         // we copy it; otherwise we use the cdn-shaped FilesetResolver, which
         // takes the URL to a directory containing vision_wasm_internal.js +
         // .wasm. Our /wasm/ folder is exactly that directory.
-        const visionModule = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/vision_bundle.mjs');
+        // dynamic import in the browser context — TS can't resolve a CDN URL
+        // at compile time, so we type-assert via any.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const visionModule: any =
+          // @ts-expect-error TS2307: HTTP module URL resolved at runtime in the browser
+          await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/vision_bundle.mjs');
         const { FaceDetector, FilesetResolver } = visionModule;
         const fileset = await FilesetResolver.forVisionTasks(`${baseUrl}/wasm`);
         const detector = await FaceDetector.createFromOptions(fileset, {

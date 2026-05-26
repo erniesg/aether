@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareKenBurns } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -15,6 +16,7 @@ interface Props {
  */
 export const ColdOpen: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
+  const { width: compW, height: compH } = useVideoConfig();
   // First photo of Vivian (index 10 in the pool — actual portrait of him)
   const photo = aie2026MediaPool[10];
 
@@ -22,9 +24,10 @@ export const ColdOpen: React.FC<Props> = ({ bundle, orientation }) => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  // Ken Burns: slow drift from wide subject-box framing toward the focal
-  // face. 4s scene = 120 frames; pan + zoom in lockstep with the fade-in.
-  const kb = defaultKenBurns(photo);
+  // Ken Burns: face-aware drift. When the face union fits at static cover,
+  // we get a gentle zoom anchored on the face; when it doesn't, the pan
+  // arc scans across it. 4s scene = 120 frames.
+  const kb = faceAwareKenBurns(photo, compW / compH);
   const t = interpolate(frame, [0, 120], [0, 1]);
   const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
   const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;

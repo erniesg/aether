@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { RecapBundle } from '../../../EventRecap/data';
-import { aie2026MediaPool, defaultKenBurns } from '../../../EventRecap/data';
+import { aie2026MediaPool } from '../../../EventRecap/data';
+import { faceAwareKenBurns } from '../../../EventRecap/crop';
 
 interface Props {
   bundle: RecapBundle;
@@ -16,6 +17,7 @@ const easeOutQuart = (t: number) => 1 - Math.pow(1 - t, 4);
  */
 export const LogoWall: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
+  const { width: compW, height: compH } = useVideoConfig();
   const sponsors = bundle.sponsors.slice(0, 12);
 
   // Logo wall is dominant from 0 to 80, then crossfades to photo by 100
@@ -33,7 +35,7 @@ export const LogoWall: React.FC<Props> = ({ bundle, orientation }) => {
 
   const photo = aie2026MediaPool[9]; // Linh hallway/sponsors shot
   // Ken Burns: photo subtly drifts behind the logo crossfade for parallax.
-  const kb = defaultKenBurns(photo);
+  const kb = faceAwareKenBurns(photo, compW / compH);
   const t = interpolate(frame, [0, 120], [0, 1]);
   const px = interpolate(t, [0, 1], [kb.from.x, kb.to.x]) * 100;
   const py = interpolate(t, [0, 1], [kb.from.y, kb.to.y]) * 100;
