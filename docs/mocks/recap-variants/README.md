@@ -95,6 +95,78 @@ live in `docs/mocks/face-aware-verification/`. Side-by-side compare:
 
 ---
 
+## Face-aware text placement (2026-05-26)
+
+**The constraint.** Cropping put the right pixels on screen but wordmarks
+and lower-thirds still landed over faces — "Singapore" in
+`EventRecapVertical` was sitting on Vivian's mouth, "4M" in
+`sundance-doc/Reveal` was landing on an audience face in Linh's hallway
+shot. The crop transform tells us EXACTLY which source pixels are
+visible at any frame; SAM3 already told us where every face is in source
+coords; we just had to compose those two facts.
+
+**The grid+candidate fallback approach.** `scripts/build-text-zones.ts`
+walks every asset with face masks and, for each target container aspect
+(9:16 and 16:9), projects the SAM3 binary masks through
+`computeFaceAwareTransform()` into the visible canvas region. For
+pan-mode crops, both endpoints are projected and the per-cell occupancy
+is the MAX of the two — a cell is "clear" only if it's clear throughout
+the entire pan. The result is a 5×5 occupancy grid per (asset, aspect)
+stored in `src/remotion/EventRecap/media-text-zones.json` so Remotion
+bundles it statically (no async fetch at composition time).
+
+`src/remotion/EventRecap/text-placement.ts` exposes two pickers:
+
+- `pickOverlayPosition(asset, candidates)` — single-asset variant used
+  by scenes pinned to one photo (apple-keynote Singapore, sundance
+  Reveal). Walks candidates in aesthetic-preference order, returns
+  the first one whose weighted-average face occupancy is below
+  threshold.
+- `pickOverlayPositionForPool(assetUrls, candidates)` — pool variant
+  used by scenes with a cycling `MediaBackdrop` (OpeningMontage,
+  StatScene, VoiceMontage). Per-cell unions the occupancy across every
+  asset so the chosen position is clear of EVERY photo's faces, not
+  just one.
+
+When every candidate collides (rare — happens when the pool union is
+dense), the last candidate is returned with `dim: true` and the scene
+renders a soft radial scrim behind the text. The wordmark still has to
+land somewhere; this just keeps it legible.
+
+**Which scenes got it.**
+
+| Scene | Why wired |
+|---|---|
+| `EventRecap/OpeningMontage` | "Singapore" wordmark over cycling pool. Pool variant. |
+| `EventRecap/StatScene` | 4M counter over cycling pool. Pool variant, looser threshold (already strong tint). |
+| `EventRecap/VoiceMontage` | Centered quote card over cycling pool. Pool variant. |
+| `variants/apple-keynote/Singapore` | Centered "Singapore." title over Linh's hallway. Single-asset variant. |
+| `variants/sundance-doc/Reveal` | Big italic "4M" over Linh's hallway. Single-asset variant. |
+
+**Deliberately skipped.**
+
+- **mrbeast-hyper / y2k-maximalist / synthwave-cyber** — chaos-by-design;
+  stickers and bouncing pills covering faces IS the look.
+- **terminal-nerd** — no photo backdrops at all.
+- **Outro / MomentClip** — no photo backdrops (radial gradient and
+  full-frame video respectively).
+- **RankingScene / SponsorScene** — text is structural lists spanning
+  the full canvas; not repositionable without a layout rewrite. The
+  existing tint (0.75) does most of the work.
+- **sundance ColdOpen + SlowMontage, brand-sizzle Headline + LogoWall,
+  vhs-doc Archive + Tracking, swiss-minimal TitleStack + Quote** —
+  empirical zone check showed their existing bottom-anchored / left-
+  aligned / off-photo layouts already sit in face-clear rows of the
+  source. Wiring would have been a no-op.
+
+**Verification stills.** `docs/mocks/text-placement-verification/`
+contains a clean + an annotated still for each target frame. The
+annotated copy overlays the 5×5 zone grid in semi-transparent magenta
+with per-cell occupancy numbers, so the proof that the chosen text box
+sits in cells with occupancy < 0.1 is at-a-glance.
+
+---
+
 ## Side-by-side
 
 | # | Slug | Vibe | Cover | MP4 (9×16) | MP4 (16×9) |
