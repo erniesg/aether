@@ -24,6 +24,35 @@ npm run recap:studio
 
 ---
 
+## Smart-crop + motion (2026-05-26)
+
+**Focal points.** Every `MediaAsset` in `src/remotion/EventRecap/data.ts`
+now carries `focal: {x, y}` and `subjectBox: {x, y, w, h}`, populated by
+`scripts/tag-media-focal.ts` (OpenAI GPT-5.4 Mini, ~$0.05 for the full
+pool). `MediaBackdrop` and per-variant scenes resolve those through
+`focalObjectPosition()` to bias `object-position` (and `transformOrigin`
+under Ken Burns), so horizontal source photos no longer center-crop
+blindly when framed in 9:16 — speakers, sponsor pins, and badges stay
+inside the safe area.
+
+**Ken Burns pan.** `defaultKenBurns(asset)` derives a from/to pan from
+the subject-box center toward the focal point with a 1.02 → 1.12 zoom.
+Wired into four motion-friendly variants: **sundance-doc** (cold-open
+drift on faces, scene-local time for each montage pick), **brand-sizzle**
+(horizontal-led parallax over Vivian + sponsor wall), **vhs-doc**
+(deliberate base motion under the wobble), and **apple-keynote**
+(ultra-slow rise with a y bias toward focal). The other six variants
+keep static focal-point crops — Ken Burns would fight their character
+(mrbeast hyper-cuts, synthwave glitch, etc).
+
+**TODO.** The standalone `EventRecapVertical` / `EventRecapHorizontal`
+MP4s in `out/aie2026/` are stale (last rendered May 25, pre-fix). The
+Studio shows the fix live; the standalone MP4s need a re-render via
+`npm run recap:render:vert` + `npm run recap:render:horiz` if anyone
+wants the artifact.
+
+---
+
 ## Side-by-side
 
 | # | Slug | Vibe | Cover | MP4 (9×16) | MP4 (16×9) |
