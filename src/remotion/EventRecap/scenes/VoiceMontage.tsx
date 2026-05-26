@@ -4,6 +4,7 @@ import { theme } from '../theme';
 import type { RecapBundle } from '../data';
 import { aie2026MediaPool } from '../data';
 import { MediaBackdrop } from '../components/MediaBackdrop';
+import { pickOverlayPositionForPool, type OverlayCandidate } from '../text-placement';
 
 interface Props {
   bundle: RecapBundle;
@@ -17,8 +18,26 @@ interface Props {
  */
 export const VoiceMontage: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width, height } = useVideoConfig();
   const voices = bundle.voices;
+  const vert = orientation === 'vertical';
+  const aspect = vert ? '9x16' : '16x9';
+
+  // Quote card — avatar row + quote paragraph + caption line. Approx box.
+  const cardBox = vert ? { w: width - 112, h: 760 } : { w: 1200, h: 600 };
+  const placement = pickOverlayPositionForPool(
+    {
+      assetUrls: aie2026MediaPool.map((m) => m.url),
+      aspect,
+      containerPx: { w: width, h: height },
+    },
+    [
+      { anchor: 'center', boxPx: cardBox },
+      { anchor: 'bottom-center', boxPx: cardBox, offset: { x: 0, y: -100 } },
+      { anchor: 'bottom-center', boxPx: cardBox, offset: { x: 0, y: -60 } },
+    ],
+    0.12 // looser — the tint is already heavy at 0.78
+  );
   const HOLD = 48; // ~1.6s per quote
   const slot = Math.floor(frame / HOLD) % voices.length;
   const slotFrame = frame % HOLD;
@@ -40,7 +59,6 @@ export const VoiceMontage: React.FC<Props> = ({ bundle, orientation }) => {
     extrapolateRight: 'clamp',
   });
 
-  const vert = orientation === 'vertical';
   const v = voices[slot];
   const platformChip = v.platform === 'x' ? 'X' : v.platform === 'linkedin' ? 'LinkedIn' : 'YouTube';
   const platformColor = v.platform === 'x' ? '#000' : v.platform === 'linkedin' ? '#0a66c2' : '#cc0000';
@@ -49,6 +67,20 @@ export const VoiceMontage: React.FC<Props> = ({ bundle, orientation }) => {
     <AbsoluteFill style={{ background: '#000', opacity: exit }}>
       <MediaBackdrop pool={aie2026MediaPool} holdFrames={28} tintOpacity={0.78} kenBurns={0.1} startIndex={2} />
 
+      {placement.dim && (
+        <div
+          style={{
+            position: 'absolute',
+            left: placement.pxX - 40,
+            top: placement.pxY - 40,
+            width: cardBox.w + 80,
+            height: cardBox.h + 80,
+            background:
+              'radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 70%, rgba(0,0,0,0) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       <div
         style={{
           position: 'absolute',
@@ -120,10 +152,15 @@ export const VoiceMontage: React.FC<Props> = ({ bundle, orientation }) => {
           ))}
         </div>
 
-        {/* the quote card itself */}
+        {/* the quote card itself — repositioned via pickOverlayPositionForPool()
+            so it never lands on a face across the cycling backdrop pool. */}
         <div
           key={slot}
           style={{
+            position: 'absolute',
+            left: placement.pxX,
+            top: placement.pxY,
+            width: cardBox.w,
             maxWidth: vert ? '100%' : '70%',
             display: 'flex',
             flexDirection: 'column',

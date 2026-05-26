@@ -4,6 +4,7 @@ import { theme } from '../theme';
 import type { RecapBundle } from '../data';
 import { aie2026MediaPool } from '../data';
 import { MediaBackdrop } from '../components/MediaBackdrop';
+import { pickOverlayPositionForPool, type OverlayCandidate } from '../text-placement';
 
 interface Props {
   bundle: RecapBundle;
@@ -17,8 +18,34 @@ interface Props {
  */
 export const OpeningMontage: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width, height } = useVideoConfig();
   const vert = orientation === 'vertical';
+  const aspect = vert ? '9x16' : '16x9';
+
+  // Title stack as a single overlay box. Approximate height: kicker (~36) +
+  // gap + wordmark (~200·0.95) + gap + date pill (~50) ≈ 350 vert / 470 horiz.
+  // Width: serif "Singapore" at 200/280px ≈ 760/1000 px.
+  const stackBox = vert ? { w: 760, h: 350 } : { w: 1100, h: 470 };
+  // Candidates in aesthetic-preference order: center first, then descending
+  // toward the lower band (which is consistently face-free across the
+  // backdrop pool union — most face mass clusters in the middle three rows).
+  const candidates: OverlayCandidate[] = vert
+    ? [
+        { anchor: 'center', boxPx: stackBox },
+        { anchor: 'top-center', boxPx: stackBox, offset: { x: 0, y: 80 } },
+        { anchor: 'bottom-center', boxPx: stackBox, offset: { x: 0, y: -120 } },
+        { anchor: 'bottom-center', boxPx: stackBox, offset: { x: 0, y: -60 } },
+      ]
+    : [
+        { anchor: 'center', boxPx: stackBox },
+        { anchor: 'top-center', boxPx: stackBox, offset: { x: 0, y: 60 } },
+        { anchor: 'bottom-center', boxPx: stackBox, offset: { x: 0, y: -60 } },
+      ];
+  const placement = pickOverlayPositionForPool(
+    { assetUrls: aie2026MediaPool.map((m) => m.url), aspect, containerPx: { w: width, h: height } },
+    candidates,
+    0.08
+  );
 
   // big city-name slams in on frame 8 and stays
   const slamIn = interpolate(frame, [6, 14], [0, 1], {
@@ -41,11 +68,31 @@ export const OpeningMontage: React.FC<Props> = ({ bundle, orientation }) => {
       {/* rapid backdrop · 12-frame holds = 8 cuts in 6 seconds */}
       <MediaBackdrop pool={aie2026MediaPool} holdFrames={14} tintOpacity={0.55} kenBurns={0.18} />
 
-      {/* foreground type */}
+      {/* foreground type — anchored to a face-clear region via
+          pickOverlayPositionForPool() so the wordmark never lands over
+          a face mask across any cycling backdrop asset. */}
+      {placement.dim && (
+        <div
+          style={{
+            position: 'absolute',
+            left: placement.pxX - 40,
+            top: placement.pxY - 30,
+            width: stackBox.w + 80,
+            height: stackBox.h + 60,
+            background:
+              'radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0) 100%)',
+            opacity: slamIn,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       <div
         style={{
           position: 'absolute',
-          inset: 0,
+          left: placement.pxX,
+          top: placement.pxY,
+          width: stackBox.w,
+          height: stackBox.h,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

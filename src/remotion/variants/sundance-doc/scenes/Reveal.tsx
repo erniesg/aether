@@ -3,6 +3,7 @@ import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 
 import type { RecapBundle } from '../../../EventRecap/data';
 import { aie2026MediaPool } from '../../../EventRecap/data';
 import { faceAwareKenBurns } from '../../../EventRecap/crop';
+import { pickOverlayPosition, type OverlayCandidate } from '../../../EventRecap/text-placement';
 
 interface Props {
   bundle: RecapBundle;
@@ -23,8 +24,22 @@ const fmt = (n: number) => {
 export const Reveal: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
   const { width: compW, height: compH } = useVideoConfig();
+  const aspect = orientation === 'vertical' ? '9x16' : '16x9';
   // Wide group/crowd image as backdrop
   const photo = aie2026MediaPool[9]; // Linh Nguyen sponsors+booths shot
+
+  // Big italic number ("4M") + "— what 872 references travelled —". The
+  // number sits in the upper third (top 20-50%). Box approx.
+  const numberBox = orientation === 'vertical' ? { w: 720, h: 540 } : { w: 1100, h: 700 };
+  const numberPlacement = pickOverlayPosition(
+    { assetUrl: photo.url, aspect, containerPx: { w: compW, h: compH } },
+    [
+      { anchor: 'top-center', boxPx: numberBox, offset: { x: 0, y: orientation === 'vertical' ? 200 : 100 } },
+      { anchor: 'center', boxPx: numberBox },
+      { anchor: 'top-center', boxPx: numberBox, offset: { x: 0, y: 60 } },
+    ],
+    0.1
+  );
 
   const photoOpacity = interpolate(frame, [0, 30], [0, 0.55], { extrapolateRight: 'clamp' });
   // Face-aware ken-burns: pans through audience faces if static can't show
@@ -70,44 +85,67 @@ export const Reveal: React.FC<Props> = ({ bundle, orientation }) => {
         }}
       />
 
-      {/* Big italic number */}
+      {numberPlacement.dim && (
+        <div
+          style={{
+            position: 'absolute',
+            left: numberPlacement.pxX - 40,
+            top: numberPlacement.pxY - 30,
+            width: numberBox.w + 80,
+            height: numberBox.h + 60,
+            background:
+              'radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Number + refs caption — repositioned via pickOverlayPosition()
+          to avoid the audience faces in Linh's hallway shot. */}
       <div
         style={{
           position: 'absolute',
-          top: orientation === 'vertical' ? '20%' : '22%',
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          color: '#f4ede0',
-          fontFamily: 'Georgia, "Times New Roman", serif',
-          fontStyle: 'italic',
-          fontSize: orientation === 'vertical' ? 280 : 360,
-          fontWeight: 400,
-          lineHeight: 0.95,
-          letterSpacing: '-0.03em',
-          opacity: numOpacity,
-          transform: `translateY(${numTranslate}px)`,
-          textShadow: '0 4px 32px rgba(0,0,0,0.9)',
+          left: numberPlacement.pxX,
+          top: numberPlacement.pxY,
+          width: numberBox.w,
+          height: numberBox.h,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: orientation === 'vertical' ? 60 : 80,
         }}
       >
-        {fmt(bundle.stats.knownViews)}
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          top: orientation === 'vertical' ? '50%' : '58%',
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          color: '#d8cdb8',
-          fontFamily: 'Georgia, "Times New Roman", serif',
-          fontStyle: 'italic',
-          fontSize: orientation === 'vertical' ? 34 : 42,
-          opacity: refsOpacity,
-          textShadow: '0 2px 16px rgba(0,0,0,0.9)',
-        }}
-      >
-        — what {bundle.stats.refs} references travelled —
+        <div
+          style={{
+            textAlign: 'center',
+            color: '#f4ede0',
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontStyle: 'italic',
+            fontSize: orientation === 'vertical' ? 280 : 360,
+            fontWeight: 400,
+            lineHeight: 0.95,
+            letterSpacing: '-0.03em',
+            opacity: numOpacity,
+            transform: `translateY(${numTranslate}px)`,
+            textShadow: '0 4px 32px rgba(0,0,0,0.9)',
+          }}
+        >
+          {fmt(bundle.stats.knownViews)}
+        </div>
+        <div
+          style={{
+            textAlign: 'center',
+            color: '#d8cdb8',
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontStyle: 'italic',
+            fontSize: orientation === 'vertical' ? 34 : 42,
+            opacity: refsOpacity,
+            textShadow: '0 2px 16px rgba(0,0,0,0.9)',
+          }}
+        >
+          — what {bundle.stats.refs} references travelled —
+        </div>
       </div>
 
       {/* Bottom titling */}

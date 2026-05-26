@@ -3,6 +3,7 @@ import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 
 import type { RecapBundle } from '../../../EventRecap/data';
 import { aie2026MediaPool } from '../../../EventRecap/data';
 import { faceAwareKenBurns } from '../../../EventRecap/crop';
+import { pickOverlayPosition, type OverlayCandidate } from '../../../EventRecap/text-placement';
 
 interface Props {
   bundle: RecapBundle;
@@ -18,9 +19,23 @@ const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2
 export const Singapore: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
   const { width: compW, height: compH } = useVideoConfig();
+  const aspect = orientation === 'vertical' ? '9x16' : '16x9';
 
   // Crowd / hallway shot — Linh Nguyen's sponsors+booths
   const photo = aie2026MediaPool[9];
+  // Title block: "Singapore." (160/220 px) + sub "May 17 — 19, 2026" (22/28).
+  // Title spans about 700/980 px wide; height ~ 200/280.
+  const titleBox = orientation === 'vertical' ? { w: 720, h: 240 } : { w: 1000, h: 320 };
+  const placement = pickOverlayPosition(
+    { assetUrl: photo.url, aspect, containerPx: { w: compW, h: compH } },
+    [
+      { anchor: 'center', boxPx: titleBox },
+      { anchor: 'top-center', boxPx: titleBox, offset: { x: 0, y: 120 } },
+      { anchor: 'bottom-center', boxPx: titleBox, offset: { x: 0, y: -200 } },
+      { anchor: 'bottom-center', boxPx: titleBox, offset: { x: 0, y: -100 } },
+    ],
+    0.1
+  );
 
   // Photo fades in slow + ultra-slow rise — Ken Burns "rise" feel: the
   // photo settles inward, scale 1.06 → 1.0, drift y bias 0.55 → 0.45 so
@@ -78,11 +93,30 @@ export const Singapore: React.FC<Props> = ({ bundle, orientation }) => {
         }}
       />
 
-      {/* Title block */}
+      {placement.dim && (
+        <div
+          style={{
+            position: 'absolute',
+            left: placement.pxX - 40,
+            top: placement.pxY - 30,
+            width: titleBox.w + 80,
+            height: titleBox.h + 60,
+            background:
+              'radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Title block — repositioned via pickOverlayPosition() so it doesn't
+          land on a face mask in the underlying photo. */}
       <div
         style={{
           position: 'absolute',
-          inset: 0,
+          left: placement.pxX,
+          top: placement.pxY,
+          width: titleBox.w,
+          height: titleBox.h,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

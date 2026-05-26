@@ -4,6 +4,7 @@ import { theme } from '../theme';
 import type { RecapBundle } from '../data';
 import { aie2026MediaPool } from '../data';
 import { MediaBackdrop } from '../components/MediaBackdrop';
+import { pickOverlayPositionForPool, type OverlayCandidate } from '../text-placement';
 
 interface Props {
   bundle: RecapBundle;
@@ -24,8 +25,30 @@ const fmt = (n: number) => {
  */
 export const StatScene: React.FC<Props> = ({ bundle, orientation }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width, height } = useVideoConfig();
   const counterEnd = bundle.stats.knownViews;
+  const vert = orientation === 'vertical';
+  const aspect = vert ? '9x16' : '16x9';
+
+  // Big stat block. Approx: kicker (~28) + gap + number serif (~320·0.9) +
+  // gap + platform pills row (~80) + gap + secondary band (~50) ≈ 600 vert
+  // / 700 horiz height. Width spans most of canvas at this font size.
+  const statBox = vert ? { w: 900, h: 600 } : { w: 1600, h: 700 };
+  const candidates: OverlayCandidate[] = vert
+    ? [
+        { anchor: 'center', boxPx: statBox },
+        { anchor: 'bottom-center', boxPx: statBox, offset: { x: 0, y: -80 } },
+        { anchor: 'bottom-center', boxPx: statBox, offset: { x: 0, y: -40 } },
+      ]
+    : [
+        { anchor: 'center', boxPx: statBox },
+        { anchor: 'bottom-center', boxPx: statBox, offset: { x: 0, y: -40 } },
+      ];
+  const placement = pickOverlayPositionForPool(
+    { assetUrls: aie2026MediaPool.map((m) => m.url), aspect, containerPx: { w: width, h: height } },
+    candidates,
+    0.12 // a bit looser — stat scene already has strong tint (0.7) + scrim
+  );
 
   // counter eases in over first 40 frames, then settles
   const tNum = interpolate(frame, [0, 36], [0, 1], { extrapolateRight: 'clamp', easing: easeOutCubic });
@@ -44,24 +67,40 @@ export const StatScene: React.FC<Props> = ({ bundle, orientation }) => {
     extrapolateRight: 'clamp',
   });
 
-  const vert = orientation === 'vertical';
-
   return (
     <AbsoluteFill style={{ background: '#000', opacity: exit }}>
       {/* b-roll cycling behind everything */}
       <MediaBackdrop pool={aie2026MediaPool} holdFrames={18} tintOpacity={0.7} kenBurns={0.14} startIndex={3} />
 
+      {placement.dim && (
+        <div
+          style={{
+            position: 'absolute',
+            left: placement.pxX - 60,
+            top: placement.pxY - 40,
+            width: statBox.w + 120,
+            height: statBox.h + 80,
+            background:
+              'radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0) 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
       <div
         style={{
           position: 'absolute',
-          inset: 0,
+          left: placement.pxX,
+          top: placement.pxY,
+          width: statBox.w,
+          height: statBox.h,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           color: '#fff',
           gap: vert ? 18 : 24,
-          padding: 64,
+          padding: 0,
           fontFamily: theme.sans,
         }}
       >
