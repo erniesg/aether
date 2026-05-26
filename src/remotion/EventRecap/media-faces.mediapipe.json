@@ -1,0 +1,217 @@
+{
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/7283684d73974e93.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 258
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/80cf2056f23e190e.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1365
+    },
+    "faces": [
+      {
+        "x": 0.22509765625,
+        "y": 0.13113553113553114,
+        "w": 0.130859375,
+        "h": 0.19633699633699633,
+        "confidence": 0.5053344964981079
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 71
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/2eb07f40745ef693.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [
+      {
+        "x": 0.62421875,
+        "y": 0.3239601640304628,
+        "w": 0.22421875,
+        "h": 0.1681312243702402,
+        "confidence": 0.7211599349975586
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 46
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/5a4bd68babd06646.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 720
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 20
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/3c189a8fde95029c.jpg": {
+    "sourceDims": {
+      "width": 1200,
+      "height": 800
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 24
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/8f93e50c8c6d7199.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1253
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 45
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/73c0f3f39dafe410.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1706
+    },
+    "faces": [
+      {
+        "x": 0.265625,
+        "y": 0.6143024618991794,
+        "w": 0.253125,
+        "h": 0.1899179366940211,
+        "confidence": 0.4569462239742279
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 54
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/youtube/_xQnSNlBP_w-f56869a8.jpg": {
+    "sourceDims": {
+      "width": 720,
+      "height": 404
+    },
+    "faces": [
+      {
+        "x": 0.6930555555555555,
+        "y": 0.24257425742574257,
+        "w": 0.21666666666666667,
+        "h": 0.38613861386138615,
+        "confidence": 0.9402665495872498
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 30
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/735cb1756d419c7e.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 37
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/x/da5a79bdec2220ff-81cfaec4b5f94124.jpg": {
+    "sourceDims": {
+      "width": 1200,
+      "height": 803
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 42
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/47da1b228c7650df.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 41
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/24bdcda6b7901a2f.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [
+      {
+        "x": 0.54609375,
+        "y": 0.37551259519625074,
+        "w": 0.1984375,
+        "h": 0.14879906268306972,
+        "confidence": 0.5048782229423523
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 16
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/4d9d2e5d23486bbe.jpg": {
+    "sourceDims": {
+      "width": 1144,
+      "height": 1200
+    },
+    "faces": [
+      {
+        "x": 0.2089160839160839,
+        "y": 0.18416666666666667,
+        "w": 0.17832167832167833,
+        "h": 0.17,
+        "confidence": 0.445147842168808
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 42
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/09f71a35995d1f78.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1536
+    },
+    "faces": [
+      {
+        "x": 0,
+        "y": 0.291015625,
+        "w": 0.26513671875,
+        "h": 0.353515625,
+        "confidence": 0.4324698746204376
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 57
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/89cbef6a75c1c863.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1536
+    },
+    "faces": [
+      {
+        "x": 0.2197265625,
+        "y": 0.494140625,
+        "w": 0.18408203125,
+        "h": 0.24544270833333334,
+        "confidence": 0.9415348172187805
+      },
+      {
+        "x": 0.5224609375,
+        "y": 0.455078125,
+        "w": 0.1396484375,
+        "h": 0.18619791666666666,
+        "confidence": 0.42801231145858765
+      }
+    ],
+    "tagger": "mediapipe",
+    "elapsedMs": 23
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/fb1b9d9b6054f12d.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1075
+    },
+    "faces": [],
+    "tagger": "mediapipe",
+    "elapsedMs": 36
+  }
+}

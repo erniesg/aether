@@ -1,0 +1,810 @@
+{
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/7283684d73974e93.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [
+      {
+        "x": 0.13452239620036108,
+        "y": 0.8350945211811658,
+        "w": 0.06577019716608085,
+        "h": 0.049327647874560634,
+        "confidence": 0.550756287574768,
+        "derivedFromPerson": true
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5873,
+    "usedPersonFallback": true
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/80cf2056f23e190e.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1365
+    },
+    "faces": [
+      {
+        "x": 0.3545888066291809,
+        "y": 0.24684508606627747,
+        "w": 0.050386250019073486,
+        "h": 0.09355513464400184,
+        "confidence": 0.9205190539360046,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/a4b8ed5f1061_face_0.png"
+      },
+      {
+        "x": 0.7060036659240723,
+        "y": 0.2612666874141483,
+        "w": 0.050634026527404785,
+        "h": 0.1024464366200206,
+        "confidence": 0.8803509473800659,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/82f829a0256b_face_1.png"
+      },
+      {
+        "x": 0.245911106467247,
+        "y": 0.15245643028846154,
+        "w": 0.09177370369434357,
+        "h": 0.17536527193509616,
+        "confidence": 0.9305891990661621,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/2227d505b7d6_face_2.png"
+      },
+      {
+        "x": 0.9086014032363892,
+        "y": 0.3115639040321658,
+        "w": 0.021189093589782715,
+        "h": 0.025439922626201924,
+        "confidence": 0.6716402769088745,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/610a8e855237_face_3.png"
+      },
+      {
+        "x": 0.583612322807312,
+        "y": 0.26254254575177427,
+        "w": 0.09702956676483154,
+        "h": 0.14440298674307464,
+        "confidence": 0.8986330032348633,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/37de6c402065_face_4.png"
+      },
+      {
+        "x": 0.5031662583351135,
+        "y": 0.16750567649310324,
+        "w": 0.06337881088256836,
+        "h": 0.12519532367860003,
+        "confidence": 0.9225030541419983,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/fa13fe4aca2a_face_5.png"
+      },
+      {
+        "x": 0.7732656002044678,
+        "y": 0.2994856278974931,
+        "w": 0.02505779266357422,
+        "h": 0.0564352294027587,
+        "confidence": 0.8232818841934204,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/8529b86a74be_face_6.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5300,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/2eb07f40745ef693.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [
+      {
+        "x": 0.4218113899230957,
+        "y": 0.32661996672707966,
+        "w": 0.12204289436340332,
+        "h": 0.11142234154172159,
+        "confidence": 0.9269859194755554,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/e371bc6767d8_face_0.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5238,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/5a4bd68babd06646.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 720
+    },
+    "faces": [
+      {
+        "x": 0.23461031913757324,
+        "y": 0.5016639709472657,
+        "w": 0.022797203063964842,
+        "h": 0.04943584865993923,
+        "confidence": 0.8155588507652283,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/a76024b0334d_face_0.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5281,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/3c189a8fde95029c.jpg": {
+    "sourceDims": {
+      "width": 1200,
+      "height": 800
+    },
+    "faces": [
+      {
+        "x": 0.6818817138671875,
+        "y": 0.25636816024780273,
+        "w": 0.04666351318359375,
+        "h": 0.08495664596557617,
+        "confidence": 0.8844205141067505,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/9028d507f589_face_0.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5292,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/8f93e50c8c6d7199.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1253
+    },
+    "faces": [
+      {
+        "x": 0.8007617592811584,
+        "y": 0.23493797990292048,
+        "w": 0.05411088466644287,
+        "h": 0.08010647492892059,
+        "confidence": 0.7888467907905579,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/3dc99294ffca_face_0.png"
+      },
+      {
+        "x": 0.21790103614330292,
+        "y": 0.20424133934027086,
+        "w": 0.04804612696170807,
+        "h": 0.08434851571073175,
+        "confidence": 0.8027863502502441,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/4a91d9581e0a_face_1.png"
+      },
+      {
+        "x": 0.6521931886672974,
+        "y": 0.256947851523531,
+        "w": 0.04486799240112305,
+        "h": 0.09930561184407422,
+        "confidence": 0.788083553314209,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/597dc79676a9_face_2.png"
+      },
+      {
+        "x": 0.388314425945282,
+        "y": 0.1757582217716543,
+        "w": 0.04940009117126465,
+        "h": 0.08948261720698449,
+        "confidence": 0.8233084082603455,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/693371eeb223_face_3.png"
+      },
+      {
+        "x": 0.2879768908023834,
+        "y": 0.18425918177234013,
+        "w": 0.04534882307052612,
+        "h": 0.10246598349508056,
+        "confidence": 0.8095971345901489,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/21beac17ecbb_face_4.png"
+      },
+      {
+        "x": 0.5007920265197754,
+        "y": 0.26433425014340584,
+        "w": 0.05506598949432373,
+        "h": 0.09246158828187351,
+        "confidence": 0.8196548819541931,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/362026c82fa8_face_5.png"
+      },
+      {
+        "x": 0.5894065499305725,
+        "y": 0.17105371668542374,
+        "w": 0.05366659164428711,
+        "h": 0.11128103342992443,
+        "confidence": 0.8234830498695374,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/813b33948cc6_face_6.png"
+      },
+      {
+        "x": 0.7263379096984863,
+        "y": 0.24239634934750348,
+        "w": 0.05538129806518555,
+        "h": 0.1017014243939545,
+        "confidence": 0.817448616027832,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/e5b908f25ec8_face_7.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5315,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/73c0f3f39dafe410.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1706
+    },
+    "faces": [
+      {
+        "x": 0.8826674461364746,
+        "y": 0.2975132216602249,
+        "w": 0.11882638931274414,
+        "h": 0.16586790274902916,
+        "confidence": 0.8529177904129028,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/f5811e49826e_face_0.png"
+      },
+      {
+        "x": -0.0005359351634979248,
+        "y": 0.5041416253182701,
+        "w": 0.06641163229942322,
+        "h": 0.07028030091405334,
+        "confidence": 0.7925073504447937,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/8e84d46086da_face_1.png"
+      },
+      {
+        "x": 0.37332441806793215,
+        "y": 0.42213735099694094,
+        "w": 0.029720616340637208,
+        "h": 0.019816712785298212,
+        "confidence": 0.4940558969974518,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/45d09c061bd4_face_2.png"
+      },
+      {
+        "x": 0.6643431663513184,
+        "y": 0.35052221908658776,
+        "w": 0.046425580978393555,
+        "h": 0.04559880711688526,
+        "confidence": 0.8145111203193665,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/9039bb0f7937_face_3.png"
+      },
+      {
+        "x": 0.4739541530609131,
+        "y": 0.36713401374056637,
+        "w": 0.04173798561096191,
+        "h": 0.03854892457915079,
+        "confidence": 0.7824111580848694,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/f68343adb186_face_4.png"
+      },
+      {
+        "x": 0.19990694522857666,
+        "y": 0.385276517163687,
+        "w": 0.05927507877349854,
+        "h": 0.039686196294786785,
+        "confidence": 0.8289213180541992,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/e51a8fcf32a4_face_5.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5549,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/youtube/_xQnSNlBP_w-f56869a8.jpg": {
+    "sourceDims": {
+      "width": 720,
+      "height": 404
+    },
+    "faces": [
+      {
+        "x": 0.6848976135253906,
+        "y": 0.1338978096990302,
+        "w": 0.25839564005533855,
+        "h": 0.5252789412394608,
+        "confidence": 0.9432041049003601,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/7ee045e666b5_face_0.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5398,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/735cb1756d419c7e.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [
+      {
+        "x": 0.619983720779419,
+        "y": 0.43493849000668205,
+        "w": 0.01670517921447754,
+        "h": 0.01036882540183802,
+        "confidence": 0.4226909577846527,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/80cfedf6d4a7_face_0.png"
+      },
+      {
+        "x": 0.30645549297332764,
+        "y": 0.4014914389165019,
+        "w": 0.026263713836669922,
+        "h": 0.02395038124267721,
+        "confidence": 0.6511118412017822,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/bf8cffb39722_face_1.png"
+      },
+      {
+        "x": 0.5333545684814454,
+        "y": 0.43081262786275265,
+        "w": 0.009625911712646484,
+        "h": 0.008726168041977886,
+        "confidence": 0.5380281805992126,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/9d4cc21dbc93_face_2.png"
+      },
+      {
+        "x": 0.5138309001922607,
+        "y": 0.40113928000970267,
+        "w": 0.01340184211730957,
+        "h": 0.011753611908227152,
+        "confidence": 0.42684218287467957,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/f226065a38af_face_3.png"
+      },
+      {
+        "x": 0.8705816268920898,
+        "y": 0.3886415183229899,
+        "w": 0.10645332336425781,
+        "h": 0.11610485003157953,
+        "confidence": 0.7822266817092896,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/50ab813fc3f0_face_4.png"
+      },
+      {
+        "x": 0.18363351821899415,
+        "y": 0.3884212268187976,
+        "w": 0.10462672710418701,
+        "h": 0.08371556287071617,
+        "confidence": 0.8391204476356506,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/88978ae6418a_face_5.png"
+      },
+      {
+        "x": 0.732119083404541,
+        "y": 0.42657885470443396,
+        "w": 0.018921375274658203,
+        "h": 0.013304055051351054,
+        "confidence": 0.40523651242256165,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/8fd8ce3fc090_face_6.png"
+      },
+      {
+        "x": 0.6797683238983154,
+        "y": 0.4172705106729643,
+        "w": 0.020102500915527344,
+        "h": 0.020308080582710896,
+        "confidence": 0.6925500631332397,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/4c16c4ed705b_face_7.png"
+      },
+      {
+        "x": 0.001383557915687561,
+        "y": 0.35394666120890084,
+        "w": 0.1517516016960144,
+        "h": 0.10696791932117751,
+        "confidence": 0.794298529624939,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/bb1e9efa201d_face_8.png"
+      },
+      {
+        "x": 0.581296730041504,
+        "y": 0.44083294144972907,
+        "w": 0.01237955093383789,
+        "h": 0.010136770238356766,
+        "confidence": 0.4716770052909851,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/b31679ec759e_face_9.png"
+      },
+      {
+        "x": 0.4312136650085449,
+        "y": 0.36710175758366287,
+        "w": 0.015046119689941406,
+        "h": 0.01541364744663518,
+        "confidence": 0.6100172996520996,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/407cebcf49a1_face_10.png"
+      },
+      {
+        "x": 0.4687831401824951,
+        "y": 0.4190924833864236,
+        "w": 0.06448173522949219,
+        "h": 0.06476974263830917,
+        "confidence": 0.8961236476898193,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/5230ed2ab8d6_face_11.png"
+      },
+      {
+        "x": 0.5673695564270019,
+        "y": 0.4198965956470599,
+        "w": 0.010896587371826172,
+        "h": 0.011797019453445372,
+        "confidence": 0.6390777826309204,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/a91aa42bf094_face_12.png"
+      },
+      {
+        "x": 0.7949162483215332,
+        "y": 0.4217868619448411,
+        "w": 0.08538331985473632,
+        "h": 0.0699957750942809,
+        "confidence": 0.8670355677604675,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/123a1b00a3e1_face_13.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5461,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/x/da5a79bdec2220ff-81cfaec4b5f94124.jpg": {
+    "sourceDims": {
+      "width": 1200,
+      "height": 803
+    },
+    "faces": [
+      {
+        "x": 0.18413934071858723,
+        "y": 0.5020102076928316,
+        "w": 0.027448450724283854,
+        "h": 0.04994047742109667,
+        "confidence": 0.8387946486473083,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/c7374581387b_face_0.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5534,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/47da1b228c7650df.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [
+      {
+        "x": 0.39087512493133547,
+        "y": 0.5056124454223418,
+        "w": 0.06738855838775634,
+        "h": 0.05506443767849297,
+        "confidence": 0.8631390333175659,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/cf90dd60d4e1_face_0.png"
+      },
+      {
+        "x": 0.25982916355133057,
+        "y": 0.42653151402085165,
+        "w": 0.07854254245758056,
+        "h": 0.06827359682785955,
+        "confidence": 0.8813830018043518,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/c6a40d4960cc_face_1.png"
+      },
+      {
+        "x": 0.7626025199890136,
+        "y": 0.39600685624679627,
+        "w": 0.08957157135009766,
+        "h": 0.06782185800884227,
+        "confidence": 0.8809378743171692,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/d77d644b782e_face_2.png"
+      },
+      {
+        "x": 0.4815498352050781,
+        "y": 0.47609881874267723,
+        "w": 0.05872182846069336,
+        "h": 0.05539567944035589,
+        "confidence": 0.9037846922874451,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/d41a7b9edc5e_face_3.png"
+      },
+      {
+        "x": 0.15430445671081544,
+        "y": 0.4328681574834322,
+        "w": 0.10316197872161866,
+        "h": 0.08598855928712654,
+        "confidence": 0.8590403199195862,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/e0e6767e6c34_face_4.png"
+      },
+      {
+        "x": 0.5526411533355713,
+        "y": 0.43432638640981985,
+        "w": 0.06668314933776856,
+        "h": 0.059971313834120535,
+        "confidence": 0.9096976518630981,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/887ae0cb52ab_face_5.png"
+      },
+      {
+        "x": 0.37267982959747314,
+        "y": 0.43939738170263987,
+        "w": 0.052991509437561035,
+        "h": 0.05454522765862991,
+        "confidence": 0.8809512257575989,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/8a2f5e201988_face_6.png"
+      },
+      {
+        "x": 0.6497005462646485,
+        "y": 0.42267124598390815,
+        "w": 0.07066650390625,
+        "h": 0.0654596508631737,
+        "confidence": 0.8882406949996948,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/782898a6e9c7_face_7.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5136,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/24bdcda6b7901a2f.jpg": {
+    "sourceDims": {
+      "width": 1280,
+      "height": 1707
+    },
+    "faces": [
+      {
+        "x": 0.2526926755905151,
+        "y": 0.5848143744622327,
+        "w": 0.035512685775756836,
+        "h": 0.03886080151352885,
+        "confidence": 0.8611383438110352,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/c7c39b50b265_face_0.png"
+      },
+      {
+        "x": 0.4044012546539307,
+        "y": 0.47331311986260616,
+        "w": 0.023422908782958985,
+        "h": 0.022196594846129906,
+        "confidence": 0.7859839200973511,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/61aef977bc29_face_1.png"
+      },
+      {
+        "x": 0.31084437370300294,
+        "y": 0.674945207807008,
+        "w": 0.01842222213745117,
+        "h": 0.01737968029163005,
+        "confidence": 0.4630752205848694,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/d7fe9a9e6b60_face_2.png"
+      },
+      {
+        "x": 0.24143753051757813,
+        "y": 0.6956069132844537,
+        "w": 0.04805104732513428,
+        "h": 0.043821597420547746,
+        "confidence": 0.834384024143219,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/1c039af03aa3_face_3.png"
+      },
+      {
+        "x": 0.6400929450988769,
+        "y": 0.7819226381718658,
+        "w": 0.011411952972412109,
+        "h": 0.013512261094024605,
+        "confidence": 0.6240226626396179,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/af9ba6b43434_face_4.png"
+      },
+      {
+        "x": 0.5796212196350098,
+        "y": 0.39798332978635764,
+        "w": 0.105731201171875,
+        "h": 0.08775060527423843,
+        "confidence": 0.8718424439430237,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/308f754caf4f_face_5.png"
+      },
+      {
+        "x": 0.2673231363296509,
+        "y": 0.453635664382872,
+        "w": 0.039250969886779785,
+        "h": 0.036481681872894696,
+        "confidence": 0.84471595287323,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/1ea6d4751ec2_face_6.png"
+      },
+      {
+        "x": 0.39815578460693357,
+        "y": 0.5701298236008897,
+        "w": 0.03494405746459961,
+        "h": 0.03394387797717121,
+        "confidence": 0.8341720104217529,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/b4a6938c5a70_face_7.png"
+      },
+      {
+        "x": 0.41479997634887694,
+        "y": 0.7049487605036248,
+        "w": 0.01954960823059082,
+        "h": 0.020289702099809608,
+        "confidence": 0.7699595093727112,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/f674f286d41f_face_8.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5343,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/4d9d2e5d23486bbe.jpg": {
+    "sourceDims": {
+      "width": 1144,
+      "height": 1200
+    },
+    "faces": [
+      {
+        "x": 0.19863907607285292,
+        "y": 0.2053264872233073,
+        "w": 0.11508746914096646,
+        "h": 0.11821543375651042,
+        "confidence": 0.9260101318359375,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/19b774c6ed50_face_0.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5323,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/09f71a35995d1f78.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1536
+    },
+    "faces": [
+      {
+        "x": 0.9886730313301086,
+        "y": 0.6525124708811442,
+        "w": 0.011963069438934326,
+        "h": 0.01637721061706543,
+        "confidence": 0.5914099812507629,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/8f9ae17fd2fa_face_0.png"
+      },
+      {
+        "x": 0.8130314350128174,
+        "y": 0.725491444269816,
+        "w": 0.010620355606079102,
+        "h": 0.013706127802530924,
+        "confidence": 0.5770211219787598,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/d7f0f69c4f8b_face_1.png"
+      },
+      {
+        "x": 0.695152223110199,
+        "y": 0.7517906030019125,
+        "w": 0.00807487964630127,
+        "h": 0.014493465423583984,
+        "confidence": 0.46191155910491943,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/aff92352bef5_face_2.png"
+      },
+      {
+        "x": 0.8442184329032898,
+        "y": 0.7146679560343424,
+        "w": 0.007440686225891113,
+        "h": 0.011390209197998047,
+        "confidence": 0.469911128282547,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/de3ae02cba78_face_3.png"
+      },
+      {
+        "x": 0.11298329383134842,
+        "y": 0.9760022163391113,
+        "w": 0.011930897831916809,
+        "h": 0.02736663818359375,
+        "confidence": 0.44276162981987,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/c94968497818_face_4.png"
+      },
+      {
+        "x": 0.9417312145233154,
+        "y": 0.7535995642344157,
+        "w": 0.0166623592376709,
+        "h": 0.0487364927927653,
+        "confidence": 0.6029806733131409,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/14ff218a9b5b_face_5.png"
+      },
+      {
+        "x": 0.3522665798664093,
+        "y": 0.9121198654174805,
+        "w": 0.007988691329956055,
+        "h": 0.024313688278198242,
+        "confidence": 0.42236068844795227,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/77cffeafd766_face_6.png"
+      },
+      {
+        "x": 0.8315938115119934,
+        "y": 0.8247987429300944,
+        "w": 0.014550566673278809,
+        "h": 0.04149436950683594,
+        "confidence": 0.5376991629600525,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/85b5e0e184f7_face_7.png"
+      },
+      {
+        "x": 0.7552215456962585,
+        "y": 0.7359787623087565,
+        "w": 0.009290337562561035,
+        "h": 0.013412952423095703,
+        "confidence": 0.4255521893501282,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/e3ed465d07f6_face_8.png"
+      },
+      {
+        "x": 0.44819697737693787,
+        "y": 0.6610031127929688,
+        "w": 0.013530611991882324,
+        "h": 0.020231246948242188,
+        "confidence": 0.7010730504989624,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/2a81343c319d_face_9.png"
+      },
+      {
+        "x": 0.3112761378288269,
+        "y": 0.9765325387318929,
+        "w": 0.01199197769165039,
+        "h": 0.02666163444519043,
+        "confidence": 0.42778268456459045,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/d7693353e9c7_face_10.png"
+      },
+      {
+        "x": 0.7256282567977905,
+        "y": 0.7456744511922201,
+        "w": 0.009261250495910645,
+        "h": 0.01296846071879069,
+        "confidence": 0.4299650192260742,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/4de5938498e1_face_11.png"
+      },
+      {
+        "x": 0.9297171831130981,
+        "y": 0.7304114500681559,
+        "w": 0.010951995849609375,
+        "h": 0.014371395111083984,
+        "confidence": 0.5662645101547241,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/e30288cd01f4_face_12.png"
+      },
+      {
+        "x": 0.7652437090873718,
+        "y": 0.8160859743754069,
+        "w": 0.009815216064453125,
+        "h": 0.02275506655375163,
+        "confidence": 0.47455573081970215,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/f9b29f849f6c_face_13.png"
+      },
+      {
+        "x": 0.7942349314689636,
+        "y": 0.7342061201731364,
+        "w": 0.008822917938232422,
+        "h": 0.01043391227722168,
+        "confidence": 0.5366290211677551,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/ea2180ecfbe0_face_14.png"
+      },
+      {
+        "x": 0.7019185423851013,
+        "y": 0.8552014827728271,
+        "w": 0.011757493019104004,
+        "h": 0.02443385124206543,
+        "confidence": 0.45226630568504333,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/1828ce00bbb5_face_15.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5354,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/89cbef6a75c1c863.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1536
+    },
+    "faces": [
+      {
+        "x": 0.20735156536102295,
+        "y": 0.4167916774749756,
+        "w": 0.19465023279190063,
+        "h": 0.3347626527150472,
+        "confidence": 0.9462805986404419,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/8d7da12788a7_face_0.png"
+      },
+      {
+        "x": 0.5171032547950745,
+        "y": 0.4990390141805013,
+        "w": 0.10311603546142578,
+        "h": 0.13957953453063965,
+        "confidence": 0.9345721006393433,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/32086ad5b2a9_face_1.png"
+      },
+      {
+        "x": 0.4140918552875519,
+        "y": 0.4790697495142619,
+        "w": 0.0233880877494812,
+        "h": 0.0423360268274943,
+        "confidence": 0.8441115021705627,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/6be44eb454d8_face_2.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5390,
+    "usedPersonFallback": false
+  },
+  "https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/linkedin/fb1b9d9b6054f12d.jpg": {
+    "sourceDims": {
+      "width": 2048,
+      "height": 1075
+    },
+    "faces": [
+      {
+        "x": 0.7467829585075378,
+        "y": 0.14947140715843024,
+        "w": 0.045230984687805176,
+        "h": 0.12487228038699127,
+        "confidence": 0.7527024745941162,
+        "maskPath": "/Users/erniesg/code/erniesg/aether-recap-reel/docs/mocks/face-tagging-compare/masks/f563f33da4df_face_0.png"
+      }
+    ],
+    "tagger": "sam3-local",
+    "elapsedMs": 5299,
+    "usedPersonFallback": false
+  }
+}
