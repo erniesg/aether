@@ -60,8 +60,44 @@ export interface ShareSummary {
   trackedVisits: number;
   botPreviews: number;
   publicPosts: number;
+  publicPostsByPlatform: Partial<Record<PublicMentionPlatform, number>>;
   platformActions: Partial<Record<SharePlatform, number>>;
   publicReach: Record<string, number>;
+}
+
+export type PublicMentionPlatform = 'x' | 'linkedin' | 'facebook';
+export type PublicMentionConfidence =
+  | 'direct_tracked_url'
+  | 'direct_canonical_url'
+  | 'redirect_resolved'
+  | 'text_match'
+  | 'manual'
+  | 'published';
+
+export interface PublicMentionMetrics {
+  likes?: number;
+  reposts?: number;
+  quotes?: number;
+  replies?: number;
+  comments?: number;
+  reactions?: number;
+  views?: number;
+  impressions?: number;
+}
+
+export interface PublicMentionInput {
+  canonicalUrl: string;
+  platform: PublicMentionPlatform;
+  externalId?: string;
+  externalUrl: string;
+  authorName?: string;
+  authorHandle?: string;
+  matchedUrl: string;
+  normalizedCanonicalUrl: string;
+  matchedCode?: string;
+  metrics: PublicMentionMetrics;
+  confidence: PublicMentionConfidence;
+  raw?: unknown;
 }
 
 interface MemoryShareEvent {
@@ -79,6 +115,7 @@ const sharesApi = (anyApi as unknown as {
     resolveLink: unknown;
     recordEvent: unknown;
     getSummary: unknown;
+    upsertPublicMention: unknown;
   };
 }).shares;
 
@@ -224,12 +261,34 @@ export async function getShareSummary(canonicalUrl: string): Promise<ShareSummar
     trackedVisits: links.reduce((sum, item) => sum + item.link.visitCount, 0),
     botPreviews: links.reduce((sum, item) => sum + item.link.botVisitCount, 0),
     publicPosts: 0,
+    publicPostsByPlatform: {},
     platformActions: actionEvents.reduce<Partial<Record<SharePlatform, number>>>((acc, event) => {
       acc[event.platform] = (acc[event.platform] ?? 0) + 1;
       return acc;
     }, {}),
     publicReach: {},
   };
+}
+
+export function __resetShareStoreMemoryForTests(): void {
+  convexClient = null;
+  const state = memory();
+  state.links.clear();
+  state.events.length = 0;
+}
+
+export async function upsertPublicMention(input: PublicMentionInput): Promise<string | null> {
+  const convex = getConvexClient();
+  if (!convex) return null;
+  try {
+    return (await convex.mutation(sharesApi.upsertPublicMention as never, {
+      ...input,
+      now: Date.now(),
+    } as never)) as string;
+  } catch (err) {
+    console.error('[share/store] upsertPublicMention Convex write failed', err);
+    throw err;
+  }
 }
 
 async function createShareLinkWithCode(input: {

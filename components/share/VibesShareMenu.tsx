@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  AtSign,
   Check,
   Copy,
-  Eye,
-  Link as LinkIcon,
+  Facebook,
+  Linkedin,
   Loader2,
   MessageCircle,
   Send,
   Share2,
+  Twitter,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
@@ -32,6 +32,8 @@ interface VibesShareMenuProps {
   shareText?: string;
   hashtags?: string[];
   showMetrics?: boolean;
+  variant?: 'menu' | 'panel';
+  className?: string;
 }
 
 interface CreateLinkResponse {
@@ -60,6 +62,7 @@ const platformLabels: Record<SharePlatform, string> = {
   native: 'Native',
   unknown: 'Share',
 };
+const publicSharePlatforms: SharePlatform[] = ['x', 'linkedin', 'facebook'];
 
 export function VibesShareMenu({
   objectType,
@@ -72,10 +75,11 @@ export function VibesShareMenu({
   shareText,
   hashtags,
   showMetrics = false,
+  variant = 'menu',
+  className = '',
 }: VibesShareMenuProps) {
-  const [busy, setBusy] = useState<SharePlatform | 'clean' | null>(null);
-  const [copied, setCopied] = useState<'tracked' | 'clean' | null>(null);
-  const [latestUrl, setLatestUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState<SharePlatform | null>(null);
+  const [copied, setCopied] = useState<'tracked' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ShareSummary | null>(null);
 
@@ -124,7 +128,6 @@ export function VibesShareMenu({
     });
     const json = (await res.json()) as CreateLinkResponse;
     if (!json.ok || !json.link) throw new Error(json.error ?? `HTTP ${res.status}`);
-    setLatestUrl(json.link.shortUrl);
     setSummary((current) =>
       current
         ? { ...current, shareLinks: current.shareLinks + 1 }
@@ -154,14 +157,23 @@ export function VibesShareMenu({
     setError(null);
     try {
       const link = await createLink(platform);
+      const url = socialShareUrl({
+        shortUrl: link.shortUrl,
+        cleanUrl,
+        code: link.code,
+        platform,
+      });
       const href = platformShareUrl(platform, {
-        url: link.shortUrl,
+        url,
         title,
         text: shareText,
         hashtags,
       });
+      if (!href) throw new Error('Share destination unavailable.');
+      const opened = window.open(href, '_blank');
+      if (!opened) throw new Error('Share window blocked.');
+      opened.opener = null;
       await record('platform_clicked', platform, link.code);
-      if (href) window.open(href, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -211,23 +223,75 @@ export function VibesShareMenu({
     }
   }
 
-  async function copyClean() {
-    setBusy('clean');
-    setError(null);
-    try {
-      await navigator.clipboard.writeText(cleanUrl);
-      setCopied('clean');
-      await record('copy_clean_link', 'copy');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(null);
-      window.setTimeout(() => setCopied(null), 1200);
-    }
+  if (variant === 'panel') {
+    return (
+      <div
+        data-testid="vibes-share-panel"
+        className={`min-w-0 rounded-md border border-border-soft bg-surface-base p-3 ${className}`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Share2 size={15} strokeWidth={1.75} className="text-accent" />
+            <p className="font-caption text-xs uppercase text-ink-dim">share recap</p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-1.5">
+          {SHARE_PLATFORMS.slice(0, 4).map((platform) => (
+            <Button
+              key={platform}
+              type="button"
+              variant="subtle"
+              size="sm"
+              onClick={() => void sharePlatform(platform)}
+              disabled={Boolean(busy)}
+              icon={busy === platform ? <Loader2 size={13} className="animate-spin" /> : platformIcon(platform)}
+              trailing={<PlatformShareBadge platform={platform} summary={summary} />}
+              className="justify-start"
+            >
+              <span className="min-w-0 flex-1 truncate text-left">{platformLabels[platform]}</span>
+            </Button>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void nativeShare()}
+            disabled={Boolean(busy)}
+            icon={busy === 'native' ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
+            trailing={<PrivateShareBadge />}
+            className="justify-start"
+          >
+            <span className="min-w-0 flex-1 truncate text-left">Device share</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void copyTracked()}
+            disabled={Boolean(busy)}
+            icon={
+              busy === 'copy' ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : copied === 'tracked' ? (
+                <Check size={13} />
+              ) : (
+                <Copy size={13} />
+              )
+            }
+            className="justify-start"
+          >
+            <span className="min-w-0 flex-1 truncate text-left">Copy link</span>
+          </Button>
+        </div>
+
+        {error ? <p className="mt-2 font-caption text-2xs text-signal-error">{error}</p> : null}
+      </div>
+    );
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
+    <div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
       <details className="relative">
         <summary
           data-testid="vibes-share"
@@ -235,9 +299,9 @@ export function VibesShareMenu({
         >
           <Share2 size={13} strokeWidth={1.75} />
           <span>share</span>
-          {summary?.shareActions ? (
+          {summary?.publicPosts ? (
             <Chip tone="neutral" size="sm" variant="ghost">
-              {formatCompactNumber(summary.shareActions)}
+              {formatCompactNumber(summary.publicPosts)}
             </Chip>
           ) : null}
         </summary>
@@ -245,13 +309,6 @@ export function VibesShareMenu({
         <div className="absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border-soft bg-surface-panel p-3 shadow-lg">
           <div className="flex items-center justify-between gap-2">
             <p className="font-caption text-xs uppercase text-ink-dim">share</p>
-            {summary ? (
-              <span className="font-mono text-2xs text-ink-dim">
-                {formatCompactNumber(summary.shareActions)} shares ·{' '}
-                {formatCompactNumber(summary.trackedVisits)} visits ·{' '}
-                {formatCompactNumber(summary.publicPosts)} posts
-              </span>
-            ) : null}
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-1.5">
@@ -264,9 +321,10 @@ export function VibesShareMenu({
                 onClick={() => void sharePlatform(platform)}
                 disabled={Boolean(busy)}
                 icon={busy === platform ? <Loader2 size={13} className="animate-spin" /> : platformIcon(platform)}
+                trailing={<PlatformShareBadge platform={platform} summary={summary} />}
                 className="justify-start"
               >
-                {platformLabels[platform]}
+                <span className="min-w-0 flex-1 truncate text-left">{platformLabels[platform]}</span>
               </Button>
             ))}
             <Button
@@ -276,9 +334,10 @@ export function VibesShareMenu({
               onClick={() => void nativeShare()}
               disabled={Boolean(busy)}
               icon={busy === 'native' ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
+              trailing={<PrivateShareBadge />}
               className="justify-start"
             >
-              Native
+              <span className="min-w-0 flex-1 truncate text-left">Device share</span>
             </Button>
             <Button
               type="button"
@@ -297,30 +356,8 @@ export function VibesShareMenu({
               }
               className="justify-start"
             >
-              Copy short
+              <span className="min-w-0 flex-1 truncate text-left">Copy link</span>
             </Button>
-          </div>
-
-          <div className="mt-3 rounded-sm border border-border-soft bg-surface-base p-2">
-            <div className="flex items-center gap-2">
-              <LinkIcon size={13} className="text-ink-dim" />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-muted">
-                {latestUrl ?? cleanUrl}
-              </span>
-              <button
-                type="button"
-                onClick={() => void copyClean()}
-                disabled={Boolean(busy)}
-                className="grid h-7 w-7 place-items-center rounded-sm border border-border-soft text-ink-dim hover:border-accent hover:text-accent disabled:opacity-50"
-                title="copy clean link"
-                aria-label="copy clean link"
-              >
-                {copied === 'clean' ? <Check size={13} /> : <Copy size={13} />}
-              </button>
-            </div>
-            <p className="mt-2 font-caption text-2xs text-ink-dim">
-              Short links count visits. Clean link keeps the canonical page URL.
-            </p>
           </div>
 
           {error ? <p className="mt-2 font-caption text-2xs text-signal-error">{error}</p> : null}
@@ -329,9 +366,14 @@ export function VibesShareMenu({
 
       {showMetrics ? (
         <div data-testid="vibes-share-metrics" className="hidden min-w-0 items-center gap-1 sm:flex">
-          <MetricPill icon={<Share2 size={12} />} label="shares" value={summary?.shareActions ?? 0} />
-          <MetricPill icon={<Eye size={12} />} label="visits" value={summary?.trackedVisits ?? 0} />
-          <MetricPill icon={<AtSign size={12} />} label="posts" value={summary?.publicPosts ?? 0} />
+          {publicSharePlatforms.map((platform) => (
+            <PlatformMetricPill
+              key={platform}
+              icon={platformIcon(platform)}
+              label={platformLabels[platform]}
+              value={verifiedShareCount(summary, platform)}
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -339,7 +381,9 @@ export function VibesShareMenu({
 }
 
 function platformIcon(platform: SharePlatform) {
-  if (platform === 'x') return <AtSign size={13} />;
+  if (platform === 'x') return <Twitter size={13} />;
+  if (platform === 'linkedin') return <Linkedin size={13} />;
+  if (platform === 'facebook') return <Facebook size={13} />;
   if (platform === 'whatsapp') return <MessageCircle size={13} />;
   if (platform === 'telegram') return <Send size={13} />;
   return <Share2 size={13} />;
@@ -356,7 +400,52 @@ function absolutePublicUrl(path: string): string {
   return new URL(path, origin || 'https://aether.berlayar.ai').toString();
 }
 
-function MetricPill({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
+function socialShareUrl(input: {
+  shortUrl: string;
+  cleanUrl: string;
+  code: string;
+  platform: SharePlatform;
+}): string {
+  try {
+    const url = new URL(input.shortUrl);
+    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1' && url.hostname !== '::1') {
+      return input.shortUrl;
+    }
+    const clean = new URL(input.cleanUrl);
+    const publicUrl = new URL(clean.pathname, 'https://aether.berlayar.ai');
+    publicUrl.searchParams.set('aether_share', input.code);
+    publicUrl.searchParams.set('utm_source', input.platform);
+    publicUrl.searchParams.set('utm_medium', 'share');
+    return publicUrl.toString();
+  } catch {
+    return input.shortUrl;
+  }
+}
+
+function PlatformShareBadge({ platform, summary }: { platform: SharePlatform; summary: ShareSummary | null }) {
+  if (!publicSharePlatforms.includes(platform)) return <PrivateShareBadge />;
+  return (
+    <span
+      className="rounded-sm border border-border-soft bg-surface-base px-1.5 py-0.5 font-mono text-2xs text-ink-muted"
+      title={`verified public posts on ${platformLabels[platform]}`}
+    >
+      {formatCompactNumber(verifiedShareCount(summary, platform))}
+    </span>
+  );
+}
+
+function PrivateShareBadge() {
+  return (
+    <span
+      className="rounded-sm border border-border-soft bg-surface-base px-1.5 py-0.5 font-caption text-2xs uppercase text-ink-dim"
+      title="private shares cannot be verified by public URL discovery"
+    >
+      private
+    </span>
+  );
+}
+
+function PlatformMetricPill({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
   return (
     <span className="inline-flex h-8 items-center gap-1 rounded-sm border border-border-soft px-2 font-mono text-2xs text-ink-dim">
       <span className="text-ink-muted">{icon}</span>
@@ -386,6 +475,7 @@ function emptySummary(): ShareSummary {
     trackedVisits: 0,
     botPreviews: 0,
     publicPosts: 0,
+    publicPostsByPlatform: {},
     platformActions: {},
     publicReach: {},
   };
@@ -397,4 +487,9 @@ function isShareActionEvent(eventType: string): boolean {
 
 function formatCompactNumber(value: number): string {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+function verifiedShareCount(summary: ShareSummary | null, platform: SharePlatform): number {
+  if (!summary || !publicSharePlatforms.includes(platform)) return 0;
+  return summary.publicPostsByPlatform?.[platform as 'x' | 'linkedin' | 'facebook'] ?? 0;
 }

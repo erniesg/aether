@@ -87,6 +87,8 @@ export default defineSchema({
     mime: v.string(),
     /** Optional workspace scope. */
     wsId: v.optional(v.id('workspace')),
+    /** Legacy local string workspace scope; kept so older local asset rows validate. */
+    workspaceId: v.optional(v.string()),
     /** Optional campaign cross-link so the right rail can show
      *  "this campaign's heroes" without a separate join table. */
     campaignId: v.optional(v.id('campaign')),
@@ -305,6 +307,7 @@ export default defineSchema({
     ),
     previewUrl: v.string(),
     fullUrl: v.optional(v.string()),
+    assetId: v.optional(v.id('asset')),
     attribution: v.object({
       source: v.string(),
       author: v.optional(v.string()),
@@ -316,6 +319,15 @@ export default defineSchema({
     tags: v.array(v.string()),
     notes: v.optional(v.string()),
     clusterId: v.optional(v.string()),
+    origin: v.optional(v.string()),
+    productCanonicalName: v.optional(v.string()),
+    productId: v.optional(v.string()),
+    referenceQuery: v.optional(v.string()),
+    referenceStatus: v.optional(v.string()),
+    relevanceScore: v.optional(v.number()),
+    sourceCampaignId: v.optional(v.id('campaign')),
+    sourceFormatId: v.optional(v.string()),
+    sourceRunId: v.optional(v.string()),
     updatedAt: v.number(),
   }).index('by_workspace', ['workspaceId']),
 
@@ -740,7 +752,7 @@ export default defineSchema({
   // lib/text-overlay/types.ts. Stored as `v.any()` so T4–T9 can evolve the
   // inner shape without a schema migration.
   textOverlay: defineTable({
-    wsId: v.id('workspace'),
+    wsId: v.union(v.id('workspace'), v.string()),
     artboardId: v.string(),
     content: v.any(),
     activeLanguage: v.string(),
@@ -892,6 +904,7 @@ export default defineSchema({
   workspaceProviderPrefs: defineTable({
     workspaceId: v.string(),
     imageProviderId: v.optional(v.string()),
+    imageModel: v.optional(v.string()),
     voiceProviderId: v.optional(v.string()),
     voiceModel: v.optional(v.string()),
     segmentationProviderId: v.optional(v.string()),
@@ -945,6 +958,8 @@ export default defineSchema({
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    /** Legacy lap references from older local runs; newer rows keep richer bundles. */
+    referenceImages: v.optional(v.any()),
     /** B2 research bundle (competitors, localeInsights, sources, summary).
      *  Stored as v.any to keep the schema flexible — the canonical shape
      *  lives in lib/agent/managed/research.ts ResearchBundle. Persisted so
@@ -975,6 +990,8 @@ export default defineSchema({
     /** Convex `asset` doc id when the hero was uploaded to storage
      *  (data-URL → public CDN URL conversion). */
     heroAssetId: v.optional(v.id('asset')),
+    /** Legacy hero direction key used by earlier multi-direction local runs. */
+    heroDirectionId: v.optional(v.string()),
     caption: v.optional(v.string()),
     /** SG-locale captions: en-SG, zh-Hans-SG, ms-SG, ta-SG. */
     captionsByLocale: v.optional(v.any()),
@@ -999,6 +1016,8 @@ export default defineSchema({
      *  _PER_FORMAT renders succeeded and the bytes uploaded. Missing keys
      *  → fall back to atlas → hero in the UI / canvas drop. */
     nativePerFormatUrls: v.optional(v.any()),
+    /** Legacy locale x format URL map from earlier local multilingual runs. */
+    localizedPerFormatUrls: v.optional(v.any()),
     /** 4-locale × 4-format atlas (Convex storage public URL). Surfaced in
      *  Discord embeds and fallbacks for canvas frames lacking a per-format
      *  native render. Skipped when AUTO_MODE_DISABLE_ATLAS=1 or compose fails. */
@@ -1045,6 +1064,8 @@ export default defineSchema({
     caption: v.string(),
     hashtags: v.array(v.string()),
     scheduledAt: v.string(), // ISO8601
+    format: v.optional(v.string()),
+    locale: v.optional(v.string()),
     accountId: v.optional(v.string()),
     createdAt: v.number(),
     status: v.union(
