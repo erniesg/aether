@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIE2026 · Storyboards & References</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --fg: #fafafa;
+    --dim: #6b7280;
+    --line: #1f2937;
+    --accent: #ff8c42;
+    --a-color: #ff8c42;
+    --b-color: #fef34c;
+    --c-color: #818cf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  body { padding: 24px 32px 80px; max-width: 1800px; margin: 0 auto; }
+  header.page {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  header.page h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  header.page p { color: var(--dim); margin-top: 4px; font-size: 12px; }
+  nav.tabs { margin-top: 16px; display: flex; gap: 4px; }
+  nav.tabs button {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--dim);
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  nav.tabs button:hover { color: var(--fg); border-color: var(--dim); }
+  nav.tabs button.active { color: var(--fg); border-color: var(--fg); background: #111; }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+
+  /* boards grid */
+  .boards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .board {
+    border: 1px solid var(--line);
+    background: #050505;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 200px);
+    overflow: hidden;
+  }
+  .board header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--line);
+    background: #111;
+  }
+  .board[data-letter="A"] header { border-left: 4px solid var(--a-color); }
+  .board[data-letter="B"] header { border-left: 4px solid var(--b-color); }
+  .board[data-letter="C"] header { border-left: 4px solid var(--c-color); }
+  .board .letter {
+    display: inline-block;
+    width: 24px; height: 24px;
+    background: var(--fg); color: var(--bg);
+    text-align: center; line-height: 24px;
+    font-weight: 700;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .board[data-letter="A"] .letter { background: var(--a-color); color: #000; }
+  .board[data-letter="B"] .letter { background: var(--b-color); color: #000; }
+  .board[data-letter="C"] .letter { background: var(--c-color); color: #000; }
+  .board h2 {
+    display: inline-block;
+    font-size: 16px;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .board .meta {
+    color: var(--dim);
+    font-size: 11px;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .beats {
+    overflow-y: auto;
+    flex: 1;
+    padding: 12px;
+  }
+  .beats::-webkit-scrollbar { width: 6px; }
+  .beats::-webkit-scrollbar-thumb { background: var(--line); }
+
+  .beat {
+    border: 1px solid var(--line);
+    margin-bottom: 10px;
+    background: #0c0c0c;
+    overflow: hidden;
+  }
+  .beat-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #111;
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+  }
+  .beat-head .bid {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .beat-head .btime { color: var(--fg); }
+  .beat-head .bdur { color: var(--dim); margin-left: auto; }
+
+  .beat-body { display: flex; gap: 10px; padding: 10px; }
+  .thumb {
+    width: 80px; height: 80px;
+    flex-shrink: 0;
+    background: #1f2937;
+    position: relative;
+    overflow: hidden;
+  }
+  .thumb img, .thumb video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .thumb .hletter {
+    position: absolute;
+    top: 2px; left: 2px;
+    background: rgba(0,0,0,0.7);
+    color: var(--fg);
+    padding: 1px 4px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .thumb.typographic {
+    display: flex; align-items: center; justify-content: center;
+    background: #111;
+    color: var(--dim);
+    font-size: 10px;
+    text-align: center;
+    padding: 8px;
+  }
+  .beat-content {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+  }
+  .beat-content .purpose {
+    color: var(--fg);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .beat-content .pair {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 2px;
+    line-height: 1.4;
+  }
+  .beat-content .k {
+    color: var(--dim);
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    width: 36px;
+    padding-top: 1px;
+  }
+  .beat-content .v { color: var(--fg); flex: 1; word-break: break-word; }
+  .beat-content .rationale {
+    color: var(--dim);
+    font-style: italic;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  /* timeline */
+  .timeline {
+    border: 1px solid var(--line);
+    padding: 24px;
+    background: #050505;
+  }
+  .time-axis {
+    display: grid;
+    grid-template-columns: repeat(60, 1fr);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 8px;
+    height: 24px;
+    position: relative;
+  }
+  .time-axis::before, .time-axis::after { content: ''; }
+  .time-tick {
+    border-left: 1px solid var(--line);
+    font-size: 9px;
+    color: var(--dim);
+    padding-left: 3px;
+    grid-column-end: span 5;
+  }
+  .track-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 12px;
+    margin-bottom: 6px;
+    align-items: stretch;
+  }
+  .track-label {
+    color: var(--dim);
+    font-size: 11px;
+    padding: 8px;
+    border-right: 1px solid var(--line);
+  }
+  .track-label .lbox {
+    display: inline-block;
+    width: 18px; height: 18px;
+    text-align: center; line-height: 18px;
+    font-weight: 700;
+    color: #000;
+    margin-right: 4px;
+  }
+  .track {
+    position: relative;
+    height: 48px;
+    background: #0a0a0a;
+    border: 1px solid var(--line);
+  }
+  .block {
+    position: absolute;
+    top: 2px; bottom: 2px;
+    background: rgba(255, 140, 66, 0.15);
+    border-left: 2px solid var(--accent);
+    padding: 2px 4px;
+    font-size: 9px;
+    color: var(--fg);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .block:hover { background: rgba(255, 140, 66, 0.35); }
+  .track[data-letter="A"] .block { background: rgba(255,140,66,0.15); border-color: var(--a-color); }
+  .track[data-letter="B"] .block { background: rgba(254,243,76,0.15); border-color: var(--b-color); color: var(--b-color); }
+  .track[data-letter="C"] .block { background: rgba(129,140,248,0.15); border-color: var(--c-color); color: var(--c-color); }
+
+  /* references */
+  .refs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+  }
+  .ref {
+    border: 1px solid var(--line);
+    padding: 18px;
+    background: #050505;
+  }
+  .ref h3 {
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .ref .src {
+    color: var(--dim);
+    font-size: 11px;
+    margin-bottom: 12px;
+  }
+  .ref .pattern {
+    color: var(--accent);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .ref p { font-size: 12px; color: #d1d5db; margin-bottom: 8px; }
+  .ref .lesson {
+    margin-top: 12px;
+    padding: 10px;
+    background: #0a0a0a;
+    border-left: 2px solid var(--accent);
+    font-size: 11px;
+    color: var(--fg);
+  }
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .principle {
+    padding: 16px;
+    background: #050505;
+    border: 1px solid var(--line);
+  }
+  .principle .stat {
+    color: var(--accent);
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .principle .title { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .principle .body { font-size: 11px; color: var(--dim); line-height: 1.5; }
+  .principle .src { font-size: 10px; color: var(--dim); margin-top: 6px; }
+
+  h2.section-h {
+    margin: 32px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+    color: var(--fg);
+  }
+  h2.section-h:first-child { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<header class="page">
+  <h1>AIE2026 · Storyboards & References</h1>
+  <p>Three structurally distinct 60s recap proposals + research on what makes event-recap video actually work.</p>
+  <nav class="tabs">
+    <button data-tab="boards" class="active">3 Storyboards</button>
+    <button data-tab="timeline">Parallel Timeline</button>
+    <button data-tab="refs">References</button>
+  </nav>
+</header>
+
+<section id="boards" class="tab active">
+  <div class="boards-grid" id="boards-grid"></div>
+</section>
+
+<section id="timeline" class="tab">
+  <div class="timeline" id="timeline-container"></div>
+</section>
+
+<section id="refs" class="tab">
+  <h2 class="section-h">Principles · Distilled from 5 web searches</h2>
+  <div class="principles" id="principles"></div>
+
+  <h2 class="section-h">Reference recaps · Named examples</h2>
+  <div class="refs-grid" id="refs-grid"></div>
+
+  <h2 class="section-h">Anti-patterns · What to NOT do</h2>
+  <div class="refs-grid" id="anti-grid"></div>
+</section>
+
+<script>
+const PROXY = 'https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore/media/';
+
+const ASSETS = {
+  A: { src: PROXY + 'x/b0c024c34177c5fb.mp4', type: 'video', name: 'Melissa Chen video (Vivian keynote, 84s)' },
+  B: { src: PROXY + 'youtube/_xQnSNlBP_w-f56869a8.jpg', name: 'Vivian close-up (face fills frame)' },
+  C: { src: PROXY + 'linkedin/8f93e50c8c6d7199.jpg', name: 'Sherry Jiang · crowd of speakers (8 faces)' },
+  D: { src: PROXY + 'linkedin/80cf2056f23e190e.jpg', name: 'Rachael De Foe · panel (7 faces)' },
+  E: { src: PROXY + 'linkedin/24bdcda6b7901a2f.jpg', name: 'Saad Hamid · sponsor booth crowd' },
+  F: { src: PROXY + 'x/da5a79bdec2220ff-81cfaec4b5f94124.jpg', name: 'Vivian wide self-portrait' },
+  G: { src: PROXY + 'linkedin/2eb07f40745ef693.jpg', name: 'Mumshad Mannambeth · single speaker' },
+  H: { src: PROXY + 'linkedin/735cb1756d419c7e.jpg', name: 'Linh Nguyen · huge crowd (14 faces)' },
+  I: { src: PROXY + 'linkedin/fb1b9d9b6054f12d.jpg', name: 'Lavanya Garg · organizer/student' },
+  J: { src: PROXY + 'linkedin/4d9d2e5d23486bbe.jpg', name: 'Gabriel Chua · Codex talking head' },
+  K: { src: PROXY + 'linkedin/47da1b228c7650df.jpg', name: 'Saad Hamid · panel (8 faces)' },
+  L: { src: PROXY + 'linkedin/89cbef6a75c1c863.jpg', name: 'Thu Ya K. · workshop closeup' },
+  M: { src: PROXY + 'linkedin/3c189a8fde95029c.jpg', name: 'Val Yap · speaker with backdrop' },
+  N: { src: PROXY + 'linkedin/09f71a35995d1f78.jpg', name: 'Gabriel Chua · audience wide (16 faces)' },
+  O: { src: PROXY + 'linkedin/5a4bd68babd06646.jpg', name: 'Anil Srinivas · speaker silhouette' },
+  P: { src: PROXY + 'linkedin/7283684d73974e93.jpg', name: 'Gabriel Chua · Codex builder portrait' },
+  Q: { src: PROXY + 'linkedin/73c0f3f39dafe410.jpg', name: 'Agrim Singh · OpenAI group (6 faces)' },
+  TYPO: { src: null, name: 'Typographic only (no media)' }
+};
+
+const STORYBOARDS = {
+  A: {
+    name: 'Singapore Rising',
+    shape: 'Documentary arc · 3-quote spine',
+    beatCount: 9,
+    assetCount: 8,
+    refs: 'sundance-doc · brand-sizzle · editorial-newspaper',
+    beats: [
+      { id: 'B01', time: '0:00–0:06', start: 0, end: 6, frames: 180, asset: 'B',
+        purpose: 'Hook with the most-watched human face before any words',
+        crop: 'static · focal on eyes', fx: 'letterbox, grain 20%, vignette',
+        transitions: 'in 0.5s fade · out 0.5s cross-fade',
+        rationale: 'His face IS the most-shared single image. Lead with it.' },
+      { id: 'B02', time: '0:06–0:14', start: 6, end: 14, frames: 240, asset: 'F',
+        purpose: 'Land the line that made 145 posts orbit one theme',
+        crop: 'pan-h slow R→L · scale 1.02',
+        fx: 'letterbox, grain 20%, sustained string note at frame 210',
+        transitions: 'in 0.3s · out 5f white flash → 0.3s fade',
+        rationale: 'Melissa Chen tweet carried 2.16M views on this exact quote. Treat as center of gravity.' },
+      { id: 'B03', time: '0:14–0:22', start: 14, end: 22, frames: 240, asset: 'H',
+        purpose: 'Show the room responded — humans, not stats',
+        crop: 'pan-h left edge → right edge over 8s',
+        fx: 'letterbox, grain 25%, slight desaturation',
+        transitions: 'in 0.3s · out 0.3s cross-fade',
+        rationale: '"4M views" means nothing without a room. Crowd pan = visceral proof, pre-verbal.' },
+      { id: 'B04', time: '0:22–0:30', start: 22, end: 30, frames: 240, asset: 'D',
+        purpose: 'Builder cuts · scene has depth, not one keynote',
+        crop: 'D static 4s · hard cut to C with Ken Burns',
+        fx: 'letterbox, grain 20%',
+        transitions: 'hard cut at frame 780 (no fade) · out 0.3s cross-fade',
+        rationale: 'Hard cut mid-beat signals tempo change. Multiple speakers prove "scene", not "talk".' },
+      { id: 'B05', time: '0:30–0:38', start: 30, end: 38, frames: 240, asset: 'C',
+        purpose: 'Sherry\'s claim — second voice, second thesis',
+        crop: 'ken-burns-in 1.0 → 1.08 toward face cluster',
+        fx: 'letterbox, grain 20%, second string note',
+        transitions: 'in 0.3s · out 0.5s cross-fade',
+        rationale: 'Vivian set tension; Sherry resolves it. Two quotes make a sandwich.' },
+      { id: 'B06', time: '0:38–0:44', start: 38, end: 44, frames: 180, asset: 'E',
+        purpose: 'Sponsors honored — not an ad, but acknowledged',
+        crop: 'static · slight ken-burns-out 1.04 → 1.0',
+        fx: 'letterbox, grain 15%',
+        transitions: 'in 0.3s · out 0.3s cross-fade',
+        rationale: 'Sponsors over a face of someone who staffed = respect without slickness.' },
+      { id: 'B07', time: '0:44–0:50', start: 44, end: 50, frames: 180, asset: 'J',
+        purpose: 'Codex receipts — the technical headline',
+        crop: 'static · face top-third', fx: 'letterbox, grain 20%',
+        transitions: 'in 0.3s hard cut · out 0.3s cross-fade',
+        rationale: 'Codex was THE technical story. One beat, one builder face, done.' },
+      { id: 'B08', time: '0:50–0:56', start: 50, end: 56, frames: 180, asset: 'I',
+        purpose: 'Local pride — third quote, identity beat',
+        crop: 'static · subtle pan-v 50% → 45%',
+        fx: 'letterbox, grain 15%',
+        transitions: 'in 0.3s · out fade-to-white 0.5s',
+        rationale: 'Three-quote arc closes: tension → proof → identity. Fade-to-white preps outro.' },
+      { id: 'B09', time: '0:56–1:00', start: 56, end: 60, frames: 120, asset: 'TYPO',
+        purpose: 'Stats earned the right to exist here',
+        crop: 'typographic on dark',
+        fx: 'minimal grain, no letterbox',
+        transitions: 'in fade from white 0.5s · out hold',
+        rationale: 'After 56s of humans, receipts feel earned not slick. URL gives viewer somewhere to go.' }
+    ]
+  },
+  B: {
+    name: 'The Hot Room',
+    shape: 'TikTok hyper-cut · stat-led · energy-first',
+    beatCount: 22,
+    assetCount: 12,
+    refs: 'mrbeast-hyper only',
+    beats: [
+      { id: 'B01', time: '0:00–0:02', start: 0, end: 2, frames: 60, asset: 'TYPO',
+        purpose: 'STAT PUNCH — stop the scroll in 2s',
+        crop: 'yellow card fills frame · "4M" Inter Black 280pt',
+        fx: 'screen-shake ±4px, heavy text shadow',
+        transitions: 'out hard cut (0f)',
+        rationale: 'TikTok hook = stat + flag. Yellow stops the eye.' },
+      { id: 'B02', time: '0:02–0:04', start: 2, end: 4, frames: 60, asset: 'B',
+        purpose: 'Face flash — "WAIT — IS THAT…"',
+        crop: 'static · tight on eyes · zoom shake',
+        fx: 'yellow accent border 8px',
+        transitions: 'hard cut',
+        rationale: '"wait is that" cliché works. Reveal sets up B03.' },
+      { id: 'B03', time: '0:04–0:08', start: 4, end: 8, frames: 120, asset: 'F',
+        purpose: 'Reveal — name him + name the act',
+        crop: 'pan-h fast L→R',
+        fx: 'chromatic aberration on captions',
+        transitions: 'in 0.1s · out hard cut on bass hit',
+        rationale: 'Three-line stagger reveal: minister · built AI · on Raspberry Pi.' },
+      { id: 'B04', time: '0:08–0:14', start: 8, end: 14, frames: 180, asset: 'B',
+        purpose: 'QUOTE PULL — 2.16M views line',
+        crop: 'static · scale jitter',
+        fx: 'word-by-word punch in (every 4 frames)',
+        transitions: 'in bass drop · out yellow wipe L→R',
+        rationale: 'PEAK beat. Slowest in storyboard. Make room go quiet for one breath.' },
+      { id: 'B05', time: '0:14–0:16', start: 14, end: 16, frames: 60, asset: 'D',
+        purpose: '"7 SPEAKERS"', crop: 'static, scale jitter',
+        fx: 'yellow flash on entry', transitions: 'hard cut',
+        rationale: 'Speed-fire who was in the room.' },
+      { id: 'B06', time: '0:16–0:18', start: 16, end: 18, frames: 60, asset: 'C',
+        purpose: '"1 ROOM"', crop: 'static, scale jitter',
+        fx: 'yellow flash', transitions: 'hard cut', rationale: 'Builds pressure.' },
+      { id: 'B07', time: '0:18–0:20', start: 18, end: 20, frames: 60, asset: 'H',
+        purpose: '"1,247 BUILDERS"', crop: 'static, scale jitter',
+        fx: 'yellow flash', transitions: 'hard cut', rationale: 'Stats stack visually.' },
+      { id: 'B08', time: '0:20–0:22', start: 20, end: 22, frames: 60, asset: 'N',
+        purpose: '"18 COUNTRIES"', crop: 'static, scale jitter',
+        fx: 'yellow flash', transitions: 'hard cut',
+        rationale: '8s of face cuts builds pressure for the next beat.' },
+      { id: 'B09a', time: '0:22–0:24', start: 22, end: 24, frames: 60, asset: 'J',
+        purpose: '"OPENAI CODEX"', crop: 'static',
+        fx: 'yellow pill overlay', transitions: 'hard cut',
+        rationale: 'Codex blitz subhead.' },
+      { id: 'B09b', time: '0:24–0:26', start: 24, end: 26, frames: 60, asset: 'E',
+        purpose: '"12 SPONSORS"', crop: 'static',
+        fx: 'yellow pill', transitions: 'hard cut',
+        rationale: 'Sponsor section can\'t slow tempo.' },
+      { id: 'B09c', time: '0:26–0:28', start: 26, end: 28, frames: 60, asset: 'TYPO',
+        purpose: 'Sponsor logo wall · 4×3 grid pop-in', crop: 'typo on dark',
+        fx: 'each logo pops with 2f bounce', transitions: 'hard cut',
+        rationale: 'Logos pop, scroll, done.' },
+      { id: 'B09d', time: '0:28–0:30', start: 28, end: 30, frames: 60, asset: 'TYPO',
+        purpose: 'Sponsor names mono-scroll L→R', crop: 'mono ticker',
+        fx: 'fast horizontal scroll', transitions: 'hard cut',
+        rationale: 'Names on the wall, names on the ticker.' },
+      { id: 'B10', time: '0:30–0:34', start: 30, end: 34, frames: 120, asset: 'Q',
+        purpose: 'Workshops list — what you missed',
+        crop: 'static with blurred backdrop',
+        fx: '5 lines slam down with 4f stagger + screen-shake',
+        transitions: 'in 4f wipe · out hard cut',
+        rationale: 'List format = saveable as screenshot. Optimize for "save this".' },
+      { id: 'B11', time: '0:34–0:40', start: 34, end: 40, frames: 180, asset: 'C',
+        purpose: 'Sherry\'s line — quote 2',
+        crop: 'ken-burns-in 1.0 → 1.1',
+        fx: 'yellow accent on "PROOF"',
+        transitions: 'in 0.1s · out hard cut',
+        rationale: 'Validates Vivian. "Proof" is operative word.' },
+      { id: 'B12', time: '0:40–0:46', start: 40, end: 46, frames: 180, asset: 'I',
+        purpose: 'Rachael\'s line — identity beat (trimmed)',
+        crop: 'static',
+        fx: 'yellow underline animates L→R under "SHOWING UP"',
+        transitions: 'hard cut both ends',
+        rationale: '"Not flown in" hits harder than full quote.' },
+      { id: 'B13a', time: '0:46–0:48', start: 46, end: 48, frames: 60, asset: 'TYPO',
+        purpose: 'Yellow card "4M VIEWS"', crop: 'typo',
+        fx: 'scale bounce 0.9 → 1.0', transitions: 'hard cut',
+        rationale: 'Mirror opening hook structure.' },
+      { id: 'B13b', time: '0:48–0:50', start: 48, end: 50, frames: 60, asset: 'TYPO',
+        purpose: 'Yellow card "872 POSTS"', crop: 'typo',
+        fx: 'scale bounce', transitions: 'hard cut', rationale: 'Final stat beat.' },
+      { id: 'B13c', time: '0:50–0:52', start: 50, end: 52, frames: 60, asset: 'TYPO',
+        purpose: 'Yellow card "1 SCENE 🇸🇬"', crop: 'typo',
+        fx: 'scale bounce', transitions: 'hard cut',
+        rationale: 'Trains ear for final beat.' },
+      { id: 'B14', time: '0:52–1:00', start: 52, end: 60, frames: 240, asset: 'A',
+        purpose: 'CTA · "WATCH THE FULL RECAP →"',
+        crop: 'video in upper-right corner, looping silent',
+        fx: 'pulse arrow, bounce finger emoji',
+        transitions: 'in fade from yellow flash · out hold',
+        rationale: 'Explicit CTA. Video corner = social proof. URL must be tap-able.' }
+    ]
+  },
+  C: {
+    name: 'One Voice',
+    shape: 'Single-thread reverence · video-led · minimal chrome',
+    beatCount: 5,
+    assetCount: 2,
+    refs: 'NEW 11th variant proposed · cousins: editorial-newspaper, apple-keynote',
+    beats: [
+      { id: 'B01', time: '0:00–0:12', start: 0, end: 12, frames: 360, asset: 'A',
+        purpose: 'Hold on his face for 12s. Let his voice land before any cut.',
+        crop: 'video playing inline · Ken Burns 1.0 → 1.04 over 12s',
+        fx: 'letterbox only when 9:16 source-fit demands it',
+        transitions: 'in 1s fade from black + audio fade-in · out NO cut',
+        rationale: 'First 12s of his speech is where he establishes premise. Don\'t cut. Don\'t overlay.' },
+      { id: 'B02', time: '0:12–0:28', start: 12, end: 28, frames: 480, asset: 'A',
+        purpose: 'The quote unfolds — his actual delivery, not pull quote',
+        crop: 'video continues · TIGHT eye zoom around "you cannot govern" (1.04 → 1.15 → back)',
+        fx: 'vignette pulses with audio volume (TODO when audio)',
+        transitions: 'no cut · continuity from B01',
+        rationale: 'Everyone has seen the text. Show the speaking. Slight zoom = weight without force.' },
+      { id: 'B03', time: '0:28–0:40', start: 28, end: 40, frames: 360, asset: 'H',
+        purpose: 'Cut once — to the room hearing the line',
+        crop: 'static · NO Ken Burns · let photo SIT',
+        fx: 'nothing', transitions: 'in 1s cross-fade · out 1s cross-fade · audio bridges',
+        rationale: 'ONLY photo in entire recap. Doing enormous work. His voice over crowd photo = the moment that mattered.' },
+      { id: 'B04', time: '0:40–0:52', start: 40, end: 52, frames: 360, asset: 'A',
+        purpose: 'Back to him for closing of speech — bookend',
+        crop: 'video resumes · scale 0.95 (slightly pulled back)',
+        fx: 'vignette deepens last 60 frames',
+        transitions: 'in 1s cross-fade · out audio fade-out last 1s',
+        rationale: 'Mirror opening. He started us, he closes us. No new info needed.' },
+      { id: 'B05', time: '0:52–1:00', start: 52, end: 60, frames: 240, asset: 'TYPO',
+        purpose: 'Silent outro — 8 seconds for viewer to sit with it',
+        crop: 'pure black with type fades',
+        fx: 'silence + dark + type',
+        transitions: 'in 1s fade · out hold',
+        rationale: 'Silence IS the asset. Most recaps end on stinger. This ends on quiet = viewer remembers speech, not recap.' }
+    ]
+  }
+};
+
+const PRINCIPLES = [
+  { stat: '2s', title: 'Intro retention window',
+    body: 'Algorithm measures % past first 3s. Strong creators hit 70%+. Open with stat, surprising statement, or compelling visual.',
+    src: 'TikTok / Reels best-practices research' },
+  { stat: '75%', title: 'Mobile + sound-off',
+    body: 'Default consumption is on a phone with audio muted. Captions must be burnt-in. Visual storytelling carries.',
+    src: 'Short-form video media planning 2026' },
+  { stat: '50%', title: 'Avg retention <90s',
+    body: '60s reels watched 100% by 60% outperform 15s watched 100% by 40%. Watch-time > length. Earn the full minute.',
+    src: 'PEAKBOUND studio · social video length' },
+  { stat: 'POV', title: 'Signal, don\'t summarize',
+    body: 'Best recaps leave the viewer with a strong belief, not a list of what happened. Selective showing creates emotion. Documenting everything dilutes.',
+    src: 'Komet Media · 5 best examples 2026' },
+  { stat: '4', title: 'Asset rules at once',
+    body: 'A great recap is simultaneously: sales asset, recruiting tool, demand engine, brand signal. All four hats on at all times.',
+    src: 'Same source' }
+];
+
+const REFS = [
+  { name: 'Dreamforce', src: 'Salesforce flagship · annual',
+    pattern: 'Signal what it REPRESENTS, not what happened',
+    body: 'Communicates scale + momentum + vision through packed rooms, confident speakers, activities, and a clear sense that Salesforce is shaping what comes next in enterprise. Doesn\'t list sessions.',
+    lesson: 'Our Storyboard A leans this way. The "1,247 builders · 18 countries" overlay signals scale; we don\'t list the 30 talks.' },
+  { name: 'Adobe Summit', src: 'Adobe · annual',
+    pattern: 'Brand alignment — every frame on-thesis',
+    body: 'Every frame reinforces what Adobe stands for: creativity, innovation, future of digital experience. Tightly aligned visual language across all 60-90s. Nothing off-brand sneaks in.',
+    lesson: 'Storyboard C ("One Voice") commits hardest. Storyboard B is opposite — flat hierarchy = no thesis.' },
+  { name: 'Bits & Pretzels', src: 'Munich founders\' event',
+    pattern: 'Intimacy — real conversations + informal moments',
+    body: 'Eschews the polished sizzle. Focus on conversations between founders, shared laughs, off-stage moments. The vibe IS the value prop.',
+    lesson: 'Storyboard A B04 (face cuts on Rachael panel) gestures this way. Adding more candid moments could deepen it.' },
+  { name: 'Web Summit', src: 'Lisbon · annual',
+    pattern: 'Energy and momentum, not agendas',
+    body: 'Hyper-cut visual rhythm. Stat punches. Crowd density imagery. Skips the schedule. Goal is "you missed it" feeling.',
+    lesson: 'Storyboard B is built for this exact register. Risk: feels like every other tech-conf hype reel.' },
+  { name: 'Tomorrowland aftermovies', src: 'EDM festival · annual',
+    pattern: '"Mini cinematic events" — recap as its own art object',
+    body: 'Expert editing, deliberate cinematography, audio moments. Treated as a feature film, not a documentation. Color grading creates "worlds." Uses Dolby Vision for HDR blacks.',
+    lesson: 'Storyboard A\'s film-grain + Ken Burns + sustained quotes nods to this. Storyboard C extends it via sustained silence.' },
+  { name: 'YC Demo Day recaps', src: 'Y Combinator · biannual',
+    pattern: 'One-minute, one-slide hierarchy',
+    body: 'Format strips noise → core idea shines. Recap reels distill 200 startups into a feeling, not a list. Strong individual founder portraits with single-line theses.',
+    lesson: 'For us: pairs with B\'s stat-led structure but on a single-voice spine. A 4th storyboard idea?' },
+  { name: 'A24 trailers (general)', src: 'A24 distributor',
+    pattern: 'Restraint as signaling',
+    body: 'Long held shots. Negative space. Single quote on black. Type does heavy lifting. Aesthetic of withholding.',
+    lesson: 'Storyboard C in pure form. The "silence is the asset" principle.' },
+  { name: 'MrBeast retention loops', src: 'YouTube creator',
+    pattern: 'Hook → tease → payoff cycle every 8-12s',
+    body: 'Promises the payoff in the first 3s. Layered teases keep viewer hooked. Every cut earns the next 5s.',
+    lesson: 'Storyboard B uses parts of this (yellow-flash beats). Could be tightened — currently B has 6+ beats that don\'t reset the loop.' }
+];
+
+const ANTI = [
+  { name: 'The slideshow trap', src: 'Most amateur event recaps',
+    pattern: 'Cycle the photo pool with chrome',
+    body: 'Same N photos appear in fixed-interval slideshow. Variants differ only in font/color. No narrative. No selection. This is what current EventRecapVertical literally does.',
+    lesson: 'Exactly what these storyboards are designed to escape. Per-beat asset selection > cycling.' },
+  { name: 'Stats-led with no humans', src: 'Enterprise event recaps',
+    pattern: 'Numbers without faces',
+    body: '"5,000 attendees · 47 sessions · 12 sponsors" with stock photos. Reads as report, not story. Zero stickiness.',
+    lesson: 'Storyboards A and C save stats for the outro. B is stat-led but pairs every stat with a face.' },
+  { name: 'Sponsor logo wall as Act 1', src: 'B2B SaaS conferences',
+    pattern: 'Brand vanity over content',
+    body: 'Recap opens with 30s of sponsor logos. Viewer leaves. Sponsors paid for visibility but get scroll-past instead of brand affiliation.',
+    lesson: 'All three storyboards bury sponsor mentions mid-recap. Acknowledge, don\'t lead.' },
+  { name: 'No POV — "balanced coverage"', src: 'Generic event documentation',
+    pattern: 'Try to please everyone',
+    body: 'Equal time to keynote / sponsors / workshops / parties / vendor booths. Pleases no one. Reads as itinerary not narrative.',
+    lesson: 'Each storyboard\'s "what this is NOT" section forces explicit cuts. That discipline IS the value.' },
+  { name: 'Burnt-in jargon viewer doesn\'t know', src: 'Insider recaps',
+    pattern: 'Assume context the viewer lacks',
+    body: 'Captions say "x402 + pay.sh demo" with no setup. Loses the 90% who haven\'t lived the conversation.',
+    lesson: 'Storyboard B handles this carefully — names sponsors but ELIDES workshop tech ("hack night" not "Codex hack night"). Worth tightening across all three.' },
+  { name: 'Audio-only message', src: 'Talking-head recaps',
+    pattern: 'Voiceover that doesn\'t survive sound-off',
+    body: 'Recap is built around a narration. Played silently it\'s incomprehensible. Algorithm penalizes scrollers who didn\'t unmute.',
+    lesson: 'Storyboard C\'s key risk. Mitigated by: every visual beat is legible without sound. The voice adds, not carries.' }
+];
+
+// renderers
+function letterStyle(L) {
+  return { A: 'background:#ff8c42', B: 'background:#fef34c', C: 'background:#818cf8' }[L] || '';
+}
+
+function renderBoards() {
+  const grid = document.getElementById('boards-grid');
+  ['A','B','C'].forEach(L => {
+    const sb = STORYBOARDS[L];
+    const board = document.createElement('div');
+    board.className = 'board';
+    board.dataset.letter = L;
+    board.innerHTML = `
+      <header>
+        <span class="letter">${L}</span>
+        <h2>${sb.name}</h2>
+        <div class="meta">${sb.shape}</div>
+        <div class="meta">${sb.beatCount} beats · ${sb.assetCount} assets · variants: ${sb.refs}</div>
+      </header>
+      <div class="beats">${sb.beats.map(beatHTML).join('')}</div>
+    `;
+    grid.appendChild(board);
+  });
+}
+
+function beatHTML(b) {
+  const a = ASSETS[b.asset];
+  let thumb;
+  if (b.asset === 'TYPO' || !a.src) {
+    thumb = `<div class="thumb typographic">TYPO<br>only</div>`;
+  } else if (a.type === 'video') {
+    thumb = `<div class="thumb"><video src="${a.src}" muted preload="metadata"></video><span class="hletter">${b.asset}</span></div>`;
+  } else {
+    thumb = `<div class="thumb"><img src="${a.src}" loading="lazy" alt="${a.name}"><span class="hletter">${b.asset}</span></div>`;
+  }
+  return `
+    <div class="beat">
+      <div class="beat-head">
+        <span class="bid">${b.id}</span>
+        <span class="btime">${b.time}</span>
+        <span class="bdur">${b.frames}f</span>
+      </div>
+      <div class="beat-body">
+        ${thumb}
+        <div class="beat-content">
+          <div class="purpose">${b.purpose}</div>
+          <div class="pair"><span class="k">Asset</span><span class="v">${a.name}</span></div>
+          <div class="pair"><span class="k">Crop</span><span class="v">${b.crop}</span></div>
+          <div class="pair"><span class="k">FX</span><span class="v">${b.fx}</span></div>
+          <div class="pair"><span class="k">Trans</span><span class="v">${b.transitions}</span></div>
+          <div class="rationale">${b.rationale}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTimeline() {
+  const root = document.getElementById('timeline-container');
+  const TOTAL = 60;
+  const ticks = [];
+  for (let s = 0; s <= 60; s += 5) ticks.push(`<div class="time-tick">${s}s</div>`);
+  root.innerHTML = `
+    <div class="time-axis">${ticks.join('')}</div>
+    ${['A','B','C'].map(L => {
+      const sb = STORYBOARDS[L];
+      const blocks = sb.beats.map(b => {
+        const left = (b.start / TOTAL * 100).toFixed(2);
+        const width = ((b.end - b.start) / TOTAL * 100).toFixed(2);
+        return `<div class="block" style="left:${left}%;width:${width}%" title="${b.id} · ${b.purpose}">${b.id} · ${b.purpose.slice(0, 32)}</div>`;
+      }).join('');
+      return `
+        <div class="track-row">
+          <div class="track-label"><span class="lbox" style="${letterStyle(L)}">${L}</span>${sb.name}</div>
+          <div class="track" data-letter="${L}">${blocks}</div>
+        </div>`;
+    }).join('')}
+  `;
+}
+
+function renderRefs() {
+  document.getElementById('principles').innerHTML = PRINCIPLES.map(p => `
+    <div class="principle">
+      <div class="stat">${p.stat}</div>
+      <div class="title">${p.title}</div>
+      <div class="body">${p.body}</div>
+      <div class="src">${p.src}</div>
+    </div>
+  `).join('');
+  document.getElementById('refs-grid').innerHTML = REFS.map(r => `
+    <div class="ref">
+      <h3>${r.name}</h3>
+      <div class="src">${r.src}</div>
+      <div class="pattern">${r.pattern}</div>
+      <p>${r.body}</p>
+      <div class="lesson">${r.lesson}</div>
+    </div>
+  `).join('');
+  document.getElementById('anti-grid').innerHTML = ANTI.map(r => `
+    <div class="ref">
+      <h3>${r.name}</h3>
+      <div class="src">${r.src}</div>
+      <div class="pattern">${r.pattern}</div>
+      <p>${r.body}</p>
+      <div class="lesson">${r.lesson}</div>
+    </div>
+  `).join('');
+}
+
+// tabs
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+renderBoards();
+renderTimeline();
+renderRefs();
+</script>
+
+</body>
+</html>
