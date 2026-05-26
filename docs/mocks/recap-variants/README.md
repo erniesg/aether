@@ -45,11 +45,53 @@ drift on faces, scene-local time for each montage pick), **brand-sizzle**
 keep static focal-point crops — Ken Burns would fight their character
 (mrbeast hyper-cuts, synthwave glitch, etc).
 
-**TODO.** The standalone `EventRecapVertical` / `EventRecapHorizontal`
-MP4s in `out/aie2026/` are stale (last rendered May 25, pre-fix). The
-Studio shows the fix live; the standalone MP4s need a re-render via
-`npm run recap:render:vert` + `npm run recap:render:horiz` if anyone
-wants the artifact.
+---
+
+## Face-aware crop (2026-05-26)
+
+The focal-point heuristic biased `object-position` but couldn't
+guarantee any specific region of the source stayed visible — with
+`object-fit: cover` something always gets cut at extreme aspect
+mismatches, and a single focal point only moves WHERE it gets cut.
+The reviewer caught a 9:16 frame where Vivian's face was still half-
+sliced even after the focal fix.
+
+**Constraint, not heuristic.** Every photo now also carries
+`sourceDims` + `faces[]` (SAM3-tagged, with MediaPipe as fallback;
+see `docs/mocks/face-tagging-compare/README.md`).
+`computeFaceAwareTransform(asset, containerAspect)` produces one of:
+
+- `static` — the `object-position` that centers the face union inside
+  the cover-scale window. Used when the union fits.
+- `pan` — `from`/`to` `object-position` keys scanning across the union.
+  Fires for 5 of 16 photos in 9:16 vertical (multi-person panels +
+  audience shots that can't fit in a single static crop). All photos
+  are static in 16:9 horizontal.
+- `letterbox` — fallback to `object-fit: contain` for the rare case
+  where pan is forbidden but the union still won't fit.
+
+`MediaBackdrop` and the variant scenes now drive crop via
+`useFaceAwareObjectPosition()` (hook), `faceAwareObjectPosition()`
+(pure helper for fixed-aspect stickers like Polaroids), and
+`faceAwareKenBurns()` (replaces `defaultKenBurns` in motion variants).
+The legacy `focalObjectPosition` / `defaultKenBurns` helpers stay
+exported as fallbacks for assets with no face tags.
+
+**Tagger choice.** SAM3 local. ~5s/photo on CPU (one-time cost, paid
+at tagging time, not at render). 79 face boxes across 16 photos vs
+MediaPipe BlazeFace short-range's 9. SAM3 hits Vivian at confidence
+0.84; MediaPipe misses him because his portrait is a 5m-distance
+shot, outside short-range BlazeFace's training distribution.
+Long-term: swap in MediaPipe BlazeFace `full_range` for live re-
+tagging during uploads (60ms/photo).
+
+**Verification stills.** Fresh renders of the reviewer-flagged frames
+live in `docs/mocks/face-aware-verification/`. Side-by-side compare:
+
+| | Before (focal heuristic) | After (face-aware) |
+|---|---|---|
+| brand-sizzle 9×16 mid | `recap-variants/brand-sizzle/mid.png` (Vivian a thumbnail in the dark) | `face-aware-verification/Variant-brand-sizzle-Vertical-frame-0180.jpg` (face whole + centered) |
+| sundance-doc 9×16 mid | `recap-variants/sundance-doc/mid.png` | `face-aware-verification/Variant-sundance-doc-Vertical-frame-0180.jpg` |
 
 ---
 
