@@ -554,6 +554,17 @@ export function renderHtml(options: { theme?: EmbedTheme } = {}): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Engineer Singapore vibes</title>
+<meta name="description" content="Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets." />
+<link rel="canonical" href="https://aether.berlayar.ai/vibes/aie2026/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="AI Engineer Singapore vibes" />
+<meta property="og:description" content="Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets." />
+<meta property="og:url" content="https://aether.berlayar.ai/vibes/aie2026/" />
+<meta property="og:image" content="https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore%2Fmedia%2Flinkedin%2F7283684d73974e93.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="AI Engineer Singapore vibes" />
+<meta name="twitter:description" content="Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets." />
+<meta name="twitter:image" content="https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore%2Fmedia%2Flinkedin%2F7283684d73974e93.jpg" />
 ${fontLink}
 <script>if(location.search.includes('debug=1'))document.documentElement.classList.add('debug')</script>
 <style>
@@ -567,6 +578,8 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
 .eyebrow{font-size:12px;color:var(--dim)}h1{font-family:Georgia,serif;font-size:clamp(32px,3vw,42px);line-height:1.04;margin:10px 0 16px;overflow-wrap:anywhere}h2{font-family:Georgia,serif;font-size:28px;line-height:1.14;margin:0}h3{font-family:Georgia,serif;font-size:22px;line-height:1.18;margin:0}
 .meta{font-size:12px;color:var(--muted)}.method{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}.method summary{cursor:pointer}.method-line{display:grid;gap:2px;margin:10px 0 0;color:var(--muted);font-size:13px;line-height:1.35}.method-line b{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em;color:#514b45}.method-facts{display:grid;gap:7px;margin-top:12px}.method-facts span{border:1px solid var(--line);background:#fff;padding:7px 9px;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.method details details{margin-top:10px}.method details details summary{font-size:11px}.method ul{max-height:180px;overflow:auto;margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12px}.method li{margin:4px 0}.method code{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .evidence{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}.evidence p{margin:4px 0 0;color:var(--muted);font-size:13px;line-height:1.35}.evidence-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.evidence-actions a{border:1px solid var(--line);background:#fff;padding:6px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;text-decoration:none;color:var(--muted)}.evidence-actions a:hover{border-color:var(--accent);color:var(--accent)}.debug-only{display:none}html.debug .debug-only{display:inline-block}
+.share-panel{margin-top:16px;border:1px solid var(--line);background:var(--soft);padding:12px}.share-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.share-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px}.share-actions button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 8px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;text-align:left;cursor:pointer}.share-actions button:hover{border-color:var(--accent);color:var(--accent)}.share-actions button:disabled{cursor:wait;opacity:.62}.share-status{min-height:16px;margin:6px 0 0;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;overflow-wrap:anywhere}
+.share-actions button{display:flex;align-items:center;gap:7px;min-width:0}.platform-icon{display:inline-grid;width:18px;height:18px;flex:0 0 18px;place-items:center;border:1px solid var(--line);background:#fff;color:var(--ink);font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:none;letter-spacing:0}.platform-icon-x{font-size:11px}.platform-icon-linkedin{background:#0a66c2;border-color:#0a66c2;color:#fff}.platform-icon-facebook{background:#1877f2;border-color:#1877f2;color:#fff;font-family:Arial,sans-serif;font-size:14px}.platform-icon-whatsapp{background:#1fa463;border-color:#1fa463;color:#fff;font-size:9px}.share-platform-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.share-verified{margin-left:auto;min-width:20px;border:1px solid var(--line);background:#fff;padding:2px 5px;text-align:center;font:10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}.share-verified.private{min-width:auto;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 .main{min-width:0}.hero{border:1px solid var(--line);background:var(--panel);padding:24px}.lede{max-width:none;font-size:18px;color:#5b554e;margin:10px 0 0}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 .chip{border:1px solid var(--line);border-radius:999px;background:#fff;padding:4px 10px;font-size:12px;color:#6f655c}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:22px}
 .freshness{margin:10px 0 0;color:var(--muted);font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em}
@@ -595,6 +608,20 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
     <p class="eyebrow">event</p>
     <h1>AI Engineer Singapore</h1>
     <p class="meta" id="dateRange">loading...</p>
+    <section class="share-panel" data-testid="vibes-public-share">
+      <div class="share-head">
+        <p class="eyebrow">share recap</p>
+      </div>
+      <div class="share-actions">
+        <button type="button" data-share-platform="x" title="Verified public posts on X"><span class="platform-icon platform-icon-x">X</span><span class="share-platform-name">X</span><span class="share-verified" id="shareVerifiedX">0</span></button>
+        <button type="button" data-share-platform="linkedin" title="Verified public posts on LinkedIn"><span class="platform-icon platform-icon-linkedin">in</span><span class="share-platform-name">LinkedIn</span><span class="share-verified" id="shareVerifiedLinkedin">0</span></button>
+        <button type="button" data-share-platform="facebook" title="Verified public posts on Facebook"><span class="platform-icon platform-icon-facebook">f</span><span class="share-platform-name">Facebook</span><span class="share-verified" id="shareVerifiedFacebook">0</span></button>
+        <button type="button" data-share-platform="whatsapp" title="WhatsApp shares are private and cannot be verified by public URL discovery"><span class="platform-icon platform-icon-whatsapp">wa</span><span class="share-platform-name">WhatsApp</span><span class="share-verified private">private</span></button>
+        <button type="button" id="shareNative" title="Device shares are private unless the public post is later found"><span class="share-platform-name">device share</span><span class="share-verified private">private</span></button>
+        <button type="button" id="shareCopyCurrent" title="Create and copy a tracked short link"><span class="share-platform-name">copy link</span></button>
+      </div>
+      <p class="share-status" id="shareStatus"></p>
+    </section>
     <div class="method">
       <details>
         <summary class="meta">method</summary>
@@ -655,6 +682,28 @@ const $=(id)=>document.getElementById(id);
 const fmt=(n)=>n==null?'0':Intl.NumberFormat('en',{notation:n>=10000?'compact':'standard',maximumFractionDigits:1}).format(n);
 const date=(v)=>v?new Date(v).toLocaleDateString('en-SG',{day:'numeric',month:'short',year:'numeric'}):'date pending';
 const dateTime=(v)=>v?new Date(v).toLocaleString('en-SG',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Asia/Singapore',timeZoneName:'short'}):'time pending';
+const SHARE_TARGET={objectType:'vibes_page',objectId:'aie2026',slug:'aie2026',canonicalPath:'/vibes/aie2026/',title:'AI Engineer Singapore vibes',description:'Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets.'};
+const SHARE_TEXT='sampled the socmed vibes for AI Engineer Singapore';
+const SHARE_HASHTAGS=['AIE2026','AIEngineer','Singapore'];
+const PUBLIC_CANONICAL_URL='https://aether.berlayar.ai/vibes/aie2026/';
+function isLocalShareUrl(url){try{const host=new URL(url).hostname;return host==='localhost'||host==='127.0.0.1'||host==='::1'}catch{return false}}
+function trackedCanonicalUrl(code,platform){const url=new URL(PUBLIC_CANONICAL_URL);if(code)url.searchParams.set('aether_share',code);if(platform)url.searchParams.set('utm_source',platform);url.searchParams.set('utm_medium','share');return url.toString()}
+function socialShareUrl(link,platform){return isLocalShareUrl(link.shortUrl)?trackedCanonicalUrl(link.code,platform):link.shortUrl}
+function setShareStatus(message){const node=$('shareStatus');if(node)node.textContent=message||''}
+function setVerified(platform,value){const ids={x:'shareVerifiedX',linkedin:'shareVerifiedLinkedin',facebook:'shareVerifiedFacebook'};const node=$(ids[platform]);if(node)node.textContent=fmt(Number(value||0))}
+function updateShareSummary(summary){summary=summary||{};const byPlatform=summary.publicPostsByPlatform||{};setVerified('x',byPlatform.x);setVerified('linkedin',byPlatform.linkedin);setVerified('facebook',byPlatform.facebook)}
+function setShareBusy(busy){document.querySelectorAll('[data-share-platform],#shareNative,#shareCopyCurrent').forEach(node=>{node.disabled=!!busy})}
+function platformShareUrl(platform,url){if(platform==='x'){const u=new URL('https://x.com/intent/tweet');u.searchParams.set('text',SHARE_TEXT);u.searchParams.set('url',url);u.searchParams.set('hashtags',SHARE_HASHTAGS.join(','));return u.toString()}if(platform==='linkedin'){const u=new URL('https://www.linkedin.com/sharing/share-offsite/');u.searchParams.set('url',url);return u.toString()}if(platform==='facebook'){const u=new URL('https://www.facebook.com/sharer/sharer.php');u.searchParams.set('u',url);return u.toString()}if(platform==='whatsapp'){const u=new URL('https://wa.me/');u.searchParams.set('text',SHARE_TEXT+'\\n'+url);return u.toString()}return null}
+async function loadShareSummary(){try{const res=await fetch('/api/share/summary?canonicalPath='+encodeURIComponent(SHARE_TARGET.canonicalPath),{cache:'no-store'});const json=await res.json();if(json&&json.ok)updateShareSummary(json.summary)}catch(err){setShareStatus('share counts unavailable locally')}}
+async function recordInboundShareVisit(){const params=new URLSearchParams(location.search);const code=(params.get('aether_share')||params.get('share')||'').trim();if(!code)return;const key='aether.share.visit.'+code;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');const platform=['x','linkedin','facebook','whatsapp','telegram'].includes(params.get('utm_source')||'')?params.get('utm_source'):'unknown';await recordShareEvent('share_link_visit',platform,code)}
+async function createShareLink(platform){const res=await fetch('/api/share/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:SHARE_TARGET,platform,shareText:SHARE_TEXT})});const json=await res.json();if(!json.ok||!json.link)throw new Error(json.error||('HTTP '+res.status));return json.link}
+async function recordShareEvent(eventType,platform,code){try{await fetch('/api/share/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventType,platform,code,canonicalPath:SHARE_TARGET.canonicalPath})})}catch(err){}}
+async function writeClipboard(text){if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);return}const input=document.createElement('textarea');input.value=text;input.setAttribute('readonly','');input.style.position='fixed';input.style.left='-9999px';document.body.appendChild(input);input.select();document.execCommand('copy');input.remove()}
+async function sharePlatform(platform){const shareWindow=window.open('about:blank','_blank');setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink(platform);const outboundUrl=socialShareUrl(link,platform);const href=platformShareUrl(platform,outboundUrl);if(!href)throw new Error('Share destination unavailable.');if(!shareWindow){setShareStatus('share window blocked');return}shareWindow.opener=null;shareWindow.location.href=href;await recordShareEvent('platform_clicked',platform,link.code);setShareStatus(isLocalShareUrl(link.shortUrl)?'opened public tagged URL; production uses short URL':'share started with short URL')}catch(err){if(shareWindow)shareWindow.close();setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function nativeShare(){setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink('native');if(navigator.share){await navigator.share({title:SHARE_TARGET.title,text:SHARE_TEXT,url:link.shortUrl});await recordShareEvent('native_share_success','native',link.code);setShareStatus('shared')}else{await writeClipboard(link.shortUrl);await recordShareEvent('copy_link','native',link.code);setShareStatus('short link copied')}}catch(err){await recordShareEvent('native_share_error','native');setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function copyTrackedShare(){setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink('copy');await writeClipboard(link.shortUrl);await recordShareEvent('copy_link','copy',link.code);setShareStatus('short link copied')}catch(err){setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+document.querySelectorAll('[data-share-platform]').forEach(node=>{node.onclick=()=>sharePlatform(node.getAttribute('data-share-platform'))});
+$('shareNative').onclick=()=>nativeShare();$('shareCopyCurrent').onclick=()=>copyTrackedShare();loadShareSummary();recordInboundShareVisit();
 const isImageUrl=(v)=>/\\.(jpe?g|png|webp|avif|gif)(\\?|$)/i.test(String(v||''));
 const isVideoUrl=(v)=>/\\.(mp4|webm|mov|m4v)(\\?|$)/i.test(String(v||''));
 const localMediaUrl=(m)=>m.path?'/vibes/aie2026/media?path='+encodeURIComponent(m.path):'';

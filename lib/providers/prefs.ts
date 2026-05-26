@@ -19,6 +19,7 @@ import type { VoiceProviderId } from '@/lib/voice/types';
 
 export interface WorkspaceProviderPrefs {
   imageProviderId?: string;
+  imageModel?: string;
   voiceProviderId?: VoiceProviderId;
   voiceModel?: string;
   segmentationProviderId?: string;

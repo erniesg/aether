@@ -160,7 +160,7 @@ export async function deleteTextOverlayHandler(
 
 export const createTextOverlay = mutationGeneric({
   args: {
-    wsId: v.id('workspace'),
+    wsId: v.union(v.id('workspace'), v.string()),
     artboardId: v.string(),
     content: CONTENT_VALIDATOR,
     activeLanguage: v.string(),
@@ -194,7 +194,7 @@ export const deleteTextOverlay = mutationGeneric({
 });
 
 export const listByWorkspace = queryGeneric({
-  args: { wsId: v.id('workspace') },
+  args: { wsId: v.union(v.id('workspace'), v.string()) },
   handler: async (ctx, args) => {
     const docs = await ctx.db
       .query('textOverlay')

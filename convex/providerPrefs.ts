@@ -19,6 +19,7 @@ export const getProviderPrefs = queryGeneric({
     if (!doc) return null;
     const prefs: WorkspaceProviderPrefs = {};
     if (doc.imageProviderId) prefs.imageProviderId = doc.imageProviderId;
+    if (doc.imageModel) prefs.imageModel = doc.imageModel;
     if (doc.voiceProviderId) prefs.voiceProviderId = doc.voiceProviderId as import('../lib/voice/types').VoiceProviderId;
     if (doc.voiceModel) prefs.voiceModel = doc.voiceModel;
     if (doc.segmentationProviderId) prefs.segmentationProviderId = doc.segmentationProviderId;
@@ -31,6 +32,7 @@ export const saveProviderPrefs = mutationGeneric({
     workspaceId: v.string(),
     prefs: v.object({
       imageProviderId: v.optional(v.string()),
+      imageModel: v.optional(v.string()),
       voiceProviderId: v.optional(v.string()),
       voiceModel: v.optional(v.string()),
       segmentationProviderId: v.optional(v.string()),
@@ -45,6 +47,7 @@ export const saveProviderPrefs = mutationGeneric({
     const patch = {
       workspaceId: args.workspaceId,
       imageProviderId: args.prefs.imageProviderId,
+      imageModel: args.prefs.imageModel,
       voiceProviderId: args.prefs.voiceProviderId,
       voiceModel: args.prefs.voiceModel,
       segmentationProviderId: args.prefs.segmentationProviderId,

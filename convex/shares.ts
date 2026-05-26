@@ -296,6 +296,7 @@ export const getSummary = queryGeneric({
         trackedVisits: 0,
         botPreviews: 0,
         publicPosts: 0,
+        publicPostsByPlatform: {},
         platformActions: {},
         publicReach: {},
       };
@@ -319,6 +320,10 @@ export const getSummary = queryGeneric({
       acc[event.platform] = (acc[event.platform] ?? 0) + 1;
       return acc;
     }, {});
+    const publicPostsByPlatform = mentions.reduce((acc: Record<string, number>, mention: any) => {
+      acc[mention.platform] = (acc[mention.platform] ?? 0) + 1;
+      return acc;
+    }, {});
     const publicReach = mentions.reduce(
       (acc: Record<string, number>, mention: any) => {
         for (const key of ['likes', 'reposts', 'quotes', 'replies', 'comments', 'reactions', 'views', 'impressions']) {
@@ -336,6 +341,7 @@ export const getSummary = queryGeneric({
       trackedVisits: links.reduce((sum: number, link: ShareLinkDoc) => sum + link.visitCount, 0),
       botPreviews: links.reduce((sum: number, link: ShareLinkDoc) => sum + link.botVisitCount, 0),
       publicPosts: mentions.length,
+      publicPostsByPlatform,
       platformActions,
       publicReach,
     };
