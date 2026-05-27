@@ -133,6 +133,20 @@ For each angle, tally evidence. Use `prompts/thesis-balance-check.md` to grade r
 
 ⏸ **Juncture B** (HITL): analyst picks under-evidenced angles for top-up.
 
+### Step 6A — Relevance gate for refreshes
+For incremental refreshes, run a held-row relevance pass before merging the sidecar. Use [[references/aie2026-relevance-assessment]] for AIE 2026.
+
+The gate separates:
+- core event evidence that can be a story root,
+- event texture that should be kept as supporting context,
+- official side-event orbit material such as Road-to-AIE events,
+- second-order / multiplier effects where a keynote, session, speaker, sponsor, or side event demonstrably travelled beyond the room,
+- irrelevant incidental mentions and orphan comments whose parents are not relevant.
+
+Record human review as a decision overlay rather than mutating the raw audit. Keep comments/replies attached to kept parents; never let orphan comments become standalone roots.
+
+Also run the expansion/conversation spam guard across the full sidecar, not only the held rows. For X, a row with `x-reply` / `conversation` / `parent:<tweetId>` collection tags is not automatically a real reply: if its provider `conversationId` equals its own tweet ID, it has no true reply edge, and its own text lacks a direct event or multiplier anchor, exclude it as `detached_x_conversation_expansion_without_direct_event_anchor`. Do this before public preview so detached spam media cannot enter the media wall.
+
 ### Step 7 — Expand under-evidenced angles
 - **Corpus-mined anchors**: call `deriveExpansionPlan` (`lib/research/event-recap/expand.ts:146`) — extracts hashtags, mentions, entities, corpus phrases from the posts you already have
 - **Angle-targeted anchors**: hand-add queries for the angles that came back thin. Pattern: `"<entity>" "<event-name>"` for sponsors/brands, `@<handle> <event-name>` for speakers/participants, exact phrase for highlights
@@ -211,6 +225,7 @@ See [[references/aie2026-atlas-lanes]] for lane-definition rationale.
 - [[references/aie2026-stories]] — canonical 13-story config
 - [[references/aie2026-methodology]] — shipped methodology + lede copy
 - [[references/aie2026-atlas-lanes]] — 4 lanes + lane-assignment logic
+- [[references/aie2026-relevance-assessment]] — AIE refresh relevance gate, including side events and multiplier effects
 
 ### Prompts
 - `prompts/draft-theses.md` — given event metadata + stakeholders → 1-3 candidate theses

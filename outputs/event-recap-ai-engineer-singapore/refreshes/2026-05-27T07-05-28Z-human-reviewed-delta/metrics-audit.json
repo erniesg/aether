@@ -1,0 +1,102 @@
+{
+  "sidecarRows": 852,
+  "sidecarRowsIncluded": 807,
+  "sidecarRowsExcluded": 45,
+  "rowsWithMetricsUpdatedAt": 807,
+  "byPlatform": {
+    "linkedin": 253,
+    "x": 360,
+    "youtube": 194
+  },
+  "byStatus": {
+    "linkedin:updated": 250,
+    "linkedin:not_found_search_match": 3,
+    "x:updated": 360,
+    "youtube:updated": 194
+  },
+  "unresolvedLinkedInRows": [
+    {
+      "postId": "linkedin_hfsbb2",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7460864031705247744",
+      "authorName": "Asia Tech Podcast",
+      "status": "not_found_search_match",
+      "metricsUpdatedAt": "2026-05-27T04:53:24.199Z",
+      "metrics": {
+        "comments": 0,
+        "reactions": 3,
+        "reposts": 1
+      }
+    },
+    {
+      "postId": "linkedin_1q8sgk5",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463026493309337600",
+      "authorName": "Calvin G.",
+      "status": "not_found_search_match",
+      "metricsUpdatedAt": "2026-05-27T04:53:24.204Z",
+      "metrics": {
+        "comments": 0,
+        "reactions": 48,
+        "reposts": 0
+      }
+    },
+    {
+      "postId": "linkedin_1p3nper",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463633916181057536",
+      "authorName": "Abe Camelote",
+      "status": "not_found_search_match",
+      "metricsUpdatedAt": "2026-05-27T04:53:24.206Z",
+      "metrics": {
+        "comments": 0,
+        "reactions": 10,
+        "reposts": 0
+      }
+    }
+  ],
+  "recoveredParentMetrics": [
+    {
+      "postId": "linkedin_j0ho9v",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463059669842903041",
+      "status": "stale_recovered_parent_not_refreshed",
+      "metrics": {
+        "comments": 1,
+        "reactions": 158,
+        "reposts": 2
+      }
+    },
+    {
+      "postId": "linkedin_112em5z",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463105031160909825",
+      "status": "stale_recovered_parent_not_refreshed",
+      "metrics": {
+        "comments": 1,
+        "reactions": 37,
+        "reposts": 2
+      }
+    },
+    {
+      "postId": "linkedin_pzpsr7",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440",
+      "status": "stale_recovered_parent_not_refreshed",
+      "metrics": {
+        "comments": 12,
+        "reactions": 39,
+        "reposts": 2
+      }
+    },
+    {
+      "postId": "linkedin_13uw9su",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616",
+      "status": "stale_recovered_parent_not_refreshed",
+      "metrics": {
+        "comments": 9,
+        "reactions": 109,
+        "reposts": 2
+      }
+    }
+  ],
+  "sourceSummary": {
+    "updated": 257,
+    "misses": 3,
+    "remainingMissReason": "3 parent feed/update rows still lack fresh parent reaction/repost refresh from direct actors; their prior metrics are preserved."
+  }
+}

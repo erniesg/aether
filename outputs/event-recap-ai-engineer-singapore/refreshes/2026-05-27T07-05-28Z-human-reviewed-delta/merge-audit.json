@@ -1,0 +1,673 @@
+{
+  "generatedAt": "2026-05-27T08:15:25.817Z",
+  "refreshId": "2026-05-27T07-05-28Z-human-reviewed-delta",
+  "baselineArchiveRows": 1770,
+  "sidecarRows": 852,
+  "includedSidecarRows": 807,
+  "excludedSidecarRows": [
+    "linkedin_1byl3ye",
+    "linkedin_1hphgzk",
+    "linkedin_1i603y7",
+    "linkedin_1ihdwu1",
+    "linkedin_74syq",
+    "linkedin_u5hpro",
+    "linkedin_z8p5iy",
+    "x:2019240467293172057",
+    "x:2056222949183791261",
+    "x:2056890741071229047",
+    "x:2056986379985244501",
+    "x:2055827587696558239",
+    "x:2056950705282552185",
+    "x:2056985318738555254"
+  ],
+  "conversationGuardExcludedSidecarRows": [
+    {
+      "postId": "x:2057832264566751684",
+      "url": "https://x.com/sariyericecek/status/2057832264566751684",
+      "authorHandle": "sariyericecek",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057786186660213178",
+      "conversationId": "2057832264566751684",
+      "text": "Bayramda Sarıyer Kola!\n\nSarıyer Kola’yla paylaşmanın mutluluğu hep sofranızda olsun. Sevdiklerinizle birlikte nice güzel bayramlara. Kurban Bayramınız mübarek olsun ☺️ https://t.co/02DXV3E59M",
+      "metrics": {
+        "likes": 4621,
+        "reposts": 362,
+        "replies": 0,
+        "comments": 0,
+        "views": 16050830,
+        "impressions": 16050830,
+        "quotes": 17,
+        "bookmarks": 230
+      }
+    },
+    {
+      "postId": "x:2058591338162225210",
+      "url": "https://x.com/ziqi_huang_/status/2058591338162225210",
+      "authorHandle": "ziqi_huang_",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057786186660213178",
+      "conversationId": "2058591338162225210",
+      "text": "An interesting work on Physical AI: PhysX-Omni.\n\nFirst unified sim-ready generation framework for rigid, deformable, and articulated objects, with a diverse dataset and new benchmark.\n\n🌐 https://t.co/qDF8BPGPNT\n💻 https://t.co/RsFJopAX2U\n📦 https://t.co/IwEreD2JjS https://t.co/IfzaDZemIO",
+      "metrics": {
+        "likes": 261,
+        "reposts": 48,
+        "replies": 5,
+        "comments": 5,
+        "views": 26031,
+        "impressions": 26031,
+        "quotes": 0,
+        "bookmarks": 197
+      }
+    },
+    {
+      "postId": "x:2058609487355756566",
+      "url": "https://x.com/DocArnica/status/2058609487355756566",
+      "authorHandle": "DocArnica",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057786186660213178",
+      "conversationId": "2058609487355756566",
+      "text": "Dandy relax https://t.co/dKP2DuEB2r",
+      "metrics": {
+        "likes": 173,
+        "reposts": 3,
+        "replies": 6,
+        "comments": 6,
+        "views": 2338,
+        "impressions": 2338,
+        "quotes": 0,
+        "bookmarks": 0
+      }
+    },
+    {
+      "postId": "x:2058652135391133696",
+      "url": "https://x.com/DataChaz/status/2058652135391133696",
+      "authorHandle": "DataChaz",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057786186660213178",
+      "conversationId": "2058652135391133696",
+      "text": "that deepfake of Michael Scott introducing @Karpathy to Dario and the Anthropic crew is the absolute best AI video I have seen so far\n\nhttps://t.co/Nb2xkgf1PX",
+      "metrics": {
+        "likes": 373,
+        "reposts": 44,
+        "replies": 14,
+        "comments": 14,
+        "views": 34933,
+        "impressions": 34933,
+        "quotes": 7,
+        "bookmarks": 99
+      }
+    },
+    {
+      "postId": "x:2058764937552683217",
+      "url": "https://x.com/BosPurwa/status/2058764937552683217",
+      "authorHandle": "BosPurwa",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056590096120594921",
+      "conversationId": "2058764937552683217",
+      "text": "https://t.co/eNXhCIL4tF",
+      "metrics": {
+        "likes": 112,
+        "reposts": 51,
+        "replies": 55,
+        "comments": 55,
+        "views": 7462,
+        "impressions": 7462,
+        "quotes": 4,
+        "bookmarks": 5
+      }
+    },
+    {
+      "postId": "x:2058821611772637462",
+      "url": "https://x.com/alwitjandr12454/status/2058821611772637462",
+      "authorHandle": "alwitjandr12454",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056590096120594921",
+      "conversationId": "2058821611772637462",
+      "text": "Monster haus kekuasaan",
+      "metrics": {
+        "likes": 2,
+        "reposts": 0,
+        "replies": 3,
+        "comments": 3,
+        "views": 23,
+        "impressions": 23,
+        "quotes": 1,
+        "bookmarks": 0
+      }
+    },
+    {
+      "postId": "x:2058866811269972048",
+      "url": "https://x.com/tom_doerr/status/2058866811269972048",
+      "authorHandle": "tom_doerr",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056311030586991070",
+      "conversationId": "2058866811269972048",
+      "text": "Whole-body VLA framework for humanoid loco-manipulation\n\nhttps://t.co/VhccHlbXSo https://t.co/o3lXGUToQr",
+      "metrics": {
+        "likes": 67,
+        "reposts": 10,
+        "replies": 0,
+        "comments": 0,
+        "views": 5263,
+        "impressions": 5263,
+        "quotes": 0,
+        "bookmarks": 61
+      }
+    },
+    {
+      "postId": "x:2058872713926807730",
+      "url": "https://x.com/numanuklf22/status/2058872713926807730",
+      "authorHandle": "numanuklf22",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056742297341944138",
+      "conversationId": "2058872713926807730",
+      "text": "Don’t check BIO! https://t.co/5GK4OHotzo",
+      "metrics": {
+        "likes": 4363,
+        "reposts": 219,
+        "replies": 88,
+        "comments": 88,
+        "views": 422912,
+        "impressions": 422912,
+        "quotes": 1,
+        "bookmarks": 1273
+      }
+    },
+    {
+      "postId": "x:2058888355828408537",
+      "url": "https://x.com/andruyeung/status/2058888355828408537",
+      "authorHandle": "andruyeung",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057490308116738365",
+      "conversationId": "2058888355828408537",
+      "text": "I'm insanely excited to announce our most exciting event of the year on June 4: Tech Extravaganza.\n\nThousands of people, founders, operators, investors, and creators, will come from all over the world.\n\nWe're taking over a massive venue in the heart of Manhattan with five distinct sections.\n\nAn open",
+      "metrics": {
+        "likes": 57,
+        "reposts": 3,
+        "replies": 8,
+        "comments": 8,
+        "views": 6215,
+        "impressions": 6215,
+        "quotes": 0,
+        "bookmarks": 13
+      }
+    },
+    {
+      "postId": "x:2058908265833259472",
+      "url": "https://x.com/_chenglou/status/2058908265833259472",
+      "authorHandle": "_chenglou",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056428298784395634",
+      "conversationId": "2058908265833259472",
+      "text": "https://t.co/FmCx6Ku6Ll",
+      "metrics": {
+        "likes": 8190,
+        "reposts": 577,
+        "replies": 73,
+        "comments": 73,
+        "views": 839071,
+        "impressions": 839071,
+        "quotes": 58,
+        "bookmarks": 626
+      }
+    },
+    {
+      "postId": "x:2058942018181812279",
+      "url": "https://x.com/arai01robo/status/2058942018181812279",
+      "authorHandle": "arai01robo",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056311030586991070",
+      "conversationId": "2058942018181812279",
+      "text": "Robotics Engineer in 2026…. https://t.co/FzlJSUd0rQ",
+      "metrics": {
+        "likes": 929,
+        "reposts": 113,
+        "replies": 6,
+        "comments": 6,
+        "views": 59975,
+        "impressions": 59975,
+        "quotes": 16,
+        "bookmarks": 278
+      }
+    },
+    {
+      "postId": "x:2058958156038836447",
+      "url": "https://x.com/_lilkm_/status/2058958156038836447",
+      "authorHandle": "_lilkm_",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056311030586991070",
+      "conversationId": "2058958156038836447",
+      "text": "LeRobot humanoid in SimArena.",
+      "metrics": {
+        "likes": 32,
+        "reposts": 5,
+        "replies": 1,
+        "comments": 1,
+        "views": 3384,
+        "impressions": 3384,
+        "quotes": 0,
+        "bookmarks": 19
+      }
+    },
+    {
+      "postId": "x:2058959625844895856",
+      "url": "https://x.com/zocomputer/status/2058959625844895856",
+      "authorHandle": "zocomputer",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057490308116738365",
+      "conversationId": "2058959625844895856",
+      "text": "If you missed our Invest like a Professional webinar ft @JingClarion you can watch it here.\n\nBuild an investment intelligence system on Zo, plus 20+ prompts to get you started 👇🏻\n\n02:42 Why Jing chose Zo to build Clarion over Claude\n05:57 Clarion at high level\n06:45 Clarion deep dive: skills, pers",
+      "metrics": {
+        "likes": 16,
+        "reposts": 3,
+        "replies": 4,
+        "comments": 4,
+        "views": 1986,
+        "impressions": 1986,
+        "quotes": 1,
+        "bookmarks": 5
+      }
+    },
+    {
+      "postId": "x:2058964350967185831",
+      "url": "https://x.com/muskosophy/status/2058964350967185831",
+      "authorHandle": "muskosophy",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057786186660213178",
+      "conversationId": "2058964350967185831",
+      "text": "“Beauty is real.”\n\n– Elon Musk https://t.co/LpAYM8a0Rz",
+      "metrics": {
+        "likes": 546,
+        "reposts": 96,
+        "replies": 56,
+        "comments": 56,
+        "views": 10811,
+        "impressions": 10811,
+        "quotes": 6,
+        "bookmarks": 31
+      }
+    },
+    {
+      "postId": "x:2058964372194566529",
+      "url": "https://x.com/0thernet/status/2058964372194566529",
+      "authorHandle": "0thernet",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057490308116738365",
+      "conversationId": "2058964372194566529",
+      "text": "100+ people showed up to this webinar on building your own professional investment system on @zocomputer \n\nreally pumped about empowering Zo power users like @JingClarion to spread their knowledge &amp; tools",
+      "metrics": {
+        "likes": 13,
+        "reposts": 1,
+        "replies": 1,
+        "comments": 1,
+        "views": 1166,
+        "impressions": 1166,
+        "quotes": 0,
+        "bookmarks": 3
+      }
+    },
+    {
+      "postId": "x:2058975157503570132",
+      "url": "https://x.com/poteto/status/2058975157503570132",
+      "authorHandle": "poteto",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056212704608895133",
+      "conversationId": "2058975157503570132",
+      "text": "https://t.co/XLwSDQA3d8",
+      "metrics": {
+        "likes": 985,
+        "reposts": 90,
+        "replies": 43,
+        "comments": 43,
+        "views": 222634,
+        "impressions": 222634,
+        "quotes": 29,
+        "bookmarks": 2044
+      }
+    },
+    {
+      "postId": "x:2059002710234448366",
+      "url": "https://x.com/joannakurylo/status/2059002710234448366",
+      "authorHandle": "joannakurylo",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2057490308116738365",
+      "conversationId": "2059002710234448366",
+      "text": "the best NYC @Techweek_  kickoff is in #brooklyn on\nJune 1, 6pm at the new Zo HQ! Meet our team! https://t.co/ZCU8rAh7tE",
+      "metrics": {
+        "likes": 15,
+        "reposts": 2,
+        "replies": 1,
+        "comments": 1,
+        "views": 395,
+        "impressions": 395,
+        "quotes": 1,
+        "bookmarks": 1
+      }
+    },
+    {
+      "postId": "x:2059002962244993447",
+      "url": "https://x.com/levelsio/status/2059002962244993447",
+      "authorHandle": "levelsio",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056742297341944138",
+      "conversationId": "2059002962244993447",
+      "text": "the best 13 ppl to follow in AI:\n\n@DanielLockyer = teaches LLMs\n@DanielLockyer = AI setup w/ huge ROI\n@DanielLockyer = honest AI takes\n@DanielLockyer = OpenClaw creator\n@DanielLockyer = marketing queen\n@DanielLockyer = best AI designs\n@DanielLockyer = AI ads king\n@DanielLockyer = SaaS genius\n@Daniel",
+      "metrics": {
+        "likes": 2726,
+        "reposts": 93,
+        "replies": 222,
+        "comments": 222,
+        "views": 438180,
+        "impressions": 438180,
+        "quotes": 15,
+        "bookmarks": 3125
+      }
+    },
+    {
+      "postId": "x:2059005227236495755",
+      "url": "https://x.com/mike_matas/status/2059005227236495755",
+      "authorHandle": "mike_matas",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056428298784395634",
+      "conversationId": "2059005227236495755",
+      "text": "Introducing Ferrari Luce, the first electric Ferrari designed by LoveFrom. https://t.co/1zxX1zsbTW",
+      "metrics": {
+        "likes": 9142,
+        "reposts": 475,
+        "replies": 1099,
+        "comments": 1099,
+        "views": 1746298,
+        "impressions": 1746298,
+        "quotes": 792,
+        "bookmarks": 2375
+      }
+    },
+    {
+      "postId": "x:2059106431878516814",
+      "url": "https://x.com/ErenChenAI/status/2059106431878516814",
+      "authorHandle": "ErenChenAI",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056311030586991070",
+      "conversationId": "2059106431878516814",
+      "text": "HomeG1Lander https://t.co/LIcTaMIpIU",
+      "metrics": {
+        "likes": 35,
+        "reposts": 1,
+        "replies": 1,
+        "comments": 1,
+        "views": 1980,
+        "impressions": 1980,
+        "quotes": 0,
+        "bookmarks": 4
+      }
+    },
+    {
+      "postId": "x:2059123950538658252",
+      "url": "https://x.com/karrisaarinen/status/2059123950538658252",
+      "authorHandle": "karrisaarinen",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056742297341944138",
+      "conversationId": "2059123950538658252",
+      "text": "We keep hearing about 10x or 100x productivity gains in engineering and knowledge work.\n\nBut outside the model labs, I haven’t seen the corresponding 10-100x revenue growth across the market or increase in quality.\n\nSo where is the productivity going?",
+      "metrics": {
+        "likes": 2498,
+        "reposts": 100,
+        "replies": 413,
+        "comments": 413,
+        "views": 295990,
+        "impressions": 295990,
+        "quotes": 89,
+        "bookmarks": 549
+      }
+    },
+    {
+      "postId": "x:2059144029695283674",
+      "url": "https://x.com/abhinavguptaIAQ/status/2059144029695283674",
+      "authorHandle": "abhinavguptaIAQ",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056310531573924170",
+      "conversationId": "2059144029695283674",
+      "text": "Bruv @suhasasumukh and @Dheemanthredy are two best people in blr right now legit, everything else is noise",
+      "metrics": {
+        "likes": 17,
+        "reposts": 0,
+        "replies": 0,
+        "comments": 0,
+        "views": 1673,
+        "impressions": 1673,
+        "quotes": 0,
+        "bookmarks": 4
+      }
+    },
+    {
+      "postId": "x:2059175554704892345",
+      "url": "https://x.com/randyloop/status/2059175554704892345",
+      "authorHandle": "randyloop",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056212704608895133",
+      "conversationId": "2059175554704892345",
+      "text": "看完很感触。虽然我自己在感情上一踏糊涂，但还是有点微小的经验可以分享分享。希望拾一不要介意。\n\n第一，尽量不要试图通过线上交流培养感情。做我们这一行，很容易忽略了线下交流的魅力所在。双方的第一次眼神接触，第一次交谈，交谈过程中双方的反应，人格魅力的互相释放，身体的气味，等等，都是两个人是否能走在一起最关键的因素。在交往前，荷尔蒙永远无法通过文字传递。\n\n因此不应该在通讯录中找对象突然开始话题，这十分不明智，除非这个人本来就对你有兴趣。\n\n不过，拾一找「学习委员」聊天并约出来见面吃饭，这是其实是很正确且勇敢的做法。但拾一认为「现在慢慢地基本上没有什么可聊的了，再主动去约的话，也不会有什么结果。这",
+      "metrics": {
+        "likes": 234,
+        "reposts": 17,
+        "replies": 25,
+        "comments": 25,
+        "views": 64178,
+        "impressions": 64178,
+        "quotes": 11,
+        "bookmarks": 132
+      }
+    },
+    {
+      "postId": "x:2059209791801819240",
+      "url": "https://x.com/mohtashamdotdev/status/2059209791801819240",
+      "authorHandle": "mohtashamdotdev",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056222949183791261",
+      "conversationId": "2059209791801819240",
+      "text": "Composer so fast it start working before i even think what to do",
+      "metrics": {
+        "likes": 11,
+        "reposts": 0,
+        "replies": 0,
+        "comments": 0,
+        "views": 424,
+        "impressions": 424,
+        "quotes": 0,
+        "bookmarks": 0
+      }
+    },
+    {
+      "postId": "x:2059214244319744084",
+      "url": "https://x.com/JaeKodok/status/2059214244319744084",
+      "authorHandle": "JaeKodok",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056590096120594921",
+      "conversationId": "2059214244319744084",
+      "text": "Waduh......cem mana?.....\n#TangkapJokowiTermulMusnah\n#TangkapJokowiTermulMusnah",
+      "metrics": {
+        "likes": 1,
+        "reposts": 1,
+        "replies": 0,
+        "comments": 0,
+        "views": 3,
+        "impressions": 3,
+        "quotes": 0,
+        "bookmarks": 0
+      }
+    },
+    {
+      "postId": "x:2059239000481689622",
+      "url": "https://x.com/gabrielchua/status/2059239000481689622",
+      "authorHandle": "gabrielchua",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056212704608895133",
+      "conversationId": "2059239000481689622",
+      "text": "codexmaxxing everywhere",
+      "metrics": {
+        "likes": 19,
+        "reposts": 0,
+        "replies": 3,
+        "comments": 3,
+        "views": 4116,
+        "impressions": 4116,
+        "quotes": 0,
+        "bookmarks": 7
+      }
+    },
+    {
+      "postId": "x:2059258715254219229",
+      "url": "https://x.com/Opposite6888/status/2059258715254219229",
+      "authorHandle": "Opposite6888",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056590096120594921",
+      "conversationId": "2059258715254219229",
+      "text": "Tomorrow, Indonesian people will celebrate Eid al-Adha and while the President’s celebrating it in Paris.. 💞\n\n17.845 🔥 https://t.co/HzsUJRzYiG",
+      "metrics": {
+        "likes": 55,
+        "reposts": 27,
+        "replies": 21,
+        "comments": 21,
+        "views": 2169,
+        "impressions": 2169,
+        "quotes": 0,
+        "bookmarks": 1
+      }
+    },
+    {
+      "postId": "x:2059261976979853746",
+      "url": "https://x.com/udayan_w/status/2059261976979853746",
+      "authorHandle": "udayan_w",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056310531573924170",
+      "conversationId": "2059261976979853746",
+      "text": "Voice AI meets Business Impact\n\nWe just wrapped up GrowthX Voice AI Buildathon with ElevenLabs and Elevation Capital.\n\nWe saw agents negotiate procurement deals, chase cheque bounces, support travel operations, help with fleet breakdowns, do career consulting, and check in on elders who need compani",
+      "metrics": {
+        "likes": 20,
+        "reposts": 5,
+        "replies": 2,
+        "comments": 2,
+        "views": 1079,
+        "impressions": 1079,
+        "quotes": 0,
+        "bookmarks": 3
+      }
+    },
+    {
+      "postId": "x:2059266580740292733",
+      "url": "https://x.com/kunalvg/status/2059266580740292733",
+      "authorHandle": "kunalvg",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056310531573924170",
+      "conversationId": "2059266580740292733",
+      "text": "India was once called the golden bird. If we want to be that again, here is where we focus:\n\n> Manufacture our own drones, ammunition, and defense hardware at scale. \n\n> Cut oil dependency by 20% every year till 2030 with renewables. \n\n> Build our own frontier models instead of renting intelligence ",
+      "metrics": {
+        "likes": 77,
+        "reposts": 9,
+        "replies": 16,
+        "comments": 16,
+        "views": 2262,
+        "impressions": 2262,
+        "quotes": 2,
+        "bookmarks": 25
+      }
+    },
+    {
+      "postId": "x:2059277623629664758",
+      "url": "https://x.com/OpenRouter/status/2059277623629664758",
+      "authorHandle": "OpenRouter",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056742297341944138",
+      "conversationId": "2059277623629664758",
+      "text": "Today we’re announcing our $113M Series B led by @CapitalGVC.\n\nOver the last 6 months, weekly volume on OpenRouter grew from 5T to 25T tokens as AI rapidly shifts from experimentation into production.\n\nWe’re excited for what comes next. https://t.co/soAFvX7fzk",
+      "metrics": {
+        "likes": 2198,
+        "reposts": 120,
+        "replies": 123,
+        "comments": 123,
+        "views": 235519,
+        "impressions": 235519,
+        "quotes": 76,
+        "bookmarks": 259
+      }
+    },
+    {
+      "postId": "x:2059293801366409398",
+      "url": "https://x.com/sarvagya_kul/status/2059293801366409398",
+      "authorHandle": "sarvagya_kul",
+      "reason": "detached_x_conversation_expansion_without_direct_event_anchor",
+      "parentTag": "parent:2056310531573924170",
+      "conversationId": "2059293801366409398",
+      "text": "Had @aakrit check out @textbackdoor https://t.co/32mWzXupRg",
+      "metrics": {
+        "likes": 28,
+        "reposts": 0,
+        "replies": 0,
+        "comments": 0,
+        "views": 1001,
+        "impressions": 1001,
+        "quotes": 0,
+        "bookmarks": 1
+      }
+    }
+  ],
+  "humanExcludedReviewRows": [
+    "linkedin_1byl3ye",
+    "linkedin_1hphgzk",
+    "linkedin_1i603y7",
+    "linkedin_1ihdwu1",
+    "linkedin_74syq",
+    "linkedin_u5hpro",
+    "linkedin_z8p5iy",
+    "linkedin_2l6j00",
+    "linkedin_1na2fgf",
+    "x:2019240467293172057",
+    "x:2056222949183791261",
+    "x:2056890741071229047",
+    "x:2056986379985244501",
+    "x:2055827587696558239",
+    "x:2056950705282552185",
+    "x:2056985318738555254"
+  ],
+  "nonSidecarExcludedReviewRows": [
+    "linkedin_2l6j00",
+    "linkedin_1na2fgf"
+  ],
+  "recoveredParentsAdded": [
+    {
+      "postId": "linkedin_j0ho9v",
+      "canonicalKey": "linkedin:activity:7463059669842903041",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463059669842903041",
+      "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevant-first-linkedin-apify-schedule-fanout-all-2026-05-26T19-02-28-209Z/posts.json"
+    },
+    {
+      "postId": "linkedin_112em5z",
+      "canonicalKey": "linkedin:activity:7463105031160909825",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463105031160909825",
+      "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/linkedin-enriched-parents-2026-05-26T17-10-58-652Z/posts.json"
+    },
+    {
+      "postId": "linkedin_pzpsr7",
+      "canonicalKey": "linkedin:activity:7463162687833661440",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440",
+      "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/linkedin-enriched-parents-2026-05-26T17-10-58-652Z/posts.json"
+    },
+    {
+      "postId": "linkedin_13uw9su",
+      "canonicalKey": "linkedin:activity:7463278802236911616",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616",
+      "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/linkedin-enriched-parents-2026-05-26T17-10-58-652Z/posts.json"
+    }
+  ],
+  "candidateRows": 2581,
+  "arithmetic": "1770 + 852 - 45 + 4 = 2581",
+  "sidecarAccounting": {
+    "included": 807,
+    "excludedByHumanReview": 14,
+    "excludedByConversationGuard": 31,
+    "total": 852,
+    "expected": 852,
+    "allAccountedFor": true
+  },
+  "recoveredParentHash": "a8ad7341fccbe2daf2909716b57487bc2ada7a8353d269bd064deceb5e276a86"
+}

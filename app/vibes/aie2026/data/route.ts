@@ -22,7 +22,13 @@ export async function GET(request: Request) {
   const format = url.searchParams.get('format');
   const download = url.searchParams.get('download') === '1';
   const runId = url.searchParams.get('captureRunId') ?? url.searchParams.get('runId');
+  const refreshIdParam = url.searchParams.get('refreshId');
+  const refreshId = parsePreviewRefreshId(refreshIdParam);
   const captureRun = findEventCaptureRun(EVENT_ID, runId);
+
+  if (refreshIdParam && !refreshId) {
+    return NextResponse.json({ ok: false, error: 'invalid refreshId' }, { status: 400 });
+  }
 
   if (scope === 'captures') {
     return captureResponse(captureRun, parseCaptureFormat(format), download);
@@ -38,7 +44,7 @@ export async function GET(request: Request) {
   const r2 = await readR2Object(DATA_KEY, format, download, captureRun);
   if (r2) return r2;
 
-  const localPath = path.resolve(process.cwd(), 'outputs', DATA_KEY);
+  const localPath = localDataPath(refreshId);
   if (fs.existsSync(localPath)) {
     const text = fs.readFileSync(localPath, 'utf8');
     if (format || download) {
@@ -57,11 +63,28 @@ export async function GET(request: Request) {
       headers: {
         'cache-control': 'private, no-store',
         'content-type': 'application/json; charset=utf-8',
+        ...(refreshId ? { 'x-aie2026-refresh-id': refreshId } : {}),
       },
     });
   }
 
   return NextResponse.json({ ok: false, error: 'recap data not found' }, { status: 404 });
+}
+
+function parsePreviewRefreshId(value: string | null): string | null {
+  if (!value) return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(value)) return null;
+  return value;
+}
+
+function localDataPath(refreshId: string | null): string {
+  if (refreshId && process.env.NODE_ENV !== 'production') {
+    const refreshDir = path.resolve(process.cwd(), 'outputs', 'event-recap-ai-engineer-singapore', 'refreshes', refreshId);
+    const versionedCandidate = path.join(refreshDir, `public.${refreshId}.json`);
+    if (fs.existsSync(versionedCandidate)) return versionedCandidate;
+    return path.join(refreshDir, 'public.candidate.json');
+  }
+  return path.resolve(process.cwd(), 'outputs', DATA_KEY);
 }
 
 async function readR2Object(

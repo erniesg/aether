@@ -1,0 +1,112 @@
+{
+  "generatedAt": "2026-05-27T06:20:00.000Z",
+  "archiveModified": false,
+  "sidecarPath": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/metrics-refresh-current-corpus-2026-05-27T05-38-59-329Z/posts.metrics-refreshed.json",
+  "strictSourcePath": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/strict-aie-official-speaker-list-rollup-2026-05-27T04-11-41-712Z/posts.strict-aie-plus-official-speaker-deltas.json",
+  "archivePath": "outputs/event-recap-ai-engineer-singapore/archive.json",
+  "sidecarSha256": "658a54d893fee57b325f4cffadf21d74cf59d13a6d0f4969f531ce9a3895a229",
+  "strictSourceSha256": "fd705cabda3d3faf24dbd6970cbc1e0e598391c515f4e2c263d8d42ad6dd36f0",
+  "lineage": {
+    "sidecarRows": 852,
+    "strictRows": 852,
+    "sidecarRowsMissingFromStrictSource": 0,
+    "strictRowsMissingFromSidecar": 0
+  },
+  "totals": {
+    "rows": 852,
+    "parents": 375,
+    "conversations": 477,
+    "byPlatform": {
+      "linkedin": 260,
+      "x": 398,
+      "youtube": 194
+    },
+    "parentsByPlatform": {
+      "linkedin": 88,
+      "x": 282,
+      "youtube": 5
+    },
+    "conversationsByPlatform": {
+      "linkedin": 172,
+      "x": 116,
+      "youtube": 189
+    },
+    "rowKinds": {
+      "parent": 370,
+      "linkedin-comment": 172,
+      "x-reply": 116,
+      "youtube-video": 5,
+      "youtube-comment": 75,
+      "youtube-comment-reply": 114
+    }
+  },
+  "automatedParentVerdicts": {
+    "accept_direct_event_core": 194,
+    "review_or_exclude_side_event_only": 15,
+    "accept_high_confidence_delta_context": 57,
+    "review_weak_event_signal": 43,
+    "accept_direct_event_context": 26,
+    "accept_source_backed_x_context": 21,
+    "review_context_without_explicit_event_anchor": 7,
+    "review_generic_speaker_topic_without_event_anchor": 12
+  },
+  "automatedRecommendation": {
+    "acceptParentRows": 298,
+    "holdForHumanParentRows": 77,
+    "attachConversationRowsToAcceptedParents": 223,
+    "attachConversationRowsPendingHeldParentDecision": 230,
+    "conversationRowsMissingParentInSidecarOrArchive": 24
+  },
+  "duplicateNativeKeyCount": 0,
+  "duplicateNativeKeys": [],
+  "reviewFiles": {
+    "parentReview": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/parent-review.json",
+    "parentReviewCsv": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/parent-review.csv",
+    "conversationReview": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/conversation-review.json",
+    "questionableParents": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/questionable-parent-review.json",
+    "summary": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/summary.json",
+    "notes": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/README.md",
+    "humanRelevanceDecisions": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.json",
+    "humanRelevanceDecisionsCsv": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.csv",
+    "humanRelevanceDecisionsMarkdown": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.md"
+  },
+  "humanReview": {
+    "generatedAt": "2026-05-27T07:35:00.000Z",
+    "totalRowsReviewed": 79,
+    "byHumanDecision": {
+      "exclude": 11,
+      "include": 68
+    },
+    "byCandidateTreatment": {
+      "drop": 11,
+      "include_as_side_event_or_multiplier_context": 14,
+      "include_as_primary_event_ref": 1,
+      "include_as_multiplier_context": 22,
+      "include_as_event_context": 31
+    },
+    "byRootRecommendation": {
+      "not_root": 11,
+      "secondary_ref_not_primary_root": 33,
+      "root_candidate": 1,
+      "root_candidate_if_story_needs_evidence": 34
+    },
+    "excludedPostIds": [
+      "linkedin_1byl3ye",
+      "linkedin_1hphgzk",
+      "linkedin_1i603y7",
+      "linkedin_1ihdwu1",
+      "linkedin_74syq",
+      "linkedin_u5hpro",
+      "linkedin_z8p5iy",
+      "linkedin_2l6j00",
+      "linkedin_1na2fgf",
+      "x:2019240467293172057",
+      "x:2056222949183791261"
+    ],
+    "files": {
+      "decisionsJson": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.json",
+      "decisionsCsv": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.csv",
+      "decisionsMarkdown": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.md"
+    }
+  }
+}

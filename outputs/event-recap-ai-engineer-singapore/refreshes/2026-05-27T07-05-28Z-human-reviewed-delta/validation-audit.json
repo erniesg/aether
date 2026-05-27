@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-05-27T08:15:25.817Z",
+  "refreshId": "2026-05-27T07-05-28Z-human-reviewed-delta",
+  "checks": {
+    "noDuplicateNativePlatformKeys": true,
+    "sidecarRowsAccountedFor": true,
+    "candidateCountArithmeticMatches": true,
+    "linkedInNestedOverlapDetected143": true,
+    "linkedInNestedCommentsNotRawCommentsArrayInCandidate": true,
+    "commentRowsHaveParentOrRoot": true,
+    "noCommentReplyInThemeRootPostIds": true,
+    "sidecarRowsRetainMetricsUpdatedAt": true,
+    "linkedInThreeMissesRemainNotFound": true,
+    "publicBundleOmitsRaw": true
+  }
+}
