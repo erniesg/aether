@@ -1,0 +1,181 @@
+{
+  "finalOutputDir": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/metrics-refresh-current-corpus-2026-05-27T05-38-59-329Z",
+  "finalPostsPath": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/metrics-refresh-current-corpus-2026-05-27T05-38-59-329Z/posts.metrics-refreshed.json",
+  "originalSourcePath": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/strict-aie-official-speaker-list-rollup-2026-05-27T04-11-41-712Z/posts.strict-aie-plus-official-speaker-deltas.json",
+  "startedAt": "2026-05-27T04:50:32.134Z",
+  "completedAt": "2026-05-27T05:42:33.405Z",
+  "inputRows": 852,
+  "rowCounts": {
+    "linkedin": 260,
+    "x": 398,
+    "youtube": 194
+  },
+  "parentConversationCounts": {
+    "linkedin:parent": 88,
+    "linkedin:conversation": 172,
+    "x:parent": 282,
+    "x:conversation": 116,
+    "youtube:parent": 5,
+    "youtube:conversation": 189
+  },
+  "finalStatusCounts": {
+    "linkedin:updated": 257,
+    "linkedin:not_found_search_match": 3,
+    "x:updated": 398,
+    "youtube:updated": 194
+  },
+  "finalProviderCounts": {
+    "linkedin:apify-apimaestro-linkedin-comments": 29,
+    "linkedin:apify-parseforge-linkedin-posts-scraper": 6,
+    "linkedin:apify-linkedin-post-search": 225,
+    "x:xquik-direct-tweet": 398,
+    "youtube:youtube-data-api:videos.list": 5,
+    "youtube:youtube-data-api:comments.list": 189
+  },
+  "comparableMetricDeltas": {
+    "linkedin": 65,
+    "x": 200,
+    "youtube": 8
+  },
+  "rowsWithMetricsUpdatedAt": 852,
+  "validation": {
+    "rowOrderAndOriginalTimestampsPreserved": true,
+    "mismatchCount": 0,
+    "sourceFilesModified": false,
+    "vizInputModified": false
+  },
+  "latestLinkedInSearchPass": {
+    "attemptedRows": 260,
+    "queryCount": 150,
+    "maxQueries": 150,
+    "maxItems": 2200,
+    "providerItemsReturned": 1830,
+    "providerParentPostsCollected": 471,
+    "normalizedRowsReturned": 946,
+    "updatedRows": 221,
+    "notFoundRows": 0,
+    "warnings": [
+      "Apify LinkedIn actor harvestapi~linkedin-post-search returned 1830 rows; skipped 0 already-seen LinkedIn activity URLs."
+    ],
+    "estimateBasis": "Apify LinkedIn cost depends on the actor run/account pricing. This run used one actor call with maxPosts derived from maxItems/maxQueries and no explicit maxComments cap."
+  },
+  "preservedEarlierRuns": {
+    "x": {
+      "attemptedRows": 398,
+      "uniqueTweetIds": 398,
+      "attemptedRequests": 398,
+      "updatedRows": 398,
+      "failedRows": 0,
+      "estimatedCredits": 398,
+      "estimateBasis": "Xquik Post Extractor-style direct tweet refresh is treated as 1 credit per tweet id."
+    },
+    "youtube": {
+      "attemptedRows": 194,
+      "videoRows": 5,
+      "commentRows": 189,
+      "uniqueVideoIds": 5,
+      "uniqueCommentIds": 189,
+      "requests": 5,
+      "estimatedQuotaUnits": 5,
+      "updatedRows": 194,
+      "notFoundRows": 0,
+      "warnings": []
+    },
+    "linkedinSearch": {
+      "attemptedRows": 260,
+      "queryCount": 150,
+      "maxQueries": 150,
+      "maxItems": 2200,
+      "providerItemsReturned": 580,
+      "providerParentPostsCollected": 190,
+      "normalizedRowsReturned": 516,
+      "updatedRows": 153,
+      "notFoundRows": 107,
+      "warnings": [
+        "Apify LinkedIn actor harvestapi~linkedin-post-search returned 580 rows; skipped 0 already-seen LinkedIn activity URLs."
+      ],
+      "estimateBasis": "Apify LinkedIn cost depends on the actor run/account pricing. This run used one actor call with maxPosts derived from maxItems/maxQueries and no explicit maxComments cap."
+    },
+    "linkedinParseforgeDirectPosts": {
+      "firstGapfill": {
+        "attemptedRows": 13,
+        "actor": "parseforge~linkedin-posts-scraper",
+        "rawItems": 10,
+        "updatedRows": 10,
+        "notFoundRows": 3,
+        "estimatedResultItems": 10,
+        "estimateBasis": "Parseforge actor charges per result item; used only direct /posts/... parent URLs."
+      },
+      "secondGapfill": {
+        "attemptedRows": 1,
+        "actor": "parseforge~linkedin-posts-scraper",
+        "rawItems": 1,
+        "updatedRows": 1,
+        "notFoundRows": 0,
+        "estimatedResultItems": 1,
+        "estimateBasis": "Parseforge actor charges per result item; used only direct /posts/... parent URLs."
+      },
+      "totalRawItems": 11,
+      "totalUpdatedRows": 11
+    },
+    "linkedinApimaestroComments": {
+      "firstGapfill": {
+        "actor": "apimaestro~linkedin-post-comments-replies-engagements-scraper-no-cookies",
+        "uniqueParentIds": 57,
+        "requests": 5,
+        "rawItems": 99,
+        "commentRows": 94,
+        "parentTotalsFound": 27,
+        "parentRowsUpdated": 18,
+        "commentRowsUpdated": 49,
+        "commentRowsNotFound": 16,
+        "estimatedResultItems": 99,
+        "estimateBasis": "API Maestro actor charges per returned dataset result; page size set to actor max of 100 and paginated while totals indicate more comments."
+      },
+      "secondGapfill": {
+        "actor": "apimaestro~linkedin-post-comments-replies-engagements-scraper-no-cookies",
+        "uniqueParentIds": 17,
+        "parentInputTypes": {
+          "activity": 14,
+          "ugcPost": 3
+        },
+        "requests": 2,
+        "rawItems": 18,
+        "commentRows": 16,
+        "parentTotalsFound": 3,
+        "parentRowsUpdated": 0,
+        "commentRowsUpdated": 16,
+        "commentRowsNotFound": 0,
+        "estimatedResultItems": 18,
+        "estimateBasis": "API Maestro actor charges per returned dataset result; page size set to actor max of 100 and paginated while totals indicate more comments."
+      },
+      "totalRawItems": 117,
+      "totalUpdatedRows": 83
+    }
+  },
+  "linkedinCoverage": {
+    "updated": 257,
+    "misses": 3,
+    "remainingMissReason": "3 parent feed/update rows still lack fresh parent reaction/repost refresh from direct actors; their prior metrics are preserved."
+  },
+  "targetCheck": {
+    "inputUrl": "https://www.linkedin.com/posts/laushernin_aiagents-agenticai-aiengineersingapore-ugcPost-7465072077692198912-ovUj/",
+    "canonicalUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7465208912003342336",
+    "postId": "linkedin_14it6vt",
+    "metrics": {
+      "comments": 6,
+      "reactions": 44,
+      "reposts": 0
+    },
+    "metricsUpdatedAt": "2026-05-27T05:42:33.405Z",
+    "provider": "apify-linkedin-post-search"
+  },
+  "roughCostSignals": {
+    "additionalLinkedInSearchDatasetItems": 1830,
+    "note": "This is additional to the prior X/YouTube/LinkedIn refresh/gapfill runs. Apify billing depends on actor/account tier."
+  },
+  "notes": [
+    "This is an isolated sidecar update; it does not overwrite archive.json or any viz input.",
+    "X/Youtube/direct LinkedIn gapfill rows were preserved from the previous sidecar; this pass only refreshed LinkedIn search-match rows."
+  ]
+}

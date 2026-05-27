@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-05-27T06:40:00.000Z",
+  "parentResolution": {
+    "orphanCommentRows": 24,
+    "parentGroups": 6,
+    "foundParentGroups": 6,
+    "addParentAttachCommentGroups": 4,
+    "addParentAttachCommentRows": 17,
+    "dropParentCommentGroups": 2,
+    "dropParentCommentRows": 7
+  },
+  "exactHeldPosts": {
+    "review_or_exclude_side_event_only": 15,
+    "review_generic_speaker_topic_without_event_anchor": 12,
+    "review_weak_event_signal": 43
+  },
+  "files": {
+    "parentResolutionJson": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/orphan-linkedin-parent-resolution.json",
+    "parentResolutionMarkdown": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/orphan-linkedin-parent-resolution.md",
+    "exactHeldPostsJson": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/requested-exact-held-posts.json",
+    "exactHeldPostsMarkdown": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/requested-exact-held-posts.md"
+  },
+  "humanReview": {
+    "generatedAt": "2026-05-27T07:35:00.000Z",
+    "totalRowsReviewed": 79,
+    "byHumanDecision": {
+      "exclude": 11,
+      "include": 68
+    },
+    "byCandidateTreatment": {
+      "drop": 11,
+      "include_as_side_event_or_multiplier_context": 14,
+      "include_as_primary_event_ref": 1,
+      "include_as_multiplier_context": 22,
+      "include_as_event_context": 31
+    },
+    "byRootRecommendation": {
+      "not_root": 11,
+      "secondary_ref_not_primary_root": 33,
+      "root_candidate": 1,
+      "root_candidate_if_story_needs_evidence": 34
+    },
+    "excludedPostIds": [
+      "linkedin_1byl3ye",
+      "linkedin_1hphgzk",
+      "linkedin_1i603y7",
+      "linkedin_1ihdwu1",
+      "linkedin_74syq",
+      "linkedin_u5hpro",
+      "linkedin_z8p5iy",
+      "linkedin_2l6j00",
+      "linkedin_1na2fgf",
+      "x:2019240467293172057",
+      "x:2056222949183791261"
+    ],
+    "files": {
+      "decisionsJson": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.json",
+      "decisionsCsv": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.csv",
+      "decisionsMarkdown": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.md"
+    }
+  }
+}

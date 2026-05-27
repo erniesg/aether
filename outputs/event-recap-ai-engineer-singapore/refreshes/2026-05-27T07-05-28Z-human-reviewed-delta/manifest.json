@@ -1,0 +1,58 @@
+{
+  "refreshId": "2026-05-27T07-05-28Z-human-reviewed-delta",
+  "generatedAt": "2026-05-27T08:15:25.817Z",
+  "folder": "outputs/event-recap-ai-engineer-singapore/refreshes/2026-05-27T07-05-28Z-human-reviewed-delta",
+  "input": {
+    "baselineArchivePath": "outputs/event-recap-ai-engineer-singapore/archive.json",
+    "baselineArchiveRows": 1770,
+    "baselinePublicPath": "outputs/event-recap-ai-engineer-singapore/public.json",
+    "baselinePublicRows": 872,
+    "sidecarPath": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/metrics-refresh-current-corpus-2026-05-27T05-38-59-329Z/posts.metrics-refreshed.json",
+    "sidecarRows": 852,
+    "humanDecisionsPath": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevance-review-current-sidecar-2026-05-27T06-20-00Z/human-relevance-decisions-2026-05-27.json"
+  },
+  "merge": {
+    "humanExcludedReviewRows": 16,
+    "explicitlyExcludedSidecarRows": 14,
+    "conversationGuardExcludedSidecarRows": 31,
+    "totalExcludedSidecarRows": 45,
+    "nonSidecarExcludedReviewRows": [
+      "linkedin_2l6j00",
+      "linkedin_1na2fgf"
+    ],
+    "includedSidecarRows": 807,
+    "recoveredParentsAdded": 4,
+    "arithmetic": "1770 + 852 - 45 + 4 = 2581"
+  },
+  "output": {
+    "candidateArchiveRows": 2581,
+    "candidatePublicRows": 1683,
+    "candidatePublicMediaAssets": 1363,
+    "candidatePublicMediaAssetsInPublicPrefix": 1355,
+    "candidateThemeCount": 11,
+    "platformCounts": {
+      "x": 1300,
+      "linkedin": 1061,
+      "youtube": 220
+    },
+    "rowTypeCounts": {
+      "parent": 1518,
+      "reply": 810,
+      "comment": 253
+    },
+    "relevantRowTypeCounts": {
+      "parent": 1159,
+      "reply": 280,
+      "comment": 244
+    }
+  },
+  "checksums": {
+    "baselineArchive": "7566bf7f7010f8bccaa80c0ecf48d3f07640bc2f5aa50c3b4eee1db0b3d75dd1",
+    "baselinePublic": "83d2c05fb2748c40989eccb3c8ab5d73ae03b4b8d06a14078d7b3759674badcb",
+    "sidecar": "658a54d893fee57b325f4cffadf21d74cf59d13a6d0f4969f531ce9a3895a229",
+    "archiveCandidate": "b6341e5a524551f625ff200d55a01b34c1ba89082658aac0c391f87d591ff293",
+    "publicCandidate": "b93fffaa844dc13a2c77ae1c401b58472d6047e6f8720757234e63e196fe5923",
+    "publicVersioned": "b93fffaa844dc13a2c77ae1c401b58472d6047e6f8720757234e63e196fe5923",
+    "publicBackup": "83d2c05fb2748c40989eccb3c8ab5d73ae03b4b8d06a14078d7b3759674badcb"
+  }
+}
