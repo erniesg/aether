@@ -50,6 +50,60 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    if (url.pathname === '/api/share/summary' || url.pathname === '/vibes/aie2026/share/summary') {
+      const raw = url.searchParams.get('canonicalUrl') ?? url.searchParams.get('canonicalPath');
+      if (!raw) return json({ ok: false, error: 'canonicalUrl or canonicalPath is required' }, 400);
+      return json({
+        ok: true,
+        canonicalUrl: canonicalShareUrl(request, env, raw),
+        summary: {
+          shareLinks: 0,
+          shareActions: 0,
+          trackedVisits: 0,
+          botPreviews: 0,
+          publicPosts: 0,
+          publicPostsByPlatform: {},
+          platformActions: {},
+          publicReach: {},
+        },
+      });
+    }
+
+    if (url.pathname === '/api/share/link' || url.pathname === '/vibes/aie2026/share/link') {
+      if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== 'object') return json({ ok: false, error: 'JSON object body is required' }, 400);
+      const target = (body as { target?: Record<string, unknown> }).target;
+      if (!target || typeof target !== 'object') return json({ ok: false, error: 'target is required' }, 400);
+      const platform = typeof (body as { platform?: unknown }).platform === 'string' ? String((body as { platform?: string }).platform) : 'unknown';
+      const canonicalInput =
+        typeof target.canonicalUrl === 'string'
+          ? target.canonicalUrl
+          : typeof target.canonicalPath === 'string'
+            ? target.canonicalPath
+            : '/vibes/aie2026/';
+      const code = shareCode();
+      const canonicalUrl = canonicalShareUrl(request, env, canonicalInput);
+      const shortUrl = trackedShareUrl(canonicalUrl, code, platform);
+      return json({
+        ok: true,
+        link: {
+          code,
+          shortUrl,
+          canonicalUrl,
+          platform,
+          targetId: `target_${target.objectId || 'aie2026'}`,
+          linkId: `link_${code}`,
+        },
+      });
+    }
+
+    if (url.pathname === '/api/share/event' || url.pathname === '/vibes/aie2026/share/event') {
+      if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
+      await request.json().catch(() => null);
+      return json({ ok: true });
+    }
+
     if (url.pathname === '/vibes/aie2026/data') {
       const format = url.searchParams.get('format');
       const download = url.searchParams.get('download') === '1';
@@ -521,6 +575,28 @@ function json(value: unknown, status = 200): Response {
   });
 }
 
+function canonicalShareUrl(request: Request, env: Env, input: string): string {
+  const origin = (env.AETHER_BASE_URL || new URL(request.url).origin).replace(/\/$/, '');
+  const url = new URL(input, origin);
+  url.hash = '';
+  return url.toString();
+}
+
+function trackedShareUrl(canonicalUrl: string, code: string, platform: string): string {
+  const url = new URL(canonicalUrl);
+  url.searchParams.set('aether_share', code);
+  if (platform) url.searchParams.set('utm_source', platform);
+  url.searchParams.set('utm_medium', 'share');
+  return url.toString();
+}
+
+function shareCode(): string {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+}
+
 function contentType(key: string): string {
   const lower = key.toLowerCase();
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
@@ -713,10 +789,10 @@ function setVerified(platform,value){const ids={x:'shareVerifiedX',linkedin:'sha
 function updateShareSummary(summary){summary=summary||{};const byPlatform=summary.publicPostsByPlatform||{};setVerified('x',byPlatform.x);setVerified('linkedin',byPlatform.linkedin);setVerified('facebook',byPlatform.facebook)}
 function setShareBusy(busy){document.querySelectorAll('[data-share-platform],#shareNative,#shareCopyCurrent').forEach(node=>{node.disabled=!!busy})}
 function platformShareUrl(platform,url){if(platform==='x'){const u=new URL('https://x.com/intent/tweet');u.searchParams.set('text',SHARE_TEXT);u.searchParams.set('url',url);u.searchParams.set('hashtags',SHARE_HASHTAGS.join(','));return u.toString()}if(platform==='linkedin'){const u=new URL('https://www.linkedin.com/sharing/share-offsite/');u.searchParams.set('url',url);return u.toString()}if(platform==='facebook'){const u=new URL('https://www.facebook.com/sharer/sharer.php');u.searchParams.set('u',url);return u.toString()}if(platform==='whatsapp'){const u=new URL('https://wa.me/');u.searchParams.set('text',SHARE_TEXT+'\\n'+url);return u.toString()}return null}
-async function loadShareSummary(){try{const res=await fetch('/api/share/summary?canonicalPath='+encodeURIComponent(SHARE_TARGET.canonicalPath),{cache:'no-store'});const json=await res.json();if(json&&json.ok)updateShareSummary(json.summary)}catch(err){setShareStatus('share counts unavailable locally')}}
+async function loadShareSummary(){try{const res=await fetch('/vibes/aie2026/share/summary?canonicalPath='+encodeURIComponent(SHARE_TARGET.canonicalPath),{cache:'no-store'});const json=await res.json();if(json&&json.ok)updateShareSummary(json.summary)}catch(err){setShareStatus('share counts unavailable locally')}}
 async function recordInboundShareVisit(){const params=new URLSearchParams(location.search);const code=(params.get('aether_share')||params.get('share')||'').trim();if(!code)return;const key='aether.share.visit.'+code;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');const platform=['x','linkedin','facebook','whatsapp','telegram'].includes(params.get('utm_source')||'')?params.get('utm_source'):'unknown';await recordShareEvent('share_link_visit',platform,code)}
-async function createShareLink(platform){const res=await fetch('/api/share/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:SHARE_TARGET,platform,shareText:SHARE_TEXT})});const json=await res.json();if(!json.ok||!json.link)throw new Error(json.error||('HTTP '+res.status));return json.link}
-async function recordShareEvent(eventType,platform,code){try{await fetch('/api/share/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventType,platform,code,canonicalPath:SHARE_TARGET.canonicalPath})})}catch(err){}}
+async function createShareLink(platform){const res=await fetch('/vibes/aie2026/share/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:SHARE_TARGET,platform,shareText:SHARE_TEXT})});const json=await res.json();if(!json.ok||!json.link)throw new Error(json.error||('HTTP '+res.status));return json.link}
+async function recordShareEvent(eventType,platform,code){try{await fetch('/vibes/aie2026/share/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventType,platform,code,canonicalPath:SHARE_TARGET.canonicalPath})})}catch(err){}}
 async function writeClipboard(text){if(navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(text);return true}catch(err){}}const input=document.createElement('textarea');input.value=text;input.setAttribute('readonly','');input.style.position='fixed';input.style.left='-9999px';document.body.appendChild(input);input.select();let ok=false;try{ok=document.execCommand('copy')}catch(err){ok=false}input.remove();return ok}
 async function sharePlatform(platform){const shareWindow=window.open('about:blank','_blank');setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink(platform);const outboundUrl=socialShareUrl(link,platform);const href=platformShareUrl(platform,outboundUrl);if(!href)throw new Error('Share destination unavailable.');let copiedCaption=false;if(platform==='linkedin'||platform==='facebook')copiedCaption=await writeClipboard(SHARE_TEXT+'\\n'+outboundUrl);if(!shareWindow){setShareStatus('share window blocked');return}shareWindow.opener=null;shareWindow.location.href=href;await recordShareEvent('platform_clicked',platform,link.code);setShareStatus(copiedCaption?'caption copied; paste it into the composer':'share composer opened')}catch(err){if(shareWindow)shareWindow.close();setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
 async function nativeShare(){setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink('native');if(navigator.share){await navigator.share({title:SHARE_TARGET.title,text:SHARE_TEXT,url:link.shortUrl});await recordShareEvent('native_share_success','native',link.code);setShareStatus('shared')}else{const copied=await writeClipboard(link.shortUrl);await recordShareEvent('copy_link','native',link.code);setShareStatus(copied?'short link copied':'short link ready')}}catch(err){await recordShareEvent('native_share_error','native');setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
