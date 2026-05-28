@@ -42,7 +42,7 @@ const DATA_KEY = 'event-recap-ai-engineer-singapore/public.json';
 const MEDIA_PREFIX = 'event-recap-ai-engineer-singapore/media/';
 const CAPTURE_RUN_ID = 'both-platforms-top100-post-only-v1';
 const CAPTURE_PREFIX = 'event-recap-ai-engineer-singapore/captures/';
-const DATA_VERSION = 'semantic-delta-20260527-102255-reviewed-offevent-v1';
+const DATA_VERSION = 'semantic-delta-20260527-102255-reviewed-offevent-minus-lastposty-v1';
 
 type EventCaptureExportFormat = 'json' | 'csv' | 'zip';
 
