@@ -777,14 +777,15 @@ const SHARE_TARGET={objectType:'vibes_page',objectId:'aie2026',slug:'aie2026',ca
 const SHARE_TEXT='Mapped the strongest public refs from AI Engineer Singapore: talks, demos, side events, and builder reactions.';
 const SHARE_HASHTAGS=['AIE2026','AIEngineer','Singapore'];
 const PUBLIC_CANONICAL_URL='https://aether.berlayar.ai/vibes/aie2026/';
+const SHARE_SHORT_URL_PLACEHOLDER='https://s.berlayar.ai/xxxx';
 let latestCopyUrl='';
 let latestCopyCode='';
-function absolutePublicUrl(path){return new URL(path,location.origin).toString()}
+function shortSharePreviewUrl(){try{const host=location.hostname;if(host==='localhost'||host==='127.0.0.1'||host==='::1')return new URL('/xxxx',location.origin).toString();if(host==='aether.berlayar.ai')return SHARE_SHORT_URL_PLACEHOLDER;const staging=host.match(/^aether-(.+)\\.berlayar\\.ai$/);if(staging)return 'https://s-'+staging[1]+'.berlayar.ai/xxxx'}catch(err){}return SHARE_SHORT_URL_PLACEHOLDER}
 function isLocalShareUrl(url){try{const host=new URL(url).hostname;return host==='localhost'||host==='127.0.0.1'||host==='::1'}catch{return false}}
 function trackedCanonicalUrl(code,platform){const url=new URL(PUBLIC_CANONICAL_URL);if(code)url.searchParams.set('aether_share',code);if(platform)url.searchParams.set('utm_source',platform);url.searchParams.set('utm_medium','share');return url.toString()}
 function socialShareUrl(link,platform){return isLocalShareUrl(link.shortUrl)?PUBLIC_CANONICAL_URL:link.shortUrl}
 function setShareStatus(message){const node=$('shareStatus');if(node)node.textContent=message||''}
-function setShareCopyUrl(url){const node=$('shareCopyUrl');if(node)node.textContent=url||absolutePublicUrl(SHARE_TARGET.canonicalPath)}
+function setShareCopyUrl(url){const node=$('shareCopyUrl');if(node)node.textContent=url||shortSharePreviewUrl()}
 function setVerified(platform,value){const ids={x:'shareVerifiedX',linkedin:'shareVerifiedLinkedin',facebook:'shareVerifiedFacebook'};const node=$(ids[platform]);if(node)node.textContent=fmt(Number(value||0))}
 function updateShareSummary(summary){summary=summary||{};const byPlatform=summary.publicPostsByPlatform||{};setVerified('x',byPlatform.x);setVerified('linkedin',byPlatform.linkedin);setVerified('facebook',byPlatform.facebook)}
 function setShareBusy(busy){document.querySelectorAll('[data-share-platform],#shareNative,#shareCopyCurrent').forEach(node=>{node.disabled=!!busy})}
