@@ -29,5 +29,33 @@
   "vars": {
     "AETHER_ENV": "production",
     "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai"
+  },
+  "env": {
+    "staging": {
+      "name": "aether-stg-vibes-aie2026",
+      "routes": [
+        {
+          "pattern": "aether-stg.berlayar.ai/vibes/aie2026*",
+          "zone_name": "berlayar.ai"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "AETHER_ASSETS",
+          "bucket_name": "aether-assets",
+          "preview_bucket_name": "aether-assets"
+        },
+        {
+          "binding": "AETHER_DATA",
+          "bucket_name": "aether-stg-assets",
+          "preview_bucket_name": "aether-stg-assets"
+        }
+      ],
+      "vars": {
+        "AETHER_ENV": "staging",
+        "AETHER_BASE_URL": "https://aether-stg.berlayar.ai",
+        "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai"
+      }
+    }
   }
 }
