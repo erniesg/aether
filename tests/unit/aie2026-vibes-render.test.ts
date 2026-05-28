@@ -21,6 +21,8 @@ describe('aie2026 public vibes page', () => {
     expect(html).not.toContain('id="shareVisits"');
     expect(html).not.toContain('id="sharePosts"');
     expect(html).toContain('id="shareCopyCurrent"');
+    expect(html).toContain("SHARE_SHORT_URL_PLACEHOLDER='https://s.berlayar.ai/xxxx'");
+    expect(html).toContain('shortSharePreviewUrl');
     expect(html).toContain('platform-icon-linkedin');
     expect(html).toContain('platform-icon-facebook');
     expect(html).toContain('platform-icon-whatsapp');

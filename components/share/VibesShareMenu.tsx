@@ -86,7 +86,7 @@ export function VibesShareMenu({
   const [summary, setSummary] = useState<ShareSummary | null>(null);
 
   const cleanUrl = useMemo(() => absolutePublicUrl(canonicalPath), [canonicalPath]);
-  const displayedCopyUrl = latestCopyUrl ?? cleanUrl;
+  const displayedCopyUrl = latestCopyUrl ?? shortSharePreviewUrl();
   const target = useMemo(
     () => ({
       objectType,
@@ -419,6 +419,20 @@ function absolutePublicUrl(path: string): string {
         ? window.location.origin
         : '';
   return new URL(path, origin || 'https://aether.berlayar.ai').toString();
+}
+
+function shortSharePreviewUrl(): string {
+  const configuredOrigin = process.env.NEXT_PUBLIC_AETHER_SHARE_ORIGIN;
+  if (configuredOrigin?.trim()) {
+    return `${configuredOrigin.trim().replace(/\/$/, '')}/xxxx`;
+  }
+
+  const configuredDomain = process.env.NEXT_PUBLIC_AETHER_SHARE_DOMAIN;
+  if (configuredDomain?.trim()) {
+    return `https://${configuredDomain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '')}/xxxx`;
+  }
+
+  return 'https://s.berlayar.ai/xxxx';
 }
 
 function socialShareUrl(input: {
