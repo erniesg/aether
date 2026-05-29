@@ -107,6 +107,7 @@ interface MemoryShareEvent {
   eventType: ShareEventType;
   platform: SharePlatform;
   now: number;
+  [key: string]: unknown;
 }
 
 const sharesApi = (anyApi as unknown as {
@@ -135,8 +136,20 @@ function getConvexClient(): ConvexHttpClient | null {
   return convexClient;
 }
 
+function requiresDurableShareStore(): boolean {
+  const env = (process.env.AETHER_ENV ?? process.env.NEXTJS_ENV ?? '').toLowerCase();
+  return env === 'staging' || env === 'production';
+}
+
+function assertMemoryFallbackAllowed(operation: string, err?: unknown): void {
+  if (!requiresDurableShareStore()) return;
+  const message = err instanceof Error && err.message ? `: ${err.message}` : '';
+  throw new Error(`share store unavailable: ${operation}${message}`);
+}
+
 export async function createShareLink(input: {
   requestUrl: string;
+  request?: Request;
   target: ShareTargetInput;
   platform: SharePlatform;
   label?: string;
@@ -144,6 +157,7 @@ export async function createShareLink(input: {
   actorLabel?: string;
   sessionId?: string;
   shareText?: string;
+  metadata?: Record<string, unknown>;
 }): Promise<ShareLinkRecord> {
   const platform = isSharePlatform(input.platform) ? input.platform : 'unknown';
   const modes: ShareCodeMode[] = [
@@ -190,8 +204,10 @@ export async function resolveShareCode(codeValue: string): Promise<ResolvedShare
       return result;
     } catch (err) {
       console.error('[share/store] resolveLink Convex read failed', err);
+      assertMemoryFallbackAllowed('resolveLink', err);
     }
   }
+  assertMemoryFallbackAllowed('resolveLink');
 
   return memory().links.get(code) ?? null;
 }
@@ -225,8 +241,10 @@ export async function recordShareEvent(input: {
       return;
     } catch (err) {
       console.error('[share/store] recordEvent Convex write failed', err);
+      assertMemoryFallbackAllowed('recordEvent', err);
     }
   }
+  assertMemoryFallbackAllowed('recordEvent');
 
   memory().events.push(event);
   if (code) {
@@ -244,8 +262,10 @@ export async function getShareSummary(canonicalUrl: string): Promise<ShareSummar
       return summary;
     } catch (err) {
       console.error('[share/store] getSummary Convex read failed', err);
+      assertMemoryFallbackAllowed('getSummary', err);
     }
   }
+  assertMemoryFallbackAllowed('getSummary');
 
   const links = Array.from(memory().links.values()).filter(
     (item) => item.target.canonicalUrl === canonicalUrl
@@ -279,7 +299,10 @@ export function __resetShareStoreMemoryForTests(): void {
 
 export async function upsertPublicMention(input: PublicMentionInput): Promise<string | null> {
   const convex = getConvexClient();
-  if (!convex) return null;
+  if (!convex) {
+    assertMemoryFallbackAllowed('upsertPublicMention');
+    return null;
+  }
   try {
     return (await convex.mutation(sharesApi.upsertPublicMention as never, {
       ...input,
@@ -293,6 +316,7 @@ export async function upsertPublicMention(input: PublicMentionInput): Promise<st
 
 async function createShareLinkWithCode(input: {
   requestUrl: string;
+  request?: Request;
   target: ShareTargetInput;
   platform: SharePlatform;
   code: string;
@@ -301,11 +325,14 @@ async function createShareLinkWithCode(input: {
   actorLabel?: string;
   sessionId?: string;
   shareText?: string;
+  metadata?: Record<string, unknown>;
 }): Promise<ShareLinkRecord> {
   const code = normalizeShareCode(input.code);
   if (!isValidShareCode(code)) throw new Error(`invalid share code: ${input.code}`);
   const now = Date.now();
   const shareTextHash = input.shareText ? hashValue(input.shareText) : undefined;
+  const meta = requestMeta(input.request);
+  const createMetadata = shareCreateMetadata(input);
   const convex = getConvexClient();
   if (convex) {
     try {
@@ -318,11 +345,13 @@ async function createShareLinkWithCode(input: {
         actorLabel: input.actorLabel,
         sessionId: input.sessionId,
         shareTextHash,
+        metadata: createMetadata,
+        ...meta,
         now,
       } as never)) as { targetId: string; linkId: string; code: string; canonicalUrl: string };
       return {
         code: result.code,
-        shortUrl: shortUrlForCode(input.requestUrl, result.code),
+        shortUrl: shortUrlForCode(input.requestUrl, result.code, input.platform),
         canonicalUrl: result.canonicalUrl,
         platform: input.platform,
         targetId: result.targetId,
@@ -330,9 +359,14 @@ async function createShareLinkWithCode(input: {
       };
     } catch (err) {
       if (isCollisionError(err)) throw err;
+      if (requiresDurableShareStore()) {
+        console.error('[share/store] createLink Convex write failed', err);
+        assertMemoryFallbackAllowed('createLink', err);
+      }
       console.error('[share/store] createLink Convex write failed; using memory fallback', err);
     }
   }
+  assertMemoryFallbackAllowed('createLink');
 
   const existing = memory().links.get(code);
   if (existing) throw new Error(`share code collision: ${code}`);
@@ -354,11 +388,13 @@ async function createShareLinkWithCode(input: {
     canonicalUrl: input.target.canonicalUrl,
     eventType: 'share_link_created',
     platform: input.platform,
+    metadata: createMetadata,
+    ...meta,
     now,
   });
   return {
     code,
-    shortUrl: shortUrlForCode(input.requestUrl, code),
+    shortUrl: shortUrlForCode(input.requestUrl, code, input.platform),
     canonicalUrl: input.target.canonicalUrl,
     platform: input.platform,
     targetId,
@@ -378,8 +414,26 @@ function hashValue(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function shareCreateMetadata(input: {
+  label?: string;
+  actorId?: string;
+  actorLabel?: string;
+  sessionId?: string;
+  metadata?: Record<string, unknown>;
+}): Record<string, unknown> | undefined {
+  const metadata = {
+    ...(input.metadata ?? {}),
+    ...(input.label ? { label: input.label } : {}),
+    ...(input.actorId ? { actorId: input.actorId } : {}),
+    ...(input.actorLabel ? { actorLabel: input.actorLabel } : {}),
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+  };
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
 function requestMeta(request?: Request) {
   if (!request) return {};
+  const url = new URL(request.url);
   const headers = request.headers;
   const ip =
     headers.get('cf-connecting-ip') ??
@@ -388,10 +442,14 @@ function requestMeta(request?: Request) {
   const ua = headers.get('user-agent') ?? undefined;
   const acceptLanguage = headers.get('accept-language') ?? undefined;
   return {
-    requestPath: new URL(request.url).pathname,
+    requestPath: url.pathname,
+    requestQuery: url.searchParams.toString().slice(0, 500) || undefined,
     referer: headers.get('referer') ?? undefined,
     userAgent: ua?.slice(0, 180),
     acceptLanguage: acceptLanguage?.slice(0, 120),
+    browserPlatform: headers.get('sec-ch-ua-platform')?.slice(0, 80) ?? undefined,
+    browserBrands: headers.get('sec-ch-ua')?.slice(0, 180) ?? undefined,
+    browserMobile: headers.get('sec-ch-ua-mobile')?.slice(0, 16) ?? undefined,
     ipHash: ip ? saltedHash(ip) : undefined,
     visitorHash: ip || ua || acceptLanguage ? saltedHash([ip, ua, acceptLanguage].filter(Boolean).join('|')) : undefined,
     cfCountry: headers.get('cf-ipcountry')?.slice(0, 8) ?? undefined,

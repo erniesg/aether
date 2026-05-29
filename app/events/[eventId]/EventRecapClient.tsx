@@ -247,7 +247,7 @@ export default function EventRecapClient({
     canonicalPath: canonicalVibesPath(shareEventId),
     title: `${shareEventName} vibes`,
     description: `References, clusters, media, and voices for ${shareEventName}.`,
-    shareText: `sampled the socmed vibes for ${shareEventName}`,
+    shareText: `${shareEventName} brought together attendees, speakers, sponsors, and builders across talks, demos, workshops, and side events. Here's the public recap.`,
     hashtags: shareHashtags,
   };
 
@@ -687,7 +687,10 @@ function CollectionSummary({
             </li>
             <li>LinkedIn public collection does not expose impressions or views.</li>
             <li>Engagement score is platform-normalized public engagement, not raw reach.</li>
-            <li>TF-IDF is retained for overlap diagnostics, not as the public cluster label source.</li>
+            <li>
+              Semantic story assignment preserves the deployed recap scaffold while review
+              diagnostics surface drift and ambiguous story fit.
+            </li>
           </ul>
           {clustering ? (
             <details className="rounded-sm border border-border-soft bg-surface-panel p-2">
@@ -696,7 +699,7 @@ function CollectionSummary({
               </summary>
               <p className="mt-2 font-caption text-xs leading-5 text-ink-dim">
                 Showing {clustering.storyClusterCount ?? clustering.clusterCount} reviewed story
-                clusters from {clustering.rootRefCount} primary refs. Diagnostic TF-IDF baseline:
+                clusters from {clustering.rootRefCount} primary refs. Semantic review diagnostics:
                 silhouette {clustering.silhouetteScore.toFixed(4)}, inertia{' '}
                 {(clustering.inertia ?? 0).toFixed(4)}.
               </p>
@@ -1787,7 +1790,11 @@ function buildThemeClusters(themes: EventTheme[], posts: EventPost[]): ThemeClus
       const clusterPosts = theme.postIds
         .map((postId) => postById.get(postId))
         .filter(Boolean) as EventPost[];
-      const scoredPosts = clusterPosts
+      const evidencePostIds = theme.rootPostIds?.length ? theme.rootPostIds : theme.postIds;
+      const evidencePosts = evidencePostIds
+        .map((postId) => postById.get(postId))
+        .filter(Boolean) as EventPost[];
+      const scoredPosts = (evidencePosts.length ? evidencePosts : clusterPosts)
         .map((post) => ({ post, evidenceScore: themeEvidenceScore(theme, post) }))
         .sort(
           (a, b) =>

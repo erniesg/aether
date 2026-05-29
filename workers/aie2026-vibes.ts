@@ -30,6 +30,7 @@ interface Env {
    * vars; secrets like VIBES_REFRESH_API_KEY come from wrangler secret.
    */
   AETHER_BASE_URL?: string;
+  AETHER_ENV?: string;
   /**
    * vibes_-prefixed API key with refresh permissions. Configured as a
    * wrangler secret (NOT in vars). Without it, the scheduled handler
@@ -40,6 +41,23 @@ interface Env {
 
 const DATA_KEY = 'event-recap-ai-engineer-singapore/public.json';
 const MEDIA_PREFIX = 'event-recap-ai-engineer-singapore/media/';
+const AIE_RECAP_IMAGE_KEY = `${MEDIA_PREFIX}aie2026_eventrecap.png`;
+const AIE_RECAP_SOCIAL_IMAGE_KEY = `${MEDIA_PREFIX}aie2026_eventrecap_social.jpg`;
+const AIE_RECAP_X_IMAGE_KEY = `${MEDIA_PREFIX}aie2026_eventrecap_x_card.jpg`;
+const AIE_RECAP_IMAGE_PATH = `/vibes/aie2026/media?path=${encodeURIComponent(AIE_RECAP_IMAGE_KEY)}`;
+const AIE_RECAP_SOCIAL_IMAGE_PATH = '/vibes/aie2026/share-card.jpg';
+const AIE_RECAP_X_IMAGE_PATH = '/vibes/aie2026/x-card.jpg';
+const AIE_RECAP_SOCIAL_IMAGE_WIDTH = 1200;
+const AIE_RECAP_SOCIAL_IMAGE_HEIGHT = 675;
+const AIE_RECAP_X_IMAGE_WIDTH = 1200;
+const AIE_RECAP_X_IMAGE_HEIGHT = 600;
+const AIE_SHARE_TEXT = [
+  '1,000+ builders, 4.7M public views, and three days of AI work in public.',
+  'Singapore did not just host an AI conference. It showed what a builder scene looks like.',
+  'See the AI Engineer Singapore 2026 recap.',
+].join('\n\n');
+const AIE_SHARE_DESCRIPTION =
+  '1,000+ builders, 4.7M public views, and three days of AI work in public. Singapore did not just host an AI conference. It showed what a builder scene looks like. See the AI Engineer Singapore 2026 recap.';
 const CAPTURE_RUN_ID = 'both-platforms-top100-post-only-v1';
 const CAPTURE_PREFIX = 'event-recap-ai-engineer-singapore/captures/';
 const DATA_VERSION = 'semantic-delta-20260527-102255-reviewed-offevent-minus-lastposty-v1';
@@ -50,58 +68,24 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    if (url.pathname === '/robots.txt') {
+      return robotsResponse();
+    }
+
+    if (isAieShortHost(url.hostname)) {
+      return handleAieShortShareRedirect(request, env, url);
+    }
+
     if (url.pathname === '/api/share/summary' || url.pathname === '/vibes/aie2026/share/summary') {
-      const raw = url.searchParams.get('canonicalUrl') ?? url.searchParams.get('canonicalPath');
-      if (!raw) return json({ ok: false, error: 'canonicalUrl or canonicalPath is required' }, 400);
-      return json({
-        ok: true,
-        canonicalUrl: canonicalShareUrl(request, env, raw),
-        summary: {
-          shareLinks: 0,
-          shareActions: 0,
-          trackedVisits: 0,
-          botPreviews: 0,
-          publicPosts: 0,
-          publicPostsByPlatform: {},
-          platformActions: {},
-          publicReach: {},
-        },
-      });
+      return proxyShareApi(request, env, '/api/share/summary');
     }
 
     if (url.pathname === '/api/share/link' || url.pathname === '/vibes/aie2026/share/link') {
-      if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
-      const body = await request.json().catch(() => null);
-      if (!body || typeof body !== 'object') return json({ ok: false, error: 'JSON object body is required' }, 400);
-      const target = (body as { target?: Record<string, unknown> }).target;
-      if (!target || typeof target !== 'object') return json({ ok: false, error: 'target is required' }, 400);
-      const platform = typeof (body as { platform?: unknown }).platform === 'string' ? String((body as { platform?: string }).platform) : 'unknown';
-      const canonicalInput =
-        typeof target.canonicalUrl === 'string'
-          ? target.canonicalUrl
-          : typeof target.canonicalPath === 'string'
-            ? target.canonicalPath
-            : '/vibes/aie2026/';
-      const code = shareCode();
-      const canonicalUrl = canonicalShareUrl(request, env, canonicalInput);
-      const shortUrl = trackedShareUrl(canonicalUrl, code, platform);
-      return json({
-        ok: true,
-        link: {
-          code,
-          shortUrl,
-          canonicalUrl,
-          platform,
-          targetId: `target_${target.objectId || 'aie2026'}`,
-          linkId: `link_${code}`,
-        },
-      });
+      return proxyShareApi(request, env, '/api/share/link');
     }
 
     if (url.pathname === '/api/share/event' || url.pathname === '/vibes/aie2026/share/event') {
-      if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
-      await request.json().catch(() => null);
-      return json({ ok: true });
+      return proxyShareApi(request, env, '/api/share/event');
     }
 
     if (url.pathname === '/vibes/aie2026/data') {
@@ -150,11 +134,28 @@ export default {
       });
     }
 
+    if (url.pathname === AIE_RECAP_SOCIAL_IMAGE_PATH || url.pathname === AIE_RECAP_X_IMAGE_PATH) {
+      const key = url.pathname === AIE_RECAP_X_IMAGE_PATH ? AIE_RECAP_X_IMAGE_KEY : AIE_RECAP_SOCIAL_IMAGE_KEY;
+      const object = await mediaObject(env, key);
+      if (!object) return json({ ok: false, error: 'share card not found' }, 404);
+      return new Response(object.body, {
+        headers: buildEmbedHeaders({
+          contentType: object.httpMetadata?.contentType ?? 'image/jpeg',
+          maxAge: 604800,
+          cors: true,
+        }),
+      });
+    }
+
     if (url.pathname === '/vibes/aie2026/media') {
       const key = url.searchParams.get('path') ?? '';
       if (!key.startsWith(MEDIA_PREFIX)) return json({ ok: false, error: 'invalid media path' }, 400);
       const object = await mediaObject(env, key);
-      if (!object) return json({ ok: false, error: 'media not found' }, 404);
+      if (!object) {
+        const fallback = await fallbackMediaResponse(request, key, url.searchParams.get('fallback'));
+        if (fallback) return fallback;
+        return json({ ok: false, error: 'media not found' }, 404);
+      }
       return new Response(object.body, {
         headers: buildEmbedHeaders({
           contentType: object.httpMetadata?.contentType ?? contentType(key),
@@ -181,6 +182,12 @@ export default {
     }
 
     if (url.pathname === '/vibes/aie2026' || url.pathname === '/vibes/aie2026/') {
+      if (isSocialCrawler(request)) {
+        const canonicalUrl = new URL('/vibes/aie2026/', canonicalAppOrigin(request, env)).toString();
+        return new Response(aieShortPreviewHtml(canonicalUrl, canonicalUrl), {
+          headers: socialPreviewHeaders('aie2026-canonical'),
+        });
+      }
       const theme: EmbedTheme = parseTheme(url, 'light');
       return new Response(renderHtml({ theme }), {
         headers: buildEmbedHeaders({
@@ -254,6 +261,14 @@ function dataBucket(env: Env): Env['AETHER_ASSETS'] {
 async function mediaObject(env: Env, key: string): Promise<Awaited<ReturnType<Env['AETHER_ASSETS']['get']>>> {
   return (await env.AETHER_DATA?.get(key)) ?? env.AETHER_ASSETS.get(key);
 }
+
+const FALLBACK_MEDIA_HOSTS = new Set([
+  'video.twimg.com',
+  'pbs.twimg.com',
+  'media.licdn.com',
+  'i.ytimg.com',
+  'img.youtube.com',
+]);
 
 interface ScheduledEvent {
   cron: string;
@@ -575,26 +590,483 @@ function json(value: unknown, status = 200): Response {
   });
 }
 
+function robotsResponse(): Response {
+  return new Response('User-agent: *\nAllow: /\n', {
+    headers: buildEmbedHeaders({
+      contentType: 'text/plain; charset=utf-8',
+      maxAge: 3600,
+      cors: true,
+    }),
+  });
+}
+
+async function proxyShareApi(request: Request, env: Env, pathname: string): Promise<Response> {
+  const upstreamUrl = shareApiUrl(request, env, pathname);
+  const fallbackRequest = request.clone();
+  try {
+    const upstream = await fetch(await proxyRequest(request, upstreamUrl));
+    const contentType = upstream.headers.get('content-type') ?? '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+      await upstream.text().catch(() => '');
+      const fallback = await fallbackShareApi(fallbackRequest, env, pathname, `non-json upstream ${upstream.status}`);
+      if (fallback) return fallback;
+      return json(
+        {
+          ok: false,
+          error: 'share API returned a non-JSON response',
+          status: upstream.status,
+        },
+        502
+      );
+    }
+    const body = await upstream.text();
+    return new Response(normalizeShareApiResponseBody(pathname, body), {
+      status: upstream.status,
+      headers: proxyJsonHeaders(upstream.headers),
+    });
+  } catch (err) {
+    const fallback = await fallbackShareApi(
+      fallbackRequest,
+      env,
+      pathname,
+      `upstream unavailable: ${err instanceof Error ? err.message : String(err)}`
+    );
+    if (fallback) return fallback;
+    return json(
+      {
+        ok: false,
+        error: `share API unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      },
+      502
+    );
+  }
+}
+
+function normalizeShareApiResponseBody(pathname: string, body: string): string {
+  if (pathname !== '/api/share/link') return body;
+  try {
+    const payload = JSON.parse(body);
+    if (payload?.link && typeof payload.link.shortUrl === 'string') {
+      payload.link.shortUrl = bareShortShareUrl(payload.link.shortUrl);
+    }
+    return JSON.stringify(payload);
+  } catch {
+    return body;
+  }
+}
+
+function bareShortShareUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+async function fallbackShareApi(
+  request: Request,
+  env: Env,
+  pathname: string,
+  reason: string
+): Promise<Response | null> {
+  if (pathname === '/api/share/summary') {
+    const raw = new URL(request.url).searchParams.get('canonicalUrl') ?? new URL(request.url).searchParams.get('canonicalPath');
+    return json({
+      ok: true,
+      canonicalUrl: raw ? canonicalShareUrl(request, env, raw) : canonicalShareUrl(request, env, '/vibes/aie2026/'),
+      summary: {
+        shareLinks: 0,
+        shareActions: 0,
+        trackedVisits: 0,
+        botPreviews: 0,
+        publicPosts: 0,
+        publicPostsByPlatform: {},
+        platformActions: {},
+        publicReach: {},
+      },
+      fallback: true,
+      reason,
+    });
+  }
+
+  if (pathname === '/api/share/event') {
+    if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
+    const body = await request.json().catch(() => ({}));
+    logFallbackShareEvent(request, {
+      eventType: typeof body.eventType === 'string' ? body.eventType : 'unknown',
+      platform: typeof body.platform === 'string' ? body.platform : 'unknown',
+      code: typeof body.code === 'string' ? body.code : undefined,
+      reason,
+    });
+    return json({ ok: true, fallback: true });
+  }
+
+  if (pathname === '/api/share/link') {
+    if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return json({ ok: false, error: 'JSON object body is required' }, 400);
+    const target = (body as { target?: Record<string, unknown> }).target;
+    if (!target || typeof target !== 'object') return json({ ok: false, error: 'target is required' }, 400);
+    const platform = typeof (body as { platform?: unknown }).platform === 'string' ? String((body as { platform?: string }).platform) : 'unknown';
+    const code = shareCode();
+    const canonicalInput =
+      typeof target.canonicalUrl === 'string'
+        ? target.canonicalUrl
+        : typeof target.canonicalPath === 'string'
+          ? target.canonicalPath
+          : '/vibes/aie2026/';
+    const canonicalUrl = canonicalShareUrl(request, env, canonicalInput);
+    const shortUrl = shortAieShareUrl(request, env, code, platform);
+    logFallbackShareEvent(request, {
+      eventType: 'share_link_created',
+      platform,
+      code,
+      reason,
+    });
+    return json({
+      ok: true,
+      fallback: true,
+      link: {
+        code,
+        shortUrl,
+        canonicalUrl,
+        platform,
+        targetId: `target_${target.objectId || 'aie2026'}`,
+        linkId: `link_${code}`,
+      },
+    });
+  }
+
+  return null;
+}
+
 function canonicalShareUrl(request: Request, env: Env, input: string): string {
-  const origin = (env.AETHER_BASE_URL || new URL(request.url).origin).replace(/\/$/, '');
+  const origin = canonicalAppOrigin(request, env);
   const url = new URL(input, origin);
   url.hash = '';
   return url.toString();
 }
 
-function trackedShareUrl(canonicalUrl: string, code: string, platform: string): string {
-  const url = new URL(canonicalUrl);
-  url.searchParams.set('aether_share', code);
-  if (platform) url.searchParams.set('utm_source', platform);
-  url.searchParams.set('utm_medium', 'share');
-  return url.toString();
+function canonicalAppOrigin(request: Request, env: Env): string {
+  if (env.AETHER_BASE_URL) return env.AETHER_BASE_URL.replace(/\/$/, '');
+  const url = new URL(request.url);
+  if (url.hostname === 's.berlayar.ai') return 'https://aether.berlayar.ai';
+  const staging = url.hostname.match(/^s-(.+)\.berlayar\.ai$/);
+  if (staging) return `https://aether-${staging[1]}.berlayar.ai`;
+  return url.origin;
+}
+
+function shortAieShareUrl(request: Request, env: Env, code: string, _platform?: string): string {
+  return new URL(`/${code}`, shortShareOrigin(request, env)).toString();
+}
+
+function shortShareOrigin(request: Request, env: Env): string {
+  const url = new URL(request.url);
+  if (url.hostname === 'aether.berlayar.ai' || env.AETHER_ENV === 'production') return 'https://s.berlayar.ai';
+  const staging = url.hostname.match(/^aether-(.+)\.berlayar\.ai$/) ?? env.AETHER_BASE_URL?.match(/^https:\/\/aether-(.+)\.berlayar\.ai$/);
+  if (staging) return `https://s-${staging[1]}.berlayar.ai`;
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return url.origin;
+  return 'https://s.berlayar.ai';
+}
+
+function isAieShortHost(hostname: string): boolean {
+  return hostname === 's.berlayar.ai' || /^s-.+\.berlayar\.ai$/.test(hostname);
 }
 
 function shareCode(): string {
-  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
-  const bytes = new Uint8Array(8);
+  return readableShareCode(2);
+}
+
+const SHARE_CONSONANTS = 'bcdfghjkmnprstvwyz';
+const SHARE_VOWELS = 'aeiou';
+const SHARE_FRIENDLY_ALPHANUMERIC = 'abcdefghjkmnpqrstuvwxyz23456789';
+const SHARE_BLOCKED_PARTS = ['ass', 'cum', 'dik', 'fuc', 'fuk', 'kok', 'sex', 'suk'];
+
+function readableShareCode(syllables: number): string {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    let code = '';
+    for (let index = 0; index < syllables; index += 1) {
+      code += pickShareChar(SHARE_CONSONANTS);
+      code += pickShareChar(SHARE_VOWELS);
+    }
+    if (!SHARE_BLOCKED_PARTS.some((part) => code.includes(part))) return code;
+  }
+  let fallback = '';
+  for (let index = 0; index < 6; index += 1) fallback += pickShareChar(SHARE_FRIENDLY_ALPHANUMERIC);
+  return fallback;
+}
+
+function pickShareChar(alphabet: string): string {
+  const bytes = new Uint8Array(1);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+  return alphabet[bytes[0] % alphabet.length]!;
+}
+
+function parseAieShortPath(pathname: string): { code: string } | null {
+  const match = pathname.match(/^\/([a-z0-9]{4,16})$/i);
+  return match ? { code: match[1].toLowerCase() } : null;
+}
+
+function handleAieShortShareRedirect(request: Request, env: Env, url: URL): Response {
+  const parsed = parseAieShortPath(url.pathname);
+  if (!parsed) return json({ ok: false, error: 'short link not found' }, 404);
+  const target = new URL('/vibes/aie2026/', canonicalAppOrigin(request, env));
+  const platform = sharePlatformFromValue(url.searchParams.get('utm_source'));
+  const shortUrl = shortAieShareUrl(request, env, parsed.code, platform);
+
+  if (isSocialCrawler(request)) {
+    logFallbackShareEvent(request, {
+      eventType: 'share_link_bot_preview',
+      platform,
+      code: parsed.code,
+    });
+    return new Response(aieShortPreviewHtml(target.toString(), shortUrl), {
+      headers: socialPreviewHeaders(`aie2026-share-${parsed.code}`),
+    });
+  }
+
+  if (isEnrichmentProbe(request)) {
+    return json(
+      {
+        ok: true,
+        code: parsed.code,
+        canonicalUrl: target.toString(),
+        platform,
+        target: aieShareTarget(target.toString()),
+      },
+      200
+    );
+  }
+
+  logFallbackShareEvent(request, {
+    eventType: 'share_link_visit',
+    platform,
+    code: parsed.code,
+  });
+  target.searchParams.set('aether_share', parsed.code);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location: target.toString(),
+      'cache-control': 'private, no-store',
+    },
+  });
+}
+
+function sharePlatformFromValue(value: string | null | undefined): string {
+  return value === 'x' ||
+    value === 'linkedin' ||
+    value === 'facebook' ||
+    value === 'whatsapp' ||
+    value === 'telegram' ||
+    value === 'copy' ||
+    value === 'native'
+    ? value
+    : 'unknown';
+}
+
+const SOCIAL_CRAWLER_RE =
+  /(bot|crawler|spider|twitterbot|facebookexternalhit|linkedinbot|slackbot|discordbot|telegrambot|whatsapp|embedly|quora link preview|skypeuripreview|pinterest)/i;
+
+function isSocialCrawler(request: Request): boolean {
+  return SOCIAL_CRAWLER_RE.test(request.headers.get('user-agent') ?? '');
+}
+
+function isEnrichmentProbe(request: Request): boolean {
+  return (
+    request.headers.get('x-aether-enrichment') === '1' ||
+    /aether-share-enrichment/i.test(request.headers.get('user-agent') ?? '')
+  );
+}
+
+function aieShareTarget(canonicalUrl: string) {
+  return {
+    canonicalUrl,
+    objectType: 'vibes_page',
+    objectId: 'aie2026',
+    slug: 'aie2026',
+    title: 'AI Engineer Singapore public recap',
+    description: AIE_SHARE_DESCRIPTION,
+    imageUrl: new URL(AIE_RECAP_SOCIAL_IMAGE_PATH, canonicalUrl).toString(),
+    xImageUrl: new URL(AIE_RECAP_X_IMAGE_PATH, canonicalUrl).toString(),
+  };
+}
+
+function aieShortPreviewHtml(canonicalUrl: string, shortUrl: string): string {
+  const target = aieShareTarget(canonicalUrl);
+  const title = escapePreviewHtml(target.title);
+  const description = escapePreviewHtml(target.description);
+  const canonical = escapePreviewHtml(target.canonicalUrl);
+  const short = escapePreviewHtml(shortUrl);
+  const image = escapePreviewHtml(target.imageUrl);
+  const xImage = escapePreviewHtml(target.xImageUrl);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${title}</title>
+<link rel="canonical" href="${canonical}" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${description}" />
+<meta property="og:url" content="${short}" />
+<meta property="og:image" content="${image}" />
+<meta property="og:image:secure_url" content="${image}" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="${AIE_RECAP_SOCIAL_IMAGE_WIDTH}" />
+<meta property="og:image:height" content="${AIE_RECAP_SOCIAL_IMAGE_HEIGHT}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@erniesg" />
+<meta name="twitter:title" content="${title}" />
+<meta name="twitter:description" content="${description}" />
+<meta name="twitter:image" content="${xImage}" />
+<meta name="twitter:image:src" content="${xImage}" />
+<meta name="twitter:image:alt" content="AI Engineer Singapore 2026 recap visual" />
+</head>
+</html>`;
+}
+
+function socialPreviewHeaders(cacheTag: string): HeadersInit {
+  return {
+    'cache-control': 'public, max-age=300, no-transform',
+    'content-type': 'text/html; charset=utf-8',
+    'x-robots-tag': 'all',
+    'cache-tag': cacheTag,
+  };
+}
+
+function escapePreviewHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function logFallbackShareEvent(
+  request: Request,
+  event: { eventType: string; platform: string; code?: string; reason?: string }
+): void {
+  const url = new URL(request.url);
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: 'aie2026.share',
+      eventType: event.eventType,
+      platform: event.platform,
+      code: event.code,
+      reason: event.reason,
+      path: url.pathname,
+      query: url.searchParams.toString() || undefined,
+      referer: request.headers.get('referer') ?? undefined,
+      userAgent: request.headers.get('user-agent')?.slice(0, 180) ?? undefined,
+      acceptLanguage: request.headers.get('accept-language')?.slice(0, 120) ?? undefined,
+      cfCountry: request.headers.get('cf-ipcountry')?.slice(0, 8) ?? undefined,
+      cfColo: request.headers.get('cf-colo')?.slice(0, 16) ?? undefined,
+      cfRay: request.headers.get('cf-ray') ?? undefined,
+      at: new Date().toISOString(),
+    })
+  );
+}
+
+function shareApiUrl(request: Request, env: Env, pathname: string): string {
+  const incoming = new URL(request.url);
+  const origin = (env.AETHER_BASE_URL || incoming.origin).replace(/\/$/, '');
+  const upstream = new URL(pathname, origin);
+  upstream.search = incoming.search;
+  return upstream.toString();
+}
+
+async function proxyRequest(request: Request, upstreamUrl: string): Promise<Request> {
+  const headers = new Headers(request.headers);
+  headers.set('accept', 'application/json');
+  headers.delete('host');
+  headers.delete('content-length');
+
+  const init: RequestInit = {
+    method: request.method,
+    headers,
+    redirect: 'manual',
+  };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    init.body = await request.arrayBuffer();
+  }
+  return new Request(upstreamUrl, init);
+}
+
+function proxyJsonHeaders(source: Headers): Headers {
+  const headers = new Headers({
+    'content-type': source.get('content-type') ?? 'application/json; charset=utf-8',
+    'access-control-allow-origin': '*',
+  });
+  const cacheControl = source.get('cache-control');
+  if (cacheControl) headers.set('cache-control', cacheControl);
+  return headers;
+}
+
+async function fallbackMediaResponse(request: Request, key: string, rawFallback: string | null): Promise<Response | null> {
+  const fallback = fallbackMediaUrl(rawFallback);
+  if (!fallback) return null;
+
+  const headers = new Headers();
+  const range = request.headers.get('range');
+  if (range) headers.set('range', range);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(fallback, {
+      method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers,
+    });
+  } catch {
+    return null;
+  }
+
+  if (!(upstream.ok || upstream.status === 206)) return null;
+  const upstreamType = upstream.headers.get('content-type') ?? contentType(key);
+  if (!fallbackContentTypeMatches(key, upstreamType)) return null;
+
+  const responseHeaders = buildEmbedHeaders({
+    contentType: upstreamType,
+    maxAge: 86400,
+    cors: true,
+  });
+  for (const header of ['accept-ranges', 'content-length', 'content-range', 'etag', 'last-modified']) {
+    const value = upstream.headers.get(header);
+    if (value) responseHeaders.set(header, value);
+  }
+  responseHeaders.set('access-control-expose-headers', 'Accept-Ranges, Content-Length, Content-Range');
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: responseHeaders,
+  });
+}
+
+function fallbackMediaUrl(rawFallback: string | null): string | null {
+  if (!rawFallback) return null;
+  try {
+    const url = new URL(rawFallback);
+    if (url.protocol !== 'https:') return null;
+    if (!FALLBACK_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return null;
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function fallbackContentTypeMatches(key: string, contentTypeValue: string): boolean {
+  const lowerKey = key.toLowerCase();
+  const lowerType = contentTypeValue.toLowerCase();
+  if (lowerKey.match(/\.(mp4|m4v|mov|webm)$/)) return lowerType.startsWith('video/');
+  if (lowerKey.match(/\.(jpe?g|png|webp|gif|avif)$/)) return lowerType.startsWith('image/');
+  return lowerType.startsWith('image/') || lowerType.startsWith('video/');
 }
 
 function contentType(key: string): string {
@@ -639,23 +1111,31 @@ export function renderHtml(options: { theme?: EmbedTheme } = {}): string {
     theme === 'dark'
       ? `'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace`
       : `ui-monospace,SFMono-Regular,Menlo,monospace`;
+  const shareDescription = escapePreviewHtml(AIE_SHARE_DESCRIPTION);
   return `<!doctype html>
 <html lang="en"${themeAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AI Engineer Singapore vibes</title>
-<meta name="description" content="Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets." />
+<title>AI Engineer Singapore public recap</title>
+<meta name="description" content="${shareDescription}" />
 <link rel="canonical" href="https://aether.berlayar.ai/vibes/aie2026/" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="AI Engineer Singapore vibes" />
-<meta property="og:description" content="Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets." />
+<meta property="og:title" content="AI Engineer Singapore public recap" />
+<meta property="og:description" content="${shareDescription}" />
 <meta property="og:url" content="https://aether.berlayar.ai/vibes/aie2026/" />
-<meta property="og:image" content="https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore%2Fmedia%2Flinkedin%2F7283684d73974e93.jpg" />
+<meta property="og:image" content="https://aether.berlayar.ai${AIE_RECAP_SOCIAL_IMAGE_PATH}" />
+<meta property="og:image:secure_url" content="https://aether.berlayar.ai${AIE_RECAP_SOCIAL_IMAGE_PATH}" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="${AIE_RECAP_SOCIAL_IMAGE_WIDTH}" />
+<meta property="og:image:height" content="${AIE_RECAP_SOCIAL_IMAGE_HEIGHT}" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="AI Engineer Singapore vibes" />
-<meta name="twitter:description" content="Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets." />
-<meta name="twitter:image" content="https://aether.berlayar.ai/vibes/aie2026/media?path=event-recap-ai-engineer-singapore%2Fmedia%2Flinkedin%2F7283684d73974e93.jpg" />
+<meta name="twitter:site" content="@erniesg" />
+<meta name="twitter:title" content="AI Engineer Singapore public recap" />
+<meta name="twitter:description" content="${shareDescription}" />
+<meta name="twitter:image" content="https://aether.berlayar.ai${AIE_RECAP_X_IMAGE_PATH}" />
+<meta name="twitter:image:src" content="https://aether.berlayar.ai${AIE_RECAP_X_IMAGE_PATH}" />
+<meta name="twitter:image:alt" content="AI Engineer Singapore 2026 recap visual" />
 ${fontLink}
 <script>if(location.search.includes('debug=1'))document.documentElement.classList.add('debug')</script>
 <style>
@@ -671,7 +1151,7 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
 .evidence{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}.evidence p{margin:4px 0 0;color:var(--muted);font-size:13px;line-height:1.35}.evidence-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.evidence-actions a{border:1px solid var(--line);background:#fff;padding:6px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;text-decoration:none;color:var(--muted)}.evidence-actions a:hover{border-color:var(--accent);color:var(--accent)}.debug-only{display:none}html.debug .debug-only{display:inline-block}
 .made-by{margin-top:16px;border-top:1px solid var(--line);padding-top:12px;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}.made-by a{color:var(--muted);text-decoration:none}.made-by a:hover{color:var(--accent);text-decoration:underline}.made-heart{color:var(--accent)}
 .share-panel{margin-top:16px;border:1px solid var(--line);background:var(--soft);padding:12px}.share-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.share-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px}.share-actions button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 8px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;text-align:left;cursor:pointer}.share-actions button:hover{border-color:var(--accent);color:var(--accent)}.share-actions button:disabled{cursor:wait;opacity:.62}.share-status{min-height:16px;margin:6px 0 0;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;overflow-wrap:anywhere}
-.share-actions button{display:flex;align-items:center;gap:7px;min-width:0}.platform-icon{display:inline-grid;width:18px;height:18px;flex:0 0 18px;place-items:center;border:1px solid var(--line);background:#fff;color:var(--ink);font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:none;letter-spacing:0}.platform-icon-x{font-size:11px}.platform-icon-linkedin{background:#0a66c2;border-color:#0a66c2;color:#fff}.platform-icon-facebook{background:#1877f2;border-color:#1877f2;color:#fff;font-family:Arial,sans-serif;font-size:14px}.platform-icon-whatsapp{background:#1fa463;border-color:#1fa463;color:#fff;font-size:9px}.share-platform-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.share-verified{margin-left:auto;min-width:20px;border:1px solid var(--line);background:#fff;padding:2px 5px;text-align:center;font:10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}.share-verified.private{min-width:auto;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}.share-copy-button{align-items:flex-start!important;flex-direction:column;gap:3px!important}.share-copy-url{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.share-actions button{display:flex;align-items:center;gap:7px;min-width:0}.platform-icon{display:inline-grid;width:18px;height:18px;flex:0 0 18px;place-items:center;border:1px solid var(--line);background:#fff;color:var(--ink);font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:none;letter-spacing:0}.platform-icon-x{font-size:11px}.platform-icon-linkedin{background:#0a66c2;border-color:#0a66c2;color:#fff}.platform-icon-facebook{background:#1877f2;border-color:#1877f2;color:#fff;font-family:Arial,sans-serif;font-size:14px}.platform-icon-whatsapp{background:#1fa463;border-color:#1fa463;color:#fff;font-size:9px}.share-platform-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.share-copy-button{align-items:flex-start!important;flex-direction:column;gap:3px!important}.share-copy-url{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
 .main{min-width:0}.hero{border:1px solid var(--line);background:var(--panel);padding:24px}.lede{max-width:none;font-size:18px;color:#5b554e;margin:10px 0 0}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 .chip{border:1px solid var(--line);border-radius:999px;background:#fff;padding:4px 10px;font-size:12px;color:#6f655c}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:22px}
 .freshness{margin:10px 0 0;color:var(--muted);font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em}
@@ -704,11 +1184,11 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
         <p class="eyebrow">share recap</p>
       </div>
       <div class="share-actions">
-        <button type="button" data-share-platform="x" title="Verified public posts on X"><span class="platform-icon platform-icon-x">X</span><span class="share-platform-name">X</span><span class="share-verified" id="shareVerifiedX">0</span></button>
-        <button type="button" data-share-platform="linkedin" title="Verified public posts on LinkedIn"><span class="platform-icon platform-icon-linkedin">in</span><span class="share-platform-name">LinkedIn</span><span class="share-verified" id="shareVerifiedLinkedin">0</span></button>
-        <button type="button" data-share-platform="facebook" title="Verified public posts on Facebook"><span class="platform-icon platform-icon-facebook">f</span><span class="share-platform-name">Facebook</span><span class="share-verified" id="shareVerifiedFacebook">0</span></button>
-        <button type="button" data-share-platform="whatsapp" title="WhatsApp shares are private and cannot be verified by public URL discovery"><span class="platform-icon platform-icon-whatsapp">wa</span><span class="share-platform-name">WhatsApp</span><span class="share-verified private">private</span></button>
-        <button type="button" id="shareNative" title="Device shares are private unless the public post is later found"><span class="share-platform-name">device share</span><span class="share-verified private">private</span></button>
+        <button type="button" data-share-platform="x" title="Share to X"><span class="platform-icon platform-icon-x">X</span><span class="share-platform-name">X</span></button>
+        <button type="button" data-share-platform="linkedin" title="Share to LinkedIn"><span class="platform-icon platform-icon-linkedin">in</span><span class="share-platform-name">LinkedIn</span></button>
+        <button type="button" data-share-platform="facebook" title="Share to Facebook"><span class="platform-icon platform-icon-facebook">f</span><span class="share-platform-name">Facebook</span></button>
+        <button type="button" data-share-platform="whatsapp" title="Share to WhatsApp"><span class="platform-icon platform-icon-whatsapp">wa</span><span class="share-platform-name">WhatsApp</span></button>
+        <button type="button" id="shareNative" title="Share with this device"><span class="share-platform-name">device share</span></button>
         <button type="button" id="shareCopyCurrent" class="share-copy-button" title="Create and copy a tracked short link"><span class="share-platform-name">copy link</span><code class="share-copy-url" id="shareCopyUrl">/vibes/aie2026/</code></button>
       </div>
       <p class="share-status" id="shareStatus"></p>
@@ -756,7 +1236,7 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
   <div class="media-dialog">
     <div class="media-viewer-bar">
       <span class="meta" id="mediaViewerMeta"></span>
-      <span><a id="mediaViewerSource" href="#" target="_blank" rel="noreferrer">source</a> <button type="button" id="mediaViewerClose">close</button></span>
+      <span><a id="mediaViewerSource" href="#" target="_blank" rel="noreferrer">source</a> <a id="mediaViewerDownload" href="#" download>download</a> <button type="button" id="mediaViewerClose">close</button></span>
     </div>
     <div class="media-body">
       <div class="media-stage" id="mediaViewerStage"></div>
@@ -773,36 +1253,38 @@ const $=(id)=>document.getElementById(id);
 const fmt=(n)=>n==null?'0':Intl.NumberFormat('en',{notation:n>=10000?'compact':'standard',maximumFractionDigits:1}).format(n);
 const date=(v)=>v?new Date(v).toLocaleDateString('en-SG',{day:'numeric',month:'short',year:'numeric'}):'date pending';
 const dateTime=(v)=>v?new Date(v).toLocaleString('en-SG',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Asia/Singapore',timeZoneName:'short'}):'time pending';
-const SHARE_TARGET={objectType:'vibes_page',objectId:'aie2026',slug:'aie2026',canonicalPath:'/vibes/aie2026/',title:'AI Engineer Singapore vibes',description:'Public recap of the strongest AI Engineer Singapore references, clusters, voices, and media assets.'};
-const SHARE_TEXT='Mapped the strongest public refs from AI Engineer Singapore: talks, demos, side events, and builder reactions.';
+const SHARE_IMAGE_PATH='${AIE_RECAP_SOCIAL_IMAGE_PATH}';
+const SHARE_TARGET={objectType:'vibes_page',objectId:'aie2026',slug:'aie2026',canonicalPath:'/vibes/aie2026/',title:'AI Engineer Singapore public recap',description:${JSON.stringify(AIE_SHARE_DESCRIPTION)},imageUrl:new URL(SHARE_IMAGE_PATH,location.origin).toString()};
+const FEATURED_MEDIA=[{mediaKey:'aie2026-eventrecap-visual',path:'${AIE_RECAP_IMAGE_KEY}',type:'image',source:'aether-recap',contentType:'image/png',width:1672,height:941,bytes:2567983,title:'AI Engineer Singapore recap visual',postText:'AI Engineer Singapore recap visual',postAuthor:'@erniesg',postPlatform:'recap',postReachScore:999999,refCount:1}];
+const SHARE_TEXT=${JSON.stringify(AIE_SHARE_TEXT)};
 const SHARE_HASHTAGS=['AIE2026','AIEngineer','Singapore'];
+const SHARE_HASHTAG_TEXT=SHARE_HASHTAGS.map(tag=>'#'+tag).join(' ');
 const PUBLIC_CANONICAL_URL='https://aether.berlayar.ai/vibes/aie2026/';
 const SHARE_SHORT_URL_PLACEHOLDER='https://s.berlayar.ai/xxxx';
 let latestCopyUrl='';
 let latestCopyCode='';
 function shortSharePreviewUrl(){try{const host=location.hostname;if(host==='localhost'||host==='127.0.0.1'||host==='::1')return new URL('/xxxx',location.origin).toString();if(host==='aether.berlayar.ai')return SHARE_SHORT_URL_PLACEHOLDER;const staging=host.match(/^aether-(.+)\\.berlayar\\.ai$/);if(staging)return 'https://s-'+staging[1]+'.berlayar.ai/xxxx'}catch(err){}return SHARE_SHORT_URL_PLACEHOLDER}
 function isLocalShareUrl(url){try{const host=new URL(url).hostname;return host==='localhost'||host==='127.0.0.1'||host==='::1'}catch{return false}}
-function trackedCanonicalUrl(code,platform){const url=new URL(PUBLIC_CANONICAL_URL);if(code)url.searchParams.set('aether_share',code);if(platform)url.searchParams.set('utm_source',platform);url.searchParams.set('utm_medium','share');return url.toString()}
 function socialShareUrl(link,platform){return isLocalShareUrl(link.shortUrl)?PUBLIC_CANONICAL_URL:link.shortUrl}
 function setShareStatus(message){const node=$('shareStatus');if(node)node.textContent=message||''}
 function setShareCopyUrl(url){const node=$('shareCopyUrl');if(node)node.textContent=url||shortSharePreviewUrl()}
-function setVerified(platform,value){const ids={x:'shareVerifiedX',linkedin:'shareVerifiedLinkedin',facebook:'shareVerifiedFacebook'};const node=$(ids[platform]);if(node)node.textContent=fmt(Number(value||0))}
-function updateShareSummary(summary){summary=summary||{};const byPlatform=summary.publicPostsByPlatform||{};setVerified('x',byPlatform.x);setVerified('linkedin',byPlatform.linkedin);setVerified('facebook',byPlatform.facebook)}
 function setShareBusy(busy){document.querySelectorAll('[data-share-platform],#shareNative,#shareCopyCurrent').forEach(node=>{node.disabled=!!busy})}
-function platformShareUrl(platform,url){if(platform==='x'){const u=new URL('https://x.com/intent/tweet');u.searchParams.set('text',SHARE_TEXT);u.searchParams.set('url',url);u.searchParams.set('hashtags',SHARE_HASHTAGS.join(','));return u.toString()}if(platform==='linkedin'){const u=new URL('https://www.linkedin.com/sharing/share-offsite/');u.searchParams.set('url',url);return u.toString()}if(platform==='facebook'){const u=new URL('https://www.facebook.com/sharer/sharer.php');u.searchParams.set('u',url);return u.toString()}if(platform==='whatsapp'){const u=new URL('https://wa.me/');u.searchParams.set('text',SHARE_TEXT+'\\n'+url);return u.toString()}return null}
-async function loadShareSummary(){try{const res=await fetch('/vibes/aie2026/share/summary?canonicalPath='+encodeURIComponent(SHARE_TARGET.canonicalPath),{cache:'no-store'});const json=await res.json();if(json&&json.ok)updateShareSummary(json.summary)}catch(err){setShareStatus('share counts unavailable locally')}}
+function sharePostCopy(){return [SHARE_TEXT,SHARE_HASHTAG_TEXT].filter(Boolean).join('\\n')}
+function shareCaption(url){return [SHARE_TEXT,url,SHARE_HASHTAG_TEXT].filter(Boolean).join('\\n')}
+function platformShareUrl(platform,url){if(platform==='x'){const u=new URL('https://x.com/intent/tweet');u.searchParams.set('text',SHARE_TEXT);u.searchParams.set('url',url);u.searchParams.set('hashtags',SHARE_HASHTAGS.join(','));return u.toString()}if(platform==='linkedin'){const u=new URL('https://www.linkedin.com/feed/');u.searchParams.set('shareActive','true');u.searchParams.set('text',shareCaption(url));u.searchParams.set('shareUrl',url);return u.toString()}if(platform==='facebook'){const u=new URL('https://www.facebook.com/sharer/sharer.php');u.searchParams.set('u',url);u.searchParams.set('quote',sharePostCopy());return u.toString()}if(platform==='whatsapp'){const u=new URL('https://wa.me/');u.searchParams.set('text',shareCaption(url));return u.toString()}return null}
 async function recordInboundShareVisit(){const params=new URLSearchParams(location.search);const code=(params.get('aether_share')||params.get('share')||'').trim();if(!code)return;const key='aether.share.visit.'+code;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');const platform=['x','linkedin','facebook','whatsapp','telegram'].includes(params.get('utm_source')||'')?params.get('utm_source'):'unknown';await recordShareEvent('share_link_visit',platform,code)}
 async function createShareLink(platform){const res=await fetch('/vibes/aie2026/share/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:SHARE_TARGET,platform,shareText:SHARE_TEXT})});const json=await res.json();if(!json.ok||!json.link)throw new Error(json.error||('HTTP '+res.status));return json.link}
 async function recordShareEvent(eventType,platform,code){try{await fetch('/vibes/aie2026/share/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventType,platform,code,canonicalPath:SHARE_TARGET.canonicalPath})})}catch(err){}}
 async function writeClipboard(text){if(navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(text);return true}catch(err){}}const input=document.createElement('textarea');input.value=text;input.setAttribute('readonly','');input.style.position='fixed';input.style.left='-9999px';document.body.appendChild(input);input.select();let ok=false;try{ok=document.execCommand('copy')}catch(err){ok=false}input.remove();return ok}
-async function sharePlatform(platform){const shareWindow=window.open('about:blank','_blank');setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink(platform);const outboundUrl=socialShareUrl(link,platform);const href=platformShareUrl(platform,outboundUrl);if(!href)throw new Error('Share destination unavailable.');let copiedCaption=false;if(platform==='linkedin'||platform==='facebook')copiedCaption=await writeClipboard(SHARE_TEXT+'\\n'+outboundUrl);if(!shareWindow){setShareStatus('share window blocked');return}shareWindow.opener=null;shareWindow.location.href=href;await recordShareEvent('platform_clicked',platform,link.code);setShareStatus(copiedCaption?'caption copied; paste it into the composer':'share composer opened')}catch(err){if(shareWindow)shareWindow.close();setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
-async function nativeShare(){setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink('native');if(navigator.share){await navigator.share({title:SHARE_TARGET.title,text:SHARE_TEXT,url:link.shortUrl});await recordShareEvent('native_share_success','native',link.code);setShareStatus('shared')}else{const copied=await writeClipboard(link.shortUrl);await recordShareEvent('copy_link','native',link.code);setShareStatus(copied?'short link copied':'short link ready')}}catch(err){await recordShareEvent('native_share_error','native');setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function shareFacebookPlatform(){setShareBusy(true);setShareStatus('creating Facebook share');try{const link=await createShareLink('facebook');const outboundUrl=socialShareUrl(link,'facebook');const href=platformShareUrl('facebook',outboundUrl);if(!href)throw new Error('Share destination unavailable.');const copied=await writeClipboard(sharePostCopy());await recordShareEvent('platform_clicked','facebook',link.code);setShareStatus(copied?'post copy copied; paste it into Facebook':'opening Facebook');if(copied)alert('Post copy copied. Facebook will open next. Paste it into the Facebook composer before sharing.');location.href=href}catch(err){setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function sharePlatform(platform){if(platform==='facebook')return shareFacebookPlatform();const shareWindow=window.open('about:blank','_blank');setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink(platform);const outboundUrl=socialShareUrl(link,platform);const href=platformShareUrl(platform,outboundUrl);if(!href)throw new Error('Share destination unavailable.');let copiedCaption=false;if(platform==='linkedin')copiedCaption=await writeClipboard(shareCaption(outboundUrl));if(!shareWindow){setShareStatus('share window blocked');return}shareWindow.opener=null;shareWindow.location.href=href;await recordShareEvent('platform_clicked',platform,link.code);setShareStatus(copiedCaption?'caption copied; paste it into the composer':'share composer opened')}catch(err){if(shareWindow)shareWindow.close();setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function nativeShare(){setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink('native');if(navigator.share){await navigator.share({title:SHARE_TARGET.title,text:shareCaption(''),url:link.shortUrl});await recordShareEvent('native_share_success','native',link.code);setShareStatus('shared')}else{const copied=await writeClipboard(link.shortUrl);await recordShareEvent('copy_link','native',link.code);setShareStatus(copied?'short link copied':'short link ready')}}catch(err){await recordShareEvent('native_share_error','native');setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
 async function copyTrackedShare(){setShareBusy(true);setShareStatus(latestCopyUrl?'copying link':'creating link');try{if(!latestCopyUrl){const link=await createShareLink('copy');latestCopyUrl=link.shortUrl;latestCopyCode=link.code;setShareCopyUrl(latestCopyUrl)}const copied=await writeClipboard(latestCopyUrl);await recordShareEvent('copy_link','copy',latestCopyCode);setShareStatus(copied?'short link copied':'short link ready')}catch(err){setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
 document.querySelectorAll('[data-share-platform]').forEach(node=>{node.onclick=()=>sharePlatform(node.getAttribute('data-share-platform'))});
-$('shareNative').onclick=()=>nativeShare();$('shareCopyCurrent').onclick=()=>copyTrackedShare();setShareCopyUrl('');loadShareSummary();recordInboundShareVisit();
+$('shareNative').onclick=()=>nativeShare();$('shareCopyCurrent').onclick=()=>copyTrackedShare();setShareCopyUrl('');recordInboundShareVisit();
 const isImageUrl=(v)=>/\\.(jpe?g|png|webp|avif|gif)(\\?|$)/i.test(String(v||''));
 const isVideoUrl=(v)=>/\\.(mp4|webm|mov|m4v)(\\?|$)/i.test(String(v||''));
-const localMediaUrl=(m)=>m.path?'/vibes/aie2026/media?path='+encodeURIComponent(m.path):'';
+const localMediaUrl=(m)=>{if(!m.path)return'';const url=new URL('/vibes/aie2026/media',location.origin);url.searchParams.set('path',m.path);if(m.url&&/^https?:\\/\\//i.test(String(m.url)))url.searchParams.set('fallback',m.url);return url.pathname+url.search};
 const localImageUrl=(m)=>m.path&&isImageUrl(m.path)?localMediaUrl(m):'';
 const remoteImageUrl=(m)=>isImageUrl(m.previewUrl)?m.previewUrl:isImageUrl(m.url)?m.url:'';
 const imageUrl=(m)=>localImageUrl(m)||remoteImageUrl(m);
@@ -820,7 +1302,7 @@ function markBrokenMedia(el){const tile=el&&el.closest?el.closest('[data-media-k
 function canonicalMediaKey(m){const yt=youtubeId(m.postUrl)||youtubeId(m.url)||youtubeId(m.previewUrl);if(yt)return'youtube:'+yt;if(isVideoMedia(m)){const x=xVideoId(m.url)||xVideoId(m.previewUrl)||xVideoId(m.path);return'video:'+(x||m.hash||normalizedUrl(videoUrl(m))||normalizedUrl(m.url)||m.path)}const img=m.visualHash||(m.path&&isImageUrl(m.path)?m.hash:'')||normalizedUrl(imageUrl(m))||m.hash||m.path||m.url;return img?'image:'+img:''}
 const mediaKey=canonicalMediaKey;
 function mediaElement(m){const src=imageUrl(m);if(src){const fallback=remoteImageUrl(m);const onerror=localImageUrl(m)&&fallback&&fallback!==src?' onerror="this.onerror=()=>markBrokenMedia(this);this.src=\\''+escapeHtml(fallback)+'\\'"':' onerror="markBrokenMedia(this)"';return'<img src="'+escapeHtml(src)+'" loading="lazy" alt="'+(isPlayableMedia(m)?'video preview':'')+'"'+onerror+'>'}const video=videoUrl(m);return video?'<video src="'+escapeHtml(video)+'" muted playsinline loop preload="metadata" onerror="markBrokenMedia(this)"></video>':''}
-function mediaTile(m,classes=''){const key=m.mediaKey||canonicalMediaKey(m);const playable=isPlayableMedia(m);const label=playable?'play video':'open source post';return'<button type="button" class="tile '+escapeHtml(classes)+(playable?' is-video':'')+'" data-media-key="'+escapeHtml(key)+'" title="'+escapeHtml(label)+'" aria-label="'+escapeHtml(label)+'">'+mediaElement(m)+(playable?'<span class="tile-kind">'+(isVideoMedia(m)?'play':'watch')+'</span><span class="tile-play" aria-hidden="true"></span>':'')+'</button>'}
+function mediaTile(m,classes=''){const key=m.mediaKey||canonicalMediaKey(m);const playable=isPlayableMedia(m);const label=playable?'play video':'open media';return'<button type="button" class="tile '+escapeHtml(classes)+(playable?' is-video':'')+'" data-media-key="'+escapeHtml(key)+'" title="'+escapeHtml(label)+'" aria-label="'+escapeHtml(label)+'">'+mediaElement(m)+(playable?'<span class="tile-kind">'+(isVideoMedia(m)?'play':'watch')+'</span><span class="tile-play" aria-hidden="true"></span>':'')+'</button>'}
 const raw=(p)=> ((p.metrics||{}).likes||0)+((p.metrics||{}).reactions||0)+2*((p.metrics||{}).comments||0)+2*((p.metrics||{}).reposts||0)+2*((p.metrics||{}).replies||0)+((((p.metrics||{}).views??(p.metrics||{}).impressions)??0)/200);
 const score=(v,kind='eng')=>{const voice=kind==='voice';const help=voice?'Voice score highlights people with repeated high-signal refs and public engagement.':'Engagement score compares this ref with other refs on the same platform. 0 is typical; higher is above-platform average. Signals include public reactions, comments, reposts, and views where the platform exposes them.';return '<details class="score" title="'+help+'"><summary>'+kind+' '+Number(v||0).toFixed(2)+' ?</summary><div>'+help+(voice?'':'<br><br>LinkedIn impressions are not exposed here, so LinkedIn uses public reactions/comments/reposts only.')+'</div></details>'};
 const metricCard=(label,value,detail,help)=>'<details class="metric" title="'+escapeHtml(help)+'"><summary><b>'+fmt(value)+'</b><span>'+escapeHtml(label)+'</span><small>'+escapeHtml(detail)+' ?</small></summary><p class="metric-help">'+escapeHtml(help)+'</p></details>';
@@ -840,10 +1322,11 @@ function postLine(p){const media=(p.media||[]).filter(isRenderableMedia);const c
 function mediaStrip(p){const imgs=(p.media||[]).filter(isRenderableMedia);return imgs.length?'<div class="post-media">'+imgs.map((m)=>mediaTile({...m,postUrl:p.url,postId:p.postId,postText:p.text,postAuthor:p.authorHandle||p.authorName,postPlatform:p.platform,postReachScore:p.reachScore},'media-thumb')).join('')+'</div>':''}
 function mediaByKey(key){return state.data?.mediaByKey?.[key]||(state.data?.media||[]).find(m=>m.mediaKey===key)}
 function videoMime(m){const type=String(m.contentType||'');if(/^video\\//i.test(type))return type;const src=String(m.path||m.url||'').toLowerCase();if(src.endsWith('.webm'))return'video/webm';if(src.endsWith('.mov'))return'video/quicktime';return'video/mp4'}
-function mediaSourcePanel(m){const post=state.data?.postsById?.[m.postId]||{};const author=m.postAuthor||post.authorHandle||post.authorName||'unknown';const platform=m.postPlatform||post.platform||'source';const posted=postDateLabel(post)||date(m.postedAt);const text=decodeText(m.postText||post.text||'');const refs=(m.postIds||[]).map(id=>state.data?.postsById?.[id]).filter(Boolean);const sourceUrl=m.postUrl||post.url||m.postUrls?.[0]||'';const refLinks=refs.length>1?'<div class="source-ref-list">'+refs.slice(0,6).map((p,i)=>'<a href="'+escapeHtml(p.url||'#')+'" target="_blank" rel="noreferrer">source '+(i+1)+'</a>').join('')+(refs.length>6?'<span class="meta source-muted">+'+(refs.length-6)+' more</span>':'')+'</div>':'';return '<p class="eyebrow">source post</p><h3>'+escapeHtml(author)+'</h3><p class="meta">'+escapeHtml(platform)+' · '+escapeHtml(posted)+'</p>'+(text?'<p class="source-post-text">'+escapeHtml(text)+'</p>':'<p class="source-post-text source-muted">No source text captured for this post.</p>')+'<div class="source-actions">'+(sourceUrl?'<a href="'+escapeHtml(sourceUrl)+'" target="_blank" rel="noreferrer">open original</a>':'')+(mediaUrl(m)?'<a href="'+escapeHtml(mediaUrl(m))+'" target="_blank" rel="noreferrer">open media</a>':'')+'</div>'+refLinks}
-function openMedia(key){const m=mediaByKey(key);if(!m)return;const video=videoUrl(m);const embed=youtubeEmbedUrl(m);if(!video&&!embed){if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer');return}const stage=$('mediaViewerStage');const viewer=$('mediaViewer');const source=$('mediaViewerSource');const meta=$('mediaViewerMeta');const poster=imageUrl(m);if(video){stage.innerHTML='<video controls autoplay playsinline preload="metadata"'+(poster?' poster="'+escapeHtml(poster)+'"':'')+'><source src="'+escapeHtml(video)+'" type="'+escapeHtml(videoMime(m))+'"></video>'}else{stage.innerHTML='<iframe src="'+escapeHtml(embed)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>'}const sourceUrl=m.postUrl||mediaUrl(m);if(sourceUrl){source.href=sourceUrl;source.style.display='inline-block'}else{source.removeAttribute('href');source.style.display='none'}$('mediaViewerPost').innerHTML=mediaSourcePanel(m);meta.textContent=(isVideoMedia(m)?'local video':'video')+(m.postAuthor?' · '+m.postAuthor:m.postPlatform?' · '+m.postPlatform:'');viewer.classList.add('open');viewer.setAttribute('aria-hidden','false');$('mediaViewerClose').focus({preventScroll:true})}
+function downloadFileName(m){const raw=String(m.path||m.url||m.title||'media').split(/[?#]/)[0].split('/').filter(Boolean).pop()||'media';const ext=(raw.match(/\.[a-z0-9]{2,5}$/i)||[''])[0];const name=ext?raw:raw+(isVideoMedia(m)?'.mp4':'.jpg');return name.replace(/[^a-zA-Z0-9._-]/g,'-')}
+function mediaSourcePanel(m){const post=state.data?.postsById?.[m.postId]||{};const author=m.postAuthor||post.authorHandle||post.authorName||'unknown';const platform=m.postPlatform||post.platform||'source';const posted=postDateLabel(post)||date(m.postedAt);const text=decodeText(m.postText||post.text||'');const refs=(m.postIds||[]).map(id=>state.data?.postsById?.[id]).filter(Boolean);const sourceUrl=m.postUrl||post.url||m.postUrls?.[0]||'';const directMediaUrl=mediaUrl(m);const refLinks=refs.length>1?'<div class="source-ref-list">'+refs.slice(0,6).map((p,i)=>'<a href="'+escapeHtml(p.url||'#')+'" target="_blank" rel="noreferrer">source '+(i+1)+'</a>').join('')+(refs.length>6?'<span class="meta source-muted">+'+(refs.length-6)+' more</span>':'')+'</div>':'';return '<p class="eyebrow">'+(sourceUrl?'source post':'media asset')+'</p><h3>'+escapeHtml(author)+'</h3><p class="meta">'+escapeHtml(platform)+' · '+escapeHtml(posted)+'</p>'+(text?'<p class="source-post-text">'+escapeHtml(text)+'</p>':'<p class="source-post-text source-muted">No source text captured for this post.</p>')+'<div class="source-actions">'+(sourceUrl?'<a href="'+escapeHtml(sourceUrl)+'" target="_blank" rel="noreferrer">open original</a>':'')+(directMediaUrl?'<a href="'+escapeHtml(directMediaUrl)+'" target="_blank" rel="noreferrer">open media</a><a href="'+escapeHtml(directMediaUrl)+'" download="'+escapeHtml(downloadFileName(m))+'">download</a>':'')+'</div>'+refLinks}
+function openMedia(key){const m=mediaByKey(key);if(!m)return;const video=videoUrl(m);const embed=youtubeEmbedUrl(m);const image=imageUrl(m);if(!video&&!embed&&!image){if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer');return}const stage=$('mediaViewerStage');const viewer=$('mediaViewer');const source=$('mediaViewerSource');const download=$('mediaViewerDownload');const meta=$('mediaViewerMeta');const poster=imageUrl(m);if(video){stage.innerHTML='<video controls autoplay playsinline preload="metadata"'+(poster?' poster="'+escapeHtml(poster)+'"':'')+'><source src="'+escapeHtml(video)+'" type="'+escapeHtml(videoMime(m))+'"></video>'}else if(embed){stage.innerHTML='<iframe src="'+escapeHtml(embed)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>'}else if(image){stage.innerHTML='<img src="'+escapeHtml(image)+'" alt="'+escapeHtml(m.title||m.postText||'media asset')+'">'}const sourceUrl=m.postUrl||m.postUrls?.[0]||'';if(sourceUrl){source.href=sourceUrl;source.textContent='source';source.style.display='inline-block'}else{source.removeAttribute('href');source.style.display='none'}const directMediaUrl=mediaUrl(m);if(directMediaUrl){download.href=directMediaUrl;download.setAttribute('download',downloadFileName(m));download.style.display='inline-block'}else{download.removeAttribute('href');download.removeAttribute('download');download.style.display='none'}$('mediaViewerPost').innerHTML=mediaSourcePanel(m);meta.textContent=(isVideoMedia(m)?'local video':image?'image':'video')+(m.postAuthor?' · '+m.postAuthor:m.postPlatform?' · '+m.postPlatform:'');viewer.classList.add('open');viewer.setAttribute('aria-hidden','false');$('mediaViewerClose').focus({preventScroll:true})}
 function closeMedia(){const viewer=$('mediaViewer');viewer.classList.remove('open');viewer.setAttribute('aria-hidden','true');$('mediaViewerStage').innerHTML='';$('mediaViewerPost').innerHTML=''}
-document.addEventListener('click',(event)=>{const tile=event.target.closest&&event.target.closest('[data-media-key]');if(!tile)return;event.preventDefault();const key=tile.getAttribute('data-media-key');const m=mediaByKey(key);if(!m)return;if(isPlayableMedia(m))openMedia(key);else if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer')});
+document.addEventListener('click',(event)=>{const tile=event.target.closest&&event.target.closest('[data-media-key]');if(!tile)return;event.preventDefault();const key=tile.getAttribute('data-media-key');const m=mediaByKey(key);if(!m)return;if(isRenderableMedia(m))openMedia(key);else if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer')});
 document.addEventListener('click',(event)=>{if(!state.selectedAtlasPost)return;if(event.target.closest&&event.target.closest('[data-atlas-post],[data-atlas-popover]'))return;state.selectedAtlasPost=null;renderContent()});
 document.addEventListener('keydown',(event)=>{if(event.key!=='Escape')return;if(state.selectedAtlasPost){state.selectedAtlasPost=null;renderContent();return}closeMedia()});
 $('mediaViewer').addEventListener('click',(event)=>{if(event.target===$('mediaViewer'))closeMedia()});
@@ -867,7 +1350,7 @@ function postDateKey(p){return [p.platform,(p.authorHandle||p.authorName||'').to
 function hydratePostDates(posts){const dates=new Map();for(const p of posts){if(p.postedAt)dates.set(postDateKey(p),p.postedAt)}for(const p of posts){if(!p.postedAt&&dates.has(postDateKey(p)))p.postedAt=dates.get(postDateKey(p))}return posts}
 function mediaRank(m){return Number(m.postReachScore||0)+Math.log1p(Number(m.refCount||1))*2+(isPlayableMedia(m)?0.75:0)}
 function preferredMedia(left,right){if(isPlayableMedia(right)&&!isPlayableMedia(left))return right;if(isPlayableMedia(left)&&!isPlayableMedia(right))return left;const rightScore=Number(right.postReachScore||0);const leftScore=Number(left.postReachScore||0);if(rightScore!==leftScore)return rightScore>leftScore?right:left;const rightImage=imageUrl(right)?1:0;const leftImage=imageUrl(left)?1:0;if(rightImage!==leftImage)return rightImage>leftImage?right:left;return Number(right.bytes||0)>Number(left.bytes||0)?right:left}
-function buildMediaLibrary(posts){const groups=new Map();let localMediaTotal=0;for(const p of posts){if(p.rowType&&p.rowType!=='parent')continue;if(p.isClusterRoot===false)continue;for(const source of p.media||[]){if(source.path)localMediaTotal++;const hydrated={...source,postUrl:p.url,postId:p.postId,postText:p.text,postAuthor:p.authorHandle||p.authorName,postPlatform:p.platform,postReachScore:p.reachScore,postedAt:p.postedAt||p.capturedAt||p.updatedAt};if(!isRenderableMedia(hydrated))continue;const key=canonicalMediaKey(hydrated);if(!key)continue;const existing=groups.get(key);if(existing){const refCount=Number(existing.refCount||1)+1;const postIds=uniqList(existing.postIds||[],[p.postId]);const postUrls=uniqList(existing.postUrls||[],[p.url]);const chosen=preferredMedia(existing,hydrated);groups.set(key,{...chosen,mediaKey:key,refCount,postIds,postUrls})}else{groups.set(key,{...hydrated,mediaKey:key,refCount:1,postIds:[p.postId],postUrls:[p.url]})}}}const media=Array.from(groups.values()).sort((a,b)=>(mediaRank(b)-mediaRank(a))||(Number(b.bytes||0)-Number(a.bytes||0))||String(a.mediaKey).localeCompare(String(b.mediaKey)));return{media,localMediaTotal}}
+function buildMediaLibrary(posts,mediaItems=[]){const groups=new Map();let localMediaTotal=0;const addMedia=(source,post)=>{if(source.path)localMediaTotal++;const hydrated={...source,postUrl:source.postUrl||post?.url||'',postId:source.postId||post?.postId||source.mediaKey,postText:source.postText||post?.text||source.title||'',postAuthor:source.postAuthor||post?.authorHandle||post?.authorName||source.authorName||'',postPlatform:source.postPlatform||post?.platform||source.platform||'media',postReachScore:source.postReachScore??post?.reachScore??0,postedAt:source.postedAt||post?.postedAt||post?.capturedAt||post?.updatedAt};if(!isRenderableMedia(hydrated))return;const key=hydrated.mediaKey||canonicalMediaKey(hydrated);if(!key)return;const existing=groups.get(key);if(existing){const refCount=Number(existing.refCount||1)+Number(hydrated.refCount||1);const postIds=uniqList(existing.postIds||[],[hydrated.postId]);const postUrls=uniqList(existing.postUrls||[],[hydrated.postUrl]);const chosen=preferredMedia(existing,hydrated);groups.set(key,{...chosen,mediaKey:key,refCount,postIds,postUrls})}else{groups.set(key,{...hydrated,mediaKey:key,refCount:Number(hydrated.refCount||1),postIds:hydrated.postId?[hydrated.postId]:[],postUrls:hydrated.postUrl?[hydrated.postUrl]:[]})}};for(const source of mediaItems||[])addMedia(source,null);for(const p of posts){if(p.rowType&&p.rowType!=='parent')continue;if(p.isClusterRoot===false)continue;for(const source of p.media||[])addMedia(source,p)}const media=Array.from(groups.values()).sort((a,b)=>(mediaRank(b)-mediaRank(a))||(Number(b.bytes||0)-Number(a.bytes||0))||String(a.mediaKey).localeCompare(String(b.mediaKey)));return{media,localMediaTotal}}
 function mediaStoryKey(m){const p=state.data?.postsById?.[m.postId]||{};return p.primaryStoryId||(p.storyMentions||[])[0]?.storyId||m.postPlatform||'media'}
 function mediaGroupKey(m){return (m.postIds||[])[0]||m.postId||(m.postUrls||[])[0]||m.postUrl||m.mediaKey||canonicalMediaKey(m)||mediaStoryKey(m)}
 function mediaGroupRank(items){return Math.max(...items.map(mediaRank))}
@@ -953,7 +1436,7 @@ if(state.tab==='timeline'){const posts=filteredPosts().slice().sort((a,b)=>postT
 const makeThemeView=(t)=>{const postIds=(t.postIds||[]).filter(id=>{const p=d.postsById[id];return p&&postMatchesCoverage(p)});return{...t,postIds,rootPostIds:(t.rootPostIds||[]).filter(id=>postIds.includes(id)),attachedPostIds:(t.attachedPostIds||[]).filter(id=>postIds.includes(id))}};const themes=(d.themes||[]).map(makeThemeView).filter(t=>t.postIds.length);$('visibleCount').textContent=themes.length+' clusters · '+fmt(themes.reduce((sum,t)=>sum+(t.postIds||[]).length,0))+' refs'+suffix;const selected=themes.find(t=>t.themeId===state.selectedTheme);const sorted=[...themes].sort((a,b)=>state.selectedTheme?(a.themeId===state.selectedTheme?-1:b.themeId===state.selectedTheme?1:0):0);$('content').innerHTML=renderClusterDetail(selected)+renderAtlas(sorted)+'<div class="grid">'+sorted.map(renderClusterCard).join('')+'</div>';bindClusterControls()}
 function render(){renderShell();renderContent()}
 const dataUrl=new URL('/vibes/aie2026/data',location.origin);dataUrl.searchParams.set('v','${DATA_VERSION}');const previewRefreshId=new URLSearchParams(location.search).get('refreshId');if(previewRefreshId)dataUrl.searchParams.set('refreshId',previewRefreshId);
-fetch(dataUrl.toString()).then(r=>r.json()).then(d=>{d.posts=hydratePostDates(d.posts||[]);d.postsById=Object.fromEntries(d.posts.map(p=>[p.postId,p]));d.rawThemeCount=(d.themes||[]).length;d.themes=mergeDisplayThemes(d.themes||[]);const library=buildMediaLibrary(d.posts);d.media=library.media;d.mediaByKey=Object.fromEntries(d.media.map(m=>[m.mediaKey,m]));d.mediaTotal=d.media.length;d.playableMediaTotal=d.media.filter(isPlayableMedia).length;d.localMediaTotal=library.localMediaTotal;state.data=d;render()}).catch(err=>{const message=String(err&&err.message?err.message:err);$('content').innerHTML='<p class="empty">Could not load recap data'+(location.search.includes('debug=1')?': '+escapeHtml(message):'.')+'</p>';console.error(message)})
+fetch(dataUrl.toString()).then(r=>r.json()).then(d=>{d.posts=hydratePostDates(d.posts||[]);d.postsById=Object.fromEntries(d.posts.map(p=>[p.postId,p]));d.rawThemeCount=(d.themes||[]).length;d.themes=mergeDisplayThemes(d.themes||[]);const library=buildMediaLibrary(d.posts,(d.mediaItems||[]).concat(FEATURED_MEDIA));d.media=library.media;d.mediaByKey=Object.fromEntries(d.media.map(m=>[m.mediaKey,m]));d.mediaTotal=d.media.length;d.playableMediaTotal=d.media.filter(isPlayableMedia).length;d.localMediaTotal=library.localMediaTotal;state.data=d;render()}).catch(err=>{const message=String(err&&err.message?err.message:err);$('content').innerHTML='<p class="empty">Could not load recap data'+(location.search.includes('debug=1')?': '+escapeHtml(message):'.')+'</p>';console.error(message)})
 </script>
 </body>
 </html>`;
