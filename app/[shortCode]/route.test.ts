@@ -59,7 +59,7 @@ describe('/[shortCode] enrichment probes', () => {
       params: Promise.resolve({ shortCode: link.code }),
     });
     expect(visit.status).toBe(302);
-    expect(visit.headers.get('location')).toBe(target.canonicalUrl);
+    expect(visit.headers.get('location')).toBe(`${target.canonicalUrl}?aether_share=${link.code}`);
 
     expect(await getShareSummary(target.canonicalUrl)).toMatchObject({
       trackedVisits: 1,

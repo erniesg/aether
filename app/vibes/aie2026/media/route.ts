@@ -19,6 +19,8 @@ export async function GET(request: Request) {
 
   const localPath = path.resolve(process.cwd(), 'outputs', key);
   if (!fs.existsSync(localPath)) {
+    const fallback = await fallbackMediaResponse(request, key, url.searchParams.get('fallback'));
+    if (fallback) return fallback;
     return NextResponse.json({ ok: false, error: 'media not found' }, { status: 404 });
   }
 
@@ -48,6 +50,74 @@ async function readR2Object(key: string): Promise<Response | null> {
     console.error('[aie2026/media] R2 read failed', err);
     return null;
   }
+}
+
+const FALLBACK_MEDIA_HOSTS = new Set([
+  'video.twimg.com',
+  'pbs.twimg.com',
+  'media.licdn.com',
+  'i.ytimg.com',
+  'img.youtube.com',
+]);
+
+async function fallbackMediaResponse(request: Request, key: string, rawFallback: string | null): Promise<Response | null> {
+  const fallback = fallbackMediaUrl(rawFallback);
+  if (!fallback) return null;
+
+  const headers = new Headers();
+  const range = request.headers.get('range');
+  if (range) headers.set('range', range);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(fallback, {
+      method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers,
+    });
+  } catch {
+    return null;
+  }
+
+  if (!(upstream.ok || upstream.status === 206)) return null;
+  const upstreamType = upstream.headers.get('content-type') ?? contentType(key);
+  if (!fallbackContentTypeMatches(key, upstreamType)) return null;
+
+  const responseHeaders = new Headers({
+    'access-control-allow-origin': '*',
+    'access-control-expose-headers': 'Accept-Ranges, Content-Length, Content-Range',
+    'cache-control': 'public, max-age=86400',
+    'content-type': upstreamType,
+  });
+  for (const header of ['accept-ranges', 'content-length', 'content-range', 'etag', 'last-modified']) {
+    const value = upstream.headers.get(header);
+    if (value) responseHeaders.set(header, value);
+  }
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: responseHeaders,
+  });
+}
+
+function fallbackMediaUrl(rawFallback: string | null): string | null {
+  if (!rawFallback) return null;
+  try {
+    const url = new URL(rawFallback);
+    if (url.protocol !== 'https:') return null;
+    if (!FALLBACK_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return null;
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function fallbackContentTypeMatches(key: string, contentTypeValue: string): boolean {
+  const lowerKey = key.toLowerCase();
+  const lowerType = contentTypeValue.toLowerCase();
+  if (lowerKey.match(/\.(mp4|m4v|mov|webm)$/)) return lowerType.startsWith('video/');
+  if (lowerKey.match(/\.(jpe?g|png|webp|gif|avif)$/)) return lowerType.startsWith('image/');
+  return lowerType.startsWith('image/') || lowerType.startsWith('video/');
 }
 
 function contentType(key: string): string {

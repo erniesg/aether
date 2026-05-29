@@ -1,3 +1,5 @@
+import type { SharePlatform } from './platforms';
+
 export function canonicalUrlFromRequest(requestUrl: string, input: string): string {
   const base = publicAppOrigin(requestUrl);
   const url = new URL(input, base);
@@ -22,15 +24,28 @@ export function shareOrigin(requestUrl: string): string {
     (process.env.NEXT_PUBLIC_AETHER_SHARE_DOMAIN
       ? `https://${process.env.NEXT_PUBLIC_AETHER_SHARE_DOMAIN}`
       : undefined);
-  if (configured) return configured.replace(/\/$/, '');
+  if (configured) return normalizeShareOrigin(configured);
 
   const url = new URL(requestUrl);
   if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return url.origin;
+  const shortOrigin = shortOriginForAppHost(url.hostname);
+  if (shortOrigin) return shortOrigin;
   return 'https://s.berlayar.ai';
 }
 
-export function shortUrlForCode(requestUrl: string, code: string): string {
-  return `${shareOrigin(requestUrl)}/${code}`;
+export function shortUrlForCode(requestUrl: string, code: string, _platform?: SharePlatform): string {
+  return new URL(`${shareOrigin(requestUrl)}/${code}`).toString();
+}
+
+export function shareRedirectUrl(input: {
+  canonicalUrl: string;
+  code: string;
+  platform?: SharePlatform;
+  requestUrl?: string;
+}): string {
+  const target = new URL(input.canonicalUrl);
+  target.searchParams.set('aether_share', input.code);
+  return target.toString();
 }
 
 export function normalizeMatchedUrl(value: string): string {
@@ -44,4 +59,25 @@ export function normalizeMatchedUrl(value: string): string {
   } catch {
     return value.trim();
   }
+}
+
+function normalizeShareOrigin(value: string): string {
+  const configured = value.trim().replace(/\/$/, '');
+  const candidate = /^https?:\/\//i.test(configured)
+    ? configured
+    : `https://${configured.replace(/^https?:\/\//i, '')}`;
+  try {
+    const url = new URL(candidate);
+    return shortOriginForAppHost(url.hostname) ?? url.origin;
+  } catch {
+    return configured;
+  }
+}
+
+function shortOriginForAppHost(hostname: string): string | null {
+  const host = hostname.toLowerCase();
+  if (host === 'aether.berlayar.ai') return 'https://s.berlayar.ai';
+  const staging = host.match(/^aether-(.+)\.berlayar\.ai$/);
+  if (staging) return `https://s-${staging[1]}.berlayar.ai`;
+  return null;
 }

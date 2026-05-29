@@ -237,7 +237,7 @@ export default function VibesWorkbench({ debug = false }: { debug?: boolean }) {
               canonicalPath={reportUrl ?? `/events/${encodeURIComponent(bundle.event.eventId)}`}
               title={`${bundle.event.canonicalName ?? bundle.event.name} vibes`}
               description={`References, clusters, media, and voices for ${bundle.event.canonicalName ?? bundle.event.name}.`}
-              shareText={`sampled the socmed vibes for ${bundle.event.canonicalName ?? bundle.event.name}`}
+              shareText={`${bundle.event.canonicalName ?? bundle.event.name} brought together attendees, speakers, sponsors, and builders across talks, demos, workshops, and side events. Here's the public recap.`}
               hashtags={bundle.event.querySet.filter((term) => term.startsWith('#')).slice(0, 4)}
             />
           ) : null}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Check,
   Copy,
@@ -13,13 +13,14 @@ import {
   Twitter,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Chip } from '@/components/ui/Chip';
 import {
   platformShareUrl,
+  shareCaption as buildShareCaption,
+  sharePostCopy,
   SHARE_PLATFORMS,
   type SharePlatform,
 } from '@/lib/share/platforms';
-import type { ShareObjectType, ShareSummary } from '@/lib/share/store';
+import type { ShareObjectType } from '@/lib/share/store';
 
 interface VibesShareMenuProps {
   objectType: ShareObjectType;
@@ -31,7 +32,9 @@ interface VibesShareMenuProps {
   imageUrl?: string;
   shareText?: string;
   hashtags?: string[];
-  showMetrics?: boolean;
+  actorId?: string;
+  actorLabel?: string;
+  sessionId?: string;
   variant?: 'menu' | 'panel';
   className?: string;
 }
@@ -47,11 +50,6 @@ interface CreateLinkResponse {
   error?: string;
 }
 
-interface SummaryResponse {
-  ok?: boolean;
-  summary?: ShareSummary;
-}
-
 const platformLabels: Record<SharePlatform, string> = {
   x: 'X',
   linkedin: 'LinkedIn',
@@ -62,7 +60,6 @@ const platformLabels: Record<SharePlatform, string> = {
   native: 'Native',
   unknown: 'Share',
 };
-const publicSharePlatforms: SharePlatform[] = ['x', 'linkedin', 'facebook'];
 
 export function VibesShareMenu({
   objectType,
@@ -74,7 +71,9 @@ export function VibesShareMenu({
   imageUrl,
   shareText,
   hashtags,
-  showMetrics = false,
+  actorId,
+  actorLabel,
+  sessionId,
   variant = 'menu',
   className = '',
 }: VibesShareMenuProps) {
@@ -83,7 +82,6 @@ export function VibesShareMenu({
   const [latestCopyUrl, setLatestCopyUrl] = useState<string | null>(null);
   const [latestCopyCode, setLatestCopyCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<ShareSummary | null>(null);
 
   const cleanUrl = useMemo(() => absolutePublicUrl(canonicalPath), [canonicalPath]);
   const displayedCopyUrl = latestCopyUrl ?? shortSharePreviewUrl();
@@ -100,25 +98,6 @@ export function VibesShareMenu({
     [canonicalPath, description, imageUrl, objectId, objectType, slug, title]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadSummary() {
-      try {
-        const res = await fetch(`/api/share/summary?canonicalPath=${encodeURIComponent(canonicalPath)}`, {
-          cache: 'no-store',
-        });
-        const json = (await res.json()) as SummaryResponse;
-        if (!cancelled && json.ok) setSummary(json.summary ?? null);
-      } catch {
-        if (!cancelled) setSummary(null);
-      }
-    }
-    void loadSummary();
-    return () => {
-      cancelled = true;
-    };
-  }, [canonicalPath]);
-
   async function createLink(platform: SharePlatform) {
     const res = await fetch('/api/share/link', {
       method: 'POST',
@@ -126,16 +105,15 @@ export function VibesShareMenu({
       body: JSON.stringify({
         target,
         platform,
+        actorId,
+        actorLabel,
+        sessionId,
         shareText: shareText ?? title,
+        metadata: clientShareMetadata(platform, variant),
       }),
     });
     const json = (await res.json()) as CreateLinkResponse;
     if (!json.ok || !json.link) throw new Error(json.error ?? `HTTP ${res.status}`);
-    setSummary((current) =>
-      current
-        ? { ...current, shareLinks: current.shareLinks + 1 }
-        : { ...emptySummary(), shareLinks: 1 }
-    );
     return json.link;
   }
 
@@ -148,11 +126,9 @@ export function VibesShareMenu({
         platform,
         code,
         canonicalPath,
+        metadata: clientShareMetadata(platform, variant),
       }),
     }).catch(() => undefined);
-    if (isShareActionEvent(eventType)) {
-      setSummary((current) => incrementShareAction(current, platform));
-    }
   }
 
   async function sharePlatform(platform: SharePlatform) {
@@ -173,6 +149,13 @@ export function VibesShareMenu({
         hashtags,
       });
       if (!href) throw new Error('Share destination unavailable.');
+      if (platform === 'linkedin') {
+        await writeClipboard(buildShareCaption({ url, title, text: shareText, hashtags }));
+      }
+      if (platform === 'facebook') {
+        await writeClipboard(sharePostCopy({ url, title, text: shareText, hashtags }));
+        window.alert?.('Post copy copied. Facebook will open next. Paste it into the Facebook composer before sharing.');
+      }
       const opened = window.open(href, '_blank');
       if (!opened) throw new Error('Share window blocked.');
       opened.opener = null;
@@ -190,14 +173,14 @@ export function VibesShareMenu({
     try {
       const link = await createLink('native');
       if (!navigator.share) {
-        await navigator.clipboard.writeText(link.shortUrl);
+        await writeClipboard(link.shortUrl);
         setCopied('tracked');
         await record('copy_link', 'native', link.code);
         return;
       }
       await navigator.share({
         title,
-        text: shareText ?? description,
+        text: buildShareCaption({ url: '', title, text: shareText ?? description, hashtags }),
         url: link.shortUrl,
       });
       await record('native_share_success', 'native', link.code);
@@ -223,7 +206,7 @@ export function VibesShareMenu({
         setLatestCopyUrl(link.shortUrl);
         setLatestCopyCode(link.code);
       }
-      await navigator.clipboard.writeText(url);
+      await writeClipboard(url);
       setCopied('tracked');
       await record('copy_link', 'copy', code);
     } catch (err) {
@@ -257,7 +240,6 @@ export function VibesShareMenu({
               onClick={() => void sharePlatform(platform)}
               disabled={Boolean(busy)}
               icon={busy === platform ? <Loader2 size={13} className="animate-spin" /> : platformIcon(platform)}
-              trailing={<PlatformShareBadge platform={platform} summary={summary} />}
               className="justify-start"
             >
               <span className="min-w-0 flex-1 truncate text-left">{platformLabels[platform]}</span>
@@ -270,7 +252,6 @@ export function VibesShareMenu({
             onClick={() => void nativeShare()}
             disabled={Boolean(busy)}
             icon={busy === 'native' ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
-            trailing={<PrivateShareBadge />}
             className="justify-start"
           >
             <span className="min-w-0 flex-1 truncate text-left">Device share</span>
@@ -290,7 +271,7 @@ export function VibesShareMenu({
                 <Copy size={13} />
               )
             }
-            className="col-span-2 h-auto min-h-7 justify-start py-1.5"
+            className="h-auto min-h-7 justify-start py-1.5"
           >
             <span className="flex min-w-0 flex-1 flex-col items-start text-left leading-tight">
               <span>Copy link</span>
@@ -315,11 +296,6 @@ export function VibesShareMenu({
         >
           <Share2 size={13} strokeWidth={1.75} />
           <span>share</span>
-          {summary?.publicPosts ? (
-            <Chip tone="neutral" size="sm" variant="ghost">
-              {formatCompactNumber(summary.publicPosts)}
-            </Chip>
-          ) : null}
         </summary>
 
         <div className="absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border-soft bg-surface-panel p-3 shadow-lg">
@@ -337,7 +313,6 @@ export function VibesShareMenu({
                 onClick={() => void sharePlatform(platform)}
                 disabled={Boolean(busy)}
                 icon={busy === platform ? <Loader2 size={13} className="animate-spin" /> : platformIcon(platform)}
-                trailing={<PlatformShareBadge platform={platform} summary={summary} />}
                 className="justify-start"
               >
                 <span className="min-w-0 flex-1 truncate text-left">{platformLabels[platform]}</span>
@@ -350,7 +325,6 @@ export function VibesShareMenu({
               onClick={() => void nativeShare()}
               disabled={Boolean(busy)}
               icon={busy === 'native' ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
-              trailing={<PrivateShareBadge />}
               className="justify-start"
             >
               <span className="min-w-0 flex-1 truncate text-left">Device share</span>
@@ -370,7 +344,7 @@ export function VibesShareMenu({
                   <Copy size={13} />
                 )
               }
-              className="col-span-2 h-auto min-h-7 justify-start py-1.5"
+              className="h-auto min-h-7 justify-start py-1.5"
             >
               <span className="flex min-w-0 flex-1 flex-col items-start text-left leading-tight">
                 <span>Copy link</span>
@@ -384,19 +358,6 @@ export function VibesShareMenu({
           {error ? <p className="mt-2 font-caption text-2xs text-signal-error">{error}</p> : null}
         </div>
       </details>
-
-      {showMetrics ? (
-        <div data-testid="vibes-share-metrics" className="hidden min-w-0 items-center gap-1 sm:flex">
-          {publicSharePlatforms.map((platform) => (
-            <PlatformMetricPill
-              key={platform}
-              icon={platformIcon(platform)}
-              label={platformLabels[platform]}
-              value={verifiedShareCount(summary, platform)}
-            />
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -424,15 +385,34 @@ function absolutePublicUrl(path: string): string {
 function shortSharePreviewUrl(): string {
   const configuredOrigin = process.env.NEXT_PUBLIC_AETHER_SHARE_ORIGIN;
   if (configuredOrigin?.trim()) {
-    return `${configuredOrigin.trim().replace(/\/$/, '')}/xxxx`;
+    return `${sharePreviewOrigin(configuredOrigin)}/xxxx`;
   }
 
   const configuredDomain = process.env.NEXT_PUBLIC_AETHER_SHARE_DOMAIN;
   if (configuredDomain?.trim()) {
-    return `https://${configuredDomain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '')}/xxxx`;
+    return `${sharePreviewOrigin(configuredDomain)}/xxxx`;
   }
 
   return 'https://s.berlayar.ai/xxxx';
+}
+
+function sharePreviewOrigin(value: string): string {
+  const raw = value.trim().replace(/\/$/, '');
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^https?:\/\//i, '')}`;
+  try {
+    const url = new URL(candidate);
+    return shortOriginForAppHost(url.hostname) ?? url.origin;
+  } catch {
+    return raw;
+  }
+}
+
+function shortOriginForAppHost(hostname: string): string | null {
+  const host = hostname.toLowerCase();
+  if (host === 'aether.berlayar.ai') return 'https://s.berlayar.ai';
+  const staging = host.match(/^aether-(.+)\.berlayar\.ai$/);
+  if (staging) return `https://s-${staging[1]}.berlayar.ai`;
+  return null;
 }
 
 function socialShareUrl(input: {
@@ -448,83 +428,63 @@ function socialShareUrl(input: {
     }
     const clean = new URL(input.cleanUrl);
     const publicUrl = new URL(clean.pathname, 'https://aether.berlayar.ai');
-    publicUrl.searchParams.set('aether_share', input.code);
-    publicUrl.searchParams.set('utm_source', input.platform);
-    publicUrl.searchParams.set('utm_medium', 'share');
     return publicUrl.toString();
   } catch {
     return input.shortUrl;
   }
 }
 
-function PlatformShareBadge({ platform, summary }: { platform: SharePlatform; summary: ShareSummary | null }) {
-  if (!publicSharePlatforms.includes(platform)) return <PrivateShareBadge />;
-  return (
-    <span
-      className="rounded-sm border border-border-soft bg-surface-base px-1.5 py-0.5 font-mono text-2xs text-ink-muted"
-      title={`verified public posts on ${platformLabels[platform]}`}
-    >
-      {formatCompactNumber(verifiedShareCount(summary, platform))}
-    </span>
-  );
-}
-
-function PrivateShareBadge() {
-  return (
-    <span
-      className="rounded-sm border border-border-soft bg-surface-base px-1.5 py-0.5 font-caption text-2xs uppercase text-ink-dim"
-      title="private shares cannot be verified by public URL discovery"
-    >
-      private
-    </span>
-  );
-}
-
-function PlatformMetricPill({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
-  return (
-    <span className="inline-flex h-8 items-center gap-1 rounded-sm border border-border-soft px-2 font-mono text-2xs text-ink-dim">
-      <span className="text-ink-muted">{icon}</span>
-      <span className="text-ink-muted">{formatCompactNumber(value)}</span>
-      <span>{label}</span>
-    </span>
-  );
-}
-
-function incrementShareAction(summary: ShareSummary | null, platform: SharePlatform): ShareSummary {
-  const current = summary ?? emptySummary();
-  const platformActions = current.platformActions ?? {};
+function clientShareMetadata(platform: SharePlatform, surface: 'menu' | 'panel'): Record<string, unknown> {
+  if (typeof window === 'undefined') {
+    return { source: 'vibes_share_menu', surface, requestedPlatform: platform };
+  }
+  const nav = window.navigator as Navigator & {
+    userAgentData?: {
+      platform?: string;
+      mobile?: boolean;
+      brands?: Array<{ brand: string; version: string }>;
+    };
+  };
   return {
-    ...current,
-    shareActions: current.shareActions + 1,
-    platformActions: {
-      ...platformActions,
-      [platform]: (platformActions[platform] ?? 0) + 1,
-    },
+    source: 'vibes_share_menu',
+    surface,
+    requestedPlatform: platform,
+    pageUrl: window.location.href.slice(0, 500),
+    referrer: document.referrer ? document.referrer.slice(0, 500) : undefined,
+    locale: nav.language,
+    languages: nav.languages?.slice(0, 6).join(','),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    screen: window.screen ? `${window.screen.width}x${window.screen.height}` : undefined,
+    devicePixelRatio: window.devicePixelRatio,
+    userAgentPlatform: nav.userAgentData?.platform,
+    userAgentBrands: nav.userAgentData?.brands?.map((brand) => `${brand.brand}/${brand.version}`).join(', '),
+    userAgentMobile: nav.userAgentData?.mobile,
   };
 }
 
-function emptySummary(): ShareSummary {
-  return {
-    shareLinks: 0,
-    shareActions: 0,
-    trackedVisits: 0,
-    botPreviews: 0,
-    publicPosts: 0,
-    publicPostsByPlatform: {},
-    platformActions: {},
-    publicReach: {},
-  };
-}
-
-function isShareActionEvent(eventType: string): boolean {
-  return eventType === 'platform_clicked' || eventType === 'copy_link' || eventType === 'native_share_success';
-}
-
-function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
-}
-
-function verifiedShareCount(summary: ShareSummary | null, platform: SharePlatform): number {
-  if (!summary || !publicSharePlatforms.includes(platform)) return 0;
-  return summary.publicPostsByPlatform?.[platform as 'x' | 'linkedin' | 'facebook'] ?? 0;
+async function writeClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Some embedded browsers reject Clipboard writes when the document lacks focus.
+    }
+  }
+  const input = document.createElement('textarea');
+  input.value = text;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.left = '-9999px';
+  document.body.appendChild(input);
+  input.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  }
+  input.remove();
+  return copied;
 }

@@ -207,7 +207,7 @@ async function main() {
         'Primary refs act as story anchors; context refs are replies, comments, media, logistics, or event texture attached for browsing but not used as story anchors.',
         'X and YouTube expose public views; LinkedIn public collection here does not expose impressions.',
         'Query counts are not additive because surfaces rank, dedupe, and expose search differently.',
-        'TF-IDF diagnostics are retained for overlap auditability, but visible clusters use reviewed story labels rather than raw keyword clusters.',
+        'Story-overlap diagnostics are retained for review, but visible clusters use reviewed story labels rather than unreviewed buckets.',
       ],
     },
     stats: archive.stats,

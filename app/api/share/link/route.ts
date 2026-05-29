@@ -34,13 +34,15 @@ export async function POST(request: Request) {
   try {
     const link = await createShareLink({
       requestUrl: request.url,
+      request,
       target: target.value,
       platform,
       label: typeof body.label === 'string' ? body.label : undefined,
-      actorId: typeof body.actorId === 'string' ? body.actorId : undefined,
-      actorLabel: typeof body.actorLabel === 'string' ? body.actorLabel : undefined,
-      sessionId: typeof body.sessionId === 'string' ? body.sessionId : undefined,
+      actorId: typeof body.actorId === 'string' ? body.actorId.trim().slice(0, 120) : undefined,
+      actorLabel: typeof body.actorLabel === 'string' ? body.actorLabel.trim().slice(0, 180) : undefined,
+      sessionId: typeof body.sessionId === 'string' ? body.sessionId.trim().slice(0, 160) : undefined,
       shareText: typeof body.shareText === 'string' ? body.shareText : undefined,
+      metadata: isObject(body.metadata) ? body.metadata : undefined,
     });
     return NextResponse.json({ ok: true, link });
   } catch (err) {

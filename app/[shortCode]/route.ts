@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { isValidShareCode, normalizeShareCode } from '@/lib/share/codes';
 import { isEnrichmentProbe, isSocialCrawler, sharePreviewHtml } from '@/lib/share/preview';
 import { recordShareEvent, resolveShareCode } from '@/lib/share/store';
-import { shortUrlForCode } from '@/lib/share/url';
+import { shareRedirectUrl, shortUrlForCode } from '@/lib/share/url';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,7 +32,7 @@ export async function GET(
     return new Response(
       sharePreviewHtml({
         resolved,
-        shortUrl: shortUrlForCode(request.url, code),
+        shortUrl: shortUrlForCode(request.url, code, resolved.link.platform),
       }),
       {
         headers: {
@@ -67,7 +67,15 @@ export async function GET(
     code,
   });
 
-  const response = NextResponse.redirect(resolved.target.canonicalUrl, 302);
+  const response = NextResponse.redirect(
+    shareRedirectUrl({
+      canonicalUrl: resolved.target.canonicalUrl,
+      code,
+      platform: resolved.link.platform,
+      requestUrl: request.url,
+    }),
+    302
+  );
   response.headers.set('cache-control', 'private, no-store');
   response.headers.append('set-cookie', attributionCookie(code, request.url));
   return response;
