@@ -2,7 +2,7 @@
   "name": "aether",
   "version": "0.1.0-hackathon",
   "private": true,
-  "description": "Canvas-native creative system. Built with Claude Opus 4.7.",
+  "description": "Canvas-native creative system.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

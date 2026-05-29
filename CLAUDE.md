@@ -108,7 +108,7 @@ aether/
 ## Git workflow
 
 - Commit frequently with conventional-commit prefixes: `feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:`.
-- Every commit from Claude includes `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
+- Do not add tool/model co-author attribution unless the user explicitly asks for it.
 - Use red/green: a failing test is a valid intermediate commit (prefix `test:`), followed by a `feat:` commit that turns it green.
 - Don't force-push `main`. Use worktrees for parallel work (`git worktree add ../aether-<slice> <branch>`).
 
