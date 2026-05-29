@@ -1,0 +1,153 @@
+{
+  "schema": "aether.event-recap-validation.v1",
+  "validatedHead": "becb2ef7c28aa21cbade6c55f018416c56d6be07",
+  "branch": "feat/event-recap-event-config",
+  "base": "codex/event-recap-tinyfish",
+  "localChecks": [
+    {
+      "name": "event-recap vitest",
+      "command": "npx vitest run lib/research/event-recap/",
+      "exitCode": 0,
+      "summary": "26 test files passed; 154 tests passed"
+    },
+    {
+      "name": "typescript",
+      "command": "npx tsc --noEmit --project tsconfig.json",
+      "exitCode": 0,
+      "summary": "no output; exit code 0"
+    },
+    {
+      "name": "cloudflare build",
+      "command": "npm run cf-build",
+      "exitCode": 0,
+      "summary": "OpenNext build complete; Worker saved in .open-next/worker.js"
+    }
+  ],
+  "workerSmoke": {
+    "aieWorker": {
+      "command": "npx wrangler dev --config wrangler.aie2026.jsonc --port 8788 --local",
+      "routes": [
+        {
+          "path": "/vibes/aie2026",
+          "status": 200,
+          "assertions": [
+            "Content-Security-Policy includes frame-ancestors for ai.engineer and berlayar.ai"
+          ]
+        },
+        {
+          "path": "/vibes/aie2026?theme=dark",
+          "status": 200,
+          "assertions": [
+            "HTML includes data-theme=\"dark\"",
+            "HTML includes #070808",
+            "HTML includes fonts.googleapis.com",
+            "HTML includes Inter, Instrument Serif, and JetBrains Mono"
+          ]
+        },
+        {
+          "path": "/vibes/aie2026?theme=light",
+          "status": 200,
+          "assertions": [
+            "HTML includes data-theme=\"light\"",
+            "HTML includes #fbfaf7"
+          ]
+        },
+        {
+          "path": "/vibes/aie2026/embed-snippet",
+          "status": 200,
+          "assertions": [
+            "iframe src includes theme=dark",
+            "sandbox equals allow-scripts allow-same-origin allow-popups allow-top-navigation allow-forms",
+            "style includes background:#070808"
+          ]
+        },
+        {
+          "path": "/vibes/aie2026/data",
+          "status": 200,
+          "assertions": [
+            "Access-Control-Allow-Origin equals *",
+            "Access-Control-Allow-Methods includes OPTIONS"
+          ]
+        }
+      ]
+    },
+    "genericWorker": {
+      "command": "npx wrangler dev --config /tmp/wrangler.aether-generic-event-recap-smoke.jsonc --port 8789 --local",
+      "routes": [
+        {
+          "path": "/vibes/../etc/passwd",
+          "status": 404,
+          "assertions": [
+            "path traversal rejected"
+          ]
+        },
+        {
+          "path": "/vibes/foo%20bar",
+          "status": 404,
+          "assertions": [
+            "invalid eventId rejected"
+          ]
+        },
+        {
+          "path": "/vibes/test-event-2026",
+          "status": 200,
+          "assertions": [
+            "title is test-event-2026 — recap",
+            "default theme is light",
+            "Content-Security-Policy includes frame-ancestors"
+          ]
+        },
+        {
+          "path": "/vibes/test-event-2026?theme=dark",
+          "status": 200,
+          "assertions": [
+            "HTML includes data-theme=\"dark\"",
+            "HTML includes #0c0a08"
+          ]
+        },
+        {
+          "path": "/vibes/test-event-2026/embed-snippet",
+          "status": 200,
+          "assertions": [
+            "iframe src includes /vibes/test-event-2026?theme=dark",
+            "sandbox equals allow-scripts allow-same-origin allow-popups allow-top-navigation allow-forms",
+            "style includes background:#0c0a08"
+          ]
+        },
+        {
+          "path": "/vibes/test-event-2026/data",
+          "status": 404,
+          "assertions": [
+            "Access-Control-Allow-Origin equals *"
+          ]
+        }
+      ]
+    }
+  },
+  "browserIframeSmoke": {
+    "tool": "Playwright Chromium",
+    "route": "http://aether.berlayar.ai/embed-test",
+    "iframeSource": "http://aether.berlayar.ai/vibes/aie2026?theme=dark",
+    "result": {
+      "theme": "dark",
+      "bodyBackground": "rgb(7, 8, 8)",
+      "title": "AI Engineer Singapore vibes",
+      "clusterCount": 12,
+      "refCount": 872,
+      "wallCount": "1-15 / 972 · auto"
+    },
+    "pageErrors": []
+  },
+  "playbookSmoke": {
+    "root": "docs/playbooks/event-recap/",
+    "rootFiles": [
+      "README.md",
+      "SKILL.md",
+      "prompts/",
+      "references/"
+    ],
+    "referenceFileCount": 9,
+    "promptFileCount": 8,
+    "shim": "/Users/erniesg/.claude/skills/event-recap/SKILL.md"
+  }
+}

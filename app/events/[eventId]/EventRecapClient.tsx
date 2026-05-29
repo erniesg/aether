@@ -27,6 +27,7 @@ import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useVibesAuth } from '@/components/vibes/vibes-auth';
 import { VibesAccessMenu } from '@/components/vibes/VibesAccessMenu';
+import { VibesShareMenu } from '@/components/share/VibesShareMenu';
 import { RunEventTimeline, summarizeRunEvents } from '@/components/vibes/RunEventTimeline';
 import type {
   EventPlatform,
@@ -236,6 +237,19 @@ export default function EventRecapClient({
   }, [bundle?.captureRun]);
 
   const event = bundle?.event;
+  const shareEventId = event?.eventId ?? eventId;
+  const shareEventName = event?.canonicalName ?? event?.name ?? humanizeEventId(eventId);
+  const shareHashtags = event?.querySet.filter((term) => term.startsWith('#')).slice(0, 4) ?? [];
+  const shareProps = {
+    objectType: 'event_recap' as const,
+    objectId: shareEventId,
+    slug: shareEventId,
+    canonicalPath: canonicalVibesPath(shareEventId),
+    title: `${shareEventName} vibes`,
+    description: `References, clusters, media, and voices for ${shareEventName}.`,
+    shareText: `${shareEventName} brought together attendees, speakers, sponsors, and builders across talks, demos, workshops, and side events. Here's the public recap.`,
+    hashtags: shareHashtags,
+  };
 
   return (
     <main className="min-h-screen bg-surface-base text-ink">
@@ -272,6 +286,10 @@ export default function EventRecapClient({
           >
             {refreshing ? 'refreshing' : 'refresh'}
           </Button>
+          <VibesShareMenu
+            {...shareProps}
+            className="hidden min-[920px]:flex"
+          />
           <VibesAccessMenu />
           <ThemeToggle />
         </div>
@@ -285,8 +303,18 @@ export default function EventRecapClient({
           className="order-1 min-w-0 overflow-hidden p-4 min-[1500px]:order-2"
         >
           {!loading && !error && bundle ? (
-            <VibeOverview event={event} themes={bundle.themes} stats={vibeStats} />
-          ) : null}
+            <VibeOverview
+              event={event}
+              themes={bundle.themes}
+              stats={vibeStats}
+              shareControl={<VibesShareMenu {...shareProps} variant="panel" />}
+            />
+          ) : (
+            <RecapShareBanner
+              eventName={shareEventName}
+              shareControl={<VibesShareMenu {...shareProps} variant="panel" />}
+            />
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-soft pb-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -445,6 +473,19 @@ function LensButton({
       {children}
     </button>
   );
+}
+
+function canonicalVibesPath(eventId: string): string {
+  if (eventId === 'ai-engineer-singapore' || eventId === 'aie2026' || eventId === 'aie-2026') {
+    return '/vibes/aie2026/';
+  }
+  return `/events/${encodeURIComponent(eventId)}`;
+}
+
+function humanizeEventId(eventId: string): string {
+  const words = eventId.split(/[-_]+/).filter(Boolean);
+  if (words.length === 0) return 'event recap';
+  return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
 function EventRunPanel({
@@ -646,7 +687,10 @@ function CollectionSummary({
             </li>
             <li>LinkedIn public collection does not expose impressions or views.</li>
             <li>Engagement score is platform-normalized public engagement, not raw reach.</li>
-            <li>TF-IDF is retained for overlap diagnostics, not as the public cluster label source.</li>
+            <li>
+              Semantic story assignment preserves the deployed recap scaffold while review
+              diagnostics surface drift and ambiguous story fit.
+            </li>
           </ul>
           {clustering ? (
             <details className="rounded-sm border border-border-soft bg-surface-panel p-2">
@@ -655,7 +699,7 @@ function CollectionSummary({
               </summary>
               <p className="mt-2 font-caption text-xs leading-5 text-ink-dim">
                 Showing {clustering.storyClusterCount ?? clustering.clusterCount} reviewed story
-                clusters from {clustering.rootRefCount} primary refs. Diagnostic TF-IDF baseline:
+                clusters from {clustering.rootRefCount} primary refs. Semantic review diagnostics:
                 silhouette {clustering.silhouetteScore.toFixed(4)}, inertia{' '}
                 {(clustering.inertia ?? 0).toFixed(4)}.
               </p>
@@ -917,10 +961,12 @@ function VibeOverview({
   event,
   themes,
   stats,
+  shareControl,
 }: {
   event?: EventRecapRecord;
   themes: EventTheme[];
   stats: VibeStats;
+  shareControl?: ReactNode;
 }) {
   const [mediaPage, setMediaPage] = useState(0);
   const [selectedMedia, setSelectedMedia] = useState<EventMediaTile | null>(null);
@@ -952,21 +998,24 @@ function VibeOverview({
 
   return (
     <section className="mb-5 overflow-hidden border-b border-border-soft pb-5">
-      <div className="min-w-0">
-        <p className="font-caption text-xs uppercase text-ink-dim">vibe snapshot</p>
-        <h2 className="mt-2 max-w-3xl font-display text-3xl leading-tight tracking-tight sm:text-4xl">
-          {eventName}
-        </h2>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">
-          {headline}. {summary}
-        </p>
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {vibeChips.map((label) => (
-            <Chip key={label} size="sm" tone="neutral">
-              {label}
-            </Chip>
-          ))}
+      <div className="grid gap-4 min-[1120px]:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0">
+          <p className="font-caption text-xs uppercase text-ink-dim">vibe snapshot</p>
+          <h2 className="mt-2 max-w-3xl font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+            {eventName}
+          </h2>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">
+            {headline}. {summary}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {vibeChips.map((label) => (
+              <Chip key={label} size="sm" tone="neutral">
+                {label}
+              </Chip>
+            ))}
+          </div>
         </div>
+        {shareControl ? <div className="min-w-0">{shareControl}</div> : null}
       </div>
 
       <div className="mt-5 grid gap-2 sm:grid-cols-2 min-[1200px]:grid-cols-4">
@@ -1062,6 +1111,31 @@ function VibeOverview({
             Views are observed public counts only; LinkedIn impressions are not exposed in this collection.
           </p>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function RecapShareBanner({
+  eventName,
+  shareControl,
+}: {
+  eventName: string;
+  shareControl: ReactNode;
+}) {
+  return (
+    <section className="mb-5 overflow-hidden border-b border-border-soft pb-5">
+      <div className="grid gap-4 min-[1120px]:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0">
+          <p className="font-caption text-xs uppercase text-ink-dim">vibe snapshot</p>
+          <h2 className="mt-2 max-w-3xl font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+            {eventName}
+          </h2>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-ink-muted">
+            Public recap link
+          </p>
+        </div>
+        <div className="min-w-0">{shareControl}</div>
       </div>
     </section>
   );
@@ -1716,7 +1790,11 @@ function buildThemeClusters(themes: EventTheme[], posts: EventPost[]): ThemeClus
       const clusterPosts = theme.postIds
         .map((postId) => postById.get(postId))
         .filter(Boolean) as EventPost[];
-      const scoredPosts = clusterPosts
+      const evidencePostIds = theme.rootPostIds?.length ? theme.rootPostIds : theme.postIds;
+      const evidencePosts = evidencePostIds
+        .map((postId) => postById.get(postId))
+        .filter(Boolean) as EventPost[];
+      const scoredPosts = (evidencePosts.length ? evidencePosts : clusterPosts)
         .map((post) => ({ post, evidenceScore: themeEvidenceScore(theme, post) }))
         .sort(
           (a, b) =>

@@ -1,0 +1,165 @@
+{
+  "generatedAt": "2026-05-27T08:15:25.817Z",
+  "refreshId": "2026-05-27T07-05-28Z-human-reviewed-delta",
+  "nativeDuplicateCount": 0,
+  "nativeDuplicateGroups": [],
+  "canonicalUrlDuplicateCount": 0,
+  "canonicalUrlDuplicateGroups": [],
+  "softDuplicateGroupCount": 7,
+  "softDuplicateGroups": [
+    {
+      "key": "linkedin|sherrypeek|2026-05-18|near:16889d326126",
+      "bucketKey": "linkedin|sherrypeek|2026-05-18",
+      "match": "same platform + author + date + >=0.95 token Jaccard normalized text",
+      "similarityThreshold": 0.95,
+      "canonicalPostId": "linkedin_1tss32t",
+      "rows": [
+        {
+          "postId": "linkedin_1tss32t",
+          "url": "https://www.linkedin.com/feed/update/urn:li:activity:7462070768751915008",
+          "authorName": "Sherry Jiang",
+          "postedAt": "2026-05-18T09:25:09.841Z"
+        },
+        {
+          "postId": "linkedin_loggedin_3b200349eae5",
+          "url": "https://www.linkedin.com/posts/sherrypeek_ai-engineer-singapore-just-wrapped-and-i-share-7462070765509644288-KEvK",
+          "authorName": "Sherry Jiang",
+          "contentDuplicateOf": "linkedin_1tss32t"
+        }
+      ]
+    },
+    {
+      "key": "x|boraborabaye|2026-05-17|near:d84d8038c41a",
+      "bucketKey": "x|boraborabaye|2026-05-17",
+      "match": "same platform + author + date + >=0.95 token Jaccard normalized text",
+      "similarityThreshold": 0.95,
+      "canonicalPostId": "x_1rugs9e",
+      "rows": [
+        {
+          "postId": "x_1rugs9e",
+          "url": "https://x.com/BoraBoraBaye/status/2055959310686171272",
+          "authorName": "BoraBora",
+          "postedAt": "2026-05-17T10:31:12.000Z"
+        },
+        {
+          "postId": "x_1wblokz",
+          "url": "https://x.com/BoraBoraBaye/status/2055958822683107522",
+          "authorName": "BoraBora",
+          "postedAt": "2026-05-17T10:29:15.000Z",
+          "contentDuplicateOf": "x_1rugs9e"
+        }
+      ]
+    },
+    {
+      "key": "x|erdemerkul|2026-05-17|near:55b9c520b3f0",
+      "bucketKey": "x|erdemerkul|2026-05-17",
+      "match": "same platform + author + date + >=0.95 token Jaccard normalized text",
+      "similarityThreshold": 0.95,
+      "canonicalPostId": "x_veg8d5",
+      "rows": [
+        {
+          "postId": "x_veg8d5",
+          "url": "https://x.com/ErdemErkul/status/2056098181361070363",
+          "authorName": "Dr. R.Erdem ERKUL",
+          "postedAt": "2026-05-17T19:43:01.000Z"
+        },
+        {
+          "postId": "x_5l14ib",
+          "url": "https://x.com/ErdemErkul/status/2056007243846312259",
+          "authorName": "Dr. R.Erdem ERKUL",
+          "postedAt": "2026-05-17T13:41:40.000Z",
+          "contentDuplicateOf": "x_veg8d5"
+        }
+      ]
+    },
+    {
+      "key": "x|gabrielchua|2026-05-17|near:5bdac04d6e4a",
+      "bucketKey": "x|gabrielchua|2026-05-17",
+      "match": "same platform + author + date + >=0.95 token Jaccard normalized text",
+      "similarityThreshold": 0.95,
+      "canonicalPostId": "x_w06jo9",
+      "rows": [
+        {
+          "postId": "x_w06jo9",
+          "url": "https://x.com/gabrielchua/status/2056026958275006853",
+          "authorName": "Gabriel Chua",
+          "postedAt": "2026-05-17T15:00:00.000Z"
+        },
+        {
+          "postId": "x_l51t6g",
+          "url": "https://x.com/gabrielchua/status/2056027114135310410",
+          "authorName": "Gabriel Chua",
+          "postedAt": "2026-05-17T15:00:37.000Z",
+          "contentDuplicateOf": "x_w06jo9"
+        }
+      ]
+    },
+    {
+      "key": "x|yongquanyq|2026-05-15|near:3054866364eb",
+      "bucketKey": "x|yongquanyq|2026-05-15",
+      "match": "same platform + author + date + >=0.95 token Jaccard normalized text",
+      "similarityThreshold": 0.95,
+      "canonicalPostId": "x_1gh7ul8",
+      "rows": [
+        {
+          "postId": "x_1gh7ul8",
+          "url": "https://x.com/yongquanYQ/status/2055139913432285317",
+          "authorName": "Yong Quan @ AIE SG",
+          "postedAt": "2026-05-15T04:15:12.000Z"
+        },
+        {
+          "postId": "x_1is38je",
+          "url": "https://x.com/yongquanYQ/status/2055139394785550503",
+          "authorName": "Yong Quan @ AIE SG",
+          "postedAt": "2026-05-15T04:13:09.000Z",
+          "contentDuplicateOf": "x_1gh7ul8"
+        }
+      ]
+    },
+    {
+      "key": "x|jihoonchoi|2026-05-15|near:54dab02bd26a",
+      "bucketKey": "x|jihoonchoi|2026-05-15",
+      "match": "same platform + author + date + >=0.95 token Jaccard normalized text",
+      "similarityThreshold": 0.95,
+      "canonicalPostId": "x_158oavm",
+      "rows": [
+        {
+          "postId": "x_158oavm",
+          "url": "https://x.com/jihoonchoi/status/2055115553052991679",
+          "authorName": "Jihoon Choi - AIE Singapore 🇸🇬🌎",
+          "postedAt": "2026-05-15T02:38:24.000Z"
+        },
+        {
+          "postId": "x_1o1fy75",
+          "url": "https://x.com/jihoonchoi/status/2055115378544750970",
+          "authorName": "Jihoon Choi - AIE Singapore 🇸🇬🌎",
+          "postedAt": "2026-05-15T02:37:43.000Z",
+          "contentDuplicateOf": "x_158oavm"
+        }
+      ]
+    },
+    {
+      "key": "x|shahzadbadar|2026-05-17|near:e436878ea58c",
+      "bucketKey": "x|shahzadbadar|2026-05-17",
+      "match": "same platform + author + date + >=0.95 token Jaccard normalized text",
+      "similarityThreshold": 0.95,
+      "canonicalPostId": "x_gv4yhb",
+      "rows": [
+        {
+          "postId": "x_gv4yhb",
+          "url": "https://x.com/shahzadbadar/status/2055848911458152589",
+          "authorName": "Shahzad Badar | AI × Tech",
+          "postedAt": "2026-05-17T03:12:30.000Z"
+        },
+        {
+          "postId": "x_11y99wj",
+          "url": "https://x.com/shahzadbadar/status/2055848800623681740",
+          "authorName": "Shahzad Badar | AI × Tech",
+          "postedAt": "2026-05-17T03:12:04.000Z",
+          "contentDuplicateOf": "x_gv4yhb"
+        }
+      ]
+    }
+  ],
+  "treatment": "Soft duplicates are retained, marked with contentDuplicateOf, tagged content-duplicate/context:event, and prevented from root rollups."
+}

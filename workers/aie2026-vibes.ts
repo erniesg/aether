@@ -1,5 +1,13 @@
 import JSZip from 'jszip';
 import type { EventPostCapture, EventPostCaptureRun } from '../lib/research/event-recap/post-capture';
+import {
+  buildEmbedHeaders,
+  buildEmbedSnippet,
+  DEFAULT_EMBED_ALLOWLIST,
+  parseTheme,
+  type EmbedTheme,
+} from '../lib/research/event-recap/embed-headers';
+import { enqueueEventRecapRefresh } from '../lib/research/event-recap/refresh-trigger';
 
 interface Env {
   AETHER_ASSETS: {
@@ -9,19 +17,76 @@ interface Env {
       text?: () => Promise<string>;
     } | null>;
   };
+  AETHER_DATA?: {
+    get(key: string): Promise<{
+      body: ReadableStream;
+      httpMetadata?: { contentType?: string };
+      text?: () => Promise<string>;
+    } | null>;
+  };
+  /**
+   * Set to e.g. "https://aether.berlayar.ai" so the cron handler knows
+   * which aether deployment to ping. Configured in wrangler.aie2026.jsonc
+   * vars; secrets like VIBES_REFRESH_API_KEY come from wrangler secret.
+   */
+  AETHER_BASE_URL?: string;
+  AETHER_ENV?: string;
+  /**
+   * vibes_-prefixed API key with refresh permissions. Configured as a
+   * wrangler secret (NOT in vars). Without it, the scheduled handler
+   * logs the trigger and exits without calling the refresh endpoint.
+   */
+  VIBES_REFRESH_API_KEY?: string;
 }
 
 const DATA_KEY = 'event-recap-ai-engineer-singapore/public.json';
 const MEDIA_PREFIX = 'event-recap-ai-engineer-singapore/media/';
+const AIE_RECAP_IMAGE_KEY = `${MEDIA_PREFIX}aie2026_eventrecap.png`;
+const AIE_RECAP_SOCIAL_IMAGE_KEY = `${MEDIA_PREFIX}aie2026_eventrecap_social.jpg`;
+const AIE_RECAP_X_IMAGE_KEY = `${MEDIA_PREFIX}aie2026_eventrecap_x_card.jpg`;
+const AIE_RECAP_IMAGE_PATH = `/vibes/aie2026/media?path=${encodeURIComponent(AIE_RECAP_IMAGE_KEY)}`;
+const AIE_RECAP_SOCIAL_IMAGE_PATH = '/vibes/aie2026/share-card.jpg';
+const AIE_RECAP_X_IMAGE_PATH = '/vibes/aie2026/x-card.jpg';
+const AIE_RECAP_SOCIAL_IMAGE_WIDTH = 1200;
+const AIE_RECAP_SOCIAL_IMAGE_HEIGHT = 675;
+const AIE_RECAP_X_IMAGE_WIDTH = 1200;
+const AIE_RECAP_X_IMAGE_HEIGHT = 600;
+const AIE_SHARE_TEXT = [
+  '1,000+ builders, 4.7M public views, and three days of AI work in public.',
+  'Singapore did not just host an AI conference. It showed what a builder scene looks like.',
+  'See the AI Engineer Singapore 2026 recap.',
+].join('\n\n');
+const AIE_SHARE_DESCRIPTION =
+  '1,000+ builders, 4.7M public views, and three days of AI work in public. Singapore did not just host an AI conference. It showed what a builder scene looks like. See the AI Engineer Singapore 2026 recap.';
 const CAPTURE_RUN_ID = 'both-platforms-top100-post-only-v1';
 const CAPTURE_PREFIX = 'event-recap-ai-engineer-singapore/captures/';
-const DATA_VERSION = 'story-aware-11-method-map-1779337008';
+const DATA_VERSION = 'semantic-delta-20260527-102255-reviewed-offevent-minus-lastposty-v1';
 
 type EventCaptureExportFormat = 'json' | 'csv' | 'zip';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === '/robots.txt') {
+      return robotsResponse();
+    }
+
+    if (isAieShortHost(url.hostname)) {
+      return handleAieShortShareRedirect(request, env, url);
+    }
+
+    if (url.pathname === '/api/share/summary' || url.pathname === '/vibes/aie2026/share/summary') {
+      return proxyShareApi(request, env, '/api/share/summary');
+    }
+
+    if (url.pathname === '/api/share/link' || url.pathname === '/vibes/aie2026/share/link') {
+      return proxyShareApi(request, env, '/api/share/link');
+    }
+
+    if (url.pathname === '/api/share/event' || url.pathname === '/vibes/aie2026/share/event') {
+      return proxyShareApi(request, env, '/api/share/event');
+    }
 
     if (url.pathname === '/vibes/aie2026/data') {
       const format = url.searchParams.get('format');
@@ -44,7 +109,7 @@ export default {
         return json({ ok: false, error: 'unsupported format' }, 400);
       }
 
-      const object = await env.AETHER_ASSETS.get(DATA_KEY);
+      const object = await dataBucket(env).get(DATA_KEY);
       if (!object) return json({ ok: false, error: 'recap data not found' }, 404);
       if (format || download) {
         const data = JSON.parse(await objectText(object));
@@ -61,38 +126,158 @@ export default {
         });
       }
       return new Response(object.body, {
-        headers: {
-          'cache-control': 'public, max-age=120',
-          'content-type': object.httpMetadata?.contentType ?? 'application/json; charset=utf-8',
-        },
+        headers: buildEmbedHeaders({
+          contentType: object.httpMetadata?.contentType ?? 'application/json; charset=utf-8',
+          maxAge: 120,
+          cors: true,
+        }),
+      });
+    }
+
+    if (url.pathname === AIE_RECAP_SOCIAL_IMAGE_PATH || url.pathname === AIE_RECAP_X_IMAGE_PATH) {
+      const key = url.pathname === AIE_RECAP_X_IMAGE_PATH ? AIE_RECAP_X_IMAGE_KEY : AIE_RECAP_SOCIAL_IMAGE_KEY;
+      const object = await mediaObject(env, key);
+      if (!object) return json({ ok: false, error: 'share card not found' }, 404);
+      return new Response(object.body, {
+        headers: buildEmbedHeaders({
+          contentType: object.httpMetadata?.contentType ?? 'image/jpeg',
+          maxAge: 604800,
+          cors: true,
+        }),
       });
     }
 
     if (url.pathname === '/vibes/aie2026/media') {
       const key = url.searchParams.get('path') ?? '';
       if (!key.startsWith(MEDIA_PREFIX)) return json({ ok: false, error: 'invalid media path' }, 400);
-      const object = await env.AETHER_ASSETS.get(key);
-      if (!object) return json({ ok: false, error: 'media not found' }, 404);
+      const object = await mediaObject(env, key);
+      if (!object) {
+        const fallback = await fallbackMediaResponse(request, key, url.searchParams.get('fallback'));
+        if (fallback) return fallback;
+        return json({ ok: false, error: 'media not found' }, 404);
+      }
       return new Response(object.body, {
-        headers: {
-          'cache-control': 'public, max-age=86400',
-          'content-type': object.httpMetadata?.contentType ?? contentType(key),
-        },
+        headers: buildEmbedHeaders({
+          contentType: object.httpMetadata?.contentType ?? contentType(key),
+          maxAge: 86400,
+          cors: true,
+        }),
+      });
+    }
+
+    if (url.pathname === '/vibes/aie2026/embed-snippet') {
+      const snippet = buildEmbedSnippet({
+        url: `${url.origin}/vibes/aie2026?theme=dark`,
+        height: 900,
+        title: 'AI Engineer Singapore 2026 — Recap',
+        background: '#070808',
+      });
+      return new Response(snippet, {
+        headers: buildEmbedHeaders({
+          contentType: 'text/plain; charset=utf-8',
+          maxAge: 3600,
+          cors: true,
+        }),
       });
     }
 
     if (url.pathname === '/vibes/aie2026' || url.pathname === '/vibes/aie2026/') {
-      return new Response(renderHtml(), {
-        headers: {
-          'cache-control': 'public, max-age=60',
-          'content-type': 'text/html; charset=utf-8',
-        },
+      if (isSocialCrawler(request)) {
+        const canonicalUrl = new URL('/vibes/aie2026/', canonicalAppOrigin(request, env)).toString();
+        return new Response(aieShortPreviewHtml(canonicalUrl, canonicalUrl), {
+          headers: socialPreviewHeaders('aie2026-canonical'),
+        });
+      }
+      const theme: EmbedTheme = parseTheme(url, 'light');
+      return new Response(renderHtml({ theme }), {
+        headers: buildEmbedHeaders({
+          contentType: 'text/html; charset=utf-8',
+          maxAge: 60,
+          frameAncestors: [...DEFAULT_EMBED_ALLOWLIST],
+        }),
       });
     }
 
     return new Response('Not found', { status: 404 });
   },
+
+  /**
+   * Workers Cron trigger. Configured in wrangler.aie2026.jsonc via
+   * `triggers.crons`. Fires per the schedule (daily at 06:00 UTC).
+   * Calls the main aether app's /api/events/aie-2026/refresh route
+   * to trigger a fresh scrape + cluster + R2 publish. The static
+   * worker stays a thin reader — the refresh pipeline lives in
+   * the main aether deployment.
+   *
+   * Auth: VIBES_REFRESH_API_KEY (wrangler secret) is sent as the
+   * x-api-key header so the refresh route's auth accepts it. Without
+   * the secret, the handler logs the trigger and exits cleanly.
+   */
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const baseUrl = env.AETHER_BASE_URL ?? 'https://aether.berlayar.ai';
+    const apiKey = env.VIBES_REFRESH_API_KEY;
+
+    if (!apiKey) {
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify({
+        event: 'aie2026-vibes.scheduled.skipped',
+        cron: event.cron,
+        scheduledTime: event.scheduledTime,
+        message: 'VIBES_REFRESH_API_KEY not configured; skipping refresh',
+      }));
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify({
+      event: 'aie2026-vibes.scheduled.fired',
+      cron: event.cron,
+      scheduledTime: event.scheduledTime,
+      baseUrl,
+    }));
+
+    ctx.waitUntil(
+      enqueueEventRecapRefresh({
+        baseUrl,
+        eventId: 'aie-2026',
+        apiKey,
+        liveMode: 'tinyfish',
+      }).then((result) => {
+        // eslint-disable-next-line no-console
+        console.log(JSON.stringify({
+          event: result.ok ? 'aie2026-vibes.refresh.ok' : 'aie2026-vibes.refresh.failed',
+          status: result.status,
+          error: result.error,
+        }));
+      })
+    );
+  },
 };
+
+function dataBucket(env: Env): Env['AETHER_ASSETS'] {
+  return env.AETHER_DATA ?? env.AETHER_ASSETS;
+}
+
+async function mediaObject(env: Env, key: string): Promise<Awaited<ReturnType<Env['AETHER_ASSETS']['get']>>> {
+  return (await env.AETHER_DATA?.get(key)) ?? env.AETHER_ASSETS.get(key);
+}
+
+const FALLBACK_MEDIA_HOSTS = new Set([
+  'video.twimg.com',
+  'pbs.twimg.com',
+  'media.licdn.com',
+  'i.ytimg.com',
+  'img.youtube.com',
+]);
+
+interface ScheduledEvent {
+  cron: string;
+  scheduledTime: number;
+}
+
+interface ExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
 
 async function objectText(object: { body: ReadableStream; text?: () => Promise<string> }): Promise<string> {
   if (object.text) return object.text();
@@ -141,10 +326,15 @@ async function captureResponse(
 }
 
 function exportHeaders(contentType: string, filename: string, download: boolean, accessId: string): HeadersInit {
+  // Export responses also serve embedders: include CORS so JS on
+  // ai.engineer (or any embedder) can fetch them.
   return {
     'cache-control': 'private, no-store',
     'content-type': contentType,
     'x-aether-access-id': accessId,
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'vary': 'Origin',
     ...(download ? { 'content-disposition': `attachment; filename="${filename}"` } : {}),
   };
 }
@@ -392,8 +582,491 @@ function csvCell(value: unknown): string {
 function json(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      // CORS-friendly so error responses are readable cross-origin too.
+      'access-control-allow-origin': '*',
+    },
   });
+}
+
+function robotsResponse(): Response {
+  return new Response('User-agent: *\nAllow: /\n', {
+    headers: buildEmbedHeaders({
+      contentType: 'text/plain; charset=utf-8',
+      maxAge: 3600,
+      cors: true,
+    }),
+  });
+}
+
+async function proxyShareApi(request: Request, env: Env, pathname: string): Promise<Response> {
+  const upstreamUrl = shareApiUrl(request, env, pathname);
+  const fallbackRequest = request.clone();
+  try {
+    const upstream = await fetch(await proxyRequest(request, upstreamUrl));
+    const contentType = upstream.headers.get('content-type') ?? '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+      await upstream.text().catch(() => '');
+      const fallback = await fallbackShareApi(fallbackRequest, env, pathname, `non-json upstream ${upstream.status}`);
+      if (fallback) return fallback;
+      return json(
+        {
+          ok: false,
+          error: 'share API returned a non-JSON response',
+          status: upstream.status,
+        },
+        502
+      );
+    }
+    const body = await upstream.text();
+    return new Response(normalizeShareApiResponseBody(pathname, body), {
+      status: upstream.status,
+      headers: proxyJsonHeaders(upstream.headers),
+    });
+  } catch (err) {
+    const fallback = await fallbackShareApi(
+      fallbackRequest,
+      env,
+      pathname,
+      `upstream unavailable: ${err instanceof Error ? err.message : String(err)}`
+    );
+    if (fallback) return fallback;
+    return json(
+      {
+        ok: false,
+        error: `share API unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      },
+      502
+    );
+  }
+}
+
+function normalizeShareApiResponseBody(pathname: string, body: string): string {
+  if (pathname !== '/api/share/link') return body;
+  try {
+    const payload = JSON.parse(body);
+    if (payload?.link && typeof payload.link.shortUrl === 'string') {
+      payload.link.shortUrl = bareShortShareUrl(payload.link.shortUrl);
+    }
+    return JSON.stringify(payload);
+  } catch {
+    return body;
+  }
+}
+
+function bareShortShareUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+async function fallbackShareApi(
+  request: Request,
+  env: Env,
+  pathname: string,
+  reason: string
+): Promise<Response | null> {
+  if (pathname === '/api/share/summary') {
+    const raw = new URL(request.url).searchParams.get('canonicalUrl') ?? new URL(request.url).searchParams.get('canonicalPath');
+    return json({
+      ok: true,
+      canonicalUrl: raw ? canonicalShareUrl(request, env, raw) : canonicalShareUrl(request, env, '/vibes/aie2026/'),
+      summary: {
+        shareLinks: 0,
+        shareActions: 0,
+        trackedVisits: 0,
+        botPreviews: 0,
+        publicPosts: 0,
+        publicPostsByPlatform: {},
+        platformActions: {},
+        publicReach: {},
+      },
+      fallback: true,
+      reason,
+    });
+  }
+
+  if (pathname === '/api/share/event') {
+    if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
+    const body = await request.json().catch(() => ({}));
+    logFallbackShareEvent(request, {
+      eventType: typeof body.eventType === 'string' ? body.eventType : 'unknown',
+      platform: typeof body.platform === 'string' ? body.platform : 'unknown',
+      code: typeof body.code === 'string' ? body.code : undefined,
+      reason,
+    });
+    return json({ ok: true, fallback: true });
+  }
+
+  if (pathname === '/api/share/link') {
+    if (request.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return json({ ok: false, error: 'JSON object body is required' }, 400);
+    const target = (body as { target?: Record<string, unknown> }).target;
+    if (!target || typeof target !== 'object') return json({ ok: false, error: 'target is required' }, 400);
+    const platform = typeof (body as { platform?: unknown }).platform === 'string' ? String((body as { platform?: string }).platform) : 'unknown';
+    const code = shareCode();
+    const canonicalInput =
+      typeof target.canonicalUrl === 'string'
+        ? target.canonicalUrl
+        : typeof target.canonicalPath === 'string'
+          ? target.canonicalPath
+          : '/vibes/aie2026/';
+    const canonicalUrl = canonicalShareUrl(request, env, canonicalInput);
+    const shortUrl = shortAieShareUrl(request, env, code, platform);
+    logFallbackShareEvent(request, {
+      eventType: 'share_link_created',
+      platform,
+      code,
+      reason,
+    });
+    return json({
+      ok: true,
+      fallback: true,
+      link: {
+        code,
+        shortUrl,
+        canonicalUrl,
+        platform,
+        targetId: `target_${target.objectId || 'aie2026'}`,
+        linkId: `link_${code}`,
+      },
+    });
+  }
+
+  return null;
+}
+
+function canonicalShareUrl(request: Request, env: Env, input: string): string {
+  const origin = canonicalAppOrigin(request, env);
+  const url = new URL(input, origin);
+  url.hash = '';
+  return url.toString();
+}
+
+function canonicalAppOrigin(request: Request, env: Env): string {
+  if (env.AETHER_BASE_URL) return env.AETHER_BASE_URL.replace(/\/$/, '');
+  const url = new URL(request.url);
+  if (url.hostname === 's.berlayar.ai') return 'https://aether.berlayar.ai';
+  const staging = url.hostname.match(/^s-(.+)\.berlayar\.ai$/);
+  if (staging) return `https://aether-${staging[1]}.berlayar.ai`;
+  return url.origin;
+}
+
+function shortAieShareUrl(request: Request, env: Env, code: string, _platform?: string): string {
+  return new URL(`/${code}`, shortShareOrigin(request, env)).toString();
+}
+
+function shortShareOrigin(request: Request, env: Env): string {
+  const url = new URL(request.url);
+  if (url.hostname === 'aether.berlayar.ai' || env.AETHER_ENV === 'production') return 'https://s.berlayar.ai';
+  const staging = url.hostname.match(/^aether-(.+)\.berlayar\.ai$/) ?? env.AETHER_BASE_URL?.match(/^https:\/\/aether-(.+)\.berlayar\.ai$/);
+  if (staging) return `https://s-${staging[1]}.berlayar.ai`;
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return url.origin;
+  return 'https://s.berlayar.ai';
+}
+
+function isAieShortHost(hostname: string): boolean {
+  return hostname === 's.berlayar.ai' || /^s-.+\.berlayar\.ai$/.test(hostname);
+}
+
+function shareCode(): string {
+  return readableShareCode(2);
+}
+
+const SHARE_CONSONANTS = 'bcdfghjkmnprstvwyz';
+const SHARE_VOWELS = 'aeiou';
+const SHARE_FRIENDLY_ALPHANUMERIC = 'abcdefghjkmnpqrstuvwxyz23456789';
+const SHARE_BLOCKED_PARTS = ['ass', 'cum', 'dik', 'fuc', 'fuk', 'kok', 'sex', 'suk'];
+
+function readableShareCode(syllables: number): string {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    let code = '';
+    for (let index = 0; index < syllables; index += 1) {
+      code += pickShareChar(SHARE_CONSONANTS);
+      code += pickShareChar(SHARE_VOWELS);
+    }
+    if (!SHARE_BLOCKED_PARTS.some((part) => code.includes(part))) return code;
+  }
+  let fallback = '';
+  for (let index = 0; index < 6; index += 1) fallback += pickShareChar(SHARE_FRIENDLY_ALPHANUMERIC);
+  return fallback;
+}
+
+function pickShareChar(alphabet: string): string {
+  const bytes = new Uint8Array(1);
+  crypto.getRandomValues(bytes);
+  return alphabet[bytes[0] % alphabet.length]!;
+}
+
+function parseAieShortPath(pathname: string): { code: string } | null {
+  const match = pathname.match(/^\/([a-z0-9]{4,16})$/i);
+  return match ? { code: match[1].toLowerCase() } : null;
+}
+
+function handleAieShortShareRedirect(request: Request, env: Env, url: URL): Response {
+  const parsed = parseAieShortPath(url.pathname);
+  if (!parsed) return json({ ok: false, error: 'short link not found' }, 404);
+  const target = new URL('/vibes/aie2026/', canonicalAppOrigin(request, env));
+  const platform = sharePlatformFromValue(url.searchParams.get('utm_source'));
+  const shortUrl = shortAieShareUrl(request, env, parsed.code, platform);
+
+  if (isSocialCrawler(request)) {
+    logFallbackShareEvent(request, {
+      eventType: 'share_link_bot_preview',
+      platform,
+      code: parsed.code,
+    });
+    return new Response(aieShortPreviewHtml(target.toString(), shortUrl), {
+      headers: socialPreviewHeaders(`aie2026-share-${parsed.code}`),
+    });
+  }
+
+  if (isEnrichmentProbe(request)) {
+    return json(
+      {
+        ok: true,
+        code: parsed.code,
+        canonicalUrl: target.toString(),
+        platform,
+        target: aieShareTarget(target.toString()),
+      },
+      200
+    );
+  }
+
+  logFallbackShareEvent(request, {
+    eventType: 'share_link_visit',
+    platform,
+    code: parsed.code,
+  });
+  target.searchParams.set('aether_share', parsed.code);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location: target.toString(),
+      'cache-control': 'private, no-store',
+    },
+  });
+}
+
+function sharePlatformFromValue(value: string | null | undefined): string {
+  return value === 'x' ||
+    value === 'linkedin' ||
+    value === 'facebook' ||
+    value === 'whatsapp' ||
+    value === 'telegram' ||
+    value === 'copy' ||
+    value === 'native'
+    ? value
+    : 'unknown';
+}
+
+const SOCIAL_CRAWLER_RE =
+  /(bot|crawler|spider|twitterbot|facebookexternalhit|linkedinbot|slackbot|discordbot|telegrambot|whatsapp|embedly|quora link preview|skypeuripreview|pinterest)/i;
+
+function isSocialCrawler(request: Request): boolean {
+  return SOCIAL_CRAWLER_RE.test(request.headers.get('user-agent') ?? '');
+}
+
+function isEnrichmentProbe(request: Request): boolean {
+  return (
+    request.headers.get('x-aether-enrichment') === '1' ||
+    /aether-share-enrichment/i.test(request.headers.get('user-agent') ?? '')
+  );
+}
+
+function aieShareTarget(canonicalUrl: string) {
+  return {
+    canonicalUrl,
+    objectType: 'vibes_page',
+    objectId: 'aie2026',
+    slug: 'aie2026',
+    title: 'AI Engineer Singapore public recap',
+    description: AIE_SHARE_DESCRIPTION,
+    imageUrl: new URL(AIE_RECAP_SOCIAL_IMAGE_PATH, canonicalUrl).toString(),
+    xImageUrl: new URL(AIE_RECAP_X_IMAGE_PATH, canonicalUrl).toString(),
+  };
+}
+
+function aieShortPreviewHtml(canonicalUrl: string, shortUrl: string): string {
+  const target = aieShareTarget(canonicalUrl);
+  const title = escapePreviewHtml(target.title);
+  const description = escapePreviewHtml(target.description);
+  const canonical = escapePreviewHtml(target.canonicalUrl);
+  const short = escapePreviewHtml(shortUrl);
+  const image = escapePreviewHtml(target.imageUrl);
+  const xImage = escapePreviewHtml(target.xImageUrl);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${title}</title>
+<link rel="canonical" href="${canonical}" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${description}" />
+<meta property="og:url" content="${short}" />
+<meta property="og:image" content="${image}" />
+<meta property="og:image:secure_url" content="${image}" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="${AIE_RECAP_SOCIAL_IMAGE_WIDTH}" />
+<meta property="og:image:height" content="${AIE_RECAP_SOCIAL_IMAGE_HEIGHT}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@erniesg" />
+<meta name="twitter:title" content="${title}" />
+<meta name="twitter:description" content="${description}" />
+<meta name="twitter:image" content="${xImage}" />
+<meta name="twitter:image:src" content="${xImage}" />
+<meta name="twitter:image:alt" content="AI Engineer Singapore 2026 recap visual" />
+</head>
+</html>`;
+}
+
+function socialPreviewHeaders(cacheTag: string): HeadersInit {
+  return {
+    'cache-control': 'public, max-age=300, no-transform',
+    'content-type': 'text/html; charset=utf-8',
+    'x-robots-tag': 'all',
+    'cache-tag': cacheTag,
+  };
+}
+
+function escapePreviewHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function logFallbackShareEvent(
+  request: Request,
+  event: { eventType: string; platform: string; code?: string; reason?: string }
+): void {
+  const url = new URL(request.url);
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: 'aie2026.share',
+      eventType: event.eventType,
+      platform: event.platform,
+      code: event.code,
+      reason: event.reason,
+      path: url.pathname,
+      query: url.searchParams.toString() || undefined,
+      referer: request.headers.get('referer') ?? undefined,
+      userAgent: request.headers.get('user-agent')?.slice(0, 180) ?? undefined,
+      acceptLanguage: request.headers.get('accept-language')?.slice(0, 120) ?? undefined,
+      cfCountry: request.headers.get('cf-ipcountry')?.slice(0, 8) ?? undefined,
+      cfColo: request.headers.get('cf-colo')?.slice(0, 16) ?? undefined,
+      cfRay: request.headers.get('cf-ray') ?? undefined,
+      at: new Date().toISOString(),
+    })
+  );
+}
+
+function shareApiUrl(request: Request, env: Env, pathname: string): string {
+  const incoming = new URL(request.url);
+  const origin = (env.AETHER_BASE_URL || incoming.origin).replace(/\/$/, '');
+  const upstream = new URL(pathname, origin);
+  upstream.search = incoming.search;
+  return upstream.toString();
+}
+
+async function proxyRequest(request: Request, upstreamUrl: string): Promise<Request> {
+  const headers = new Headers(request.headers);
+  headers.set('accept', 'application/json');
+  headers.delete('host');
+  headers.delete('content-length');
+
+  const init: RequestInit = {
+    method: request.method,
+    headers,
+    redirect: 'manual',
+  };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    init.body = await request.arrayBuffer();
+  }
+  return new Request(upstreamUrl, init);
+}
+
+function proxyJsonHeaders(source: Headers): Headers {
+  const headers = new Headers({
+    'content-type': source.get('content-type') ?? 'application/json; charset=utf-8',
+    'access-control-allow-origin': '*',
+  });
+  const cacheControl = source.get('cache-control');
+  if (cacheControl) headers.set('cache-control', cacheControl);
+  return headers;
+}
+
+async function fallbackMediaResponse(request: Request, key: string, rawFallback: string | null): Promise<Response | null> {
+  const fallback = fallbackMediaUrl(rawFallback);
+  if (!fallback) return null;
+
+  const headers = new Headers();
+  const range = request.headers.get('range');
+  if (range) headers.set('range', range);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(fallback, {
+      method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers,
+    });
+  } catch {
+    return null;
+  }
+
+  if (!(upstream.ok || upstream.status === 206)) return null;
+  const upstreamType = upstream.headers.get('content-type') ?? contentType(key);
+  if (!fallbackContentTypeMatches(key, upstreamType)) return null;
+
+  const responseHeaders = buildEmbedHeaders({
+    contentType: upstreamType,
+    maxAge: 86400,
+    cors: true,
+  });
+  for (const header of ['accept-ranges', 'content-length', 'content-range', 'etag', 'last-modified']) {
+    const value = upstream.headers.get(header);
+    if (value) responseHeaders.set(header, value);
+  }
+  responseHeaders.set('access-control-expose-headers', 'Accept-Ranges, Content-Length, Content-Range');
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: responseHeaders,
+  });
+}
+
+function fallbackMediaUrl(rawFallback: string | null): string | null {
+  if (!rawFallback) return null;
+  try {
+    const url = new URL(rawFallback);
+    if (url.protocol !== 'https:') return null;
+    if (!FALLBACK_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return null;
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function fallbackContentTypeMatches(key: string, contentTypeValue: string): boolean {
+  const lowerKey = key.toLowerCase();
+  const lowerType = contentTypeValue.toLowerCase();
+  if (lowerKey.match(/\.(mp4|m4v|mov|webm)$/)) return lowerType.startsWith('video/');
+  if (lowerKey.match(/\.(jpe?g|png|webp|gif|avif)$/)) return lowerType.startsWith('image/');
+  return lowerType.startsWith('image/') || lowerType.startsWith('video/');
 }
 
 function contentType(key: string): string {
@@ -408,42 +1081,96 @@ function contentType(key: string): string {
   return 'application/octet-stream';
 }
 
-export function renderHtml(): string {
+export function renderHtml(options: { theme?: EmbedTheme } = {}): string {
+  const theme: EmbedTheme = options.theme ?? 'light';
+  const themeAttr = ` data-theme="${theme}"`;
+  // Dark theme matches ai.engineer/singapore/2026 (body #070808). Light
+  // theme keeps the original paper-texture palette for the standalone
+  // page. Both share the same SVG/layout below.
+  const themeCss =
+    theme === 'dark'
+      ? `:root{color-scheme:dark;--bg:#070808;--panel:#0e0f10;--ink:#f1ece5;--muted:#9c9388;--dim:#766c61;--line:#1c1d1e;--accent:#de7340;--soft:#101113}`
+      : `:root{color-scheme:light;--bg:#fbfaf7;--panel:#fffdfa;--ink:#24211f;--muted:#706960;--dim:#9b9186;--line:#e9e1d7;--accent:#de7340;--soft:#f4eee7}`;
+  // When dark (embed mode for ai.engineer), load the same Google Fonts
+  // the host site uses (Inter / Instrument Serif / JetBrains Mono) so
+  // the iframe doesn't visually clash. Light mode keeps the system
+  // font stack to stay fast on the standalone page.
+  const fontLink =
+    theme === 'dark'
+      ? `<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500;600&display=swap" />`
+      : '';
+  const bodyFontStack =
+    theme === 'dark'
+      ? `Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,sans-serif`
+      : `ui-monospace,SFMono-Regular,Menlo,monospace`;
+  const serifFontStack =
+    theme === 'dark'
+      ? `'Instrument Serif',Georgia,'Times New Roman',serif`
+      : `Georgia,'Times New Roman',serif`;
+  const monoFontStack =
+    theme === 'dark'
+      ? `'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace`
+      : `ui-monospace,SFMono-Regular,Menlo,monospace`;
+  const shareDescription = escapePreviewHtml(AIE_SHARE_DESCRIPTION);
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${themeAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AI Engineer Singapore vibes</title>
+<title>AI Engineer Singapore public recap</title>
+<meta name="description" content="${shareDescription}" />
+<link rel="canonical" href="https://aether.berlayar.ai/vibes/aie2026/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="AI Engineer Singapore public recap" />
+<meta property="og:description" content="${shareDescription}" />
+<meta property="og:url" content="https://aether.berlayar.ai/vibes/aie2026/" />
+<meta property="og:image" content="https://aether.berlayar.ai${AIE_RECAP_SOCIAL_IMAGE_PATH}" />
+<meta property="og:image:secure_url" content="https://aether.berlayar.ai${AIE_RECAP_SOCIAL_IMAGE_PATH}" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="${AIE_RECAP_SOCIAL_IMAGE_WIDTH}" />
+<meta property="og:image:height" content="${AIE_RECAP_SOCIAL_IMAGE_HEIGHT}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@erniesg" />
+<meta name="twitter:title" content="AI Engineer Singapore public recap" />
+<meta name="twitter:description" content="${shareDescription}" />
+<meta name="twitter:image" content="https://aether.berlayar.ai${AIE_RECAP_X_IMAGE_PATH}" />
+<meta name="twitter:image:src" content="https://aether.berlayar.ai${AIE_RECAP_X_IMAGE_PATH}" />
+<meta name="twitter:image:alt" content="AI Engineer Singapore 2026 recap visual" />
+${fontLink}
 <script>if(location.search.includes('debug=1'))document.documentElement.classList.add('debug')</script>
 <style>
-:root{color-scheme:light;--bg:#fbfaf7;--panel:#fffdfa;--ink:#24211f;--muted:#706960;--dim:#9b9186;--line:#e9e1d7;--accent:#de7340;--soft:#f4eee7}
+${themeCss}
+body{font-family:${bodyFontStack}}
+h1,h2,h3,h4{font-family:${serifFontStack}}
+.meta,.eyebrow,.chip,code,pre,.atlas-key span,.coverage-item span,.atlas-lane span{font-family:${monoFontStack}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button,a,summary{touch-action:manipulation}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.shell{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:22px;max-width:1680px;margin:0 auto;padding:28px}
 .side{position:sticky;top:24px;max-height:calc(100dvh - 48px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border:1px solid var(--line);background:var(--panel);padding:22px}.eyebrow,.chip,.meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em}
 .eyebrow{font-size:12px;color:var(--dim)}h1{font-family:Georgia,serif;font-size:clamp(32px,3vw,42px);line-height:1.04;margin:10px 0 16px;overflow-wrap:anywhere}h2{font-family:Georgia,serif;font-size:28px;line-height:1.14;margin:0}h3{font-family:Georgia,serif;font-size:22px;line-height:1.18;margin:0}
 .meta{font-size:12px;color:var(--muted)}.method{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}.method summary{cursor:pointer}.method-line{display:grid;gap:2px;margin:10px 0 0;color:var(--muted);font-size:13px;line-height:1.35}.method-line b{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em;color:#514b45}.method-facts{display:grid;gap:7px;margin-top:12px}.method-facts span{border:1px solid var(--line);background:#fff;padding:7px 9px;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.method details details{margin-top:10px}.method details details summary{font-size:11px}.method ul{max-height:180px;overflow:auto;margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12px}.method li{margin:4px 0}.method code{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .evidence{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}.evidence p{margin:4px 0 0;color:var(--muted);font-size:13px;line-height:1.35}.evidence-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.evidence-actions a{border:1px solid var(--line);background:#fff;padding:6px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;text-decoration:none;color:var(--muted)}.evidence-actions a:hover{border-color:var(--accent);color:var(--accent)}.debug-only{display:none}html.debug .debug-only{display:inline-block}
+.made-by{margin-top:16px;border-top:1px solid var(--line);padding-top:12px;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}.made-by a{color:var(--muted);text-decoration:none}.made-by a:hover{color:var(--accent);text-decoration:underline}.made-heart{color:var(--accent)}
+.share-panel{margin-top:16px;border:1px solid var(--line);background:var(--soft);padding:12px}.share-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.share-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px}.share-actions button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 8px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;text-align:left;cursor:pointer}.share-actions button:hover{border-color:var(--accent);color:var(--accent)}.share-actions button:disabled{cursor:wait;opacity:.62}.share-status{min-height:16px;margin:6px 0 0;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;overflow-wrap:anywhere}
+.share-actions button{display:flex;align-items:center;gap:7px;min-width:0}.platform-icon{display:inline-grid;width:18px;height:18px;flex:0 0 18px;place-items:center;border:1px solid var(--line);background:#fff;color:var(--ink);font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:none;letter-spacing:0}.platform-icon-x{font-size:11px}.platform-icon-linkedin{background:#0a66c2;border-color:#0a66c2;color:#fff}.platform-icon-facebook{background:#1877f2;border-color:#1877f2;color:#fff;font-family:Arial,sans-serif;font-size:14px}.platform-icon-whatsapp{background:#1fa463;border-color:#1fa463;color:#fff;font-size:9px}.share-platform-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.share-copy-button{align-items:flex-start!important;flex-direction:column;gap:3px!important}.share-copy-url{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
 .main{min-width:0}.hero{border:1px solid var(--line);background:var(--panel);padding:24px}.lede{max-width:none;font-size:18px;color:#5b554e;margin:10px 0 0}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 .chip{border:1px solid var(--line);border-radius:999px;background:#fff;padding:4px 10px;font-size:12px;color:#6f655c}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:22px}
 .freshness{margin:10px 0 0;color:var(--muted);font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em}
 .metric{border:1px solid var(--line);background:#fff;padding:14px}.metric summary{list-style:none;cursor:help}.metric summary::-webkit-details-marker{display:none}.metric b{display:block;font-family:Georgia,serif;font-size:34px;line-height:1}.metric span{display:block;margin-top:6px;color:var(--muted);font-size:13px}.metric small{display:block;margin-top:3px;color:#9a9087;font-size:11px;line-height:1.25}.metric summary:hover small{color:var(--accent)}.metric-help{margin:10px 0 0;padding-top:10px;border-top:1px solid var(--line);font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
-.synthesis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:20px}.signal{border:1px solid var(--line);background:#fff;padding:14px;min-height:132px}.signal b{display:block;font-family:Georgia,serif;font-size:21px;line-height:1.15}.signal span{display:block;margin-top:8px;color:var(--muted);font-size:14px}
+
 .coverage{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin-top:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0}.coverage-label{display:flex;align-items:center;padding:0 4px 0 0;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}.coverage-item{min-width:124px;padding:9px 12px;border:1px solid var(--line);background:#fff;text-align:left;cursor:pointer}.coverage-item:hover,.coverage-item.active{background:#fff8f2}.coverage-item.active{border-color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}.coverage-item.clear{min-width:0}.coverage-item b{display:block;font:14px ui-monospace,SFMono-Regular,Menlo,monospace;color:#514b45}.coverage-item span{display:block;margin-top:2px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
 .wall{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:122px;gap:8px;margin-top:20px}.tile{position:relative;display:block;overflow:hidden;border:1px solid var(--line);background:var(--soft);padding:0;color:inherit;font:inherit;text-align:left}.tile.big{grid-column:span 2;grid-row:span 2}.tile img,.tile video{width:100%;height:100%;object-fit:cover;display:block;background:#111}button.tile{appearance:none;-webkit-appearance:none;width:100%;height:100%;cursor:pointer}.tile:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0000 48%,#0007 100%);opacity:0;transition:opacity .16s ease;pointer-events:none}.tile:hover:after,.tile:focus-visible:after,.tile.is-video:after{opacity:1}.tile-kind,.tile-count{position:absolute;z-index:2;display:inline-flex;align-items:center;min-height:20px;padding:2px 6px;background:#111d;color:#fff;font:10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em}.tile-kind{left:6px;top:6px}.tile-count{left:6px;bottom:6px}.tile-play{position:absolute;z-index:2;left:50%;top:50%;width:38px;height:38px;transform:translate(-50%,-50%);border:1px solid #ffffffb8;border-radius:999px;background:#111a;box-shadow:0 8px 24px #0005}.tile-play:before{content:"";position:absolute;left:15px;top:10px;border-top:8px solid transparent;border-bottom:8px solid transparent;border-left:12px solid #fff}.media-viewer{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:24px;background:#100c09d9}.media-viewer.open{display:flex}.media-dialog{width:min(1320px,calc(100vw - 40px));max-height:calc(100dvh - 40px);overflow:auto;border:1px solid #ffffff33;background:#090807;color:#fff;box-shadow:0 24px 80px #0009}.media-viewer-bar{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #ffffff24}.media-viewer-bar .meta{color:#ddd}.media-viewer-bar a,.media-viewer-bar button{border:1px solid #ffffff33;background:#181512;color:#fff;padding:6px 9px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;text-decoration:none;cursor:pointer}.media-body{display:block;min-height:0}.media-stage{width:100%;height:min(68dvh,720px);background:#050505}.media-stage video,.media-stage iframe,.media-stage img{width:100%;height:100%;border:0;object-fit:contain;display:block;background:#050505}.media-source{border-top:1px solid #ffffff24;background:#0d0b09;padding:12px 14px;max-height:190px;overflow:auto}.media-source h3{margin:4px 0 0;font-family:Georgia,serif;font-size:21px;line-height:1.12}.source-post-text{margin:10px 0 0;color:#eee;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.source-actions,.source-ref-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.source-actions a,.source-ref-list a{border:1px solid #ffffff2e;background:#17120f;color:#fff;padding:6px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;text-decoration:none}.source-ref-list a{color:#ddd}.source-muted{color:#aaa}
 .tabs{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0}.tabs button{border:1px solid var(--line);background:#fff;padding:8px 14px;font:14px ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}.tabs button.active{border-color:var(--accent);background:var(--accent);color:#fff}
 .tools{display:flex;gap:10px;align-items:center;margin-bottom:14px}.tools input{width:min(520px,100%);border:1px solid var(--line);background:#fff;padding:10px 12px;font:14px ui-monospace,SFMono-Regular,Menlo,monospace}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);background:var(--panel);padding:18px;min-width:0}.card.hot{border-color:var(--accent)}.card.selected{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.cluster-card{transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}.cluster-card:hover{border-color:#d6a58d;box-shadow:0 8px 24px #6f4b3312}.card-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
-.atlas{border:1px solid var(--line);background:var(--panel);padding:18px;margin-bottom:14px}.atlas-head{display:block}.atlas-head p{margin:4px 0 0;color:var(--muted);font-size:14px}.atlas-key{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.atlas-key span{border:1px solid var(--line);background:#fff;padding:5px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.atlas-map{position:relative;height:820px;min-height:560px;margin-top:14px;overflow:hidden;border:1px solid var(--line);background:#fff}.atlas-map:before{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(90deg,#f4eee7 1px,transparent 1px),linear-gradient(#f4eee7 1px,transparent 1px);background-size:54px 54px;opacity:.32}.atlas-lanes{position:absolute;inset:0;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));pointer-events:none}.atlas-lane{padding:12px;border-right:1px solid #f1e8df;background:linear-gradient(180deg,#fffdfad6 0%,#fffdfa33 24%,transparent 100%)}.atlas-lane:last-child{border-right:0}.atlas-lane span{display:inline-block;max-width:18ch;font:11px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;color:#8d8176;background:#fffdfae8;padding:3px 5px}.atlas-links{position:absolute;inset:0;z-index:2;width:100%;height:100%;pointer-events:none}.atlas-node{position:absolute;z-index:3;min-height:0;transform:translate(-50%,-50%);border:1px solid var(--line);background:#fffdfa;padding:var(--node-pad,8px) calc(var(--node-pad,8px) + 2px);text-align:left;cursor:pointer;box-shadow:0 6px 14px #6f4b3318}.atlas-node:hover,.atlas-node.selected{z-index:5;border-color:var(--accent);background:#fff8f2}.atlas-node h4{margin:0;font-family:Georgia,serif;font-size:var(--node-title,14px);line-height:1.08}.atlas-node .meta{display:block;margin-top:5px;font-size:11px}.atlas-dot{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--accent);margin-right:6px}.atlas-method{margin-top:8px}.atlas-method summary{display:inline-block;cursor:pointer;border:1px solid var(--line);background:#fff;padding:6px 9px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.atlas-method p{margin:8px 0 0;font-size:13px;color:var(--muted);max-width:86ch}
+.atlas{border:1px solid var(--line);background:var(--panel);padding:18px;margin-bottom:14px}.atlas-head{display:block}.atlas-title-row{display:flex;align-items:center;justify-content:space-between;gap:14px}.atlas-help{position:relative}.atlas-help summary{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);background:#fff;cursor:pointer;font:15px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);list-style:none}.atlas-help summary::-webkit-details-marker{display:none}.atlas-help p{position:absolute;z-index:30;left:0;top:calc(100% + 8px);width:min(340px,80vw);margin:0;border:1px solid var(--line);background:#fffdfa;padding:10px;font:13px/1.45 Arial,sans-serif;color:var(--muted);box-shadow:0 12px 28px #4d33231f;white-space:normal}.atlas-toggle{display:inline-flex;gap:0;border:1px solid var(--line);background:#fff;white-space:nowrap}.atlas-toggle button{border:0;border-left:1px solid var(--line);background:#fff;padding:7px 10px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);cursor:pointer}.atlas-toggle button:first-child{border-left:0}.atlas-toggle button.active{background:var(--accent);color:#fff}.atlas-key{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}.atlas-key span{border:1px solid var(--line);background:#fff;padding:5px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.atlas-map{position:relative;height:820px;min-height:560px;margin-top:14px;overflow:hidden;border:1px solid var(--line);background:#fff}.atlas-map:before{content:"";position:absolute;inset:0;z-index:0;background:linear-gradient(90deg,#f4eee7 1px,transparent 1px),linear-gradient(#f4eee7 1px,transparent 1px);background-size:54px 54px;opacity:.32}.atlas-lanes{position:absolute;inset:0;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));pointer-events:none}.atlas-lane{padding:12px;border-right:1px solid #f1e8df;background:linear-gradient(180deg,#fffdfad6 0%,#fffdfa33 24%,transparent 100%)}.atlas-lane:last-child{border-right:0}.atlas-lane span{display:inline-block;max-width:18ch;font:11px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.06em;color:#8d8176;background:#fffdfae8;padding:3px 5px}.atlas-links{position:absolute;inset:0;z-index:2;width:100%;height:100%;pointer-events:none}.atlas-node{position:absolute;z-index:3;min-height:0;transform:translate(-50%,-50%);border:1px solid var(--line);background:#fffdfa;padding:var(--node-pad,8px) calc(var(--node-pad,8px) + 2px);text-align:left;cursor:pointer;box-shadow:0 6px 14px #6f4b3318}.atlas-node:hover,.atlas-node.selected{z-index:5;border-color:var(--accent);background:#fff8f2}.atlas-node h4{margin:0;font-family:Georgia,serif;font-size:var(--node-title,14px);line-height:1.08}.atlas-node .meta{display:block;margin-top:5px;font-size:11px}.atlas-dot{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--accent);margin-right:6px}.atlas-post{appearance:none;position:absolute;z-index:3;box-sizing:border-box;width:var(--dot,5px);height:var(--dot,5px);min-width:0;min-height:0;padding:0;transform:translate(-50%,-50%);border:1px solid #fff;border-radius:999px;background:var(--accent);box-shadow:0 1px 2px #6f4b3324;cursor:pointer}.atlas-post:hover,.atlas-post:focus-visible,.atlas-post.selected{z-index:6;outline:2px solid var(--ink);outline-offset:2px}.atlas-post.x{background:#23201d}.atlas-post.linkedin{background:#0a66c2}.atlas-post.youtube{background:#d9432f}.atlas-post.context{opacity:.34}.atlas-post-count{position:absolute;z-index:2;right:10px;bottom:8px;border:1px solid var(--line);background:#fffdfae8;padding:5px 8px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.atlas-popover{position:absolute;z-index:20;width:min(380px,calc(100% - 24px));transform:translate(var(--pop-x,-50%),var(--pop-y,-50%));border:1px solid var(--ink);background:#fffdfa;padding:12px;box-shadow:0 18px 44px #4d332330}.atlas-popover h3{font-size:20px;margin:4px 0 0}.atlas-popover-text{margin:8px 0 0;max-height:116px;overflow:auto;font-size:13px;line-height:1.45;color:var(--muted);overflow-wrap:anywhere}.atlas-popover-media{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}.atlas-popover-media .tile{height:76px;min-width:0}.atlas-popover-media .tile.big{grid-column:span 1;grid-row:span 1}.atlas-popover-media .tile img,.atlas-popover-media .tile video{width:100%;height:100%;object-fit:cover}.atlas-popover-media .tile-play{width:28px;height:28px}.atlas-popover-media .tile-play:before{left:11px;top:7px;border-top-width:6px;border-bottom-width:6px;border-left-width:9px}.atlas-popover-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.atlas-popover-actions a,.atlas-popover-actions button{border:1px solid var(--line);background:#fff;padding:7px 9px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;color:var(--ink);text-decoration:none;cursor:pointer}.atlas-popover-actions button.primary{background:var(--ink);border-color:var(--ink);color:#fff}.atlas-close{position:absolute;right:8px;top:8px;border:0;background:transparent;padding:2px 5px;font:16px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);cursor:pointer}.atlas-method{margin-top:8px}.atlas-method summary{display:inline-block;cursor:pointer;border:1px solid var(--line);background:#fff;padding:6px 9px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.atlas-method p{margin:8px 0 0;font-size:13px;color:var(--muted);max-width:86ch}
 .mix,.snips,.info{margin-top:12px}.snip{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}.post{display:grid;gap:10px;border-top:1px solid var(--line);padding:18px 0;min-width:0}.post:first-child{border-top:0}.post-content{display:block;min-width:0}.post-text{font-size:15px;max-width:112ch;min-width:0;overflow-wrap:anywhere}.post-media{display:flex;gap:6px;overflow:auto}.post-content .post-media{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,172px));gap:6px;justify-content:start;overflow:visible;min-width:0;margin-top:12px}.post-media .media-thumb{flex:0 0 150px;width:150px;height:92px}.post-content .post-media .media-thumb{width:100%;height:96px;min-width:0}.post-media a,.cluster-media a,.tile{position:relative;display:block;cursor:pointer}.post-content .post-media a,.post-content .post-media .tile{overflow:hidden;min-width:0}.post-media a:hover img,.post-media a:hover video,.cluster-media a:hover img,.cluster-media a:hover video,.tile:hover img,.tile:hover video{filter:saturate(1.08) contrast(1.03)}.post-media img,.post-media video{width:150px;height:92px;object-fit:cover;border:1px solid var(--line);background:#111}.post-content .post-media img,.post-content .post-media video{width:100%;height:96px}
 .score{position:relative;display:inline-block}.score summary{list-style:none;cursor:help;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);background:#fff3ec;border:1px solid #efd2c0;border-radius:4px;padding:2px 6px}.score summary::-webkit-details-marker{display:none}.score div{position:absolute;z-index:20;left:0;top:calc(100% + 4px);width:300px;border:1px solid var(--line);background:#fff;padding:10px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);box-shadow:0 10px 24px #0002}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.platform{color:#5479a8}.source{color:var(--dim)}details.raw{margin-top:8px}.raw summary{cursor:pointer;color:var(--dim);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.raw dl{display:grid;grid-template-columns:120px minmax(0,1fr);gap:4px 10px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.raw dd{margin:0;overflow-wrap:anywhere}
 .cluster-detail{border:1px solid var(--accent);background:#fff8f2;padding:18px;margin-bottom:14px}.cluster-detail h2{max-width:900px}.cluster-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}.ghost{border:1px solid var(--line);background:#fff;padding:7px 10px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}.cluster-media{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:104px;gap:6px;margin-top:8px}.cluster-media a,.cluster-media .tile{height:100%;overflow:hidden;border:1px solid var(--line);background:var(--soft)}.cluster-media img,.cluster-media video{width:100%;height:100%;object-fit:cover;display:block;background:#111}.cluster-posts{margin-top:8px;border-top:1px solid var(--line)}.cluster-posts-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}.media-note{margin:12px 0 0}.open-cluster{border:1px solid var(--ink);background:var(--ink);color:#fff;padding:9px 13px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}.open-cluster:after{content:" ->"}.open-cluster:hover,.open-cluster:focus-visible{border-color:var(--accent);background:var(--accent)}
 .media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}.media-grid a,.media-grid .tile{height:128px;overflow:hidden;border:1px solid var(--line);background:var(--soft)}.media-grid img,.media-grid video{width:100%;height:100%;object-fit:cover;display:block}.pager{display:flex;justify-content:space-between;align-items:center;margin-top:12px}.pager button{border:1px solid var(--line);background:#fff;padding:7px 10px;cursor:pointer}.empty{color:var(--muted);padding:24px;border:1px solid var(--line);background:#fff}
 @media(max-width:1100px){.post-content .post-media{grid-template-columns:repeat(auto-fill,minmax(126px,1fr))}}
-@media(max-width:900px){.shell{display:block;padding:14px}.side{position:static;max-height:none;margin-bottom:14px}h1{font-size:34px;overflow-wrap:normal}.metrics,.synthesis{grid-template-columns:repeat(2,1fr)}.coverage-item{flex:1 1 140px}.grid{grid-template-columns:1fr}.wall{grid-template-columns:repeat(3,1fr);grid-auto-rows:100px}.atlas-map{height:560px}.atlas-node{width:150px!important}.cluster-media{grid-template-columns:repeat(3,1fr);grid-auto-rows:92px}}
+@media(max-width:900px){.shell{display:block;padding:14px}.side{position:static;max-height:none;margin-bottom:14px}h1{font-size:34px;overflow-wrap:normal}.metrics{grid-template-columns:repeat(2,1fr)}.coverage-item{flex:1 1 140px}.grid{grid-template-columns:1fr}.wall{grid-template-columns:repeat(3,1fr);grid-auto-rows:100px}.atlas-map{height:560px}.atlas-node{width:150px!important}.cluster-media{grid-template-columns:repeat(3,1fr);grid-auto-rows:92px}}
 @media(max-width:900px){.media-viewer{padding:12px}.media-dialog{width:calc(100vw - 24px)}.media-body{display:block}.media-source{border-left:0;border-top:1px solid #ffffff24;max-height:34dvh}.media-stage{height:52dvh}}
-@media(max-width:640px){.synthesis{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -452,6 +1179,20 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
     <p class="eyebrow">event</p>
     <h1>AI Engineer Singapore</h1>
     <p class="meta" id="dateRange">loading...</p>
+    <section class="share-panel" data-testid="vibes-public-share">
+      <div class="share-head">
+        <p class="eyebrow">share recap</p>
+      </div>
+      <div class="share-actions">
+        <button type="button" data-share-platform="x" title="Share to X"><span class="platform-icon platform-icon-x">X</span><span class="share-platform-name">X</span></button>
+        <button type="button" data-share-platform="linkedin" title="Share to LinkedIn"><span class="platform-icon platform-icon-linkedin">in</span><span class="share-platform-name">LinkedIn</span></button>
+        <button type="button" data-share-platform="facebook" title="Share to Facebook"><span class="platform-icon platform-icon-facebook">f</span><span class="share-platform-name">Facebook</span></button>
+        <button type="button" data-share-platform="whatsapp" title="Share to WhatsApp"><span class="platform-icon platform-icon-whatsapp">wa</span><span class="share-platform-name">WhatsApp</span></button>
+        <button type="button" id="shareNative" title="Share with this device"><span class="share-platform-name">device share</span></button>
+        <button type="button" id="shareCopyCurrent" class="share-copy-button" title="Create and copy a tracked short link"><span class="share-platform-name">copy link</span><code class="share-copy-url" id="shareCopyUrl">/vibes/aie2026/</code></button>
+      </div>
+      <p class="share-status" id="shareStatus"></p>
+    </section>
     <div class="method">
       <details>
         <summary class="meta">method</summary>
@@ -473,13 +1214,13 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
         </div>
       </div>
     </div>
+    <p class="made-by">Made with <span class="made-heart" aria-hidden="true">♥</span> by <a href="https://github.com/erniesg" target="_blank" rel="noreferrer">erniesg</a></p>
   </aside>
   <main class="main">
     <section class="hero">
       <p class="eyebrow">synthesis</p>
       <h2>A country building in public.</h2>
       <p class="lede" id="lede">Loading recap...</p>
-      <div class="synthesis" id="synthesis"></div>
       <div class="metrics" id="metrics"></div>
       <p class="freshness" id="freshness">last updated pending</p>
       <div class="wall" id="wall"></div>
@@ -495,7 +1236,7 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
   <div class="media-dialog">
     <div class="media-viewer-bar">
       <span class="meta" id="mediaViewerMeta"></span>
-      <span><a id="mediaViewerSource" href="#" target="_blank" rel="noreferrer">source</a> <button type="button" id="mediaViewerClose">close</button></span>
+      <span><a id="mediaViewerSource" href="#" target="_blank" rel="noreferrer">source</a> <a id="mediaViewerDownload" href="#" download>download</a> <button type="button" id="mediaViewerClose">close</button></span>
     </div>
     <div class="media-body">
       <div class="media-stage" id="mediaViewerStage"></div>
@@ -504,7 +1245,7 @@ a{color:inherit;text-underline-offset:3px;text-decoration-thickness:.08em}button
   </div>
 </div>
 <script>
-const state={data:null,tab:'clusters',mediaPage:0,query:'',selectedTheme:null,coverageFilters:[],mediaTimer:null,mediaAutoPausedUntil:0};
+const state={data:null,tab:'clusters',mediaPage:0,query:'',selectedTheme:null,selectedAtlasPost:null,coverageFilters:[],mediaTimer:null,mediaAutoPausedUntil:0,brokenMediaKeys:new Set(),atlasMode:'clusters'};
 const tabs=['clusters','refs','timeline','voices','media'];
 const AUTO_MEDIA_MS=5200;
 const MANUAL_MEDIA_PAUSE_MS=16000;
@@ -512,9 +1253,38 @@ const $=(id)=>document.getElementById(id);
 const fmt=(n)=>n==null?'0':Intl.NumberFormat('en',{notation:n>=10000?'compact':'standard',maximumFractionDigits:1}).format(n);
 const date=(v)=>v?new Date(v).toLocaleDateString('en-SG',{day:'numeric',month:'short',year:'numeric'}):'date pending';
 const dateTime=(v)=>v?new Date(v).toLocaleString('en-SG',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Asia/Singapore',timeZoneName:'short'}):'time pending';
+const SHARE_IMAGE_PATH='${AIE_RECAP_SOCIAL_IMAGE_PATH}';
+const SHARE_TARGET={objectType:'vibes_page',objectId:'aie2026',slug:'aie2026',canonicalPath:'/vibes/aie2026/',title:'AI Engineer Singapore public recap',description:${JSON.stringify(AIE_SHARE_DESCRIPTION)},imageUrl:new URL(SHARE_IMAGE_PATH,location.origin).toString()};
+const FEATURED_MEDIA=[{mediaKey:'aie2026-eventrecap-visual',path:'${AIE_RECAP_IMAGE_KEY}',type:'image',source:'aether-recap',contentType:'image/png',width:1672,height:941,bytes:2567983,title:'AI Engineer Singapore recap visual',postText:'AI Engineer Singapore recap visual',postAuthor:'@erniesg',postPlatform:'recap',postReachScore:999999,refCount:1}];
+const SHARE_TEXT=${JSON.stringify(AIE_SHARE_TEXT)};
+const SHARE_HASHTAGS=['AIE2026','AIEngineer','Singapore'];
+const SHARE_HASHTAG_TEXT=SHARE_HASHTAGS.map(tag=>'#'+tag).join(' ');
+const PUBLIC_CANONICAL_URL='https://aether.berlayar.ai/vibes/aie2026/';
+const SHARE_SHORT_URL_PLACEHOLDER='https://s.berlayar.ai/xxxx';
+let latestCopyUrl='';
+let latestCopyCode='';
+function shortSharePreviewUrl(){try{const host=location.hostname;if(host==='localhost'||host==='127.0.0.1'||host==='::1')return new URL('/xxxx',location.origin).toString();if(host==='aether.berlayar.ai')return SHARE_SHORT_URL_PLACEHOLDER;const staging=host.match(/^aether-(.+)\\.berlayar\\.ai$/);if(staging)return 'https://s-'+staging[1]+'.berlayar.ai/xxxx'}catch(err){}return SHARE_SHORT_URL_PLACEHOLDER}
+function isLocalShareUrl(url){try{const host=new URL(url).hostname;return host==='localhost'||host==='127.0.0.1'||host==='::1'}catch{return false}}
+function socialShareUrl(link,platform){return isLocalShareUrl(link.shortUrl)?PUBLIC_CANONICAL_URL:link.shortUrl}
+function setShareStatus(message){const node=$('shareStatus');if(node)node.textContent=message||''}
+function setShareCopyUrl(url){const node=$('shareCopyUrl');if(node)node.textContent=url||shortSharePreviewUrl()}
+function setShareBusy(busy){document.querySelectorAll('[data-share-platform],#shareNative,#shareCopyCurrent').forEach(node=>{node.disabled=!!busy})}
+function sharePostCopy(){return [SHARE_TEXT,SHARE_HASHTAG_TEXT].filter(Boolean).join('\\n')}
+function shareCaption(url){return [SHARE_TEXT,url,SHARE_HASHTAG_TEXT].filter(Boolean).join('\\n')}
+function platformShareUrl(platform,url){if(platform==='x'){const u=new URL('https://x.com/intent/tweet');u.searchParams.set('text',SHARE_TEXT);u.searchParams.set('url',url);u.searchParams.set('hashtags',SHARE_HASHTAGS.join(','));return u.toString()}if(platform==='linkedin'){const u=new URL('https://www.linkedin.com/feed/');u.searchParams.set('shareActive','true');u.searchParams.set('text',shareCaption(url));u.searchParams.set('shareUrl',url);return u.toString()}if(platform==='facebook'){const u=new URL('https://www.facebook.com/sharer/sharer.php');u.searchParams.set('u',url);u.searchParams.set('quote',sharePostCopy());return u.toString()}if(platform==='whatsapp'){const u=new URL('https://wa.me/');u.searchParams.set('text',shareCaption(url));return u.toString()}return null}
+async function recordInboundShareVisit(){const params=new URLSearchParams(location.search);const code=(params.get('aether_share')||params.get('share')||'').trim();if(!code)return;const key='aether.share.visit.'+code;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');const platform=['x','linkedin','facebook','whatsapp','telegram'].includes(params.get('utm_source')||'')?params.get('utm_source'):'unknown';await recordShareEvent('share_link_visit',platform,code)}
+async function createShareLink(platform){const res=await fetch('/vibes/aie2026/share/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:SHARE_TARGET,platform,shareText:SHARE_TEXT})});const json=await res.json();if(!json.ok||!json.link)throw new Error(json.error||('HTTP '+res.status));return json.link}
+async function recordShareEvent(eventType,platform,code){try{await fetch('/vibes/aie2026/share/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventType,platform,code,canonicalPath:SHARE_TARGET.canonicalPath})})}catch(err){}}
+async function writeClipboard(text){if(navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(text);return true}catch(err){}}const input=document.createElement('textarea');input.value=text;input.setAttribute('readonly','');input.style.position='fixed';input.style.left='-9999px';document.body.appendChild(input);input.select();let ok=false;try{ok=document.execCommand('copy')}catch(err){ok=false}input.remove();return ok}
+async function shareFacebookPlatform(){setShareBusy(true);setShareStatus('creating Facebook share');try{const link=await createShareLink('facebook');const outboundUrl=socialShareUrl(link,'facebook');const href=platformShareUrl('facebook',outboundUrl);if(!href)throw new Error('Share destination unavailable.');const copied=await writeClipboard(sharePostCopy());await recordShareEvent('platform_clicked','facebook',link.code);setShareStatus(copied?'post copy copied; paste it into Facebook':'opening Facebook');if(copied)alert('Post copy copied. Facebook will open next. Paste it into the Facebook composer before sharing.');location.href=href}catch(err){setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function sharePlatform(platform){if(platform==='facebook')return shareFacebookPlatform();const shareWindow=window.open('about:blank','_blank');setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink(platform);const outboundUrl=socialShareUrl(link,platform);const href=platformShareUrl(platform,outboundUrl);if(!href)throw new Error('Share destination unavailable.');let copiedCaption=false;if(platform==='linkedin')copiedCaption=await writeClipboard(shareCaption(outboundUrl));if(!shareWindow){setShareStatus('share window blocked');return}shareWindow.opener=null;shareWindow.location.href=href;await recordShareEvent('platform_clicked',platform,link.code);setShareStatus(copiedCaption?'caption copied; paste it into the composer':'share composer opened')}catch(err){if(shareWindow)shareWindow.close();setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function nativeShare(){setShareBusy(true);setShareStatus('creating link');try{const link=await createShareLink('native');if(navigator.share){await navigator.share({title:SHARE_TARGET.title,text:shareCaption(''),url:link.shortUrl});await recordShareEvent('native_share_success','native',link.code);setShareStatus('shared')}else{const copied=await writeClipboard(link.shortUrl);await recordShareEvent('copy_link','native',link.code);setShareStatus(copied?'short link copied':'short link ready')}}catch(err){await recordShareEvent('native_share_error','native');setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+async function copyTrackedShare(){setShareBusy(true);setShareStatus(latestCopyUrl?'copying link':'creating link');try{if(!latestCopyUrl){const link=await createShareLink('copy');latestCopyUrl=link.shortUrl;latestCopyCode=link.code;setShareCopyUrl(latestCopyUrl)}const copied=await writeClipboard(latestCopyUrl);await recordShareEvent('copy_link','copy',latestCopyCode);setShareStatus(copied?'short link copied':'short link ready')}catch(err){setShareStatus(err&&err.message?err.message:String(err))}finally{setShareBusy(false)}}
+document.querySelectorAll('[data-share-platform]').forEach(node=>{node.onclick=()=>sharePlatform(node.getAttribute('data-share-platform'))});
+$('shareNative').onclick=()=>nativeShare();$('shareCopyCurrent').onclick=()=>copyTrackedShare();setShareCopyUrl('');recordInboundShareVisit();
 const isImageUrl=(v)=>/\\.(jpe?g|png|webp|avif|gif)(\\?|$)/i.test(String(v||''));
 const isVideoUrl=(v)=>/\\.(mp4|webm|mov|m4v)(\\?|$)/i.test(String(v||''));
-const localMediaUrl=(m)=>m.path?'/vibes/aie2026/media?path='+encodeURIComponent(m.path):'';
+const localMediaUrl=(m)=>{if(!m.path)return'';const url=new URL('/vibes/aie2026/media',location.origin);url.searchParams.set('path',m.path);if(m.url&&/^https?:\\/\\//i.test(String(m.url)))url.searchParams.set('fallback',m.url);return url.pathname+url.search};
 const localImageUrl=(m)=>m.path&&isImageUrl(m.path)?localMediaUrl(m):'';
 const remoteImageUrl=(m)=>isImageUrl(m.previewUrl)?m.previewUrl:isImageUrl(m.url)?m.url:'';
 const imageUrl=(m)=>localImageUrl(m)||remoteImageUrl(m);
@@ -528,10 +1298,11 @@ function xVideoId(value){const match=String(value||'').match(/(?:amplify_video|e
 function youtubeId(value){const raw=String(value||'');const direct=raw.match(/(?:youtube\\.com\\/(?:watch\\?v=|embed\\/|shorts\\/|live\\/)|youtu\\.be\\/)([A-Za-z0-9_-]{6,})/i);if(direct)return direct[1];try{const u=new URL(raw);if(/(^|\\.)youtube\\.com$/i.test(u.hostname)){const v=u.searchParams.get('v');if(v)return v}}catch{}return''}
 const youtubeEmbedUrl=(m)=>{const id=youtubeId(m.postUrl)||youtubeId(m.url)||youtubeId(m.previewUrl);return id?'https://www.youtube.com/embed/'+encodeURIComponent(id)+'?autoplay=1&rel=0':''};
 const isPlayableMedia=(m)=>isVideoMedia(m)||Boolean(youtubeEmbedUrl(m));
+function markBrokenMedia(el){const tile=el&&el.closest?el.closest('[data-media-key]'):null;const key=tile&&tile.getAttribute('data-media-key');if(!key||state.brokenMediaKeys.has(key))return;state.brokenMediaKeys.add(key);if(tile)tile.remove();requestAnimationFrame(()=>{renderWall();renderContent()})}
 function canonicalMediaKey(m){const yt=youtubeId(m.postUrl)||youtubeId(m.url)||youtubeId(m.previewUrl);if(yt)return'youtube:'+yt;if(isVideoMedia(m)){const x=xVideoId(m.url)||xVideoId(m.previewUrl)||xVideoId(m.path);return'video:'+(x||m.hash||normalizedUrl(videoUrl(m))||normalizedUrl(m.url)||m.path)}const img=m.visualHash||(m.path&&isImageUrl(m.path)?m.hash:'')||normalizedUrl(imageUrl(m))||m.hash||m.path||m.url;return img?'image:'+img:''}
 const mediaKey=canonicalMediaKey;
-function mediaElement(m){const src=imageUrl(m);if(src){const fallback=remoteImageUrl(m);const onerror=localImageUrl(m)&&fallback&&fallback!==src?' onerror="this.onerror=null;this.src=\\''+escapeHtml(fallback)+'\\'"':' onerror="const p=this.closest(\\'.tile\\');if(p)p.remove()"';return'<img src="'+escapeHtml(src)+'" loading="lazy" alt="'+(isPlayableMedia(m)?'video preview':'')+'"'+onerror+'>'}const video=videoUrl(m);return video?'<video src="'+escapeHtml(video)+'" muted playsinline loop preload="metadata" onerror="const p=this.closest(\\'.tile\\');if(p)p.remove()"></video>':''}
-function mediaTile(m,classes=''){const key=m.mediaKey||canonicalMediaKey(m);const playable=isPlayableMedia(m);const label=playable?'play video':'open source post';return'<button type="button" class="tile '+escapeHtml(classes)+(playable?' is-video':'')+'" data-media-key="'+escapeHtml(key)+'" title="'+escapeHtml(label)+'" aria-label="'+escapeHtml(label)+'">'+mediaElement(m)+(playable?'<span class="tile-kind">'+(isVideoMedia(m)?'play':'watch')+'</span><span class="tile-play" aria-hidden="true"></span>':'')+'</button>'}
+function mediaElement(m){const src=imageUrl(m);if(src){const fallback=remoteImageUrl(m);const onerror=localImageUrl(m)&&fallback&&fallback!==src?' onerror="this.onerror=()=>markBrokenMedia(this);this.src=\\''+escapeHtml(fallback)+'\\'"':' onerror="markBrokenMedia(this)"';return'<img src="'+escapeHtml(src)+'" loading="lazy" alt="'+(isPlayableMedia(m)?'video preview':'')+'"'+onerror+'>'}const video=videoUrl(m);return video?'<video src="'+escapeHtml(video)+'" muted playsinline loop preload="metadata" onerror="markBrokenMedia(this)"></video>':''}
+function mediaTile(m,classes=''){const key=m.mediaKey||canonicalMediaKey(m);const playable=isPlayableMedia(m);const label=playable?'play video':'open media';return'<button type="button" class="tile '+escapeHtml(classes)+(playable?' is-video':'')+'" data-media-key="'+escapeHtml(key)+'" title="'+escapeHtml(label)+'" aria-label="'+escapeHtml(label)+'">'+mediaElement(m)+(playable?'<span class="tile-kind">'+(isVideoMedia(m)?'play':'watch')+'</span><span class="tile-play" aria-hidden="true"></span>':'')+'</button>'}
 const raw=(p)=> ((p.metrics||{}).likes||0)+((p.metrics||{}).reactions||0)+2*((p.metrics||{}).comments||0)+2*((p.metrics||{}).reposts||0)+2*((p.metrics||{}).replies||0)+((((p.metrics||{}).views??(p.metrics||{}).impressions)??0)/200);
 const score=(v,kind='eng')=>{const voice=kind==='voice';const help=voice?'Voice score highlights people with repeated high-signal refs and public engagement.':'Engagement score compares this ref with other refs on the same platform. 0 is typical; higher is above-platform average. Signals include public reactions, comments, reposts, and views where the platform exposes them.';return '<details class="score" title="'+help+'"><summary>'+kind+' '+Number(v||0).toFixed(2)+' ?</summary><div>'+help+(voice?'':'<br><br>LinkedIn impressions are not exposed here, so LinkedIn uses public reactions/comments/reposts only.')+'</div></details>'};
 const metricCard=(label,value,detail,help)=>'<details class="metric" title="'+escapeHtml(help)+'"><summary><b>'+fmt(value)+'</b><span>'+escapeHtml(label)+'</span><small>'+escapeHtml(detail)+' ?</small></summary><p class="metric-help">'+escapeHtml(help)+'</p></details>';
@@ -551,11 +1322,13 @@ function postLine(p){const media=(p.media||[]).filter(isRenderableMedia);const c
 function mediaStrip(p){const imgs=(p.media||[]).filter(isRenderableMedia);return imgs.length?'<div class="post-media">'+imgs.map((m)=>mediaTile({...m,postUrl:p.url,postId:p.postId,postText:p.text,postAuthor:p.authorHandle||p.authorName,postPlatform:p.platform,postReachScore:p.reachScore},'media-thumb')).join('')+'</div>':''}
 function mediaByKey(key){return state.data?.mediaByKey?.[key]||(state.data?.media||[]).find(m=>m.mediaKey===key)}
 function videoMime(m){const type=String(m.contentType||'');if(/^video\\//i.test(type))return type;const src=String(m.path||m.url||'').toLowerCase();if(src.endsWith('.webm'))return'video/webm';if(src.endsWith('.mov'))return'video/quicktime';return'video/mp4'}
-function mediaSourcePanel(m){const post=state.data?.postsById?.[m.postId]||{};const author=m.postAuthor||post.authorHandle||post.authorName||'unknown';const platform=m.postPlatform||post.platform||'source';const posted=postDateLabel(post)||date(m.postedAt);const text=decodeText(m.postText||post.text||'');const refs=(m.postIds||[]).map(id=>state.data?.postsById?.[id]).filter(Boolean);const sourceUrl=m.postUrl||post.url||m.postUrls?.[0]||'';const refLinks=refs.length>1?'<div class="source-ref-list">'+refs.slice(0,6).map((p,i)=>'<a href="'+escapeHtml(p.url||'#')+'" target="_blank" rel="noreferrer">source '+(i+1)+'</a>').join('')+(refs.length>6?'<span class="meta source-muted">+'+(refs.length-6)+' more</span>':'')+'</div>':'';return '<p class="eyebrow">source post</p><h3>'+escapeHtml(author)+'</h3><p class="meta">'+escapeHtml(platform)+' · '+escapeHtml(posted)+'</p>'+(text?'<p class="source-post-text">'+escapeHtml(text)+'</p>':'<p class="source-post-text source-muted">No source text captured for this post.</p>')+'<div class="source-actions">'+(sourceUrl?'<a href="'+escapeHtml(sourceUrl)+'" target="_blank" rel="noreferrer">open original</a>':'')+(mediaUrl(m)?'<a href="'+escapeHtml(mediaUrl(m))+'" target="_blank" rel="noreferrer">open media</a>':'')+'</div>'+refLinks}
-function openMedia(key){const m=mediaByKey(key);if(!m)return;const video=videoUrl(m);const embed=youtubeEmbedUrl(m);if(!video&&!embed){if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer');return}const stage=$('mediaViewerStage');const viewer=$('mediaViewer');const source=$('mediaViewerSource');const meta=$('mediaViewerMeta');const poster=imageUrl(m);if(video){stage.innerHTML='<video controls autoplay playsinline preload="metadata"'+(poster?' poster="'+escapeHtml(poster)+'"':'')+'><source src="'+escapeHtml(video)+'" type="'+escapeHtml(videoMime(m))+'"></video>'}else{stage.innerHTML='<iframe src="'+escapeHtml(embed)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>'}const sourceUrl=m.postUrl||mediaUrl(m);if(sourceUrl){source.href=sourceUrl;source.style.display='inline-block'}else{source.removeAttribute('href');source.style.display='none'}$('mediaViewerPost').innerHTML=mediaSourcePanel(m);meta.textContent=(isVideoMedia(m)?'local video':'video')+(m.postAuthor?' · '+m.postAuthor:m.postPlatform?' · '+m.postPlatform:'');viewer.classList.add('open');viewer.setAttribute('aria-hidden','false');$('mediaViewerClose').focus({preventScroll:true})}
+function downloadFileName(m){const raw=String(m.path||m.url||m.title||'media').split(/[?#]/)[0].split('/').filter(Boolean).pop()||'media';const ext=(raw.match(/\.[a-z0-9]{2,5}$/i)||[''])[0];const name=ext?raw:raw+(isVideoMedia(m)?'.mp4':'.jpg');return name.replace(/[^a-zA-Z0-9._-]/g,'-')}
+function mediaSourcePanel(m){const post=state.data?.postsById?.[m.postId]||{};const author=m.postAuthor||post.authorHandle||post.authorName||'unknown';const platform=m.postPlatform||post.platform||'source';const posted=postDateLabel(post)||date(m.postedAt);const text=decodeText(m.postText||post.text||'');const refs=(m.postIds||[]).map(id=>state.data?.postsById?.[id]).filter(Boolean);const sourceUrl=m.postUrl||post.url||m.postUrls?.[0]||'';const directMediaUrl=mediaUrl(m);const refLinks=refs.length>1?'<div class="source-ref-list">'+refs.slice(0,6).map((p,i)=>'<a href="'+escapeHtml(p.url||'#')+'" target="_blank" rel="noreferrer">source '+(i+1)+'</a>').join('')+(refs.length>6?'<span class="meta source-muted">+'+(refs.length-6)+' more</span>':'')+'</div>':'';return '<p class="eyebrow">'+(sourceUrl?'source post':'media asset')+'</p><h3>'+escapeHtml(author)+'</h3><p class="meta">'+escapeHtml(platform)+' · '+escapeHtml(posted)+'</p>'+(text?'<p class="source-post-text">'+escapeHtml(text)+'</p>':'<p class="source-post-text source-muted">No source text captured for this post.</p>')+'<div class="source-actions">'+(sourceUrl?'<a href="'+escapeHtml(sourceUrl)+'" target="_blank" rel="noreferrer">open original</a>':'')+(directMediaUrl?'<a href="'+escapeHtml(directMediaUrl)+'" target="_blank" rel="noreferrer">open media</a><a href="'+escapeHtml(directMediaUrl)+'" download="'+escapeHtml(downloadFileName(m))+'">download</a>':'')+'</div>'+refLinks}
+function openMedia(key){const m=mediaByKey(key);if(!m)return;const video=videoUrl(m);const embed=youtubeEmbedUrl(m);const image=imageUrl(m);if(!video&&!embed&&!image){if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer');return}const stage=$('mediaViewerStage');const viewer=$('mediaViewer');const source=$('mediaViewerSource');const download=$('mediaViewerDownload');const meta=$('mediaViewerMeta');const poster=imageUrl(m);if(video){stage.innerHTML='<video controls autoplay playsinline preload="metadata"'+(poster?' poster="'+escapeHtml(poster)+'"':'')+'><source src="'+escapeHtml(video)+'" type="'+escapeHtml(videoMime(m))+'"></video>'}else if(embed){stage.innerHTML='<iframe src="'+escapeHtml(embed)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>'}else if(image){stage.innerHTML='<img src="'+escapeHtml(image)+'" alt="'+escapeHtml(m.title||m.postText||'media asset')+'">'}const sourceUrl=m.postUrl||m.postUrls?.[0]||'';if(sourceUrl){source.href=sourceUrl;source.textContent='source';source.style.display='inline-block'}else{source.removeAttribute('href');source.style.display='none'}const directMediaUrl=mediaUrl(m);if(directMediaUrl){download.href=directMediaUrl;download.setAttribute('download',downloadFileName(m));download.style.display='inline-block'}else{download.removeAttribute('href');download.removeAttribute('download');download.style.display='none'}$('mediaViewerPost').innerHTML=mediaSourcePanel(m);meta.textContent=(isVideoMedia(m)?'local video':image?'image':'video')+(m.postAuthor?' · '+m.postAuthor:m.postPlatform?' · '+m.postPlatform:'');viewer.classList.add('open');viewer.setAttribute('aria-hidden','false');$('mediaViewerClose').focus({preventScroll:true})}
 function closeMedia(){const viewer=$('mediaViewer');viewer.classList.remove('open');viewer.setAttribute('aria-hidden','true');$('mediaViewerStage').innerHTML='';$('mediaViewerPost').innerHTML=''}
-document.addEventListener('click',(event)=>{const tile=event.target.closest&&event.target.closest('[data-media-key]');if(!tile)return;event.preventDefault();const key=tile.getAttribute('data-media-key');const m=mediaByKey(key);if(!m)return;if(isPlayableMedia(m))openMedia(key);else if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer')});
-document.addEventListener('keydown',(event)=>{if(event.key==='Escape')closeMedia()});
+document.addEventListener('click',(event)=>{const tile=event.target.closest&&event.target.closest('[data-media-key]');if(!tile)return;event.preventDefault();const key=tile.getAttribute('data-media-key');const m=mediaByKey(key);if(!m)return;if(isRenderableMedia(m))openMedia(key);else if(m.postUrl)window.open(m.postUrl,'_blank','noopener,noreferrer')});
+document.addEventListener('click',(event)=>{if(!state.selectedAtlasPost)return;if(event.target.closest&&event.target.closest('[data-atlas-post],[data-atlas-popover]'))return;state.selectedAtlasPost=null;renderContent()});
+document.addEventListener('keydown',(event)=>{if(event.key!=='Escape')return;if(state.selectedAtlasPost){state.selectedAtlasPost=null;renderContent();return}closeMedia()});
 $('mediaViewer').addEventListener('click',(event)=>{if(event.target===$('mediaViewer'))closeMedia()});
 $('mediaViewerClose').addEventListener('click',closeMedia);
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -563,7 +1336,7 @@ function filterSet(){return new Set(state.coverageFilters||[])}
 function postMatchesCoverage(p){const filters=filterSet();if(!filters.size)return true;return [...filters].some(filter=>filter==='videos'?((p.platform==='youtube'&&p.tags?.includes('youtube-video'))||(p.media||[]).some(isPlayableMedia)):p.platform===filter)}
 function mediaMatchesCoverage(m){const filters=filterSet();if(!filters.size)return true;const post=state.data.postsById[m.postId]||{};return [...filters].some(filter=>filter==='videos'?(isPlayableMedia(m)||(post.platform==='youtube'&&post.tags?.includes('youtube-video'))):m.postPlatform===filter)}
 function voiceMatchesCoverage(v){const filters=filterSet();if(!filters.size)return true;return [...filters].some(filter=>filter==='videos'?v.platform==='youtube':v.platform===filter)}
-function filteredMedia(){return (state.data?.media||[]).filter(mediaMatchesCoverage)}
+function filteredMedia(){return (state.data?.media||[]).filter(mediaMatchesCoverage).filter(m=>!state.brokenMediaKeys.has(m.mediaKey||canonicalMediaKey(m)))}
 function filteredPosts(){const q=state.query.toLowerCase();return state.data.posts.filter(p=>postMatchesCoverage(p)&&(!q||[p.text,p.authorName,p.authorHandle,p.platform].join(' ').toLowerCase().includes(q)))}
 function coverageName(){const names={x:'X',linkedin:'LinkedIn',youtube:'YouTube',videos:'video'};return (state.coverageFilters||[]).map(filter=>names[filter]).filter(Boolean).join(' + ')}
 function toggleCoverage(action){if(action==='clear'){state.coverageFilters=[]}else{const next=new Set(state.coverageFilters||[]);next.has(action)?next.delete(action):next.add(action);state.coverageFilters=[...next]}state.selectedTheme=null;state.mediaPage=0;render()}
@@ -577,9 +1350,11 @@ function postDateKey(p){return [p.platform,(p.authorHandle||p.authorName||'').to
 function hydratePostDates(posts){const dates=new Map();for(const p of posts){if(p.postedAt)dates.set(postDateKey(p),p.postedAt)}for(const p of posts){if(!p.postedAt&&dates.has(postDateKey(p)))p.postedAt=dates.get(postDateKey(p))}return posts}
 function mediaRank(m){return Number(m.postReachScore||0)+Math.log1p(Number(m.refCount||1))*2+(isPlayableMedia(m)?0.75:0)}
 function preferredMedia(left,right){if(isPlayableMedia(right)&&!isPlayableMedia(left))return right;if(isPlayableMedia(left)&&!isPlayableMedia(right))return left;const rightScore=Number(right.postReachScore||0);const leftScore=Number(left.postReachScore||0);if(rightScore!==leftScore)return rightScore>leftScore?right:left;const rightImage=imageUrl(right)?1:0;const leftImage=imageUrl(left)?1:0;if(rightImage!==leftImage)return rightImage>leftImage?right:left;return Number(right.bytes||0)>Number(left.bytes||0)?right:left}
-function buildMediaLibrary(posts){const groups=new Map();let localMediaTotal=0;for(const p of posts){for(const source of p.media||[]){if(source.path)localMediaTotal++;const hydrated={...source,postUrl:p.url,postId:p.postId,postText:p.text,postAuthor:p.authorHandle||p.authorName,postPlatform:p.platform,postReachScore:p.reachScore,postedAt:p.postedAt||p.capturedAt||p.updatedAt};if(!isRenderableMedia(hydrated))continue;const key=canonicalMediaKey(hydrated);if(!key)continue;const existing=groups.get(key);if(existing){const refCount=Number(existing.refCount||1)+1;const postIds=uniqList(existing.postIds||[],[p.postId]);const postUrls=uniqList(existing.postUrls||[],[p.url]);const chosen=preferredMedia(existing,hydrated);groups.set(key,{...chosen,mediaKey:key,refCount,postIds,postUrls})}else{groups.set(key,{...hydrated,mediaKey:key,refCount:1,postIds:[p.postId],postUrls:[p.url]})}}}const media=Array.from(groups.values()).sort((a,b)=>(mediaRank(b)-mediaRank(a))||(Number(b.bytes||0)-Number(a.bytes||0))||String(a.mediaKey).localeCompare(String(b.mediaKey)));return{media,localMediaTotal}}
+function buildMediaLibrary(posts,mediaItems=[]){const groups=new Map();let localMediaTotal=0;const addMedia=(source,post)=>{if(source.path)localMediaTotal++;const hydrated={...source,postUrl:source.postUrl||post?.url||'',postId:source.postId||post?.postId||source.mediaKey,postText:source.postText||post?.text||source.title||'',postAuthor:source.postAuthor||post?.authorHandle||post?.authorName||source.authorName||'',postPlatform:source.postPlatform||post?.platform||source.platform||'media',postReachScore:source.postReachScore??post?.reachScore??0,postedAt:source.postedAt||post?.postedAt||post?.capturedAt||post?.updatedAt};if(!isRenderableMedia(hydrated))return;const key=hydrated.mediaKey||canonicalMediaKey(hydrated);if(!key)return;const existing=groups.get(key);if(existing){const refCount=Number(existing.refCount||1)+Number(hydrated.refCount||1);const postIds=uniqList(existing.postIds||[],[hydrated.postId]);const postUrls=uniqList(existing.postUrls||[],[hydrated.postUrl]);const chosen=preferredMedia(existing,hydrated);groups.set(key,{...chosen,mediaKey:key,refCount,postIds,postUrls})}else{groups.set(key,{...hydrated,mediaKey:key,refCount:Number(hydrated.refCount||1),postIds:hydrated.postId?[hydrated.postId]:[],postUrls:hydrated.postUrl?[hydrated.postUrl]:[]})}};for(const source of mediaItems||[])addMedia(source,null);for(const p of posts){if(p.rowType&&p.rowType!=='parent')continue;if(p.isClusterRoot===false)continue;for(const source of p.media||[])addMedia(source,p)}const media=Array.from(groups.values()).sort((a,b)=>(mediaRank(b)-mediaRank(a))||(Number(b.bytes||0)-Number(a.bytes||0))||String(a.mediaKey).localeCompare(String(b.mediaKey)));return{media,localMediaTotal}}
 function mediaStoryKey(m){const p=state.data?.postsById?.[m.postId]||{};return p.primaryStoryId||(p.storyMentions||[])[0]?.storyId||m.postPlatform||'media'}
-function wallMediaOrder(media){const rest=media.slice();const ordered=[];const recent=[];while(rest.length){let index=rest.findIndex(m=>!recent.includes(mediaStoryKey(m)));if(index<0)index=0;const next=rest.splice(index,1)[0];ordered.push(next);recent.push(mediaStoryKey(next));if(recent.length>4)recent.shift()}return ordered}
+function mediaGroupKey(m){return (m.postIds||[])[0]||m.postId||(m.postUrls||[])[0]||m.postUrl||m.mediaKey||canonicalMediaKey(m)||mediaStoryKey(m)}
+function mediaGroupRank(items){return Math.max(...items.map(mediaRank))}
+function wallMediaOrder(media){const groups=new Map();for(const item of media){const key=mediaGroupKey(item);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item)}return Array.from(groups.values()).map(items=>items.sort((a,b)=>(mediaRank(b)-mediaRank(a))||(Number(b.bytes||0)-Number(a.bytes||0))||String(a.mediaKey).localeCompare(String(b.mediaKey)))).sort((a,b)=>(mediaGroupRank(b)-mediaGroupRank(a))||String(mediaGroupKey(a[0])).localeCompare(String(mediaGroupKey(b[0])))).flat()}
 const DISPLAY_THEME_OVERRIDES={
 'story-vivian-builder-keynote':{label:'Vivian Balakrishnan\\'s builder keynote',summary:'The largest story is the foreign minister showing his own AI workflow: Raspberry Pi, NanoClaw, WhatsApp, second-brain use cases, and the line about not governing technology you have only been briefed on.'},
 'atlas-04-kaspar-hidayat-ivan-leo-love':{label:'Student tickets and organizer love',summary:'Student scholarship posts, organizer thank-yous, and warm attendee recaps point to the community layer around the conference. Some general recaps sit here because they name the same organizers and student-ticket story.'},
@@ -628,33 +1403,40 @@ while(new Set(componentMap.values()).size>1){const bridge=ranked.find(pair=>comp
 for(const node of nodes){while((linkCounts.get(node.themeId)||0)<2){const extra=ranked.find(pair=>(pair.source===node||pair.target===node)&&!linkKeys.has(keyFor(pair))&&(linkCounts.get(pair.source.themeId)||0)<4&&(linkCounts.get(pair.target.themeId)||0)<4);if(!addLink(extra,true))break}}
 return{nodes,links}
 }
-function renderAtlas(themes=state.data.themes||[]){const atlas=buildAtlasLayout(themes);const storyCount=themes.length;const lanes='<div class="atlas-lanes">'+ATLAS_LANES.map(l=>'<div class="atlas-lane"><span>'+escapeHtml(l.label)+'</span></div>').join('')+'</div>';const lines=atlas.links.map(link=>'<line x1="'+(link.source.x*100).toFixed(2)+'" y1="'+(link.source.y*100).toFixed(2)+'" x2="'+(link.target.x*100).toFixed(2)+'" y2="'+(link.target.y*100).toFixed(2)+'" stroke="#de7340" stroke-width="'+(link.bridge?Math.max(.7,link.similarity*2.8):Math.max(.5,link.similarity*3.2)).toFixed(2)+'" opacity="'+(link.bridge?Math.min(.4,.12+link.similarity):Math.min(.7,.14+link.similarity)).toFixed(2)+'"/>').join('');const nodes=atlas.nodes.map(node=>'<button class="atlas-node '+(state.selectedTheme===node.themeId?'selected':'')+'" data-theme-node="'+escapeHtml(node.themeId)+'" title="'+escapeHtml(node.lane.label)+'" style="left:'+(node.x*100).toFixed(2)+'%;top:'+(node.y*100).toFixed(2)+'%;width:'+node.width+'px;--node-title:'+node.titleSize+'px;--node-pad:'+node.pad+'px"><h4><span class="atlas-dot"></span>'+escapeHtml(node.label)+'</h4><span class="meta">'+node.count+' refs</span></button>').join('');return '<section class="atlas" data-testid="cluster-distance-map"><div class="atlas-head"><div><p class="eyebrow">story map</p><h2>How the event stories sit together</h2><p>Columns are story families, not a hierarchy. Bigger cards have more refs. Lines show the strongest overlaps, plus nearest bridges so small story pockets do not float alone.</p><div class="atlas-key"><span>columns = story family</span><span>size = ref count</span><span>lines = overlap + bridge</span><span>no line != unrelated</span></div></div><div class="atlas-map">'+lanes+'<svg class="atlas-links" viewBox="0 0 100 100" preserveAspectRatio="none">'+lines+'</svg>'+nodes+'</div><details class="atlas-method"><summary>how this map works</summary><p>Grouped for reading, not literal coordinates. Primary refs are assigned to '+fmt(storyCount)+' whole-post stories. Broad recaps stay intact instead of being split; secondary story mentions are kept on the post. Lines are computed from local term vectors over labels, summaries, keywords, author handles, tags, and sample refs; each story gets up to two strongest overlap links, then disconnected or one-edge pockets get their nearest outside bridge.</p></details></section>'}
-function bindClusterControls(){document.querySelectorAll('[data-theme-node],[data-cluster-open]').forEach(node=>{node.onclick=()=>{const id=node.getAttribute('data-theme-node')||node.getAttribute('data-cluster-open');state.selectedTheme=state.selectedTheme===id?null:id;renderContent()}});document.querySelectorAll('[data-clear-theme]').forEach(node=>{node.onclick=()=>{state.selectedTheme=null;renderContent()}})}
+function hash01(value,salt){let h=2166136261;const text=String(value||'')+'|'+String(salt||'');for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0)/4294967295}
+function atlasPostNodes(themes,atlas){const byTheme=new Map(atlas.nodes.map(node=>[node.themeId,node]));const buckets=new Map();for(const theme of themes){const lane=(byTheme.get(theme.themeId)?.lane||atlasLaneFor(theme));if(!buckets.has(lane.id))buckets.set(lane.id,[]);buckets.get(lane.id).push(theme)}const centers=new Map();for(const list of buckets.values()){list.sort((a,b)=>(byTheme.get(a.themeId)?.y||0)-(byTheme.get(b.themeId)?.y||0));list.forEach((theme,i)=>centers.set(theme.themeId,.16+((i+.5)/Math.max(1,list.length))*.68))}const seen=new Set();const maxReach=Math.max(1,...state.data.posts.map(p=>Number(p.reachScore||0)));const nodes=[];for(const theme of themes){const cluster=byTheme.get(theme.themeId);const lane=cluster?.lane||atlasLaneFor(theme);const ids=(theme.postIds||[]).filter(id=>!seen.has(id)&&state.data.postsById[id]).sort((a,b)=>hash01(a,'order')-hash01(b,'order'));const rootIds=new Set(theme.rootPostIds&&theme.rootPostIds.length?theme.rootPostIds:theme.postIds||[]);const centerX=cluster?.x||lane.x;const centerY=centers.get(theme.themeId)||.5;const rx=Math.min(.105,Math.max(.048,.012*Math.sqrt(ids.length)));const ry=Math.min(.22,Math.max(.085,.03*Math.sqrt(ids.length)),centerY-.09,.94-centerY);ids.forEach((id,index)=>{const post=state.data.postsById[id];seen.add(id);const context=!rootIds.has(id)||post.isClusterRoot===false;const radius=Math.sqrt((index+.5)/Math.max(1,ids.length));const angle=index*2.399963229728653+hash01(theme.themeId,'angle')*6.283185307179586;const x=clamp(centerX+Math.cos(angle)*radius*rx,lane.x-.108,lane.x+.108);const y=centerY+Math.sin(angle)*radius*ry;const reach=Number(post.reachScore||0);const dot=3.6+Math.min(4.8,Math.sqrt(reach/maxReach)*4.8);nodes.push({post,theme,x,y,dot,context})})}return nodes}
+function atlasPostTitle(item){const p=item.post;return '['+String(p.platform||'ref')+'] '+String(p.authorHandle||p.authorName||'unknown')+' · '+String(item.theme.label||'story')+' · '+decodeText(p.text||'').replace(/\\s+/g,' ').slice(0,180)}
+function renderAtlasPostMedia(p){const media=(p.media||[]).filter(isRenderableMedia).slice(0,3);if(!media.length)return'';return '<div class="atlas-popover-media">'+media.map(m=>mediaTile({...m,postUrl:p.url,postId:p.postId,postText:p.text,postAuthor:p.authorHandle||p.authorName,postPlatform:p.platform,postReachScore:p.reachScore},'')).join('')+'</div>'}
+function renderAtlasPostPopover(item){if(!item)return'';const p=item.post;const text=decodeText(p.text||'').replace(/\\s+/g,' ').trim();const author=p.authorHandle||p.authorName||'unknown';const left=clamp(item.x*100,14,86);const top=clamp(item.y*100,18,82);const popX=left>70?'-100%':left<30?'0':'-50%';const popY=top>62?'-100%':'12px';return '<aside class="atlas-popover" data-atlas-popover style="left:'+left.toFixed(2)+'%;top:'+top.toFixed(2)+'%;--pop-x:'+popX+';--pop-y:'+popY+'"><button class="atlas-close" data-atlas-close aria-label="close post preview">x</button><p class="eyebrow">source post</p><h3>'+escapeHtml(author)+'</h3><p class="meta">'+escapeHtml(String(p.platform||'ref'))+' · '+escapeHtml(postDateLabel(p))+'</p><p class="atlas-popover-text">'+escapeHtml(text||'No source text captured.')+'</p>'+renderAtlasPostMedia(p)+'<div class="atlas-popover-actions"><button class="primary" data-cluster-open="'+escapeHtml(item.theme.themeId)+'">view cluster</button>'+(p.url?'<a href="'+escapeHtml(p.url)+'" target="_blank" rel="noreferrer">open original</a>':'')+'</div></aside>'}
+function renderAtlas(themes=state.data.themes||[]){const atlas=buildAtlasLayout(themes);const storyCount=themes.length;const mode=state.atlasMode==='posts'?'posts':'clusters';const lanes='<div class="atlas-lanes '+mode+'">'+ATLAS_LANES.map(l=>'<div class="atlas-lane"><span>'+escapeHtml(l.label)+'</span></div>').join('')+'</div>';const lines=atlas.links.map(link=>'<line x1="'+(link.source.x*100).toFixed(2)+'" y1="'+(link.source.y*100).toFixed(2)+'" x2="'+(link.target.x*100).toFixed(2)+'" y2="'+(link.target.y*100).toFixed(2)+'" stroke="#de7340" stroke-width="'+(link.bridge?Math.max(.7,link.similarity*2.8):Math.max(.5,link.similarity*3.2)).toFixed(2)+'" opacity="'+(link.bridge?Math.min(.4,.12+link.similarity):Math.min(.7,.14+link.similarity)).toFixed(2)+'"/>').join('');const clusterNodes=atlas.nodes.map(node=>'<button class="atlas-node '+(state.selectedTheme===node.themeId?'selected':'')+'" data-theme-node="'+escapeHtml(node.themeId)+'" title="'+escapeHtml(node.lane.label)+'" style="left:'+(node.x*100).toFixed(2)+'%;top:'+(node.y*100).toFixed(2)+'%;width:'+node.width+'px;--node-title:'+node.titleSize+'px;--node-pad:'+node.pad+'px"><h4><span class="atlas-dot"></span>'+escapeHtml(node.label)+'</h4><span class="meta">'+node.count+' refs</span></button>').join('');const postNodes=mode==='posts'?atlasPostNodes(themes,atlas):[];const selectedPost=postNodes.find(item=>item.post.postId===state.selectedAtlasPost);const posts=postNodes.map(item=>'<button class="atlas-post '+escapeHtml(String(item.post.platform||''))+' '+(item.context?'context':'')+' '+(state.selectedAtlasPost===item.post.postId?'selected':'')+'" data-atlas-post="'+escapeHtml(item.post.postId)+'" aria-label="'+escapeHtml(atlasPostTitle(item))+'" style="left:'+(item.x*100).toFixed(2)+'%;top:'+(item.y*100).toFixed(2)+'%;--dot:'+item.dot.toFixed(1)+'px"></button>').join('');const key=mode==='posts'?'<span>dot = individual ref</span><span>color = source</span><span>dim = context ref</span><span>click dot = preview post</span>':'<span>columns = story family</span><span>size = ref count</span><span>lines = overlap + bridge</span><span>no line != unrelated</span>';const help=mode==='posts'?'Click a dot to inspect the source post in place. Dots are grouped by story family and spread with reserved vertical space so dense stories do not collapse into a row.':'Columns are story families, not a hierarchy. Bigger cards have more refs. Lines show the strongest overlaps, plus nearest bridges so small story pockets do not float alone.';const mapBody=lanes+(mode==='posts'?'':'<svg class="atlas-links" viewBox="0 0 100 100" preserveAspectRatio="none">'+lines+'</svg>')+(mode==='posts'?posts+renderAtlasPostPopover(selectedPost)+'<div class="atlas-post-count">'+fmt(postNodes.length)+' visible refs</div>':clusterNodes);return '<section class="atlas" data-testid="cluster-distance-map"><div class="atlas-head"><div class="atlas-title-row"><div><p class="eyebrow">story map</p><h2>How the event stories sit together</h2></div></div><div class="atlas-key"><div class="atlas-toggle" aria-label="story map mode"><button data-atlas-mode="clusters" class="'+(mode==='clusters'?'active':'')+'">clusters</button><button data-atlas-mode="posts" class="'+(mode==='posts'?'active':'')+'">posts</button></div><details class="atlas-help"><summary aria-label="story map details">?</summary><p>'+escapeHtml(help)+'</p></details>'+key+'</div></div><div class="atlas-map">'+mapBody+'</div><details class="atlas-method"><summary>how this map works</summary><p>Grouped for reading, not literal coordinates. Refs are assigned to '+fmt(storyCount)+' whole-post stories. Broad recaps stay intact instead of being split; secondary story mentions are kept on the post. Cluster mode sizes cards by ref count and shows display-only overlap links. Posts mode places each visible ref inside its assigned story region with reserved vertical room; context refs are dimmed.</p></details></section>'}
+function bindClusterControls(){document.querySelectorAll('[data-atlas-post]').forEach(node=>{node.onclick=()=>{state.selectedAtlasPost=node.getAttribute('data-atlas-post');renderContent()}});document.querySelectorAll('[data-theme-node],[data-cluster-open]').forEach(node=>{node.onclick=()=>{const id=node.getAttribute('data-theme-node')||node.getAttribute('data-cluster-open');state.selectedTheme=state.selectedTheme===id?null:id;state.selectedAtlasPost=null;renderContent()}});document.querySelectorAll('[data-atlas-mode]').forEach(node=>{node.onclick=()=>{state.atlasMode=node.getAttribute('data-atlas-mode')==='posts'?'posts':'clusters';state.selectedAtlasPost=null;renderContent()}});document.querySelectorAll('[data-atlas-close]').forEach(node=>{node.onclick=()=>{state.selectedAtlasPost=null;renderContent()}});document.querySelectorAll('[data-clear-theme]').forEach(node=>{node.onclick=()=>{state.selectedTheme=null;state.selectedAtlasPost=null;renderContent()}})}
 function themePosts(t){return (t.postIds||[]).map(id=>state.data.postsById[id]).filter(Boolean).sort((a,b)=>((b.reachScore||0)-(a.reachScore||0))||(postTime(b)-postTime(a)))}
-function themeMedia(posts,limit){return buildMediaLibrary(posts).media.slice(0,limit)}
+function themeEvidencePosts(t){const ids=(t.rootPostIds&&t.rootPostIds.length?t.rootPostIds:t.postIds)||[];const posts=ids.map(id=>state.data.postsById[id]).filter(Boolean).sort((a,b)=>((b.reachScore||0)-(a.reachScore||0))||(postTime(b)-postTime(a)));return posts.length?posts:themePosts(t)}
+function themeMedia(posts,limit){return buildMediaLibrary(posts).media.filter(m=>!state.brokenMediaKeys.has(m.mediaKey||canonicalMediaKey(m))).slice(0,limit)}
 function clusterCountChips(total){return '<span class="chip" title="refs in this story cluster">'+fmt(total)+' refs</span>'}
 function renderClusterDetail(t){if(!t)return'';const posts=themePosts(t);const q=state.query.toLowerCase();const shown=posts.filter(p=>!q||[p.text,p.authorName,p.authorHandle,p.platform].join(' ').toLowerCase().includes(q));const rootCount=(t.rootPostIds||t.postIds||[]).length;const attachedCount=(t.attachedPostIds||[]).length;const media=themeMedia(posts,18);return '<section class="cluster-detail" data-testid="cluster-detail"><div class="cluster-actions"><div><p class="eyebrow">cluster detail</p><h2>'+escapeHtml(t.label)+'</h2></div><button class="ghost" data-clear-theme>back to all clusters</button></div><div class="tags">'+platformMix(t.postIds||[])+clusterCountChips(posts.length,rootCount,attachedCount)+'</div><p class="lede">'+escapeHtml(t.summary||'')+'</p>'+(media.length?'<div class="cluster-media">'+media.map(m=>mediaTile(m)).join('')+'</div>':'')+'<div class="cluster-posts-head"><span class="meta">refs ordered by platform-normalized engagement score, then newer posts</span><span class="meta">'+shown.length+' shown</span></div><div class="cluster-posts">'+shown.map(postLine).join('')+'</div></section>'}
-function renderClusterCard(t,i){const posts=themePosts(t);const rootCount=(t.rootPostIds||t.postIds||[]).length;const attachedCount=(t.attachedPostIds||[]).length;const media=themeMedia(posts,4);const selected=state.selectedTheme===t.themeId;return '<div class="card cluster-card '+(selected?'selected':i<2?'hot':'')+'" data-cluster-card="'+escapeHtml(t.themeId)+'"><div class="row"><h3>'+escapeHtml(t.label)+'</h3>'+clusterCountChips(posts.length,rootCount,attachedCount)+'</div><div class="tags">'+platformMix(t.postIds||[])+'</div><p>'+escapeHtml(t.summary||'')+'</p>'+(media.length?'<div class="post-media">'+media.map(m=>mediaTile(m,'media-thumb')).join('')+'</div>':'')+'<div class="card-actions"><button class="open-cluster" data-cluster-open="'+escapeHtml(t.themeId)+'" aria-label="view posts for '+escapeHtml(t.label)+'">view posts</button></div><div class="snips">'+posts.slice(0,3).map(p=>'<p class="snip">['+p.platform+'] '+escapeHtml((p.authorHandle||p.authorName||'unknown')+': '+decodeText(p.text).slice(0,180))+'...</p>').join('')+'</div></div>'}
+function renderClusterCard(t,i){const posts=themePosts(t);const evidencePosts=themeEvidencePosts(t);const rootCount=(t.rootPostIds||t.postIds||[]).length;const attachedCount=(t.attachedPostIds||[]).length;const media=themeMedia(evidencePosts,4);const selected=state.selectedTheme===t.themeId;return '<div class="card cluster-card '+(selected?'selected':i<2?'hot':'')+'" data-cluster-card="'+escapeHtml(t.themeId)+'"><div class="row"><h3>'+escapeHtml(t.label)+'</h3>'+clusterCountChips(posts.length,rootCount,attachedCount)+'</div><div class="tags">'+platformMix(t.postIds||[])+'</div><p>'+escapeHtml(t.summary||'')+'</p>'+(media.length?'<div class="post-media">'+media.map(m=>mediaTile(m,'media-thumb')).join('')+'</div>':'')+'<div class="card-actions"><button class="open-cluster" data-cluster-open="'+escapeHtml(t.themeId)+'" aria-label="view posts for '+escapeHtml(t.label)+'">view posts</button></div><div class="snips">'+evidencePosts.slice(0,3).map(p=>'<p class="snip">['+p.platform+'] '+escapeHtml((p.authorHandle||p.authorName||'unknown')+': '+decodeText(p.text).slice(0,180))+'...</p>').join('')+'</div></div>'}
 function renderMethodology(){
 const d=state.data;const cov=clusterCoverage();const m=d.methodology||{};const tiers=d.stats?.relevanceTiers||{};const q=m.querySet||d.querySet||{};const x=q.x||[];const exp=m.expansionQueries||[];const yt=m.youtubeSources||[];const sources=m.sourceLinks||[];const cq=d.clustering;const rawCount=cq?.rawClusterCount||cq?.elbowClusterCount||cq?.clusterCount;
 const candidates=(cq?.candidateScores||[]).map(v=>'<li>'+v.clusterCount+' clusters: silhouette '+Number(v.silhouetteScore||0).toFixed(4)+' · inertia '+Number(v.inertia||0).toFixed(4)+' · elbow '+Number(v.elbowScore||0).toFixed(2)+'</li>').join('');
 const relevanceRule='<details><summary class="meta">relevance rule</summary><ul><li>Refs need an AIE Singapore anchor plus substantive event evidence: program, speaker, sponsor, workshop, demo, media, logistics, or recap detail.</li><li>Context refs are replies, comments, photos, logistics, hallway notes, hashtag coordination, or source-media texture attached to a story.</li><li>Incidental attendance or adjacent AI-in-Singapore posts are excluded unless they add source media, useful logistics, speaker/program context, or concrete event texture.</li></ul></details>';
-const clusterDetails=cq?'<details><summary class="meta">cluster details</summary><ul><li>'+fmt(cov.rootRefs)+' primary refs + '+fmt(cov.attachedRefs)+' context refs</li><li>Visible clusters use deterministic whole-post story assignment with precedence checks, not raw TF-IDF labels.</li><li>'+fmt(cq.storyAssignment?.broadRecapRefs||0)+' broad recaps kept intact; '+fmt(cq.storyAssignment?.multiMentionRefs||0)+' refs carry secondary story mentions.</li><li>Story-map lines start from local term-vector overlap; disconnected or one-edge pockets get a nearest bridge so the map stays readable.</li></ul></details><details><summary class="meta">technical diagnostics</summary><ul><li>TF-IDF is retained as a diagnostic baseline for overlap, not as the public cluster label source.</li><li>Map bridges are display aids, not extra cluster membership or evidence of duplicate posts.</li><li>diagnostic silhouette '+Number(cq.silhouetteScore||0).toFixed(4)+' · inertia '+Number(cq.inertia||0).toFixed(4)+'</li>'+candidates+'</ul></details>':'';
+const clusterDetails=cq?'<details><summary class="meta">cluster details</summary><ul><li>'+fmt(cov.rootRefs)+' primary refs + '+fmt(cov.attachedRefs)+' context refs</li><li>Visible clusters use deterministic whole-post story assignment with semantic delta checks against the deployed recap scaffold.</li><li>'+fmt(cq.storyAssignment?.broadRecapRefs||0)+' broad recaps kept intact; '+fmt(cq.storyAssignment?.multiMentionRefs||0)+' refs carry secondary story mentions.</li><li>Story-map lines are display aids for reading related stories; disconnected or one-edge pockets get a nearest bridge so the map stays readable.</li></ul></details><details><summary class="meta">technical diagnostics</summary><ul><li>Semantic review diagnostics surface possible drift, ambiguous story fit, and cluster-shape signals without changing public story membership.</li><li>Map bridges are display aids, not extra cluster membership or evidence of duplicate posts.</li><li>diagnostic silhouette '+Number(cq.silhouetteScore||0).toFixed(4)+' · inertia '+Number(cq.inertia||0).toFixed(4)+'</li>'+candidates+'</ul></details>':'';
 const sourceDetails=sources.length?'<details><summary class="meta">source links</summary><ul>'+sources.map(v=>'<li><a href="'+v.url+'" target="_blank" rel="noreferrer">'+escapeHtml(v.label||v.url)+'</a>'+(v.note?' <span class="meta">'+escapeHtml(v.note)+'</span>':'')+'</li>').join('')+'</ul></details>':'';
 $('methodDetails').innerHTML='<div class="method-facts"><span>sources '+date(m.sourceDateRange?.start)+' - '+date(m.sourceDateRange?.end)+'</span><span>'+fmt(tiers.core||cov.rootRefs)+' core · '+fmt(tiers.context||0)+' context</span><span>'+fmt(cov.rootRefs)+' primary refs -> '+(d.themes||[]).length+' story clusters</span><span>whole posts retained; recaps can mention multiple stories</span></div>'+relevanceRule+clusterDetails+sourceDetails+'<details><summary class="meta">query seeds</summary><ul>'+x.concat(exp).slice(0,40).map(v=>'<li><code>'+escapeHtml(v)+'</code></li>').join('')+'</ul></details><details><summary class="meta">youtube sources</summary><ul>'+yt.map(v=>'<li><a href="'+v.url+'" target="_blank" rel="noreferrer">'+escapeHtml(v.title||v.url)+'</a> <span class="meta">'+fmt(v.views)+' views</span></li>').join('')+'</ul></details>'
 }
 function mediaPageCount(){return Math.max(1,Math.ceil(filteredMedia().length/15))}
 function setMediaPage(next,manual=false){const pages=mediaPageCount();state.mediaPage=((next%pages)+pages)%pages;if(manual)state.mediaAutoPausedUntil=Date.now()+MANUAL_MEDIA_PAUSE_MS;renderWall()}
 function startMediaCycle(){if(state.mediaTimer)clearInterval(state.mediaTimer);const reduce=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;if(!state.data||mediaPageCount()<2||reduce)return;state.mediaTimer=setInterval(()=>{const wall=$('wall');if(document.hidden||Date.now()<state.mediaAutoPausedUntil||(wall&&wall.matches(':hover')))return;setMediaPage(state.mediaPage+1)},AUTO_MEDIA_MS)}
-function renderShell(){const d=state.data;const cov=clusterCoverage();$('dateRange').textContent=date(d.windowStart)+' to '+date(d.windowEnd)+' · updated '+date(d.updatedAt);$('lede').textContent='The strongest refs show Singapore’s AI scene working in the open: Vivian Balakrishnan walking through his Raspberry Pi/NanoClaw workflow, packed workshops, booth and hallway photos, student-ticket gratitude, and side events that made the city feel like an active builder scene, not just a host city.';$('synthesis').innerHTML=[['What travelled','The viral hook was Vivian’s “briefed on” line, but the story spread because the details were concrete: Raspberry Pi, NanoClaw, WhatsApp, second-brain workflows, and accountability from someone using the stack.'],['What made it local','65labs, student tickets, sponsor booths, founder dinners, side meetups, hallway photos, and volunteer shoutouts made the event read as Singapore builder infrastructure, not fly-in conference programming.'],['Where the energy sat','Vivian dominated the corpus, but the surrounding signal was practical: workshops, Codex/OpenAI, sponsor rooms, research talks, build-week side events, and people posting receipts from the room.']].map(([title,body])=>'<div class="signal"><b>'+escapeHtml(title)+'</b><span>'+escapeHtml(body)+'</span></div>').join('');const c=d.stats.crossSurfaceObserved||{};$('metrics').innerHTML=[metricCard('refs',cov.totalRefs,fmt(cov.rootRefs)+' primary · '+fmt(cov.attachedRefs)+' context','Total relevant refs in the corpus. Primary refs anchor stories; context refs are replies, comments, logistics, media-only refs, or related texture attached for browsing.'),metricCard('known views',c.knownViews,'X + YouTube only','Observed public views from X and YouTube. LinkedIn public collection here does not expose impressions or views.'),metricCard('public reactions',c.knownLikesAndLinkedInReactions,'X/YT likes + LinkedIn reactions','Public reactions observed across platforms: X and YouTube likes plus LinkedIn reactions. Comments and reposts are tracked separately and used in engagement scores.'),metricCard('media assets',d.mediaTotal,fmt(d.playableMediaTotal||0)+' playable videos','Deduped renderable media. Video tiles play here; image tiles open the source post.')].join('');$('freshness').textContent='Last updated '+dateTime(d.updatedAt)+' · collection window '+date(d.windowStart)+' to '+date(d.windowEnd)+' · counts may move when refs or media are refreshed.';const by=d.stats.relevantByPlatform||{};const ytVideos=d.posts.filter(p=>p.platform==='youtube'&&p.tags?.includes('youtube-video')).length;const playableVideos=d.playableMediaTotal||0;const coverageItems=[['x','X refs',by.x||0],['linkedin','LinkedIn refs',by.linkedin||0],['youtube','YouTube refs',by.youtube||0],['videos','Videos',playableVideos||ytVideos]];const active=filterSet();$('sourceMix').innerHTML='<span class="coverage-label">filter</span>'+coverageItems.map(([action,label,value])=>'<button class="coverage-item '+(active.has(action)?'active':'')+'" data-coverage="'+action+'" aria-pressed="'+(active.has(action)?'true':'false')+'" title="toggle '+escapeHtml(label).toLowerCase()+'"><b>'+escapeHtml(value)+'</b><span>'+escapeHtml(label)+'</span></button>').join('')+(active.size?'<button class="coverage-item clear" data-coverage="clear" title="clear filters"><b>clear</b><span>filters</span></button>':'');$('sourceMix').querySelectorAll('[data-coverage]').forEach(b=>b.onclick=()=>toggleCoverage(b.dataset.coverage));$('tabs').innerHTML=tabs.map(t=>'<button data-tab="'+t+'" class="'+(state.tab===t?'active':'')+'">'+t+'</button>').join('');$('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;state.selectedTheme=null;render()});$('search').value=state.query;$('search').oninput=(e)=>{state.query=e.target.value;renderContent()};$('prevMedia').onclick=()=>setMediaPage(state.mediaPage-1,true);$('nextMedia').onclick=()=>setMediaPage(state.mediaPage+1,true);renderMethodology();renderWall();startMediaCycle()}
-function renderWall(){const media=wallMediaOrder(filteredMedia());const total=media.length;if(!total){$('wall').innerHTML='';$('wallCount').textContent='0 media';return}state.mediaPage=Math.min(state.mediaPage,mediaPageCount()-1);const page=media.slice(state.mediaPage*15,state.mediaPage*15+15);$('wall').innerHTML=page.map((m,i)=>mediaTile(m,i===0?'big':'')).join('');$('wallCount').textContent=(state.mediaPage*15+1)+'-'+Math.min(total,state.mediaPage*15+15)+' / '+total+' · auto'}
+function renderShell(){const d=state.data;const cov=clusterCoverage();const sourceEnd=(d.stats?.sourceDateRange?.end)||(d.methodology?.sourceDateRange?.end)||d.windowEnd;const eventWindow=date(d.windowStart)+' to '+date(d.windowEnd);$('dateRange').textContent='event week '+eventWindow+' · refs through '+dateTime(sourceEnd)+' · updated '+dateTime(d.updatedAt);$('lede').textContent='The strongest refs show Singapore’s AI scene working in the open: Vivian Balakrishnan walking through his Raspberry Pi/NanoClaw workflow, packed workshops, booth and hallway photos, student-ticket gratitude, and side events that made the city feel like an active builder scene, not just a host city.';const c=d.stats.crossSurfaceObserved||{};$('metrics').innerHTML=[metricCard('refs',cov.totalRefs,fmt(cov.rootRefs)+' primary · '+fmt(cov.attachedRefs)+' context','Total relevant refs in the corpus. Primary refs anchor stories; context refs are replies, comments, logistics, media-only refs, or related texture attached for browsing.'),metricCard('known views',c.knownViews,'X + YouTube only','Observed public views from X and YouTube. LinkedIn public collection here does not expose impressions or views.'),metricCard('public reactions',c.knownLikesAndLinkedInReactions,'X/YT likes + LinkedIn reactions','Public reactions observed across platforms: X and YouTube likes plus LinkedIn reactions. Comments and reposts are tracked separately and used in engagement scores.'),metricCard('media assets',d.mediaTotal,fmt(d.playableMediaTotal||0)+' playable videos','Deduped renderable media. Video tiles play here; image tiles open the source post.')].join('');$('freshness').textContent='Last updated '+dateTime(d.updatedAt)+' · event week '+eventWindow+' · refs through '+dateTime(sourceEnd)+' · counts may move when refs or media are refreshed.';const by=d.stats.relevantByPlatform||{};const ytVideos=d.posts.filter(p=>p.platform==='youtube'&&p.tags?.includes('youtube-video')).length;const playableVideos=d.playableMediaTotal||0;const coverageItems=[['x','X refs',by.x||0],['linkedin','LinkedIn refs',by.linkedin||0],['youtube','YouTube refs',by.youtube||0],['videos','Videos',playableVideos||ytVideos]];const active=filterSet();$('sourceMix').innerHTML='<span class="coverage-label">filter</span>'+coverageItems.map(([action,label,value])=>'<button class="coverage-item '+(active.has(action)?'active':'')+'" data-coverage="'+action+'" aria-pressed="'+(active.has(action)?'true':'false')+'" title="toggle '+escapeHtml(label).toLowerCase()+'"><b>'+escapeHtml(value)+'</b><span>'+escapeHtml(label)+'</span></button>').join('')+(active.size?'<button class="coverage-item clear" data-coverage="clear" title="clear filters"><b>clear</b><span>filters</span></button>':'');$('sourceMix').querySelectorAll('[data-coverage]').forEach(b=>b.onclick=()=>toggleCoverage(b.dataset.coverage));$('tabs').innerHTML=tabs.map(t=>'<button data-tab="'+t+'" class="'+(state.tab===t?'active':'')+'">'+t+'</button>').join('');$('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;state.selectedTheme=null;render()});$('search').value=state.query;$('search').oninput=(e)=>{state.query=e.target.value;renderContent()};$('prevMedia').onclick=()=>setMediaPage(state.mediaPage-1,true);$('nextMedia').onclick=()=>setMediaPage(state.mediaPage+1,true);renderMethodology();renderWall();startMediaCycle()}
+function renderWall(){const media=wallMediaOrder(filteredMedia());const total=media.length;if(!total){$('wall').innerHTML='';$('wallCount').textContent='0 media';return}state.mediaPage=Math.min(state.mediaPage,mediaPageCount()-1);const page=media.slice(state.mediaPage*15,state.mediaPage*15+15);$('wall').innerHTML=page.map((m,i)=>mediaTile(m,i===0?'big':'')).join('');$('wallCount').textContent=(state.mediaPage*15+1)+'-'+Math.min(total,state.mediaPage*15+15)+' / '+total+' · available media'}
 function renderContent(){const d=state.data;const filterLabel=coverageName();const suffix=filterLabel?' · '+filterLabel:'';if(state.tab==='media'){const q=state.query.toLowerCase();const media=filteredMedia().filter(m=>!q||[m.postText,m.postAuthor,m.postPlatform,m.postUrl].join(' ').toLowerCase().includes(q));$('visibleCount').textContent=fmt(media.length)+' media assets'+suffix;$('content').innerHTML='<div class="card"><div class="media-grid">'+media.map((m)=>mediaTile(m)).join('')+'</div></div>';return}
 if(state.tab==='refs'){const posts=filteredPosts();$('visibleCount').textContent=posts.length+' refs'+suffix;$('content').innerHTML='<div class="card">'+posts.map(postLine).join('')+'</div>';return}
 if(state.tab==='voices'){const voices=d.voices.filter(v=>voiceMatchesCoverage(v)&&(!state.query||[voiceName(v),v.handle,v.platform].join(' ').toLowerCase().includes(state.query.toLowerCase())));$('visibleCount').textContent=voices.length+' voices'+suffix;$('content').innerHTML='<div class="grid">'+voices.map(v=>'<div class="card"><div class="row"><h3>'+escapeHtml(voiceName(v))+'</h3><span class="chip">'+v.platform+'</span>'+score(v.reachScore,'voice')+'</div><p class="meta">'+escapeHtml(v.handle||v.profileUrl||'profile')+' · '+v.postCount+' refs · '+publicSignal(v.totalEngagement)+'</p><p><a class="meta" href="'+(v.samplePostUrls?.[0]||v.profileUrl||'#')+'" target="_blank">open sample</a></p></div>').join('')+'</div>';return}
 if(state.tab==='timeline'){const posts=filteredPosts().slice().sort((a,b)=>postTime(a)-postTime(b));$('visibleCount').textContent=posts.length+' dated refs'+suffix;$('content').innerHTML='<div class="card">'+posts.map(postLine).join('')+'</div>';return}
 const makeThemeView=(t)=>{const postIds=(t.postIds||[]).filter(id=>{const p=d.postsById[id];return p&&postMatchesCoverage(p)});return{...t,postIds,rootPostIds:(t.rootPostIds||[]).filter(id=>postIds.includes(id)),attachedPostIds:(t.attachedPostIds||[]).filter(id=>postIds.includes(id))}};const themes=(d.themes||[]).map(makeThemeView).filter(t=>t.postIds.length);$('visibleCount').textContent=themes.length+' clusters · '+fmt(themes.reduce((sum,t)=>sum+(t.postIds||[]).length,0))+' refs'+suffix;const selected=themes.find(t=>t.themeId===state.selectedTheme);const sorted=[...themes].sort((a,b)=>state.selectedTheme?(a.themeId===state.selectedTheme?-1:b.themeId===state.selectedTheme?1:0):0);$('content').innerHTML=renderClusterDetail(selected)+renderAtlas(sorted)+'<div class="grid">'+sorted.map(renderClusterCard).join('')+'</div>';bindClusterControls()}
 function render(){renderShell();renderContent()}
-fetch('/vibes/aie2026/data?v=${DATA_VERSION}').then(r=>r.json()).then(d=>{d.posts=hydratePostDates(d.posts||[]);d.postsById=Object.fromEntries(d.posts.map(p=>[p.postId,p]));d.rawThemeCount=(d.themes||[]).length;d.themes=mergeDisplayThemes(d.themes||[]);const library=buildMediaLibrary(d.posts);d.media=library.media;d.mediaByKey=Object.fromEntries(d.media.map(m=>[m.mediaKey,m]));d.mediaTotal=d.media.length;d.playableMediaTotal=d.media.filter(isPlayableMedia).length;d.localMediaTotal=library.localMediaTotal;state.data=d;render()}).catch(err=>{const message=String(err&&err.message?err.message:err);$('content').innerHTML='<p class="empty">Could not load recap data'+(location.search.includes('debug=1')?': '+escapeHtml(message):'.')+'</p>';console.error(message)})
+const dataUrl=new URL('/vibes/aie2026/data',location.origin);dataUrl.searchParams.set('v','${DATA_VERSION}');const previewRefreshId=new URLSearchParams(location.search).get('refreshId');if(previewRefreshId)dataUrl.searchParams.set('refreshId',previewRefreshId);
+fetch(dataUrl.toString()).then(r=>r.json()).then(d=>{d.posts=hydratePostDates(d.posts||[]);d.postsById=Object.fromEntries(d.posts.map(p=>[p.postId,p]));d.rawThemeCount=(d.themes||[]).length;d.themes=mergeDisplayThemes(d.themes||[]);const library=buildMediaLibrary(d.posts,(d.mediaItems||[]).concat(FEATURED_MEDIA));d.media=library.media;d.mediaByKey=Object.fromEntries(d.media.map(m=>[m.mediaKey,m]));d.mediaTotal=d.media.length;d.playableMediaTotal=d.media.filter(isPlayableMedia).length;d.localMediaTotal=library.localMediaTotal;state.data=d;render()}).catch(err=>{const message=String(err&&err.message?err.message:err);$('content').innerHTML='<p class="empty">Could not load recap data'+(location.search.includes('debug=1')?': '+escapeHtml(message):'.')+'</p>';console.error(message)})
 </script>
 </body>
 </html>`;

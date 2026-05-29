@@ -11,8 +11,18 @@
     {
       "pattern": "aether.berlayar.ai/vibes/aie2026*",
       "zone_name": "berlayar.ai"
+    },
+    {
+      "pattern": "s.berlayar.ai/*",
+      "zone_name": "berlayar.ai"
     }
   ],
+  // Daily refresh at 06:00 UTC. The worker's scheduled handler logs the
+  // trigger; the actual refresh pipeline lives in the main aether app
+  // (POST /api/events/:eventId/refresh) and will be wired in a follow-up.
+  "triggers": {
+    "crons": ["0 6 * * *"]
+  },
   "r2_buckets": [
     {
       "binding": "AETHER_ASSETS",
@@ -22,6 +32,40 @@
   ],
   "vars": {
     "AETHER_ENV": "production",
-    "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai"
+    "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether.berlayar.ai",
+    "NEXT_PUBLIC_AETHER_SHARE_DOMAIN": "s.berlayar.ai"
+  },
+  "env": {
+    "staging": {
+      "name": "aether-stg-vibes-aie2026",
+      "routes": [
+        {
+          "pattern": "aether-stg.berlayar.ai/vibes/aie2026*",
+          "zone_name": "berlayar.ai"
+        },
+        {
+          "pattern": "s-stg.berlayar.ai/*",
+          "zone_name": "berlayar.ai"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "AETHER_ASSETS",
+          "bucket_name": "aether-assets",
+          "preview_bucket_name": "aether-assets"
+        },
+        {
+          "binding": "AETHER_DATA",
+          "bucket_name": "aether-stg-assets",
+          "preview_bucket_name": "aether-stg-assets"
+        }
+      ],
+      "vars": {
+        "AETHER_ENV": "staging",
+        "AETHER_BASE_URL": "https://aether-stg.berlayar.ai",
+        "NEXT_PUBLIC_AETHER_PUBLIC_DOMAIN": "aether-stg.berlayar.ai",
+        "NEXT_PUBLIC_AETHER_SHARE_DOMAIN": "s-stg.berlayar.ai"
+      }
+    }
   }
 }

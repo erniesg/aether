@@ -1,0 +1,333 @@
+{
+  "summary": {
+    "orphanCommentRows": 24,
+    "parentGroups": 6,
+    "foundParentGroups": 6,
+    "addParentAttachCommentGroups": 4,
+    "addParentAttachCommentRows": 17,
+    "dropParentCommentGroups": 2,
+    "dropParentCommentRows": 7
+  },
+  "parentResolution": [
+    {
+      "parentActivityId": "7463011935245217793",
+      "found": true,
+      "recommendedAction": "drop_parent_and_comments",
+      "commentCount": 4,
+      "reason": "Parent is about OpenAI investing S$300M / Singapore AI hiring; no AIE2026 event recap/program anchor in parent text.",
+      "parent": {
+        "postId": "linkedin_2l6j00",
+        "authorName": "Steffan Lian",
+        "postedAt": "2026-05-20T23:45:01.419Z",
+        "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793",
+        "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/linkedin-enriched-parents-2026-05-26T17-10-58-652Z/posts.json",
+        "text": "Gardenia retrenches staff. OpenAI invests S$300M to hire AI engineers in Singapore. Statistically, are more jobs being created in Singapore than lost? Probably. But let’s look at the reality on the ground. If you’re an IT engineer displaced from Gardenia, you’re likely asking: “Can I realistically get hired by OpenAI?” The uncomfortable truth: Upskilling matters, but the jobs being created and the jobs being lost exist in two totally different universes."
+      }
+    },
+    {
+      "parentActivityId": "7463059669842903041",
+      "alternateParentIds": [
+        "7463059668601569280"
+      ],
+      "found": true,
+      "recommendedAction": "add_parent_attach_comments",
+      "commentCount": 1,
+      "reason": "Direct AI Engineer Singapore recap with event scale and takeaways.",
+      "parent": {
+        "postId": "linkedin_j0ho9v",
+        "authorName": "Felicia Nan",
+        "postedAt": "2026-05-21T02:54:42.234Z",
+        "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463059669842903041",
+        "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevant-first-linkedin-apify-schedule-fanout-all-2026-05-26T19-02-28-209Z/posts.json",
+        "text": "Singapore is the world's second largest AI adopter. I just spent 3 days experiencing rooms full of people living up to that. AI Engineer Singapore. 50+ speakers. 2,000+ attendees. Engineers, founders, designers, students, professionals across disciplines. All there to learn what's possible. I'm still buzzing."
+      }
+    },
+    {
+      "parentActivityId": "7463105031160909825",
+      "alternateParentIds": [
+        "7463105028011229185"
+      ],
+      "found": true,
+      "recommendedAction": "add_parent_attach_comments",
+      "commentCount": 1,
+      "reason": "Direct AIEngineerSingapore / AI Engineer SG field report with main-stage/workshop references.",
+      "parent": {
+        "postId": "linkedin_112em5z",
+        "authorName": "Peter Chua",
+        "postedAt": "2026-05-21T05:54:57.215Z",
+        "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463105031160909825",
+        "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/linkedin-enriched-parents-2026-05-26T17-10-58-652Z/posts.json",
+        "text": "#AIEngineerSingapore: Went for the speakers, stayed for the conversations. Overdue field report: What a great time over the past weekend at AI Engineer SG ... Resaro presented on the main stage ... workshop the day before was packed."
+      }
+    },
+    {
+      "parentActivityId": "7463162687833661440",
+      "alternateParentIds": [
+        "7463162685199659008"
+      ],
+      "found": true,
+      "recommendedAction": "add_parent_attach_comments",
+      "commentCount": 6,
+      "reason": "Direct volunteer/event recap for AI Engineer in Singapore, May 15-17 at Capitol Theatre and SMU.",
+      "parent": {
+        "postId": "linkedin_pzpsr7",
+        "authorName": "Bhusita S.",
+        "postedAt": "2026-05-21T09:44:03.637Z",
+        "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440",
+        "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/linkedin-enriched-parents-2026-05-26T17-10-58-652Z/posts.json",
+        "text": "Last week, I had the opportunity to volunteer at AI Engineer event in Singapore, which ran from May 15–17 at Capitol Theatre and SMU. The experience turned out to be much more meaningful than I expected."
+      }
+    },
+    {
+      "parentActivityId": "7463278802236911616",
+      "alternateParentIds": [
+        "7463278800638853121"
+      ],
+      "found": true,
+      "recommendedAction": "add_parent_attach_comments",
+      "commentCount": 9,
+      "reason": "Direct first-AI-Engineer-Singapore recap with keynote/talk takeaways.",
+      "parent": {
+        "postId": "linkedin_13uw9su",
+        "authorName": "Jenya Bogacheva",
+        "postedAt": "2026-05-21T17:25:27.468Z",
+        "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616",
+        "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/linkedin-enriched-parents-2026-05-26T17-10-58-652Z/posts.json",
+        "text": "My badge said AI Engineer, which is a new title for me. Fitting, since this was the first AI Engineer Singapore, the first Asia edition... Including the keynote speaker... The word of the conference, for me? Agent harness."
+      }
+    },
+    {
+      "parentActivityId": "7463835387980042240",
+      "found": true,
+      "recommendedAction": "drop_parent_and_comments",
+      "commentCount": 3,
+      "reason": "Parent is a general small-business AI workflow post; no visible AIE Singapore event anchor in parent text.",
+      "parent": {
+        "postId": "linkedin_1na2fgf",
+        "authorName": "Torrance T.",
+        "postedAt": "2026-05-23T06:17:07.850Z",
+        "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463835387980042240",
+        "sourceFile": "outputs/event-recap-ai-engineer-singapore/delta-refresh-tests/relevant-first-linkedin-apify-schedule-fanout-all-2026-05-26T19-02-28-209Z/posts.json",
+        "text": "Most small business owners I've spoken to aren't behind on AI because they're resistant. They're behind because no one's explained it in a way that's relevant to their actual work..."
+      }
+    }
+  ],
+  "orphanComments": [
+    {
+      "postId": "linkedin_u5hpro",
+      "authorName": "Dr Michael Loh",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7463011935245217793%2C7463013235177185281)",
+      "text": "Steffan Lian Great, timely and practical advice! Your post will help many. Thanks for doing this!",
+      "parentActivityId": "7463011935245217793",
+      "recommendedAction": "drop_parent_and_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793"
+    },
+    {
+      "postId": "linkedin_z8p5iy",
+      "authorName": "Raymond Lim",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7463011935245217793%2C7463039886129004544)",
+      "text": "Where is the supply of good AI engineers in Singapore and is there a commitment to hire only locals?",
+      "parentActivityId": "7463011935245217793",
+      "recommendedAction": "drop_parent_and_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793"
+    },
+    {
+      "postId": "linkedin_74syq",
+      "authorName": "DAVID WARD",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7463011935245217793%2C7463052133668466688)",
+      "text": "Good question. As it quotes $300m but only 200 new roles (aside from any supplier, using roles that might speed out) Different roles but only about the number of headcount for a small to medium sized operation... I honestly welcome the news of course but was a bit surprised by this number...",
+      "parentActivityId": "7463011935245217793",
+      "recommendedAction": "drop_parent_and_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793"
+    },
+    {
+      "postId": "linkedin_2so8gy",
+      "authorName": "Sriya N.",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463162685199659008?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463162685199659008%2C7463172763755663360)",
+      "text": "it was so awesome volunteering with you Bhusita S., see you around in more events 😁 😁",
+      "parentActivityId": "7463162687833661440",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440"
+    },
+    {
+      "postId": "linkedin_1g13v4z",
+      "authorName": "Hari Tharmakumar",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463162685199659008?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463162685199659008%2C7463179199177072640)",
+      "text": "Amazing to meet you Bhusita S. !!",
+      "parentActivityId": "7463162687833661440",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440"
+    },
+    {
+      "postId": "linkedin_rwsk11",
+      "authorName": "Olly Salzmann",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463105028011229185?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463105028011229185%2C7463188101532856320)",
+      "text": "What a great success. Incredible proud of our SG team 💥",
+      "parentActivityId": "7463105031160909825",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463105031160909825"
+    },
+    {
+      "postId": "linkedin_of46z5",
+      "authorName": "Nathaniel Sim",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463162685199659008?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463162685199659008%2C7463192105864085504)",
+      "text": "It was so fun volunteering together with you!! ❤️",
+      "parentActivityId": "7463162687833661440",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440"
+    },
+    {
+      "postId": "linkedin_ji5356",
+      "authorName": "Citra Ayu Pratiwi",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463162685199659008?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463162685199659008%2C7463219817672785920)",
+      "text": "Miss u Gigi.. Bhusita S.",
+      "parentActivityId": "7463162687833661440",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440"
+    },
+    {
+      "postId": "linkedin_11rbng",
+      "authorName": "Saad Hamid",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7463299747580174337)",
+      "text": "Glad to meet you Jenya and great chat at AI Engineer",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_ypoe6j",
+      "authorName": "Sam Bhagwat",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7463338912753745921)",
+      "text": "thanks for sharing! also for anyone reading this, if you haven’t gotten your copy yet. https://mastra.ai/book",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_s0yhuk",
+      "authorName": "Teo Kelvin, CFA",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463059668601569280?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463059668601569280%2C7463363216551780352)",
+      "text": "jealous.",
+      "parentActivityId": "7463059669842903041",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463059669842903041"
+    },
+    {
+      "postId": "linkedin_17e6j4k",
+      "authorName": "Devashree Pawar",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7463369286540165120)",
+      "text": "Jenya Bogacheva Loved this reflection! The shift from ML Engineer to AI Engineer feels very real, especially with agentic workflows becoming more practical and production-focused. “Agent harness” is such a useful way to think about what actually makes agents work beyond the model itself.",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_1ihdwu1",
+      "authorName": "Christopher Loh",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7463011935245217793%2C7463380851616075777)",
+      "text": "This is becoming the real distortion. Hiring managers increasingly expect candidates to arrive already able to use GenAI properly, research faster, prepare better, automate parts of their own work, and operate above the level they are being paid for. So the market wants a strange bargain. Someone who can carry a role two levels higher, accept a smaller title, and treat the salary bump as a gift. The company sees efficiency. The candidate sees opp",
+      "parentActivityId": "7463011935245217793",
+      "recommendedAction": "drop_parent_and_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463011935245217793"
+    },
+    {
+      "postId": "linkedin_85vk5c",
+      "authorName": "Selim Argül",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7463440132323454976)",
+      "text": "Thanks for listening in!",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_fvvifb",
+      "authorName": "Adlin Zainal",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7463484759239802882)",
+      "text": "Bummed that I didn't get to meet you! But so glad all was good with your visa. Hope to see you around in the next one!",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_1dg13h4",
+      "authorName": "Seigha Filatei",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7463501987603681280)",
+      "text": "\"a worse model with a worse prompt and a good harness wins 70% of the battle\" — that line is going to stay with me. i've watched the same thing building agents: the model gets all the hype but the scaffolding (tools, context discipline, the verify step) is where the real engineering lives. titles will keep shifting, but harness design feels like a skill that sticks.",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_1t70r4w",
+      "authorName": "Sherry Jiang",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7463589236240244736)",
+      "text": "thank you so much for coming jenya and writing such an amazing recap!",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_1banuwi",
+      "authorName": "Sherry Jiang",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463162685199659008?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463162685199659008%2C7463714891464458240)",
+      "text": "thank you so much for volunteering your time for ai engineer!!",
+      "parentActivityId": "7463162687833661440",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440"
+    },
+    {
+      "postId": "linkedin_1byl3ye",
+      "authorName": "Torrance T.",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463835387980042240?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7463835387980042240%2C7463836682426060803)",
+      "text": "Also tagging folks that I've previously worked with! Coffee chat on me if you all want to learn more Nigel Giam Wei Jun Tan Minn Yang (congrats on the IPO!)",
+      "parentActivityId": "7463835387980042240",
+      "recommendedAction": "drop_parent_and_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463835387980042240"
+    },
+    {
+      "postId": "linkedin_1hphgzk",
+      "authorName": "Fahis M",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463835387980042240?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7463835387980042240%2C7463844630309089281)",
+      "text": "The examples are strong because they’re not abstract. invoicing, sites, internal access - that’s where ai starts feeling real fast.",
+      "parentActivityId": "7463835387980042240",
+      "recommendedAction": "drop_parent_and_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463835387980042240"
+    },
+    {
+      "postId": "linkedin_10rnify",
+      "authorName": "Abel Chin (陈嘉航)",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463162685199659008?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463162685199659008%2C7463995176806486016)",
+      "text": "glad to have volunteered with you! what a pity didnt get to meet you, hope to meet someday!",
+      "parentActivityId": "7463162687833661440",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463162687833661440"
+    },
+    {
+      "postId": "linkedin_e2nmvw",
+      "authorName": "Aman Sayyad",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7464535425785810944)",
+      "text": "Love this breakdown! Moving from \"can we build it\" to \"what should exist\" is the ultimate shift for the AI engineering era. 🧠✨",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    },
+    {
+      "postId": "linkedin_1i603y7",
+      "authorName": "Leonard Aragon",
+      "url": "https://www.linkedin.com/feed/update/urn:li:activity:7463835387980042240?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7463835387980042240%2C7464585635316543488)",
+      "text": "Tying AI to a real workflow like invoicing or SOP access is what gets owners moving. A simple first step is logging one week of repeat admin tasks and automating the top one, because quick wins build trust. Curious: how do you pick the first workflow?",
+      "parentActivityId": "7463835387980042240",
+      "recommendedAction": "drop_parent_and_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463835387980042240"
+    },
+    {
+      "postId": "linkedin_1cii30k",
+      "authorName": "Shreyans Bhansali",
+      "url": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A(ugcPost%3A7463278800638853121%2C7464626066163183616)",
+      "text": "agent harness feels like the new full-stack. models matter less once the scaffolding gets good enough",
+      "parentActivityId": "7463278802236911616",
+      "recommendedAction": "add_parent_attach_comments",
+      "parentUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7463278802236911616"
+    }
+  ]
+}
