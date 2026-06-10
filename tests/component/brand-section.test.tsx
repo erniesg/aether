@@ -92,21 +92,21 @@ describe('BrandSection · drop zone', () => {
         claims: [
           {
             text: 'aether has 42 GitHub stars.',
-            source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+            source: { kind: 'repo' as const, ref: 'https://github.com/erniesg/aether' },
           },
           {
             text: 'aether uses Next.js 15, Convex, and tldraw.',
-            source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+            source: { kind: 'repo' as const, ref: 'https://github.com/erniesg/aether' },
           },
           {
             text: 'aether published release v0.5.0.',
-            source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+            source: { kind: 'repo' as const, ref: 'https://github.com/erniesg/aether' },
           },
         ],
         releases: [],
         languages: ['TypeScript'],
         readmeHighlights: ['Next.js 15'],
-        enrichment: 'none',
+        enrichment: 'none' as const,
       },
       persisted: false,
     }));

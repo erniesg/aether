@@ -48,7 +48,13 @@ function makeFakeDb() {
           });
           return chain;
         },
-        collect: async () => Array.from(tableStore(table).values()).filter(predicate),
+        collect: async () => {
+          const rows =
+            table === 'sourceItem'
+              ? Array.from(sourceItem.values())
+              : Array.from(productFact.values());
+          return rows.filter(predicate);
+        },
       };
       return chain;
     },
