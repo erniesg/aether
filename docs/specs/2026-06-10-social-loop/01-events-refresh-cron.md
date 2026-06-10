@@ -1,6 +1,6 @@
 # Spec 01 — Cron-fired refresh laps for live event windows
 
-- Status: todo
+- Status: review
 - Priority: P1 · Track: vibes
 - Branch: codex/social-01-events-refresh-cron
 - Depends: none
