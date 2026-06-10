@@ -25,6 +25,8 @@ import type {
 } from './FloatingToolbar';
 import type { ComposerHandle } from '@/components/composer/PromptComposer';
 import { buildBackgroundFillDataUrl, type BackgroundFillSpec } from '@/lib/canvas/backgroundFill';
+import { decomposeToLayers } from '@/lib/canvas/decomposeToLayers';
+import { placeDecomposedLayers } from '@/lib/canvas/layerGroup';
 import {
   getImageInfo,
   getSelectedImageInfo,
@@ -1104,6 +1106,50 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
     );
   }, [segmentation?.runId]);
 
+  const [splittingLayers, setSplittingLayers] = useState(false);
+
+  const handleSplitLayers = useCallback(async () => {
+    if (!editor || !selectedImage || splittingLayers) return;
+    const target = selectedImage;
+    setSplittingLayers(true);
+    const runId = startRun({
+      tool: 'image-edit',
+      provider: 'auto',
+      model: '',
+      prompt: 'split layers · segment subject + infill background',
+    });
+    appendRunActivity(runId, {
+      title: 'splitting layers',
+      detail: 'segmenting subject, infilling background',
+    });
+    stepRun(runId, 'awaiting');
+    try {
+      const result = await decomposeToLayers({
+        sourceUrl: target.sourceUrl,
+        width: target.intrinsicWidth,
+        height: target.intrinsicHeight,
+      });
+      placeDecomposedLayers(editor, target, result);
+      appendRunActivity(runId, {
+        title: 'layers placed',
+        detail: `${result.providers.segmentation.id} + ${result.providers.edit.id}`,
+        tone: 'ok',
+      });
+      finishRun(runId, {
+        provider: result.providers.edit.id,
+        model: result.providers.edit.model,
+        imageUrl: result.background.url,
+        status: 'ok',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      appendRunActivity(runId, { title: 'split failed', detail: message, tone: 'error' });
+      failRun(runId, message);
+    } finally {
+      setSplittingLayers(false);
+    }
+  }, [editor, selectedImage, splittingLayers]);
+
   const handleOpacityChange = useCallback(
     (opacity: number) => {
       if (!editor) return;
@@ -1310,10 +1356,11 @@ export const CanvasSubstrate = memo(function CanvasSubstrate({
           opacity={selectionStrip?.opacity ?? 1}
           hasPreview={Boolean(segmentation?.preview)}
           previewVisible={segmentation?.previewVisible ?? false}
-          disabled={segmentation?.loading}
+          disabled={segmentation?.loading || splittingLayers}
           onRemoveBg={() => openSegmentation('removebg')}
           onCutout={() => openSegmentation('cutout')}
           onSpatialize={handleSpatialize}
+          onSplitLayers={selectedImage ? () => void handleSplitLayers() : undefined}
           onPreviewVisibilityChange={handlePreviewVisibilityChange}
           onOpacityChange={handleOpacityChange}
           onOrder={handleOrder}

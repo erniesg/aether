@@ -16,6 +16,7 @@ import {
   Eraser,
   Eye,
   EyeOff,
+  Layers,
   Scissors,
   SendToBack,
   Sparkles,
@@ -52,6 +53,8 @@ export interface SelectedImageActionsProps {
   onRemoveBg: () => void;
   onCutout: () => void;
   onSpatialize: () => void;
+  /** Decompose the image into subject + infilled background layers. */
+  onSplitLayers?: () => void;
   onPreviewVisibilityChange?: (visible: boolean) => void;
   onOpacityChange?: (opacity: number) => void;
   onOrder?: (action: OrderAction) => void;
@@ -81,6 +84,7 @@ export function SelectedImageActions({
   onRemoveBg,
   onCutout,
   onSpatialize,
+  onSplitLayers,
   onPreviewVisibilityChange,
   onOpacityChange,
   onOrder,
@@ -139,6 +143,18 @@ export function SelectedImageActions({
             <Scissors size={13} strokeWidth={1.75} />
             segment
           </button>
+
+          {onSplitLayers ? (
+            <button
+              type="button"
+              onClick={onSplitLayers}
+              disabled={disabled}
+              className={neutralChip}
+            >
+              <Layers size={13} strokeWidth={1.75} />
+              split layers
+            </button>
+          ) : null}
 
           <button
             type="button"
