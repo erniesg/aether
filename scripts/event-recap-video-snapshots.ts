@@ -21,6 +21,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, type Browser } from '@playwright/test';
+import { getRecapTemplate, type RecapTemplateId } from '../lib/video/event-recap';
 
 interface ManifestEntry {
   eventId: string;
@@ -31,14 +32,6 @@ interface ManifestEntry {
   status: string;
   file?: string;
 }
-
-/** Seek targets: the moment each composition is fully revealed. */
-const HERO_TIME: Record<string, number> = {
-  'atlas-reveal': 6.2,
-  'by-the-numbers': 4.2,
-  'quote-cascade': 5.2,
-  'photo-mosaic': 7.2,
-};
 
 const PREVIEW_DIR = join(
   __dirname,
@@ -76,7 +69,7 @@ async function captureFrame(
     console.warn(`font injection skipped for ${entry.file}`);
   }
   await page.waitForFunction('!!(window.__timelines && window.__timelines.main)');
-  const heroTime = HERO_TIME[entry.templateId] ?? 4;
+  const heroTime = getRecapTemplate(entry.templateId as RecapTemplateId).heroTimeSeconds;
   // seek(t, false): don't suppress events, so counter onUpdate callbacks fire
   // and tweened figures show their seeked value instead of their initial text.
   await page.evaluate(`window.__timelines.main.seek(${heroTime}, false) && true`);

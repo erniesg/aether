@@ -17,11 +17,14 @@ import {
   type RecapRenderOptions,
 } from '../shared';
 
+/** Horizontal scene padding; also bounds the grid width in the render. */
+const PAD_X = 110;
+
 const css = (canvas: RecapCanvas) => `
       .scene-content {
         display: flex; flex-direction: column;
         width: 100%; height: 100%;
-        padding: ${scaleY(140, canvas)}px 110px ${scaleY(130, canvas)}px;
+        padding: ${scaleY(140, canvas)}px ${PAD_X}px ${scaleY(130, canvas)}px;
         gap: ${scaleY(56, canvas)}px; box-sizing: border-box; position: relative;
       }
       .header {
@@ -92,7 +95,7 @@ export function renderPhotoMosaic(
   // Cell size shrinks as the grid grows so it always fits the stage: bounded
   // by the padded canvas width and by the share of canvas height the grid can
   // occupy (45%, which reproduces the hand-tuned vertical layout exactly).
-  const availW = canvas.width - 220;
+  const availW = canvas.width - 2 * PAD_X;
   const availH = Math.round(canvas.height * 0.45);
   const cell = Math.min(
     280,

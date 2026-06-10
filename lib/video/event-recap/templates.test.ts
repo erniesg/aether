@@ -157,6 +157,22 @@ describe('escaping of event-supplied text', () => {
     expect(html).toContain("esc(c)");
     expect(html).toContain("esc(w)");
   });
+
+  it('normalises a punctuated accent word to match the runtime word check', () => {
+    const html = renderQuoteCascade({
+      event: aie2026.event,
+      quotes: [
+        {
+          text: 'this is the testbed, full stop.',
+          technique: 'word-slam',
+          accentWord: 'testbed!',
+          who: 'w',
+          ctx: 'c',
+        },
+      ],
+    });
+    expect(html).toContain('const accent = "testbed";');
+  });
 });
 
 describe('determinism', () => {

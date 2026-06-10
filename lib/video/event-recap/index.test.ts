@@ -43,6 +43,13 @@ describe('template registry', () => {
       expect(t.durationSeconds).toBeGreaterThan(0);
     }
   });
+
+  it('every template declares a hero timestamp within its duration', () => {
+    for (const t of RECAP_TEMPLATES) {
+      expect(t.heroTimeSeconds).toBeGreaterThan(0);
+      expect(t.heroTimeSeconds).toBeLessThan(t.durationSeconds);
+    }
+  });
 });
 
 describe('renderAvailableRecapVideos', () => {

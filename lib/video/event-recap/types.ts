@@ -136,6 +136,11 @@ export interface RecapTemplate {
   name: string;
   /** Composition length in seconds (matches `data-duration`). */
   durationSeconds: number;
+  /**
+   * Timeline timestamp (seconds) at which the composition is fully revealed —
+   * the frame preview/snapshot tooling should seek to.
+   */
+  heroTimeSeconds: number;
   /** One-line description of the variant. */
   purpose: string;
   /** Which `RecapVideoData` field this template consumes. */

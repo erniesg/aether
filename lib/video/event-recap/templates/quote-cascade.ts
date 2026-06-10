@@ -176,7 +176,9 @@ function injectScript(quote: RecapQuote, i: number): string {
       })();`;
   }
   if (quote.technique === 'word-slam') {
-    const accent = (quote.accentWord ?? '').toLowerCase();
+    // Normalise the same way the runtime normalises each word, so an accent
+    // word supplied with punctuation ("testbed!") still matches.
+    const accent = (quote.accentWord ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
     return `      (() => {
         ${INLINE_ESC}
         const words = ${safeInlineJson(quote.text)}.split(" ");
