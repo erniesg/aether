@@ -65,6 +65,7 @@ function convexClient(): ConvexHttpClient | null {
 const eventRecapsApi = (anyApi as unknown as {
   eventRecaps: {
     getBundle: unknown;
+    list: unknown;
     upsertEvent: unknown;
     startRun: unknown;
     finishRun: unknown;
@@ -80,6 +81,20 @@ export async function getEventBundle(eventId: string): Promise<EventRecapBundle 
   bundle.runEvents = await listEventRunEvents(eventId, { limit: 400 });
   bundle.captureRun = findEventCaptureRun(eventId) ?? undefined;
   return bundle;
+}
+
+export async function listEventRecaps(): Promise<EventRecapRecord[]> {
+  const convex = convexClient();
+  if (convex) {
+    try {
+      const events = (await convex.query(eventRecapsApi.list as never, {} as never)) as EventRecapRecord[];
+      return events.map(stripConvexMeta);
+    } catch (err) {
+      console.error('[event-recap/store] listEventRecaps Convex read failed', err);
+    }
+  }
+
+  return Array.from(memory().events.values());
 }
 
 async function loadEventBundle(eventId: string): Promise<EventRecapBundle | null> {
