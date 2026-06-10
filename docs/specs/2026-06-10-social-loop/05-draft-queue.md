@@ -1,6 +1,6 @@
 # Spec 05 — Draft queue with edit/confirm via X web intents
 
-- Status: in-progress
+- Status: review
 - Priority: P1 · Track: presence
 - Branch: codex/social-05-draft-queue
 - Depends: none
