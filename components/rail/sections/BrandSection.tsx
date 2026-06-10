@@ -302,7 +302,9 @@ export function BrandSection({
     setEvidenceState({ kind: 'idle' });
     try {
       const { snapshot, review } = await ingest(req);
-      setDraft((prev) => brandContextFromSnapshot(prev, snapshot));
+      const nextDraft = brandContextFromSnapshot(draft, snapshot);
+      setDraft(nextDraft);
+      saveBrandContext(nextDraft, workspaceId, () => setSaveState('error'));
       setDirty(true);
       setSaveState('idle');
       setState({ kind: 'ok', snapshot, review });

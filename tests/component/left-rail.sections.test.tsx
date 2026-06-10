@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { resetSignalsForTests } from '@/lib/signals/store';
@@ -61,6 +61,80 @@ describe('LeftRail · stable context first, research feeds references', () => {
     expect(screen.getByDisplayValue(/repo/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue(/uploaded docs/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue(/assets/i)).toBeInTheDocument();
+  });
+
+  it('updates the compact brand source count after a repo evidence ingest', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('/api/brand-ingest')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            review: false,
+            snapshot: {
+              palette: [],
+              typography: [],
+              voice: { samples: [] },
+              logos: [],
+              productImages: [],
+              confidence: 0.8,
+              source: { kind: 'repo', url: 'https://github.com/erniesg/aether' },
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.includes('/api/evidence/ingest')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            persisted: false,
+            facts: {
+              name: 'aether',
+              description: 'Canvas-native creative system.',
+              claims: [
+                {
+                  text: 'aether has 42 GitHub stars.',
+                  source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.includes('/api/brand/propose')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            offers: [],
+            campaigns: [],
+            coverage: { ok: true, notes: [] },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+
+    const { container } = render(<LeftRail workspaceId="summary-ws" />);
+    const brandTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="brand"]'
+    );
+    expect(brandTrigger).not.toBeNull();
+    expect(brandTrigger).toHaveAttribute('aria-label', 'brand · 0 sources');
+
+    await userEvent.click(brandTrigger!);
+    await userEvent.type(
+      screen.getByLabelText(/brand source/i),
+      'https://github.com/erniesg/aether'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /ingest/i }));
+
+    await waitFor(() => {
+      expect(brandTrigger).toHaveAttribute('aria-label', 'brand · 1 sources');
+    });
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it('campaign section separates the current goal from stable brand data', async () => {
