@@ -13,6 +13,7 @@ import {
   type ResearchPlatform,
 } from '@/lib/research/research';
 import { runResearchViaApi } from '@/lib/research/client';
+import { RecapPullGroup } from '@/components/rail/sections/RecapPullGroup';
 import { cn } from '@/lib/utils/cn';
 
 const DEFAULT_PLATFORMS: ResearchPlatform[] = ['pinterest', 'instagram', 'tiktok'];
@@ -214,6 +215,8 @@ export function ResearchSection({ workspaceId }: { workspaceId?: string }) {
           {status.message}
         </div>
       ) : null}
+
+      <RecapPullGroup workspaceId={workspaceId} />
     </div>
   );
 }
