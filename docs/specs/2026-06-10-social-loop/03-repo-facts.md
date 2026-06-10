@@ -1,6 +1,6 @@
 # Spec 03 — Evidence ingestion (repos · resume · site → grounded facts, context.dev seam)
 
-- Status: todo
+- Status: review
 - Priority: P1 · Track: presence
 - Branch: codex/social-03-repo-facts
 - Depends: none

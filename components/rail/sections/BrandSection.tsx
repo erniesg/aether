@@ -9,6 +9,7 @@ import {
   type KnowledgeSource,
   type KnowledgeSourceKind,
 } from '@/lib/context/model';
+import type { EvidenceClaim } from '@/lib/research/evidence-facts';
 import { saveBrandContext, useBrandContext } from '@/lib/context/creator-store';
 import {
   setProposedCampaigns,
@@ -42,6 +43,26 @@ interface BrandSectionProps {
   }>;
   /** Override the propose implementation (tests stub this). */
   propose?: (snapshot: BrandSnapshot, workspaceId?: string) => Promise<BrandFollowups>;
+  /** Override the evidence-fact ingestion implementation (tests stub this). */
+  evidenceIngest?: (req: EvidenceIngestRequest) => Promise<EvidenceIngestResponse>;
+}
+
+type EvidenceIngestKind = 'repo' | 'resume' | 'site';
+
+interface EvidenceIngestRequest {
+  workspaceId?: string;
+  kind: EvidenceIngestKind;
+  source: unknown;
+}
+
+interface EvidenceIngestResponse {
+  facts: {
+    name: string;
+    description: string;
+    claims: EvidenceClaim[];
+    enrichment?: string;
+  };
+  persisted: boolean;
 }
 
 type IngestState =
@@ -57,6 +78,11 @@ type ProposeState =
   | { kind: 'ok'; followups: BrandFollowups };
 
 type SaveState = 'idle' | 'saved' | 'error';
+
+type EvidenceState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ok'; facts: EvidenceIngestResponse['facts'] };
 
 const HEX_RE = /^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -99,6 +125,24 @@ async function defaultIngest(req: BrandIngestRequest) {
     throw new Error(json.error ?? `ingest failed: ${res.status}`);
   }
   return { snapshot: json.snapshot, review: json.review ?? false };
+}
+
+async function defaultEvidenceIngest(req: EvidenceIngestRequest): Promise<EvidenceIngestResponse> {
+  const res = await fetch('/api/evidence/ingest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  const json = (await res.json()) as {
+    ok: boolean;
+    facts?: EvidenceIngestResponse['facts'];
+    persisted?: boolean;
+    error?: string;
+  };
+  if (!res.ok || !json.ok || !json.facts) {
+    throw new Error(json.error ?? `evidence ingest failed: ${res.status}`);
+  }
+  return { facts: json.facts, persisted: json.persisted ?? false };
 }
 
 function classifyInput(raw: string): BrandIngestKind | null {
@@ -208,11 +252,13 @@ export function BrandSection({
   workspaceLabel = EMPTY_CREATOR_CONTEXT.workspaceLabel,
   ingest = defaultIngest,
   propose = defaultPropose,
+  evidenceIngest = defaultEvidenceIngest,
 }: BrandSectionProps) {
   const savedContext = useBrandContext(workspaceId);
   const [draft, setDraft] = useState<BrandContext>(savedContext);
   const [state, setState] = useState<IngestState>({ kind: 'idle' });
   const [proposeState, setProposeState] = useState<ProposeState>({ kind: 'idle' });
+  const [evidenceState, setEvidenceState] = useState<EvidenceState>({ kind: 'idle' });
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
 
@@ -253,12 +299,22 @@ export function BrandSection({
   const onSubmit = async (req: BrandIngestRequest) => {
     setState({ kind: 'loading' });
     setProposeState({ kind: 'idle' });
+    setEvidenceState({ kind: 'idle' });
     try {
       const { snapshot, review } = await ingest(req);
-      setDraft((prev) => brandContextFromSnapshot(prev, snapshot));
+      const nextDraft = brandContextFromSnapshot(draft, snapshot);
+      setDraft(nextDraft);
+      saveBrandContext(nextDraft, workspaceId, () => setSaveState('error'));
       setDirty(true);
       setSaveState('idle');
       setState({ kind: 'ok', snapshot, review });
+      const evidenceReq = evidenceRequestFromBrandRequest(req, workspaceId);
+      if (evidenceReq) {
+        setEvidenceState({ kind: 'loading' });
+        evidenceIngest(evidenceReq)
+          .then((result) => setEvidenceState({ kind: 'ok', facts: result.facts }))
+          .catch(() => setEvidenceState({ kind: 'idle' }));
+      }
       // Kick off the autonomous proposer in the background — do not await.
       // Errors are caught in the propose chain; the brand section stays usable.
       // The drafts land in the proposedOffer / proposedCampaign tables so the
@@ -335,6 +391,8 @@ export function BrandSection({
 
       <BrandDropZone onSubmit={onSubmit} state={state} />
 
+      <EvidenceFactsBlock state={evidenceState} />
+
       {state.kind === 'error' ? (
         <div
           role="alert"
@@ -391,6 +449,48 @@ export function BrandSection({
         hasExternalAlert={state.kind === 'error' || proposeState.kind === 'error'}
       />
     </div>
+  );
+}
+
+function EvidenceFactsBlock({ state }: { state: EvidenceState }) {
+  if (state.kind === 'loading') {
+    return (
+      <div
+        role="status"
+        className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+      >
+        <span className="font-caption text-xs text-ink-dim">reading facts...</span>
+      </div>
+    );
+  }
+  if (state.kind !== 'ok' || state.facts.claims.length === 0) return null;
+  return (
+    <section
+      aria-label="evidence facts"
+      className="flex flex-col gap-1 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-caption text-ink-dim">facts</span>
+        <span
+          data-testid="evidence-facts-summary"
+          className="font-mono text-2xs uppercase text-ink-faint"
+        >
+          {state.facts.claims.length} facts
+        </span>
+      </div>
+      <ul data-testid="evidence-facts-list" className="flex flex-col gap-1">
+        {state.facts.claims.map((claim, index) => (
+          <li
+            key={`${claim.source.kind}-${claim.source.ref}-${index}`}
+            data-testid="evidence-fact-row"
+            className="truncate font-caption text-xs text-ink"
+            title={`${claim.text} · ${claim.source.kind}`}
+          >
+            {claim.text}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -758,6 +858,30 @@ function knowledgeSourceFromSnapshot(source: BrandSnapshotSource): KnowledgeSour
     note: kind === 'repo' ? 'repo' : 'brand site',
     label,
   };
+}
+
+function evidenceRequestFromBrandRequest(
+  req: BrandIngestRequest,
+  workspaceId: string | undefined
+): EvidenceIngestRequest | null {
+  if (req.kind === 'repo' && typeof req.source === 'string') {
+    return { workspaceId, kind: 'repo', source: req.source };
+  }
+  if (req.kind === 'url' && typeof req.source === 'string') {
+    return { workspaceId, kind: 'site', source: req.source };
+  }
+  if (req.kind === 'files' && req.source && typeof req.source === 'object' && !Array.isArray(req.source)) {
+    const texts = (req.source as { texts?: unknown }).texts;
+    if (!Array.isArray(texts)) return null;
+    const text = texts.filter((entry): entry is string => typeof entry === 'string').join('\n\n');
+    if (!text.trim()) return null;
+    return {
+      workspaceId,
+      kind: 'resume',
+      source: { text, ref: 'uploaded resume' },
+    };
+  }
+  return null;
 }
 
 function labelFromSourceUrl(raw: string, kind: KnowledgeSourceKind): string {

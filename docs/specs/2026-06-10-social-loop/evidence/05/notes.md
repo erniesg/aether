@@ -22,6 +22,17 @@
   - Over-length state: `docs/specs/2026-06-10-social-loop/evidence/05/over-length-state.png`
   - Posted state: `docs/specs/2026-06-10-social-loop/evidence/05/posted-state.png`
 
+## 2026-06-10 dependency rerun
+
+Spec 08 depends on the shared queue/intent gate, so the Playwright journey was
+rerun on the VM after the social-presence branch verification:
+
+```text
+npx playwright test tests/e2e/publish-draft-queue.spec.ts --trace on --output docs/specs/2026-06-10-social-loop/evidence/05/playwright-output
+
+1 passed
+```
+
 ## Constraints
 
 - New runtime dependencies: none.

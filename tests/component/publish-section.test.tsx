@@ -342,4 +342,41 @@ describe('PublishSection · draft queue', () => {
       'https://x.com/aether/status/1780000000000000002'
     );
   });
+
+  it('renders generated draft receipt refs without changing the intent gate', async () => {
+    window.localStorage.setItem(
+      'aether.publishDrafts.v1',
+      JSON.stringify([
+        {
+          id: 'pd_generated',
+          workspaceId: 'ws_generated_receipt',
+          kind: 'post',
+          text: 'Generated draft with [N] receipts.',
+          pillar: 'agent harnesses',
+          profileId: 'profile_personal',
+          lapId: 'lap_1',
+          receiptKind: 'evidence-fact',
+          receiptRef: 'repo:aether#claim-1',
+          status: 'draft',
+          createdAt: 10,
+          updatedAt: 10,
+        },
+      ])
+    );
+
+    const { PublishSection } = await import(
+      '@/components/rail/sections/PublishSection'
+    );
+
+    render(<PublishSection workspaceId="ws_generated_receipt" />);
+
+    const row = await screen.findByTestId('publish-draft-row');
+    expect(within(row).getByTestId('publish-draft-source-receipt')).toHaveTextContent(
+      'receipt repo:aether#claim-1'
+    );
+    expect(within(row).getByTestId('publish-draft-confirm')).toHaveAttribute(
+      'aria-disabled',
+      'false'
+    );
+  });
 });

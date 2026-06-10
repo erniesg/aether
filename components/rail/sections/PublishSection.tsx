@@ -387,6 +387,15 @@ function DraftRow({
         className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink focus:border-accent focus:outline-none"
       />
 
+      {draft.receiptRef ? (
+        <span
+          data-testid="publish-draft-source-receipt"
+          className="truncate font-caption text-xs text-ink-faint"
+        >
+          receipt {draft.receiptRef}
+        </span>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         {draft.receiptUrl ? (
           <a

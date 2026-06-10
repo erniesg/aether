@@ -79,6 +79,59 @@ describe('BrandSection · drop zone', () => {
     });
   });
 
+  it('lists repo evidence facts in one-line rows after a repo ingest', async () => {
+    const repoSnapshot: BrandSnapshot = {
+      ...HIGH_CONF_SNAPSHOT,
+      source: { kind: 'repo', url: 'https://github.com/erniesg/aether' },
+    };
+    const ingest = vi.fn(async () => ({ snapshot: repoSnapshot, review: false }));
+    const evidenceIngest = vi.fn(async () => ({
+      facts: {
+        name: 'aether',
+        description: 'Canvas-native creative system.',
+        claims: [
+          {
+            text: 'aether has 42 GitHub stars.',
+            source: { kind: 'repo' as const, ref: 'https://github.com/erniesg/aether' },
+          },
+          {
+            text: 'aether uses Next.js 15, Convex, and tldraw.',
+            source: { kind: 'repo' as const, ref: 'https://github.com/erniesg/aether' },
+          },
+          {
+            text: 'aether published release v0.5.0.',
+            source: { kind: 'repo' as const, ref: 'https://github.com/erniesg/aether' },
+          },
+        ],
+        releases: [],
+        languages: ['TypeScript'],
+        readmeHighlights: ['Next.js 15'],
+        enrichment: 'none' as const,
+      },
+      persisted: false,
+    }));
+
+    render(<BrandSection ingest={ingest} evidenceIngest={evidenceIngest} />);
+
+    await userEvent.type(
+      screen.getByLabelText(/brand source/i),
+      'https://github.com/erniesg/aether'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /ingest/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('evidence-facts-summary')).toHaveTextContent('3 facts');
+    });
+    expect(screen.getByTestId('evidence-facts-list')).toBeInTheDocument();
+    expect(screen.getAllByTestId('evidence-fact-row')).toHaveLength(3);
+    expect(screen.getByText('aether uses Next.js 15, Convex, and tldraw.')).toBeInTheDocument();
+    expect(evidenceIngest).toHaveBeenCalledWith({
+      workspaceId: undefined,
+      kind: 'repo',
+      source: 'https://github.com/erniesg/aether',
+    });
+  });
+
   it('accepts bare domains in the creator-facing source field', async () => {
     const ingest = vi.fn(async () => ({ snapshot: HIGH_CONF_SNAPSHOT, review: false }));
     render(<BrandSection ingest={ingest} />);
