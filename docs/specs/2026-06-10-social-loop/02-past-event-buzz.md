@@ -1,6 +1,6 @@
 # Spec 02 — Past-event recap pages + live buzz strip
 
-- Status: todo
+- Status: in-progress
 - Priority: P1 · Track: vibes
 - Branch: codex/social-02-past-event-buzz
 - Depends: none (pairs with 01 for live cadence)
