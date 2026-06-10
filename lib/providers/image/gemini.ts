@@ -1,10 +1,43 @@
-import type { ImageGenProvider, ImageGenRequest, ImageGenResult } from './types';
+import type {
+  ImageEditRequest,
+  ImageGenProvider,
+  ImageGenRequest,
+  ImageGenResult,
+} from './types';
 import { ImageGenError } from './types';
 import { applyComposition } from './composition';
 import { dimsFromAspect, fetchWithTimeout, mark } from './util';
 
 const DEFAULT_MODEL = 'imagen-4.0-generate-001';
+const DEFAULT_EDIT_MODEL = 'gemini-2.5-flash-image-preview';
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+/**
+ * Resolve a source image into inline base64 bytes for generateContent.
+ * Accepts a base64 data URL directly; anything else is fetched.
+ */
+async function sourceToInlineBytes(
+  sourceUrl: string
+): Promise<{ mimeType: string; data: string }> {
+  if (sourceUrl.startsWith('data:')) {
+    const commaIdx = sourceUrl.indexOf(',');
+    const header = sourceUrl.slice(5, commaIdx);
+    if (commaIdx <= 5 || !header.includes(';base64')) {
+      throw new ImageGenError('source data URL must be base64-encoded', 'gemini');
+    }
+    return {
+      mimeType: header.split(';', 1)[0] || 'image/png',
+      data: sourceUrl.slice(commaIdx + 1),
+    };
+  }
+  const res = await fetchWithTimeout(sourceUrl, {});
+  if (!res.ok) {
+    throw new ImageGenError(`failed to fetch source image (${res.status})`, 'gemini');
+  }
+  const mimeType = res.headers.get('content-type')?.split(';')[0] || 'image/png';
+  const buf = Buffer.from(await res.arrayBuffer());
+  return { mimeType, data: buf.toString('base64') };
+}
 
 /**
  * Google Imagen adapter via the Gemini API.
@@ -90,6 +123,81 @@ export function createGeminiProvider(
           width: w,
           height: h,
         })),
+        raw: json,
+      };
+    },
+
+    /**
+     * Instruction-based edit via generateContent (nano-banana class models).
+     * No mask channel — `maskUrl` is ignored; the instruction carries the
+     * edit intent ("remove the subject and fill the background"). Callers
+     * needing strict mask fidelity should route to a mask-capable adapter
+     * (replicate flux-fill) via the edit registry.
+     */
+    async edit(req: ImageEditRequest, opts): Promise<ImageGenResult> {
+      if (!apiKey) throw new ImageGenError('GOOGLE_GEMINI_API_KEY not set', 'gemini');
+      const model = opts.model || DEFAULT_EDIT_MODEL;
+      const { w, h } = req.size ?? dimsFromAspect(req.aspectRatio);
+
+      const inline = await sourceToInlineBytes(req.sourceUrl);
+
+      const elapsed = mark();
+      const res = await fetchWithTimeout(
+        `${ENDPOINT_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { inlineData: { mimeType: inline.mimeType, data: inline.data } },
+                  { text: req.prompt },
+                ],
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new ImageGenError(`${res.status} ${text}`, 'gemini');
+      }
+
+      type GeminiContentResp = {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              inlineData?: { mimeType?: string; data?: string };
+              inline_data?: { mime_type?: string; data?: string };
+            }>;
+          };
+        }>;
+      };
+      const json = (await res.json()) as GeminiContentResp;
+      const parts = json.candidates?.[0]?.content?.parts ?? [];
+      const images = parts
+        .map((part) => {
+          const inlineData = part.inlineData ?? {
+            mimeType: part.inline_data?.mime_type,
+            data: part.inline_data?.data,
+          };
+          if (!inlineData?.data) return null;
+          const mimeType = inlineData.mimeType ?? 'image/png';
+          const dataUrl = `data:${mimeType};base64,${inlineData.data}`;
+          return { url: dataUrl, dataUrl, mimeType, width: w, height: h };
+        })
+        .filter((img): img is NonNullable<typeof img> => img !== null);
+      if (images.length === 0) {
+        throw new ImageGenError('no edited image returned', 'gemini');
+      }
+
+      return {
+        provider: 'gemini',
+        model,
+        latencyMs: elapsed(),
+        images,
         raw: json,
       };
     },

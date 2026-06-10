@@ -76,6 +76,45 @@ export function resolveProvider(
   );
 }
 
+/**
+ * Pick an edit-capable provider (mask fill / instruction edit). Same
+ * precedence as `resolveProvider`, with two differences: providers that
+ * don't implement `edit` are skipped, and `IMAGE_EDIT_PROVIDER` outranks
+ * `IMAGE_GEN_PROVIDER` so edits can route to a fill model while generation
+ * stays on another adapter.
+ */
+export function resolveEditProvider(
+  preferredId?: string,
+  modelHint?: string
+): ImageGenProvider {
+  const order = [
+    preferredId,
+    process.env.IMAGE_EDIT_PROVIDER,
+    process.env.IMAGE_GEN_PROVIDER,
+    ...KNOWN_PROVIDER_IDS,
+  ].filter((x): x is string => typeof x === 'string' && x.length > 0);
+
+  for (const id of order) {
+    const factory = REGISTRY[id];
+    if (!factory) continue;
+    const provider = factory();
+    if (!provider.isAvailable() || typeof provider.edit !== 'function') continue;
+    if (modelHint && preferredId === undefined && !provider.listModels().includes(modelHint)) {
+      // A model hint without an explicit provider only routes when the
+      // adapter actually knows the model; otherwise keep scanning.
+      continue;
+    }
+    return provider;
+  }
+
+  throw new ProviderUnavailableError(
+    preferredId ?? 'any',
+    'no edit-capable provider has credentials set (checked: ' +
+      KNOWN_PROVIDER_IDS.join(', ') +
+      ')'
+  );
+}
+
 export function listAvailableProviders(): Array<{ id: string; displayName: string; models: string[] }> {
   const out: Array<{ id: string; displayName: string; models: string[] }> = [];
   for (const id of KNOWN_PROVIDER_IDS) {
