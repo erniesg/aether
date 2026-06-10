@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1080px; height: 1080px; overflow: hidden;
+        background: #f4ede0;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        color: #1a1a1a;
+        font-feature-settings: "ss01", "ss02";
+        font-variant-numeric: tabular-nums;
+      }
+      #root { width: 100%; height: 100%; position: relative; }
+
+      .grain {
+        position: absolute; inset: 0; pointer-events: none; z-index: 10;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1, 0 0 0 0 0.1, 0 0 0 0 0.1, 0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        opacity: 0.5; mix-blend-mode: multiply;
+      }
+
+      .scene { position: absolute; inset: 0; background: #f4ede0; }
+      .scene-content {
+        display: flex; flex-direction: column;
+        width: 100%; height: 100%;
+        padding: 73px 80px;
+        gap: 28px; box-sizing: border-box;
+      }
+      .header {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 22px; font-weight: 400; letter-spacing: 0.18em;
+        text-transform: uppercase; color: #5a5550;
+      }
+      .header .label { color: #1a1a1a; font-weight: 700; }
+      .number-block {
+        flex: 1;
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: flex-start;
+        gap: 28px;
+        font-variant-numeric: tabular-nums;
+      }
+      .number {
+        font-weight: 700; letter-spacing: -0.04em; line-height: 0.9; color: #1a1a1a;
+      }
+      .descriptor {
+        font-size: 28px; font-weight: 300; color: #5a5550;
+        line-height: 1.25; max-width: 800px;
+      }
+      .descriptor strong { font-weight: 700; color: #1a1a1a; }
+      .bar-wrap { margin-top: 20px; }
+      .bar-track {
+        height: 14px; background: rgba(26,26,26,0.10);
+        position: relative; overflow: hidden;
+      }
+      .bar-fill {
+        position: absolute; left: 0; top: 0; bottom: 0;
+        background: #1a1a1a; transform-origin: left center; width: var(--fill, 100%);
+      }
+      .bar-meta {
+        display: flex; justify-content: space-between; align-items: baseline;
+        margin-top: 14px; font-size: 16px; letter-spacing: 0.08em;
+        text-transform: uppercase; color: #5a5550;
+      }
+      .bar-meta strong { color: #c8413a; font-weight: 700; }
+      .footer {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 18px; font-weight: 400; letter-spacing: 0.06em;
+        text-transform: uppercase; color: #5a5550;
+        padding-top: 30px; border-top: 1px solid rgba(26,26,26,0.12);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="20"
+      data-width="1080"
+      data-height="1080"
+    >
+      <div class="grain"></div>
+      <div class="scene" id="s1">
+        <div class="scene-content">
+          <div class="header">
+            <span>01 / 04</span>
+            <span class="label">raw signal</span>
+          </div>
+          <div class="number-block">
+            <div class="number" id="s1-number" style="font-size: 158px;">0.00M</div>
+            <div class="descriptor">views observed across <strong>x, mastodon, youtube</strong></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-track"><div class="bar-fill" id="s1-bar" style="--fill: 100%;"></div></div>
+            <div class="bar-meta"><span>scope</span><strong id="s1-pct">100%</strong></div>
+          </div>
+          <div class="footer">
+            <span>devsummit · 2026 · de</span>
+            <span>collection window</span>
+          </div>
+        </div>
+      </div>
+      <div class="scene" id="s2">
+        <div class="scene-content">
+          <div class="header">
+            <span>02 / 04</span>
+            <span class="label">curated</span>
+          </div>
+          <div class="number-block">
+            <div class="number" id="s2-number" style="font-size: 218px;">0</div>
+            <div class="descriptor">relevant posts after <strong>recency + signal filters</strong></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-track"><div class="bar-fill" id="s2-bar" style="--fill: 45%;"></div></div>
+            <div class="bar-meta"><span>scope</span><strong id="s2-pct">~45%</strong></div>
+          </div>
+          <div class="footer">
+            <span>540 / 1,210</span>
+            <span>post-filter</span>
+          </div>
+        </div>
+      </div>
+      <div class="scene" id="s3">
+        <div class="scene-content">
+          <div class="header">
+            <span>03 / 04</span>
+            <span class="label">synthesised</span>
+          </div>
+          <div class="number-block">
+            <div class="number" id="s3-number" style="font-size: 278px;">0</div>
+            <div class="descriptor">story clusters that explain <strong>what the room actually was</strong></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-track"><div class="bar-fill" id="s3-bar" style="--fill: 25%;"></div></div>
+            <div class="bar-meta"><span>scope</span><strong id="s3-pct">~25%</strong></div>
+          </div>
+          <div class="footer">
+            <span>9 clusters</span>
+            <span>llm + regex assignment</span>
+          </div>
+        </div>
+      </div>
+      <div class="scene" id="s4">
+        <div class="scene-content">
+          <div class="header">
+            <span>04 / 04</span>
+            <span class="label">distilled</span>
+          </div>
+          <div class="number-block">
+            <div class="number" id="s4-number" style="font-size: 338px;">0</div>
+            <div class="descriptor">lanes that hold <strong>every story we found</strong></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-track"><div class="bar-fill" id="s4-bar" style="--fill: 10%;"></div></div>
+            <div class="bar-meta"><span>scope</span><strong id="s4-pct">~10%</strong></div>
+          </div>
+          <div class="footer">
+            <span>platform · runtime · community</span>
+            <span>output</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.set(["#s2", "#s3", "#s4"], { opacity: 0 }, 0);
+      tl.set(["#s1-bar", "#s2-bar", "#s3-bar", "#s4-bar"], { scaleX: 0 }, 0);
+      tl.from("#s1 .header", { y: -18, opacity: 0, duration: 0.5, ease: "power3.out" }, 0.20);
+      tl.from("#s1 .descriptor", { y: 24, opacity: 0, duration: 0.55, ease: "power2.out" }, 0.65);
+      const c1 = { v: 0 };
+      tl.to(c1, { v: 2.1, duration: 1.5, ease: "expo.out", onUpdate: () => { document.getElementById("s1-number").innerText = c1.v.toFixed(2) + "M"; } }, 0.40);
+      tl.to("#s1-bar", { scaleX: 1, duration: 0.9, ease: "expo.out" }, 1.60);
+      tl.from("#s1 .bar-meta", { opacity: 0, y: 10, duration: 0.4 }, 2.30);
+      tl.from("#s1 .footer", { opacity: 0, duration: 0.4 }, 2.70);
+      tl.to("#s2", { opacity: 1, duration: 0.45, ease: "sine.inOut" }, 5.00);
+      tl.from("#s2 .header", { y: -18, opacity: 0, duration: 0.5, ease: "power3.out" }, 5.20);
+      tl.from("#s2 .descriptor", { y: 24, opacity: 0, duration: 0.55, ease: "power2.out" }, 5.65);
+      const c2 = { v: 0 };
+      tl.to(c2, { v: 540, duration: 1.5, ease: "expo.out", onUpdate: () => { document.getElementById("s2-number").innerText = Math.floor(c2.v).toLocaleString(); } }, 5.40);
+      tl.to("#s2-bar", { scaleX: 1, duration: 0.9, ease: "expo.out" }, 6.60);
+      tl.from("#s2 .bar-meta", { opacity: 0, y: 10, duration: 0.4 }, 7.30);
+      tl.from("#s2 .footer", { opacity: 0, duration: 0.4 }, 7.70);
+      tl.to("#s3", { opacity: 1, duration: 0.45, ease: "sine.inOut" }, 10.00);
+      tl.from("#s3 .header", { y: -18, opacity: 0, duration: 0.5, ease: "power3.out" }, 10.20);
+      tl.from("#s3 .descriptor", { y: 24, opacity: 0, duration: 0.55, ease: "power2.out" }, 10.65);
+      const c3 = { v: 0 };
+      tl.to(c3, { v: 9, duration: 1.5, ease: "expo.out", onUpdate: () => { document.getElementById("s3-number").innerText = Math.floor(c3.v).toString(); } }, 10.40);
+      tl.to("#s3-bar", { scaleX: 1, duration: 0.9, ease: "expo.out" }, 11.60);
+      tl.from("#s3 .bar-meta", { opacity: 0, y: 10, duration: 0.4 }, 12.30);
+      tl.from("#s3 .footer", { opacity: 0, duration: 0.4 }, 12.70);
+      tl.to("#s4", { opacity: 1, duration: 0.45, ease: "sine.inOut" }, 15.00);
+      tl.from("#s4 .header", { x: -20, opacity: 0, duration: 0.45, ease: "power3.out" }, 15.20);
+      tl.set("#s4-number", { innerText: "3" }, 15.40);
+      tl.from("#s4-number", { scale: 1.4, opacity: 0, duration: 0.5, ease: "back.out(1.8)" }, 15.40);
+      tl.from("#s4 .descriptor", { y: 24, opacity: 0, duration: 0.55, ease: "power2.out" }, 15.80);
+      tl.to("#s4-bar", { scaleX: 1, duration: 0.6, ease: "expo.out" }, 16.30);
+      tl.from("#s4 .bar-meta", { opacity: 0, y: 10, duration: 0.4 }, 16.70);
+      tl.from("#s4 .footer", { opacity: 0, duration: 0.4 }, 17.10);
+      tl.to("#s4 .bar-meta strong", { scale: 1.08, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, 18.30);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1080px; height: 1080px; overflow: hidden;
+        background: #f4ede0;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        color: #1a1a1a;
+        font-feature-settings: "ss01", "ss02";
+        font-variant-numeric: tabular-nums;
+      }
+      #root { width: 100%; height: 100%; position: relative; }
+
+      .grain {
+        position: absolute; inset: 0; pointer-events: none; z-index: 10;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1, 0 0 0 0 0.1, 0 0 0 0 0.1, 0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        opacity: 0.5; mix-blend-mode: multiply;
+      }
+
+      .scene-content {
+        display: flex; flex-direction: column;
+        width: 100%; height: 100%;
+        padding: 79px 70px 73px;
+        gap: 34px; box-sizing: border-box; position: relative;
+      }
+      .header {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 22px; font-weight: 400; letter-spacing: 0.18em;
+        text-transform: uppercase; color: #5a5550;
+      }
+      .header .index { color: #1a1a1a; }
+      .atlas {
+        flex: 1; display: flex; gap: 0; position: relative;
+        border-top: 1px solid rgba(26,26,26,0.12);
+        border-bottom: 1px solid rgba(26,26,26,0.12);
+      }
+      .lane { flex: 1; position: relative; padding: 30px 0; }
+      .lane + .lane { border-left: 1px solid rgba(26,26,26,0.12); }
+      .lane-rule {
+        position: absolute; top: 0; bottom: 0; left: 50%; width: 1px;
+        background: rgba(26,26,26,0.12); transform-origin: top center;
+      }
+      .node {
+        position: absolute; left: 50%; transform: translate(-50%, -50%);
+        border-radius: 50%; background: #1a1a1a;
+      }
+      .node.accent { background: #c8413a; }
+      .lane-labels { display: flex; gap: 0; padding-top: 22px; }
+      .lane-labels .lane-label {
+        flex: 1; text-align: center;
+        font-size: 18px; font-weight: 700; letter-spacing: 0.24em;
+        text-transform: uppercase; color: #1a1a1a;
+      }
+      .edges { position: absolute; inset: 0; pointer-events: none; }
+      .edge { fill: none; stroke: #1a1a1a; stroke-width: 1.4; opacity: 0.45; }
+      .footer {
+        margin-top: 34px;
+        display: flex; justify-content: space-between; align-items: flex-end;
+      }
+      .footer .caption {
+        font-size: 38px; font-weight: 300; line-height: 1.15; letter-spacing: -0.02em;
+      }
+      .footer .caption strong { font-weight: 700; }
+      .footer .meta {
+        font-size: 18px; font-weight: 400; color: #5a5550;
+        letter-spacing: 0.08em; text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="8"
+      data-width="1080"
+      data-height="1080"
+    >
+      <div class="grain"></div>
+      <div class="scene-content">
+        <div class="header">
+          <span>devsummit · 2026 · atlas</span>
+          <span class="index">↓ 9 stories</span>
+        </div>
+
+        <div class="atlas">
+          <svg class="edges" id="edges" viewBox="0 0 940 1100" preserveAspectRatio="none">
+            <path class="edge" id="edge-1" d="M 157 154 Q 313 234 470 154" />
+            <path class="edge" id="edge-2" d="M 470 154 Q 627 234 783 154" />
+          </svg>
+          <div class="lane" id="lane-0">
+            <div class="lane-rule"></div>
+            <div class="node" data-node="0-0" style="top: 14%; width: 70px; height: 70px;"></div>
+            <div class="node accent" data-node="0-1" style="top: 38%; width: 62px; height: 62px;"></div>
+            <div class="node" data-node="0-2" style="top: 62%; width: 54px; height: 54px;"></div>
+            <div class="node" data-node="0-3" style="top: 86%; width: 46px; height: 46px;"></div>
+          </div>
+          <div class="lane" id="lane-1">
+            <div class="lane-rule"></div>
+            <div class="node" data-node="1-0" style="top: 14%; width: 64px; height: 64px;"></div>
+            <div class="node" data-node="1-1" style="top: 50%; width: 56px; height: 56px;"></div>
+            <div class="node" data-node="1-2" style="top: 86%; width: 48px; height: 48px;"></div>
+          </div>
+          <div class="lane" id="lane-2">
+            <div class="lane-rule"></div>
+            <div class="node" data-node="2-0" style="top: 14%; width: 58px; height: 58px;"></div>
+            <div class="node" data-node="2-1" style="top: 86%; width: 50px; height: 50px;"></div>
+          </div>
+        </div>
+
+        <div class="lane-labels">
+          <div class="lane-label">platform</div>
+          <div class="lane-label">runtime</div>
+          <div class="lane-label">community</div>
+        </div>
+
+        <div class="footer">
+          <div class="caption">
+            9 stories.<br />
+            3 lanes.<br />
+            <strong>one event.</strong>
+          </div>
+          <div class="meta">sep 2026 · berlin</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.from(".header", { y: -24, opacity: 0, duration: 0.55, ease: "power3.out" }, 0.2);
+      tl.from(".lane-rule", { scaleY: 0, duration: 0.7, ease: "expo.out", stagger: 0.12 }, 0.35);
+      tl.from(".lane-label", { y: 22, opacity: 0, duration: 0.5, ease: "power2.out", stagger: 0.1 }, 1.4);
+      tl.from("[data-node='0-0']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.60);
+      tl.from("[data-node='1-0']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.64);
+      tl.from("[data-node='0-1']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.68);
+      tl.from("[data-node='2-0']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.72);
+      tl.from("[data-node='1-1']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.76);
+      tl.from("[data-node='0-2']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.80);
+      tl.from("[data-node='2-1']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.84);
+      tl.from("[data-node='1-2']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.88);
+      tl.from("[data-node='0-3']", { scale: 0, opacity: 0, duration: 0.42, ease: "back.out(1.7)" }, 1.92);
+      (() => { const el = document.querySelector("#edge-1"); const len = el.getTotalLength(); tl.set("#edge-1", { strokeDasharray: len, strokeDashoffset: len }, 0); tl.to("#edge-1", { strokeDashoffset: 0, duration: 0.8, ease: "sine.inOut" }, 3.00); })();
+      (() => { const el = document.querySelector("#edge-2"); const len = el.getTotalLength(); tl.set("#edge-2", { strokeDasharray: len, strokeDashoffset: len }, 0); tl.to("#edge-2", { strokeDashoffset: 0, duration: 0.8, ease: "sine.inOut" }, 3.20); })();
+      tl.from(".footer .caption", { y: 30, opacity: 0, duration: 0.65, ease: "power3.out" }, 4.5);
+      tl.from(".footer .meta", { x: 20, opacity: 0, duration: 0.5, ease: "power2.out" }, 4.75);
+      tl.to(".node.accent", { scale: 1.12, duration: 0.45, ease: "sine.inOut", yoyo: true, repeat: 1 }, 5.7);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
