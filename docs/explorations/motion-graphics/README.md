@@ -28,6 +28,18 @@ npm run check        # lint + validate + inspect
 npm run render       # writes out/render.mp4
 ```
 
+## Generic template library
+
+These four compositions are also shipped as event-agnostic templates at
+`lib/video/event-recap/` — pure `RecapVideoData => HyperFrames HTML`
+functions with a registry, a `planRecapVariants()` template × format
+fan-out (vertical 9:16 / square 1:1 / landscape 16:9), and an
+`EventConfig` bridge. The generated fan-out for the AIE 2026 and
+fictional DevSummit 2026 fixtures lives under
+[template-previews/](./template-previews/) — see its
+[NOTES.md](./template-previews/NOTES.md) for regeneration commands and
+snapshot evidence.
+
 ## Design language
 
 See [DESIGN.md](./DESIGN.md). Warm paper, mono type, single accent. Restraint over ornament — layout carries the meaning.

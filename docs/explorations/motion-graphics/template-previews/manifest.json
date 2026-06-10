@@ -1,0 +1,242 @@
+[
+  {
+    "eventId": "aie-2026",
+    "templateId": "atlas-reveal",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "aie-2026/atlas-reveal--vertical.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "atlas-reveal",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "aie-2026/atlas-reveal--square.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "atlas-reveal",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "aie-2026/atlas-reveal--landscape.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "by-the-numbers",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 20,
+    "status": "renderable",
+    "file": "aie-2026/by-the-numbers--vertical.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "by-the-numbers",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 20,
+    "status": "renderable",
+    "file": "aie-2026/by-the-numbers--square.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "by-the-numbers",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 20,
+    "status": "renderable",
+    "file": "aie-2026/by-the-numbers--landscape.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "quote-cascade",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 18,
+    "status": "renderable",
+    "file": "aie-2026/quote-cascade--vertical.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "quote-cascade",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 18,
+    "status": "renderable",
+    "file": "aie-2026/quote-cascade--square.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "quote-cascade",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 18,
+    "status": "renderable",
+    "file": "aie-2026/quote-cascade--landscape.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "photo-mosaic",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "aie-2026/photo-mosaic--vertical.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "photo-mosaic",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "aie-2026/photo-mosaic--square.html"
+  },
+  {
+    "eventId": "aie-2026",
+    "templateId": "photo-mosaic",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "aie-2026/photo-mosaic--landscape.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "atlas-reveal",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "devsummit-2026/atlas-reveal--vertical.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "atlas-reveal",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "devsummit-2026/atlas-reveal--square.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "atlas-reveal",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "devsummit-2026/atlas-reveal--landscape.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "by-the-numbers",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 20,
+    "status": "renderable",
+    "file": "devsummit-2026/by-the-numbers--vertical.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "by-the-numbers",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 20,
+    "status": "renderable",
+    "file": "devsummit-2026/by-the-numbers--square.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "by-the-numbers",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 20,
+    "status": "renderable",
+    "file": "devsummit-2026/by-the-numbers--landscape.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "quote-cascade",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 18,
+    "status": "renderable",
+    "file": "devsummit-2026/quote-cascade--vertical.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "quote-cascade",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 18,
+    "status": "renderable",
+    "file": "devsummit-2026/quote-cascade--square.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "quote-cascade",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 18,
+    "status": "renderable",
+    "file": "devsummit-2026/quote-cascade--landscape.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "photo-mosaic",
+    "format": "vertical",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "devsummit-2026/photo-mosaic--vertical.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "photo-mosaic",
+    "format": "square",
+    "width": 1080,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "devsummit-2026/photo-mosaic--square.html"
+  },
+  {
+    "eventId": "devsummit-2026",
+    "templateId": "photo-mosaic",
+    "format": "landscape",
+    "width": 1920,
+    "height": 1080,
+    "durationSeconds": 8,
+    "status": "renderable",
+    "file": "devsummit-2026/photo-mosaic--landscape.html"
+  }
+]

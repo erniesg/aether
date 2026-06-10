@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1080px; height: 1920px; overflow: hidden;
+        background: #f4ede0;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        color: #1a1a1a;
+        font-feature-settings: "ss01", "ss02";
+        font-variant-numeric: tabular-nums;
+      }
+      #root { width: 100%; height: 100%; position: relative; }
+
+      .grain {
+        position: absolute; inset: 0; pointer-events: none; z-index: 10;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1, 0 0 0 0 0.1, 0 0 0 0 0.1, 0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        opacity: 0.5; mix-blend-mode: multiply;
+      }
+
+      .scene { position: absolute; inset: 0; background: #f4ede0; }
+      .scene-content {
+        display: flex; flex-direction: column;
+        width: 100%; height: 100%;
+        padding: 140px 70px 130px;
+        gap: 40px; box-sizing: border-box;
+      }
+      .header {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 22px; font-weight: 400; letter-spacing: 0.18em;
+        text-transform: uppercase; color: #5a5550;
+      }
+      .header .technique { color: #c8413a; font-weight: 700; }
+      .quote-block {
+        flex: 1; display: flex; flex-direction: column;
+        justify-content: center; gap: 60px;
+      }
+      .quote { letter-spacing: -0.03em; line-height: 1.05; color: #1a1a1a; }
+      .qm { font-size: 110px; font-weight: 700; }
+      .qm .line { display: block; clip-path: inset(0 100% 0 0); }
+      .qm .line + .line { margin-top: 12px; }
+      .qc { font-size: 64px; font-weight: 400; line-height: 1.18; max-width: 900px; }
+      .qc .word-wrap { display: inline-block; white-space: nowrap; }
+      .qc .char { display: inline-block; white-space: pre; }
+      .qs { font-size: 92px; font-weight: 700; line-height: 1.08; max-width: 940px; }
+      .qs .word { display: inline-block; margin-right: 0.18em; }
+      .qs .word.accent { color: #c8413a; }
+      .attribution {
+        display: flex; align-items: center; gap: 24px;
+        padding-top: 30px; border-top: 1px solid rgba(26,26,26,0.12);
+      }
+      .attribution .rule { width: 60px; height: 1px; background: #1a1a1a; }
+      .attribution .who { font-size: 20px; font-weight: 700; letter-spacing: 0.04em; }
+      .attribution .ctx {
+        font-size: 18px; font-weight: 300; color: #5a5550;
+        letter-spacing: 0.05em; text-transform: uppercase;
+      }
+      .footer {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 16px; font-weight: 400; letter-spacing: 0.08em;
+        text-transform: uppercase; color: #5a5550;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="18"
+      data-width="1080"
+      data-height="1920"
+    >
+      <div class="grain"></div>
+      <div class="scene" id="s1">
+        <div class="scene-content">
+          <div class="header">
+            <span>01 / 03 · quote</span>
+            <span class="technique">mask reveal</span>
+          </div>
+          <div class="quote-block">
+            <div class="quote qm" id="q1-text"><span class="line">ship small</span>
+              <span class="line">ship often.</span></div>
+            <div class="attribution">
+              <div class="rule"></div>
+              <div>
+                <div class="who">platform keynote</div>
+                <div class="ctx">devsummit berlin · day 1</div>
+              </div>
+            </div>
+          </div>
+          <div class="footer">
+            <span>↳ heard on the floor</span>
+            <span>devsummit 2026</span>
+          </div>
+        </div>
+      </div>
+      <div class="scene" id="s2">
+        <div class="scene-content">
+          <div class="header">
+            <span>02 / 03 · quote</span>
+            <span class="technique">letter cascade</span>
+          </div>
+          <div class="quote-block">
+            <div class="quote qc" id="q2-text"></div>
+            <div class="attribution">
+              <div class="rule"></div>
+              <div>
+                <div class="who">core maintainers panel</div>
+                <div class="ctx">stage observation · 14 sep</div>
+              </div>
+            </div>
+          </div>
+          <div class="footer">
+            <span>↳ heard on the floor</span>
+            <span>devsummit 2026</span>
+          </div>
+        </div>
+      </div>
+      <div class="scene" id="s3">
+        <div class="scene-content">
+          <div class="header">
+            <span>03 / 03 · quote</span>
+            <span class="technique">word slam</span>
+          </div>
+          <div class="quote-block">
+            <div class="quote qs" id="q3-text"></div>
+            <div class="attribution">
+              <div class="rule"></div>
+              <div>
+                <div class="who">keynote speaker</div>
+                <div class="ctx">keynote · kosmos hall</div>
+              </div>
+            </div>
+          </div>
+          <div class="footer">
+            <span>↳ heard on the floor</span>
+            <span>devsummit 2026</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      (() => {
+        const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const text = "the runtime is finally boring, and that is the whole point.";
+        const el = document.getElementById("q2-text");
+        el.innerHTML = text.split(" ").map((word, wi, arr) => {
+          const chars = word.split("").map((c) => '<span class="char">' + esc(c) + '</span>').join("");
+          const space = wi < arr.length - 1 ? '<span class="char">&nbsp;</span>' : "";
+          return '<span class="word-wrap">' + chars + '</span>' + space;
+        }).join("");
+      })();
+      (() => {
+        const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const words = "Europe can own the open edge runtime.".split(" ");
+        const accent = "edge";
+        const el = document.getElementById("q3-text");
+        el.innerHTML = words.map((w) => {
+          const isAccent = accent && w.toLowerCase().replace(/[^a-z0-9]/g, "") === accent;
+          return '<span class="word' + (isAccent ? ' accent' : '') + '">' + esc(w) + '</span>';
+        }).join(" ");
+      })();
+      const tl = gsap.timeline({ paused: true });
+      tl.set(["#s2", "#s3"], { opacity: 0 }, 0);
+      tl.from("#s1 .header", { y: -18, opacity: 0, duration: 0.5, ease: "power3.out" }, 0.20);
+      tl.to("#s1 .qm .line:nth-child(1)", { clipPath: "inset(0 0% 0 0)", duration: 0.7, ease: "expo.out" }, 0.40);
+      tl.to("#s1 .qm .line:nth-child(2)", { clipPath: "inset(0 0% 0 0)", duration: 0.7, ease: "expo.out" }, 0.95);
+      tl.from("#s1 .attribution .rule", { scaleX: 0, duration: 0.4, ease: "power2.out", transformOrigin: "left center" }, 2.40);
+      tl.from("#s1 .attribution .who", { x: -16, opacity: 0, duration: 0.45, ease: "power3.out" }, 2.55);
+      tl.from("#s1 .attribution .ctx", { x: -10, opacity: 0, duration: 0.45, ease: "power2.out" }, 2.70);
+      tl.from("#s1 .footer", { opacity: 0, duration: 0.4 }, 3.20);
+      tl.to("#s2", { opacity: 1, duration: 0.4, ease: "sine.inOut" }, 6.00);
+      tl.from("#s2 .header", { x: -18, opacity: 0, duration: 0.45, ease: "power3.out" }, 6.20);
+      tl.from("#s2 .qc .char", { y: -36, opacity: 0, duration: 0.35, ease: "back.out(1.6)", stagger: { each: 0.012, from: "start" } }, 6.40);
+      tl.from("#s2 .attribution .rule", { scaleX: 0, duration: 0.4, ease: "power2.out", transformOrigin: "left center" }, 8.40);
+      tl.from("#s2 .attribution .who", { x: -16, opacity: 0, duration: 0.45, ease: "power3.out" }, 8.55);
+      tl.from("#s2 .attribution .ctx", { x: -10, opacity: 0, duration: 0.45, ease: "power2.out" }, 8.70);
+      tl.from("#s2 .footer", { opacity: 0, duration: 0.4 }, 9.20);
+      tl.to("#s3", { opacity: 1, duration: 0.4, ease: "sine.inOut" }, 12.00);
+      tl.from("#s3 .header", { x: -18, opacity: 0, duration: 0.45, ease: "power3.out" }, 12.20);
+      tl.from("#s3 .qs .word", { scale: 1.45, opacity: 0, duration: 0.42, ease: "back.out(2.0)", stagger: 0.085 }, 12.40);
+      tl.from("#s3 .attribution .rule", { scaleX: 0, duration: 0.4, ease: "power2.out", transformOrigin: "left center" }, 14.40);
+      tl.from("#s3 .attribution .who", { x: -16, opacity: 0, duration: 0.45, ease: "power3.out" }, 14.55);
+      tl.from("#s3 .attribution .ctx", { x: -10, opacity: 0, duration: 0.45, ease: "power2.out" }, 14.70);
+      tl.from("#s3 .footer", { opacity: 0, duration: 0.4 }, 15.20);
+      tl.to("#s3 .qs .word.accent", { scale: 1.06, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, 16.40);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
