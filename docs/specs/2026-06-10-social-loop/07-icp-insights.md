@@ -1,6 +1,6 @@
 # Spec 07 — ICP account analysis — learn what the room rewards
 
-- Status: review
+- Status: done
 - Priority: P2 · Track: presence
 - Branch: codex/social-07-icp-insights
 - Depends: soft: 04 (falls back to signalSubscription accounts without an accepted strategy); digest rows scoped by profileId

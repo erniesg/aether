@@ -1,6 +1,6 @@
 # Spec 08 — Presence draft-generation lap (strategy → queue)
 
-- Status: review
+- Status: done
 - Priority: P1 · Track: presence
 - Branch: codex/social-08-draft-generation
 - Depends: hard: 04 (profiles + accepted strategy are the input), 05 (queue is the output; gains optional profileId here); soft: 03/06/07 (evidence facts, ledger, insights enrich the prompt when present)
