@@ -13,22 +13,32 @@ same bar it would on a PR).
 |---|---|---|---|
 | 01 | Cron-fired refresh laps for live event windows | P1 | none |
 | 02 | Past-event recap pages + live buzz strip | P1 | none |
-| 03 | Repo-facts ingestion (GitHub + context.dev seam) | P1 | none |
-| 04 | Goal + X handle intake → proposed social strategy | P1 | soft: 03 |
+| 03 | Evidence ingestion (repos · resume · site) | P1 | none |
+| 04 | Presence profiles + goal intake → proposed strategy | P1 | soft: 03 |
 | 05 | Draft queue with edit/confirm via X web intents | P1 | none — **done** |
-| 06 | Own-handle stats lap + performance ledger | P2 | soft: 05; handle from 04 |
+| 06 | Own-handle stats lap + performance ledger | P2 | soft: 05; profile from 04 |
 | 07 | ICP account analysis → insights digest | P2 | soft: 04 |
 | 08 | Presence draft-generation lap (strategy → queue) | P1 | hard: 04, 05; soft: 03/06/07 |
 
 Soft dependencies degrade gracefully (each spec states how). Suggested order:
 05 → 03 → 04 → **08** → 01 → 02 → 06 → 07.
 
-How the presence specs compose: 04 is where the creator connects their X
-handle and states the goal, and where aether proposes the strategy; 03/07
-supply what to say and what the room rewards; **08 is the brain** — it fills
-the spec-05 queue with pillar-tagged, receipt-grounded drafts; 05 is the
-human gate (edit → confirm → intent → permalink back); 06 closes the loop by
-reading results back into the next lap.
+**The model.** A workspace holds many **presence profiles** — a creator may
+run their personal account, a product account, and client-brand accounts side
+by side, even multiple goals against one brand. Everything downstream
+(strategy, drafts, ledger, insights) is profile-scoped. **Evidence** is
+whatever proves the profile: for a person that's resume + repos + site; for a
+product or client it's repos + site + brand context.
+
+How the presence specs compose: 04 holds the profiles (label, X handle, goal)
+and proposes each profile's strategy — held to the quality bar in
+`references/strategy-exemplar.md`; 03 supplies the evidence facts drafts cite
+as receipts; 07 learns what the profile's ICP rewards; **08 is the brain** —
+per profile, it fills the spec-05 queue with pillar-tagged, receipt-grounded
+drafts; 05 is the human gate (edit → confirm → intent → permalink back); 06
+closes the loop by reading results back into the next lap.
+
+New-agent onboarding: read `HANDOFF.md` in this directory first.
 
 ## Worker protocol (codex)
 

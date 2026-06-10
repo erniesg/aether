@@ -3,7 +3,7 @@
 - Status: todo
 - Priority: P2 · Track: presence
 - Branch: codex/social-06-presence-ledger
-- Depends: soft: 05 (permalink join degrades to pillar=untagged)
+- Depends: soft: 05 (permalink join degrades to pillar=untagged); handle + profileId from 04
 - Evidence dir: docs/specs/2026-06-10-social-loop/evidence/06/
 
 ## Summary
@@ -14,7 +14,7 @@ Aether reads the creator's own X handle on a lap and keeps a per-pillar performa
 
 ### Features
 
-- F1 — Own-handle metrics lap: a new `lib/research/presence-metrics.ts` collects recent posts + metrics for the configured handle via the existing `lib/research/event-recap/xquik.ts` adapter, storing snapshots in a new convex table (`presencePostMetric`: postUrl, capturedAt, likes, reposts, replies, impressions, pillar?)
+- F1 — Own-handle metrics lap: a new `lib/research/presence-metrics.ts` collects recent posts + metrics for a presence profile's handle (spec 04) via the existing `lib/research/event-recap/xquik.ts` adapter, storing snapshots in a new convex table (`presencePostMetric`: profileId, postUrl, capturedAt, likes, reposts, replies, impressions, pillar?)
   - **Falsifiable**: given a fixture xquik payload, the lap persists one snapshot row per post with numeric metrics; re-running appends a new snapshot (time series), never overwrites
   - **Verification**: unit test with recorded fixture (no live scrape in tests); idempotency-of-shape test
   - **Proof**: test ids in `lib/research/presence-metrics.test.ts`
@@ -47,7 +47,7 @@ New files to add: `lib/research/presence-metrics.ts` + test, convex table + func
 
 - [ ] fixture-driven test run output (all green) — evidence/06/notes.md
 - [ ] ledger JSON + matching rail screenshot — evidence/06/notes.md
-- [ ] one real lap against the creator's handle with metrics rows persisted (numbers redacted ok) — evidence/06/notes.md, tagged human-only (Ernie supplies)
+- [ ] one real lap against one profile's handle with metrics rows persisted (numbers redacted ok) — evidence/06/notes.md, tagged human-only (Ernie supplies)
 
 ### Media proof
 
@@ -61,7 +61,7 @@ New files to add: `lib/research/presence-metrics.ts` + test, convex table + func
 
 ## Acceptance criteria
 
-- [ ] Fixture lap persists time-series snapshots with numeric metrics (test ids)
+- [ ] Fixture lap persists profile-scoped time-series snapshots with numeric metrics; two profiles never mix rows (test ids)
 - [ ] Pillar join: matched permalinks tagged, unmatched `untagged` (test id)
 - [ ] `GET /api/presence/ledger` returns snapshot-stable rollup JSON (test id)
 - [ ] Rail rollup matches endpoint output (screenshot + JSON)

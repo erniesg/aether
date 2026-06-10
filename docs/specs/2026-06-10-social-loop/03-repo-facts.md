@@ -1,4 +1,4 @@
-# Spec 03 — Repo-facts ingestion (GitHub → project facts, context.dev seam)
+# Spec 03 — Evidence ingestion (repos · resume · site → grounded facts, context.dev seam)
 
 - Status: todo
 - Priority: P1 · Track: presence
@@ -8,7 +8,7 @@
 
 ## Summary
 
-Point aether at a GitHub repo and it extracts project facts (claims with real numbers, releases, stack) as creator context — the raw material for presence-campaign drafts. Optional context.dev enrichment behind a provider seam.
+Point aether at the evidence that proves who a profile is — GitHub repos, an uploaded resume, a personal site — and it extracts grounded facts (claims with real numbers, releases, stack, roles, talks) as creator context: the raw material strategy generation (spec 04) and draft generation (spec 08) cite as receipts. Optional context.dev enrichment behind a provider seam. For a personal profile the resume + repos ARE the brand; for a product or client profile the same pipeline reads its repos and site.
 
 ## QA Plan
 
@@ -27,7 +27,12 @@ Point aether at a GitHub repo and it extracts project facts (claims with real nu
   - **Verification**: contract test mirroring `lib/providers/image/*.contract.test.ts` pattern
   - **Proof**: test ids in the new contract test file
 
-New files to add: `lib/research/repo-facts.ts`, `lib/research/repo-facts.test.ts`, `lib/providers/enrichment/` (types, context-dev adapter, registry, contract tests), rail wiring in the brand/research section for "add repo" input
+- F4 — Resume + site evidence: an uploaded resume (PDF or markdown, via the existing knowledge-source upload path) and a site URL each extract to the same fact shape (`claims[]` with source attribution `{ kind: 'resume' | 'site' | 'repo', ref }`); resume-derived facts persist only in workspace context tables, never in logs or telemetry
+  - **Falsifiable**: a fixture resume (markdown) yields ≥3 claims each tagged `kind: resume`; a fixture site payload yields ≥2 claims tagged `kind: site`; grep over the ingestion path shows no logging of raw resume text
+  - **Verification**: unit tests with fixture resume/site payloads; grep proof
+  - **Proof**: test ids; grep output in evidence/03/notes.md
+
+New files to add: `lib/research/repo-facts.ts` + test, `lib/research/evidence-facts.ts` + test (resume/site extraction to the shared fact shape), `lib/providers/enrichment/` (types, context-dev adapter, registry, contract tests), rail wiring in the brand/research section for repo URL / resume upload / site URL inputs
 
 ### Critical journeys
 
@@ -66,6 +71,8 @@ New files to add: `lib/research/repo-facts.ts`, `lib/research/repo-facts.test.ts
 - [ ] `CONTEXT_DEV_API_KEY` unset → GitHub-only path exits 0 with `enrichment: none` (test id)
 - [ ] No token value is ever logged or persisted — env names only (grep proof in evidence/03/notes.md)
 - [ ] Rail shows facts under progressive disclosure (screenshot; one line per fact)
+- [ ] Resume and site fixtures extract to the shared fact shape with source attribution (test ids)
+- [ ] Raw resume text never appears in logs or telemetry (grep proof in evidence/03/notes.md)
 
 ## Context / references
 

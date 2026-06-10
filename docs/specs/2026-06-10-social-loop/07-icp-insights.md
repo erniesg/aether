@@ -3,18 +3,18 @@
 - Status: todo
 - Priority: P2 · Track: presence
 - Branch: codex/social-07-icp-insights
-- Depends: soft: 04 (falls back to signalSubscription accounts without an accepted strategy)
+- Depends: soft: 04 (falls back to signalSubscription accounts without an accepted strategy); digest rows scoped by profileId
 - Evidence dir: docs/specs/2026-06-10-social-loop/evidence/07/
 
 ## Summary
 
-Aether studies the reference/ICP accounts in the presence strategy — what formats, hooks, and timing actually earn engagement for them — and produces a "what works" digest that strategy generation and draft optimization consume. Self-metrics (own-handle ledger) say how we did; this says what the room rewards.
+Aether studies the reference/ICP accounts in a presence profile's accepted strategy — what formats, hooks, and timing actually earn engagement for them — and produces a "what works" digest that strategy generation and draft optimization consume. Self-metrics (own-handle ledger) say how we did; this says what the room rewards.
 
 ## QA Plan
 
 ### Features
 
-- F1 — Reference-account lap: `lib/research/account-analysis.ts` collects recent posts + metrics for each handle in the accepted strategy's `icpAccounts` (and any `signalSubscription` accounts) via the existing `lib/research/event-recap/xquik.ts` adapter, persisting per-account corpora in a new convex table (`referenceAccountPost`: handle, postUrl, text, postedAt, metrics, capturedAt)
+- F1 — Reference-account lap: `lib/research/account-analysis.ts` collects recent posts + metrics for each handle in the profile's accepted strategy `icpAccounts` (and any `signalSubscription` accounts) via the existing `lib/research/event-recap/xquik.ts` adapter, persisting per-account corpora in a new convex table (`referenceAccountPost`: handle, postUrl, text, postedAt, metrics, capturedAt)
   - **Falsifiable**: given fixture xquik payloads for 3 handles, the lap persists one row per post with numeric metrics; re-running appends new snapshots for changed metrics, never duplicates a (handle, postUrl, capturedAt) triple
   - **Verification**: unit tests with recorded fixtures (no live scrape in tests)
   - **Proof**: test ids in `lib/research/account-analysis.test.ts`
@@ -66,7 +66,7 @@ New files to add: `lib/research/account-analysis.ts` + tests, convex table + fun
 
 ## Acceptance criteria
 
-- [ ] Lap persists fixture corpora for 3 handles without duplication (test ids)
+- [ ] Lap persists fixture corpora for 3 handles without duplication, scoped to the requesting profile (test ids)
 - [ ] 12-post classification table passes exactly (test id)
 - [ ] Digest JSON snapshot-stable with hand-verified quartile math (test ids)
 - [ ] Strategy prompt contains the digest when present, omits cleanly when absent (test ids)
