@@ -85,3 +85,53 @@ describe('image provider registry', () => {
     expect(listAvailableProviders()).toEqual([]);
   });
 });
+
+describe('image edit provider registry', () => {
+  const snapshot: Record<string, string | undefined> = {};
+  const KEYS = [
+    'OPENAI_API_KEY',
+    'GOOGLE_GEMINI_API_KEY',
+    'REPLICATE_API_TOKEN',
+    'VOLCENGINE_ARK_API_KEY',
+    'IMAGE_GEN_PROVIDER',
+    'IMAGE_EDIT_PROVIDER',
+  ] as const;
+
+  beforeEach(() => {
+    for (const k of KEYS) {
+      snapshot[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (snapshot[k] === undefined) delete process.env[k];
+      else process.env[k] = snapshot[k];
+    }
+  });
+
+  it('skips available providers that do not implement edit', async () => {
+    const { resolveEditProvider } = await import('./registry');
+    // openai is available but has no edit(); replicate does.
+    process.env.OPENAI_API_KEY = 'sk';
+    process.env.REPLICATE_API_TOKEN = 'r8';
+    const provider = resolveEditProvider();
+    expect(typeof provider.edit).toBe('function');
+  });
+
+  it('honours IMAGE_EDIT_PROVIDER over IMAGE_GEN_PROVIDER', async () => {
+    const { resolveEditProvider } = await import('./registry');
+    process.env.GOOGLE_GEMINI_API_KEY = 'gk';
+    process.env.REPLICATE_API_TOKEN = 'r8';
+    process.env.IMAGE_GEN_PROVIDER = 'replicate';
+    process.env.IMAGE_EDIT_PROVIDER = 'gemini';
+    expect(resolveEditProvider().id).toBe('gemini');
+  });
+
+  it('throws when no edit-capable provider has credentials', async () => {
+    const { resolveEditProvider } = await import('./registry');
+    process.env.OPENAI_API_KEY = 'sk';
+    expect(() => resolveEditProvider()).toThrow(ProviderUnavailableError);
+  });
+});

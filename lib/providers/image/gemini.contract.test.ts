@@ -144,3 +144,104 @@ describe('gemini (imagen) adapter · contract', () => {
     ).rejects.toThrow(/no predictions returned/);
   });
 });
+
+describe('gemini adapter · edit contract', () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('edit throws when key missing, without calling fetch', async () => {
+    const provider = createGeminiProvider(undefined);
+    const err = await provider
+      .edit!(
+        { prompt: 'fill', sourceUrl: 'data:image/png;base64,c3Jj' },
+        { model: 'gemini-2.5-flash-image-preview' }
+      )
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(ImageGenError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends inline source bytes + instruction to generateContent', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { mimeType: 'image/png', data: 'ZWRpdGVk' } }],
+            },
+          },
+        ],
+      })
+    );
+    const provider = createGeminiProvider('key');
+    const result = await provider.edit!(
+      {
+        prompt: 'remove the subject and fill the background naturally',
+        sourceUrl: 'data:image/png;base64,c3JjLWJ5dGVz',
+      },
+      { model: 'gemini-2.5-flash-image-preview' }
+    );
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toContain('gemini-2.5-flash-image-preview:generateContent');
+    const body = JSON.parse(init?.body as string);
+    const parts = body.contents[0].parts;
+    expect(parts[0].inlineData).toEqual({
+      mimeType: 'image/png',
+      data: 'c3JjLWJ5dGVz',
+    });
+    expect(parts[1].text).toMatch(/remove the subject/);
+
+    expect(result.provider).toBe('gemini');
+    expect(result.images[0]?.dataUrl).toBe('data:image/png;base64,ZWRpdGVk');
+  });
+
+  it('fetches a remote source url into inline bytes first', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(new Uint8Array([137, 80, 78, 71]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      })
+    );
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { mimeType: 'image/png', data: 'ZWRpdGVk' } }],
+            },
+          },
+        ],
+      })
+    );
+    const provider = createGeminiProvider('key');
+    await provider.edit!(
+      { prompt: 'fill', sourceUrl: 'https://cdn.example/src.jpg' },
+      { model: 'gemini-2.5-flash-image-preview' }
+    );
+    expect(String(fetchMock.mock.calls[0]![0])).toBe('https://cdn.example/src.jpg');
+    const body = JSON.parse(fetchMock.mock.calls[1]![1]?.body as string);
+    expect(body.contents[0].parts[0].inlineData.mimeType).toBe('image/jpeg');
+  });
+
+  it('edit throws when no image part comes back', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ candidates: [{ content: { parts: [{ text: 'cannot do that' }] } }] })
+    );
+    const provider = createGeminiProvider('key');
+    await expect(
+      provider.edit!(
+        { prompt: 'fill', sourceUrl: 'data:image/png;base64,c3Jj' },
+        { model: 'gemini-2.5-flash-image-preview' }
+      )
+    ).rejects.toThrow(/no edited image returned/);
+  });
+});

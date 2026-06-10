@@ -194,3 +194,77 @@ describe('replicate adapter · contract', () => {
     ).rejects.toThrow(/no output urls/);
   });
 });
+
+describe('replicate adapter · edit contract', () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists a fill-capable model', () => {
+    const provider = createReplicateProvider('r8_test');
+    expect(provider.listModels()).toContain('black-forest-labs/flux-fill-pro');
+  });
+
+  it('edit throws when token missing, without calling fetch', async () => {
+    const provider = createReplicateProvider(undefined);
+    const err = await provider
+      .edit!(
+        { prompt: 'fill', sourceUrl: 'https://cdn.example/src.png' },
+        { model: 'black-forest-labs/flux-fill-pro' }
+      )
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(ImageGenError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('passes image + mask URLs straight through (white = edit region)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        id: 'pred-edit',
+        status: 'succeeded',
+        output: 'https://replicate.delivery/out.png',
+      })
+    );
+    const provider = createReplicateProvider('r8_test');
+    const result = await provider.edit!(
+      {
+        prompt: 'remove the subject and fill the background naturally',
+        sourceUrl: 'https://cdn.example/src.png',
+        maskUrl: 'https://cdn.example/mask.png',
+      },
+      { model: 'black-forest-labs/flux-fill-pro' }
+    );
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(
+      'https://api.replicate.com/v1/models/black-forest-labs/flux-fill-pro/predictions'
+    );
+    const body = JSON.parse(init?.body as string);
+    expect(body.input.image).toBe('https://cdn.example/src.png');
+    expect(body.input.mask).toBe('https://cdn.example/mask.png');
+    expect(body.input.prompt).toMatch(/fill the background/);
+
+    expect(result.provider).toBe('replicate');
+    expect(result.images[0]?.url).toBe('https://replicate.delivery/out.png');
+  });
+
+  it('edit surfaces a failed prediction as ImageGenError', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'pred-edit', status: 'failed', error: 'NSFW detected' })
+    );
+    const provider = createReplicateProvider('r8_test');
+    await expect(
+      provider.edit!(
+        { prompt: 'fill', sourceUrl: 'https://cdn.example/src.png' },
+        { model: 'black-forest-labs/flux-fill-pro' }
+      )
+    ).rejects.toThrow(/NSFW detected/);
+  });
+});
