@@ -1,6 +1,6 @@
 # Spec 04 — Presence profiles + goal intake → proposed social strategy (propose→accept)
 
-- Status: todo
+- Status: review
 - Priority: P1 · Track: presence
 - Branch: codex/social-04-presence-strategy
 - Depends: soft: 03 (degrades to brand/offer context without evidence sources)

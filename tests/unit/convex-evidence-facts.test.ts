@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  listEvidenceClaimsForWorkspace,
   listProductFactRecords,
   upsertEvidenceFactsForWorkspace,
 } from '../../convex/evidenceFacts';
@@ -21,6 +22,7 @@ interface ProductFactDoc {
   wsId: string;
   name: string;
   claims: string[];
+  claimSources?: EvidenceClaim['source'][];
   heroAsset?: string;
 }
 
@@ -116,7 +118,24 @@ describe('convex/evidenceFacts · sourceItem + productFact persistence', () => {
       wsId: 'workspace_demo',
       name: 'aether',
       claims: CLAIMS.map((claim) => claim.text),
+      claimSources: CLAIMS.map((claim) => claim.source),
     });
+  });
+
+  it('reconstructs source-backed evidence claims from persisted product facts', async () => {
+    await upsertEvidenceFactsForWorkspace(db, {
+      wsId: 'workspace_demo',
+      source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+      name: 'aether',
+      claims: CLAIMS,
+    });
+
+    expect(await listEvidenceClaimsForWorkspace(db, 'workspace_demo')).toEqual(
+      CLAIMS.map((claim) => ({
+        text: claim.text,
+        source: claim.source,
+      }))
+    );
   });
 
   it('updates instead of duplicating when the same repo is ingested twice', async () => {

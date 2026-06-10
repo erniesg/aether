@@ -44,6 +44,39 @@ export async function listProductFactRecords(db: EvidenceDb, wsId: string) {
     .collect();
 }
 
+export async function listEvidenceClaimsForWorkspace(
+  db: EvidenceDb,
+  wsId: string
+): Promise<EvidenceClaimRecord[]> {
+  const [productRows, sourceRows] = await Promise.all([
+    listProductFactRecords(db, wsId),
+    db
+      .query('sourceItem')
+      .withIndex('by_ws', (q) => q.eq('wsId', wsId))
+      .collect(),
+  ]);
+  const sourceByName = new Map<string, EvidenceClaimRecord['source']>();
+  for (const row of sourceRows) {
+    const name = typeof row.payload?.name === 'string' ? row.payload.name.trim() : '';
+    const source = coerceEvidenceSource(row.payload);
+    if (name && source) sourceByName.set(name, source);
+  }
+
+  return productRows.flatMap((row) => {
+    const claims = Array.isArray(row.claims) ? row.claims : [];
+    const claimSources = Array.isArray(row.claimSources) ? row.claimSources : [];
+    const fallbackSource =
+      typeof row.name === 'string' ? sourceByName.get(row.name) : undefined;
+    return claims
+      .map((claim, index) => {
+        if (typeof claim !== 'string' || !claim.trim()) return null;
+        const source = coerceEvidenceSource(claimSources[index]) ?? fallbackSource;
+        return source ? { text: claim.trim(), source } : null;
+      })
+      .filter((claim): claim is EvidenceClaimRecord => claim !== null);
+  });
+}
+
 export async function upsertEvidenceFactsForWorkspace(
   db: EvidenceDb,
   input: UpsertEvidenceFactsInput
@@ -81,6 +114,7 @@ export async function upsertEvidenceFactsForWorkspace(
     wsId: input.wsId,
     name: input.name,
     claims: input.claims.map((claim) => claim.text),
+    claimSources: input.claims.map((claim) => claim.source),
   };
   const productFactId = existingProduct
     ? (await db.patch(existingProduct._id, productPatch), String(existingProduct._id))
@@ -90,13 +124,19 @@ export async function upsertEvidenceFactsForWorkspace(
 }
 
 export const list = queryGeneric({
-  args: { wsId: v.id('workspace') },
+  args: { wsId: v.string() },
   handler: async (ctx, args) => await listProductFactRecords(ctx.db as unknown as EvidenceDb, args.wsId),
+});
+
+export const listClaims = queryGeneric({
+  args: { wsId: v.string() },
+  handler: async (ctx, args) =>
+    await listEvidenceClaimsForWorkspace(ctx.db as unknown as EvidenceDb, args.wsId),
 });
 
 export const upsert = mutationGeneric({
   args: {
-    wsId: v.id('workspace'),
+    wsId: v.string(),
     source: EVIDENCE_SOURCE,
     name: v.string(),
     claims: v.array(EVIDENCE_CLAIM),
@@ -109,4 +149,19 @@ function sourceItemKind(sourceKind: 'repo' | 'resume' | 'site') {
   if (sourceKind === 'repo') return 'repo';
   if (sourceKind === 'resume') return 'upload';
   return 'url';
+}
+
+function coerceEvidenceSource(input: unknown): EvidenceClaimRecord['source'] | null {
+  if (!input || typeof input !== 'object') return null;
+  const record = input as Record<string, unknown>;
+  const kind = record.kind ?? record.sourceKind;
+  const ref = record.ref;
+  if (
+    (kind === 'repo' || kind === 'resume' || kind === 'site') &&
+    typeof ref === 'string' &&
+    ref.trim()
+  ) {
+    return { kind, ref: ref.trim() };
+  }
+  return null;
 }

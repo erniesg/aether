@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { anyApi } from 'convex/server';
 import { isConvexEnabled } from '@/lib/convex/client';
+import type { GeneratedPresenceDraft } from '@/lib/presence/types';
 import { type PublishDraftKind } from './x-intent';
 
 export type PublishDraftStatus = 'draft' | 'posted';
@@ -16,6 +17,10 @@ export interface PublishDraft {
   pillar: string;
   targetUrl?: string;
   receiptUrl?: string;
+  profileId?: string;
+  lapId?: string;
+  receiptKind?: 'evidence-fact' | 'signal-post';
+  receiptRef?: string;
   status: PublishDraftStatus;
   createdAt: number;
   updatedAt: number;
@@ -34,6 +39,13 @@ export interface PublishDraftActions {
   updateDraftText(id: string, text: string): Promise<void>;
   markDraftPosted(id: string): Promise<void>;
   setDraftReceiptUrl(id: string, receiptUrl: string): Promise<void>;
+}
+
+export interface AddGeneratedDraftsInput {
+  workspaceId: string;
+  profileId: string;
+  lapId: string;
+  drafts: GeneratedPresenceDraft[];
 }
 
 const LS_KEY = 'aether.publishDrafts.v1';
@@ -77,6 +89,12 @@ function isPublishDraft(value: unknown): value is PublishDraft {
     typeof v.updatedAt === 'number' &&
     (v.targetUrl === undefined || typeof v.targetUrl === 'string') &&
     (v.receiptUrl === undefined || typeof v.receiptUrl === 'string') &&
+    (v.profileId === undefined || typeof v.profileId === 'string') &&
+    (v.lapId === undefined || typeof v.lapId === 'string') &&
+    (v.receiptKind === undefined ||
+      v.receiptKind === 'evidence-fact' ||
+      v.receiptKind === 'signal-post') &&
+    (v.receiptRef === undefined || typeof v.receiptRef === 'string') &&
     (v.postedAt === undefined || typeof v.postedAt === 'number')
   );
 }
@@ -146,6 +164,60 @@ function nextCreatedAt(): number {
 
 function genId(): string {
   return `pd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function addGeneratedDraftsToLocalQueue(
+  input: AddGeneratedDraftsInput
+): { created: number; skipped: number } {
+  if (isConvexEnabled() || input.drafts.length === 0) {
+    return { created: 0, skipped: 0 };
+  }
+  let created = 0;
+  let skipped = 0;
+  updateRows((rows) => {
+    const existingKeys = new Set(
+      rows
+        .filter((row) => row.profileId === input.profileId && row.lapId === input.lapId)
+        .map((row) => generatedDraftKey(row))
+    );
+    const next = [...rows];
+    for (const draft of input.drafts) {
+      const key = generatedDraftKey(draft);
+      if (existingKeys.has(key)) {
+        skipped += 1;
+        continue;
+      }
+      existingKeys.add(key);
+      const now = nextCreatedAt();
+      next.push({
+        id: genId(),
+        workspaceId: input.workspaceId,
+        profileId: input.profileId,
+        lapId: input.lapId,
+        kind: draft.kind,
+        text: draft.text,
+        pillar: draft.pillar,
+        targetUrl: draft.targetUrl,
+        receiptKind: draft.receipt.kind,
+        receiptRef: draft.receipt.ref,
+        status: 'draft',
+        createdAt: now,
+        updatedAt: now,
+      });
+      created += 1;
+    }
+    return next;
+  });
+  return { created, skipped };
+}
+
+function generatedDraftKey(row: {
+  kind?: unknown;
+  text?: unknown;
+  pillar?: unknown;
+  targetUrl?: unknown;
+}) {
+  return [row.kind, row.text, row.pillar, row.targetUrl ?? ''].join('\u0000');
 }
 
 function memorySnapshot(workspaceId: string): PublishDraft[] {

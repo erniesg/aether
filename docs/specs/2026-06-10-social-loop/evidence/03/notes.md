@@ -120,3 +120,73 @@ lib/providers/enrichment/context-dev.ts:32:          Authorization: `Bearer ${ke
 ## Dependency note
 
 No new runtime dependencies were added.
+
+## Post-review refresh: live persistence and source-backed receipts
+
+Review finding addressed: `/api/evidence/ingest` now calls `evidenceFacts.upsert`
+when both `workspaceId` and `NEXT_PUBLIC_CONVEX_URL` are present, and the
+persisted `productFact` rows retain `claimSources` so specs 04/08 can rebuild
+typed evidence claims from storage.
+
+Rerun gates after the fix:
+
+```text
+npx vitest run tests/unit/api-evidence-ingest.test.ts tests/unit/convex-evidence-facts.test.ts
+
+Test Files  2 passed
+Tests       6 passed
+```
+
+```text
+npm run typecheck
+> tsc --noEmit
+exit 0
+```
+
+Additional proof ids:
+
+- Live route persistence: `tests/unit/api-evidence-ingest.test.ts:81` proves the
+  route invokes Convex with `wsId`, source, name, and extracted claims, then
+  returns `persisted: true`.
+- Source retention on `productFact`: `tests/unit/convex-evidence-facts.test.ts:99`
+  proves `claims` and matching `claimSources` persist together.
+- Read-back shape for strategy/drafts: `tests/unit/convex-evidence-facts.test.ts:125`
+  proves `listEvidenceClaimsForWorkspace` reconstructs `{ text, source }`.
+
+Updated Convex snapshot shape:
+
+```json
+{
+  "afterRepoIngest": {
+    "sourceItem": [
+      {
+        "wsId": "workspace_demo",
+        "kind": "repo",
+        "payload": {
+          "sourceKind": "repo",
+          "ref": "https://github.com/erniesg/aether",
+          "name": "aether",
+          "claimCount": 3
+        },
+        "tags": ["evidence", "repo"]
+      }
+    ],
+    "productFact": [
+      {
+        "wsId": "workspace_demo",
+        "name": "aether",
+        "claims": [
+          "aether has 42 GitHub stars.",
+          "aether uses TypeScript and Convex.",
+          "aether published release v0.5.0."
+        ],
+        "claimSources": [
+          { "kind": "repo", "ref": "https://github.com/erniesg/aether" },
+          { "kind": "repo", "ref": "https://github.com/erniesg/aether" },
+          { "kind": "repo", "ref": "https://github.com/erniesg/aether" }
+        ]
+      }
+    ]
+  }
+}
+```

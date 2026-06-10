@@ -5,12 +5,14 @@ import { LeftRail } from '@/components/rail/LeftRail';
 import { resetSignalsForTests } from '@/lib/signals/store';
 import { resetBrandContextForTests, seedBrandContextForTests } from '@/lib/context/brand-store';
 import { DEMO_CREATOR_CONTEXT } from '@/lib/context/model';
+import { resetPresenceForTests } from '@/lib/presence/store';
 
 afterEach(cleanup);
 beforeEach(() => {
   window.localStorage.clear();
   resetSignalsForTests();
   resetBrandContextForTests();
+  resetPresenceForTests();
 });
 
 describe('LeftRail · stable context first, research feeds references', () => {
@@ -25,6 +27,7 @@ describe('LeftRail · stable context first, research feeds references', () => {
       'brand',
       'offer',
       'campaign',
+      'presence',
       'signals',
       'research',
       'references',

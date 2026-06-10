@@ -8,6 +8,7 @@ import {
   PaintBucket,
   Search,
   TrendingUp,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
@@ -24,12 +25,17 @@ import {
   researchSectionSummary,
 } from './sections/ResearchSection';
 import {
+  PresenceSection,
+  presenceSectionSummary,
+} from './sections/PresenceSection';
+import {
   ReferencesImagesTab,
   ReferencesManualTab,
 } from './sections/ReferencesImagesTab';
 import { useSignals } from '@/lib/signals/store';
 import { useReferences, referenceSummary } from '@/lib/references/store';
 import { useCreatorContext } from '@/lib/context/creator-store';
+import { usePresenceWorkspace } from '@/lib/presence/store';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -104,6 +110,7 @@ function LeftRailInner({
   const signals = useSignals(workspaceId);
   const references = useReferences(workspaceId);
   const context = useCreatorContext(workspaceId);
+  const presence = usePresenceWorkspace(workspaceId);
   const signalsSummary = signalsSectionSummary(signals);
 
   const sections: ReadonlyArray<SectionSpec> = [
@@ -130,6 +137,14 @@ function LeftRailInner({
       summary: campaignSectionSummary(context.campaign),
       hasContent: true,
       body: <CampaignSection workspaceId={workspaceId} />,
+    },
+    {
+      id: 'presence',
+      label: 'presence',
+      icon: UserRound,
+      summary: presenceSectionSummary(presence.profiles, presence.activeProfileId),
+      hasContent: presence.profiles.length > 0,
+      body: <PresenceSection workspaceId={workspaceId} />,
     },
     {
       id: 'signals',

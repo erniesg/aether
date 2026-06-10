@@ -107,7 +107,7 @@ export default defineSchema({
 
   // ─── left rail: inputs ─────────────────────────────────────────────────
   sourceItem: defineTable({
-    wsId: v.id('workspace'),
+    wsId: v.string(),
     kind: v.union(
       v.literal('url'),
       v.literal('upload'),
@@ -332,9 +332,17 @@ export default defineSchema({
   }).index('by_workspace', ['workspaceId']),
 
   productFact: defineTable({
-    wsId: v.id('workspace'),
+    wsId: v.string(),
     name: v.string(),
     claims: v.array(v.string()),
+    claimSources: v.optional(
+      v.array(
+        v.object({
+          kind: v.union(v.literal('repo'), v.literal('resume'), v.literal('site')),
+          ref: v.string(),
+        })
+      )
+    ),
     heroAsset: v.optional(v.string()),
   }).index('by_ws', ['wsId']),
 
@@ -1091,11 +1099,84 @@ export default defineSchema({
     pillar: v.string(),
     targetUrl: v.optional(v.string()),
     receiptUrl: v.optional(v.string()),
+    profileId: v.optional(v.string()),
+    lapId: v.optional(v.string()),
+    receiptKind: v.optional(
+      v.union(v.literal('evidence-fact'), v.literal('signal-post'))
+    ),
+    receiptRef: v.optional(v.string()),
     status: v.union(v.literal('draft'), v.literal('posted')),
     createdAt: v.number(),
     updatedAt: v.number(),
     postedAt: v.optional(v.number()),
   }).index('by_workspace', ['workspaceId']),
+
+  presenceProfile: defineTable({
+    workspaceId: v.string(),
+    label: v.string(),
+    xHandle: v.string(),
+    goal: v.string(),
+    targetMetric: v.optional(v.string()),
+    active: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_workspace', ['workspaceId']),
+
+  presenceStrategy: defineTable({
+    workspaceId: v.string(),
+    profileId: v.string(),
+    status: v.union(
+      v.literal('proposed'),
+      v.literal('accepted'),
+      v.literal('rejected')
+    ),
+    positioning: v.string(),
+    icpAccounts: v.array(
+      v.object({
+        handle: v.string(),
+        reason: v.string(),
+      })
+    ),
+    pillars: v.array(
+      v.object({
+        name: v.string(),
+        evidenceRefs: v.array(v.string()),
+        exampleFormats: v.array(v.string()),
+      })
+    ),
+    cadence: v.string(),
+    replyPlaybook: v.object({
+      dailyMinutes: v.number(),
+      accountListSize: v.number(),
+    }),
+    skipList: v.array(v.string()),
+    goalMetric90d: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+    rejectedAt: v.optional(v.number()),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_workspace_profile', ['workspaceId', 'profileId']),
+
+  referenceAccountPost: defineTable({
+    workspaceId: v.string(),
+    profileId: v.string(),
+    handle: v.string(),
+    postUrl: v.string(),
+    text: v.string(),
+    postedAt: v.string(),
+    capturedAt: v.string(),
+    hasMedia: v.optional(v.boolean()),
+    metrics: v.object({
+      likes: v.optional(v.number()),
+      reposts: v.optional(v.number()),
+      replies: v.optional(v.number()),
+      impressions: v.optional(v.number()),
+    }),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_profile', ['profileId']),
 
   // ─── inbound webhook replies ───────────────────────────────────────────
   // Persisted by the X webhook receiver when a valid tweet_create_events
