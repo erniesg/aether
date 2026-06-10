@@ -18,32 +18,50 @@ export interface XquikSearchInput {
 }
 
 interface XquikTweetAuthor {
-  userName: string;
-  name: string;
+  userName?: string;
+  username?: string;
+  name?: string;
+  profilePicture?: string;
+  description?: string;
+  location?: string;
+  followers?: number | string;
+  following?: number | string;
+  verified?: boolean;
 }
 
 interface XquikTweetMedia {
-  url: string;
-  type: string;
+  url?: string;
+  mediaUrl?: string;
+  media_url?: string;
+  media_url_https?: string;
+  type?: string;
+  previewUrl?: string;
+  preview_image_url?: string;
+  width?: number | string;
+  height?: number | string;
 }
 
 interface XquikTweet {
   id: string;
   text: string;
-  author: XquikTweetAuthor;
+  url?: string;
+  author?: XquikTweetAuthor;
   createdAt: string;
   likeCount: number;
   retweetCount: number;
   replyCount: number;
   viewCount: number;
+  bookmarkCount?: number;
   quoteCount: number;
   media: XquikTweetMedia[];
 }
 
 interface XquikSearchResponse {
   tweets: XquikTweet[];
-  hasMore: boolean;
-  nextCursor: string;
+  hasMore?: boolean;
+  nextCursor?: string;
+  has_next_page?: boolean;
+  next_cursor?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +95,10 @@ export async function searchXViaXquik(
   const seenUrls = new Set((input.seenPostUrls ?? []).map(xPostUrlKey));
   const byUrl = new Map<string, PlatformScrapeResult['posts'][number]>();
   const warnings: string[] = [];
+  let itemsReturned = 0;
+  let skippedSeen = 0;
+  let skippedInvalid = 0;
+  const nextCursors: string[] = [];
 
   for (const query of queries) {
     if (byUrl.size >= input.maxItems) break;
@@ -111,21 +133,44 @@ export async function searchXViaXquik(
     }
 
     const tweets = Array.isArray(parsed.tweets) ? parsed.tweets : [];
+    itemsReturned += tweets.length;
+    const nextCursor = stringValue(parsed.nextCursor ?? parsed.next_cursor);
+    if (nextCursor) nextCursors.push(nextCursor);
     for (const tweet of tweets) {
       if (byUrl.size >= input.maxItems) break;
       const post = normalizeTweet(tweet);
-      if (!post) continue;
+      if (!post) {
+        skippedInvalid += 1;
+        continue;
+      }
       const key = xPostUrlKey(post.url);
-      if (seenUrls.has(key) || byUrl.has(key)) continue;
+      if (seenUrls.has(key)) {
+        skippedSeen += 1;
+        continue;
+      }
+      if (byUrl.has(key)) continue;
       byUrl.set(key, post);
     }
+  }
+
+  if (itemsReturned > 0 && byUrl.size === 0 && skippedInvalid > 0) {
+    warnings.push(
+      `Xquik returned ${itemsReturned} tweets, but none normalized; check response contract fields.`
+    );
   }
 
   return {
     platform: 'x',
     posts: Array.from(byUrl.values()),
     warnings,
-    raw: { queries, itemsCollected: byUrl.size },
+    raw: {
+      queries,
+      itemsReturned,
+      itemsCollected: byUrl.size,
+      skippedSeen,
+      skippedInvalid,
+      nextCursors,
+    },
   };
 }
 
@@ -142,7 +187,7 @@ function buildSearchUrl(
   const base = 'https://xquik.com/api/v1/x/tweets/search';
   const params = new URLSearchParams();
   params.set('q', query);
-  params.set('limit', String(Math.max(1, Math.min(100, limit))));
+  params.set('limit', String(Math.max(1, Math.min(200, limit))));
 
   const sinceDate = isoDateOnly(windowStart);
   const untilDate = isoDateOnly(windowEnd);
@@ -157,11 +202,11 @@ function normalizeTweet(tweet: XquikTweet): PlatformScrapeResult['posts'][number
   const id = stringValue(tweet.id);
   const author = tweet.author;
   if (!author || typeof author !== 'object') return null;
-  const handle = stringValue(author.userName);
+  const handle = stringValue(author.userName ?? author.username);
   const text = stringValue(tweet.text);
   if (!id || !handle || !text) return null;
 
-  const url = `https://x.com/${handle}/status/${id}`;
+  const url = normalizeXPostUrl(stringValue(tweet.url)) ?? `https://x.com/${handle}/status/${id}`;
 
   return {
     postId: makePostId('x', url, text),
@@ -174,12 +219,21 @@ function normalizeTweet(tweet: XquikTweet): PlatformScrapeResult['posts'][number
     }),
     authorHandle: handle,
     authorUrl: `https://x.com/${handle}`,
+    authorMeta: {
+      description: stringValue(author.description) || undefined,
+      location: stringValue(author.location) || undefined,
+      followers: numberValue(author.followers),
+      following: numberValue(author.following),
+      verified: booleanValue(author.verified),
+      profileImageUrl: stringValue(author.profilePicture) || undefined,
+    },
     text,
-    postedAt: stringValue(tweet.createdAt) || undefined,
+    postedAt: normalizeDateString(tweet.createdAt),
     metrics: {
       likes: numberValue(tweet.likeCount),
       reposts: numberValue(tweet.retweetCount),
       replies: numberValue(tweet.replyCount),
+      comments: numberValue(tweet.replyCount),
       views: numberValue(tweet.viewCount),
       impressions: numberValue(tweet.viewCount),
     },
@@ -193,12 +247,15 @@ function mediaFromTweet(tweet: XquikTweet): EventPostMedia[] | undefined {
   if (!Array.isArray(tweet.media) || tweet.media.length === 0) return undefined;
   const out: EventPostMedia[] = [];
   for (const item of tweet.media) {
-    const url = stringValue(item.url);
+    const url = stringValue(item.url ?? item.mediaUrl ?? item.media_url_https ?? item.media_url);
     if (!url) continue;
     out.push({
       url,
       type: xquikMediaType(stringValue(item.type)),
       source: 'xquik',
+      previewUrl: stringValue(item.previewUrl ?? item.preview_image_url) || undefined,
+      width: numberValue(item.width),
+      height: numberValue(item.height),
     });
   }
   return out.length ? out : undefined;
@@ -241,6 +298,12 @@ function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeDateString(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value.trim();
+}
+
 function numberValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -248,4 +311,8 @@ function numberValue(value: unknown): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
 }

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
-import { analyzePosts, measureClusterQuality } from '../lib/research/event-recap/analyze';
+import { rankVoices } from '../lib/research/event-recap/analyze';
 import { enrichPostConversationTags } from '../lib/research/event-recap/conversation';
 import { deriveExpansionPlan } from '../lib/research/event-recap/expand';
 import { hasAiEngineeringOrProgramSignal, hasEventContextSignal, isIncidentalAieMention, isLowSignalEventOnlyText } from '../lib/research/event-recap/relevance';
@@ -72,6 +72,33 @@ type ThemeSummaryResult = {
   warning?: string;
   strategy?: string;
 };
+
+function measureStoryAssignmentCoverage(posts: EventPost[], themes: EventTheme[]) {
+  const postIds = new Set(posts.map((post) => post.postId));
+  const sizes = themes
+    .map((theme) =>
+      (theme.rootPostIds?.length ? theme.rootPostIds : theme.postIds).filter((postId) =>
+        postIds.has(postId)
+      ).length
+    )
+    .filter((size) => size > 0)
+    .sort((a, b) => a - b);
+  const median = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 0;
+
+  return {
+    algorithm: 'reviewed whole-post story assignment with parent/root evidence boundaries',
+    selectedBy:
+      'event story config plus human-reviewed precedence checks; no legacy clustering baseline is used',
+    silhouetteScore: 0,
+    clusterCount: themes.length,
+    rootRefCount: posts.length,
+    sampleSize: posts.length,
+    clusterSizeMin: sizes[0] ?? 0,
+    clusterSizeMedian: median,
+    clusterSizeMax: sizes.at(-1) ?? 0,
+    candidateScores: [],
+  };
+}
 
 // Lifted from this file in slice 4 of feat/event-recap-event-config —
 // CURATED_THEME_COPY now lives in the per-event fixture so other events
@@ -1295,21 +1322,20 @@ async function main() {
   const storyAssignedPostsById = new Map(storyAssignment.posts.map((post) => [post.postId, post]));
   const scoredWithStories = scored.map((post) => storyAssignedPostsById.get(post.postId) ?? post);
   const relevantWithStories = scoredWithStories.filter(isRelevant);
-  const analysis = analyzePosts(String(archive.eventId), relevantWithStories);
+  const voices = rankVoices(String(archive.eventId), relevantWithStories);
   const storyThemes = storyAssignment.themes;
   const rootThemeIds = new Set(storyThemes.flatMap((theme) => theme.rootPostIds ?? theme.postIds));
   const rootPosts = relevantWithStories.filter((post) => rootThemeIds.has(post.postId));
   const clustering = {
-    ...measureClusterQuality(rootPosts.length ? rootPosts : relevantWithStories, storyThemes),
+    ...measureStoryAssignmentCoverage(rootPosts.length ? rootPosts : relevantWithStories, storyThemes),
     algorithm:
-      'story-aware assignment over whole posts with primary stories plus secondary story mentions; TF-IDF retained only for diagnostics',
+      'story-aware assignment over whole posts with primary stories plus secondary story mentions; no legacy clustering baseline is retained',
     selectedBy:
       'deterministic story ontology over full post text, with broad recaps kept as their own story instead of being split into chunks',
-    rawClusterCount: analysis.themes.length,
+    rawClusterCount: storyThemes.length,
     storyClusterCount: storyThemes.length,
     assignmentMethod: 'whole-post story assignment with broad-recap detection and secondary mentions',
     storyAssignment: storyAssignment.stats,
-    tfidfBaseline: analysis.clusterQuality,
   };
   const summarized: ThemeSummaryResult = {
     themes: storyThemes,
@@ -1325,7 +1351,7 @@ async function main() {
   archive.posts = scoredWithStories;
   archive.stats = computeStats(scoredWithStories);
   archive.themes = summarized.themes;
-  archive.voices = analysis.voices;
+  archive.voices = voices;
   archive.clustering = clustering;
   archive.expansion = expansion;
   archive.updatedAt = generatedAt;

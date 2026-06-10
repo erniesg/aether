@@ -176,25 +176,36 @@ export async function searchLinkedInViaApify(
 
   const items = parseApifyItems(text);
   let skippedSeen = 0;
+  let parentPostsCollected = 0;
   const byUrl = new Map<string, PlatformScrapeResult['posts'][number]>();
   for (const item of items) {
-    const post = normalizeApifyLinkedInPost(item);
-    if (!post) continue;
-    const key = linkedInPostUrlKey(post.url);
-    if (seenUrls.has(key)) {
-      skippedSeen += 1;
+    const rowComment = normalizeApifyLinkedInComment(item, '', 0);
+    if (rowComment) {
+      const commentKey = linkedInPostUrlKey(rowComment.url);
+      if (!seenUrls.has(commentKey) && !byUrl.has(commentKey)) byUrl.set(commentKey, rowComment);
       continue;
     }
-    byUrl.set(key, post);
-    for (const comment of normalizeApifyLinkedInComments(item, post.url)) {
+    const post = normalizeApifyLinkedInPost(item);
+    const parentUrl = post?.url ?? normalizeLinkedInPostUrl(stringValue((item as Record<string, unknown>)?.linkedinUrl)) ?? '';
+    if (post) {
+      const key = linkedInPostUrlKey(post.url);
+      if (seenUrls.has(key)) {
+        skippedSeen += 1;
+      } else {
+        byUrl.set(key, post);
+        parentPostsCollected += 1;
+      }
+    }
+    for (const comment of normalizeApifyLinkedInComments(item, parentUrl)) {
       const commentKey = linkedInPostUrlKey(comment.url);
       if (seenUrls.has(commentKey) || byUrl.has(commentKey)) continue;
       byUrl.set(commentKey, comment);
     }
-    if (byUrl.size >= input.maxItems) break;
+    if (!post) continue;
+    if (parentPostsCollected >= input.maxItems) break;
   }
 
-  const posts = Array.from(byUrl.values()).slice(0, input.maxItems);
+  const posts = Array.from(byUrl.values());
   return {
     platform: 'linkedin',
     posts,
@@ -207,6 +218,7 @@ export async function searchLinkedInViaApify(
       input: runInput,
       itemsReturned: items.length,
       skippedSeen,
+      parentPostsCollected,
     },
   };
 }
@@ -271,6 +283,7 @@ export function normalizeApifyLinkedInPost(
 ): PlatformScrapeResult['posts'][number] | null {
   if (!item || typeof item !== 'object') return null;
   const record = item as Record<string, unknown>;
+  if (stringValue(record.type).toLowerCase() === 'comment') return null;
   const author = objectValue(record.author) ?? {};
   const url = normalizeLinkedInPostUrl(
     stringValue(
@@ -338,11 +351,11 @@ function buildApifyLinkedInRunInput(input: ApifyLinkedInSearchInput): Record<str
     ...(postedLimitDate ? { postedLimitDate } : { postedLimit: 'month' }),
     scrapeComments: input.scrapeComments ?? false,
     ...(typeof input.maxComments === 'number'
-      ? { maxComments: Math.max(0, Math.min(100, Math.round(input.maxComments))) }
+      ? { maxComments: Math.max(0, Math.round(input.maxComments)) }
       : {}),
     scrapeReactions: input.scrapeReactions ?? false,
     ...(typeof input.maxReactions === 'number'
-      ? { maxReactions: Math.max(0, Math.min(1000, Math.round(input.maxReactions))) }
+      ? { maxReactions: Math.max(0, Math.round(input.maxReactions)) }
       : {}),
     ...(typeof input.postNestedComments === 'boolean' ? { postNestedComments: input.postNestedComments } : {}),
   };
@@ -396,10 +409,11 @@ function normalizeApifyLinkedInComment(
 ): PlatformScrapeResult['posts'][number] | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
-  const author = objectValue(record.author) ?? objectValue(record.commenter) ?? {};
-  const text = stringValue(record.content ?? record.text ?? record.body);
+  if (!parentUrl && stringValue(record.type).toLowerCase() !== 'comment') return null;
+  const author = objectValue(record.actor) ?? objectValue(record.author) ?? objectValue(record.commenter) ?? {};
+  const text = stringValue(record.content ?? record.commentary ?? record.text ?? record.body);
   if (!text) return null;
-  const explicitUrl = normalizeLinkedInPostUrl(
+  const explicitUrl = normalizeLinkedInCommentUrl(
     stringValue(record.linkedinUrl ?? record.url ?? record.commentUrl ?? record.comment_url)
   );
   const url = explicitUrl ?? `${parentUrl}#comment-${index + 1}-${makePostId('linkedin', parentUrl, text)}`;
@@ -417,7 +431,7 @@ function normalizeApifyLinkedInComment(
       (handle ? `https://www.linkedin.com/in/${handle}/` : undefined),
     authorMeta: authorMetaFromApifyLinkedIn(author),
     text,
-    postedAt: linkedInPostedAt(record.postedAt ?? record.posted_at ?? record.createdAt),
+    postedAt: linkedInPostedAt(record.postedAt ?? record.posted_at ?? record.createdAt ?? record.createdAtTimestamp),
     metrics: metricsFromApifyLinkedIn(record),
     tags: ['apify-linkedin', 'linkedin-comment', 'comment', 'conversation'],
     raw: value,
@@ -743,6 +757,21 @@ function normalizeLinkedInPostUrl(value: string): string | undefined {
   }
 }
 
+function normalizeLinkedInCommentUrl(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (!/(^|\.)linkedin\.com$/i.test(url.hostname)) return undefined;
+    const parent = normalizeLinkedInPostUrl(trimmed);
+    const commentUrn = url.searchParams.get('commentUrn') ?? url.searchParams.get('dashCommentUrn');
+    if (parent && commentUrn) return `${parent}?commentUrn=${encodeURIComponent(commentUrn)}`;
+    return parent ?? trimmed;
+  } catch {
+    return undefined;
+  }
+}
+
 function normalizeLinkedInProfileUrl(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
@@ -762,6 +791,8 @@ function linkedInPostUrlKey(value: string): string {
   const normalized = normalizeLinkedInPostUrl(value);
   try {
     const parsed = new URL(value);
+    const commentUrn = parsed.searchParams.get('commentUrn') ?? parsed.searchParams.get('dashCommentUrn');
+    if (commentUrn && normalized) return `${normalized}?commenturn=${commentUrn}`.toLowerCase();
     if (parsed.hash && normalized) return `${normalized}${parsed.hash}`.toLowerCase();
   } catch {
     // Fall through to the plain canonical key for non-URL fragments.

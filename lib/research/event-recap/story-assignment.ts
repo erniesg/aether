@@ -130,7 +130,7 @@ function assignPostStories(post: EventPost, ctx: AssignmentContext): EventPost {
 
   const broad = isBroadRecap(post, mentions);
   const primaryStoryId =
-    applyPrimaryStoryOverride(post, ctx) ?? choosePrimaryStory(scores, mentions, broad);
+    applyPrimaryStoryOverride(post, ctx, broad) ?? choosePrimaryStory(scores, mentions, broad);
   const primaryStory = ctx.storyById.get(primaryStoryId) ?? ctx.storyById.get(FALLBACK_STORY_ID);
   if (!primaryStory) {
     return post;
@@ -162,9 +162,10 @@ function assignPostStories(post: EventPost, ctx: AssignmentContext): EventPost {
   };
 }
 
-function applyPrimaryStoryOverride(post: EventPost, ctx: AssignmentContext): string | undefined {
+function applyPrimaryStoryOverride(post: EventPost, ctx: AssignmentContext, broad: boolean): string | undefined {
   const text = storyText(post);
   for (const rule of ctx.primaryStoryOverrides) {
+    if (broad && rule.skipWhenBroad) continue;
     if (!rule.pattern.test(text)) continue;
     if (rule.subPattern && rule.subStoryId && rule.subPattern.test(text)) {
       return rule.subStoryId;

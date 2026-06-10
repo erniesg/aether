@@ -156,6 +156,82 @@ describe('searchXViaXquik — happy path', () => {
     expect(post.postedAt).toBe('2026-05-18T10:00:00.000Z');
   });
 
+  it('maps the current Xquik search response contract', async () => {
+    const tweet = {
+      id: '2058983398048498138',
+      text: 'Met @TejasKumar_ and @agrimsingh at AI Engineer Singapore.',
+      url: 'https://x.com/Arindam_1729/status/2058983398048498138',
+      author: {
+        username: 'Arindam_1729',
+        name: 'Arindam Majumder',
+        followers: 8433,
+        verified: true,
+        profilePicture: 'https://pbs.twimg.com/profile_images/example_normal.jpg',
+      },
+      createdAt: 'Mon May 25 18:47:50 +0000 2026',
+      likeCount: 3,
+      retweetCount: 0,
+      replyCount: 1,
+      quoteCount: 0,
+      viewCount: 859,
+      media: [
+        {
+          media_url_https: 'https://pbs.twimg.com/media/HJL6fTIa4AAcjFk.jpg',
+          type: 'photo',
+        },
+      ],
+    };
+
+    const fetcher = async () =>
+      jsonResponse({
+        tweets: [tweet],
+        has_next_page: true,
+        next_cursor: 'cursor_1',
+      });
+
+    const result = await searchXViaXquik(
+      {
+        querySet: ['AI Engineer Singapore'],
+        windowStart: '2026-05-18T00:00:00.000Z',
+        windowEnd: '2026-05-26T00:00:00.000Z',
+        maxItems: 5,
+      },
+      { XQUIK_API_KEY: 'xq_test' },
+      fetcher
+    );
+
+    expect(result.posts).toHaveLength(1);
+    expect(result.posts[0]).toMatchObject({
+      url: 'https://x.com/Arindam_1729/status/2058983398048498138',
+      authorName: 'Arindam Majumder',
+      authorHandle: 'Arindam_1729',
+      postedAt: '2026-05-25T18:47:50.000Z',
+      metrics: {
+        likes: 3,
+        replies: 1,
+        comments: 1,
+        views: 859,
+        impressions: 859,
+      },
+      authorMeta: {
+        followers: 8433,
+        verified: true,
+        profileImageUrl: 'https://pbs.twimg.com/profile_images/example_normal.jpg',
+      },
+    });
+    expect(result.posts[0].media).toHaveLength(1);
+    expect(result.posts[0].media![0]).toMatchObject({
+      url: 'https://pbs.twimg.com/media/HJL6fTIa4AAcjFk.jpg',
+      type: 'image',
+    });
+    expect(result.raw).toMatchObject({
+      itemsReturned: 1,
+      itemsCollected: 1,
+      skippedInvalid: 0,
+      nextCursors: ['cursor_1'],
+    });
+  });
+
   it('sends the x-api-key header and correct query params for each query', async () => {
     const captured: { url: string; headers: Record<string, string> }[] = [];
 

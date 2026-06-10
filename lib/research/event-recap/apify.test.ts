@@ -279,6 +279,85 @@ describe('Apify LinkedIn event recap collection', () => {
     });
     expect(result.warnings.join(' ')).toContain('skipped 1 already-seen');
   });
+
+  it('keeps uncapped LinkedIn comments and normalizes current comment rows', async () => {
+    let body: Record<string, unknown> | undefined;
+    const commentUrl =
+      'https://www.linkedin.com/feed/update/urn:li:ugcPost:7463278800638853121?commentUrn=urn%3Ali%3Acomment%3A%28ugcPost%3A7463278800638853121%2C7464626066163183616%29&dashCommentUrn=urn%3Ali%3Afsd_comment%3A%287464626066163183616%2Curn%3Ali%3AugcPost%3A7463278800638853121%29';
+    const fetcher = async (_input: RequestInfo | URL, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+      return jsonResponse([
+        {
+          type: 'comment',
+          id: '7464626066163183616',
+          linkedinUrl: commentUrl,
+          commentary: 'agent harness feels like the new full-stack.',
+          createdAt: '2026-05-25T10:39:00.219Z',
+          engagement: { likes: 2, comments: 0, shares: 0 },
+          actor: {
+            name: 'Shreyans Bhansali',
+            linkedinUrl: 'https://www.linkedin.com/in/shreyansbhansali',
+          },
+          postId: '7463278802236911616',
+        },
+        {
+          type: 'post',
+          id: '7463278802236911616',
+          linkedinUrl:
+            'https://www.linkedin.com/posts/jenya-bogacheva_aiengineersingapore-aiagents-agentharness-activity-7463278802236911616-dvUa',
+          content: 'My badge said AI Engineer, which is a new title for me.',
+          author: {
+            name: 'Jenya Bogacheva',
+            publicIdentifier: 'jenya-bogacheva',
+            linkedinUrl: 'https://www.linkedin.com/in/jenya-bogacheva',
+          },
+          postedAt: { date: '2026-05-21T17:25:27.468Z' },
+          engagement: { likes: 108, comments: 9, shares: 2 },
+          comments: [
+            {
+              id: '7464626066163183616',
+              linkedinUrl: commentUrl,
+              commentary: 'agent harness feels like the new full-stack.',
+              createdAt: '2026-05-25T10:39:00.219Z',
+              engagement: { likes: 2, comments: 0, shares: 0 },
+              actor: {
+                name: 'Shreyans Bhansali',
+                linkedinUrl: 'https://www.linkedin.com/in/shreyansbhansali',
+              },
+            },
+          ],
+        },
+      ]);
+    };
+
+    const result = await searchLinkedInViaApify(
+      {
+        querySet: ['"AI Engineer Singapore"'],
+        windowStart: '2026-05-19T00:00:00.000Z',
+        windowEnd: '2026-05-26T00:00:00.000Z',
+        maxItems: 20,
+        scrapeComments: true,
+        maxComments: 0,
+      },
+      { APIFY_API_TOKEN: 'test-token' },
+      fetcher
+    );
+
+    expect(body).toMatchObject({
+      scrapeComments: true,
+      maxComments: 0,
+    });
+    expect(result.posts).toHaveLength(2);
+    const comments = result.posts.filter((post) => post.tags?.includes('linkedin-comment'));
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatchObject({
+      url: expect.stringContaining('commentUrn='),
+      authorName: 'Shreyans Bhansali',
+      text: 'agent harness feels like the new full-stack.',
+      metrics: { reactions: 2, comments: 0, reposts: 0 },
+      tags: ['apify-linkedin', 'linkedin-comment', 'comment', 'conversation'],
+    });
+  });
 });
 
 function jsonResponse(body: unknown, status = 201): Response {

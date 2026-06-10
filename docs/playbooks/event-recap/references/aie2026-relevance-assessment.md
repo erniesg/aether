@@ -16,7 +16,9 @@ Keep as candidate primary evidence when a parent post or video has a clear AIE S
 Signals:
 - Exact event naming: `AI Engineer Singapore`, `AIE SG`, `AI Engineer SG`, `@aiDotEngineer`, `#AIEngineerSingapore`.
 - Program evidence: talks, keynote, schedule, workshops, demos, sponsors, booth/hallway activity, organizer/volunteer recap, attendance, media from the room.
-- Official channel or schedule artifact, such as an AI Engineer YouTube talk video.
+- Official channel or schedule artifact with a Singapore anchor, such as the AIE Singapore Day 1/Day 2 YouTube recaps.
+
+Official AI Engineer channel content is not enough by itself because the channel spans regional events. Standalone YouTube talk videos need an explicit Singapore anchor in title, description, URL, tags, surrounding post text, or verified media review. If the artifact is labelled for AI Engineer Europe/SF/London/etc., exclude it unless the row also carries concrete AIE Singapore evidence.
 
 Candidate handling: can be a root candidate if it helps explain a story.
 
@@ -68,6 +70,7 @@ Drop or hold out:
 - Generic AI, Singapore, hiring, or governance posts with no traceable event moment.
 - Adjacent-event posts outside the AIE window unless there is an explicit Road-to-AIE, official schedule, speaker, sponsor, organizer, or multiplier connection.
 - Old ClawCon/OpenClaw posts with no AIE Singapore side-event link.
+- Official-channel videos from other AI Engineer regional events, or ambiguous standalone official videos that only match by speaker/title, when they lack a Singapore anchor.
 
 ## Expansion / conversation spam guard
 

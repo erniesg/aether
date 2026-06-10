@@ -274,4 +274,53 @@ describe('event recap analysis', () => {
       name: 'Abhijit',
     });
   });
+
+  it('lets Ralphthon and ClawCon emerge as separate corpus-similarity pockets', () => {
+    const ralphthonPosts = Array.from({ length: 5 }, (_, index) =>
+      post({
+        postId: `ralphthon_${index}`,
+        platform: index % 2 === 0 ? 'x' : 'linkedin',
+        authorName: `Ralphthon voice ${index}`,
+        text: `AI Engineer Singapore RalphthonSG build week: agent-coding demos, Ralph Loop projects, lobster rule, prizes, winners, and hackathon shipping notes. ${index}`,
+        metrics: { likes: 40 + index, reposts: 5, views: 5000 + index * 100 },
+      })
+    );
+    const clawconPosts = Array.from({ length: 5 }, (_, index) =>
+      post({
+        postId: `clawcon_${index}`,
+        platform: index % 2 === 0 ? 'linkedin' : 'x',
+        authorName: `ClawCon voice ${index}`,
+        text: `ClawCon Singapore OpenClaw Road to AIE side event: personal AI festival, Jupiter HQ, AWS room, demos, and builder community notes. ${index}`,
+        metrics: { reactions: 35 + index, comments: 2, impressions: 4200 + index * 100 },
+      })
+    );
+
+    const result = analyzePosts(
+      'ai-engineer-summit-singapore',
+      scorePostsByPlatform([...ralphthonPosts, ...clawconPosts])
+    );
+    const themeForPost = new Map<string, string>();
+    for (const theme of result.themes) {
+      for (const postId of theme.rootPostIds ?? theme.postIds) themeForPost.set(postId, theme.themeId);
+    }
+    const dominantThemeId = (ids: string[]) => {
+      const counts = new Map<string, number>();
+      for (const id of ids) {
+        const themeId = themeForPost.get(id);
+        if (themeId) counts.set(themeId, (counts.get(themeId) ?? 0) + 1);
+      }
+      return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
+    };
+
+    const [ralphthonThemeId, ralphthonCount] = dominantThemeId(ralphthonPosts.map((item) => item.postId)) ?? [];
+    const [clawconThemeId, clawconCount] = dominantThemeId(clawconPosts.map((item) => item.postId)) ?? [];
+    const ralphthonTheme = result.themes.find((theme) => theme.themeId === ralphthonThemeId);
+    const clawconTheme = result.themes.find((theme) => theme.themeId === clawconThemeId);
+
+    expect(ralphthonCount).toBeGreaterThanOrEqual(4);
+    expect(clawconCount).toBeGreaterThanOrEqual(4);
+    expect(ralphthonThemeId).not.toBe(clawconThemeId);
+    expect(`${ralphthonTheme?.label} ${ralphthonTheme?.keywords.join(' ')}`).toMatch(/ralphthon|lobster|prizes|winners/i);
+    expect(`${clawconTheme?.label} ${clawconTheme?.keywords.join(' ')}`).toMatch(/clawcon|openclaw|jupiter|aws/i);
+  });
 });

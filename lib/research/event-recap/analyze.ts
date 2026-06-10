@@ -337,7 +337,7 @@ function isClusterRootPost(post: EventPost): boolean {
       text
     );
   const storySignal =
-    /\b(keynote|workshop|speaker|talk|panel|session|stage|booth|sponsor|student|hackathon|livestream|recap|takeaway|attended|attending|presented|demo|codex|cursor|openai|google deepmind|deepmind|llamaindex|cerebras|vercel|x402|65labs|vivian|balakrishnan|foreign minister|nanoclaw|raspberry|second brain)\b/i.test(
+    /\b(keynote|workshop|speaker|talk|panel|session|stage|booth|sponsor|student|hackathon|livestream|recap|takeaway|attended|attending|presented|demo|demos|prize|prizes|winner|winners|codex|cursor|openai|google deepmind|deepmind|llamaindex|cerebras|vercel|x402|65labs|vivian|balakrishnan|foreign minister|nanoclaw|raspberry|second brain|ralphthon|ralphthonsg|ralph loop|lobster rule|clawcon|openclaw|jupiter hq|personal ai)\b/i.test(
       text
     );
 
@@ -355,8 +355,8 @@ function isClusterRootPost(post: EventPost): boolean {
 }
 
 /**
- * Deterministic corpus clustering for event refs.
- * It uses TF-IDF vectors, diverse anchor selection, and a few centroid
+ * Deterministic legacy corpus clustering for event refs.
+ * It uses local lexical vectors, diverse anchor selection, and a few centroid
  * refinement passes. LLM calls may relabel/summarize clusters later, but the
  * membership itself is local, reproducible, and covers every supplied root ref.
  */
@@ -428,7 +428,7 @@ export function measureClusterQuality(posts: EventPost[], themes: EventTheme[]):
     candidates[0] ?? roundClusterCandidateScore(clusterCandidateScore(docs, clusters, clusters.length))
   );
   return {
-    algorithm: 'local TF-IDF graph communities with recursive splitting; cluster count selected from elbow/inertia plus silhouette sweep',
+    algorithm: 'legacy local lexical graph communities with recursive splitting; cluster count selected from elbow/inertia plus silhouette sweep',
     selectedBy: 'elbow-weighted silhouette score over deterministic local candidates',
     silhouetteScore: Number(silhouetteForClusters(docs, clusters).toFixed(4)),
     silhouetteClusterCount: silhouetteBest.clusterCount,

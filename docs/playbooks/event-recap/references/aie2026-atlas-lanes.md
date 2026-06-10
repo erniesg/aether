@@ -5,7 +5,7 @@ description: Four story-family lanes used in the AIE 2026 atlas (program / keyno
 
 # AIE 2026 atlas lanes
 
-The atlas is the connectivity view of all stories — `workers/aie2026-vibes.ts:219-240` `buildAtlasLayout` lays stories into columns (lanes) with TF-IDF overlap edges and bridge links for isolated story pockets.
+The atlas is the connectivity view of all stories — `workers/aie2026-vibes.ts:219-240` `buildAtlasLayout` lays stories into columns (lanes) with lightweight story-overlap edges and bridge links for isolated story pockets.
 
 AIE 2026 used 4 lanes. Each lane is a story-family — not a hierarchy. Bigger nodes have more refs.
 
@@ -89,7 +89,7 @@ More than 5 lanes makes the atlas hard to read. Less than 3 makes the lane struc
 
 From `buildAtlasLayout` (`workers/aie2026-vibes.ts:227-240`):
 
-- Compute pairwise TF-IDF term-vector cosine between all story pairs
+- Compute pairwise story-overlap similarity between all story pairs
 - Each story gets up to **2 strongest overlap edges**
 - For any story still with 0 or 1 edge, add 1 **bridge link** to its nearest outside story
 - Edge stroke-width and opacity scale with similarity (lines 222-225)

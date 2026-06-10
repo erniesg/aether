@@ -34,6 +34,7 @@ docs/playbooks/event-recap/
 │   ├── aie2026-stories.md        # 13-story config that shipped
 │   ├── aie2026-methodology.md    # shipped lede + synthesis card copy
 │   ├── aie2026-atlas-lanes.md    # 4 lanes + assignment logic
+│   ├── aie2026-relevance-assessment.md # AIE refresh relevance gate
 │   ├── stakeholder-angles.md     # five-angle dual-purpose framework
 │   ├── thesis-rubric.md          # convergence criterion
 │   ├── human-loop-junctures.md   # full-auto vs HITL pause points

@@ -5,7 +5,7 @@ description: Sniff-test rubric for evaluating cluster distinctness, bleed, and n
 
 # Cluster quality checklist
 
-After the graph-community clustering step (step 9), every cluster needs a sniff-test before you build story signals on top of it (step 11). A bad cluster will produce a bad signal pattern, which will silently misassign hundreds of posts downstream.
+After the semantic clustering / story-centroid assignment step (step 9), every cluster needs a sniff-test before you build story signals on top of it (step 11). A bad cluster will produce a bad signal pattern, which will silently misassign hundreds of posts downstream.
 
 For each cluster, read the **8 top-reach posts** and the **4 weakest-reach posts**, then apply this rubric.
 
@@ -14,7 +14,7 @@ For each cluster, read the **8 top-reach posts** and the **4 weakest-reach posts
 ### ✓ Distinct
 - Top-8 posts share an unmistakable theme — specific actors, specific verbs, specific brands
 - Weakest-4 posts still fit the theme even if their engagement is low
-- Top keywords (TF-IDF) include 2+ tokens that don't appear in any other cluster's keyword list
+- Semantic/evidence anchors include 2+ terms or actors that do not appear in any other cluster's anchor list
 
 **Action**: proceed to story authoring (step 11).
 
@@ -22,7 +22,7 @@ For each cluster, read the **8 top-reach posts** and the **4 weakest-reach posts
 
 ### ◐ Bleeds-into-X
 - Top-8 posts mostly fit one theme, but 2-3 posts belong to a neighboring cluster's theme
-- Top keywords overlap >40% with another cluster
+- Evidence anchors overlap >40% with another cluster
 - Weakest-4 contain posts that could go either way
 
 **Action**: either (a) accept the bleed and add secondary story mentions via `EventStoryMention` (`types.ts:91`), (b) merge into the neighbor cluster, or (c) re-cluster at step 9 with `k-1` or force-split via `rebalanceLargeClusters` thresholds.
@@ -74,7 +74,7 @@ If any candidate k near the selected one has nearly identical selection score (w
 |---|---|---|---|
 | Mega-cluster | One cluster contains >40% of posts | k too small for corpus | Increase target k; `rebalanceLargeClusters` should auto-split but check |
 | Singleton clusters | Several clusters with <3 posts | k too large for corpus | Decrease target k; `consolidateCommunities` should auto-merge but check |
-| Theme drift | Cluster keywords change wildly across reruns | Insufficient TF-IDF signal in posts (short or generic) | Tag short/generic posts as `context:event` rather than primary |
+| Theme drift | Cluster anchors change wildly across reruns | Insufficient semantic evidence in posts (short or generic) | Tag short/generic posts as `context:event` rather than primary |
 | Author-collusion cluster | Cluster contains posts by 1-2 authors only | Author has unique vocabulary; cluster reflects author not theme | Down-weight author-specific tokens or merge into broader theme |
 | Hashtag cluster | Cluster organized around a hashtag rather than content | Hashtag in `STRONG_TERMS` or `SINGLE_TOKEN_ENTITY_ALLOWLIST` over-weighted | Adjust expand.ts allowlist; ensure hashtag isn't acting as cluster anchor |
 | Reply-thread cluster | Cluster is mostly replies to one post | `enrichPostConversationTags` (`conversation.ts`) didn't tag replies properly | Verify reply detection; conversation tags should pull replies out of root-post clusters |
@@ -83,7 +83,7 @@ If any candidate k near the selected one has nearly identical selection score (w
 
 Beyond silhouette, you can check pairwise distinctness:
 
-- **Term-vector cosine similarity** between cluster centroids — same metric used in `buildAtlasLayout` for atlas edges (`workers/aie2026-vibes.ts:227`)
+- **Semantic or text-overlap similarity** between story centroids — same family of signal used in `buildAtlasLayout` for atlas edges (`workers/aie2026-vibes.ts:227`)
 - Pairs with cosine > 0.45 are bleed risks
 - Pairs with cosine > 0.65 should usually merge
 

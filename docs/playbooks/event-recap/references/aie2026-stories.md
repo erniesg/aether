@@ -11,7 +11,7 @@ Each story has:
 - **storyId** — kebab-case identifier
 - **label** — display name (often LLM-refined via `THEME_REWRITE_SCHEMA`; the originals are below)
 - **summary** — narrative sentence
-- **keywords** — TF-IDF anchors
+- **keywords** — semantic/evidence anchors
 - **signals** — `{ pattern, weight }` pairs that drive assignment
 
 ## 1. vivian-builder-keynote

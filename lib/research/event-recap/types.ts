@@ -143,7 +143,7 @@ export interface EventTheme {
   rootPostIds?: string[];
   attachedPostIds?: string[];
   storyId?: string;
-  storyType?: 'story_assignment' | 'tfidf_cluster';
+  storyType?: 'story_assignment' | 'semantic_cluster';
   sourceThemeIds?: string[];
   score: number;
   updatedAt: number;

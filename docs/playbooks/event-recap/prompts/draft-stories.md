@@ -41,7 +41,7 @@ Draft a `StoryDefinition` (see `lib/research/event-recap/story-assignment.ts:9`)
   storyId: 'kebab-case-id',
   label: 'Human-facing label, 2-5 words',
   summary: '1-2 evidence-grounded sentences naming specific actors / brands / lines.',
-  keywords: ['top', 'TF-IDF', 'terms'],
+  keywords: ['semantic', 'evidence', 'terms'],
   signals: [
     { pattern: /\b(narrative-defining phrase)\b/i, weight: 5 },
     { pattern: /\b(actor names|signature brands)\b/i, weight: 4 },
@@ -61,7 +61,7 @@ Constraints:
 - **storyId** — kebab-case, 2-4 hyphens; matches the narrative arc, not just the top keyword
 - **label** — 2-5 words; LLM relabel pass may refine
 - **summary** — 1-2 sentences max; cite specific actors/brands/phrases from the evidence
-- **keywords** — pull from TF-IDF top tokens but rewrite to human-readable form
+- **keywords** — pull from semantic/evidence anchors and rewrite to human-readable form
 - **signals** — 3-5 patterns total; cover the weight-5 narrative + weight-4 actors + weight-3 supporting vocab
 
 For each signal pattern, **verify** before output:

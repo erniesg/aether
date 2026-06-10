@@ -15,6 +15,7 @@ scripts/recordings/out/
 
 # next.js
 .next
+.next-*/
 out
 next-env.d.ts
 
@@ -39,9 +40,18 @@ dist
 .dev.vars.*
 !.dev.vars.example
 infra/postiz/.env.postiz
+.venv-local-models/
 
 # cloudflare
 .cloudflare
+
+# generated run artifacts + caches
+__pycache__/
+output/
+tmp/
+outputs/**/.cache/
+outputs/**/*.bak-*
+.thumbnails/
 
 # misc
 .DS_Store

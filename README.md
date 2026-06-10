@@ -190,7 +190,3 @@ Smoke scripts (offline-friendly): `scripts/smoke-compose-atlas.mjs`, `scripts/sm
 ## License
 
 MIT
-
----
-
-_Built with Claude Opus 4.7 (1M context). Hackathon kickoff 2026-04-21 12:30 PM EDT — every commit on `main` is post-kickoff._

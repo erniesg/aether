@@ -39,7 +39,7 @@ Each angle has a representation budget. If the corpus has 200 posts but only 4 m
 6  Stakeholder balance check ◀──── loop edge ◀────┐
 7  Expand under-evidenced angles ──┐              │
 8  Re-gather ──┐                                  │
-9  Cluster (graph community + silhouette/elbow)──┐│
+9  Cluster (embeddings + story centroids)────────┐│
 10 Sniff-test clusters ──┐                       ││
 11 Author stories (signal regex + weights) ──┐   ││
 12 Test theses against story-assigned corpus──┘  ││
@@ -56,7 +56,7 @@ You can jump back to **any** earlier step at any time. Common loop edges:
 - 12 → 7 if a stakeholder is under-evidenced relative to the leading thesis
 - 12 → 10 if signal patterns miss real evidence the cluster contains
 - 12 → 2 if no thesis holds — re-hypothesize from what the corpus actually shows
-- 10 → 9 if clusters bleed into each other (retry with smaller k or force split)
+- 10 → 9 if clusters bleed into each other (tighten centroid assignment, split a semantic pocket, or send ambiguous roots to LLM adjudication)
 - 6 → 3 if frontier missed an entire angle (e.g. sponsor list was incomplete)
 
 **Convergence**: the landed thesis is the one that, when you read the synthesis copy aloud, names every stakeholder angle the corpus evidences — either as a primary strand, a secondary mention, or an explicit "this was deliberately minor here". No silent drops.
@@ -155,11 +155,15 @@ Also run the expansion/conversation spam guard across the full sidecar, not only
 Re-run refresh with the appended query set. The pipeline currently re-scrapes from scratch and merges — a future `/api/events/<id>/topup?storyId=X` would let you scope topup to one story. Until then, scope by adjusting the query set.
 
 ### Step 9 — Cluster
-`analyzePosts` (`lib/research/event-recap/analyze.ts`) builds TF-IDF documents, runs graph-community label propagation (`graphClusterDocuments`), evaluates k=3..24 via silhouette + elbow + selection score (silhouette × 0.35 + elbow × 0.55 − fragmentation/imbalance penalties), and returns the optimal k. Candidate scores are stored — surface them on the report so the reviewer can sanity-check.
+For refreshes of a shipped recap, keep the deployed public story scaffold as the MECE baseline. Embed all refreshed parent/root refs, compute deployed story centroids from the current public root refs, and assign only new/delta roots to their nearest story centroid. Comments, replies, and incidental link-preview rows inherit the story of their parent/root artifact; they never become standalone roots.
+
+Run semantic k-means over the same embedding vectors only as a review aid for possible new pockets, ambiguous assignments, or story-boundary drift. If a semantic pocket is strong enough to challenge the deployed scaffold, send that pocket through LLM adjudication before creating or splitting a public story.
 
 Cluster invariants enforced automatically:
-- `consolidateCommunities` (`:688`) merges anything below `minSize` (4 when ≥80 posts)
-- `rebalanceLargeClusters` (`:754`) binary-splits anything above `MAX_CLUSTERS`
+- Existing deployed story roots keep their current story unless human review explicitly reassigns them.
+- Delta roots below the similarity threshold fall back to the broad recap bucket and are listed for human review.
+- Ambiguous roots near two story centroids are listed for LLM or analyst adjudication.
+- No public candidate should contain legacy clustering diagnostics.
 
 ### Step 10 — Sniff-test clusters
 For each cluster, read the 8 top-reach posts and 4 weakest. Apply the rubric in [[references/cluster-quality-checklist]]: distinct? bleeds-into-X? noise pocket? evidence-rich? Mark each.
@@ -167,13 +171,13 @@ For each cluster, read the 8 top-reach posts and 4 weakest. Apply the rubric in 
 If a cluster is `bleeds-into-X`, decide: (a) accept and add secondary mentions, (b) merge into X, (c) re-cluster with adjusted k. If `noise pocket`, see if its posts have low engagement / are off-topic — they may just be `irrelevant:event` tagged.
 
 ### Step 11 — Author stories (signal regex + weights)
-Translate clusters into `StoryDefinition` entries (`lib/research/event-recap/story-assignment.ts:9`):
+For a new event with no shipped scaffold, translate the reviewed semantic clusters into `StoryDefinition` entries (`lib/research/event-recap/story-assignment.ts:9`):
 ```ts
 {
   storyId: 'kebab-case-id',
   label: 'Human-facing label',
   summary: 'One sentence narrative.',
-  keywords: ['top', 'TF-IDF', 'terms'],
+  keywords: ['semantic', 'evidence', 'terms'],
   signals: [
     { pattern: /\b(narrative-defining phrase)\b/i, weight: 5 },
     { pattern: /\b(actor names|entities)\b/i, weight: 4 },
@@ -208,7 +212,7 @@ Use `prompts/thesis-balance-check.md`. If no thesis fits all angles, **synthesiz
 ### Step 14 — Atlas + freeze
 - Define lanes (AIE 2026 used 4: program / keynote / tools / community)
 - Assign each story to a lane
-- `buildAtlasLayout` (currently in `workers/aie2026-vibes.ts:219`) computes TF-IDF overlap edges + bridges for isolated nodes
+- `buildAtlasLayout` (currently in `workers/aie2026-vibes.ts:219`) computes lightweight text-overlap edges + bridges for isolated nodes
 - Freeze as static worker once landed
 
 See [[references/aie2026-atlas-lanes]] for lane-definition rationale.
@@ -244,7 +248,7 @@ See [[references/aie2026-atlas-lanes]] for lane-definition rationale.
 | Seed frontier | `lib/research/event-recap/frontier.ts` | `deriveSeedFrontier` |
 | Corpus-mined anchors | `lib/research/event-recap/expand.ts` | `deriveExpansionPlan` |
 | Relevance filtering | `lib/research/event-recap/relevance.ts` | `hasAiEngineeringOrProgramSignal`, `isIncidentalAieMention` |
-| Graph clustering | `lib/research/event-recap/analyze.ts` | `analyzePosts`, `measureClusterQuality` |
+| Semantic refresh assignment | `lib/research/event-recap/semantic-story-assignment.ts` | `buildSemanticStoryAssignment` |
 | Story assignment | `lib/research/event-recap/story-assignment.ts` | `buildStoryAssignedThemes` |
 | LLM relabel | `scripts/event-recap-finalize-analysis.ts` | `THEME_REWRITE_SCHEMA`, `CURATED_THEME_COPY` |
 | Dry-run estimate | `app/api/vibes/estimate/route.ts` | POST |

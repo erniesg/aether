@@ -192,11 +192,11 @@ The card structure was deliberate: by giving each competing thesis its own card,
 `workers/aie2026-vibes.ts:219-240` (`buildAtlasLayout`):
 - **4 lanes**: `program` • `keynote` • `tools` • `community` (column headers, not hierarchy)
 - **Theme nodes** sized by ref count
-- **Edges**: TF-IDF overlap between story term vectors; each story gets ≤2 strongest overlap links
+- **Edges**: lightweight overlap between story evidence vectors; each story gets ≤2 strongest overlap links
 - **Bridges**: nearest outside link for any otherwise-isolated story pocket
 
 Methodology copy on the atlas:
-> "Grouped for reading, not literal coordinates. Primary refs are assigned to N whole-post stories. Broad recaps stay intact instead of being split; secondary story mentions are kept on the post. Lines are computed from local term vectors over labels, summaries, keywords, author handles, tags, and sample refs; each story gets up to two strongest overlap links, then disconnected or one-edge pockets get their nearest outside bridge."
+> "Grouped for reading, not literal coordinates. Primary refs are assigned to N whole-post stories. Broad recaps stay intact instead of being split; secondary story mentions are kept on the post. Lines are display-only overlap aids computed from story labels, summaries, keywords, author handles, tags, and sample refs; each story gets up to two strongest overlap links, then disconnected or one-edge pockets get their nearest outside bridge."
 
 Frozen as static worker once landed.
 

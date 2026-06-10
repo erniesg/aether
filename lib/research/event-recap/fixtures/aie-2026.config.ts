@@ -18,7 +18,8 @@ const stories: StoryDefinitionConfig[] = [
       { pattern: /\b(vivian|vivianbala|balakrishnan|foreign minister|minister for foreign affairs|cabinet minister)\b/i, weight: 4 },
       { pattern: /\b(nanoclaw|nano claw|raspberry pi|raspberry|second brain|personal ai|personal agent|whatsapp|sqlite|graph memory)\b/i, weight: 4 },
       { pattern: /\b(briefed on|govern a technology|outsource memory|outsource computation|learn by doing)\b/i, weight: 5 },
-      { pattern: /\b(keynote|minister'?s keynote|diplomat'?s second brain)\b/i, weight: 3 },
+      { pattern: /\b(新加坡外长|维文|维文医生|外长维文)\b/i, weight: 4 },
+      { pattern: /\b(minister'?s keynote|diplomat'?s second brain|dr\.?\s+vivian'?s?\s+keynote|vivian(?: balakrishnan)?'?s?\s+keynote)\b/i, weight: 3 },
     ],
   },
   {
@@ -57,6 +58,7 @@ const stories: StoryDefinitionConfig[] = [
       { pattern: /\b(workshop|workshops|hands-on|hands on|agentic workflow|agentic document|llamaindex|beyond rag|rag)\b/i, weight: 4 },
       { pattern: /\b(agentic engineering|coding agents?|code knowledge|business rules|repeatable system|software factories|software factory|leadership track)\b/i, weight: 4 },
       { pattern: /\b(x402|pay\.sh|agentic rag|enterprise documents?|document workflows?|evals?|evaluation|retrieval|parsing|reranking|orchestration|multi-agentic workflows?)\b/i, weight: 3 },
+      { pattern: /\b(agent deployment|production deployment patterns?|institutional knowledge|context infrastructure|agent stack|memory infrastructure|performance guarantees?|operational discipline|production ai agents?|agents write most pull requests)\b/i, weight: 4 },
       { pattern: /\b(enterprise pdf|technical workshop|workshop-heavy|packed workshops?)\b/i, weight: 4 },
     ],
   },
@@ -64,12 +66,12 @@ const stories: StoryDefinitionConfig[] = [
     storyId: 'research-talks-model-systems',
     label: 'Research talks and model systems',
     summary:
-      'Research-track posts covered world models, physical AI, sovereign AI, MoE inference, Sakana AI, Reka, Cerebras, and deeper model-system talks.',
+      'Research posts covered world models, physical AI, sovereign AI, MoE inference, Sakana AI, Reka, Cerebras, and deeper model-system talks.',
     keywords: ['research talks', 'world models', 'physical ai', 'sovereign ai', 'inference'],
     signals: [
       { pattern: /\b(world models?|physical ai|sovereign ai|moe|mixture of experts|inference|research track|research talk)\b/i, weight: 4 },
       { pattern: /\b(sakana|reka|cerebras|luma|reactor|bifrost|alberto|aravind|model systems?)\b/i, weight: 3 },
-      { pattern: /\b(understand physics|simulate|simulation|robotics research|model space)\b/i, weight: 3 },
+      { pattern: /\b(understand physics|simulate|simulation|sim-to-real|robotics research|robotics stack|robot training data|robotics deployment|robot foundation models?|model space|scaling evals for robotics)\b/i, weight: 3 },
     ],
   },
   {
@@ -88,7 +90,7 @@ const stories: StoryDefinitionConfig[] = [
     storyId: 'sponsors-booths-hiring',
     label: 'Sponsor booths, partner rooms and hiring',
     summary:
-      'Sponsor and partner refs covered booth presence, VIP dinners, founder happy hours, hiring, credits, partner selfies, and ecosystem participation from Google DeepMind, Exa, Arize, Vercel, Cloudflare, Cursor, and others.',
+      'Sponsor and partner refs covered booth presence, founder happy hours, hiring, credits, partner selfies, and ecosystem participation from Google DeepMind, Exa, Arize, Vercel, Cursor, and other tool teams.',
     keywords: ['sponsors', 'booths', 'hiring', 'partner rooms', 'credits'],
     signals: [
       { pattern: /\b(sponsor|sponsors|partner|partners|booth|expo|hiring|credits?|api credits?|giveaway)\b/i, weight: 4 },
@@ -101,12 +103,29 @@ const stories: StoryDefinitionConfig[] = [
     storyId: 'side-events-meetups',
     label: 'Road to AIE side events and meetups',
     summary:
-      'Side-event refs covered AI Tinkerers, Tencent Cloud, Ralphthon, GFTN, Road to AIE meetups, Convex boba, happy hours, and the broader build-week circuit around the main conference.',
-    keywords: ['side events', 'meetups', 'ai tinkerers', 'ralphthon', 'road to aie'],
+      'Side-event refs covered AI Tinkerers, Tencent Cloud, ClawCon/OpenClaw, GFTN, Road to AIE meetups, Convex boba, happy hours, and the broader meetup circuit around the main conference.',
+    keywords: ['side events', 'meetups', 'ai tinkerers', 'clawcon', 'road to aie'],
     signals: [
-      { pattern: /\b(side event|side events|meetup|meetups|ai tinkerers|tinkerers|ralphthon|gftn|tencent|built different)\b/i, weight: 4 },
-      { pattern: /\b(road to aie|convex boba|happy hour|founder meetup|jupiter hq|network school|running with ai engineers)\b/i, weight: 4 },
+      { pattern: /\b(side event|side events|meetup|meetups|ai tinkerers|tinkerers|ralphthon|clawcon|openclaw|gftn|tencent|built different)\b/i, weight: 4 },
+      { pattern: /\b(road to aie|road to ai engineer|convex boba|happy hour|founder meetup|jupiter hq|network school|running with ai engineers)\b/i, weight: 4 },
       { pattern: /\b(build week|ai week|around the conference|orbiting the main conference)\b/i, weight: 2 },
+    ],
+    storyType: 'side_event',
+  },
+  {
+    storyId: 'clawcon-openclaw-side-event',
+    label: 'ClawCon and OpenClaw side event',
+    summary:
+      'ClawCon/OpenClaw refs belong to the Road-to-AIE side-event circuit when they carry concrete ClawCon, OpenClaw Singapore, personal-AI festival, Jupiter HQ, AWS room, demo, or registration evidence.',
+    keywords: ['clawcon', 'openclaw', 'personal ai', 'jupiter hq', 'road to aie'],
+    signals: [
+      { pattern: /\b(clawcon|clawcon singapore|openclaw singapore|openclawsg|@clawcon|@openclawsg)\b/i, weight: 6 },
+      { pattern: /\b(road to aie|road to ai engineer|jupiter hq|aws|festival of personal ai|personal ai festival|500\+|registered|come say hi)\b/i, weight: 4 },
+      {
+        pattern:
+          /\b(clawcon|openclaw)\b[\s\S]{0,140}\b(personal ai|own personal ai agents?|demos?|builders?|community|side event|side-event)\b|\b(personal ai|own personal ai agents?|demos?|builders?|community|side event|side-event)\b[\s\S]{0,140}\b(clawcon|openclaw)\b/i,
+        weight: 3,
+      },
     ],
     storyType: 'side_event',
   },
@@ -114,10 +133,10 @@ const stories: StoryDefinitionConfig[] = [
     storyId: 'hackathon-build-week',
     label: 'Hackathons and build-week demos',
     summary:
-      'Hackathon refs captured Road to AIE build nights, Ralphthon, project demos, prize money, sponsor challenges, API-credit offers, and 300-builder pre-conference rooms.',
+      'Hackathon refs captured Road to AIE build nights, Ralphthon, project demos, prize money, sponsor challenges, credit offers, and 300-builder pre-conference rooms.',
     keywords: ['hackathon', 'build night', 'prizes', 'api credits', 'road to aie'],
     signals: [
-      { pattern: /\b(ai engineer\s*(singapore\s*)?#?hackathon|aie\s*(singapore\s*)?hackathon|road to aie hackathon|ralphthon|build night|builder night|300 builders|7 hours|cash prizes?|sgd|\$3k|\$2k|\$1k)\b/i, weight: 5 },
+      { pattern: /\b(ai engineer\s*(?:singapore\s*)?#?hackathon|ai engineer hackathon|aie\s*(singapore\s*)?hackathon|road to aie hackathon|ralphthon|build night|builder night|300 builders|7 hours|cash prizes?|sgd|\$3k|\$2k|\$1k)\b/i, weight: 5 },
       { pattern: /\b(prizes?|track prizes?|sponsor challenges?|api credits?|openai credits?|platform credits?|adaption labs credits?|smithery|mastra)\b/i, weight: 3 },
       { pattern: /\b(on-demand 3d panoramas|wiki ?racer|winning|won 2nd|demo vid)\b/i, weight: 3 },
     ],
@@ -126,11 +145,11 @@ const stories: StoryDefinitionConfig[] = [
     storyId: 'stage-demos-creative-ai',
     label: 'Stage demos and creative AI',
     summary:
-      'Creative-demo refs included Reachy, robotics, rap battle moments, Synthaesthetic Art, demo-stage photos, and playful examples of AI as a visible live medium.',
+      'Creative refs included Reachy, robotics, rap battle moments, Synthaesthetic Art, demo-stage photos, and playful examples of AI as a visible live medium.',
     keywords: ['reachy', 'robotics', 'rap battle', 'creative ai', 'stage demos'],
     signals: [
-      { pattern: /\b(reachy|pollen robotics|robot|robotics|rap battle|creative ai|synthaesthetic|demo stage|stage demo)\b/i, weight: 4 },
-      { pattern: /\b(hugging face|kai-ming|live demo|dance|performance|art)\b/i, weight: 3 },
+      { pattern: /\b(reachy|pollen robotics|rap battle|creative ai|synthaesthetic|demo stage|stage demo|the robot company|robotic painting|robot arm|teleoperat(?:e|ing|ion)|brain-computer|on-brand designs?|open in editor|visual treats?)\b/i, weight: 4 },
+      { pattern: /\b(hugging face|kai-ming|live robotic demo|robot dance|creative performance|synthaesthetic art|tesseract mindflow)\b/i, weight: 3 },
     ],
   },
   {
@@ -158,12 +177,16 @@ const stories: StoryDefinitionConfig[] = [
   },
   {
     storyId: 'livestream-video-recordings',
-    label: 'Livestreams and talk recordings',
+    label: 'Talk videos and recordings',
     summary:
-      'Video refs made the event visible beyond the room: official livestreams, uploaded talks, YouTube clips, source videos, and posts pointing people to recordings.',
+      'Video refs made the event visible beyond the room: official live streams, uploaded talks, YouTube clips, source videos, and posts pointing people to recordings.',
     keywords: ['livestream', 'recordings', 'youtube', 'talk video', 'watch'],
     signals: [
-      { pattern: /\b(livestream|live stream|streaming|youtube|recording|recordings|talk is now up|talk from ai engineer|watch the recording|video is up)\b/i, weight: 4 },
+      {
+        pattern:
+          /\b(livestream|live stream|streaming|youtube version|youtube upload|youtube channel|talk is now up|my talk from ai engineer is now up|talk from ai engineer is now up|watch(?:ing)?(?: the)? (?:livestream|live stream|recording|talk)|video is up)\b/i,
+        weight: 4,
+      },
       { pattern: /\b(tune in live|talks kick off|source video|uploaded|41-min|41 min)\b/i, weight: 3 },
     ],
     storyType: 'logistics',
@@ -172,6 +195,7 @@ const stories: StoryDefinitionConfig[] = [
 
 const smallStoryMergeTargets: Record<string, string> = {
   'leadership-enterprise': 'agentic-workshops',
+  'clawcon-openclaw-side-event': 'side-events-meetups',
 };
 
 const primaryStoryOverrides: PrimaryStoryOverride[] = [
@@ -180,19 +204,47 @@ const primaryStoryOverrides: PrimaryStoryOverride[] = [
     storyId: 'openai-codex-presence',
   },
   {
-    pattern: /\b(vivian|balakrishnan|foreign minister|minister for foreign affairs|nanoclaw|nano claw|raspberry pi|second brain|briefed on|govern a technology)\b/i,
-    storyId: 'vivian-builder-keynote',
+    pattern:
+      /\b(gave|led|ran|hosted|taught|joined|attended|packed|90[-\s]?min|technical|hands[-\s]?on)\b[\s\S]{0,90}\bworkshops?\b|\bworkshops?\b[\s\S]{0,90}\b(gave|led|ran|hosted|taught|joined|attended|questions|packed|90[-\s]?min|technical|hands[-\s]?on)\b/i,
+    storyId: 'agentic-workshops',
   },
   {
-    pattern: /\b(don'?t want to dunk on singapore|delusional takes|mostly a trading hub|next silicon valley)\b/i,
-    storyId: 'overall-event-recaps',
+    pattern:
+      /\b(agent deployment|production deployment patterns?|institutional knowledge|context infrastructure|agent stack|memory infrastructure|performance guarantees?|operational discipline|building ai agents that perform|agents write most pull requests)\b/i,
+    storyId: 'agentic-workshops',
   },
   {
-    pattern: /\b(20 students?|sponsored ticket|student tickets?|scholarship seats?|fully sponsored ticket)\b/i,
+    pattern:
+      /\b(youtube video:\s*aie singapore day\s*[12]\b|my talk from ai engineer(?: singapore)? is now up|talk from ai engineer(?: singapore)? is now up|talk is now up|live streams? are available|livestream for (?:the )?last day|youtube version|youtube upload|video is up)\b/i,
+    storyId: 'livestream-video-recordings',
+  },
+  {
+    pattern:
+      /\b(ralphthonsg|ralphthon@sg)\b|(?:\bralphthon\b[\s\S]{0,180}\b(agent[-\s]?coding|coding agents?|agents?\s+code|demos?|prizes?|winners?|won|lobster rule|lobster hat|hackathon|ralph loop|project|ship|built|api credits?))|(?:(agent[-\s]?coding|coding agents?|agents?\s+code|demos?|prizes?|winners?|won|lobster rule|lobster hat|hackathon|ralph loop|project|ship|built|api credits?)[\s\S]{0,180}\bralphthon\b)/i,
+    storyId: 'hackathon-build-week',
+  },
+  {
+    pattern:
+      /\b(ai engineer\s*(?:singapore\s*)?#?hackathon|ai engineer hackathon|aie\s*(?:singapore\s*)?hackathon|road to aie hackathon|hackathon[\s\S]{0,120}\b(road to aie|road to ai engineer)|(?:road to aie|road to ai engineer)[\s\S]{0,120}\bhackathon)\b/i,
+    storyId: 'hackathon-build-week',
+  },
+  {
+    pattern:
+      /\b(clawcon|openclaw singapore|openclawsg|@clawcon|@openclawsg)\b[\s\S]{0,180}\b(road to aie|road to ai engineer|ai engineer singapore|singapore|jupiter hq|aws|festival|personal ai|500\+|registered|side event|demos?)\b|\b(road to aie|road to ai engineer|ai engineer singapore|singapore|jupiter hq|aws|festival|personal ai|500\+|registered|side event|demos?)\b[\s\S]{0,180}\b(clawcon|openclaw singapore|openclawsg|@clawcon|@openclawsg)\b/i,
+    storyId: 'clawcon-openclaw-side-event',
+  },
+  {
+    pattern: /\b(20 students?|sponsored ticket|student tickets?|student scholars?|scholarship seats?|fully sponsored ticket)\b/i,
     storyId: 'students-organizers-community',
   },
   {
-    pattern: /\b(diamond sponsor|platinum sponsor|gold sponsor|biggest sponsors?|sponsor lineup|first wave of sponsors|sponsor announcement|joining us as[\s\S]{0,80}sponsor|partnering up with 65labs)\b/i,
+    pattern:
+      /\b(you are the scene|volunteers? who|volunteer lead|labor of love|labour of love|it takes a village|massive shoutout to 65labs|shoutout to 65labs|thank you to 65labs|organizing team|organising team|entire organizing team|entire organising team|ai engineer singapore starts tomorrow and i have some last minute thoughts)\b/i,
+    storyId: 'students-organizers-community',
+  },
+  {
+    pattern:
+      /\b(diamond sponsor|platinum sponsor|gold sponsor|biggest sponsors?|sponsor lineup|first wave of sponsors|sponsor announcement|joining us as[\s\S]{0,80}sponsor|partnering up with 65labs)\b/i,
     storyId: 'sponsors-booths-hiring',
     subPattern: /\b(openai codex|codex)\b/i,
     subStoryId: 'openai-codex-presence',
@@ -202,12 +254,23 @@ const primaryStoryOverrides: PrimaryStoryOverride[] = [
     storyId: 'agentic-workshops',
   },
   {
-    pattern: /\b(ai engineer speaker reveal|speaker reveal:|early bird tickets|prices go up|what your ticket gets|tickets are live|ticket gets you)\b/i,
+    pattern:
+      /\b(ai engineer speaker reveal|speaker reveal:|early bird tickets|prices go up|what your ticket gets|tickets are live|ticket gets you|speaker applications? (?:are )?now open|cfp closes|convince your boss|code with ai classes|last call for saturday)\b/i,
     storyId: 'overall-event-recaps',
   },
   {
-    pattern: /\b(massive shoutout to 65labs|shoutout to 65labs|thank you to 65labs|organizing team|organising team|entire organizing team|entire organising team)\b/i,
-    storyId: 'students-organizers-community',
+    pattern: /\b(don'?t want to dunk on singapore|delusional takes|mostly a trading hub|next silicon valley)\b/i,
+    storyId: 'overall-event-recaps',
+  },
+  {
+    pattern:
+      /\b(scaling evals for robotics|robotics stack|sim-to-real|robot training data|robotics deployment|robot foundation models?|bifrost|world models?|physical ai|sovereign ai|mixture of experts|moe inference)\b/i,
+    storyId: 'research-talks-model-systems',
+  },
+  {
+    pattern: /\b(vivian|balakrishnan|foreign minister|minister for foreign affairs|nanoclaw|nano claw|raspberry pi|second brain|briefed on|govern a technology|新加坡外长|维文|维文医生|外长维文)\b/i,
+    storyId: 'vivian-builder-keynote',
+    skipWhenBroad: true,
   },
 ];
 

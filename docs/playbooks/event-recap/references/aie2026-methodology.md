@@ -82,7 +82,7 @@ From `workers/aie2026-vibes.ts:631`:
 >
 > **Legend** — columns = story family • size = ref count • lines = overlap + bridge • no line ≠ unrelated
 >
-> **How this map works** — Grouped for reading, not literal coordinates. Primary refs are assigned to <N> whole-post stories. Broad recaps stay intact instead of being split; secondary story mentions are kept on the post. Lines are computed from local term vectors over labels, summaries, keywords, author handles, tags, and sample refs; each story gets up to two strongest overlap links, then disconnected or one-edge pockets get their nearest outside bridge.
+> **How this map works** — Grouped for reading, not literal coordinates. Primary refs are assigned to <N> whole-post stories. Broad recaps stay intact instead of being split; secondary story mentions are kept on the post. Lines are display-only overlap aids computed from story labels, summaries, keywords, author handles, tags, and sample refs; each story gets up to two strongest overlap links, then disconnected or one-edge pockets get their nearest outside bridge.
 
 ## Coverage callouts (sidebar)
 

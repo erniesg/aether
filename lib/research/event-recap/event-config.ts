@@ -52,6 +52,12 @@ export interface PrimaryStoryOverride {
   pattern: RegExp;
   storyId: string;
   /**
+   * Broad, list-like recaps can mention a famous actor while still being
+   * primarily about the whole event. When true, this hard override yields to
+   * the weighted MECE chooser for those broad posts.
+   */
+  skipWhenBroad?: boolean;
+  /**
    * Optional sub-rule: if the override pattern matches AND the sub-pattern
    * matches, route to subStoryId instead. Mirrors the codex-vs-sponsor
    * branch in the AIE 2026 primaryStoryOverride function.
