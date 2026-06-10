@@ -44,6 +44,8 @@ export async function POST(request: Request) {
       name: body.name,
       contextHint: typeof body.contextHint === 'string' ? body.contextHint : undefined,
       workspaceId: typeof body.workspaceId === 'string' ? body.workspaceId : undefined,
+      startsAt: typeof body.startsAt === 'string' ? body.startsAt : undefined,
+      endsAt: typeof body.endsAt === 'string' ? body.endsAt : undefined,
       daysBefore: typeof body.daysBefore === 'number' ? body.daysBefore : undefined,
       daysAfter: typeof body.daysAfter === 'number' ? body.daysAfter : undefined,
       refreshIntervalHours:
@@ -68,6 +70,8 @@ export async function POST(request: Request) {
 
     const bundle = await refreshEventRecap({
       eventId: event.eventId,
+      startsAt: typeof body.startsAt === 'string' ? body.startsAt : undefined,
+      endsAt: typeof body.endsAt === 'string' ? body.endsAt : undefined,
       platforms: Array.isArray(body.platforms)
         ? body.platforms.filter(isEventPlatform)
         : undefined,
