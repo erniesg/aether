@@ -254,3 +254,32 @@ describe('SelectedImageActions · align + distribute', () => {
     ]);
   });
 });
+
+describe('SelectedImageActions · split layers', () => {
+  it('renders the split-layers entrypoint when wired and routes clicks', async () => {
+    const onSplitLayers = vi.fn();
+    render(
+      <SelectedImageActions
+        rect={{ x: 80, y: 120, w: 480, h: 640 }}
+        onRemoveBg={vi.fn()}
+        onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
+        onSplitLayers={onSplitLayers}
+      />
+    );
+    await userEvent.click(screen.getByRole('button', { name: /split layers/i }));
+    expect(onSplitLayers).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the split-layers chip when no handler is provided', () => {
+    render(
+      <SelectedImageActions
+        rect={{ x: 80, y: 120, w: 480, h: 640 }}
+        onRemoveBg={vi.fn()}
+        onCutout={vi.fn()}
+        onSpatialize={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /split layers/i })).not.toBeInTheDocument();
+  });
+});
