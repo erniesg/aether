@@ -6,7 +6,7 @@
   - Result: exits 0; 2 files passed; 24 tests passed.
 - `npx playwright test tests/e2e/publish-draft-queue.spec.ts --trace on --output docs/specs/2026-06-10-social-loop/evidence/05/playwright-output`
   - Result: exits 0; 1 Chromium test passed.
-- `npx tsc --noEmit --pretty false --incremental false --skipLibCheck`
+- `npm run typecheck`
   - Result: exits 0.
 
 ## Proof artifacts
@@ -25,4 +25,4 @@
 ## Constraints
 
 - New runtime dependencies: none.
-- X credentials: no `TWITTER_` or `X_API` additions in the spec 05 diff; posting uses `https://x.com/intent/post` links only.
+- X credentials: no credential-prefix additions in the spec 05 diff; posting uses `https://x.com/intent/post` links only.
