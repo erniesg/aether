@@ -22,10 +22,27 @@ npx playwright test tests/e2e/presence-draft-generation.spec.ts
 1 passed
 ```
 
+2026-06-10 VM rerun with trace evidence:
+
+```text
+npx playwright test tests/e2e/presence-draft-generation.spec.ts --trace on --output docs/specs/2026-06-10-social-loop/evidence/08/playwright-output
+
+1 passed
+```
+
 ```text
 npm run typecheck
 > tsc --noEmit
 exit 0
+```
+
+2026-06-10 combined social-presence gate:
+
+```text
+npx vitest run lib/research/repo-facts.test.ts lib/research/evidence-facts.test.ts lib/providers/enrichment/context-dev.contract.test.ts tests/unit/convex-evidence-facts.test.ts tests/unit/api-evidence-ingest.test.ts tests/component/brand-section.test.tsx tests/unit/presence-handle.test.ts tests/unit/api-presence-strategy.test.ts tests/unit/convex-presence.test.ts tests/component/presence-section.test.tsx tests/unit/account-analysis.test.ts tests/unit/convex-presence-insights.test.ts tests/unit/api-presence-insights.test.ts tests/unit/api-presence-insights-lap.test.ts tests/unit/api-presence-drafts.test.ts tests/unit/convex-publish-generated-drafts.test.ts tests/component/publish-section.test.tsx tests/component/left-rail.sections.test.tsx
+
+Test Files  18 passed (18)
+Tests       76 passed (76)
 ```
 
 ## Proof ids
@@ -100,6 +117,7 @@ Generation only creates `draft` rows.
   - interaction: add profile, accept strategy, generate drafts, open queue
   - result: post and reply drafts render with pillar `agent harnesses`,
     receipt refs, and an exact X intent link
+- Trace: `docs/specs/2026-06-10-social-loop/evidence/08/playwright-output/e2e-presence-draft-generat-c0926-preserves-the-X-intent-gate-chromium/trace.zip`
 
 ## Dependency note
 
