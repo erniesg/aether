@@ -55,7 +55,7 @@ describe('X intent URL builder', () => {
         targetUrl: 'https://x.com/aether/status/1780000000000000001',
       },
       href: 'https://x.com/intent/post?text=Adding+a+canvas-native+pass.&in_reply_to=1780000000000000001',
-      length: 29,
+      length: 28,
       confirmable: true,
     },
   ];

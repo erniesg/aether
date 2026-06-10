@@ -1,9 +1,21 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { ExternalLink, Plus, X } from 'lucide-react';
 import { Chip } from '@/components/ui/Chip';
 import { cn } from '@/lib/utils/cn';
+import {
+  usePublishDraftActions,
+  usePublishDrafts,
+  type PublishDraft,
+  type PublishDraftActions,
+} from '@/lib/publish/draft-store';
+import {
+  buildXIntentUrl,
+  getXWeightedLength,
+  isXIntentConfirmable,
+  type PublishDraftKind,
+} from '@/lib/publish/x-intent';
 import {
   getPreviewPublisher,
   rememberScheduledPost,
@@ -51,6 +63,8 @@ export function PublishSection({
   onOpenPreview,
 }: PublishSectionProps) {
   const posts = useScheduledPosts(workspaceId);
+  const drafts = usePublishDrafts(workspaceId);
+  const draftActions = usePublishDraftActions(workspaceId);
   const publisher = useMemo(
     () => getPreviewPublisher(workspaceId),
     [workspaceId]
@@ -115,6 +129,8 @@ export function PublishSection({
         }}
       />
 
+      <DraftQueue drafts={drafts} actions={draftActions} />
+
       <section
         aria-label="scheduled posts"
         className="flex flex-col gap-1.5"
@@ -154,6 +170,270 @@ export function PublishSection({
         )}
       </section>
     </div>
+  );
+}
+
+function DraftQueue({
+  drafts,
+  actions,
+}: {
+  drafts: PublishDraft[];
+  actions: PublishDraftActions;
+}) {
+  return (
+    <section
+      aria-label="draft queue"
+      className="flex flex-col gap-2"
+      data-testid="publish-draft-queue"
+    >
+      <DraftComposer actions={actions} />
+      <div className="flex flex-col gap-1.5">
+        <span className="font-caption text-ink-dim">drafts</span>
+        {drafts.length === 0 ? (
+          <span className="font-caption text-xs text-ink-faint">
+            compose a post or reply
+          </span>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {drafts.map((draft) => (
+              <DraftRow key={draft.id} draft={draft} actions={actions} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DraftComposer({ actions }: { actions: PublishDraftActions }) {
+  const [kind, setKind] = useState<PublishDraftKind>('post');
+  const [text, setText] = useState('');
+  const [pillar, setPillar] = useState('');
+  const [targetUrl, setTargetUrl] = useState('');
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const body = text.trim();
+    if (!body) return;
+    await actions.addDraft({
+      kind,
+      text: body,
+      pillar: pillar.trim(),
+      targetUrl: kind === 'reply' ? targetUrl.trim() : undefined,
+    });
+    setText('');
+    setPillar('');
+    setTargetUrl('');
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      className="flex flex-col gap-2 rounded-sm border border-border-soft bg-surface-panel-muted p-2"
+      data-testid="publish-draft-form"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div
+          role="group"
+          aria-label="draft kind"
+          className="inline-flex rounded-sm border border-border-soft bg-surface-panel p-0.5"
+        >
+          {(['post', 'reply'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={kind === option}
+              data-testid={`publish-draft-kind-${option}`}
+              onClick={() => setKind(option)}
+              className={cn(
+                'rounded-xs px-2 py-0.5 font-mono text-2xs uppercase transition-colors',
+                kind === option
+                  ? 'bg-accent text-ink-on-accent'
+                  : 'text-ink-muted hover:text-ink'
+              )}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          aria-label="pillar"
+          data-testid="publish-draft-pillar"
+          value={pillar}
+          onChange={(event) => setPillar(event.target.value)}
+          placeholder="pillar"
+          className="min-w-0 flex-1 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+        />
+      </div>
+
+      <textarea
+        aria-label="draft text"
+        data-testid="publish-draft-text"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        placeholder="write the post"
+        rows={2}
+        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+      />
+
+      {kind === 'reply' ? (
+        <input
+          type="url"
+          aria-label="reply target"
+          data-testid="publish-draft-target"
+          value={targetUrl}
+          onChange={(event) => setTargetUrl(event.target.value)}
+          placeholder="x.com/.../status/..."
+          className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+        />
+      ) : null}
+
+      <button
+        type="submit"
+        data-testid="publish-draft-add"
+        disabled={!text.trim()}
+        className="inline-flex items-center gap-1 self-end rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink transition-colors hover:bg-surface-panel-muted disabled:opacity-50"
+      >
+        <Plus size={12} />
+        draft
+      </button>
+    </form>
+  );
+}
+
+function DraftRow({
+  draft,
+  actions,
+}: {
+  draft: PublishDraft;
+  actions: PublishDraftActions;
+}) {
+  const [text, setText] = useState(draft.text);
+  const [receiptUrl, setReceiptUrl] = useState('');
+
+  useEffect(() => {
+    setText(draft.text);
+  }, [draft.id, draft.text]);
+
+  const intentDraft = {
+    kind: draft.kind,
+    text,
+    targetUrl: draft.targetUrl,
+  };
+  const count = getXWeightedLength(text);
+  const confirmable = isXIntentConfirmable(intentDraft);
+  const href = buildXIntentUrl(intentDraft);
+
+  const persistText = () => {
+    if (text !== draft.text) {
+      void actions.updateDraftText(draft.id, text);
+    }
+  };
+
+  const confirm = () => {
+    if (text !== draft.text) {
+      void actions.updateDraftText(draft.id, text);
+    }
+    void actions.markDraftPosted(draft.id);
+  };
+
+  const saveReceipt = () => {
+    const normalized = receiptUrl.trim();
+    if (normalized) {
+      void actions.setDraftReceiptUrl(draft.id, normalized);
+      setReceiptUrl('');
+    }
+  };
+
+  return (
+    <li
+      data-publish-draft-id={draft.id}
+      data-testid="publish-draft-row"
+      className="flex flex-col gap-1.5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <Chip tone="secondary" size="sm">
+            {draft.kind}
+          </Chip>
+          {draft.pillar ? (
+            <Chip tone="neutral" size="sm">
+              {draft.pillar}
+            </Chip>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Chip
+            tone={count > 280 ? 'warn' : 'neutral'}
+            size="sm"
+            data-testid="publish-draft-count"
+          >
+            {count}/280
+          </Chip>
+          <Chip tone={draft.status === 'posted' ? 'ok' : 'info'} size="sm">
+            {draft.status}
+          </Chip>
+        </div>
+      </div>
+
+      <textarea
+        aria-label="edit draft"
+        data-testid="publish-draft-edit-text"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={persistText}
+        rows={2}
+        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink focus:border-accent focus:outline-none"
+      />
+
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        {draft.receiptUrl ? (
+          <a
+            href={draft.receiptUrl}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="publish-draft-receipt-link"
+            className="font-caption text-xs text-ink-dim underline-offset-2 hover:text-ink hover:underline"
+          >
+            permalink
+          </a>
+        ) : draft.status === 'posted' ? (
+          <input
+            type="url"
+            aria-label="posted permalink"
+            data-testid="publish-draft-receipt"
+            value={receiptUrl}
+            onChange={(event) => setReceiptUrl(event.target.value)}
+            onBlur={saveReceipt}
+            placeholder="paste permalink"
+            className="min-w-0 flex-1 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+          />
+        ) : null}
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          data-testid="publish-draft-confirm"
+          aria-disabled={confirmable ? 'false' : 'true'}
+          tabIndex={confirmable ? 0 : -1}
+          onClick={(event) => {
+            if (!confirmable) {
+              event.preventDefault();
+              return;
+            }
+            confirm();
+          }}
+          className={cn(
+            'inline-flex items-center gap-1 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink transition-colors hover:bg-surface-panel-muted',
+            !confirmable && 'pointer-events-none opacity-50'
+          )}
+        >
+          <ExternalLink size={12} />
+          intent
+        </a>
+      </div>
+    </li>
   );
 }
 
