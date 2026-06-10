@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const ORIGINAL_CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -198,5 +198,148 @@ describe('PublishSection · in-memory fallback', () => {
     const rowId = row.getAttribute('data-scheduled-post-id');
     expect(rowId).toBeTruthy();
     expect(row.textContent).toContain('real drop');
+  });
+});
+
+describe('PublishSection · draft queue', () => {
+  beforeEach(() => {
+    delete process.env.NEXT_PUBLIC_CONVEX_URL;
+    window.localStorage.clear();
+    vi.resetModules();
+  });
+
+  it('adds a draft, persists edits on blur, and reloads it for the same workspace', async () => {
+    const { PublishSection } = await import(
+      '@/components/rail/sections/PublishSection'
+    );
+    const { resetPublishDraftsForTests } = await import(
+      '@/lib/publish/draft-store'
+    );
+    resetPublishDraftsForTests();
+
+    const view = render(<PublishSection workspaceId="ws_draft_edit" />);
+
+    await userEvent.type(
+      screen.getByTestId('publish-draft-text'),
+      'First pass for the canvas loop'
+    );
+    await userEvent.type(screen.getByTestId('publish-draft-pillar'), 'launch');
+    await userEvent.click(screen.getByTestId('publish-draft-add'));
+
+    const row = await screen.findByTestId('publish-draft-row');
+    expect(row).toHaveTextContent('launch');
+    expect(screen.getByDisplayValue('First pass for the canvas loop')).toBeInTheDocument();
+
+    const editor = screen.getByTestId('publish-draft-edit-text');
+    await userEvent.clear(editor);
+    await userEvent.type(editor, 'Edited pass for the canvas loop');
+    editor.blur();
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Edited pass for the canvas loop')).toBeInTheDocument();
+    });
+
+    view.unmount();
+    render(<PublishSection workspaceId="ws_draft_edit" />);
+
+    expect(screen.getByDisplayValue('Edited pass for the canvas loop')).toBeInTheDocument();
+  });
+
+  it('marks a confirmable draft as posted after the X intent is opened', async () => {
+    const { PublishSection } = await import(
+      '@/components/rail/sections/PublishSection'
+    );
+    const { resetPublishDraftsForTests } = await import(
+      '@/lib/publish/draft-store'
+    );
+    resetPublishDraftsForTests();
+
+    render(<PublishSection workspaceId="ws_draft_confirm" />);
+
+    await userEvent.type(screen.getByTestId('publish-draft-text'), 'Ready for X');
+    await userEvent.click(screen.getByTestId('publish-draft-add'));
+
+    const confirm = await screen.findByTestId('publish-draft-confirm');
+    expect(confirm).toHaveAttribute(
+      'href',
+      'https://x.com/intent/post?text=Ready+for+X'
+    );
+
+    await userEvent.click(confirm);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('publish-draft-row')).toHaveTextContent('posted');
+    });
+  });
+
+  it('disables confirm for a 281-char draft and leaves a 279-char draft enabled', async () => {
+    const { PublishSection } = await import(
+      '@/components/rail/sections/PublishSection'
+    );
+    const { resetPublishDraftsForTests } = await import(
+      '@/lib/publish/draft-store'
+    );
+    resetPublishDraftsForTests();
+
+    render(<PublishSection workspaceId="ws_draft_length" />);
+
+    await userEvent.type(screen.getByTestId('publish-draft-text'), 'a'.repeat(281));
+    await userEvent.click(screen.getByTestId('publish-draft-add'));
+
+    await userEvent.clear(screen.getByTestId('publish-draft-text'));
+    await userEvent.type(screen.getByTestId('publish-draft-text'), 'b'.repeat(279));
+    await userEvent.click(screen.getByTestId('publish-draft-add'));
+
+    const rows = await screen.findAllByTestId('publish-draft-row');
+    expect(rows).toHaveLength(2);
+
+    const enabledRow = rows[0]!;
+    expect(within(enabledRow).getByTestId('publish-draft-count')).toHaveTextContent('279/280');
+    expect(within(enabledRow).getByTestId('publish-draft-confirm')).toHaveAttribute(
+      'aria-disabled',
+      'false'
+    );
+
+    const overLengthRow = rows[1]!;
+    expect(within(overLengthRow).getByTestId('publish-draft-count')).toHaveTextContent('281/280');
+    expect(within(overLengthRow).getByTestId('publish-draft-confirm')).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+  });
+
+  it('persists a pasted posted permalink and reloads it as the row link', async () => {
+    const { PublishSection } = await import(
+      '@/components/rail/sections/PublishSection'
+    );
+    const { resetPublishDraftsForTests } = await import(
+      '@/lib/publish/draft-store'
+    );
+    resetPublishDraftsForTests();
+
+    const view = render(<PublishSection workspaceId="ws_draft_receipt" />);
+
+    await userEvent.type(
+      screen.getByTestId('publish-draft-text'),
+      'Receipt capture pass'
+    );
+    await userEvent.click(screen.getByTestId('publish-draft-add'));
+    await userEvent.click(await screen.findByTestId('publish-draft-confirm'));
+
+    const receipt = await screen.findByTestId('publish-draft-receipt');
+    await userEvent.type(
+      receipt,
+      'https://x.com/aether/status/1780000000000000002'
+    );
+    receipt.blur();
+
+    view.unmount();
+    render(<PublishSection workspaceId="ws_draft_receipt" />);
+
+    const link = await screen.findByTestId('publish-draft-receipt-link');
+    expect(link).toHaveAttribute(
+      'href',
+      'https://x.com/aether/status/1780000000000000002'
+    );
   });
 });

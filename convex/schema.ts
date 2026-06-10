@@ -1082,6 +1082,21 @@ export default defineSchema({
     externalId: v.optional(v.string()),
   }).index('by_ws', ['wsId']),
 
+  // X web-intent draft queue (social loop spec 05). Separate from
+  // scheduledPost because these are unscheduled creator-confirmed drafts.
+  publishDraft: defineTable({
+    workspaceId: v.string(),
+    kind: v.union(v.literal('post'), v.literal('reply')),
+    text: v.string(),
+    pillar: v.string(),
+    targetUrl: v.optional(v.string()),
+    receiptUrl: v.optional(v.string()),
+    status: v.union(v.literal('draft'), v.literal('posted')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    postedAt: v.optional(v.number()),
+  }).index('by_workspace', ['workspaceId']),
+
   // ─── inbound webhook replies ───────────────────────────────────────────
   // Persisted by the X webhook receiver when a valid tweet_create_events
   // payload arrives. The reply-agent / approval flow reads from this table;
