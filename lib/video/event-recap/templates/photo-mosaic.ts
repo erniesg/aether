@@ -7,14 +7,22 @@
  * a veil dims the periphery and the hero tile lifts with the single accent.
  */
 import type { RecapMosaicTile, RecapVideoData } from '../types';
-import { escapeHtml, recapDocument, renderEmphasis } from '../shared';
+import {
+  escapeHtml,
+  recapDocument,
+  renderEmphasis,
+  resolveRecapCanvas,
+  scaleY,
+  type RecapCanvas,
+  type RecapRenderOptions,
+} from '../shared';
 
-const CSS = `
+const css = (canvas: RecapCanvas) => `
       .scene-content {
         display: flex; flex-direction: column;
         width: 100%; height: 100%;
-        padding: 140px 110px 130px;
-        gap: 56px; box-sizing: border-box; position: relative;
+        padding: ${scaleY(140, canvas)}px 110px ${scaleY(130, canvas)}px;
+        gap: ${scaleY(56, canvas)}px; box-sizing: border-box; position: relative;
       }
       .header {
         display: flex; justify-content: space-between; align-items: baseline;
@@ -69,7 +77,11 @@ function tileMarkup(tile: RecapMosaicTile, i: number): string {
 
 export const PHOTO_MOSAIC_DURATION = 8;
 
-export function renderPhotoMosaic(data: RecapVideoData): string {
+export function renderPhotoMosaic(
+  data: RecapVideoData,
+  options?: RecapRenderOptions,
+): string {
+  const canvas = resolveRecapCanvas(options);
   const mosaic = data.mosaic;
   if (!mosaic || mosaic.tiles.length === 0) {
     throw new Error('renderPhotoMosaic requires data.mosaic with at least one tile');
@@ -77,8 +89,16 @@ export function renderPhotoMosaic(data: RecapVideoData): string {
   const tiles = mosaic.tiles;
   const cols = Math.ceil(Math.sqrt(tiles.length));
   const rows = Math.ceil(tiles.length / cols);
-  // Cell size shrinks as the grid grows so it always fits the 860px-wide stage.
-  const cell = Math.min(280, Math.floor((860 - (cols - 1) * 16) / cols));
+  // Cell size shrinks as the grid grows so it always fits the stage: bounded
+  // by the padded canvas width and by the share of canvas height the grid can
+  // occupy (45%, which reproduces the hand-tuned vertical layout exactly).
+  const availW = canvas.width - 220;
+  const availH = Math.round(canvas.height * 0.45);
+  const cell = Math.min(
+    280,
+    Math.floor((availW - (cols - 1) * 16) / cols),
+    Math.floor((availH - (rows - 1) * 16) / rows),
+  );
 
   const gridStyle = `grid-template-columns: repeat(${cols}, ${cell}px); grid-template-rows: repeat(${rows}, ${cell}px);`;
   const gridMarkup = tiles.map((t, i) => tileMarkup(t, i)).join('\n');
@@ -119,5 +139,5 @@ ${gridMarkup}
       tl.to(".footer .right", { opacity: 1, duration: 0.5, ease: "power2.out" }, 6.4);
       tl.from(".footer .right", { x: 14, duration: 0.5, ease: "power2.out" }, 6.4);`;
 
-  return recapDocument({ css: CSS, body, script, durationSeconds: PHOTO_MOSAIC_DURATION });
+  return recapDocument({ css: css(canvas), body, script, durationSeconds: PHOTO_MOSAIC_DURATION, canvas });
 }

@@ -7,15 +7,24 @@
  * funnel reads as a physical compression.
  */
 import type { RecapFunnelStage, RecapVideoData } from '../types';
-import { escapeHtml, recapDocument, renderEmphasis } from '../shared';
+import {
+  RECAP_CANVAS,
+  escapeHtml,
+  recapDocument,
+  renderEmphasis,
+  resolveRecapCanvas,
+  scaleY,
+  type RecapCanvas,
+  type RecapRenderOptions,
+} from '../shared';
 
-const CSS = `
+const css = (canvas: RecapCanvas) => `
       .scene { position: absolute; inset: 0; background: #f4ede0; }
       .scene-content {
         display: flex; flex-direction: column;
         width: 100%; height: 100%;
-        padding: 130px 80px;
-        gap: 50px; box-sizing: border-box;
+        padding: ${scaleY(130, canvas)}px 80px;
+        gap: ${scaleY(50, canvas)}px; box-sizing: border-box;
       }
       .header {
         display: flex; justify-content: space-between; align-items: baseline;
@@ -66,15 +75,24 @@ function zeroFor(stage: RecapFunnelStage): string {
   return '0';
 }
 
-/** Linear number-size ramp so each stage looms larger than the last. */
-function numberSize(index: number, count: number): number {
-  if (count <= 1) return 480;
+/**
+ * Linear number-size ramp so each stage looms larger than the last, scaled to
+ * the canvas height so the figure never overflows a shorter format.
+ */
+function numberSize(index: number, count: number, canvas: RecapCanvas): number {
+  const f = canvas.height / RECAP_CANVAS.height;
+  if (count <= 1) return Math.round(480 * f);
   const min = 280;
   const max = 600;
-  return Math.round(min + ((max - min) * index) / (count - 1));
+  return Math.round((min + ((max - min) * index) / (count - 1)) * f);
 }
 
-function sceneMarkup(stage: RecapFunnelStage, i: number, count: number): string {
+function sceneMarkup(
+  stage: RecapFunnelStage,
+  i: number,
+  count: number,
+  canvas: RecapCanvas,
+): string {
   const n = i + 1;
   const idx = String(n).padStart(2, '0');
   const total = String(count).padStart(2, '0');
@@ -85,7 +103,7 @@ function sceneMarkup(stage: RecapFunnelStage, i: number, count: number): string 
             <span class="label">${escapeHtml(stage.label)}</span>
           </div>
           <div class="number-block">
-            <div class="number" id="s${n}-number" style="font-size: ${numberSize(i, count)}px;">${zeroFor(stage)}</div>
+            <div class="number" id="s${n}-number" style="font-size: ${numberSize(i, count, canvas)}px;">${zeroFor(stage)}</div>
             <div class="descriptor">${renderEmphasis(stage.descriptor)}</div>
           </div>
           <div class="bar-wrap">
@@ -145,14 +163,18 @@ function sceneScript(stage: RecapFunnelStage, i: number, count: number, span: nu
 
 export const BY_THE_NUMBERS_DURATION = 20;
 
-export function renderByTheNumbers(data: RecapVideoData): string {
+export function renderByTheNumbers(
+  data: RecapVideoData,
+  options?: RecapRenderOptions,
+): string {
+  const canvas = resolveRecapCanvas(options);
   const funnel = data.funnel ?? [];
   if (funnel.length === 0) {
     throw new Error('renderByTheNumbers requires data.funnel with at least one stage');
   }
   const count = funnel.length;
   const span = BY_THE_NUMBERS_DURATION / count;
-  const body = funnel.map((stage, i) => sceneMarkup(stage, i, count)).join('\n');
+  const body = funnel.map((stage, i) => sceneMarkup(stage, i, count, canvas)).join('\n');
   const hidden = funnel
     .map((_, i) => i)
     .filter((i) => i > 0)
@@ -163,5 +185,5 @@ export function renderByTheNumbers(data: RecapVideoData): string {
   const script = `      const tl = gsap.timeline({ paused: true });
 ${initial}      tl.set([${bars}], { scaleX: 0 }, 0);
 ${funnel.map((stage, i) => sceneScript(stage, i, count, span)).join('\n')}`;
-  return recapDocument({ css: CSS, body, script, durationSeconds: BY_THE_NUMBERS_DURATION });
+  return recapDocument({ css: css(canvas), body, script, durationSeconds: BY_THE_NUMBERS_DURATION, canvas });
 }

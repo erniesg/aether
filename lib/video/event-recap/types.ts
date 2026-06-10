@@ -118,6 +118,10 @@ export interface RecapVideoData {
   mosaic?: RecapMosaic;
 }
 
+import type { RecapRenderOptions } from './shared';
+
+export type { RecapCanvas, RecapFormat, RecapRenderOptions } from './shared';
+
 /** Identifier for each shipped template variant. */
 export type RecapTemplateId =
   | 'atlas-reveal'
@@ -137,5 +141,5 @@ export interface RecapTemplate {
   /** Which `RecapVideoData` field this template consumes. */
   requires: keyof RecapVideoData;
   /** Render the full HyperFrames document for the supplied event data. */
-  render(data: RecapVideoData): string;
+  render(data: RecapVideoData, options?: RecapRenderOptions): string;
 }

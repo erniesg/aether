@@ -7,15 +7,23 @@
  * the quote text so any string works.
  */
 import type { RecapQuote, RecapVideoData } from '../types';
-import { escapeHtml, recapDocument } from '../shared';
+import {
+  escapeHtml,
+  recapDocument,
+  resolveRecapCanvas,
+  safeInlineJson,
+  scaleY,
+  type RecapCanvas,
+  type RecapRenderOptions,
+} from '../shared';
 
-const CSS = `
+const css = (canvas: RecapCanvas) => `
       .scene { position: absolute; inset: 0; background: #f4ede0; }
       .scene-content {
         display: flex; flex-direction: column;
         width: 100%; height: 100%;
-        padding: 140px 70px 130px;
-        gap: 40px; box-sizing: border-box;
+        padding: ${scaleY(140, canvas)}px 70px ${scaleY(130, canvas)}px;
+        gap: ${scaleY(40, canvas)}px; box-sizing: border-box;
       }
       .header {
         display: flex; justify-content: space-between; align-items: baseline;
@@ -25,16 +33,16 @@ const CSS = `
       .header .technique { color: #c8413a; font-weight: 700; }
       .quote-block {
         flex: 1; display: flex; flex-direction: column;
-        justify-content: center; gap: 60px;
+        justify-content: center; gap: ${scaleY(60, canvas)}px;
       }
       .quote { letter-spacing: -0.03em; line-height: 1.05; color: #1a1a1a; }
-      .qm { font-size: 110px; font-weight: 700; }
+      .qm { font-size: ${scaleY(110, canvas)}px; font-weight: 700; }
       .qm .line { display: block; clip-path: inset(0 100% 0 0); }
       .qm .line + .line { margin-top: 12px; }
-      .qc { font-size: 64px; font-weight: 400; line-height: 1.18; max-width: 900px; }
+      .qc { font-size: ${scaleY(64, canvas)}px; font-weight: 400; line-height: 1.18; max-width: 900px; }
       .qc .word-wrap { display: inline-block; white-space: nowrap; }
       .qc .char { display: inline-block; white-space: pre; }
-      .qs { font-size: 92px; font-weight: 700; line-height: 1.08; max-width: 940px; }
+      .qs { font-size: ${scaleY(92, canvas)}px; font-weight: 700; line-height: 1.08; max-width: 940px; }
       .qs .word { display: inline-block; margin-right: 0.18em; }
       .qs .word.accent { color: #c8413a; }
       .attribution {
@@ -143,15 +151,25 @@ function sceneScript(quote: RecapQuote, i: number, span: number): string {
   return `${reveal}\n${revealAnim}\n${attribution}${accentPulse}`;
 }
 
-/** Runtime injection of char/word spans for cascade + slam techniques. */
+/**
+ * Runtime injection of char/word spans for cascade + slam techniques.
+ *
+ * Quote text reaches the page as a `safeInlineJson` literal (so `</script>`
+ * can never terminate the block) and every char/word is HTML-escaped before
+ * the `innerHTML` write, so quote content is always rendered as text.
+ */
+const INLINE_ESC =
+  'const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");';
+
 function injectScript(quote: RecapQuote, i: number): string {
   const n = i + 1;
   if (quote.technique === 'letter-cascade') {
     return `      (() => {
-        const text = ${JSON.stringify(quote.text)};
+        ${INLINE_ESC}
+        const text = ${safeInlineJson(quote.text)};
         const el = document.getElementById("q${n}-text");
         el.innerHTML = text.split(" ").map((word, wi, arr) => {
-          const chars = word.split("").map((c) => '<span class="char">' + c + '</span>').join("");
+          const chars = word.split("").map((c) => '<span class="char">' + esc(c) + '</span>').join("");
           const space = wi < arr.length - 1 ? '<span class="char">&nbsp;</span>' : "";
           return '<span class="word-wrap">' + chars + '</span>' + space;
         }).join("");
@@ -160,12 +178,13 @@ function injectScript(quote: RecapQuote, i: number): string {
   if (quote.technique === 'word-slam') {
     const accent = (quote.accentWord ?? '').toLowerCase();
     return `      (() => {
-        const words = ${JSON.stringify(quote.text)}.split(" ");
-        const accent = ${JSON.stringify(accent)};
+        ${INLINE_ESC}
+        const words = ${safeInlineJson(quote.text)}.split(" ");
+        const accent = ${safeInlineJson(accent)};
         const el = document.getElementById("q${n}-text");
         el.innerHTML = words.map((w) => {
           const isAccent = accent && w.toLowerCase().replace(/[^a-z0-9]/g, "") === accent;
-          return '<span class="word' + (isAccent ? ' accent' : '') + '">' + w + '</span>';
+          return '<span class="word' + (isAccent ? ' accent' : '') + '">' + esc(w) + '</span>';
         }).join(" ");
       })();`;
   }
@@ -174,7 +193,11 @@ function injectScript(quote: RecapQuote, i: number): string {
 
 export const QUOTE_CASCADE_DURATION = 18;
 
-export function renderQuoteCascade(data: RecapVideoData): string {
+export function renderQuoteCascade(
+  data: RecapVideoData,
+  options?: RecapRenderOptions,
+): string {
+  const canvas = resolveRecapCanvas(options);
   const quotes = data.quotes ?? [];
   if (quotes.length === 0) {
     throw new Error('renderQuoteCascade requires data.quotes with at least one quote');
@@ -206,5 +229,5 @@ export function renderQuoteCascade(data: RecapVideoData): string {
       const tl = gsap.timeline({ paused: true });
 ${initial}${scenes}`;
 
-  return recapDocument({ css: CSS, body, script, durationSeconds: QUOTE_CASCADE_DURATION });
+  return recapDocument({ css: css(canvas), body, script, durationSeconds: QUOTE_CASCADE_DURATION, canvas });
 }

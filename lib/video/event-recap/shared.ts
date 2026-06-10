@@ -24,8 +24,58 @@ export const RECAP_PALETTE = {
   tileCenter: '#e3d6bb',
 } as const;
 
-/** Vertical social-native canvas. Every template renders at this size. */
+/** Pixel dimensions of one render target. */
+export interface RecapCanvas {
+  width: number;
+  height: number;
+}
+
+/**
+ * Output format for a recap render — the multiformat fan-out axis. The same
+ * template + data renders any of these; `vertical` is the hand-authored
+ * reference the explorations shipped at.
+ */
+export type RecapFormat = 'vertical' | 'square' | 'landscape';
+
+/** Canvas + display label per format. Order here is the canonical fan-out order. */
+export const RECAP_FORMATS: Record<RecapFormat, RecapCanvas & { label: string }> = {
+  vertical: { width: 1080, height: 1920, label: '9:16 · reels / shorts' },
+  square: { width: 1080, height: 1080, label: '1:1 · feed' },
+  landscape: { width: 1920, height: 1080, label: '16:9 · player' },
+};
+
+/** Per-render options accepted by every template. */
+export interface RecapRenderOptions {
+  /** Defaults to `vertical`, the reference format. */
+  format?: RecapFormat;
+}
+
+/** Vertical social-native canvas — the reference every template is tuned at. */
 export const RECAP_CANVAS = { width: 1080, height: 1920 } as const;
+
+/** Resolve render options to a concrete canvas. */
+export function resolveRecapCanvas(options?: RecapRenderOptions): RecapCanvas {
+  const { width, height } = RECAP_FORMATS[options?.format ?? 'vertical'];
+  return { width, height };
+}
+
+/**
+ * Scale a vertical-reference vertical-axis dimension (padding, gap, font
+ * size) to the target canvas height. Identity at the reference height, so
+ * vertical renders are byte-stable against the hand-authored compositions.
+ */
+export function scaleY(px: number, canvas: RecapCanvas): number {
+  return Math.round((px * canvas.height) / RECAP_CANVAS.height);
+}
+
+/**
+ * JSON-encode a value for interpolation inside an inline `<script>` block.
+ * `<` is escaped so event-supplied text (e.g. a quote containing
+ * `</script>`) can never terminate the script element or open a tag.
+ */
+export function safeInlineJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
 
 const FONT_STACK = '"IBM Plex Mono", ui-monospace, monospace';
 
@@ -49,10 +99,10 @@ export function renderEmphasis(value: string): string {
 }
 
 /** The base reset + paper body styles shared by every composition. */
-export const BASE_BODY_CSS = `
+export const baseBodyCss = (canvas: RecapCanvas): string => `
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body {
-        width: ${RECAP_CANVAS.width}px; height: ${RECAP_CANVAS.height}px; overflow: hidden;
+        width: ${canvas.width}px; height: ${canvas.height}px; overflow: hidden;
         background: ${RECAP_PALETTE.paper};
         font-family: ${FONT_STACK};
         color: ${RECAP_PALETTE.ink};
@@ -82,14 +132,17 @@ export function recapDocument(opts: {
   body: string;
   script: string;
   durationSeconds: number;
+  /** Render-target canvas; defaults to the vertical reference. */
+  canvas?: RecapCanvas;
 }): string {
+  const canvas = opts.canvas ?? RECAP_CANVAS;
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=${RECAP_CANVAS.width}, height=${RECAP_CANVAS.height}" />
+    <meta name="viewport" content="width=${canvas.width}, height=${canvas.height}" />
     ${GSAP_TAG}
-    <style>${BASE_BODY_CSS}
+    <style>${baseBodyCss(canvas)}
 ${opts.css}
     </style>
   </head>
@@ -99,8 +152,8 @@ ${opts.css}
       data-composition-id="main"
       data-start="0"
       data-duration="${opts.durationSeconds}"
-      data-width="${RECAP_CANVAS.width}"
-      data-height="${RECAP_CANVAS.height}"
+      data-width="${canvas.width}"
+      data-height="${canvas.height}"
     >
       <div class="grain"></div>
 ${opts.body}

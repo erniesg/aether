@@ -7,14 +7,21 @@
  * eye), and a few connective edges trace between lanes.
  */
 import type { RecapLane, RecapVideoData } from '../types';
-import { escapeHtml, recapDocument } from '../shared';
+import {
+  escapeHtml,
+  recapDocument,
+  resolveRecapCanvas,
+  scaleY,
+  type RecapCanvas,
+  type RecapRenderOptions,
+} from '../shared';
 
-const CSS = `
+const css = (canvas: RecapCanvas) => `
       .scene-content {
         display: flex; flex-direction: column;
         width: 100%; height: 100%;
-        padding: 140px 70px 130px;
-        gap: 60px; box-sizing: border-box; position: relative;
+        padding: ${scaleY(140, canvas)}px 70px ${scaleY(130, canvas)}px;
+        gap: ${scaleY(60, canvas)}px; box-sizing: border-box; position: relative;
       }
       .header {
         display: flex; justify-content: space-between; align-items: center;
@@ -47,7 +54,7 @@ const CSS = `
       .edges { position: absolute; inset: 0; pointer-events: none; }
       .edge { fill: none; stroke: #1a1a1a; stroke-width: 1.4; opacity: 0.45; }
       .footer {
-        margin-top: 60px;
+        margin-top: ${scaleY(60, canvas)}px;
         display: flex; justify-content: space-between; align-items: flex-end;
       }
       .footer .caption {
@@ -87,7 +94,11 @@ function laneCenterX(laneIndex: number, laneCount: number, viewW: number): numbe
 
 export const ATLAS_REVEAL_DURATION = 8;
 
-export function renderAtlasReveal(data: RecapVideoData): string {
+export function renderAtlasReveal(
+  data: RecapVideoData,
+  options?: RecapRenderOptions,
+): string {
+  const canvas = resolveRecapCanvas(options);
   const atlas = data.atlas;
   if (!atlas || atlas.lanes.length === 0) {
     throw new Error('renderAtlasReveal requires data.atlas with at least one lane');
@@ -201,5 +212,5 @@ ${edgeScript}
       tl.from(".footer .meta", { x: 20, opacity: 0, duration: 0.5, ease: "power2.out" }, 4.75);
       tl.to(".node.accent", { scale: 1.12, duration: 0.45, ease: "sine.inOut", yoyo: true, repeat: 1 }, 5.7);`;
 
-  return recapDocument({ css: CSS, body, script, durationSeconds: ATLAS_REVEAL_DURATION });
+  return recapDocument({ css: css(canvas), body, script, durationSeconds: ATLAS_REVEAL_DURATION, canvas });
 }
