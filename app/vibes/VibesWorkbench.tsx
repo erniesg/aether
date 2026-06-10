@@ -34,6 +34,8 @@ type LiveMode = 'mock' | 'tinyfish';
 
 /** Optional scope overrides — empty strings mean "use the subject-aware default". */
 interface ScopeState {
+  startsAt: string;
+  endsAt: string;
   daysBefore: string;
   daysAfter: string;
   refreshIntervalHours: string;
@@ -41,6 +43,8 @@ interface ScopeState {
 }
 
 const emptyScope: ScopeState = {
+  startsAt: '',
+  endsAt: '',
   daysBefore: '',
   daysAfter: '',
   refreshIntervalHours: '',
@@ -682,6 +686,20 @@ function ScopePanel({
       </summary>
       <div className="grid grid-cols-2 gap-2 border-t border-border-soft p-3">
         <ScopeField
+          label="starts"
+          type="date"
+          value={scope.startsAt}
+          placeholder="start"
+          onChange={(value) => set('startsAt', value)}
+        />
+        <ScopeField
+          label="ends"
+          type="date"
+          value={scope.endsAt}
+          placeholder="end"
+          onChange={(value) => set('endsAt', value)}
+        />
+        <ScopeField
           label="days before"
           value={scope.daysBefore}
           placeholder="auto"
@@ -714,19 +732,21 @@ function ScopeField({
   label,
   value,
   placeholder,
+  type = 'number',
   onChange,
 }: {
   label: string;
   value: string;
   placeholder: string;
+  type?: 'number' | 'date';
   onChange: (value: string) => void;
 }) {
   return (
     <label className="flex flex-col gap-1 font-caption text-2xs uppercase text-ink-dim">
       {label}
       <input
-        type="number"
-        min={0}
+        type={type}
+        min={type === 'number' ? 0 : undefined}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
@@ -956,11 +976,15 @@ function togglePlatform(items: EventPlatform[], platform: EventPlatform): EventP
   return [...items, platform];
 }
 
-function scopeBody(scope: ScopeState): Record<string, number> {
-  const body: Record<string, number> = {};
+function scopeBody(scope: ScopeState): Record<string, number | string> {
+  const body: Record<string, number | string> = {};
   for (const key of Object.keys(scope) as Array<keyof ScopeState>) {
     const raw = scope[key].trim();
     if (raw === '') continue;
+    if (key === 'startsAt' || key === 'endsAt') {
+      body[key] = raw;
+      continue;
+    }
     const value = Number(raw);
     if (Number.isFinite(value) && value >= 0) body[key] = value;
   }

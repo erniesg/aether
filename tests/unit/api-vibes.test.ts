@@ -86,6 +86,80 @@ describe('/api/vibes', () => {
     );
   });
 
+  it('passes explicit past event dates through to create and refresh', async () => {
+    mocks.createEventRecap.mockResolvedValueOnce({
+      eventId: 'aie-worlds-fair-2025',
+      name: "AIE World's Fair 2025",
+      status: 'draft',
+      startsAt: '2025-06-03',
+      endsAt: '2025-06-05',
+      querySet: [],
+      sourceUrls: [],
+      usedCredits: 0,
+      daysBefore: 7,
+      daysAfter: 14,
+      refreshIntervalHours: 6,
+      maxItemsPerPlatform: 25,
+      monthlyCreditBudget: 50,
+      liveMode: 'mock',
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    mocks.refreshEventRecap.mockResolvedValueOnce({
+      event: {
+        eventId: 'aie-worlds-fair-2025',
+        name: "AIE World's Fair 2025",
+        status: 'ready',
+        startsAt: '2025-06-03',
+        endsAt: '2025-06-05',
+        querySet: [],
+        sourceUrls: [],
+      },
+      runs: [{ windowStart: '2025-05-27T00:00:00.000Z', windowEnd: '2025-06-19T00:00:00.000Z' }],
+      posts: [],
+      themes: [],
+      voices: [],
+    });
+
+    const res = await withDailyLimit('1', async () => {
+      const { POST } = await import('@/app/api/vibes/route');
+      return await POST(
+        new Request('http://localhost/api/vibes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-vibes-dev-user': 'user-vibes-past' },
+          body: JSON.stringify({
+            brief: "Track AIE World's Fair 2025",
+            subject: "AIE World's Fair 2025",
+            subjectKind: 'event',
+            startsAt: '2025-06-03',
+            endsAt: '2025-06-05',
+            daysBefore: 7,
+            daysAfter: 14,
+            liveMode: 'mock',
+          }),
+        })
+      );
+    });
+
+    expect(res.status).toBe(200);
+    expect(mocks.createEventRecap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startsAt: '2025-06-03',
+        endsAt: '2025-06-05',
+        daysBefore: 7,
+        daysAfter: 14,
+      })
+    );
+    expect(mocks.refreshEventRecap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startsAt: '2025-06-03',
+        endsAt: '2025-06-05',
+        daysBefore: 7,
+        daysAfter: 14,
+      })
+    );
+  });
+
   it('returns 400 when the brief is missing', async () => {
     const { POST } = await import('@/app/api/vibes/route');
     const res = await POST(

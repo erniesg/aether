@@ -209,9 +209,11 @@ export async function refreshEventRecap(
     },
   });
 
+  const resolvedStartsAt = input.startsAt ?? base?.startsAt ?? resolution.startsAt;
+  const resolvedEndsAt = input.endsAt ?? base?.endsAt ?? resolution.endsAt;
   const { windowStart, windowEnd } = eventWindow({
-    startsAt: resolution.startsAt,
-    endsAt: resolution.endsAt,
+    startsAt: resolvedStartsAt,
+    endsAt: resolvedEndsAt,
     daysBefore: config.daysBefore,
     daysAfter: config.daysAfter,
   });
@@ -284,8 +286,8 @@ export async function refreshEventRecap(
       canonicalName: resolution.canonicalName,
       officialUrl: resolution.officialUrl,
       location: resolution.location,
-      startsAt: resolution.startsAt,
-      endsAt: resolution.endsAt,
+      startsAt: resolvedStartsAt,
+      endsAt: resolvedEndsAt,
       querySet: activeQuerySet,
       sourceUrls: activeSourceUrls,
       usedCredits,
@@ -334,8 +336,8 @@ export async function refreshEventRecap(
     canonicalName: resolution.canonicalName,
     officialUrl: resolution.officialUrl,
     location: resolution.location,
-    startsAt: resolution.startsAt,
-    endsAt: resolution.endsAt,
+    startsAt: resolvedStartsAt,
+    endsAt: resolvedEndsAt,
     querySet: activeQuerySet,
     sourceUrls: activeSourceUrls,
     updatedAt: Date.now(),
@@ -623,8 +625,8 @@ export async function refreshEventRecap(
       canonicalName: resolution.canonicalName,
       officialUrl: resolution.officialUrl,
       location: resolution.location,
-      startsAt: resolution.startsAt,
-      endsAt: resolution.endsAt,
+      startsAt: resolvedStartsAt,
+      endsAt: resolvedEndsAt,
       querySet: expansion.querySet,
       sourceUrls: activeSourceUrls,
       usedCredits: usedCredits + estimatedCredits,

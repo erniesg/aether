@@ -139,7 +139,7 @@ export default function EventRecapClient({
       if (bundle.event.nextRefreshAt && Date.now() >= bundle.event.nextRefreshAt) {
         void refresh();
       }
-    }, 15000);
+    }, 5000);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, bundle?.event.status, bundle?.event.nextRefreshAt]);
@@ -294,6 +294,8 @@ export default function EventRecapClient({
           <ThemeToggle />
         </div>
       </header>
+
+      <LiveBuzzStrip runEvents={bundle?.runEvents ?? []} />
 
       <section className="mx-auto grid max-w-[1720px] gap-5 overflow-x-hidden px-4 py-6 sm:px-6 min-[1500px]:grid-cols-[340px_minmax(0,1fr)]">
         <Surface
@@ -472,6 +474,31 @@ function LensButton({
     >
       {children}
     </button>
+  );
+}
+
+function LiveBuzzStrip({ runEvents }: { runEvents: EventRecapRunEvent[] }) {
+  const latest = [...runEvents].sort((a, b) => b.ts - a.ts).slice(0, 3);
+  return (
+    <div
+      data-testid="event-buzz-strip"
+      className="border-b border-border-soft bg-surface-base px-4 py-2 sm:px-6"
+    >
+      <div className="mx-auto flex max-w-[1720px] items-center gap-2 overflow-hidden">
+        <Activity size={14} strokeWidth={1.75} className="shrink-0 text-accent" />
+        {latest.length ? (
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden font-mono text-xs text-ink-muted">
+            {latest.map((event) => (
+              <span key={event.id} className="min-w-0 shrink truncate" title={event.message}>
+                {event.tag} · {event.message}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="font-caption text-xs text-ink-dim">waiting for run steps</span>
+        )}
+      </div>
+    </div>
   );
 }
 

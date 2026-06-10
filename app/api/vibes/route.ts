@@ -70,11 +70,15 @@ export async function POST(request: Request) {
     const daysBefore =
       numberValue(body.daysBefore) ?? (plan.subjectKind === 'event' ? 1 : 30);
     const daysAfter = numberValue(body.daysAfter) ?? (plan.subjectKind === 'event' ? 3 : 0);
+    const startsAt = typeof body.startsAt === 'string' ? body.startsAt : undefined;
+    const endsAt = typeof body.endsAt === 'string' ? body.endsAt : undefined;
     const liveMode = body.liveMode === 'tinyfish' ? 'tinyfish' : 'mock';
     const event = await createEventRecap({
       eventId: plan.eventId,
       name: plan.subject,
       contextHint: plan.contextHint,
+      startsAt,
+      endsAt,
       workspaceId:
         typeof body.workspaceId === 'string' ? body.workspaceId : `vibes:${auth.principal.userId}`,
       daysBefore,
@@ -100,6 +104,8 @@ export async function POST(request: Request) {
       eventId: event.eventId,
       name: plan.subject,
       contextHint: plan.contextHint,
+      startsAt,
+      endsAt,
       platforms: plan.platforms,
       daysBefore,
       daysAfter,

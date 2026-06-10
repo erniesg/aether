@@ -24,6 +24,8 @@ export interface EventRecapConfig {
   workspaceId?: string;
   name: string;
   contextHint?: string;
+  startsAt?: string;
+  endsAt?: string;
   daysBefore: number;
   daysAfter: number;
   refreshIntervalHours: number;

@@ -68,6 +68,8 @@ export function clampConfig(input: Partial<EventRecapConfig> & { name: string })
     workspaceId: input.workspaceId,
     name: input.name.trim(),
     contextHint: input.contextHint?.trim() || undefined,
+    startsAt: cleanDateString(input.startsAt),
+    endsAt: cleanDateString(input.endsAt),
     daysBefore,
     daysAfter,
     refreshIntervalHours,
@@ -75,6 +77,14 @@ export function clampConfig(input: Partial<EventRecapConfig> & { name: string })
     monthlyCreditBudget,
     liveMode: input.liveMode ?? 'mock',
   };
+}
+
+function cleanDateString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const ms = Date.parse(trimmed);
+  return Number.isFinite(ms) ? trimmed : undefined;
 }
 
 function clampNumber(
