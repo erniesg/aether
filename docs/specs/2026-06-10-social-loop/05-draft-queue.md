@@ -1,6 +1,6 @@
 # Spec 05 — Draft queue with edit/confirm via X web intents
 
-- Status: todo
+- Status: in-progress
 - Priority: P1 · Track: presence
 - Branch: codex/social-05-draft-queue
 - Depends: none
