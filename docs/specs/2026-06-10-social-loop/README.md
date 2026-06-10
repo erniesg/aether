@@ -14,13 +14,21 @@ same bar it would on a PR).
 | 01 | Cron-fired refresh laps for live event windows | P1 | none |
 | 02 | Past-event recap pages + live buzz strip | P1 | none |
 | 03 | Repo-facts ingestion (GitHub + context.dev seam) | P1 | none |
-| 04 | Goal/ICP intake → proposed social strategy | P1 | soft: 03 |
-| 05 | Draft queue with edit/confirm via X web intents | P1 | none |
-| 06 | Own-handle stats lap + performance ledger | P2 | soft: 05 |
+| 04 | Goal + X handle intake → proposed social strategy | P1 | soft: 03 |
+| 05 | Draft queue with edit/confirm via X web intents | P1 | none — **done** |
+| 06 | Own-handle stats lap + performance ledger | P2 | soft: 05; handle from 04 |
 | 07 | ICP account analysis → insights digest | P2 | soft: 04 |
+| 08 | Presence draft-generation lap (strategy → queue) | P1 | hard: 04, 05; soft: 03/06/07 |
 
-Soft dependencies degrade gracefully (each spec states how); all seven are
-independently startable. Suggested order: 05 → 03 → 04 → 01 → 02 → 06 → 07.
+Soft dependencies degrade gracefully (each spec states how). Suggested order:
+05 → 03 → 04 → **08** → 01 → 02 → 06 → 07.
+
+How the presence specs compose: 04 is where the creator connects their X
+handle and states the goal, and where aether proposes the strategy; 03/07
+supply what to say and what the room rewards; **08 is the brain** — it fills
+the spec-05 queue with pillar-tagged, receipt-grounded drafts; 05 is the
+human gate (edit → confirm → intent → permalink back); 06 closes the loop by
+reading results back into the next lap.
 
 ## Worker protocol (codex)
 

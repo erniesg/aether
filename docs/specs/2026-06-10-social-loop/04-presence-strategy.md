@@ -14,10 +14,10 @@ A creator states a presence goal ("build an X following to be seen for FDE/AI-en
 
 ### Features
 
-- F1 — Presence goal intake in the left rail (creator-context section): goal text + target metric, persisted per workspace
-  - **Falsifiable**: entering a goal and reloading the workspace shows the same goal (Convex round-trip); empty state is a single hint line
-  - **Verification**: component test with the existing creator-store pattern; reload e2e
-  - **Proof**: component test id + before/after-reload screenshots
+- F1 — Presence intake in the left rail (creator-context section): goal text + target metric + **the creator's X handle**, persisted per workspace. The handle is the "connect my X" of this loop — it is the read-side identity specs 06 (own-handle lap) and 08 (generation lap) consume; posting stays intent-link only, so no OAuth/token is collected
+  - **Falsifiable**: entering goal and handle and reloading the workspace shows both (Convex round-trip); handle is normalized to `@handle` form (`x.com/...` URLs and bare names both accepted — unit-tested normalizer); empty state is a single hint line
+  - **Verification**: component test with the existing creator-store pattern; normalizer unit test; reload e2e
+  - **Proof**: component + unit test ids + before/after-reload screenshots
 - F2 — `POST /api/presence/strategy` (new): agent drafts `{ icpAccounts[], pillars[], cadence, goalMetric }` from goal + brand/offer context + repo facts when present (graceful without them), stored as a proposal row with `status: proposed`
   - **Falsifiable**: the endpoint returns 200 with a strategy containing ≥5 ICP accounts and 3–5 pillars, each pillar referencing at least one workspace fact or repo; a proposal row exists with `status: proposed`
   - **Verification**: route unit test with mocked Anthropic client (pattern: `tests/unit/api-clusters-label.test.ts`)
@@ -61,7 +61,7 @@ New files to add: `app/api/presence/strategy/route.ts`, presence section compone
 
 ## Acceptance criteria
 
-- [ ] Goal persists across reload (screenshots)
+- [ ] Goal and normalized X handle persist across reload (screenshots + normalizer test ids)
 - [ ] Strategy generation returns ≥5 ICP accounts + 3–5 pillars grounded in workspace facts (JSON proof, test id)
 - [ ] Accept/reject transitions are persisted and reflected in the rail (test ids + screenshots)
 - [ ] Works with no repo facts ingested — degrades to brand/offer context without error (test id)
