@@ -2,6 +2,7 @@
 
 import {
   Calendar,
+  ChartNoAxesColumn,
   Columns3,
   Download,
   Eye,
@@ -26,6 +27,7 @@ import {
   type ResearchBundleView,
 } from './sections/AutoModePanel';
 import { useScheduledPosts } from '@/lib/publisher/store';
+import { usePresenceLedger } from '@/lib/presence/ledger-store';
 import { useRuns, type CapabilityRunRecord } from '@/lib/store/runs';
 import {
   useEyesClosedCapture,
@@ -260,6 +262,42 @@ function FormatsBody({ safeZonesVisible }: { safeZonesVisible: boolean }) {
   );
 }
 
+function PresenceLedgerBody({
+  workspaceId,
+  profileId,
+}: {
+  workspaceId: string;
+  profileId?: string;
+}) {
+  const rows = usePresenceLedger(workspaceId, profileId);
+  return (
+    <div
+      className="flex flex-col gap-2"
+      data-taxonomy="metadata"
+      data-testid="presence-ledger-lines"
+    >
+      {rows.length > 0 ? (
+        <ul className="flex flex-col gap-1.5">
+          {rows.map((row) => (
+            <li
+              key={row.pillar}
+              className="flex items-center justify-between gap-2 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+            >
+              <span className="truncate font-caption text-ink">{row.pillar}</span>
+              <span className="shrink-0 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+                {row.posts} {row.posts === 1 ? 'post' : 'posts'} · median{' '}
+                {row.medianEngagement}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <PlaceholderBody hint="posted drafts become pillar signals" />
+      )}
+    </div>
+  );
+}
+
 function useGenerationsSummary(): {
   summary: string;
   hasContent: boolean;
@@ -389,6 +427,7 @@ function RightRailInner({
   autoModeEvents,
   onAutoModeApprove,
   onAutoModeReject,
+  activePresenceProfileId,
 }: {
   className?: string;
   onPin?: (run: CapabilityRunRecord) => void;
@@ -404,12 +443,14 @@ function RightRailInner({
   autoModeEvents?: LapEventView[];
   onAutoModeApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
   onAutoModeReject?: (variationIndex: number) => Promise<void>;
+  activePresenceProfileId?: string;
 }) {
   const { railRef, openSection, toggle } = useRail();
   const gens = useGenerationsSummary();
   const scheduledPosts = useScheduledPosts(workspaceId);
   const focusedCard = useFocusedClusterCard();
   const eyesClosed = useEyesClosedCapture();
+  const presenceLedger = usePresenceLedger(workspaceId, activePresenceProfileId);
   useEffect(() => {
     // Auto-open the focus section whenever a fresh eyes-closed capture lands
     // so the creator sees provenance without having to click into the rail.
@@ -532,6 +573,22 @@ function RightRailInner({
       body: <ActionLog onPin={onPin} />,
     },
     {
+      id: 'presence-ledger',
+      label: 'presence ledger',
+      icon: ChartNoAxesColumn,
+      summary:
+        presenceLedger.length > 0
+          ? `${presenceLedger.length} pillar${presenceLedger.length === 1 ? '' : 's'}`
+          : 'no signals',
+      hasContent: presenceLedger.length > 0,
+      body: (
+        <PresenceLedgerBody
+          workspaceId={workspaceId}
+          profileId={activePresenceProfileId}
+        />
+      ),
+    },
+    {
       id: 'scheduled',
       label: 'publish',
       icon: Calendar,
@@ -600,6 +657,7 @@ export interface RightRailProps {
   autoModeEvents?: LapEventView[];
   onAutoModeApprove?: (variationIndex: number, notifyMode: 'review' | 'auto-post') => Promise<void>;
   onAutoModeReject?: (variationIndex: number) => Promise<void>;
+  activePresenceProfileId?: string;
 }
 
 export function RightRail({
@@ -617,6 +675,7 @@ export function RightRail({
   autoModeEvents,
   onAutoModeApprove,
   onAutoModeReject,
+  activePresenceProfileId,
 }: RightRailProps) {
   // Demo mode: override the live lap with the cached fixture.
   // Read-only — approve/reject callbacks are suppressed in demo mode.
@@ -641,6 +700,7 @@ export function RightRail({
         autoModeVariations={effectiveVariations}
         autoModeResearchBundle={autoModeResearchBundle}
         autoModeEvents={autoModeEvents}
+        activePresenceProfileId={activePresenceProfileId}
         // In demo mode, suppress mutating callbacks so the canvas stays read-only.
         onAutoModeApprove={demo.active ? undefined : onAutoModeApprove}
         onAutoModeReject={demo.active ? undefined : onAutoModeReject}

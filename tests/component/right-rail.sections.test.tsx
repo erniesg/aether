@@ -3,14 +3,19 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RightRail } from '@/components/rail/RightRail';
 import { resetRunsForTests, startRun, finishRun } from '@/lib/store/runs';
+import {
+  resetPresenceLedgerForTests,
+  seedPresenceLedgerForTests,
+} from '@/lib/presence/ledger-store';
 
 afterEach(() => {
   cleanup();
   resetRunsForTests();
+  resetPresenceLedgerForTests();
 });
 
 describe('RightRail · creator-language rewrite', () => {
-  it('renders exactly five sections in auto-mode · focus · formats · all-generations · scheduled order', () => {
+  it('renders the creator output sections in stable order', () => {
     const { container } = render(<RightRail />);
 
     const sections = Array.from(
@@ -21,6 +26,7 @@ describe('RightRail · creator-language rewrite', () => {
       'focus',
       'formats',
       'all-generations',
+      'presence-ledger',
       'scheduled',
     ]);
   });
@@ -98,5 +104,34 @@ describe('RightRail · creator-language rewrite', () => {
     await userEvent.click(trigger!);
 
     expect(screen.getByText(/safe zones off · one hero fans out/i)).toBeInTheDocument();
+  });
+
+  it('surfaces the active presence ledger as compact metadata lines', async () => {
+    seedPresenceLedgerForTests('demo-ws', 'profile_personal', [
+      { pillar: 'agent harnesses', posts: 2, medianEngagement: 28 },
+      { pillar: 'untagged', posts: 1, medianEngagement: 15 },
+    ]);
+
+    const { container } = render(
+      <RightRail workspaceId="demo-ws" activePresenceProfileId="profile_personal" />
+    );
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="presence-ledger"]'
+    );
+    expect(trigger).not.toBeNull();
+    await userEvent.click(trigger!);
+
+    const flyout = container.querySelector<HTMLElement>(
+      '[data-rail-flyout="presence-ledger"]'
+    );
+    expect(flyout).not.toBeNull();
+    expect(screen.getByTestId('presence-ledger-lines')).toHaveAttribute(
+      'data-taxonomy',
+      'metadata'
+    );
+    expect(screen.getByText('agent harnesses')).toBeInTheDocument();
+    expect(screen.getByText('2 posts · median 28')).toBeInTheDocument();
+    expect(screen.getByText('untagged')).toBeInTheDocument();
+    expect(screen.getByText('1 post · median 15')).toBeInTheDocument();
   });
 });
