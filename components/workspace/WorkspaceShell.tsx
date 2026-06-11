@@ -87,6 +87,7 @@ import {
   visualReferenceUrls,
 } from '@/lib/context/model';
 import { useCreatorContext } from '@/lib/context/creator-store';
+import { usePresenceWorkspace } from '@/lib/presence/store';
 import { setEyesClosedCapture } from '@/lib/voice/eyes-closed-store';
 import type { EyesClosedCaptureRequest } from '@/components/canvas/EyesClosedHandle';
 import type { SemanticCreativeComponent } from '@/lib/types/semantic-component';
@@ -349,6 +350,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const runs = useRuns();
   const references = useReferences(wsId);
   const creatorContext = useCreatorContext(wsId);
+  const presence = usePresenceWorkspace(wsId);
   const providerPrefs = useWorkspaceProviderPrefs(wsId);
   const saveProviderPrefs = useSaveWorkspaceProviderPrefs();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
@@ -2170,6 +2172,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           autoModeEvents={autoModeEvents}
           onAutoModeApprove={handleAutoModeApprove}
           onAutoModeReject={handleAutoModeReject}
+          activePresenceProfileId={presence.activeProfileId}
         />
       </div>
 

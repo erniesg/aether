@@ -1178,6 +1178,20 @@ export default defineSchema({
     .index('by_workspace', ['workspaceId'])
     .index('by_profile', ['profileId']),
 
+  presencePostMetric: defineTable({
+    workspaceId: v.string(),
+    profileId: v.string(),
+    postUrl: v.string(),
+    capturedAt: v.string(),
+    likes: v.number(),
+    reposts: v.number(),
+    replies: v.number(),
+    impressions: v.optional(v.number()),
+    pillar: v.string(),
+  })
+    .index('by_workspace', ['workspaceId'])
+    .index('by_profile', ['profileId']),
+
   // ─── inbound webhook replies ───────────────────────────────────────────
   // Persisted by the X webhook receiver when a valid tweet_create_events
   // payload arrives. The reply-agent / approval flow reads from this table;
