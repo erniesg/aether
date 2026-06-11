@@ -1,6 +1,6 @@
 # Spec 06 — Own-handle stats lap + per-pillar performance ledger
 
-- Status: todo
+- Status: in-progress
 - Priority: P2 · Track: presence
 - Branch: codex/social-06-presence-ledger
 - Depends: soft: 05 (permalink join degrades to pillar=untagged); handle + profileId from 04
