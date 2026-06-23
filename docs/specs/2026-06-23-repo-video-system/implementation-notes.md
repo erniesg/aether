@@ -40,6 +40,12 @@
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture
   plan, and requested input blockers.
+- Agent-native `/api/motion/capture` route that accepts an editable motion
+  project plus selected capture request ids, returns provider-required
+  screenshot/DOM/trace/recording handoffs when no capture runner is configured,
+  preserves computer-use fallback guidance, and applies completed capture
+  receipts back into demo beats and `app-frame` timeline clips when an opt-in
+  provider is available.
 - Agent-native `/api/motion/revise` route that accepts an editable motion
   project plus scoped story, component, timing, or replacement operations, then
   returns the updated project with refreshed review/preview plans and capture
@@ -119,6 +125,7 @@
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts --pool=forks
 ./node_modules/.bin/vitest run tests/unit/api-motion-start.test.ts
+./node_modules/.bin/vitest run tests/unit/api-motion-capture.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-revise.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-render.test.ts
 ./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts

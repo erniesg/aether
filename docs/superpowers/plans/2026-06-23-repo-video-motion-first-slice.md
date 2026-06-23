@@ -3409,6 +3409,52 @@ git add app/api/motion/render/route.ts tests/unit/api-motion-render.test.ts lib/
 git commit -m "feat: expose motion render handoffs via api"
 ```
 
+## Task 36: Motion Capture API Boundary
+
+**Files:**
+- Create: `app/api/motion/capture/route.ts`
+- Create: `tests/unit/api-motion-capture.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing API contract tests**
+
+The tests cover:
+
+- returning provider-required capture handoffs with screenshot/DOM requests and
+  computer-use fallback guidance when no capture provider is configured;
+- executing selected capture requests through an explicitly registered provider;
+- applying screenshot receipts to demo beats and `app-frame` timeline clips
+  while preserving DOM receipts in the capture graph node;
+- returning source blockers before provider resolution for repo-only starts;
+- rejecting missing projects, unknown request ids, and malformed JSON.
+
+- [x] **Step 2: Implement the route**
+
+`app/api/motion/capture/route.ts` now accepts editable motion projects plus
+selected capture request ids, builds the existing agent capture plan, returns
+reviewable blockers/provider requirements when capture cannot execute, and
+applies merged capture receipts back into the project when an opt-in provider is
+available.
+
+- [x] **Step 3: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-capture.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/providers/capture/registry.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add app/api/motion/capture/route.ts tests/unit/api-motion-capture.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion capture handoffs via api"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

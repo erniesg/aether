@@ -1,0 +1,299 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { MotionProject } from '@/lib/motion/project';
+import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
+import { materializeMotionTimeline } from '@/lib/motion/timeline';
+import { buildSiteMotionProjectFromUrl } from '@/lib/motion/siteMotion';
+import { registerCaptureProvider } from '@/lib/providers/capture/registry';
+import type {
+  CaptureProvider,
+  CaptureRequest,
+  CaptureResult,
+} from '@/lib/providers/capture/types';
+
+function htmlResponse(body: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html' },
+  });
+}
+
+async function siteProject(): Promise<MotionProject> {
+  const fetcher = vi.fn<typeof fetch>(async () =>
+    htmlResponse(`
+      <main>
+        <h1>Paillette Search</h1>
+        <p>Paillette is an open-access art search app built with React and TypeScript.</p>
+        <p>Search collections, inspect provenance, and export visual research boards.</p>
+      </main>
+    `)
+  );
+
+  return await buildSiteMotionProjectFromUrl(
+    {
+      id: 'motion-paillette-demo',
+      workspaceId: 'demo-ws',
+      siteUrl: 'paillette.app/search',
+      siteLabel: 'Paillette Search',
+      projectKind: 'demo',
+      workflowMode: 'review',
+      audience: 'curators',
+      tone: 'precise',
+      platformTargets: [{ platform: 'instagram', aspectRatio: '9:16', seconds: 30 }],
+      materializeTimeline: true,
+      createdAt: 400,
+    },
+    { fetcher }
+  );
+}
+
+function repoOnlyProject(): MotionProject {
+  return materializeMotionTimeline(
+    buildRepoLaunchMotionProject({
+      id: 'motion-aether-launch',
+      workspaceId: 'demo-ws',
+      projectKind: 'launch',
+      workflowMode: 'review',
+      audience: 'creative app builders',
+      tone: 'precise',
+      appProfile: {
+        name: 'aether',
+        summary: 'Canvas-native creative system.',
+        stack: ['TypeScript', 'Convex', 'tldraw'],
+      },
+      claims: [
+        {
+          text: 'aether uses TypeScript, Convex, and tldraw in the public repo.',
+          source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+        },
+      ],
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      createdAt: 80,
+    }),
+    { updatedAt: 81 }
+  );
+}
+
+function provider(capture: CaptureProvider['capture']): CaptureProvider {
+  return {
+    id: 'browser-test',
+    displayName: 'Browser test capture',
+    available: () => true,
+    capture,
+  };
+}
+
+describe('POST /api/motion/capture', () => {
+  const unregister: Array<() => void> = [];
+
+  afterEach(() => {
+    while (unregister.length > 0) unregister.pop()?.();
+  });
+
+  it('returns a provider-required capture handoff with requests and computer-use fallback', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['capture-home-still', 'capture-dom-snapshot'],
+          requestedAt: 900,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'provider-required',
+      project: { id: 'motion-paillette-demo' },
+      capturePlan: {
+        status: 'ready',
+        target: { kind: 'url', ref: 'https://paillette.app/search' },
+        fallbacks: [
+          {
+            id: 'computer-use-capture',
+          },
+        ],
+      },
+      selectedRequests: [
+        { id: 'capture-home-still', request: { mode: 'screenshot' } },
+        { id: 'capture-dom-snapshot', request: { mode: 'dom-snapshot' } },
+      ],
+      providers: [],
+      captureResults: [],
+      captureResult: null,
+    });
+    expect(json.blockers[0].id).toBe('capture-provider-required');
+  });
+
+  it('executes selected capture requests and applies visual receipts to the editable timeline', async () => {
+    const capture = vi.fn(async (request: CaptureRequest): Promise<CaptureResult> => ({
+      providerId: 'browser-test',
+      artifacts: [
+        {
+          id: `artifact-${request.mode}`,
+          kind: request.mode === 'dom-snapshot' ? 'snapshot' : 'screenshot',
+          assetUrl:
+            request.mode === 'dom-snapshot'
+              ? 'asset://capture/dom.json'
+              : 'asset://capture/home.png',
+          width: request.mode === 'dom-snapshot' ? 1 : request.viewport.width,
+          height: request.mode === 'dom-snapshot' ? 1 : request.viewport.height,
+          mimeType: request.mode === 'dom-snapshot' ? 'application/json' : 'image/png',
+          viewport: request.viewport,
+          cursorTargets: [{ stepId: 'goto-source', x: 540, y: 960 }],
+          provenance: [
+            { kind: 'provider', ref: 'browser-test' },
+            { kind: 'site', ref: request.target.ref },
+          ],
+        },
+      ],
+      provenance: [
+        { kind: 'provider', ref: 'browser-test' },
+        { kind: 'site', ref: request.target.ref },
+      ],
+    }));
+    unregister.push(registerCaptureProvider('browser-test', () => provider(capture)));
+
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          providerId: 'browser-test',
+          requestIds: ['capture-home-still', 'capture-dom-snapshot'],
+          requestedAt: 901,
+          updatedAt: 902,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'captured',
+      project: {
+        id: 'motion-paillette-demo',
+        updatedAt: 902,
+      },
+      captureResult: {
+        providerId: 'browser-test',
+        artifacts: [{ id: 'artifact-screenshot' }, { id: 'artifact-dom-snapshot' }],
+      },
+      providers: [
+        {
+          id: 'browser-test',
+          displayName: 'Browser test capture',
+          available: true,
+        },
+      ],
+    });
+    expect(capture).toHaveBeenCalledTimes(2);
+    expect(capture.mock.calls.map((call) => call[0].mode)).toEqual([
+      'screenshot',
+      'dom-snapshot',
+    ]);
+
+    const appFrameClip = json.project.tracks
+      .flatMap((track: { clips: Array<{ componentId?: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { componentId?: string }) => clip.componentId === 'app-frame');
+    expect(appFrameClip).toMatchObject({
+      assetId: 'artifact-screenshot',
+      props: {
+        assetUrl: 'asset://capture/home.png',
+        captureProviderId: 'browser-test',
+        captureArtifactKind: 'screenshot',
+      },
+    });
+    expect(json.project.graphNodes.find((node: { kind: string }) => node.kind === 'capture')).toMatchObject({
+      status: 'done',
+      providerId: 'browser-test',
+      outputRefs: ['artifact-screenshot', 'artifact-dom-snapshot'],
+    });
+  });
+
+  it('returns source blockers before resolving capture providers', async () => {
+    const capture = vi.fn(async (): Promise<CaptureResult> => ({
+      providerId: 'browser-test',
+      artifacts: [],
+      provenance: [],
+    }));
+    unregister.push(registerCaptureProvider('browser-test', () => provider(capture)));
+
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: repoOnlyProject(),
+          providerId: 'browser-test',
+          requestedAt: 903,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'blocked',
+      capturePlan: {
+        status: 'needs-source',
+        fallbacks: [{ id: 'computer-use-capture' }],
+      },
+      selectedRequests: [],
+      captureResult: null,
+    });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed capture requests', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const missingProject = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestIds: ['capture-home-still'],
+        }),
+      })
+    );
+    expect(missingProject.status).toBe(400);
+    expect(await missingProject.json()).toMatchObject({
+      ok: false,
+      error: 'project is required',
+    });
+
+    const unknownRequest = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['missing-request'],
+        }),
+      })
+    );
+    expect(unknownRequest.status).toBe(400);
+    expect(await unknownRequest.json()).toMatchObject({
+      ok: false,
+      error: 'requestIds must reference capture requests in the plan',
+    });
+
+    const badJson = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not-json',
+      })
+    );
+    expect(badJson.status).toBe(400);
+  });
+});
