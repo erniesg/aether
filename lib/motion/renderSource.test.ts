@@ -37,7 +37,15 @@ function projectWithVisualTimeline(): MotionProject {
   const tracks = project.tracks.map((track) => ({
     ...track,
     clips: track.clips.map((clip) =>
-      clip.componentId === 'app-frame'
+      clip.id === 'clip-beat-hook-text'
+        ? {
+            ...clip,
+            props: {
+              ...clip.props,
+              effectPreset: 'proof-pulse',
+            },
+          }
+        : clip.componentId === 'app-frame'
         ? {
             ...clip,
             assetId: 'capture-aether-demo',
@@ -109,6 +117,10 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('fps={30}');
     expect(entry).toContain('<Sequence');
     expect(entry).toContain('const effectTokens = ');
+    expect(entry).toContain('const effectPresets: MotionEffectPresetData[] = ');
+    expect(entry).toContain('"effectPreset": "proof-pulse"');
+    expect(entry).toContain('function clipEffectPreset');
+    expect(entry).toContain('effect.label || brand.motionStyle');
     expect(entry).toContain('function HookCard');
     expect(entry).toContain('function AppFrame');
     expect(entry).toContain('function AgentTrace');
@@ -141,6 +153,11 @@ describe('buildMotionRenderSourceBundle', () => {
       transition: 'soft-wipe',
       caption: 'caption-rise',
     });
+    expect(manifest.effectPresets.map((preset: { id: string }) => preset.id)).toEqual([
+      'product-glide',
+      'caption-pop',
+      'proof-pulse',
+    ]);
     expect(bundle.provenance).toContainEqual({ kind: 'render', ref: request.id });
   });
 
@@ -166,8 +183,9 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('data-height="1920"');
     expect(entry).toContain('data-track-index="0"');
     expect(entry).toContain('data-component-id="hook-card"');
+    expect(entry).toContain('data-effect="proof-pulse"');
     expect(entry).toContain('class="motion-clip motion-component motion-component--hook-card"');
-    expect(entry).toContain('hook-card__eyebrow');
+    expect(entry).toContain('hook-card__eyebrow">proof pulse');
     expect(entry).toContain('app-frame__chrome');
     expect(entry).toContain('caption-line__text');
     expect(entry).toContain('data-start="0"');
@@ -175,7 +193,7 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('src="asset://captures/aether-demo.png"');
     expect(entry).toContain('crossorigin="anonymous"');
     expect(entry).toContain('window.__timelines["motion-aether-launch-draft-primary"] = tl;');
-    expect(entry).toContain('tl.from(".motion-clip"');
+    expect(entry).toContain('tl.from(\'.motion-clip[data-effect="proof-pulse"]\'');
     expect(entry).toContain('tl.from(".caption-line__text"');
     expect(entry).toContain('Captured aether canvas');
   });

@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
+import {
+  MOTION_EFFECT_PRESETS,
+  type MotionEffectPresetId,
+} from '@/lib/motion/effectPresets';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
@@ -32,6 +36,7 @@ export interface TimelineLensProps {
   onGenerateVideoClips?: () => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   graphNodes?: MotionGraphNode[];
   workflowExamples?: MotionWorkflowExample[];
   actionStatus?: string | null;
@@ -50,6 +55,7 @@ export function TimelineLens({
   onGenerateVideoClips,
   onPinMotionSkill,
   onEditClipSummary,
+  onEditClipEffect,
   graphNodes = [],
   workflowExamples = [],
   actionStatus = null,
@@ -94,6 +100,7 @@ export function TimelineLens({
             onGenerateVideoClips={onGenerateVideoClips}
             onPinMotionSkill={onPinMotionSkill}
             onEditClipSummary={onEditClipSummary}
+            onEditClipEffect={onEditClipEffect}
             graphNodes={graphNodes}
             workflowExamples={workflowExamples}
             actionStatus={actionStatus}
@@ -131,6 +138,7 @@ function MotionPreviewPlanView({
   onGenerateVideoClips,
   onPinMotionSkill,
   onEditClipSummary,
+  onEditClipEffect,
   graphNodes,
   workflowExamples,
   actionStatus,
@@ -146,6 +154,7 @@ function MotionPreviewPlanView({
   onGenerateVideoClips?: () => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   graphNodes: MotionGraphNode[];
   workflowExamples: MotionWorkflowExample[];
   actionStatus: string | null;
@@ -332,6 +341,7 @@ function MotionPreviewPlanView({
         <SelectedClipEditor
           clip={selectedClip}
           onEditClipSummary={onEditClipSummary}
+          onEditClipEffect={onEditClipEffect}
         />
       ) : null}
 
@@ -390,9 +400,11 @@ function preferredRenderEngine(
 function SelectedClipEditor({
   clip,
   onEditClipSummary,
+  onEditClipEffect,
 }: {
   clip: MotionPreviewTimelineClip;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
 }) {
   const [summary, setSummary] = useState(clip.summary);
 
@@ -401,6 +413,7 @@ function SelectedClipEditor({
   }, [clip.clipId, clip.summary]);
 
   const canApply = summary.trim().length > 0 && summary.trim() !== clip.summary.trim();
+  const canEditEffects = clip.regenerateScopes.includes('effect') && Boolean(onEditClipEffect);
 
   return (
     <section className="grid gap-2 border-t border-border-soft px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
@@ -410,13 +423,39 @@ function SelectedClipEditor({
           {clip.durationSeconds.toFixed(1)}s · {clip.linkedVariantScope ?? 'local'}
         </div>
       </div>
-      <input
-        type="text"
-        aria-label="selected clip summary"
-        value={summary}
-        onChange={(event) => setSummary(event.target.value)}
-        className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
-      />
+      <div className="grid min-w-0 gap-2">
+        <input
+          type="text"
+          aria-label="selected clip summary"
+          value={summary}
+          onChange={(event) => setSummary(event.target.value)}
+          className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+        />
+        {canEditEffects ? (
+          <div className="flex flex-wrap gap-1" aria-label="effect presets">
+            {MOTION_EFFECT_PRESETS.map((preset) => {
+              const selected = clip.effectPreset === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  aria-label={`apply ${preset.label} effect`}
+                  aria-pressed={selected}
+                  onClick={() => onEditClipEffect?.(clip.clipId, preset.id)}
+                  className={cn(
+                    'rounded-sm border px-2 py-1 font-mono text-2xs uppercase tracking-wide transition-colors',
+                    selected
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-border-soft bg-surface-panel text-ink-dim hover:border-accent hover:text-accent'
+                  )}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
       <button
         type="button"
         disabled={!canApply}

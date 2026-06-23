@@ -24,6 +24,7 @@ import {
   type MotionSyncPlanStatus,
 } from './syncPlan';
 import { getMotionComponent } from './componentRegistry';
+import { getMotionEffectPreset } from './effectPresets';
 import {
   DEFAULT_MOTION_FPS,
   motionSeconds,
@@ -89,6 +90,8 @@ export interface MotionPreviewTimelineClip {
   linkedVariantScope: TimelineClip['linkedVariantScope'];
   editControlIds: string[];
   regenerateScopes: string[];
+  effectPreset: string | null;
+  effectLabel: string | null;
 }
 
 export interface MotionPreviewTimelineRow {
@@ -355,6 +358,7 @@ function buildTimelineRows(tracks: TimelineTrack[]): MotionPreviewTimelineRow[] 
     durationSeconds: roundSeconds(trackDurationFrames(track)),
     clips: track.clips.map((clip) => {
       const component = clip.componentId ? getMotionComponent(clip.componentId) : null;
+      const effectPreset = getMotionEffectPreset(clip.props.effectPreset);
       return {
         clipId: clip.id,
         componentId: clip.componentId ?? null,
@@ -365,6 +369,8 @@ function buildTimelineRows(tracks: TimelineTrack[]): MotionPreviewTimelineRow[] 
         linkedVariantScope: clip.linkedVariantScope,
         editControlIds: component?.editControls.map((control) => control.id) ?? [],
         regenerateScopes: component?.regenerateScopes ?? [],
+        effectPreset: effectPreset?.id ?? null,
+        effectLabel: effectPreset?.label ?? null,
       };
     }),
   }));

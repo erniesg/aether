@@ -9,6 +9,10 @@ import type {
   TimelineClip,
   TimelineTrack,
 } from './project';
+import {
+  MOTION_EFFECT_PRESETS,
+  motionEffectPresetOrDefault,
+} from './effectPresets';
 
 export interface BuildMotionRenderSourceBundleOptions {
   remotionEntryPoint?: string;
@@ -112,6 +116,23 @@ type MotionBrandData = {
   motionStyle: string;
 };
 
+type MotionEffectPresetData = {
+  id: string;
+  label: string;
+  summary: string;
+  remotion: {
+    entranceY: number;
+    entranceScale: number;
+    entranceRotate: number;
+  };
+  hyperframes: {
+    entranceEase: string;
+    entranceDuration: number;
+    entranceY: number;
+    entranceScale: number;
+  };
+};
+
 type MotionCompositionProps = {
   tracks?: MotionTrackData[];
   brand?: MotionBrandData;
@@ -121,6 +142,7 @@ const defaultTracks: MotionTrackData[] = ${tracks};
 const defaultBrand: MotionBrandData = ${brand};
 const compositionTitle = ${title};
 const effectTokens = ${stableJson(RENDER_EFFECT_TOKENS)};
+const effectPresets: MotionEffectPresetData[] = ${stableJson(MOTION_EFFECT_PRESETS)};
 
 function clipText(clip: MotionClipData): string {
   const value = clip.props.caption ?? clip.props.text ?? clip.props.narration ?? "";
@@ -145,6 +167,14 @@ function componentIdFor(clip: MotionClipData, trackKind: string): string {
   return "proof-card";
 }
 
+function clipEffectPreset(clip: MotionClipData): MotionEffectPresetData {
+  const value = clip.props.effectPreset;
+  if (typeof value === "string") {
+    return effectPresets.find((preset) => preset.id === value) ?? effectPresets[0]!;
+  }
+  return effectPresets[0]!;
+}
+
 type MotionComponentRenderProps = {
   clip: MotionClipData;
   componentId: string;
@@ -153,6 +183,7 @@ type MotionComponentRenderProps = {
   text: string;
   mediaUrl: string | null;
   mimeType: string;
+  effect: MotionEffectPresetData;
 };
 
 function CardShell({
@@ -214,13 +245,13 @@ function DisplayText({
   );
 }
 
-function HookCard({ text, brand }: MotionComponentRenderProps) {
+function HookCard({ text, brand, effect }: MotionComponentRenderProps) {
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
 
   return (
     <CardShell brand={brand}>
       <div style={{ color: palette[2], fontSize: 18, fontWeight: 800, marginBottom: 18 }}>
-        {brand.motionStyle || effectTokens.entrance}
+        {effect.label || brand.motionStyle || effectTokens.entrance}
       </div>
       <DisplayText text={text} brand={brand} size={76} />
     </CardShell>
@@ -395,6 +426,7 @@ function MotionClip({
   const mediaUrl = clipMediaUrl(clip);
   const mimeType = clipMimeType(clip);
   const componentId = componentIdFor(clip, trackKind);
+  const effect = clipEffectPreset(clip);
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
   const opacity = interpolate(
     frame,
@@ -402,7 +434,15 @@ function MotionClip({
     [0, 1, 1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const y = interpolate(frame, [0, Math.min(14, clip.durationFrames)], [34, 0], {
+  const y = interpolate(frame, [0, Math.min(14, clip.durationFrames)], [effect.remotion.entranceY, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const scale = interpolate(frame, [0, Math.min(16, clip.durationFrames)], [effect.remotion.entranceScale, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const rotate = interpolate(frame, [0, Math.min(16, clip.durationFrames)], [effect.remotion.entranceRotate, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -420,12 +460,12 @@ function MotionClip({
         alignItems: "center",
         padding: trackKind === "caption" ? 72 : 96,
         opacity,
-        transform: \`translateY(\${y}px)\`,
+        transform: \`translateY(\${y}px) scale(\${scale}) rotate(\${rotate}deg)\`,
         color: palette[1],
         fontFamily,
       }}
     >
-      {renderMotionComponent({ clip, componentId, trackKind, brand, text, mediaUrl, mimeType })}
+      {renderMotionComponent({ clip, componentId, trackKind, brand, text, mediaUrl, mimeType, effect })}
       <div
         style={{
           position: "absolute",
@@ -594,6 +634,14 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
           font-weight: 500;
         }
 
+        .motion-clip[data-effect="caption-pop"] {
+          border-radius: 10px;
+        }
+
+        .motion-clip[data-effect="proof-pulse"] {
+          box-shadow: 0 0 0 6px rgba(200, 65, 58, 0.18), 0 34px 90px rgba(0, 0, 0, 0.24);
+        }
+
         .caption-line__text {
           display: block;
         }
@@ -622,7 +670,9 @@ ${clips.join('\n')}
       <script>
         window.__timelines = window.__timelines || {};
         const tl = gsap.timeline({ paused: true });
-        tl.from(".motion-clip", { y: 34, opacity: 0, duration: 0.45, stagger: 0.04, ease: "power3.out" }, 0.15);
+        tl.from('.motion-clip[data-effect="product-glide"]', { y: 34, scale: 0.96, opacity: 0, duration: 0.45, stagger: 0.04, ease: "power3.out" }, 0.15);
+        tl.from('.motion-clip[data-effect="caption-pop"]', { y: 12, scale: 0.9, opacity: 0, duration: 0.34, stagger: 0.04, ease: "back.out(1.6)" }, 0.15);
+        tl.from('.motion-clip[data-effect="proof-pulse"]', { y: 0, scale: 0.94, rotation: 0.8, opacity: 0, duration: 0.5, stagger: 0.04, ease: "expo.out" }, 0.15);
         tl.from(".caption-line__text", { y: 18, opacity: 0, duration: 0.28, stagger: 0.03, ease: "power2.out" }, 0.22);
         tl.from(".transition-wipe", { scaleX: 0, duration: 0.32, stagger: 0.04, ease: "power2.inOut" }, 0.2);
         window.__timelines["${jsString(request.compositionId)}"] = tl;
@@ -645,10 +695,11 @@ function hyperframesClipHtml(
   const mimeType = stringProp(clip.props.mimeType) ?? '';
   const text = clipText(clip);
   const componentId = componentIdForClip(clip, track.kind);
+  const effectPreset = motionEffectPresetOrDefault(clip.props.effectPreset);
   const componentClass = `motion-component--${componentId}`;
   const attrs = `id="${escapeHtml(clip.id)}" class="motion-clip motion-component ${escapeHtml(componentClass)}" data-component-id="${escapeHtml(componentId)}" data-kind="${escapeHtml(
     track.kind
-  )}" data-start="${start}" data-duration="${duration}" data-track-index="${trackIndex}"`;
+  )}" data-effect="${escapeHtml(effectPreset.id)}" data-start="${start}" data-duration="${duration}" data-track-index="${trackIndex}"`;
 
   if (track.kind === 'voice' && mediaUrl) {
     return `        <audio ${attrs} src="${escapeHtml(mediaUrl)}" data-volume="1" crossorigin="anonymous"></audio>`;
@@ -656,17 +707,18 @@ function hyperframesClipHtml(
 
   if (track.kind === 'voice') return '';
 
-  return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType)}</div>`;
+  return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType, effectPreset.label)}</div>`;
 }
 
 function hyperframesComponentBody(
   componentId: string,
   text: string,
   mediaUrl: string | undefined,
-  mimeType: string
+  mimeType: string,
+  effectLabel: string
 ): string {
   if (componentId === 'hook-card') {
-    return `<span class="hook-card__eyebrow">${escapeHtml(RENDER_EFFECT_TOKENS.entrance)}</span><strong class="hook-card__headline">${escapeHtml(text)}</strong>`;
+    return `<span class="hook-card__eyebrow">${escapeHtml(effectLabel)}</span><strong class="hook-card__headline">${escapeHtml(text)}</strong>`;
   }
 
   if (componentId === 'app-frame') {
@@ -723,6 +775,11 @@ function sourceManifestJson(
     trackIds: request.tracks.map((track) => track.id),
     componentIds: componentIdsForTracks(request.tracks),
     effectTokens: RENDER_EFFECT_TOKENS,
+    effectPresets: MOTION_EFFECT_PRESETS.map((preset) => ({
+      id: preset.id,
+      label: preset.label,
+      summary: preset.summary,
+    })),
     outputIds: request.outputs.map((output) => output.id),
     files: files.map((file) => ({
       kind: file.kind,

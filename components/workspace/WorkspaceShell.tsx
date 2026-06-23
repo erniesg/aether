@@ -88,6 +88,7 @@ import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import { buildMotionSkillAuthoringPrompt } from '@/lib/motion/skillPrompt';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
+import type { MotionEffectPresetId } from '@/lib/motion/effectPresets';
 import {
   buildExportRequestBody,
   downloadExportPack,
@@ -536,6 +537,60 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
         });
         setMotionTimelineActionStatus('clip updated');
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
+  const handleTimelineClipEffectEdit = useCallback(
+    async (clipId: string, effectPreset: MotionEffectPresetId) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus('applying effect');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/revise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            id: `effect-${clipId}-${effectPreset}-${requestedAt}`,
+            requestedAt,
+            updatedAt: requestedAt,
+            requestedEngines: motionStart.workflow.plan.engines,
+            operations: [
+              {
+                kind: 'update-clip-props',
+                clipId,
+                props: {
+                  effectPreset,
+                  transitionStyle: effectPreset,
+                  motionStyle: effectPreset,
+                },
+              },
+            ],
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+        };
+        if (!res.ok || json.ok === false || !json.project || !json.previewPlan) {
+          throw new Error(json.error ?? `effect edit failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+        });
+        setMotionTimelineActionStatus('effect updated');
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
@@ -2505,6 +2560,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onGenerateVideoClips={handleTimelineGenerateVideoClips}
             onPinMotionSkill={handleTimelinePinMotionSkill}
             onEditClipSummary={handleTimelineClipSummaryEdit}
+            onEditClipEffect={handleTimelineClipEffectEdit}
             graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}

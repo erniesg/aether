@@ -488,6 +488,50 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByDisplayValue('Repo to launch cuts')).toBeInTheDocument();
   });
 
+  it('selected timeline clip effect edits call revise with reusable preset props', async () => {
+    const start = storedRegeneratableMotionStart();
+    const revisedPreview = {
+      ...start.previewPlan!,
+      timelineRows: start.previewPlan!.timelineRows.map((row) => ({
+        ...row,
+        clips: row.clips.map((clip) =>
+          clip.clipId === 'clip-beat-hook-text'
+            ? { ...clip, effectPreset: 'proof-pulse', effectLabel: 'proof pulse' }
+            : clip
+        ),
+      })),
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: revisedPreview,
+          capturePlan: start.capturePlan,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getAllByRole('button', { name: /hook card clip/i })[0]);
+    await userEvent.click(screen.getByRole('button', { name: /apply proof pulse effect/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('effect updated');
+    });
+    const reviseCall = fetchMock.mock.calls.find((call) => call[0] === '/api/motion/revise');
+    expect(reviseCall?.[1]?.body).toEqual(
+      expect.stringContaining('"effectPreset":"proof-pulse"')
+    );
+    expect(reviseCall?.[1]?.body).toEqual(
+      expect.stringContaining('"transitionStyle":"proof-pulse"')
+    );
+  });
+
   it('the focus pill reports aria-current after a click, canvas after another click', async () => {
     renderShell();
 

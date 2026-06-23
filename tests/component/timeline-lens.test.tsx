@@ -108,6 +108,8 @@ const previewPlan: MotionPreviewPlan = {
           linkedVariantScope: 'global',
           editControlIds: ['headline', 'subhead'],
           regenerateScopes: ['copy', 'timing', 'effect'],
+          effectPreset: null,
+          effectLabel: null,
         },
       ],
     },
@@ -410,5 +412,37 @@ describe('TimelineLens', () => {
       'clip-beat-hook-text',
       'Turn a repo into launch cuts.'
     );
+  });
+
+  it('lets creators apply a reusable effect preset to the selected clip', async () => {
+    const onEditClipEffect = vi.fn<(clipId: string, effectPreset: string) => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          timelineRows: previewPlan.timelineRows.map((row) => ({
+            ...row,
+            clips: row.clips.map((clip) => ({
+              ...clip,
+              effectPreset: clip.clipId === 'clip-beat-hook-text' ? 'caption-pop' : null,
+              effectLabel: clip.clipId === 'clip-beat-hook-text' ? 'caption pop' : null,
+            })),
+          })),
+        }}
+        selectedClipId="clip-beat-hook-text"
+        onSelectClip={() => {}}
+        onEditClipEffect={onEditClipEffect}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /apply caption pop effect/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /apply proof pulse effect/i }));
+
+    expect(onEditClipEffect).toHaveBeenCalledWith('clip-beat-hook-text', 'proof-pulse');
   });
 });

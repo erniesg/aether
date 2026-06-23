@@ -27,6 +27,7 @@ describe('motion component registry', () => {
     expect(hook?.engines).toEqual(['remotion', 'hyperframes']);
     expect(hook?.aspectRatios).toContain('9:16');
     expect(hook?.editControls.map((control) => control.id)).toContain('headline');
+    expect(hook?.editControls.map((control) => control.id)).toContain('effectPreset');
 
     const codeDiff = getMotionComponent('code-diff-card');
     expect(codeDiff?.requiredProps).toEqual(['filePath', 'lines']);
