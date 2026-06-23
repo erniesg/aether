@@ -2684,6 +2684,55 @@ git add lib/motion/renderExecution.ts lib/motion/renderExecution.test.ts docs/su
 git commit -m "feat: orchestrate motion render execution"
 ```
 
+## Task 23: Remotion and HyperFrames Command Render Runners
+
+**Files:**
+- Create: `lib/providers/video/command-render.ts`
+- Create: `lib/providers/video/command-render.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing command-runner tests**
+
+The tests cover:
+
+- Remotion video and poster command formation from a `MotionRenderRequest`;
+- HyperFrames video and snapshot command formation from the same request shape;
+- VTT, transcript, manifest, and Remotion props sidecar writing;
+- file-backed receipt URLs and provider provenance;
+- failure when the engine command does not produce a planned artifact.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/providers/video/command-render.test.ts`
+
+Expected: FAIL because `lib/providers/video/command-render.ts` does not exist.
+
+- [x] **Step 3: Implement command render runners**
+
+`lib/providers/video/command-render.ts` now exposes Remotion and HyperFrames
+command runners under the existing runner-backed provider boundary. The runners
+execute injected commands, write planned text sidecars, verify every planned
+output file, and return `MotionRenderRunnerResult` receipts with file URLs.
+
+- [x] **Step 4: Run focused test and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/providers/video/command-render.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/providers/video/command-render.ts lib/providers/video/command-render.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: add motion command render runners"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, real Remotion rendering, image-to-video nodes, and multiformat export packs remain separate later slices.

@@ -81,6 +81,10 @@ Clueso, and Descript.
 - `lib/motion/renderExecution.ts` now orchestrates the render loop for agents:
   build a render plan/request, call the chosen provider, persist the planned
   render graph node, and apply returned receipts back into editable exports.
+- `lib/providers/video/command-render.ts` now supplies concrete local command
+  runners for Remotion and HyperFrames: they run engine CLI commands for video
+  and poster artifacts, write subtitle/transcript/manifest sidecars, verify
+  planned files exist, and return file-backed render receipts.
 - `lib/motion/voicePlan.ts` now converts voice-line timeline clips into
   provider-neutral narration requests with expected audio, word-timing, and
   transcript artifacts so captions and render duration can sync against real
