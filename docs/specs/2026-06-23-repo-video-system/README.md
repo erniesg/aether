@@ -61,6 +61,10 @@ Clueso, and Descript.
   Playwright runner/factory for that boundary: it can run browser steps, save
   screenshots, DOM snapshots, interaction traces, and Playwright video paths as
   file-backed capture receipts when a caller opts into it.
+- `lib/motion/captureApply.ts` now converts capture results back into the
+  editable motion project: visual receipts become demo beat assets and
+  `app-frame` timeline props, while every receipt completes the capture graph
+  node with typed provenance.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.

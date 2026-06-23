@@ -604,7 +604,7 @@ Run: `npx vitest run lib/motion/storyboard.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/storyboard.ts lib/motion/storyboard.test.ts
@@ -2321,11 +2321,57 @@ Run: `./node_modules/.bin/vitest run lib/providers/capture/playwright.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/capture/playwright.ts lib/providers/capture/playwright.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: add playwright motion capture runner"
+```
+
+## Task 16: Capture Result Application
+
+**Files:**
+- Create: `lib/motion/captureApply.ts`
+- Create: `lib/motion/captureApply.test.ts`
+- Modify: `lib/motion/project.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing capture-application tests**
+
+The tests cover:
+
+- visual capture receipts becoming selected demo beat assets and editable
+  `app-frame` timeline props;
+- review-plan component slots surfacing the applied capture asset;
+- DOM/trace-only receipts completing the capture graph node without occupying
+  visual app-frame slots.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/captureApply.test.ts`
+
+Expected: FAIL because `lib/motion/captureApply.ts` does not exist.
+
+- [x] **Step 3: Implement capture result application**
+
+`lib/motion/captureApply.ts` now applies provider-neutral `CaptureResult`
+objects to `MotionProject` records. Screenshots and recordings update the demo
+beat, current draft, app-frame clips, and review props. All capture artifacts
+complete the capture graph node with provider id, output refs, and typed
+provenance.
+
+- [x] **Step 4: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/captureApply.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/captureApply.ts lib/motion/captureApply.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: apply motion capture results"
 ```
 
 ## Self-Review Checklist

@@ -40,12 +40,16 @@
   boundary locally, write screenshot/DOM/trace files, return Playwright video
   paths, and wrap itself as a `browser-capture` provider when explicitly
   configured.
+- Capture-result application that turns screenshot or recording receipts into
+  selected demo assets, editable `app-frame` timeline props, review-plan slots,
+  and completed capture graph nodes while keeping DOM/trace receipts as
+  provenance.
 
 ## Verification Commands
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx
 npm run typecheck
