@@ -55,6 +55,11 @@ Clueso, and Descript.
   sources can now create editable project starts; PR sources can create editable
   code-change explainer starts when a code-change provider is configured. Real
   screen capture and recording remain provider execution work.
+- `app/api/motion/start/route.ts` now exposes that starter through an
+  agent-native JSON boundary: callers can pass `sourceRefs` directly or use
+  `repoPath`, `repoUrl`, `siteUrl`, or `prRef` shorthands and receive the
+  routed workflow, editable project, review plan, preview plan, capture plan,
+  and requested input blockers.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, and computer-use fallback requests with explicit viewport,

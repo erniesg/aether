@@ -3266,6 +3266,52 @@ git add components/workspace/TimelineLens.tsx tests/component/timeline-lens.test
 git commit -m "feat: show motion preview plans in timeline lens"
 ```
 
+## Task 33: Motion Start API Boundary
+
+**Files:**
+- Create: `app/api/motion/start/route.ts`
+- Create: `tests/unit/api-motion-start.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing API contract tests**
+
+The tests cover:
+
+- starting an editable launch motion project from a local repo path through
+  `POST /api/motion/start`;
+- returning the routed workflow, project, review plan, preview plan, and capture
+  input blocker for repo-only starts;
+- accepting explicit `sourceRefs` for PR starts and returning the reviewable
+  code-change evidence request when no provider is configured;
+- rejecting missing source input and malformed JSON.
+
+- [x] **Step 2: Implement the route**
+
+`app/api/motion/start/route.ts` now normalizes direct `sourceRefs` plus
+`repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands into the existing
+`startAgentMotionWorkflow` entry point. The route keeps provider selection
+abstract, defaults to review mode and a vertical X target when omitted, and
+passes local repo scanning options without hardcoding a model or render engine.
+
+- [x] **Step 3: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-start.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add app/api/motion/start/route.ts tests/unit/api-motion-start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion workflow starts via api"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.
