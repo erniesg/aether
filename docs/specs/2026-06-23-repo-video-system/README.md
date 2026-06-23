@@ -66,6 +66,7 @@ Clueso, and Descript.
 | [React Flow](https://reactflow.dev/) | Node/edge graphs are good for custom node pipelines, selection, ports, and advanced flow editing. | Use for advanced generation graphs after the timeline primitive exists. Avoid making it the default creator surface. |
 | [tldraw custom shapes](https://tldraw.dev/docs/shapes) | Custom shapes can represent domain objects on the canvas. | Add motion-project, timeline preview, generated clip, and export-pack shapes on the canvas. |
 | [iart-ai motion-skills](https://github.com/iart-ai/motion-skills) | Public index of motion-agent skills. The useful packs for aether are `launch-video`, `product-demo-video`, `short-form-video`, `remotion-video`, `beat-sync-editing`, `shot-composition`, and `motion-art-direction`. | Borrow the agent workflow grammar and verification loop, not the repo as a runtime dependency. Make plan, still-frame proof, contact sheet, MP4 probe, and reusable skill packs first-class in aether. |
+| [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes) | HyperFrames now ships workflow skills including `product-launch-video`, `website-to-video`, `pr-to-video`, `embedded-captions`, `graphic-overlays`, `motion-graphics`, and `remotion-to-hyperframes`. `pr-to-video` reads PR facts through `gh`, not site capture. | Mirror the workflow router in aether: product/app launch, website/app capture, PR/code-change explainer, footage caption/overlay, motion graphic, and Remotion/HyperFrames portability should be distinct capabilities with shared timeline/render primitives. |
 
 ## Component taxonomy
 
@@ -131,6 +132,22 @@ or use computer control only for the beats that need live motion.
 - Timeline of shipped milestones.
 - Customer or creator quote card, with attribution and source preservation.
 
+### PR and code-change explainers
+
+PR-to-video is a separate repo workflow, not a product capture workflow. The
+source is a pull request and its diff, commits, files, reviews, comments, and
+contributors. The output is a short code-change explainer for changelogs,
+feature reveals, bug fixes, refactors, and release notes.
+
+- PR hook: headline, archetype, audience, base/head refs, merged state.
+- File tree and changed-file map: touched areas, language/module grouping.
+- Diff hunk card: 4-12 readable lines, before/after, add/remove focus.
+- Code animation block: diff, morph, typing, highlight, scroll, terminal/test.
+- Mechanism beat: invented diagram showing runtime behavior, not just code.
+- Evidence beat: tests, benchmarks, line deltas, shipped/approved state.
+- Contributor/credit beat: real author, committers, reviewers, optional avatars.
+- CTA beat: read PR, upgrade, pull release, watch changelog, review follow-up.
+
 ### Visual generation and B-roll
 
 - Image-to-video clip from a key visual, product image, moodboard, or screenshot.
@@ -185,6 +202,9 @@ or use computer control only for the beats that need live motion.
 
 - `repo_to_launch_brief`: inspect repo/site/readme/docs/screenshots and emit
   grounded claims with source refs.
+- `pr_to_video_brief`: inspect a GitHub PR through `gh`, collect PR JSON, full
+  diff, files, commits, reviews, comments, line stats, and contributors, then
+  emit a grounded code-change brief. This does not use browser capture.
 - `write_video_script`: turn app facts plus target platform into script beats.
 - `compose_storyboard`: choose scene templates, target durations, and assets.
 - `capture_product_demo`: run the app, capture browser or desktop flows, and
@@ -232,7 +252,7 @@ type MotionDraft = {
 };
 
 type MotionBriefV2 = {
-  projectKind: 'launch' | 'feature' | 'demo' | 'social' | 'case-study';
+  projectKind: 'launch' | 'feature' | 'demo' | 'social' | 'case-study' | 'pr';
   appProfile: AppProfile;
   audience: string;
   platformTargets: PlatformTarget[];
@@ -272,7 +292,7 @@ type TimelineClip = {
 
 type MotionGraphNode = {
   id: string;
-  kind: 'repo-ingest' | 'script' | 'storyboard' | 'capture' | 'visual-search' | 'image-to-video' | 'voice' | 'sync' | 'render';
+  kind: 'repo-ingest' | 'pr-ingest' | 'script' | 'storyboard' | 'capture' | 'visual-search' | 'image-to-video' | 'voice' | 'sync' | 'render';
   inputRefs: string[];
   outputRefs: string[];
   providerId?: string;
@@ -290,6 +310,8 @@ the contracts by job so providers stay interchangeable and testable.
 - `VideoGenerationProvider`: text-to-video, image-to-video, product placement,
   avatar, talking photo, and generative B-roll.
 - `VideoRenderProvider`: Remotion and HyperFrames deterministic renders.
+- `CodeChangeProvider`: GitHub PR, diff, commit, review, and contributor
+  evidence collection via `gh` or connector-backed APIs.
 - `ScreenCaptureProvider`: browser, desktop, and app-flow captures.
 - `AppUseProvider`: browser/app/computer-use actions that can collect capture
   inputs, but never render final videos directly.
@@ -305,6 +327,11 @@ evidence, while render providers turn editable timeline data into MP4s. A raw
 recording can become a clip, but the preferred demo artifact is still
 frame-driven Remotion/HyperFrames output with editable screenshots, cursor
 paths, captions, callouts, and timing.
+
+The code-change split is just as important: a PR video should never scrape a
+website or invent repo facts. It should ingest PR data once, bake those facts
+into a motion project, and build synthetic code/mechanism scenes from grounded
+diff hunks and receipts.
 
 ## Motion-skills assessment
 
@@ -331,6 +358,33 @@ repos:
 Adopt these as internal aether skills/capabilities with our vocabulary,
 provenance, graph persistence, and canvas/timeline surfaces. Do not expose them
 as a pile of raw agent instructions or a separate skill console.
+
+## HeyGen HyperFrames assessment
+
+The HeyGen HyperFrames skill pack is directly relevant because it has moved
+from generic "HTML to video" guidance into workflow-specific skills. Its router
+keeps product launch, website capture, PR explainer, captioning existing
+footage, graphic overlays, motion graphics, and Remotion-to-HyperFrames
+portability separate.
+
+The `pr-to-video` workflow adds a useful model for aether:
+
+- Treat GitHub PRs as a first-class input beside repos, URLs, screenshots, and
+  app captures.
+- Use `gh`/GitHub evidence to create PR JSON, a full diff patch, a bounded text
+  brief, and optional contributor avatars.
+- Pick a narrative archetype: changelog, feature reveal, fix explainer, or
+  refactor walkthrough.
+- Alternate code beats with mechanism beats. Code beats show real hunks; the
+  mechanism beat explains runtime behavior through an invented diagram.
+- Gate plan, storyboard/script, visual design, frame build, validation, preview,
+  and render separately.
+
+For aether, the important import is not the exact HyperFrames file layout. It
+is the workflow boundary: PR/code-change videos should share the same
+MotionProject, timeline, caption, voice, component registry, render, and export
+pack primitives, while sourcing evidence from `CodeChangeProvider` instead of
+`ScreenCaptureProvider`.
 
 ## Review and full-auto gates
 
@@ -387,6 +441,16 @@ would produce hard-to-edit outputs.
 - Start with aether, accrue, tong, and paillette fixtures.
 - Tests: repo facts to claims, claims to story beats, no invented numbers,
   source refs preserved.
+
+### Phase 1A: PR-to-video evidence model
+
+- Add PR/code-change facts as a sibling to repo/app facts.
+- Ingest PR JSON, diff hunks, changed files, commits, reviews, comments,
+  approvals, test/CI evidence, and contributors through a provider seam.
+- Add code-change story beats: hook, problem/change, diff, mechanism, evidence,
+  impact, credits, CTA.
+- Tests: PR facts to story beats, large PR file-list pagination, no fabricated
+  diff hunks, mechanism beats never cite screenshots as evidence.
 
 ### Phase 2: component registry
 
@@ -458,6 +522,10 @@ The smallest useful slice is not image-to-video. It is:
 4. A simple timeline preview backed by Remotion Player.
 5. One render path to MP4 and poster.
 6. One fixture each for aether, tong, paillette, and accrue.
+
+The next adjacent slice after this is PR-to-video: PR evidence ingestion,
+diff/mechanism storyboard beats, code-change components, and the same editable
+timeline/render/export path.
 
 That slice proves the core loop: point aether at a repo, let the agent write
 the script and assemble an editable video, then let the creator tweak text,

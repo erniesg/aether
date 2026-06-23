@@ -17,6 +17,7 @@
 - Reusable motion design, components, and effects: Task 3 adds a component registry with hook, app frame, agent trace, proof card, and CTA components.
 - HyperFrames and Remotion: Task 3 marks supported engines per component; Task 5 adds render provider contracts for Remotion and HyperFrames.
 - Screenshots, app use, recording, and computer-use fallback: Task 5A adds capture provider contracts for screenshot-driven demos and recorded app flows.
+- PR-to-video and code-change explainers: Task 5B adds a separate code-change provider contract so pull requests use GitHub evidence instead of screen capture.
 - Editable outputs: Task 4 creates stable tracks/clips; Task 6 exposes the timeline lens without route-splitting.
 - Agent-native reusable tools/skills: Task 7 widens tool/workflow registries for motion brief, storyboard, render, voice, and sync tools.
 - Script, visuals, voiceover, timing, effects, transitions: Tasks 2, 4, and 5 create typed places for script lines, asset refs, voice/caption tracks, sync markers, effects, and transitions.
@@ -41,6 +42,9 @@
 - Create `lib/providers/capture/types.ts`: screenshot, app-flow, recording, and computer-use capture contract.
 - Create `lib/providers/capture/registry.ts`: registry resolver for capture providers.
 - Create `lib/providers/capture/registry.test.ts`: tests provider unavailable behavior and no default hardcoding.
+- Create `lib/providers/code-change/types.ts`: GitHub PR, diff, commit, review, CI, and contributor evidence contract.
+- Create `lib/providers/code-change/registry.ts`: registry resolver for code-change evidence providers.
+- Create `lib/providers/code-change/registry.test.ts`: tests provider unavailable behavior and no default hardcoding.
 - Modify `lib/tool/registry.ts`: add draft motion tool ids.
 - Modify `lib/capability/types.ts`: include motion tool ids in `CapabilityTool`.
 - Modify `lib/workflow/registry.ts`: add draft repo-to-launch-video workflow.
@@ -167,7 +171,7 @@ Expected: FAIL because `lib/motion/project.ts` does not exist.
 // lib/motion/project.ts
 export const DEFAULT_MOTION_FPS = 30;
 
-export type MotionProjectKind = 'launch' | 'feature' | 'demo' | 'social' | 'case-study';
+export type MotionProjectKind = 'launch' | 'feature' | 'demo' | 'social' | 'case-study' | 'pr';
 export type MotionBeatRole = 'hook' | 'problem' | 'proof' | 'demo' | 'payoff' | 'cta';
 export type MotionAspectRatio = '16:9' | '9:16' | '1:1' | '4:5';
 export type MotionPlatform =
@@ -1231,6 +1235,106 @@ Expected: PASS.
 ```bash
 git add lib/providers/capture/types.ts lib/providers/capture/registry.ts lib/providers/capture/registry.test.ts
 git commit -m "feat: add capture provider contract"
+```
+
+## Task 5B: Code-Change Provider Contract
+
+**Files:**
+- Create: `lib/providers/code-change/types.ts`
+- Create: `lib/providers/code-change/registry.ts`
+- Create: `lib/providers/code-change/registry.test.ts`
+- Modify: `lib/motion/project.ts`
+- Modify: `lib/motion/project.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// lib/providers/code-change/registry.test.ts
+import { describe, expect, it } from 'vitest';
+import { CodeChangeProviderUnavailableError, resolveCodeChangeProvider } from './registry';
+
+describe('resolveCodeChangeProvider', () => {
+  it('throws a typed unavailable error when no code-change provider is configured', () => {
+    expect(() => resolveCodeChangeProvider()).toThrow(CodeChangeProviderUnavailableError);
+  });
+
+  it('throws a typed unavailable error for an unknown preferred provider', () => {
+    expect(() => resolveCodeChangeProvider('missing-provider')).toThrow(/missing-provider/);
+  });
+});
+```
+
+- [ ] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/providers/code-change/registry.test.ts`
+
+Expected: FAIL because code-change provider files do not exist.
+
+- [ ] **Step 3: Add code-change contracts and registry**
+
+```ts
+// lib/providers/code-change/types.ts
+import type { MotionProvenanceRef } from '@/lib/motion/project';
+
+export type CodeChangeSourceKind = 'github-pr' | 'local-diff' | 'commit-range';
+
+export interface CodeChangeRequest {
+  source: { kind: CodeChangeSourceKind; ref: string };
+  preferredProviderId?: string;
+}
+
+export interface CodeChangeFile {
+  path: string;
+  status: 'added' | 'modified' | 'removed' | 'renamed';
+  additions: number;
+  deletions: number;
+  language?: string;
+}
+
+export interface CodeChangeHunk {
+  id: string;
+  filePath: string;
+  oldStart?: number;
+  newStart?: number;
+  lines: string[];
+  provenance: MotionProvenanceRef[];
+}
+
+export interface CodeChangeResult {
+  providerId: string;
+  title: string;
+  author?: { name: string; avatarUrl?: string };
+  files: CodeChangeFile[];
+  hunks: CodeChangeHunk[];
+  commits: Array<{ sha: string; message: string; authorName?: string }>;
+  reviews: Array<{ reviewer: string; state: 'approved' | 'changes-requested' | 'commented' }>;
+  ci: Array<{ name: string; status: 'passed' | 'failed' | 'pending' | 'unknown'; url?: string }>;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface CodeChangeProvider {
+  id: string;
+  displayName: string;
+  available(): boolean;
+  ingest(req: CodeChangeRequest): Promise<CodeChangeResult>;
+}
+```
+
+Use the same registry shape as capture providers. Do not auto-select GitHub or
+`gh` as a default dependency from the domain model; the provider decides whether
+the local CLI, connector, or API token is available.
+
+- [ ] **Step 4: Run tests**
+
+Run: `npx vitest run lib/providers/code-change/registry.test.ts lib/motion/project.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/providers/code-change/types.ts lib/providers/code-change/registry.ts lib/providers/code-change/registry.test.ts lib/motion/project.ts lib/motion/project.test.ts
+git commit -m "feat: add code-change provider contract"
 ```
 
 ## Task 6: Timeline Lens Scaffold
