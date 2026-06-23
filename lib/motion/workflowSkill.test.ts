@@ -227,6 +227,12 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
     expect(plan.skillDraft.manifest.instructions).toContain('## Review Surfaces');
     expect(plan.skillDraft.manifest.instructions).toContain('## Research Signals');
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Read capturePlan.agentRunbook before capturing app media.'
+    );
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Use browser capture first, then computer-use capture when auth, native UI, simulator, or gesture state blocks the browser.'
+    );
     expect(plan.skillDraft.manifest.instructions).toContain('Screen Studio');
     expect(plan.skillDraft.manifest.instructions).toContain('Clueso');
     expect(plan.skillDraft.manifest.instructions).toContain('iart motion-skills');

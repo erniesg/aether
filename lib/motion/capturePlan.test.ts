@@ -82,9 +82,48 @@ describe('buildAgentMotionCapturePlan', () => {
       status: 'ready',
       target: { kind: 'local-app', ref: 'http://localhost:3000/' },
       providerRequirements: ['browser-capture', 'app-launch', 'screen-recording'],
+      agentRunbook: {
+        primaryToolId: 'browser-capture',
+        fallbackToolIds: ['computer-use'],
+        applyRoute: '/api/motion/capture',
+        setupCommands: [
+          {
+            command: 'npm run dev',
+            cwd: '/Users/erniesg/code/erniesg/tong',
+            targetUrl: 'http://localhost:3000/',
+          },
+        ],
+        reviewArtifactLabels: ['capture receipt', 'cursor targets', 'viewport receipt'],
+      },
     });
     expect(plan.requests[0]).toMatchObject({
       id: 'capture-local-app-still',
+      agentInstructions: [
+        {
+          id: 'launch-local-app',
+          toolId: 'app-launch',
+          label: 'Run local app',
+          detail: 'npm run dev',
+          cwd: '/Users/erniesg/code/erniesg/tong',
+        },
+        {
+          id: 'open-target',
+          toolId: 'browser-capture',
+          label: 'Open target',
+          detail: 'http://localhost:3000/',
+        },
+        {
+          id: 'capture-screenshot',
+          toolId: 'browser-capture',
+          label: 'Capture screenshot',
+          expectedArtifactKinds: ['screenshot'],
+        },
+      ],
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['screenshot'],
+        receiptFields: ['assetUrl', 'viewport', 'cursorTargets', 'provenance'],
+      },
       request: {
         mode: 'screenshot',
         appLaunch: {
@@ -102,6 +141,20 @@ describe('buildAgentMotionCapturePlan', () => {
           { id: 'goto-source', action: 'goto', value: 'http://localhost:3000/' },
           { id: 'settle-source', action: 'wait', value: 'network-idle' },
         ],
+      },
+    });
+    expect(plan.requests[1]).toMatchObject({
+      id: 'record-local-flow',
+      agentInstructions: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'record-screen',
+          toolId: 'screen-recording',
+          expectedArtifactKinds: ['recording'],
+        }),
+      ]),
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['recording'],
       },
     });
   });
@@ -142,6 +195,16 @@ describe('buildAgentMotionCapturePlan', () => {
       preferredPath: 'screenshot-first',
       target: { kind: 'url', ref: 'https://paillette.app/search' },
       providerRequirements: ['browser-capture'],
+      agentRunbook: {
+        primaryToolId: 'browser-capture',
+        fallbackToolIds: ['computer-use'],
+        applyRoute: '/api/motion/capture',
+        setupCommands: [],
+        instructions: [
+          'Open each target in browser capture before using generated or stock visuals.',
+          'Use computer-use capture when auth, native UI, simulator, or gesture state blocks browser capture.',
+        ],
+      },
       nextActions: [
         { id: 'capture-browser-stills', label: 'Capture browser stills' },
         { id: 'review-capture-receipts', label: 'Review capture receipts' },
@@ -166,6 +229,10 @@ describe('buildAgentMotionCapturePlan', () => {
           { id: 'goto-source', action: 'goto', value: 'https://paillette.app/search' },
           { id: 'settle-source', action: 'wait', value: 'network-idle' },
         ],
+      },
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['screenshot'],
       },
     });
     expect(plan.requests[2]).toMatchObject({

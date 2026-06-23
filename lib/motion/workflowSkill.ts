@@ -252,6 +252,10 @@ function buildSkillInstructions({
   sampleCopyLines: string[];
   launchKit: MotionWorkflowLaunchKit;
 }): string {
+  const hasCaptureStep = plan.runPlan.steps.some((step) =>
+    step.apiRoutes.includes('/api/motion/capture')
+  );
+
   return [
     `# ${plan.label}`,
     '',
@@ -293,6 +297,18 @@ function buildSkillInstructions({
       ].join('\n')
     ),
     '',
+    hasCaptureStep ? '## Capture Runbook' : '',
+    hasCaptureStep ? 'Read capturePlan.agentRunbook before capturing app media.' : '',
+    hasCaptureStep
+      ? 'Use capturePlan.requests[].agentInstructions for setup, browser capture, screen recording, and artifact receipts.'
+      : '',
+    hasCaptureStep
+      ? 'Use browser capture first, then computer-use capture when auth, native UI, simulator, or gesture state blocks the browser.'
+      : '',
+    hasCaptureStep
+      ? 'Apply successful artifacts through /api/motion/capture so screenshots, recordings, DOM snapshots, traces, cursor targets, and provenance rejoin the timeline.'
+      : '',
+    hasCaptureStep ? '' : '',
     recipe ? '## Agent Tasks' : '',
     ...(recipe?.agentTaskLabels.map((label) => `- ${label}.`) ?? []),
     recipe ? '' : '',

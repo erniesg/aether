@@ -1,4 +1,5 @@
 import type {
+  CaptureArtifactKind,
   CaptureMode,
   CaptureAppLaunch,
   CaptureRequest,
@@ -15,16 +16,47 @@ import type {
 
 export type AgentMotionCapturePlanStatus = 'ready' | 'needs-source' | 'not-needed';
 export type AgentMotionCapturePreferredPath = 'screenshot-first' | 'recording-first';
+export type AgentMotionCaptureToolId =
+  | 'browser-capture'
+  | 'app-launch'
+  | 'screen-recording'
+  | 'computer-use';
 export type AgentMotionCaptureActionId =
   | 'capture-browser-stills'
   | 'review-capture-receipts'
   | 'record-interaction-if-needed';
+
+export interface AgentMotionCaptureInstruction {
+  id: string;
+  toolId: AgentMotionCaptureToolId;
+  label: string;
+  detail: string;
+  cwd?: string;
+  expectedArtifactKinds?: CaptureArtifactKind[];
+}
+
+export interface AgentMotionCaptureOutputContract {
+  applyRoute: '/api/motion/capture';
+  artifactKinds: CaptureArtifactKind[];
+  receiptFields: string[];
+}
+
+export interface AgentMotionCaptureRunbook {
+  primaryToolId: AgentMotionCaptureToolId;
+  fallbackToolIds: AgentMotionCaptureToolId[];
+  applyRoute: '/api/motion/capture';
+  setupCommands: CaptureAppLaunch[];
+  instructions: string[];
+  reviewArtifactLabels: string[];
+}
 
 export interface AgentMotionCapturePlanRequest {
   id: string;
   label: string;
   required: boolean;
   request: CaptureRequest;
+  agentInstructions: AgentMotionCaptureInstruction[];
+  outputContract: AgentMotionCaptureOutputContract;
   expectedArtifacts: string[];
   provenance: MotionProvenanceRef[];
 }
@@ -47,6 +79,7 @@ export interface AgentMotionCapturePlan {
   preferredPath?: AgentMotionCapturePreferredPath;
   target?: CaptureTarget;
   providerRequirements: string[];
+  agentRunbook?: AgentMotionCaptureRunbook;
   requests: AgentMotionCapturePlanRequest[];
   fallbacks: AgentMotionCaptureFallback[];
   nextActions: AgentMotionCaptureAction[];
@@ -108,6 +141,7 @@ export function buildAgentMotionCapturePlan(project: MotionProject): AgentMotion
     providerRequirements: siteSource
       ? ['browser-capture']
       : providerRequirementsFor(target, requests),
+    agentRunbook: buildCaptureRunbook(requests),
     requests,
     fallbacks: computerUseFallbacks(),
     nextActions: [
@@ -202,22 +236,125 @@ function buildRequest(input: {
   provenance: MotionProvenanceRef[];
 }): AgentMotionCapturePlanRequest {
   const appLaunch = appLaunchFor(input.target, input.setup, input.setupCwd);
+  const request: CaptureRequest = {
+    target: input.target,
+    mode: input.mode,
+    aspectRatio: input.aspectRatio,
+    viewport: input.viewport,
+    steps: stepsFor(input.mode, input.target.ref, input.setup),
+    ...(appLaunch ? { appLaunch } : {}),
+  };
 
   return {
     id: input.id,
     label: input.label,
     required: input.required,
-    request: {
-      target: input.target,
-      mode: input.mode,
-      aspectRatio: input.aspectRatio,
-      viewport: input.viewport,
-      steps: stepsFor(input.mode, input.target.ref, input.setup),
-      ...(appLaunch ? { appLaunch } : {}),
-    },
+    request,
+    agentInstructions: agentInstructionsFor(request),
+    outputContract: outputContractFor(input.mode),
     expectedArtifacts: input.expectedArtifacts,
     provenance: input.provenance,
   };
+}
+
+function buildCaptureRunbook(
+  requests: AgentMotionCapturePlanRequest[]
+): AgentMotionCaptureRunbook {
+  return {
+    primaryToolId: 'browser-capture',
+    fallbackToolIds: ['computer-use'],
+    applyRoute: '/api/motion/capture',
+    setupCommands: uniqueAppLaunches(
+      requests.flatMap((request) =>
+        request.request.appLaunch ? [request.request.appLaunch] : []
+      )
+    ),
+    instructions: [
+      'Open each target in browser capture before using generated or stock visuals.',
+      'Use computer-use capture when auth, native UI, simulator, or gesture state blocks browser capture.',
+    ],
+    reviewArtifactLabels: ['capture receipt', 'cursor targets', 'viewport receipt'],
+  };
+}
+
+function agentInstructionsFor(request: CaptureRequest): AgentMotionCaptureInstruction[] {
+  return [
+    ...(request.appLaunch
+      ? [
+          {
+            id: 'launch-local-app',
+            toolId: 'app-launch' as const,
+            label: 'Run local app',
+            detail: request.appLaunch.command,
+            ...(request.appLaunch.cwd ? { cwd: request.appLaunch.cwd } : {}),
+          },
+        ]
+      : []),
+    {
+      id: 'open-target',
+      toolId: 'browser-capture',
+      label: 'Open target',
+      detail: request.target.ref,
+    },
+    modeInstruction(request.mode),
+  ];
+}
+
+function modeInstruction(mode: CaptureMode): AgentMotionCaptureInstruction {
+  const artifactKinds = artifactKindsForMode(mode);
+
+  if (mode === 'screen-recording') {
+    return {
+      id: 'record-screen',
+      toolId: 'screen-recording',
+      label: 'Record screen',
+      detail: 'Record the product flow with cursor targets and app-state receipt.',
+      expectedArtifactKinds: artifactKinds,
+    };
+  }
+
+  if (mode === 'dom-snapshot') {
+    return {
+      id: 'capture-dom-snapshot',
+      toolId: 'browser-capture',
+      label: 'Capture DOM snapshot',
+      detail: 'Save DOM structure, route metadata, and viewport receipt.',
+      expectedArtifactKinds: artifactKinds,
+    };
+  }
+
+  if (mode === 'interaction-trace') {
+    return {
+      id: 'capture-interaction-trace',
+      toolId: 'browser-capture',
+      label: 'Capture interaction trace',
+      detail: 'Mark interactions, cursor targets, and app-state receipt.',
+      expectedArtifactKinds: artifactKinds,
+    };
+  }
+
+  return {
+    id: 'capture-screenshot',
+    toolId: 'browser-capture',
+    label: 'Capture screenshot',
+    detail: 'Save screenshot, cursor targets, and viewport receipt.',
+    expectedArtifactKinds: artifactKinds,
+  };
+}
+
+function outputContractFor(mode: CaptureMode): AgentMotionCaptureOutputContract {
+  return {
+    applyRoute: '/api/motion/capture',
+    artifactKinds: artifactKindsForMode(mode),
+    receiptFields: ['assetUrl', 'viewport', 'cursorTargets', 'provenance'],
+  };
+}
+
+function artifactKindsForMode(mode: CaptureMode): CaptureArtifactKind[] {
+  if (mode === 'screen-recording') return ['recording'];
+  if (mode === 'dom-snapshot') return ['snapshot'];
+  if (mode === 'interaction-trace') return ['trace'];
+  return ['screenshot'];
 }
 
 function stepsFor(mode: CaptureMode, ref: string, setup?: string): CaptureRequest['steps'] {
@@ -295,6 +432,16 @@ function appLaunchFor(
       timeoutMs: 60000,
     },
   };
+}
+
+function uniqueAppLaunches(launches: CaptureAppLaunch[]): CaptureAppLaunch[] {
+  const seen = new Set<string>();
+  return launches.filter((launch) => {
+    const key = `${launch.command}:${launch.cwd ?? ''}:${launch.targetUrl}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function viewportForAspectRatio(aspectRatio: MotionAspectRatio): CaptureViewport {

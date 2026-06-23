@@ -829,6 +829,17 @@ const capturePlan: AgentMotionCapturePlan = {
   preferredPath: 'screenshot-first',
   target: { kind: 'url', ref: 'https://aether.local/demo' },
   providerRequirements: ['browser-capture'],
+  agentRunbook: {
+    primaryToolId: 'browser-capture',
+    fallbackToolIds: ['computer-use'],
+    applyRoute: '/api/motion/capture',
+    setupCommands: [],
+    instructions: [
+      'Open each target in browser capture before using generated or stock visuals.',
+      'Use computer-use capture when auth, native UI, simulator, or gesture state blocks browser capture.',
+    ],
+    reviewArtifactLabels: ['capture receipt', 'cursor targets', 'viewport receipt'],
+  },
   requests: [
     {
       id: 'capture-home-still',
@@ -840,6 +851,26 @@ const capturePlan: AgentMotionCapturePlan = {
         aspectRatio: '9:16',
         viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
         steps: [],
+      },
+      agentInstructions: [
+        {
+          id: 'open-target',
+          toolId: 'browser-capture',
+          label: 'Open target',
+          detail: 'https://aether.local/demo',
+        },
+        {
+          id: 'capture-screenshot',
+          toolId: 'browser-capture',
+          label: 'Capture screenshot',
+          detail: 'Save screenshot, cursor targets, and viewport receipt.',
+          expectedArtifactKinds: ['screenshot'],
+        },
+      ],
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['screenshot'],
+        receiptFields: ['assetUrl', 'viewport', 'cursorTargets', 'provenance'],
       },
       expectedArtifacts: ['screenshot', 'cursor targets', 'viewport receipt'],
       provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
@@ -855,6 +886,26 @@ const capturePlan: AgentMotionCapturePlan = {
         viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
         steps: [],
       },
+      agentInstructions: [
+        {
+          id: 'open-target',
+          toolId: 'browser-capture',
+          label: 'Open target',
+          detail: 'https://aether.local/demo',
+        },
+        {
+          id: 'capture-dom-snapshot',
+          toolId: 'browser-capture',
+          label: 'Capture DOM snapshot',
+          detail: 'Save DOM structure, route metadata, and viewport receipt.',
+          expectedArtifactKinds: ['snapshot'],
+        },
+      ],
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['snapshot'],
+        receiptFields: ['assetUrl', 'viewport', 'cursorTargets', 'provenance'],
+      },
       expectedArtifacts: ['snapshot', 'route metadata', 'viewport receipt'],
       provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
     },
@@ -868,6 +919,26 @@ const capturePlan: AgentMotionCapturePlan = {
         aspectRatio: '9:16',
         viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
         steps: [],
+      },
+      agentInstructions: [
+        {
+          id: 'open-target',
+          toolId: 'browser-capture',
+          label: 'Open target',
+          detail: 'https://aether.local/demo',
+        },
+        {
+          id: 'record-screen',
+          toolId: 'screen-recording',
+          label: 'Record screen',
+          detail: 'Record the product flow with cursor targets and app-state receipt.',
+          expectedArtifactKinds: ['recording'],
+        },
+      ],
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['recording'],
+        receiptFields: ['assetUrl', 'viewport', 'cursorTargets', 'provenance'],
       },
       expectedArtifacts: ['recording', 'cursor targets', 'app-state receipt'],
       provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
