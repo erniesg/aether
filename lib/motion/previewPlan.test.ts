@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildMotionPreviewPlan } from './previewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
+import type { AgentMotionWorkflowRunPlan } from './workflowPlan';
 
 function project() {
   return materializeMotionTimeline(
@@ -75,10 +76,72 @@ function project() {
   );
 }
 
+function reviewRunPlan(): AgentMotionWorkflowRunPlan {
+  return {
+    mode: 'review',
+    status: 'ready',
+    primaryAction: 'request-review',
+    nextStepId: 'step-plan',
+    stepCount: 4,
+    verificationArtifacts: ['contact-sheet', 'mp4-probe', 'provenance-manifest'],
+    steps: [
+      {
+        id: 'step-plan',
+        gateId: 'plan',
+        label: 'Video plan',
+        reviewRequired: true,
+        autoAdvance: false,
+        toolIds: ['motion-brief'],
+        apiRoutes: ['/api/motion/start'],
+        inputSummary: ['accepted sources', 'brief constraints', 'output targets'],
+        expectedArtifacts: ['grounded brief', 'video plan', 'source receipts'],
+        outputSummary: ['grounded brief', 'video plan', 'source receipts'],
+      },
+      {
+        id: 'step-drafts',
+        gateId: 'drafts',
+        label: 'Draft variations',
+        reviewRequired: true,
+        autoAdvance: false,
+        toolIds: ['motion-storyboard'],
+        apiRoutes: ['/api/motion/regenerate'],
+        inputSummary: ['grounded brief', 'video plan', 'source receipts'],
+        expectedArtifacts: ['draft variations', 'story beats', 'component plan'],
+        outputSummary: ['draft variations', 'story beats', 'component plan'],
+      },
+      {
+        id: 'step-capture',
+        gateId: 'capture',
+        label: 'Product capture',
+        reviewRequired: true,
+        autoAdvance: false,
+        toolIds: ['motion-capture'],
+        apiRoutes: ['/api/motion/capture'],
+        inputSummary: ['draft variations', 'story beats', 'component plan'],
+        expectedArtifacts: ['captures', 'cursor targets', 'crop receipts'],
+        outputSummary: ['captures', 'cursor targets', 'crop receipts'],
+      },
+      {
+        id: 'step-render',
+        gateId: 'render',
+        label: 'Render proof',
+        reviewRequired: true,
+        autoAdvance: false,
+        toolIds: ['motion-render'],
+        apiRoutes: ['/api/motion/render'],
+        inputSummary: ['timeline tracks', 'caption clips', 'effect markers'],
+        expectedArtifacts: ['contact sheet', 'poster still', 'mp4 probe'],
+        outputSummary: ['contact sheet', 'poster still', 'mp4 probe'],
+      },
+    ],
+  };
+}
+
 describe('buildMotionPreviewPlan', () => {
   it('shows storyboard, draft variations, editable timeline rows, and regenerate actions', () => {
     const preview = buildMotionPreviewPlan(project(), {
       engines: ['remotion', 'hyperframes', 'provider'],
+      workflowRunPlan: reviewRunPlan(),
       requestedAt: 130,
     });
 
@@ -321,6 +384,32 @@ describe('buildMotionPreviewPlan', () => {
       ['render', 'blocked'],
       ['export', 'blocked'],
     ]);
+    expect(preview.agentRunbook).toMatchObject({
+      mode: 'review',
+      status: 'ready',
+      primaryAction: 'request-review',
+      nextStepId: 'step-plan',
+      nextStepLabel: 'Video plan',
+      stepCount: 4,
+      reviewRequiredCount: 4,
+      autoAdvanceCount: 0,
+      verificationLabels: ['contact sheet', 'mp4 probe', 'provenance manifest'],
+    });
+    expect(preview.agentRunbook?.steps.map((step) => step.label)).toEqual([
+      'Video plan',
+      'Draft variations',
+      'Product capture',
+      'Render proof',
+    ]);
+    expect(preview.agentRunbook?.steps[2]).toMatchObject({
+      stepId: 'step-capture',
+      gateLabel: 'capture',
+      reviewRequired: true,
+      autoAdvance: false,
+      routeLabels: ['/api/motion/capture'],
+      toolLabels: ['motion capture'],
+      artifactLabels: ['captures', 'cursor targets', 'crop receipts'],
+    });
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {

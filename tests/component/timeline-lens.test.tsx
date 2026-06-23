@@ -642,6 +642,79 @@ const previewPlan: MotionPreviewPlan = {
     blockerLabels: [],
     nextActionLabels: ['Generate video clips', 'Review generated clips'],
   },
+  agentRunbook: {
+    mode: 'review',
+    status: 'ready',
+    primaryAction: 'request-review',
+    nextStepId: 'step-plan',
+    nextStepLabel: 'Video plan',
+    stepCount: 5,
+    reviewRequiredCount: 5,
+    autoAdvanceCount: 0,
+    verificationLabels: ['contact sheet', 'mp4 probe', 'provenance manifest'],
+    steps: [
+      {
+        stepId: 'step-plan',
+        gateLabel: 'plan',
+        label: 'Video plan',
+        reviewRequired: true,
+        autoAdvance: false,
+        inputLabels: ['accepted sources', 'brief constraints', 'output targets'],
+        artifactLabels: ['grounded brief', 'video plan', 'source receipts'],
+        outputLabels: ['grounded brief', 'video plan', 'source receipts'],
+        toolLabels: ['motion brief'],
+        routeLabels: ['/api/motion/start'],
+      },
+      {
+        stepId: 'step-drafts',
+        gateLabel: 'drafts',
+        label: 'Draft variations',
+        reviewRequired: true,
+        autoAdvance: false,
+        inputLabels: ['grounded brief', 'video plan', 'source receipts'],
+        artifactLabels: ['draft variations', 'story beats', 'component plan'],
+        outputLabels: ['draft variations', 'story beats', 'component plan'],
+        toolLabels: ['motion storyboard'],
+        routeLabels: ['/api/motion/regenerate'],
+      },
+      {
+        stepId: 'step-capture',
+        gateLabel: 'capture',
+        label: 'Product capture',
+        reviewRequired: true,
+        autoAdvance: false,
+        inputLabels: ['draft variations', 'story beats', 'component plan'],
+        artifactLabels: ['captures', 'cursor targets', 'crop receipts'],
+        outputLabels: ['captures', 'cursor targets', 'crop receipts'],
+        toolLabels: ['motion capture'],
+        routeLabels: ['/api/motion/capture'],
+      },
+      {
+        stepId: 'step-voice',
+        gateLabel: 'voice',
+        label: 'Voice and captions',
+        reviewRequired: true,
+        autoAdvance: false,
+        inputLabels: ['reference requests', 'key still prompts', 'source asset picks'],
+        artifactLabels: ['voice clips', 'word timings'],
+        outputLabels: ['voice clips', 'word timings'],
+        toolLabels: ['motion voice'],
+        routeLabels: ['/api/motion/voice'],
+      },
+      {
+        stepId: 'step-render',
+        gateLabel: 'render',
+        label: 'Render proof',
+        reviewRequired: true,
+        autoAdvance: false,
+        inputLabels: ['timeline tracks', 'caption clips', 'effect markers'],
+        artifactLabels: ['contact sheet', 'poster still', 'mp4 probe'],
+        outputLabels: ['contact sheet', 'poster still', 'mp4 probe'],
+        toolLabels: ['motion render'],
+        routeLabels: ['/api/motion/render'],
+      },
+    ],
+  },
   productionPlan,
   provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
   requestedAt: 130,
@@ -820,6 +893,14 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('Capture product material').length).toBeGreaterThan(0);
     expect(screen.getByText('2/7')).toBeInTheDocument();
     expect(screen.getByText('4 ready')).toBeInTheDocument();
+    expect(screen.getByText('agent plan')).toBeInTheDocument();
+    expect(screen.getByText('5 review gates')).toBeInTheDocument();
+    expect(screen.getAllByText('Video plan').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Draft variations').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Render proof').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('/api/motion/start').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('contact sheet').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('mp4 probe').length).toBeGreaterThan(0);
     expect(screen.getByText('source material')).toBeInTheDocument();
     expect(screen.getByText('aether source material')).toBeInTheDocument();
     expect(screen.getByText('3 captures')).toBeInTheDocument();

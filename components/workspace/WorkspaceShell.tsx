@@ -479,6 +479,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           reviewPlan: buildMotionReviewPlan(project),
           previewPlan: buildMotionPreviewPlan(project, {
             engines: motionStart.workflow.plan.engines,
+            workflowRunPlan: motionStart.workflow.plan.runPlan,
             requestedAt,
           }),
           capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,

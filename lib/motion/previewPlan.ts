@@ -1,5 +1,9 @@
 import type { WorkflowEngine } from '@/lib/workflow/registry';
 import type {
+  AgentMotionWorkflowRunPlan,
+  MotionWorkflowRunStep,
+} from './workflowPlan';
+import type {
   MotionRenderEngine,
   MotionRenderOutputKind,
   MotionRenderRequest,
@@ -281,6 +285,32 @@ export interface MotionPreviewVisualSourcingSummary {
   nextActionLabels: string[];
 }
 
+export interface MotionPreviewAgentRunbookStep {
+  stepId: string;
+  gateLabel: string;
+  label: string;
+  reviewRequired: boolean;
+  autoAdvance: boolean;
+  inputLabels: string[];
+  artifactLabels: string[];
+  outputLabels: string[];
+  toolLabels: string[];
+  routeLabels: string[];
+}
+
+export interface MotionPreviewAgentRunbook {
+  mode: AgentMotionWorkflowRunPlan['mode'];
+  status: AgentMotionWorkflowRunPlan['status'];
+  primaryAction: AgentMotionWorkflowRunPlan['primaryAction'];
+  nextStepId: string | null;
+  nextStepLabel: string | null;
+  stepCount: number;
+  reviewRequiredCount: number;
+  autoAdvanceCount: number;
+  verificationLabels: string[];
+  steps: MotionPreviewAgentRunbookStep[];
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -305,6 +335,7 @@ export interface MotionPreviewPlan {
   referenceGrammar: MotionReferenceGrammarPlan;
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
+  agentRunbook: MotionPreviewAgentRunbook | null;
   productionPlan: MotionProductionPlan;
   provenance: MotionProvenanceRef[];
   requestedAt: number;
@@ -312,6 +343,7 @@ export interface MotionPreviewPlan {
 
 export interface BuildMotionPreviewPlanOptions {
   engines?: WorkflowEngine[];
+  workflowRunPlan?: AgentMotionWorkflowRunPlan;
   fps?: number;
   requestedAt: number;
 }
@@ -401,12 +433,50 @@ export function buildMotionPreviewPlan(
     referenceGrammar,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
+    agentRunbook: buildAgentRunbook(options.workflowRunPlan),
     productionPlan,
     provenance: uniqueProvenance([
       ...project.sourceRefs,
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),
     ]),
     requestedAt: options.requestedAt,
+  };
+}
+
+function buildAgentRunbook(
+  runPlan: AgentMotionWorkflowRunPlan | undefined
+): MotionPreviewAgentRunbook | null {
+  if (!runPlan) return null;
+
+  const steps = runPlan.steps.map(agentRunbookStep);
+  const nextStep = steps.find((step) => step.stepId === runPlan.nextStepId) ?? null;
+
+  return {
+    mode: runPlan.mode,
+    status: runPlan.status,
+    primaryAction: runPlan.primaryAction,
+    nextStepId: runPlan.nextStepId,
+    nextStepLabel: nextStep?.label ?? null,
+    stepCount: runPlan.stepCount,
+    reviewRequiredCount: steps.filter((step) => step.reviewRequired).length,
+    autoAdvanceCount: steps.filter((step) => step.autoAdvance).length,
+    verificationLabels: runPlan.verificationArtifacts.map(readableLabel),
+    steps,
+  };
+}
+
+function agentRunbookStep(step: MotionWorkflowRunStep): MotionPreviewAgentRunbookStep {
+  return {
+    stepId: step.id,
+    gateLabel: readableLabel(step.gateId),
+    label: step.label,
+    reviewRequired: step.reviewRequired,
+    autoAdvance: step.autoAdvance,
+    inputLabels: step.inputSummary,
+    artifactLabels: step.expectedArtifacts,
+    outputLabels: step.outputSummary,
+    toolLabels: step.toolIds.map(readableLabel),
+    routeLabels: step.apiRoutes,
   };
 }
 
@@ -743,7 +813,11 @@ function findTimelineClipById(
 function syncRequirementLabel(requirement: string): string {
   if (requirement === 'voice-synthesis') return 'voice';
   if (requirement === 'word-timing-alignment') return 'word timings';
-  return requirement.replace(/-/g, ' ');
+  return readableLabel(requirement);
+}
+
+function readableLabel(value: string): string {
+  return value.replace(/[-_]/g, ' ');
 }
 
 function buildEnginePreview(

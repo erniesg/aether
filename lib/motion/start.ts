@@ -294,6 +294,7 @@ function readyResult(
     reviewPlan: buildMotionReviewPlan(project),
     previewPlan: buildMotionPreviewPlan(project, {
       engines: workflow.plan.engines,
+      workflowRunPlan: workflow.plan.runPlan,
       requestedAt,
     }),
     capturePlan: capturePlanFor(project),

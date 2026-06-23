@@ -317,6 +317,58 @@ describe('startAgentMotionWorkflow', () => {
     expect(result.previewPlan).toMatchObject({
       projectId: 'motion-tong-launch',
       primaryAction: 'request-review',
+      agentRunbook: {
+        mode: 'review',
+        primaryAction: 'request-review',
+        nextStepId: 'step-plan',
+        nextStepLabel: 'Video plan',
+        reviewRequiredCount: 8,
+        autoAdvanceCount: 0,
+        steps: [
+          expect.objectContaining({
+            stepId: 'step-plan',
+            label: 'Video plan',
+            reviewRequired: true,
+            autoAdvance: false,
+            routeLabels: ['/api/motion/start'],
+          }),
+          expect.objectContaining({
+            stepId: 'step-drafts',
+            label: 'Draft variations',
+            artifactLabels: ['draft variations', 'story beats', 'component plan'],
+          }),
+          expect.objectContaining({
+            stepId: 'step-capture',
+            label: 'Product capture',
+            routeLabels: ['/api/motion/capture'],
+          }),
+          expect.objectContaining({
+            stepId: 'step-visuals',
+            label: 'Visual sources',
+            routeLabels: ['/api/motion/visuals'],
+          }),
+          expect.objectContaining({
+            stepId: 'step-voice',
+            label: 'Voice and captions',
+            routeLabels: ['/api/motion/voice'],
+          }),
+          expect.objectContaining({
+            stepId: 'step-timeline',
+            label: 'Timeline sync',
+            routeLabels: ['/api/motion/sync', '/api/motion/revise'],
+          }),
+          expect.objectContaining({
+            stepId: 'step-render',
+            label: 'Render proof',
+            routeLabels: ['/api/motion/render'],
+          }),
+          expect.objectContaining({
+            stepId: 'step-export',
+            label: 'Export pack',
+            routeLabels: ['/api/motion/export-pack'],
+          }),
+        ],
+      },
       enginePreviews: [
         { engine: 'remotion', status: 'ready' },
         { engine: 'hyperframes', status: 'ready' },

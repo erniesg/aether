@@ -21,6 +21,7 @@ import type {
 import { motionSeconds } from '@/lib/motion/project';
 import type {
   MotionPreviewEnginePlan,
+  MotionPreviewAgentRunbook,
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
@@ -331,6 +332,12 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
+      {previewPlan.agentRunbook ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionAgentPlanStrip runbook={previewPlan.agentRunbook} />
+        </section>
+      ) : null}
+
       <section className="border-b border-border-soft px-4 py-3">
         <MotionProductionQueueStrip plan={previewPlan.productionPlan} />
       </section>
@@ -483,6 +490,88 @@ function MotionPreviewPlanView({
           {actionStatus}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MotionAgentPlanStrip({
+  runbook,
+}: {
+  runbook: MotionPreviewAgentRunbook;
+}) {
+  const nextStep = runbook.steps.find((step) => step.stepId === runbook.nextStepId);
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            agent plan
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {runbook.nextStepLabel ?? 'ready for export'}
+          </div>
+        </div>
+        <Chip tone={runbook.mode === 'full-auto' ? 'ok' : 'info'} size="sm">
+          {runbook.mode === 'full-auto'
+            ? `${runbook.autoAdvanceCount} auto steps`
+            : `${runbook.reviewRequiredCount} review gates`}
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="grid gap-1.5">
+            {runbook.steps.map((step) => (
+              <MotionAgentPlanStepRow
+                key={step.stepId}
+                step={step}
+                isNext={step.stepId === runbook.nextStepId}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">
+            {runbook.mode === 'full-auto' ? 'full auto' : 'review'} gates
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {runbook.verificationLabels.slice(0, 4).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+          {nextStep ? (
+            <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {nextStep.routeLabels.join(' / ')}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionAgentPlanStepRow({
+  step,
+  isNext,
+}: {
+  step: MotionPreviewAgentRunbook['steps'][number];
+  isNext: boolean;
+}) {
+  const chipLabel = isNext ? 'next' : step.autoAdvance ? 'auto' : step.reviewRequired ? 'review' : 'ready';
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_74px] items-center gap-2">
+      <div className="min-w-0">
+        <div className="truncate font-caption text-xs text-ink">{step.label}</div>
+        <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+          {isNext ? step.routeLabels.join(' / ') : step.artifactLabels.slice(0, 2).join(' / ')}
+        </div>
+      </div>
+      <Chip tone={isNext ? 'info' : step.autoAdvance ? 'ok' : 'neutral'} size="sm">
+        {chipLabel}
+      </Chip>
     </div>
   );
 }
