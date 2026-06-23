@@ -34,7 +34,30 @@ describe('GET /api/motion/workflows', () => {
         acceptedShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
         defaultMode: 'review',
       },
-      examples: [],
+      examples: [
+        expect.objectContaining({
+          id: 'repo-app-launch-video',
+          label: 'Repo app launch',
+          reusableComponentIds: [
+            'hook-card',
+            'proof-card',
+            'app-frame',
+            'agent-trace',
+            'cta-card',
+          ],
+          editSurfaces: [
+            'script',
+            'capture',
+            'visual',
+            'image-to-video',
+            'component',
+            'voice',
+            'timing',
+            'effect',
+            'export',
+          ],
+        }),
+      ],
       skillContract: {
         runModes: ['review', 'full-auto'],
         reviewArtifacts: [

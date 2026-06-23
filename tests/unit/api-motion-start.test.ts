@@ -86,7 +86,13 @@ describe('POST /api/motion/start', () => {
         projectId: 'motion-tong-launch',
         primaryAction: 'request-review',
       },
-      examples: [],
+      examples: [
+        expect.objectContaining({
+          id: 'repo-app-launch-video',
+          label: 'Repo app launch',
+          editSurfaces: expect.arrayContaining(['capture', 'image-to-video', 'export']),
+        }),
+      ],
       previewPlan: {
         projectId: 'motion-tong-launch',
         title: 'tong launch video',

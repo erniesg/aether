@@ -79,7 +79,13 @@ describe('startAgentMotionWorkflow', () => {
       primaryAction: 'request-review',
       engines: ['hyperframes'],
     });
-    expect(result.examples).toEqual([]);
+    expect(result.examples).toEqual([
+      expect.objectContaining({
+        id: 'repo-app-launch-video',
+        label: 'Repo app launch',
+        editSurfaces: expect.arrayContaining(['capture', 'image-to-video', 'export']),
+      }),
+    ]);
     expect(result.project).toMatchObject({
       id: 'motion-aether-launch',
       title: 'aether launch video',

@@ -2,6 +2,53 @@ import { describe, expect, it } from 'vitest';
 import { listMotionWorkflowExamples } from './workflowExamples';
 
 describe('listMotionWorkflowExamples', () => {
+  it('keeps the repo app launch pattern attached to repo launch videos', () => {
+    const examples = listMotionWorkflowExamples('repo-launch-video');
+
+    expect(examples).toHaveLength(1);
+    expect(examples[0]).toMatchObject({
+      id: 'repo-app-launch-video',
+      workflowId: 'repo-launch-video',
+      label: 'Repo app launch',
+      sourceKinds: ['repo', 'site', 'capture', 'reference'],
+      suggestedMode: 'review',
+      platformTargets: ['x 9:16 30s', 'linkedin 4:5 45s', 'website 16:9 60s'],
+      storyRoles: ['hook', 'problem', 'proof', 'demo', 'payoff', 'cta'],
+      reusableComponentIds: ['hook-card', 'proof-card', 'app-frame', 'agent-trace', 'cta-card'],
+      editSurfaces: [
+        'script',
+        'capture',
+        'visual',
+        'image-to-video',
+        'component',
+        'voice',
+        'timing',
+        'effect',
+        'export',
+      ],
+    });
+    expect(examples[0].beatPrompts).toContain(
+      'Use captured app frames or generated visual inserts for the product flow.'
+    );
+  });
+
+  it('keeps the feature social pattern attached to feature/social videos', () => {
+    const examples = listMotionWorkflowExamples('feature-social-video');
+
+    expect(examples).toEqual([
+      expect.objectContaining({
+        id: 'feature-social-cut',
+        workflowId: 'feature-social-video',
+        label: 'Feature social cut',
+        storyRoles: ['hook', 'demo', 'proof', 'payoff', 'cta'],
+        editSurfaces: expect.arrayContaining(['capture', 'image-to-video', 'timing']),
+      }),
+    ]);
+    expect(examples[0].sampleCopyLines).toContain(
+      'Export the square, vertical, and feed cuts from one editable timeline.'
+    );
+  });
+
   it('keeps the daily skill launch pattern attached to PR-to-video', () => {
     const examples = listMotionWorkflowExamples('pr-to-video');
 
@@ -32,12 +79,12 @@ describe('listMotionWorkflowExamples', () => {
   });
 
   it('returns isolated copies so callers can edit local drafts safely', () => {
-    const [first] = listMotionWorkflowExamples('pr-to-video');
+    const [first] = listMotionWorkflowExamples('repo-launch-video');
     first.sampleCopyLines[0] = 'changed locally';
 
-    const [second] = listMotionWorkflowExamples('pr-to-video');
+    const [second] = listMotionWorkflowExamples('repo-launch-video');
     expect(second.sampleCopyLines[0]).toBe(
-      "This week we're launching new skills for HyperFrames, each built around a workflow."
+      'Point Aether at the repo.'
     );
   });
 });
