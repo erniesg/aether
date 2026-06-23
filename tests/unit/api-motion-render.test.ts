@@ -101,6 +101,10 @@ describe('POST /api/motion/render', () => {
     ]);
     expect(json.request.sourceFiles.map((file: { path: string }) => file.path)).toEqual([
       'remotion/index.tsx',
+      'DESIGN.md',
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline/draft-primary.json',
       'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
     ]);
   });
@@ -157,6 +161,10 @@ describe('POST /api/motion/render', () => {
         engine: 'remotion',
         sourceFiles: [
           { path: 'remotion/index.tsx' },
+          { path: 'DESIGN.md' },
+          { path: 'SCRIPT.md' },
+          { path: 'STORYBOARD.md' },
+          { path: 'timeline/draft-primary.json' },
           {
             path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
           },

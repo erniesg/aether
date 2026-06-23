@@ -352,6 +352,26 @@ describe('buildMotionPreviewPlan', () => {
         mimeType: 'text/typescript',
       },
       {
+        kind: 'design',
+        path: 'DESIGN.md',
+        mimeType: 'text/markdown',
+      },
+      {
+        kind: 'script',
+        path: 'SCRIPT.md',
+        mimeType: 'text/markdown',
+      },
+      {
+        kind: 'storyboard',
+        path: 'STORYBOARD.md',
+        mimeType: 'text/markdown',
+      },
+      {
+        kind: 'timeline',
+        path: 'timeline/draft-primary.json',
+        mimeType: 'application/json',
+      },
+      {
         kind: 'manifest',
         path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
         mimeType: 'application/json',

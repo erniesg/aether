@@ -69,6 +69,10 @@ describe('executeMotionRender', () => {
     ]);
     expect(renderedRequest.sourceFiles?.map((file) => file.path)).toEqual([
       'remotion/index.tsx',
+      'DESIGN.md',
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline/draft-primary.json',
       'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
     ]);
     expect(renderedRequest.sourceFiles?.[0]?.contents).toContain('registerRoot(RemotionRoot)');

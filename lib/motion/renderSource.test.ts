@@ -105,6 +105,10 @@ describe('buildMotionRenderSourceBundle', () => {
     });
     expect(bundle.files.map((file) => [file.kind, file.path])).toEqual([
       ['entry', 'remotion/index.tsx'],
+      ['design', 'DESIGN.md'],
+      ['script', 'SCRIPT.md'],
+      ['storyboard', 'STORYBOARD.md'],
+      ['timeline', 'timeline/draft-primary.json'],
       ['manifest', 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json'],
     ]);
 
@@ -158,6 +162,38 @@ describe('buildMotionRenderSourceBundle', () => {
       'caption-pop',
       'proof-pulse',
     ]);
+    expect(manifest.sourceFiles.map((file: { kind: string }) => file.kind)).toEqual([
+      'entry',
+      'design',
+      'script',
+      'storyboard',
+      'timeline',
+    ]);
+    const design = bundle.files.find((file) => file.kind === 'design')?.contents ?? '';
+    expect(design).toContain('# aether Motion Design');
+    expect(design).toContain('Palette');
+    expect(design).toContain('Next.js, Convex, tldraw');
+    const script = bundle.files.find((file) => file.kind === 'script')?.contents ?? '';
+    expect(script).toContain('# aether Script');
+    expect(script).toContain('## beat-hook');
+    expect(script).toContain('Canvas-native creative system.');
+    const storyboard = bundle.files.find((file) => file.kind === 'storyboard')?.contents ?? '';
+    expect(storyboard).toContain('# aether Storyboard');
+    expect(storyboard).toContain('Template: hook-card');
+    expect(storyboard).toContain('Motion: proof-pulse');
+    const timeline = JSON.parse(
+      bundle.files.find((file) => file.kind === 'timeline')?.contents ?? '{}'
+    );
+    expect(timeline).toMatchObject({
+      projectId: 'motion-aether-launch',
+      draftId: 'draft-primary',
+      engine: 'remotion',
+    });
+    expect(timeline.tracks[0].clips[0]).toMatchObject({
+      id: 'clip-beat-hook-text',
+      startFrame: 0,
+      durationFrames: 90,
+    });
     expect(bundle.provenance).toContainEqual({ kind: 'render', ref: request.id });
   });
 
@@ -173,6 +209,10 @@ describe('buildMotionRenderSourceBundle', () => {
     });
     expect(bundle.files.map((file) => [file.kind, file.path])).toEqual([
       ['entry', 'index.html'],
+      ['design', 'DESIGN.md'],
+      ['script', 'SCRIPT.md'],
+      ['storyboard', 'STORYBOARD.md'],
+      ['timeline', 'timeline/draft-primary.json'],
       ['manifest', 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.source-manifest.json'],
     ]);
 

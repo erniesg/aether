@@ -6,6 +6,7 @@ import type {
 import type {
   MotionProject,
   MotionProvenanceRef,
+  StoryBeat,
   TimelineClip,
   TimelineTrack,
 } from './project';
@@ -65,11 +66,40 @@ export function buildMotionRenderSourceBundle(
         : hyperframesIndexSource(project, request),
     provenance,
   };
+  const designFile: MotionRenderSourceFile = {
+    kind: 'design',
+    path: 'DESIGN.md',
+    mimeType: 'text/markdown',
+    contents: designMarkdown(project, request),
+    provenance,
+  };
+  const scriptFile: MotionRenderSourceFile = {
+    kind: 'script',
+    path: 'SCRIPT.md',
+    mimeType: 'text/markdown',
+    contents: scriptMarkdown(project, request),
+    provenance,
+  };
+  const storyboardFile: MotionRenderSourceFile = {
+    kind: 'storyboard',
+    path: 'STORYBOARD.md',
+    mimeType: 'text/markdown',
+    contents: storyboardMarkdown(project, request),
+    provenance,
+  };
+  const timelineFile: MotionRenderSourceFile = {
+    kind: 'timeline',
+    path: timelineArtifactPath(request),
+    mimeType: 'application/json',
+    contents: timelineArtifactJson(project, request),
+    provenance,
+  };
+  const sourceFiles = [entryFile, designFile, scriptFile, storyboardFile, timelineFile];
   const manifestFile: MotionRenderSourceFile = {
     kind: 'manifest',
     path: sourceManifestPath(request),
     mimeType: 'application/json',
-    contents: sourceManifestJson(project, request, entryPoint, [entryFile], provenance),
+    contents: sourceManifestJson(project, request, entryPoint, sourceFiles, provenance),
     provenance,
   };
 
@@ -79,9 +109,182 @@ export function buildMotionRenderSourceBundle(
     draftId: request.draftId,
     engine: request.engine,
     entryPoint,
-    files: [entryFile, manifestFile],
+    files: [...sourceFiles, manifestFile],
     provenance,
   };
+}
+
+function designMarkdown(project: MotionProject, request: MotionRenderRequest): string {
+  const app = project.brief.appProfile;
+  const brand = project.brief.brandMotion;
+  const targets = project.brief.platformTargets.map(
+    (target) => `${target.platform} ${target.aspectRatio} ${formatSeconds(target.seconds)}s`
+  );
+  const sourceProfile = project.sourceProfile
+    ? `${project.sourceProfile.label}: ${project.sourceProfile.summary}`
+    : 'No source profile attached.';
+
+  return markdown([
+    `# ${app.name} Motion Design`,
+    '',
+    `Project: ${project.title}`,
+    `Kind: ${project.brief.projectKind}`,
+    `Audience: ${project.brief.audience}`,
+    `Tone: ${project.brief.tone}`,
+    `Workflow mode: ${project.workflowMode}`,
+    `Render engine: ${request.engine}`,
+    `Composition: ${request.compositionId}`,
+    '',
+    '## Product',
+    '',
+    app.summary,
+    '',
+    `Stack: ${app.stack.length > 0 ? app.stack.join(', ') : 'unspecified'}`,
+    app.repoUrl ? `Repo: ${app.repoUrl}` : '',
+    app.siteUrl ? `Site: ${app.siteUrl}` : '',
+    '',
+    '## Source Profile',
+    '',
+    sourceProfile,
+    '',
+    '## Brand Motion',
+    '',
+    `Palette: ${brand.palette.join(', ')}`,
+    `Fonts: ${brand.fontFamilies.join(', ')}`,
+    `Motion style: ${brand.motionStyle}`,
+    `Effect tokens: entrance=${RENDER_EFFECT_TOKENS.entrance}, transition=${RENDER_EFFECT_TOKENS.transition}, caption=${RENDER_EFFECT_TOKENS.caption}`,
+    '',
+    '## Targets',
+    '',
+    ...listLines(targets),
+    '',
+    '## Guardrails',
+    '',
+    '- Keep the primary artifact visible before explaining internals.',
+    '- Preserve provenance for claims, captures, generated video, voice, and edits.',
+    '- Keep reusable components editable instead of baking decisions into a single video file.',
+    '- Use the timeline JSON for timing and SCRIPT.md for narration changes.',
+  ]);
+}
+
+function scriptMarkdown(project: MotionProject, request: MotionRenderRequest): string {
+  const app = project.brief.appProfile;
+  const story = storyForRequest(project, request);
+  const lines = [
+    `# ${app.name} Script`,
+    '',
+    `Draft: ${request.draftId}`,
+    `Duration: ${formatSeconds(request.durationFrames / request.fps)}s`,
+    '',
+  ];
+
+  for (const beat of story) {
+    lines.push(
+      `## ${beat.id}`,
+      '',
+      `Role: ${beat.role}`,
+      `Target seconds: ${formatSeconds(beat.targetSeconds)}`,
+      `Template: ${beat.templateId ?? 'unspecified'}`,
+      `Provenance: ${formatProvenance(beat.provenance)}`,
+      '',
+      beat.narration,
+      ''
+    );
+  }
+
+  return markdown(lines);
+}
+
+function storyboardMarkdown(project: MotionProject, request: MotionRenderRequest): string {
+  const app = project.brief.appProfile;
+  const story = storyForRequest(project, request);
+  const lines = [
+    `# ${app.name} Storyboard`,
+    '',
+    `Draft: ${request.draftId}`,
+    `Composition: ${request.compositionId}`,
+    '',
+  ];
+
+  for (const beat of story) {
+    const match = clipForBeat(request.tracks, beat.id);
+    const clip = match?.clip;
+    const effectPreset = motionEffectPresetOrDefault(clip?.props.effectPreset);
+    const startFrame = clip?.startFrame ?? 0;
+    const durationFrames = clip?.durationFrames ?? Math.round(beat.targetSeconds * request.fps);
+
+    lines.push(
+      `## ${beat.id}`,
+      '',
+      `Role: ${beat.role}`,
+      `Track: ${match?.track.id ?? 'unmaterialized'}`,
+      `Clip: ${clip?.id ?? 'unmaterialized'}`,
+      `Template: ${clip?.componentId ?? beat.templateId ?? 'proof-card'}`,
+      `Motion: ${effectPreset.id}`,
+      `Start: ${formatSeconds(startFrame / request.fps)}s`,
+      `Duration: ${formatSeconds(durationFrames / request.fps)}s`,
+      `Assets: ${clip?.assetId ?? (beat.selectedAssetIds.join(', ') || 'none')}`,
+      `Narration: ${beat.narration}`,
+      `Provenance: ${formatProvenance(clip?.provenance ?? beat.provenance)}`,
+      ''
+    );
+  }
+
+  return markdown(lines);
+}
+
+function timelineArtifactJson(project: MotionProject, request: MotionRenderRequest): string {
+  return stableJson({
+    projectId: request.projectId,
+    draftId: request.draftId,
+    engine: request.engine,
+    compositionId: request.compositionId,
+    fps: request.fps,
+    durationFrames: request.durationFrames,
+    durationSeconds: request.durationFrames / request.fps,
+    title: project.title,
+    workflowMode: project.workflowMode,
+    tracks: request.tracks,
+    outputs: request.outputs.map((output) => ({
+      id: output.id,
+      kind: output.kind,
+      path: output.path,
+      platform: output.platform,
+      aspectRatio: output.aspectRatio,
+      width: output.width,
+      height: output.height,
+      mimeType: output.mimeType,
+    })),
+    componentIds: componentIdsForTracks(request.tracks),
+    effectPresets: MOTION_EFFECT_PRESETS.map((preset) => ({
+      id: preset.id,
+      label: preset.label,
+      summary: preset.summary,
+    })),
+    provenance: request.provenance,
+  });
+}
+
+function storyForRequest(project: MotionProject, request: MotionRenderRequest): StoryBeat[] {
+  return project.drafts.find((draft) => draft.id === request.draftId)?.story ?? project.story;
+}
+
+function clipForBeat(
+  tracks: TimelineTrack[],
+  beatId: string
+): { track: TimelineTrack; clip: TimelineClip } | undefined {
+  for (const track of tracks) {
+    const clip = track.clips.find((candidate) =>
+      candidate.provenance.some((ref) => ref.kind === 'story-beat' && ref.ref === beatId)
+    );
+    if (clip) return { track, clip };
+  }
+
+  return undefined;
+}
+
+function timelineArtifactPath(request: MotionRenderRequest): string {
+  return `timeline/${request.draftId}.json`;
 }
 
 function remotionEntrySource(project: MotionProject, request: MotionRenderRequest): string {
@@ -808,9 +1011,15 @@ function sourceManifestJson(
   project: MotionProject,
   request: MotionRenderRequest,
   entryPoint: string,
-  files: MotionRenderSourceFile[],
+  sourceFiles: MotionRenderSourceFile[],
   provenance: MotionProvenanceRef[]
 ): string {
+  const sourceFileSummaries = sourceFiles.map((file) => ({
+    kind: file.kind,
+    path: file.path,
+    mimeType: file.mimeType,
+  }));
+
   return stableJson({
     requestId: request.id,
     projectId: request.projectId,
@@ -830,11 +1039,8 @@ function sourceManifestJson(
       summary: preset.summary,
     })),
     outputIds: request.outputs.map((output) => output.id),
-    files: files.map((file) => ({
-      kind: file.kind,
-      path: file.path,
-      mimeType: file.mimeType,
-    })),
+    sourceFiles: sourceFileSummaries,
+    files: sourceFileSummaries,
     provenance,
   });
 }
@@ -885,6 +1091,22 @@ function componentIdsForTracks(tracks: TimelineTrack[]): string[] {
 
 function stringProp(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function formatProvenance(provenance: MotionProvenanceRef[]): string {
+  if (provenance.length === 0) return 'none';
+
+  return provenance
+    .map((ref) => `${ref.kind}:${ref.ref}${ref.label ? ` (${ref.label})` : ''}`)
+    .join(', ');
+}
+
+function listLines(values: string[]): string[] {
+  return values.length > 0 ? values.map((value) => `- ${value}`) : ['- none'];
+}
+
+function markdown(lines: string[]): string {
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
 function stableJson(value: unknown): string {

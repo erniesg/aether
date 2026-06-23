@@ -59,7 +59,13 @@ export interface MotionRenderOutput {
   provenance: MotionProvenanceRef[];
 }
 
-export type MotionRenderSourceFileKind = 'entry' | 'manifest';
+export type MotionRenderSourceFileKind =
+  | 'entry'
+  | 'design'
+  | 'script'
+  | 'storyboard'
+  | 'timeline'
+  | 'manifest';
 
 export interface MotionRenderSourceFile {
   kind: MotionRenderSourceFileKind;
