@@ -225,6 +225,32 @@
 - Sync planning that turns editable timeline tracks into beat markers,
   caption/voice timing links, transition cues, sound cues, provider
   requirements, and blockers until voice and word-timing receipts exist.
+- Editable render source contracts that add `EDIT.md` and manifest
+  `editContract` metadata to Remotion and HyperFrames source bundles, so agents
+  can target individual clips, controls, source files, and regeneration scopes
+  after a render handoff.
+- 2026-06-24 second reference pass folded into the spec: HyperFrames launch
+  videos and pipeline docs reinforce capture/design/script/storyboard/voice/
+  build/validate artifacts; the catalog informs provider-neutral component
+  classes; timeline editing must remain source-backed; and the user's
+  `pr-to-video` daily skill launch copy is represented as a workflow example
+  rather than as renderer copy.
+
+## Next Slices
+
+1. Surface `EDIT.md` and `editContract` in `MotionPreviewPlan` and the timeline
+   lens as the reviewable edit source for script, props, timing, effects, and
+   scoped regeneration.
+2. Add `pr-to-video` launch-kit review objects for daily skill drops: install
+   command, social copy, PR evidence, teaser targets, and export pack.
+3. Expand the provider-neutral component registry to cover HyperFrames catalog
+   classes: code animation, terminal, caption, social overlay, shader/CSS
+   transition, HTML-in-canvas UI reveal, data visual, effect, and outro.
+4. Add source-bundle round-trip import so edited `SCRIPT.md`, `STORYBOARD.md`,
+   timeline JSON, and `EDIT.md` can apply structured revisions back into the
+   graph-backed `MotionProject`.
+5. Wire opt-in capture and render verification receipts into saved full-auto
+   execution before making the workflow feel "one click."
 
 ## Verification Commands
 

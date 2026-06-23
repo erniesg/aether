@@ -48,6 +48,93 @@ Clueso, and Descript.
   add voice/captions/zoom effects, keep outputs editable, and export/share in
   multiple formats.
 
+## Reference refresh: 2026-06-24, second pass
+
+- HyperFrames positions itself as HTML, CSS, media, and seekable animations
+  rendered into deterministic MP4, with AI skills that plan, write HTML, wire
+  animations, add media, lint, preview, and render. Aether should keep
+  Remotion and HyperFrames as engine adapters over the same `MotionProject`,
+  not as separate product modes.
+- The HyperFrames showcase and launch-video docs are a strong reference for
+  Aether's source artifact layout: capture assets, `DESIGN.md`, `SCRIPT.md`,
+  `STORYBOARD.md`, voice/timing receipts, beat compositions, snapshots, renders,
+  and a source handoff. Aether now mirrors the editable parts through
+  render-source bundles and should expose those bundle artifacts inside the
+  timeline lens.
+- The HyperFrames catalog gives the concrete component taxonomy Aether should
+  grow toward: code diff/highlight/scroll/typing blocks, caption styles, social
+  overlays, shader and CSS transitions, HTML-in-canvas device/UI reveals,
+  terminal/code snippets, data visuals, grain/vignette/shimmer/parallax effects,
+  and logo/outro blocks. Aether should map these to provider-neutral component
+  ids first, then let HyperFrames/Remotion adapters render them.
+- HyperFrames timeline editing deliberately writes back to inspectable source
+  attributes such as `data-start`, `data-duration`, `data-track-index`, and
+  media offsets. Aether should keep timeline edits graph-backed and versionable:
+  each edit must update `MotionProject` plus source/edit manifests, rather than
+  creating hidden editor state.
+- The launch copy the user pasted belongs in the reusable workflow example
+  layer, not hardcoded in a renderer:
+  "This week we're launching new skills for HyperFrames..." maps to
+  `daily-skill-launch-pr-to-video`, with source kind `pr`, components
+  `hook-card`, `agent-trace`, `proof-card`, `command-card`, captions, and CTA.
+
+## Architecture decision
+
+Aether should ship workflow skills, not one giant "video generator." The unit
+of reuse is a narrow, installable, agent-native workflow such as
+`pr-to-video`, `repo-launch-video`, `feature-social-video`, `website-to-video`,
+`caption-overlay-video`, or `remotion-hyperframes-port`. Each workflow skill
+must define:
+
+- accepted source refs and shorthands: repo URL/path, PR ref, site/app URL,
+  captures, uploads, and references
+- review artifacts: video plan, draft variations, storyboard, timeline,
+  component plan, render proof, export pack
+- full-auto policy: which gates may auto-advance after receipts are saved and
+  which require provider setup, capture proof, or creator approval
+- regeneration targets: story beat, component, capture, code proof, visual,
+  caption, voice line, timing, effect, format, and whole video
+- source artifacts: `DESIGN.md`, `SCRIPT.md`, `STORYBOARD.md`, timeline JSON,
+  engine source, `EDIT.md`, manifest, snapshots, subtitles, transcript, and
+  provenance manifest
+- verification loop: lint/typecheck when source is generated, frame snapshots
+  or contact sheets, MP4 probe, poster check, subtitle/transcript presence, and
+  manifest completeness
+
+The creator sees this as one timeline/canvas lens with a video plan, draft
+cards, editable components, source material, generation nodes, render proof, and
+export pack. The agent sees the same object as JSON contracts and source files.
+Graph and node views remain progressive disclosure for advanced image-to-video,
+capture, render, and provenance debugging.
+
+## Remaining implementation plan
+
+1. **Expose edit contracts in review mode.** Surface the new `EDIT.md` and
+   `editContract` in `MotionPreviewPlan` and the timeline lens as an "edit
+   source" artifact: script changes, component props, timing/effects, and
+   regenerate scopes per clip.
+2. **Add workflow-skill launch packaging.** Let `pr-to-video` and future daily
+   skill drops produce a reviewable launch-kit object: sample social copy,
+   install command, teaser format, source PR evidence, and export targets.
+3. **Map HyperFrames catalog primitives.** Extend `componentRegistry` and
+   reference patterns for code animation, terminal, caption, social overlay,
+   shader transition, device/UI reveal, data visual, and logo/outro classes.
+   Keep the ids provider-neutral and let engine adapters decide exact source.
+4. **Add source-bundle import/export.** Allow an agent to round-trip a rendered
+   source bundle: edit `SCRIPT.md`, `STORYBOARD.md`, timeline JSON, or
+   `EDIT.md`, then apply structured revisions back into `MotionProject`.
+5. **Provider-backed capture execution.** Wire opt-in Playwright/browser
+   capture through a trusted agent runner so repo/app starts can launch local
+   apps, take screenshots, record flows, save DOM/trace receipts, and feed
+   `app-frame` clips.
+6. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
+   metadata, poster proof, subtitles, transcripts, and manifest checks as first
+   class graph nodes before export.
+7. **Full-auto orchestration.** Add a saved run executor that advances through
+   ready gates, pauses on missing provider/capture/approval, and writes every
+   artifact receipt back to the same project instead of returning a transient
+   route response.
+
 ## Existing aether foundation
 
 - `docs/DESIGN-SOCIAL-CANVAS.md` already defines video as material from the
