@@ -149,6 +149,13 @@ describe('buildMotionPreviewPlan', () => {
       missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
       blockerLabels: ['Render every export target before packaging'],
     });
+    expect(preview.visualGenerationSummary).toMatchObject({
+      status: 'needs-visual-source',
+      requestCount: 0,
+      providerRequirementLabels: ['image to video'],
+      blockerLabels: ['Capture or generate a key visual before image-to-video'],
+      nextActionLabels: [],
+    });
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {

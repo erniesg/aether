@@ -249,6 +249,24 @@ const previewPlan: MotionPreviewPlan = {
     missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
     blockerLabels: ['Render every export target before packaging'],
   },
+  visualGenerationSummary: {
+    status: 'ready',
+    requestCount: 1,
+    providerRequirementLabels: ['image to video'],
+    requestLabels: ['App frame 6s'],
+    requests: [
+      {
+        requestId: 'image-to-video-clip-beat-demo-text',
+        clipId: 'clip-beat-demo-text',
+        componentLabel: 'App frame',
+        durationSeconds: 6,
+        prompt: 'Animate the captured aether canvas as a short product insert.',
+        outputLabel: '9:16 1080x1920',
+      },
+    ],
+    blockerLabels: [],
+    nextActionLabels: ['Generate video clips', 'Review generated clips'],
+  },
   provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
   requestedAt: 130,
 };
@@ -397,6 +415,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText('needs render')).toBeInTheDocument();
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
     expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();
+    expect(screen.getAllByText('visual generation').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 clip request')).toBeInTheDocument();
+    expect(screen.getByText('Animate the captured aether canvas as a short product insert.')).toBeInTheDocument();
+    expect(screen.getByText('9:16 1080x1920')).toBeInTheDocument();
     expect(screen.getByText('graph')).toBeInTheDocument();
     expect(screen.getByText('script')).toBeInTheDocument();
     expect(screen.getByText('image to video')).toBeInTheDocument();
@@ -412,6 +434,7 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
     expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
     expect(screen.queryByText('node-image-to-video-plan')).not.toBeInTheDocument();
+    expect(screen.queryByText('image-to-video-clip-beat-demo-text')).not.toBeInTheDocument();
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
@@ -559,8 +582,35 @@ describe('TimelineLens', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: /generate clips/i }));
+    await userEvent.click(screen.getAllByRole('button', { name: /generate clips/i })[0]);
     expect(onGenerateVideoClips).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows visual-source blockers before image-to-video generation is possible', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          visualGenerationSummary: {
+            status: 'needs-visual-source',
+            requestCount: 0,
+            providerRequirementLabels: ['image to video'],
+            requestLabels: [],
+            requests: [],
+            blockerLabels: ['Capture or generate a key visual before image-to-video'],
+            nextActionLabels: [],
+          },
+        }}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onGenerateVideoClips={() => {}}
+      />
+    );
+
+    expect(screen.getAllByText('needs visual source').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Capture or generate a key visual before image-to-video').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /plan visuals/i }).length).toBeGreaterThan(0);
   });
 
   it('lets creators pin the current motion workflow as a reusable skill', async () => {

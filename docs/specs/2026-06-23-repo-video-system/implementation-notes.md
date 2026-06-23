@@ -29,6 +29,9 @@
 - Selected timeline clips can now be edited for copy, reusable effect preset,
   start time, and duration; timing edits reuse the same typed revision endpoint
   and preserve server-side overlap validation.
+- Preview plans now include a creator-facing visual generation summary for
+  image-to-video: ready clip requests show component, prompt, duration, and
+  output shape, while missing key visuals appear as reviewable blockers.
 - Motion rail video starter for repo, PR, site URL, or local path sources with
   review/full-auto mode and target presets for X vertical, LinkedIn feed,
   website demo, and multi-format launch packs.

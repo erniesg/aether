@@ -25,6 +25,7 @@ import type {
   MotionPreviewTimelineRow,
   MotionPreviewVideoPlan,
   MotionPreviewVideoPlanScene,
+  MotionPreviewVisualGenerationSummary,
 } from '@/lib/motion/previewPlan';
 import { cn } from '@/lib/utils/cn';
 
@@ -268,6 +269,7 @@ function MotionPreviewPlanView({
               />
             ) : null}
             <ExportPackSummaryRow summary={previewPlan.exportPackSummary} />
+            <VisualGenerationSummaryRow summary={previewPlan.visualGenerationSummary} />
             {onGenerateVoice ? (
               <VoiceActionButton
                 syncStatus={previewPlan.syncSummary.status}
@@ -285,7 +287,10 @@ function MotionPreviewPlanView({
               <ExportPackActionButton onExportPack={onExportPack} />
             ) : null}
             {onGenerateVideoClips ? (
-              <ImageToVideoActionButton onGenerateVideoClips={onGenerateVideoClips} />
+              <ImageToVideoActionButton
+                summary={previewPlan.visualGenerationSummary}
+                onGenerateVideoClips={onGenerateVideoClips}
+              />
             ) : null}
             {onPinMotionSkill ? (
               <PinMotionSkillButton onPinMotionSkill={onPinMotionSkill} />
@@ -308,6 +313,13 @@ function MotionPreviewPlanView({
           />
         </section>
       ) : null}
+
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionVisualGenerationStrip
+          summary={previewPlan.visualGenerationSummary}
+          onGenerateVideoClips={onGenerateVideoClips}
+        />
+      </section>
 
       {previewPlan.syncBeats.length > 0 || previewPlan.syncSoundCues.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
@@ -781,6 +793,29 @@ function ExportPackSummaryRow({ summary }: { summary: MotionPreviewExportPackSum
   );
 }
 
+function VisualGenerationSummaryRow({
+  summary,
+}: {
+  summary: MotionPreviewVisualGenerationSummary;
+}) {
+  const detail =
+    summary.requestCount > 0
+      ? formatCount(summary.requestCount, 'clip request')
+      : summary.providerRequirementLabels.length > 0
+        ? `Needs ${summary.providerRequirementLabels.join(' + ')}`
+        : 'no generated clips';
+  const note = summary.blockerLabels[0] ?? summary.requestLabels[0] ?? 'ready for visual clips';
+
+  return (
+    <ReadinessRow
+      label="visual generation"
+      status={summary.status}
+      detail={detail}
+      note={note}
+    />
+  );
+}
+
 function VoiceActionButton({
   syncStatus,
   onGenerateVoice,
@@ -858,17 +893,26 @@ function ExportPackActionButton({ onExportPack }: { onExportPack: () => void }) 
 }
 
 function ImageToVideoActionButton({
+  summary,
   onGenerateVideoClips,
 }: {
+  summary: MotionPreviewVisualGenerationSummary;
   onGenerateVideoClips: () => void;
 }) {
+  const ready = summary.status === 'ready';
+  const label = ready
+    ? 'generate clips'
+    : summary.status === 'needs-visual-source'
+      ? 'plan visuals'
+      : 'prepare clips';
+
   return (
     <button
       type="button"
       onClick={onGenerateVideoClips}
       className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
     >
-      generate clips
+      {label}
     </button>
   );
 }
@@ -934,6 +978,70 @@ function MotionSyncPlanStrip({
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionVisualGenerationStrip({
+  summary,
+  onGenerateVideoClips,
+}: {
+  summary: MotionPreviewVisualGenerationSummary;
+  onGenerateVideoClips?: () => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          visual generation
+        </span>
+        <Chip tone={summary.status === 'ready' ? 'ok' : 'info'} size="sm">
+          {summary.status.replace(/-/g, ' ')}
+        </Chip>
+      </div>
+      {summary.requests.length > 0 ? (
+        <div className="grid gap-2 lg:grid-cols-2">
+          {summary.requests.map((request) => (
+            <article
+              key={request.requestId}
+              className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-caption text-xs text-ink">{request.componentLabel}</span>
+                <span className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                  {request.durationSeconds}s
+                </span>
+              </div>
+              <p className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+                {request.prompt}
+              </p>
+              <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                {request.outputLabel}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 font-caption text-xs text-ink-dim">
+          {summary.blockerLabels[0] ?? 'No image-to-video clips planned for this draft.'}
+        </div>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {summary.nextActionLabels.map((label) => (
+          <Chip key={label} tone="neutral" size="sm">
+            {label}
+          </Chip>
+        ))}
+        {onGenerateVideoClips ? (
+          <button
+            type="button"
+            onClick={onGenerateVideoClips}
+            className="rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+          >
+            {summary.status === 'ready' ? 'generate clips' : 'plan visuals'}
+          </button>
+        ) : null}
       </div>
     </div>
   );

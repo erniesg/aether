@@ -393,7 +393,7 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
-  it('timeline image-to-video action requests generated clips and reports visual-source blockers', async () => {
+  it('timeline image-to-video action plans visuals and reports visual-source blockers', async () => {
     const start = storedRegeneratableMotionStart();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
@@ -418,7 +418,7 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
     expect(screen.getByText('repo ingest')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /generate clips/i }));
+    await userEvent.click(screen.getAllByRole('button', { name: /plan visuals/i })[0]);
 
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(

@@ -15,6 +15,10 @@ import {
   type MotionExportPackStatus,
 } from './exportPackPlan';
 import {
+  buildMotionImageToVideoPlan,
+  type MotionImageToVideoPlanStatus,
+} from './imageToVideoPlan';
+import {
   buildMotionRenderPlan,
   type MotionRenderPlanStatus,
 } from './renderPlan';
@@ -177,6 +181,25 @@ export interface MotionPreviewExportPackSummary {
   blockerLabels: string[];
 }
 
+export interface MotionPreviewVisualGenerationRequest {
+  requestId: string;
+  clipId: string;
+  componentLabel: string;
+  durationSeconds: number;
+  prompt: string;
+  outputLabel: string;
+}
+
+export interface MotionPreviewVisualGenerationSummary {
+  status: MotionImageToVideoPlanStatus;
+  requestCount: number;
+  providerRequirementLabels: string[];
+  requestLabels: string[];
+  requests: MotionPreviewVisualGenerationRequest[];
+  blockerLabels: string[];
+  nextActionLabels: string[];
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -196,6 +219,7 @@ export interface MotionPreviewPlan {
   syncBeats: MotionPreviewSyncBeat[];
   syncSoundCues: MotionPreviewSyncSoundCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
+  visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   provenance: MotionProvenanceRef[];
   requestedAt: number;
 }
@@ -226,6 +250,11 @@ export function buildMotionPreviewPlan(
   });
   const exportPackPlan = buildMotionExportPackPlan(project, {
     draftId: project.currentDraftId,
+    requestedAt: options.requestedAt,
+  });
+  const imageToVideoPlan = buildMotionImageToVideoPlan(project, {
+    draftId: project.currentDraftId,
+    fps,
     requestedAt: options.requestedAt,
   });
 
@@ -268,6 +297,7 @@ export function buildMotionPreviewPlan(
     syncBeats: buildSyncBeats(syncPlan),
     syncSoundCues: buildSyncSoundCues(syncPlan),
     exportPackSummary: buildExportPackSummary(exportPackPlan),
+    visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
     provenance: uniqueProvenance([
       ...project.sourceRefs,
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),
@@ -394,6 +424,49 @@ function buildExportPackSummary(
     ) as MotionExportPackAssetKind[],
     blockerLabels: exportPackPlan.blockers.map((blocker) => blocker.label),
   };
+}
+
+function buildVisualGenerationSummary(
+  imageToVideoPlan: ReturnType<typeof buildMotionImageToVideoPlan>,
+  timelineRows: MotionPreviewTimelineRow[]
+): MotionPreviewVisualGenerationSummary {
+  const requests = imageToVideoPlan.requests.map((request) => {
+    const clip = findTimelineClipById(timelineRows, request.clipId);
+    const componentLabel = clip?.componentLabel ?? 'Visual clip';
+    return {
+      requestId: request.id,
+      clipId: request.clipId,
+      componentLabel,
+      durationSeconds: roundSecondValue(motionSeconds(request.durationFrames, request.fps)),
+      prompt: request.prompt,
+      outputLabel: `${request.aspectRatio} ${request.width}x${request.height}`,
+    };
+  });
+
+  return {
+    status: imageToVideoPlan.status,
+    requestCount: imageToVideoPlan.requests.length,
+    providerRequirementLabels: imageToVideoPlan.providerRequirements.map((requirement) =>
+      requirement.replace(/-/g, ' ')
+    ),
+    requestLabels: requests.map(
+      (request) => `${request.componentLabel} ${request.durationSeconds}s`
+    ),
+    requests,
+    blockerLabels: imageToVideoPlan.blockers.map((blocker) => blocker.label),
+    nextActionLabels: imageToVideoPlan.nextActions.map((action) => action.label),
+  };
+}
+
+function findTimelineClipById(
+  timelineRows: MotionPreviewTimelineRow[],
+  clipId: string
+): MotionPreviewTimelineClip | null {
+  for (const row of timelineRows) {
+    const clip = row.clips.find((candidate) => candidate.clipId === clipId);
+    if (clip) return clip;
+  }
+  return null;
 }
 
 function syncRequirementLabel(requirement: string): string {
