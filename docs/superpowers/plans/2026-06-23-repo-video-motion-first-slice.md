@@ -40,6 +40,7 @@
 - Create `lib/motion/workflowRouter.test.ts`: tests repo launch, PR, feature/social, website, overlay, motion graphic, and engine-port routing.
 - Create `lib/motion/start.ts`: agent-facing start artifact that combines routing, workflow gates, project creation, review plans, and source/evidence requests.
 - Create `lib/motion/start.test.ts`: tests repo starts, PR evidence requests, and missing-source requests.
+- Create `lib/motion/siteMotion.ts`: site/app URL evidence builder for capture-first editable motion projects.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -2120,11 +2121,61 @@ Run: `./node_modules/.bin/vitest run lib/motion/start.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: start agent motion workflows"
+```
+
+## Task 12: Site/App URL Motion Starts
+
+**Files:**
+- Create: `lib/motion/siteMotion.ts`
+- Modify: `lib/motion/start.ts`
+- Modify: `lib/motion/start.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing site-start test**
+
+The test covers a `site` source with `demo` intent returning:
+
+- routed `website-to-video` workflow with capture gate;
+- materialized motion project with site app profile, claims, stack hints, tracks,
+  and capture-first graph node;
+- editable review plan and component slots.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/start.test.ts`
+
+Expected: FAIL because site sources still return `planned-only`.
+
+- [x] **Step 3: Implement the site motion builder**
+
+`lib/motion/siteMotion.ts` now fetches the app/site URL, extracts site claims,
+derives stack hints, builds a launch/demo/social motion project through the
+shared storyboard path, replaces the repo ingest node with a capture-planning
+node, and materializes the editable timeline.
+
+- [x] **Step 4: Wire site starts into the agent start flow**
+
+`startAgentMotionWorkflow` now creates ready projects for `website-to-video`
+site sources, and for feature/social starts when the available source is a site
+URL rather than a repo.
+
+- [x] **Step 5: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/start.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/motion/siteMotion.ts lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: start site motion workflows"
 ```
 
 ## Self-Review Checklist

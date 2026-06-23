@@ -8,6 +8,7 @@ import {
   type BuildRepoMotionProjectFromUrlOptions,
   type RepoMotionProjectKind,
 } from './repoMotion';
+import { buildSiteMotionProjectFromUrl } from './siteMotion';
 import { materializeMotionTimeline } from './timeline';
 import type {
   AppProfile,
@@ -126,6 +127,20 @@ export async function startAgentMotionWorkflow(
 
       return readyResult(workflow, project);
     }
+
+    const siteSource = findSource(input.sourceRefs, 'site');
+    if (siteSource) {
+      const project = await buildSiteStartProject(input, siteSource, options);
+      return readyResult(workflow, project);
+    }
+  }
+
+  if (workflow.workflowId === 'website-to-video') {
+    const siteSource = findSource(input.sourceRefs, 'site');
+    if (siteSource) {
+      const project = await buildSiteStartProject(input, siteSource, options);
+      return readyResult(workflow, project);
+    }
   }
 
   return {
@@ -195,6 +210,29 @@ function readyResult(
     reviewPlan: buildMotionReviewPlan(project),
     requestedInputs: [],
   };
+}
+
+async function buildSiteStartProject(
+  input: StartAgentMotionWorkflowInput,
+  siteSource: MotionWorkflowPlanSourceRef,
+  options: BuildRepoMotionProjectFromUrlOptions
+): Promise<MotionProject> {
+  return await buildSiteMotionProjectFromUrl(
+    {
+      id: input.id,
+      workspaceId: input.workspaceId,
+      siteUrl: siteSource.ref,
+      siteLabel: siteSource.label,
+      projectKind: projectKindFor(input),
+      workflowMode: input.mode,
+      audience: input.audience,
+      tone: input.tone,
+      platformTargets: input.platformTargets,
+      materializeTimeline: true,
+      createdAt: input.createdAt,
+    },
+    options
+  );
 }
 
 function projectKindFor(input: StartAgentMotionWorkflowInput): RepoMotionProjectKind {

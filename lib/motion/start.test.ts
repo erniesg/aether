@@ -102,6 +102,105 @@ describe('startAgentMotionWorkflow', () => {
     ).toBe(true);
   });
 
+  it('starts a website/app URL as an editable capture-first video plan', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (url) => {
+      if (String(url) === 'https://tong.app/tokyo') {
+        return new Response(
+          `
+          <html>
+            <head><title>Tong Tokyo</title></head>
+            <body>
+              <h1>Tong Tokyo</h1>
+              <p>Tong is a city-specific language learning app built with React and TypeScript.</p>
+              <p>Practice Tokyo ticket-machine phrases with photo-memory prompts and exportable study cards.</p>
+            </body>
+          </html>
+          `,
+          {
+            status: 200,
+            headers: { 'Content-Type': 'text/html' },
+          }
+        );
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+
+    const result = await startAgentMotionWorkflow(
+      {
+        id: 'motion-tong-demo',
+        workspaceId: 'demo-ws',
+        intent: 'demo',
+        mode: 'review',
+        sourceRefs: [{ kind: 'site', ref: 'https://tong.app/tokyo', label: 'Tong Tokyo' }],
+        audience: 'language learners',
+        tone: 'textural',
+        platformTargets: [{ platform: 'instagram', aspectRatio: '9:16', seconds: 30 }],
+        createdAt: 305,
+      },
+      { fetcher }
+    );
+
+    expect(result).toMatchObject({
+      status: 'ready',
+      requestedInputs: [],
+      workflow: {
+        workflowId: 'website-to-video',
+        reason: 'site source selected a website video workflow',
+      },
+    });
+    expect(result.workflow.plan.gates.map((gate) => gate.id)).toEqual([
+      'plan',
+      'drafts',
+      'capture',
+      'timeline',
+      'render',
+      'export',
+    ]);
+    expect(result.project).toMatchObject({
+      id: 'motion-tong-demo',
+      title: 'Tong Tokyo demo video',
+      workflowMode: 'review',
+      brief: {
+        projectKind: 'demo',
+        appProfile: {
+          name: 'Tong Tokyo',
+          siteUrl: 'https://tong.app/tokyo',
+          summary: 'site evidence',
+          stack: ['React', 'TypeScript'],
+        },
+      },
+    });
+    expect(result.project?.sourceRefs).toEqual([
+      { kind: 'site', ref: 'https://tong.app/tokyo' },
+      { kind: 'site', ref: 'https://tong.app/tokyo' },
+    ]);
+    expect(result.project?.tracks.map((track) => track.kind)).toEqual([
+      'text',
+      'caption',
+      'voice',
+      'transition',
+    ]);
+    expect(result.project?.graphNodes.map((node) => node.kind)).toEqual([
+      'capture',
+      'script',
+      'storyboard',
+      'sync',
+    ]);
+    expect(result.reviewPlan).toMatchObject({
+      projectId: 'motion-tong-demo',
+      primaryAction: 'request-review',
+      summary: {
+        appName: 'Tong Tokyo',
+        projectKind: 'demo',
+      },
+    });
+    expect(
+      result.reviewPlan?.componentSlots.some((slot) => slot.componentId === 'app-frame')
+    ).toBe(true);
+    expect(fetcher).toHaveBeenCalledWith('https://tong.app/tokyo');
+  });
+
   it('keeps PR starts on code-change evidence before creating a project', async () => {
     const fetcher = vi.fn<typeof fetch>();
 

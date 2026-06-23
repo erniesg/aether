@@ -40,13 +40,15 @@ Clueso, and Descript.
   remains reserved for advanced provenance/generation editing.
 - `lib/motion/brief.ts`, `lib/motion/compile.ts`, and `scripts/render-motion.ts`
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
-- `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`, `timeline.ts`,
-  `componentRegistry.ts`, `reviewPlan.ts`, `workflowPlan.ts`, and
+- `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`, `siteMotion.ts`,
+  `timeline.ts`, `componentRegistry.ts`, `reviewPlan.ts`, `workflowPlan.ts`,
   `workflowRouter.ts`, and `start.ts` now cover the first
   repo-to-motion-project slice: sourced claims, story beats, draft variations,
   timeline tracks, editable component slots, scoped regeneration requests,
   workflow routing, agent-readable workflow gates, and the start artifact an
-  agent can hand to the creator for review or full-auto progression.
+  agent can hand to the creator for review or full-auto progression. Repo and
+  site/app URL sources can now create editable project starts; real screen
+  capture and recording remain provider execution work.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.

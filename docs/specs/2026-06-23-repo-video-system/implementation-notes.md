@@ -27,6 +27,9 @@
 - Agent motion workflow starter that turns a repo source into a routed workflow,
   materialized motion project, editable review plan, and explicit source/evidence
   requests when more material is needed.
+- Site/app motion starter that turns a live URL into a capture-first editable
+  motion project using extracted page claims, stack hints, timeline tracks, and
+  review-plan component slots.
 
 ## Verification Commands
 
