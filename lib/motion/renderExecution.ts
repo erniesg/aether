@@ -14,6 +14,7 @@ import {
   type MotionRenderPlan,
   type MotionRenderPlanBlocker,
 } from './renderPlan';
+import { buildMotionRenderSourceBundle } from './renderSource';
 import { applyMotionRenderResultToMotionProject } from './renderApply';
 
 export interface ExecuteMotionRenderOptions {
@@ -90,8 +91,7 @@ function motionRenderRequestFromPlan(
   plan: MotionRenderPlan
 ): MotionRenderRequest {
   const tracks = selectTracks(project, plan.draftId);
-
-  return {
+  const request: MotionRenderRequest = {
     id: plan.id,
     projectId: plan.projectId,
     draftId: plan.draftId,
@@ -102,6 +102,12 @@ function motionRenderRequestFromPlan(
     tracks,
     outputs: plan.outputs,
     provenance: plan.provenance,
+  };
+  const sourceBundle = buildMotionRenderSourceBundle(project, request);
+
+  return {
+    ...request,
+    sourceFiles: sourceBundle.files,
   };
 }
 

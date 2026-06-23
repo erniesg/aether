@@ -85,6 +85,11 @@ Clueso, and Descript.
   runners for Remotion and HyperFrames: they run engine CLI commands for video
   and poster artifacts, write subtitle/transcript/manifest sidecars, verify
   planned files exist, and return file-backed render receipts.
+- `lib/motion/renderSource.ts` now compiles editable timeline render requests
+  into provider-neutral source bundles: Remotion entry TSX, HyperFrames
+  `index.html`, and source manifests. Render execution attaches those source
+  files to each request, and command runners write them before invoking the
+  selected engine.
 - `lib/motion/imageToVideoPlan.ts` and
   `lib/providers/video/generation-registry.ts` now cover the first advanced
   generation graph slice: asset-backed visual clips become provider-neutral
@@ -116,7 +121,8 @@ Clueso, and Descript.
   provider contracts, command render runners, and image-to-video provider
   planning/registry, while `lib/providers/voice/*` covers voice provider
   contracts. Text-to-video, TTS execution, image-to-video provider execution,
-  and timeline compilation into engine source files remain future adapter work.
+  engine dependency/project scaffolding, and polished engine-native component
+  libraries remain future adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.

@@ -1,0 +1,520 @@
+import type {
+  MotionRenderEngine,
+  MotionRenderRequest,
+  MotionRenderSourceFile,
+} from '@/lib/providers/video/types';
+import type {
+  MotionProject,
+  MotionProvenanceRef,
+  TimelineClip,
+  TimelineTrack,
+} from './project';
+
+export interface BuildMotionRenderSourceBundleOptions {
+  remotionEntryPoint?: string;
+  hyperframesEntryPoint?: string;
+}
+
+export interface MotionRenderSourceBundle {
+  id: string;
+  projectId: string;
+  draftId: string;
+  engine: MotionRenderEngine;
+  entryPoint: string;
+  files: MotionRenderSourceFile[];
+  provenance: MotionProvenanceRef[];
+}
+
+interface RenderDimensions {
+  width: number;
+  height: number;
+}
+
+const DEFAULT_REMOTION_ENTRY_POINT = 'remotion/index.tsx';
+const DEFAULT_HYPERFRAMES_ENTRY_POINT = 'index.html';
+
+export function buildMotionRenderSourceBundle(
+  project: MotionProject,
+  request: MotionRenderRequest,
+  options: BuildMotionRenderSourceBundleOptions = {}
+): MotionRenderSourceBundle {
+  const entryPoint =
+    request.engine === 'remotion'
+      ? options.remotionEntryPoint ?? DEFAULT_REMOTION_ENTRY_POINT
+      : options.hyperframesEntryPoint ?? DEFAULT_HYPERFRAMES_ENTRY_POINT;
+  const provenance = uniqueProvenance([
+    ...request.provenance,
+    { kind: 'render', ref: request.id },
+  ]);
+  const entryFile: MotionRenderSourceFile = {
+    kind: 'entry',
+    path: entryPoint,
+    mimeType: request.engine === 'remotion' ? 'text/typescript' : 'text/html',
+    contents:
+      request.engine === 'remotion'
+        ? remotionEntrySource(project, request)
+        : hyperframesIndexSource(project, request),
+    provenance,
+  };
+  const manifestFile: MotionRenderSourceFile = {
+    kind: 'manifest',
+    path: sourceManifestPath(request),
+    mimeType: 'application/json',
+    contents: sourceManifestJson(project, request, entryPoint, [entryFile], provenance),
+    provenance,
+  };
+
+  return {
+    id: `source-bundle-${request.id}`,
+    projectId: request.projectId,
+    draftId: request.draftId,
+    engine: request.engine,
+    entryPoint,
+    files: [entryFile, manifestFile],
+    provenance,
+  };
+}
+
+function remotionEntrySource(project: MotionProject, request: MotionRenderRequest): string {
+  const dimensions = renderDimensions(request);
+  const tracks = stableJson(request.tracks);
+  const brand = stableJson(project.brief.brandMotion);
+  const title = jsonString(project.title);
+  const compositionId = jsonString(request.compositionId);
+
+  return `import React from "react";
+import { Audio, Video } from "@remotion/media";
+import { AbsoluteFill, Composition, Img, Sequence, interpolate, registerRoot, useCurrentFrame, useVideoConfig } from "remotion";
+
+type MotionClipData = {
+  id: string;
+  assetId?: string;
+  componentId?: string;
+  startFrame: number;
+  durationFrames: number;
+  props: Record<string, unknown>;
+};
+
+type MotionTrackData = {
+  id: string;
+  kind: string;
+  clips: MotionClipData[];
+};
+
+type MotionBrandData = {
+  palette: string[];
+  fontFamilies: string[];
+  motionStyle: string;
+};
+
+type MotionCompositionProps = {
+  tracks?: MotionTrackData[];
+  brand?: MotionBrandData;
+};
+
+const defaultTracks: MotionTrackData[] = ${tracks};
+const defaultBrand: MotionBrandData = ${brand};
+const compositionTitle = ${title};
+
+function clipText(clip: MotionClipData): string {
+  const value = clip.props.caption ?? clip.props.text ?? clip.props.narration ?? "";
+  return typeof value === "string" ? value : "";
+}
+
+function clipMediaUrl(clip: MotionClipData): string | null {
+  const value = clip.props.generatedVideoUrl ?? clip.props.assetUrl ?? clip.props.audioUrl;
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function clipMimeType(clip: MotionClipData): string {
+  const value = clip.props.mimeType;
+  return typeof value === "string" ? value : "";
+}
+
+function MotionClip({
+  clip,
+  trackKind,
+  brand,
+}: {
+  clip: MotionClipData;
+  trackKind: string;
+  brand: MotionBrandData;
+}) {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const text = clipText(clip);
+  const mediaUrl = clipMediaUrl(clip);
+  const mimeType = clipMimeType(clip);
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const opacity = interpolate(
+    frame,
+    [0, Math.min(10, Math.max(1, Math.floor(clip.durationFrames / 4))), Math.max(12, clip.durationFrames - 8), clip.durationFrames],
+    [0, 1, 1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const y = interpolate(frame, [0, Math.min(14, clip.durationFrames)], [34, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const fontFamily = brand.fontFamilies[0] ?? "IBM Plex Mono";
+
+  if (trackKind === "voice") {
+    return mediaUrl ? <Audio src={mediaUrl} /> : null;
+  }
+
+  return (
+    <AbsoluteFill
+      style={{
+        justifyContent: trackKind === "caption" ? "flex-end" : "center",
+        alignItems: "center",
+        padding: trackKind === "caption" ? 72 : 96,
+        opacity,
+        transform: \`translateY(\${y}px)\`,
+        color: palette[1],
+        fontFamily,
+      }}
+    >
+      {mediaUrl && mimeType.startsWith("video/") ? (
+        <Video
+          src={mediaUrl}
+          muted
+          style={{
+            width: "86%",
+            height: "70%",
+            objectFit: "cover",
+            borderRadius: 24,
+            boxShadow: "0 32px 90px rgba(0,0,0,0.28)",
+          }}
+        />
+      ) : null}
+      {mediaUrl && mimeType.startsWith("image/") ? (
+        <Img
+          src={mediaUrl}
+          style={{
+            width: "86%",
+            height: "70%",
+            objectFit: "cover",
+            borderRadius: 24,
+            boxShadow: "0 32px 90px rgba(0,0,0,0.24)",
+          }}
+        />
+      ) : null}
+      <div
+        style={{
+          maxWidth: trackKind === "caption" ? "86%" : "82%",
+          padding: trackKind === "caption" ? "22px 28px" : "32px 38px",
+          border: \`2px solid \${palette[2]}\`,
+          borderRadius: 18,
+          background: trackKind === "caption" ? "rgba(244,237,224,0.88)" : "rgba(244,237,224,0.78)",
+          backdropFilter: "blur(16px)",
+          fontSize: trackKind === "caption" ? 38 : 72,
+          lineHeight: trackKind === "caption" ? 1.15 : 1.02,
+          fontWeight: trackKind === "caption" ? 500 : 800,
+          textAlign: "center",
+        }}
+      >
+        {text || compositionTitle}
+      </div>
+      {trackKind === "transition" ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: palette[2],
+            opacity: interpolate(frame, [0, clip.durationFrames / 2, clip.durationFrames], [0, 0.16, 0], {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+            }),
+          }}
+        />
+      ) : null}
+      <div
+        style={{
+          position: "absolute",
+          right: 42,
+          bottom: 34,
+          color: palette[2],
+          fontSize: 18,
+          letterSpacing: 0,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {Math.round((clip.startFrame / fps) * 10) / 10}s
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+function MotionComposition({ tracks = defaultTracks, brand = defaultBrand }: MotionCompositionProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: palette[0], overflow: "hidden" }}>
+      {tracks.flatMap((track) =>
+        track.clips.map((clip) => (
+          <Sequence
+            key={clip.id}
+            from={clip.startFrame}
+            durationInFrames={clip.durationFrames}
+            premountFor={30}
+          >
+            <MotionClip clip={clip} trackKind={track.kind} brand={brand} />
+          </Sequence>
+        ))
+      )}
+    </AbsoluteFill>
+  );
+}
+
+export const RemotionRoot = () => (
+  <Composition
+    id=${compositionId}
+    component={MotionComposition}
+    durationInFrames={${request.durationFrames}}
+    fps={${request.fps}}
+    width={${dimensions.width}}
+    height={${dimensions.height}}
+    defaultProps={{ tracks: defaultTracks, brand: defaultBrand } satisfies MotionCompositionProps}
+  />
+);
+
+registerRoot(RemotionRoot);
+`;
+}
+
+function hyperframesIndexSource(project: MotionProject, request: MotionRenderRequest): string {
+  const dimensions = renderDimensions(request);
+  const palette = normalizedPalette(project);
+  const fontFamily = project.brief.brandMotion.fontFamilies[0] ?? 'IBM Plex Mono';
+  const clips = request.tracks.flatMap((track, trackIndex) =>
+    track.clips.map((clip) => hyperframesClipHtml(clip, track, trackIndex, request.fps))
+  );
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(project.title)}</title>
+  </head>
+  <body>
+    <div
+      data-composition-id="${escapeHtml(request.compositionId)}"
+      data-start="0"
+      data-duration="${formatSeconds(request.durationFrames / request.fps)}"
+      data-width="${dimensions.width}"
+      data-height="${dimensions.height}"
+    >
+      <style>
+        [data-composition-id="${cssString(request.compositionId)}"] {
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          background-color: ${palette.background};
+          color: ${palette.foreground};
+          font-family: "${cssString(fontFamily)}", monospace;
+        }
+
+        .scene-content {
+          width: 100%;
+          height: 100%;
+          padding: 92px;
+          box-sizing: border-box;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .motion-clip {
+          max-width: 84%;
+          min-width: 44%;
+          padding: 34px 40px;
+          box-sizing: border-box;
+          border: 2px solid ${palette.accent};
+          border-radius: 18px;
+          background: rgba(244, 237, 224, 0.78);
+          box-shadow: 0 34px 90px rgba(0, 0, 0, 0.24);
+          font-size: 68px;
+          line-height: 1.04;
+          font-weight: 800;
+          text-align: center;
+        }
+
+        .motion-clip--caption {
+          align-self: flex-end;
+          font-size: 38px;
+          line-height: 1.15;
+          font-weight: 500;
+        }
+
+        .motion-media {
+          display: block;
+          width: 100%;
+          max-height: 70vh;
+          object-fit: cover;
+          border-radius: 18px;
+          margin-bottom: 24px;
+        }
+
+        .transition-wipe {
+          position: absolute;
+          inset: 0;
+          background: ${palette.accent};
+          opacity: 0.14;
+          transform-origin: left center;
+        }
+      </style>
+      <div class="scene-content">
+${clips.join('\n')}
+      </div>
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+        tl.from(".motion-clip", { y: 34, opacity: 0, duration: 0.45, stagger: 0.04, ease: "power3.out" }, 0.15);
+        tl.from(".transition-wipe", { scaleX: 0, duration: 0.32, stagger: 0.04, ease: "power2.inOut" }, 0.2);
+        window.__timelines["${jsString(request.compositionId)}"] = tl;
+      </script>
+    </div>
+  </body>
+</html>
+`;
+}
+
+function hyperframesClipHtml(
+  clip: TimelineClip,
+  track: TimelineTrack,
+  trackIndex: number,
+  fps: number
+): string {
+  const start = formatSeconds(clip.startFrame / fps);
+  const duration = formatSeconds(clip.durationFrames / fps);
+  const mediaUrl = stringProp(clip.props.generatedVideoUrl) ?? stringProp(clip.props.assetUrl);
+  const mimeType = stringProp(clip.props.mimeType) ?? '';
+  const text = clipText(clip);
+  const kindClass = `motion-clip--${track.kind}`;
+  const attrs = `id="${escapeHtml(clip.id)}" class="motion-clip ${escapeHtml(kindClass)}" data-kind="${escapeHtml(
+    track.kind
+  )}" data-start="${start}" data-duration="${duration}" data-track-index="${trackIndex}"`;
+
+  if (track.kind === 'voice' && mediaUrl) {
+    return `        <audio ${attrs} src="${escapeHtml(mediaUrl)}" data-volume="1" crossorigin="anonymous"></audio>`;
+  }
+
+  if (track.kind === 'voice') return '';
+
+  const media =
+    mediaUrl && mimeType.startsWith('video/')
+      ? `<video class="motion-media" src="${escapeHtml(mediaUrl)}" muted playsinline crossorigin="anonymous"></video>`
+      : mediaUrl && mimeType.startsWith('image/')
+        ? `<img class="motion-media" src="${escapeHtml(mediaUrl)}" alt="" crossorigin="anonymous" />`
+        : '';
+  const transition = track.kind === 'transition' ? '<span class="transition-wipe" aria-hidden="true"></span>' : '';
+
+  return `        <div ${attrs}>${media}${escapeHtml(text)}${transition}</div>`;
+}
+
+function sourceManifestPath(request: MotionRenderRequest): string {
+  return `renders/${request.projectId}/${request.id}.source-manifest.json`;
+}
+
+function sourceManifestJson(
+  project: MotionProject,
+  request: MotionRenderRequest,
+  entryPoint: string,
+  files: MotionRenderSourceFile[],
+  provenance: MotionProvenanceRef[]
+): string {
+  return stableJson({
+    requestId: request.id,
+    projectId: request.projectId,
+    draftId: request.draftId,
+    engine: request.engine,
+    entryPoint,
+    compositionId: request.compositionId,
+    title: project.title,
+    fps: request.fps,
+    durationFrames: request.durationFrames,
+    trackIds: request.tracks.map((track) => track.id),
+    outputIds: request.outputs.map((output) => output.id),
+    files: files.map((file) => ({
+      kind: file.kind,
+      path: file.path,
+      mimeType: file.mimeType,
+    })),
+    provenance,
+  });
+}
+
+function renderDimensions(request: MotionRenderRequest): RenderDimensions {
+  const output = request.outputs.find((candidate) => candidate.kind === 'video') ?? request.outputs[0];
+  return {
+    width: output?.width ?? 1920,
+    height: output?.height ?? 1080,
+  };
+}
+
+function normalizedPalette(project: MotionProject): {
+  background: string;
+  foreground: string;
+  accent: string;
+} {
+  const palette = project.brief.brandMotion.palette;
+  return {
+    background: palette[0] ?? '#f4ede0',
+    foreground: palette[1] ?? '#1a1a1a',
+    accent: palette[2] ?? '#c8413a',
+  };
+}
+
+function clipText(clip: TimelineClip): string {
+  return (
+    stringProp(clip.props.caption) ??
+    stringProp(clip.props.text) ??
+    stringProp(clip.props.narration) ??
+    ''
+  );
+}
+
+function stringProp(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function jsonString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function formatSeconds(seconds: number): string {
+  if (Number.isInteger(seconds)) return String(seconds);
+  return seconds.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function cssString(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+function jsString(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
+  const seen = new Set<string>();
+  return refs.filter((ref) => {
+    const key = `${ref.kind}:${ref.ref}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

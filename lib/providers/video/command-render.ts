@@ -3,7 +3,12 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { MotionProvenanceRef, TimelineClip, TimelineTrack } from '@/lib/motion/project';
-import type { MotionRenderEngine, MotionRenderOutput, MotionRenderRequest } from './types';
+import type {
+  MotionRenderEngine,
+  MotionRenderOutput,
+  MotionRenderRequest,
+  MotionRenderSourceFile,
+} from './types';
 import type { MotionRenderRunner, MotionRenderRunnerResult } from './local-render';
 
 export interface RenderCommandCall {
@@ -29,7 +34,7 @@ export interface CreateCommandRenderRunnerOptions {
 
 export interface CreateRemotionCommandRenderRunnerOptions
   extends CreateCommandRenderRunnerOptions {
-  entryPoint: string;
+  entryPoint?: string;
 }
 
 export interface CreateHyperFramesCommandRenderRunnerOptions
@@ -58,13 +63,15 @@ export function createRemotionCommandRenderRunner(
     engine: 'remotion',
     provenanceRef: 'remotion-command-runner',
     commandPlan(request, output, outputPath, propsPath) {
+      const entryPoint = remotionEntryPoint(request, options.entryPoint);
+
       if (output.kind === 'video') {
         return {
           command,
           args: [
             packageName,
             'render',
-            options.entryPoint,
+            entryPoint,
             request.compositionId,
             outputPath,
             '--fps',
@@ -88,7 +95,7 @@ export function createRemotionCommandRenderRunner(
           args: [
             packageName,
             'still',
-            options.entryPoint,
+            entryPoint,
             request.compositionId,
             outputPath,
             '--frame',
@@ -168,6 +175,8 @@ function createCommandRenderRunner(
       if (request.engine !== definition.engine) {
         throw new Error(`${definition.provenanceRef} cannot render ${request.engine} requests`);
       }
+
+      await writeSourceFiles(options.projectDir, request.sourceFiles ?? [], writeTextFile);
 
       const propsPath = propsFilePath(options.projectDir, request);
       await writeTextFile(propsPath, renderPropsJson(request));
@@ -256,6 +265,11 @@ function renderManifestJson(request: MotionRenderRequest): string {
         height: output.height,
         mimeType: output.mimeType,
       })),
+      sourceFiles: request.sourceFiles?.map((file) => ({
+        kind: file.kind,
+        path: file.path,
+        mimeType: file.mimeType,
+      })) ?? [],
       provenance: request.provenance,
     },
     null,
@@ -273,6 +287,11 @@ function renderPropsJson(request: MotionRenderRequest): string {
       durationFrames: request.durationFrames,
       tracks: request.tracks,
       outputs: request.outputs,
+      sourceFiles: request.sourceFiles?.map((file) => ({
+        kind: file.kind,
+        path: file.path,
+        mimeType: file.mimeType,
+      })) ?? [],
       provenance: request.provenance,
     },
     null,
@@ -312,8 +331,31 @@ function propsFilePath(projectDir: string, request: MotionRenderRequest): string
   return path.join(projectDir, 'renders', request.projectId, `${request.id}.props.json`);
 }
 
+async function writeSourceFiles(
+  projectDir: string,
+  sourceFiles: MotionRenderSourceFile[],
+  writeTextFile: RenderWriteTextFile
+): Promise<void> {
+  for (const sourceFile of sourceFiles) {
+    await writeTextFile(absoluteOutputPath(projectDir, sourceFile.path), sourceFile.contents);
+  }
+}
+
 function absoluteOutputPath(projectDir: string, outputPath: string): string {
   return path.isAbsolute(outputPath) ? outputPath : path.join(projectDir, outputPath);
+}
+
+function remotionEntryPoint(request: MotionRenderRequest, configuredEntryPoint?: string): string {
+  const generatedEntryPoint = request.sourceFiles?.find(
+    (file) => file.kind === 'entry' && /\.(tsx?|jsx?)$/.test(file.path)
+  )?.path;
+  const entryPoint = configuredEntryPoint ?? generatedEntryPoint;
+
+  if (!entryPoint) {
+    throw new Error('remotion command runner requires an entryPoint or generated entry source file');
+  }
+
+  return entryPoint;
 }
 
 async function defaultRunCommand(call: RenderCommandCall): Promise<void> {

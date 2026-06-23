@@ -256,6 +256,33 @@ describe('command render runners', () => {
     });
   });
 
+  it('writes generated render source files before invoking engine commands', async () => {
+    const io = testIo();
+    const runner = createRemotionCommandRenderRunner({
+      projectDir: '/repo',
+      entryPoint: 'remotion/index.tsx',
+      runCommand: io.runCommand,
+      fileExists: io.fileExists,
+      writeTextFile: io.writeTextFile,
+    });
+
+    await runner.render({
+      ...request,
+      sourceFiles: [
+        {
+          kind: 'entry',
+          path: 'remotion/index.tsx',
+          mimeType: 'text/typescript',
+          contents: '// generated remotion source',
+          provenance: [{ kind: 'render', ref: request.id }],
+        },
+      ],
+    });
+
+    expect(io.writes.get('/repo/remotion/index.tsx')).toBe('// generated remotion source');
+    expect(io.commands[0]?.args).toContain('remotion/index.tsx');
+  });
+
   it('fails when the engine command does not produce a planned artifact', async () => {
     const runner = createRemotionCommandRenderRunner({
       projectDir: '/repo',

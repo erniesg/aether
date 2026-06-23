@@ -2850,9 +2850,75 @@ git add lib/motion/imageToVideoApply.ts lib/motion/imageToVideoApply.test.ts lib
 git commit -m "feat: apply motion image to video results"
 ```
 
+## Task 26: Render Source Compilation
+
+**Files:**
+- Create: `lib/motion/renderSource.ts`
+- Create: `lib/motion/renderSource.test.ts`
+- Modify: `lib/providers/video/types.ts`
+- Modify: `lib/providers/video/command-render.ts`
+- Modify: `lib/providers/video/command-render.test.ts`
+- Modify: `lib/motion/renderExecution.ts`
+- Modify: `lib/motion/renderExecution.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing source compilation and runner tests**
+
+The tests cover:
+
+- editable motion timelines compiling into Remotion entry TSX with
+  `Composition`, `Sequence`, `Img`, `Video`, `Audio`, source defaults, brand
+  tokens, dimensions, duration, and render provenance;
+- the same render request compiling into HyperFrames `index.html` with
+  `data-composition-id`, timed clips, media refs, GSAP timeline registration,
+  and source manifests;
+- command render runners writing generated source files before invoking
+  Remotion or HyperFrames commands;
+- render execution attaching source files to the provider request instead of
+  assuming an external engine project already exists.
+
+- [x] **Step 2: Run the failing tests**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/renderSource.test.ts lib/motion/renderExecution.test.ts lib/providers/video/command-render.test.ts
+npm run typecheck
+```
+
+Expected: FAIL because `renderSource.ts` and `sourceFiles` request support do
+not exist.
+
+- [x] **Step 3: Implement render source compilation**
+
+`lib/motion/renderSource.ts` now builds provider-neutral source bundles from a
+`MotionRenderRequest`: Remotion entry TSX, HyperFrames `index.html`, source
+manifests, entry-point metadata, and render provenance. Render execution
+attaches those files to each provider request, and command runners write any
+request source files before writing props, sidecars, and engine outputs.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/renderSource.test.ts lib/motion/renderExecution.test.ts lib/providers/video/command-render.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/renderSource.ts lib/motion/renderSource.test.ts lib/providers/video/types.ts lib/providers/video/command-render.ts lib/providers/video/command-render.test.ts lib/motion/renderExecution.ts lib/motion/renderExecution.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: compile motion render source files"
+```
+
 ## Self-Review Checklist
 
-- Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, real Remotion rendering, image-to-video provider execution, and multiformat export packs remain separate later slices.
+- Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, polished engine-native component libraries, and multiformat export packs remain separate later slices.
 - Empty-detail scan: The plan avoids vague fill-ins. File names, functions, test names, commands, and expected outcomes are explicit.
 - Type consistency: `MotionProject`, `MotionBriefV2`, `StoryBeat`, `TimelineTrack`, `TimelineClip`, `VideoRenderProvider`, `CaptureProvider`, and registry ids are consistently named across tasks.
 - aether contract: The timeline lens stays inside the synthesis shell, uses tool taxonomy, avoids raw provenance ids in primary UI, keeps provider selection abstract, and preserves the bottom composer pattern.

@@ -67,6 +67,11 @@ describe('executeMotionRender', () => {
       'track-voice',
       'track-transition',
     ]);
+    expect(renderedRequest.sourceFiles?.map((file) => file.path)).toEqual([
+      'remotion/index.tsx',
+      'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
+    ]);
+    expect(renderedRequest.sourceFiles?.[0]?.contents).toContain('registerRoot(RemotionRoot)');
     expect(renderedRequest.outputs.map((output) => output.id)).toEqual([
       'render-export-x-9x16-video',
       'render-export-x-9x16-poster',

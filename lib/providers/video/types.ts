@@ -59,6 +59,16 @@ export interface MotionRenderOutput {
   provenance: MotionProvenanceRef[];
 }
 
+export type MotionRenderSourceFileKind = 'entry' | 'manifest';
+
+export interface MotionRenderSourceFile {
+  kind: MotionRenderSourceFileKind;
+  path: string;
+  mimeType: string;
+  contents: string;
+  provenance: MotionProvenanceRef[];
+}
+
 export interface MotionRenderRequest {
   id: string;
   projectId: string;
@@ -69,6 +79,7 @@ export interface MotionRenderRequest {
   durationFrames: number;
   tracks: TimelineTrack[];
   outputs: MotionRenderOutput[];
+  sourceFiles?: MotionRenderSourceFile[];
   provenance: MotionProvenanceRef[];
 }
 
