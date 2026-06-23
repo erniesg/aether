@@ -65,6 +65,10 @@ describe('local repo facts', () => {
       languages: ['TypeScript', 'CSS'],
       readmeHighlights: ['Next.js 15', 'React', 'TypeScript', 'Convex', 'tldraw', 'Vitest'],
       enrichment: 'none',
+      dependencyNames: ['@convex-dev/react-query', '@tldraw/tldraw', 'next', 'react', 'typescript', 'vitest'],
+      packageScripts: ['dev', 'test'],
+      appRoutes: ['/'],
+      sourceFileCount: 2,
     });
     expect(facts.claims).toEqual(
       expect.arrayContaining([

@@ -9,6 +9,7 @@ import type {
   MotionGraphNode,
   MotionProject,
   MotionProvenanceRef,
+  MotionSourceCaptureCandidate,
 } from './project';
 
 export type AgentMotionCapturePlanStatus = 'ready' | 'needs-source' | 'not-needed';
@@ -54,12 +55,14 @@ export interface AgentMotionCapturePlan {
 export function buildAgentMotionCapturePlan(project: MotionProject): AgentMotionCapturePlan {
   const captureNode = project.graphNodes.find((node) => node.kind === 'capture');
   const siteSource = project.sourceRefs.find((source) => source.kind === 'site');
+  const sourceCandidates = project.sourceProfile?.captureCandidates ?? [];
+  const readySourceCandidates = sourceCandidates.filter(hasCaptureTarget);
 
   if (!captureNode && project.brief.projectKind === 'pr') {
     return emptyCapturePlan(project, 'not-needed');
   }
 
-  if (!siteSource) {
+  if (!siteSource && readySourceCandidates.length === 0) {
     return {
       ...emptyCapturePlan(project, 'needs-source'),
       captureNodeId: captureNode?.id,
@@ -68,10 +71,31 @@ export function buildAgentMotionCapturePlan(project: MotionProject): AgentMotion
     };
   }
 
-  const target: CaptureTarget = { kind: 'url', ref: siteSource.ref };
+  const firstCandidate = readySourceCandidates[0];
+  const target: CaptureTarget = siteSource
+    ? { kind: 'url', ref: siteSource.ref }
+    : { kind: firstCandidate.targetKind, ref: firstCandidate.targetRef };
   const aspectRatio = project.brief.platformTargets[0]?.aspectRatio ?? '16:9';
   const viewport = viewportForAspectRatio(aspectRatio);
-  const provenance = captureProvenance(captureNode, siteSource);
+  const provenance = siteSource
+    ? captureProvenance(captureNode, siteSource)
+    : captureProvenance(captureNode, captureCandidateSource(firstCandidate, project));
+  const requests = siteSource
+    ? defaultSiteRequests({ target, aspectRatio, viewport, provenance })
+    : readySourceCandidates.map((candidate) =>
+        buildRequest({
+          id: candidate.id,
+          label: candidate.label,
+          required: candidate.mode !== 'screen-recording',
+          mode: candidate.mode,
+          target: { kind: candidate.targetKind, ref: candidate.targetRef },
+          aspectRatio,
+          viewport,
+          setup: candidate.setup,
+          expectedArtifacts: expectedArtifactsFor(candidate.mode),
+          provenance: candidate.provenance,
+        })
+      );
 
   return {
     projectId: project.id,
@@ -79,53 +103,10 @@ export function buildAgentMotionCapturePlan(project: MotionProject): AgentMotion
     captureNodeId: captureNode?.id,
     preferredPath: 'screenshot-first',
     target,
-    providerRequirements: ['browser-capture'],
-    requests: [
-      buildRequest({
-        id: 'capture-home-still',
-        label: 'Capture hero still',
-        required: true,
-        mode: 'screenshot',
-        target,
-        aspectRatio,
-        viewport,
-        expectedArtifacts: ['screenshot', 'cursor targets', 'viewport receipt'],
-        provenance,
-      }),
-      buildRequest({
-        id: 'capture-dom-snapshot',
-        label: 'Capture DOM snapshot',
-        required: true,
-        mode: 'dom-snapshot',
-        target,
-        aspectRatio,
-        viewport,
-        expectedArtifacts: ['snapshot', 'route metadata', 'viewport receipt'],
-        provenance,
-      }),
-      buildRequest({
-        id: 'capture-interaction-trace',
-        label: 'Capture interaction trace',
-        required: false,
-        mode: 'interaction-trace',
-        target,
-        aspectRatio,
-        viewport,
-        expectedArtifacts: ['trace', 'cursor targets', 'app-state receipt'],
-        provenance,
-      }),
-      buildRequest({
-        id: 'capture-screen-recording',
-        label: 'Record product flow',
-        required: false,
-        mode: 'screen-recording',
-        target,
-        aspectRatio,
-        viewport,
-        expectedArtifacts: ['recording', 'cursor targets', 'app-state receipt'],
-        provenance,
-      }),
-    ],
+    providerRequirements: siteSource
+      ? ['browser-capture']
+      : providerRequirementsFor(target, requests),
+    requests,
     fallbacks: computerUseFallbacks(),
     nextActions: [
       { id: 'capture-browser-stills', label: 'Capture browser stills' },
@@ -134,6 +115,60 @@ export function buildAgentMotionCapturePlan(project: MotionProject): AgentMotion
     ],
     provenance,
   };
+}
+
+function defaultSiteRequests(input: {
+  target: CaptureTarget;
+  aspectRatio: MotionAspectRatio;
+  viewport: CaptureViewport;
+  provenance: MotionProvenanceRef[];
+}): AgentMotionCapturePlanRequest[] {
+  return [
+    buildRequest({
+      id: 'capture-home-still',
+      label: 'Capture hero still',
+      required: true,
+      mode: 'screenshot',
+      target: input.target,
+      aspectRatio: input.aspectRatio,
+      viewport: input.viewport,
+      expectedArtifacts: ['screenshot', 'cursor targets', 'viewport receipt'],
+      provenance: input.provenance,
+    }),
+    buildRequest({
+      id: 'capture-dom-snapshot',
+      label: 'Capture DOM snapshot',
+      required: true,
+      mode: 'dom-snapshot',
+      target: input.target,
+      aspectRatio: input.aspectRatio,
+      viewport: input.viewport,
+      expectedArtifacts: ['snapshot', 'route metadata', 'viewport receipt'],
+      provenance: input.provenance,
+    }),
+    buildRequest({
+      id: 'capture-interaction-trace',
+      label: 'Capture interaction trace',
+      required: false,
+      mode: 'interaction-trace',
+      target: input.target,
+      aspectRatio: input.aspectRatio,
+      viewport: input.viewport,
+      expectedArtifacts: ['trace', 'cursor targets', 'app-state receipt'],
+      provenance: input.provenance,
+    }),
+    buildRequest({
+      id: 'capture-screen-recording',
+      label: 'Record product flow',
+      required: false,
+      mode: 'screen-recording',
+      target: input.target,
+      aspectRatio: input.aspectRatio,
+      viewport: input.viewport,
+      expectedArtifacts: ['recording', 'cursor targets', 'app-state receipt'],
+      provenance: input.provenance,
+    }),
+  ];
 }
 
 function emptyCapturePlan(
@@ -159,6 +194,7 @@ function buildRequest(input: {
   target: CaptureTarget;
   aspectRatio: MotionAspectRatio;
   viewport: CaptureViewport;
+  setup?: string;
   expectedArtifacts: string[];
   provenance: MotionProvenanceRef[];
 }): AgentMotionCapturePlanRequest {
@@ -171,15 +207,18 @@ function buildRequest(input: {
       mode: input.mode,
       aspectRatio: input.aspectRatio,
       viewport: input.viewport,
-      steps: stepsFor(input.mode, input.target.ref),
+      steps: stepsFor(input.mode, input.target.ref, input.setup),
     },
     expectedArtifacts: input.expectedArtifacts,
     provenance: input.provenance,
   };
 }
 
-function stepsFor(mode: CaptureMode, ref: string): CaptureRequest['steps'] {
+function stepsFor(mode: CaptureMode, ref: string, setup?: string): CaptureRequest['steps'] {
   const baseSteps: CaptureRequest['steps'] = [
+    ...(setup
+      ? [{ id: 'start-source', label: 'Start app', action: 'manual' as const, value: setup }]
+      : []),
     { id: 'goto-source', label: 'Open source', action: 'goto', value: ref },
     { id: 'settle-source', label: 'Wait for app state', action: 'wait', value: 'network-idle' },
   ];
@@ -196,6 +235,41 @@ function stepsFor(mode: CaptureMode, ref: string): CaptureRequest['steps'] {
   }
 
   return baseSteps;
+}
+
+function hasCaptureTarget(
+  candidate: MotionSourceCaptureCandidate
+): candidate is MotionSourceCaptureCandidate & { targetRef: string } {
+  return Boolean(candidate.targetRef);
+}
+
+function captureCandidateSource(
+  candidate: MotionSourceCaptureCandidate,
+  project: MotionProject
+): MotionProvenanceRef {
+  return (
+    candidate.provenance[0] ??
+    project.sourceRefs[0] ?? { kind: 'manual', ref: `${project.id}:capture-source` }
+  );
+}
+
+function expectedArtifactsFor(mode: CaptureMode): string[] {
+  if (mode === 'screen-recording') return ['recording', 'cursor targets', 'app-state receipt'];
+  if (mode === 'dom-snapshot') return ['snapshot', 'route metadata', 'viewport receipt'];
+  if (mode === 'interaction-trace') return ['trace', 'cursor targets', 'app-state receipt'];
+  return ['screenshot', 'cursor targets', 'viewport receipt'];
+}
+
+function providerRequirementsFor(
+  target: CaptureTarget,
+  requests: AgentMotionCapturePlanRequest[]
+): string[] {
+  const requirements = ['browser-capture'];
+  if (target.kind === 'local-app') requirements.push('app-launch');
+  if (requests.some((request) => request.request.mode === 'screen-recording')) {
+    requirements.push('screen-recording');
+  }
+  return requirements;
 }
 
 function viewportForAspectRatio(aspectRatio: MotionAspectRatio): CaptureViewport {

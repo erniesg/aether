@@ -13,6 +13,7 @@ import type {
   MotionProject,
   MotionProjectKind,
   MotionProvenanceRef,
+  MotionSourceProfile,
   MotionWorkflowMode,
   StoryBeat,
 } from './project';
@@ -27,6 +28,7 @@ export interface BuildRepoLaunchMotionProjectInput {
   tone: string;
   appProfile: AppProfile;
   claims: MotionClaimReceipt[];
+  sourceProfile?: MotionSourceProfile;
   platformTargets: MotionPlatformTarget[];
   createdAt: number;
 }
@@ -210,6 +212,16 @@ function summarizeEvidence(codeChange: CodeChangeResult): string {
   return 'Keep the evidence card linked to PR receipts before render.';
 }
 
+function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
+  const seen = new Set<string>();
+  return refs.filter((ref) => {
+    const key = `${ref.kind}:${ref.ref}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function buildRepoLaunchMotionProject(
   input: BuildRepoLaunchMotionProjectInput
 ): MotionProject {
@@ -220,6 +232,10 @@ export function buildRepoLaunchMotionProject(
   const firstClaim = input.claims[0] ?? fallbackClaim;
   const sourceRefs =
     input.claims.length > 0 ? input.claims.map((claim) => claim.source) : [fallbackClaim.source];
+  const projectSourceRefs = uniqueProvenance([
+    ...sourceRefs,
+    ...(input.appProfile.siteUrl ? [{ kind: 'site' as const, ref: input.appProfile.siteUrl }] : []),
+  ]);
   const brief: MotionBriefV2 = {
     projectKind: input.projectKind,
     appProfile: input.appProfile,
@@ -292,7 +308,8 @@ export function buildRepoLaunchMotionProject(
     id: input.id,
     workspaceId: input.workspaceId,
     title: `${input.appProfile.name} ${input.projectKind} video`,
-    sourceRefs,
+    sourceRefs: projectSourceRefs,
+    ...(input.sourceProfile ? { sourceProfile: input.sourceProfile } : {}),
     brief,
     story,
     workflowMode: input.workflowMode ?? DEFAULT_MOTION_WORKFLOW_MODE,

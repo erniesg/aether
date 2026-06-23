@@ -65,6 +65,51 @@ export interface AppProfile {
   stack: string[];
 }
 
+export type MotionSourceProfileKind = 'local-repo' | 'github-repo' | 'site' | 'pr';
+export type MotionSourceCaptureMode =
+  | 'screenshot'
+  | 'screen-recording'
+  | 'dom-snapshot'
+  | 'interaction-trace';
+export type MotionSourceCaptureTargetKind = 'url' | 'local-app' | 'desktop-app' | 'repo';
+
+export interface MotionSourceSignal {
+  id: string;
+  label: string;
+  value: string;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionSourceCaptureCandidate {
+  id: string;
+  label: string;
+  mode: MotionSourceCaptureMode;
+  targetKind: MotionSourceCaptureTargetKind;
+  targetRef?: string;
+  setup?: string;
+  reason: string;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionSourceStoryboardHint {
+  id: string;
+  beatRole: MotionBeatRole;
+  label: string;
+  reason: string;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionSourceProfile {
+  kind: MotionSourceProfileKind;
+  label: string;
+  sourceRef: string;
+  summary: string;
+  signals: MotionSourceSignal[];
+  captureCandidates: MotionSourceCaptureCandidate[];
+  storyboardHints: MotionSourceStoryboardHint[];
+  provenance: MotionProvenanceRef[];
+}
+
 export interface MotionPlatformTarget {
   platform: MotionPlatform;
   aspectRatio: MotionAspectRatio;
@@ -170,6 +215,7 @@ export interface MotionProject {
   workspaceId: string;
   title: string;
   sourceRefs: MotionProvenanceRef[];
+  sourceProfile?: MotionSourceProfile;
   brief: MotionBriefV2;
   story: StoryBeat[];
   workflowMode: MotionWorkflowMode;

@@ -120,6 +120,15 @@ describe('POST /api/motion/start', () => {
         projectId: 'motion-tong-launch',
         title: 'tong launch video',
         primaryAction: 'request-review',
+        sourceProfile: {
+          label: 'tong source material',
+          sourceKind: 'local-repo',
+          readyCaptureCount: 3,
+          captureCandidateLabels: expect.arrayContaining([
+            'Capture local app route /',
+            'Record local product flow /',
+          ]),
+        },
         enginePreviews: [
           { engine: 'remotion', status: 'ready' },
           { engine: 'hyperframes', status: 'ready' },
@@ -129,8 +138,22 @@ describe('POST /api/motion/start', () => {
     });
     expect(json.capturePlan).toMatchObject({
       projectId: 'motion-tong-launch',
-      status: 'needs-source',
-      providerRequirements: ['browser-capture'],
+      status: 'ready',
+      target: { kind: 'local-app', ref: 'http://localhost:3000/' },
+      providerRequirements: ['browser-capture', 'app-launch', 'screen-recording'],
+      requests: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture-local-app-still',
+          request: expect.objectContaining({
+            mode: 'screenshot',
+            target: { kind: 'local-app', ref: 'http://localhost:3000/' },
+          }),
+        }),
+        expect.objectContaining({
+          id: 'record-local-flow',
+          request: expect.objectContaining({ mode: 'screen-recording' }),
+        }),
+      ]),
     });
     expect(json.previewPlan.timelineRows.map((row: { trackKind: string }) => row.trackKind)).toEqual([
       'text',

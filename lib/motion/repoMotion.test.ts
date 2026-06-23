@@ -23,6 +23,7 @@ describe('buildRepoMotionProjectFromUrl', () => {
         return githubJson({
           name: 'aether',
           description: 'Canvas-native creative system.',
+          homepage: 'https://aether.example/',
           stargazers_count: 42,
           forks_count: 7,
           open_issues_count: 3,
@@ -65,8 +66,30 @@ describe('buildRepoMotionProjectFromUrl', () => {
     expect(project.brief.appProfile).toMatchObject({
       name: 'aether',
       repoUrl: 'https://github.com/erniesg/aether',
+      siteUrl: 'https://aether.example',
       summary: 'Canvas-native creative system.',
       stack: ['TypeScript', 'CSS', 'JavaScript'],
+    });
+    expect(project.sourceRefs).toContainEqual({
+      kind: 'site',
+      ref: 'https://aether.example',
+    });
+    expect(project.sourceProfile).toMatchObject({
+      kind: 'github-repo',
+      label: 'aether source material',
+      summary: 'GitHub repo with 2 capture candidates',
+      captureCandidates: [
+        expect.objectContaining({
+          id: 'capture-hosted-still',
+          targetKind: 'url',
+          targetRef: 'https://aether.example',
+        }),
+        expect.objectContaining({
+          id: 'record-hosted-flow',
+          mode: 'screen-recording',
+          targetRef: 'https://aether.example',
+        }),
+      ],
     });
     expect(project.brief.claims[0]).toEqual({
       text: 'aether has 42 GitHub stars and 7 forks.',

@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EvidenceClaim } from './evidence-facts';
 import type { ProjectFacts } from './repo-facts';
@@ -36,6 +36,7 @@ interface PackageJsonSummary {
 interface WalkResult {
   languageCounts: Map<string, number>;
   sourceFileCount: number;
+  appRoutes: string[];
 }
 
 const IGNORED_DIRS = new Set([
@@ -165,6 +166,10 @@ export async function fetchLocalRepoFacts(
     languages,
     readmeHighlights,
     enrichment: 'none',
+    dependencyNames: pkg.dependencies,
+    packageScripts: pkg.scripts,
+    appRoutes: walk.appRoutes,
+    sourceFileCount: walk.sourceFileCount,
   };
 }
 
@@ -214,6 +219,7 @@ async function readReadme(repoPath: string): Promise<string> {
 
 async function walkRepo(repoPath: string, maxFiles: number): Promise<WalkResult> {
   const languageCounts = new Map<string, number>();
+  const routeSet = new Set<string>();
   let visited = 0;
   let sourceFileCount = 0;
 
@@ -236,6 +242,9 @@ async function walkRepo(repoPath: string, maxFiles: number): Promise<WalkResult>
       if (!entry.isFile()) continue;
 
       visited += 1;
+      const fullPath = join(dir, entry.name);
+      const route = appRouteForFile(repoPath, fullPath);
+      if (route) routeSet.add(route);
       const language = LANGUAGE_BY_EXTENSION.get(extname(entry.name).toLowerCase());
       if (!language) continue;
 
@@ -245,7 +254,36 @@ async function walkRepo(repoPath: string, maxFiles: number): Promise<WalkResult>
   }
 
   await visit(repoPath);
-  return { languageCounts, sourceFileCount };
+  return { languageCounts, sourceFileCount, appRoutes: sortRoutes(Array.from(routeSet)) };
+}
+
+function appRouteForFile(repoPath: string, filePath: string): string | null {
+  const rel = relative(repoPath, filePath).split(/[\\/]/).join('/');
+  const appMatch = rel.match(/^(?:src\/)?app(?:\/(.*))?\/page\.(?:tsx?|jsx?|mdx)$/);
+  if (appMatch) return routeFromSegments(appMatch[1] ?? '');
+
+  const pagesMatch = rel.match(/^(?:src\/)?pages\/(.+)\.(?:tsx?|jsx?)$/);
+  if (!pagesMatch) return null;
+  const page = pagesMatch[1];
+  if (page.startsWith('api/') || page.startsWith('_')) return null;
+  return routeFromSegments(page.replace(/\/index$/, ''));
+}
+
+function routeFromSegments(raw: string): string | null {
+  const segments = raw
+    .split('/')
+    .filter((segment) => segment && !segment.startsWith('('));
+  if (segments.some((segment) => segment.includes('['))) return null;
+  return `/${segments.join('/')}`.replace(/\/$/, '') || '/';
+}
+
+function sortRoutes(routes: string[]): string[] {
+  return routes.sort((left, right) => routeOrder(left) - routeOrder(right) || left.localeCompare(right));
+}
+
+function routeOrder(route: string): number {
+  if (route === '/') return 0;
+  return route.split('/').length;
 }
 
 function buildLocalRepoClaims(input: {

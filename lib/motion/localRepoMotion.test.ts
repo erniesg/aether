@@ -10,6 +10,7 @@ async function makeRepo(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'aether-local-motion-'));
   tempDirs.push(dir);
   await mkdir(join(dir, 'src'), { recursive: true });
+  await mkdir(join(dir, 'src', 'app', 'gallery'), { recursive: true });
   await writeFile(
     join(dir, 'package.json'),
     JSON.stringify({
@@ -33,6 +34,11 @@ async function makeRepo(): Promise<string> {
     'Paillette is a Next.js and tldraw art-search canvas with TypeScript provenance receipts.'
   );
   await writeFile(join(dir, 'src', 'index.tsx'), 'export const app = true;');
+  await writeFile(join(dir, 'src', 'app', 'page.tsx'), 'export default function Page() {}');
+  await writeFile(
+    join(dir, 'src', 'app', 'gallery', 'page.tsx'),
+    'export default function GalleryPage() {}'
+  );
   return dir;
 }
 
@@ -69,9 +75,26 @@ describe('buildLocalRepoMotionProjectFromPath', () => {
           stack: ['TypeScript'],
         },
       },
+      sourceProfile: {
+        kind: 'local-repo',
+        label: 'paillette source material',
+        summary: 'local repo with 2 app routes and 3 capture candidates',
+      },
     });
+    expect(project.sourceProfile?.captureCandidates[0]).toMatchObject({
+      id: 'capture-local-app-still',
+      label: 'Capture local app route /',
+      targetKind: 'local-app',
+      targetRef: 'http://localhost:3000/',
+      setup: 'npm run dev',
+    });
+    expect(project.sourceProfile?.storyboardHints.map((hint) => hint.beatRole)).toEqual([
+      'hook',
+      'proof',
+      'demo',
+    ]);
     expect(project.brief.claims[0]).toEqual({
-      text: 'paillette local repo uses TypeScript across 1 source file.',
+      text: 'paillette local repo uses TypeScript across 3 source files.',
       source: { kind: 'repo', ref: repoPath },
     });
     expect(project.tracks.map((track) => track.kind)).toEqual([

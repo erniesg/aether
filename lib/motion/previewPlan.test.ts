@@ -24,6 +24,50 @@ function project() {
           source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
         },
       ],
+      sourceProfile: {
+        kind: 'github-repo',
+        label: 'aether source material',
+        sourceRef: 'https://github.com/erniesg/aether',
+        summary: 'GitHub repo with 2 capture candidates',
+        signals: [
+          {
+            id: 'signal-stack',
+            label: 'Stack',
+            value: 'TypeScript, Convex, tldraw',
+            provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+          },
+        ],
+        captureCandidates: [
+          {
+            id: 'capture-hosted-still',
+            label: 'Capture aether homepage',
+            mode: 'screenshot',
+            targetKind: 'url',
+            targetRef: 'https://aether.example',
+            reason: 'Hosted site is available as product evidence.',
+            provenance: [{ kind: 'site', ref: 'https://aether.example' }],
+          },
+          {
+            id: 'record-hosted-flow',
+            label: 'Record aether product flow',
+            mode: 'screen-recording',
+            targetKind: 'url',
+            targetRef: 'https://aether.example',
+            reason: 'Demo scenes need a product flow.',
+            provenance: [{ kind: 'site', ref: 'https://aether.example' }],
+          },
+        ],
+        storyboardHints: [
+          {
+            id: 'hint-demo-from-capture',
+            beatRole: 'demo',
+            label: 'Capture aether homepage',
+            reason: 'Use a real capture target for the demo scene.',
+            provenance: [{ kind: 'site', ref: 'https://aether.example' }],
+          },
+        ],
+        provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+      },
       platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
       createdAt: 120,
     }),
@@ -49,6 +93,15 @@ describe('buildMotionPreviewPlan', () => {
         projectKind: 'launch',
         totalSeconds: 30,
         targetPlatforms: ['x 9:16 30s'],
+      },
+      sourceProfile: {
+        label: 'aether source material',
+        sourceKind: 'github-repo',
+        summary: 'GitHub repo with 2 capture candidates',
+        readyCaptureCount: 2,
+        signalLabels: ['Stack: TypeScript, Convex, tldraw'],
+        captureCandidateLabels: ['Capture aether homepage', 'Record aether product flow'],
+        storyboardHintLabels: ['demo: Capture aether homepage'],
       },
     });
     expect(preview.storyboard.map((beat) => beat.role)).toEqual([

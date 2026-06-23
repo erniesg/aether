@@ -20,6 +20,7 @@ import type {
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
+  MotionPreviewSourceProfile,
   MotionPreviewSyncBeat,
   MotionPreviewSyncSoundCue,
   MotionPreviewSyncSummary,
@@ -318,6 +319,12 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
+      {previewPlan.sourceProfile ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionSourceMaterialStrip sourceProfile={previewPlan.sourceProfile} />
+        </section>
+      ) : null}
+
       <section className="border-b border-border-soft px-4 py-3">
         <MotionDesignKitStrip kit={previewPlan.designKit} />
       </section>
@@ -493,6 +500,56 @@ function MotionWorkflowSkillStrip({
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             {draft.verificationLabels.slice(0, 4).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionSourceMaterialStrip({
+  sourceProfile,
+}: {
+  sourceProfile: MotionPreviewSourceProfile;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            source material
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {sourceProfile.summary}
+          </div>
+        </div>
+        <Chip tone={sourceProfile.readyCaptureCount > 0 ? 'ok' : 'info'} size="sm">
+          {sourceProfile.readyCaptureCount > 0
+            ? `${sourceProfile.readyCaptureCount} captures`
+            : sourceProfile.sourceKind.replace(/-/g, ' ')}
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">{sourceProfile.label}</div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {sourceProfile.signalLabels.slice(0, 6).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {sourceProfile.captureCandidateLabels.slice(0, 2).join(' / ')}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {sourceProfile.storyboardHintLabels.slice(0, 3).map((label) => (
               <Chip key={label} tone="neutral" size="sm">
                 {label}
               </Chip>

@@ -12,6 +12,7 @@ const GITHUB_FIXTURE = {
     full_name: 'erniesg/aether',
     description: 'Canvas-native creative system built with Next.js and Convex.',
     html_url: 'https://github.com/erniesg/aether',
+    homepage: 'https://aether.example/',
     stargazers_count: 42,
     forks_count: 7,
     open_issues_count: 3,
@@ -55,6 +56,7 @@ describe('repo facts · GitHub extractor', () => {
 
     expect(facts.name).toBe('aether');
     expect(facts.description).toMatch(/canvas-native/i);
+    expect(facts.homepageUrl).toBe('https://aether.example');
     expect(facts.languages).toEqual(['TypeScript', 'CSS', 'JavaScript']);
     expect(facts.releases[0]).toMatchObject({ tag: 'v0.5.0' });
     expect(facts.readmeHighlights).toContain('Next.js 15');

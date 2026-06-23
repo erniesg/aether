@@ -8,6 +8,7 @@ import {
   buildRepoLaunchMotionProject,
   type BuildRepoLaunchMotionProjectInput,
 } from './storyboard';
+import { buildRepoMotionSourceProfile } from './sourceProfile';
 import { materializeMotionTimeline } from './timeline';
 import type {
   AppProfile,
@@ -43,6 +44,8 @@ export async function buildLocalRepoMotionProjectFromPath(
 ): Promise<MotionProject> {
   const normalizedRepoPath = normalizeLocalRepoPath(input.repoPath, options);
   const facts = await fetchLocalRepoFacts(normalizedRepoPath, options);
+  const appProfile = buildAppProfile(facts, normalizedRepoPath);
+  const claims = facts.claims.map(evidenceClaimToMotionClaim);
   const project = buildRepoLaunchMotionProject({
     id: input.id,
     workspaceId: input.workspaceId,
@@ -50,8 +53,16 @@ export async function buildLocalRepoMotionProjectFromPath(
     workflowMode: input.workflowMode,
     audience: input.audience,
     tone: input.tone,
-    appProfile: buildAppProfile(facts, normalizedRepoPath),
-    claims: facts.claims.map(evidenceClaimToMotionClaim),
+    appProfile,
+    claims,
+    sourceProfile: buildRepoMotionSourceProfile({
+      kind: 'local-repo',
+      sourceRef: normalizedRepoPath,
+      appProfile,
+      facts,
+      claims,
+      projectKind: input.projectKind,
+    }),
     platformTargets: input.platformTargets,
     createdAt: input.createdAt,
   } satisfies BuildRepoLaunchMotionProjectInput);

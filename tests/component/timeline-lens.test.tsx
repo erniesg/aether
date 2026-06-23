@@ -56,6 +56,15 @@ const previewPlan: MotionPreviewPlan = {
     totalSeconds: 30,
     targetPlatforms: ['x 9:16 30s'],
   },
+  sourceProfile: {
+    label: 'aether source material',
+    sourceKind: 'local-repo',
+    summary: 'local repo with 2 app routes and 3 capture candidates',
+    signalLabels: ['Stack: TypeScript, Next.js 15, Convex', 'Routes: /, /canvas'],
+    captureCandidateLabels: ['Capture local app route /', 'Record local product flow /'],
+    storyboardHintLabels: ['hook: Canvas-native creative system', 'demo: Capture local app route /'],
+    readyCaptureCount: 3,
+  },
   videoPlan: {
     status: 'needs-review',
     title: 'aether launch video',
@@ -479,6 +488,13 @@ describe('TimelineLens', () => {
     expect(screen.getByText(/Create a repo launch video from repo/)).toBeInTheDocument();
     expect(screen.getByText('repoPath / repoUrl / siteUrl / sourceRefs')).toBeInTheDocument();
     expect(screen.getByText('contact sheet')).toBeInTheDocument();
+    expect(screen.getByText('source material')).toBeInTheDocument();
+    expect(screen.getByText('aether source material')).toBeInTheDocument();
+    expect(screen.getByText('3 captures')).toBeInTheDocument();
+    expect(screen.getByText('Stack: TypeScript, Next.js 15, Convex')).toBeInTheDocument();
+    expect(screen.getByText('Routes: /, /canvas')).toBeInTheDocument();
+    expect(screen.getAllByText(/Capture local app route/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/demo: Capture local app route/)).toBeInTheDocument();
     expect(screen.getByText('motion kit')).toBeInTheDocument();
     expect(screen.getByText('Repo launch kit')).toBeInTheDocument();
     expect(screen.getByText(/Open fast, prove early/)).toBeInTheDocument();

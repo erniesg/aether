@@ -8,6 +8,7 @@ import {
   buildRepoLaunchMotionProject,
   type BuildRepoLaunchMotionProjectInput,
 } from './storyboard';
+import { buildRepoMotionSourceProfile } from './sourceProfile';
 import { materializeMotionTimeline } from './timeline';
 import type {
   AppProfile,
@@ -45,6 +46,8 @@ export async function buildRepoMotionProjectFromUrl(
 ): Promise<MotionProject> {
   const normalizedRepoUrl = normalizeGitHubRepoUrl(input.repoUrl);
   const facts = await fetchRepoFacts(normalizedRepoUrl, options);
+  const appProfile = buildAppProfile(facts, normalizedRepoUrl);
+  const claims = facts.claims.map(evidenceClaimToMotionClaim);
   const project = buildRepoLaunchMotionProject({
     id: input.id,
     workspaceId: input.workspaceId,
@@ -52,8 +55,16 @@ export async function buildRepoMotionProjectFromUrl(
     workflowMode: input.workflowMode,
     audience: input.audience,
     tone: input.tone,
-    appProfile: buildAppProfile(facts, normalizedRepoUrl),
-    claims: facts.claims.map(evidenceClaimToMotionClaim),
+    appProfile,
+    claims,
+    sourceProfile: buildRepoMotionSourceProfile({
+      kind: 'github-repo',
+      sourceRef: normalizedRepoUrl,
+      appProfile,
+      facts,
+      claims,
+      projectKind: input.projectKind,
+    }),
     platformTargets: input.platformTargets,
     createdAt: input.createdAt,
   } satisfies BuildRepoLaunchMotionProjectInput);
@@ -72,6 +83,7 @@ function buildAppProfile(facts: ProjectFacts, repoUrl: string): AppProfile {
   return {
     name: facts.name,
     repoUrl,
+    ...(facts.homepageUrl ? { siteUrl: facts.homepageUrl } : {}),
     summary: facts.description || `${facts.name} repository`,
     stack: facts.languages,
   };

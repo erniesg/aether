@@ -18,6 +18,11 @@ export interface ProjectFacts {
   languages: string[];
   readmeHighlights: string[];
   enrichment: ProjectFactsEnrichment;
+  homepageUrl?: string;
+  dependencyNames?: string[];
+  packageScripts?: string[];
+  appRoutes?: string[];
+  sourceFileCount?: number;
 }
 
 export type RepoFactsErrorCode =
@@ -130,6 +135,7 @@ export function extractProjectFactsFromGitHubFixture(
   if (!name) throw new RepoFactsError('malformed_payload', 'GitHub repo payload missing name');
 
   const description = stringField(repo, 'description') || '';
+  const homepageUrl = normalizeOptionalHomepage(stringField(repo, 'homepage'));
   const languages = Object.entries(fixture.languages ?? {})
     .sort((a, b) => b[1] - a[1])
     .map(([language]) => language);
@@ -165,6 +171,7 @@ export function extractProjectFactsFromGitHubFixture(
     languages,
     readmeHighlights,
     enrichment: 'none',
+    ...(homepageUrl ? { homepageUrl } : {}),
   };
 }
 
@@ -298,6 +305,18 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function stringField(obj: Record<string, unknown>, key: string): string {
   const value = obj[key];
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeOptionalHomepage(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return undefined;
+  }
 }
 
 function numberField(obj: Record<string, unknown>, key: string): number | null {

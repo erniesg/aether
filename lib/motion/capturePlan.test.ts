@@ -10,6 +10,90 @@ function htmlResponse(body: string): Response {
 }
 
 describe('buildAgentMotionCapturePlan', () => {
+  it('builds local-app capture requests from source profile candidates', () => {
+    const plan = buildAgentMotionCapturePlan({
+      id: 'motion-tong-launch',
+      workspaceId: 'demo-ws',
+      title: 'tong launch video',
+      sourceRefs: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+      sourceProfile: {
+        kind: 'local-repo',
+        label: 'tong source material',
+        sourceRef: '/Users/erniesg/code/erniesg/tong',
+        summary: 'local repo with 1 app route and 3 capture candidates',
+        signals: [],
+        captureCandidates: [
+          {
+            id: 'capture-local-app-still',
+            label: 'Capture local app route /',
+            mode: 'screenshot',
+            targetKind: 'local-app',
+            targetRef: 'http://localhost:3000/',
+            setup: 'npm run dev',
+            reason: 'Local repo exposes an app route suitable for a product still.',
+            provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+          },
+          {
+            id: 'record-local-flow',
+            label: 'Record local product flow /',
+            mode: 'screen-recording',
+            targetKind: 'local-app',
+            targetRef: 'http://localhost:3000/',
+            setup: 'npm run dev',
+            reason: 'Launch videos need a real product insert.',
+            provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+          },
+        ],
+        storyboardHints: [],
+        provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+      },
+      brief: {
+        projectKind: 'launch',
+        appProfile: {
+          name: 'tong',
+          repoUrl: '/Users/erniesg/code/erniesg/tong',
+          summary: 'City-specific language learning app.',
+          stack: ['TypeScript'],
+        },
+        audience: 'learners',
+        platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+        claims: [],
+        tone: 'textural',
+        brandMotion: {
+          palette: ['#ffffff'],
+          fontFamilies: ['Inter'],
+          motionStyle: 'technical',
+        },
+      },
+      story: [],
+      workflowMode: 'review',
+      currentDraftId: 'draft-primary',
+      drafts: [],
+      tracks: [],
+      graphNodes: [],
+      exports: [],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    expect(plan).toMatchObject({
+      status: 'ready',
+      target: { kind: 'local-app', ref: 'http://localhost:3000/' },
+      providerRequirements: ['browser-capture', 'app-launch', 'screen-recording'],
+    });
+    expect(plan.requests[0]).toMatchObject({
+      id: 'capture-local-app-still',
+      request: {
+        mode: 'screenshot',
+        steps: [
+          { id: 'start-source', action: 'manual', value: 'npm run dev' },
+          { id: 'goto-source', action: 'goto', value: 'http://localhost:3000/' },
+          { id: 'settle-source', action: 'wait', value: 'network-idle' },
+        ],
+      },
+    });
+  });
+
   it('turns a site motion project into screenshot-first browser capture requests', async () => {
     const fetcher = vi.fn<typeof fetch>(async () =>
       htmlResponse(`

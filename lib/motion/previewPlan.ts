@@ -41,6 +41,7 @@ import {
   type MotionDraft,
   type MotionProject,
   type MotionProvenanceRef,
+  type MotionSourceProfile,
   type MotionTrackKind,
   type TimelineClip,
   type TimelineTrack,
@@ -150,6 +151,16 @@ export interface MotionPreviewVideoPlan {
   scenes: MotionPreviewVideoPlanScene[];
 }
 
+export interface MotionPreviewSourceProfile {
+  label: string;
+  sourceKind: MotionSourceProfile['kind'];
+  summary: string;
+  signalLabels: string[];
+  captureCandidateLabels: string[];
+  storyboardHintLabels: string[];
+  readyCaptureCount: number;
+}
+
 export interface MotionPreviewSyncSummary {
   status: MotionSyncPlanStatus;
   beatCount: number;
@@ -212,6 +223,7 @@ export interface MotionPreviewPlan {
   workflowMode: MotionProject['workflowMode'];
   primaryAction: MotionReviewPlan['primaryAction'];
   summary: MotionReviewPlan['summary'];
+  sourceProfile: MotionPreviewSourceProfile | null;
   videoPlan: MotionPreviewVideoPlan;
   designKit: MotionDesignKitPlan;
   storyboard: MotionPreviewStoryBeat[];
@@ -271,6 +283,7 @@ export function buildMotionPreviewPlan(
     workflowMode: project.workflowMode,
     primaryAction: reviewPlan.primaryAction,
     summary: reviewPlan.summary,
+    sourceProfile: buildSourceProfileSummary(project.sourceProfile),
     videoPlan: buildVideoPlan(reviewPlan, timelineRows, regenerationActions),
     designKit: buildMotionDesignKitPlan(project),
     storyboard: reviewPlan.storyBeats.map((beat) => ({
@@ -309,6 +322,22 @@ export function buildMotionPreviewPlan(
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),
     ]),
     requestedAt: options.requestedAt,
+  };
+}
+
+function buildSourceProfileSummary(
+  profile: MotionSourceProfile | undefined
+): MotionPreviewSourceProfile | null {
+  if (!profile) return null;
+
+  return {
+    label: profile.label,
+    sourceKind: profile.kind,
+    summary: profile.summary,
+    signalLabels: profile.signals.map((signal) => `${signal.label}: ${signal.value}`),
+    captureCandidateLabels: profile.captureCandidates.map((candidate) => candidate.label),
+    storyboardHintLabels: profile.storyboardHints.map((hint) => `${hint.beatRole}: ${hint.label}`),
+    readyCaptureCount: profile.captureCandidates.filter((candidate) => candidate.targetRef).length,
   };
 }
 

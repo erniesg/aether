@@ -204,7 +204,6 @@ describe('startAgentMotionWorkflow', () => {
     });
     expect(result.project?.sourceRefs).toEqual([
       { kind: 'site', ref: 'https://tong.app/tokyo' },
-      { kind: 'site', ref: 'https://tong.app/tokyo' },
     ]);
     expect(result.project?.tracks.map((track) => track.kind)).toEqual([
       'text',
