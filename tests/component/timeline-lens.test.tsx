@@ -371,6 +371,22 @@ describe('TimelineLens', () => {
     expect(onGenerateVideoClips).toHaveBeenCalledTimes(1);
   });
 
+  it('lets creators pin the current motion workflow as a reusable skill', async () => {
+    const onPinMotionSkill = vi.fn<() => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onPinMotionSkill={onPinMotionSkill}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /pin skill/i }));
+    expect(onPinMotionSkill).toHaveBeenCalledTimes(1);
+  });
+
   it('lets creators edit the selected clip summary', async () => {
     const onSelectClip = vi.fn<(clipId: string) => void>();
     const onEditClipSummary = vi.fn<(clipId: string, summary: string) => void>();

@@ -85,6 +85,7 @@ import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
+import { buildMotionSkillAuthoringPrompt } from '@/lib/motion/skillPrompt';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
 import {
@@ -736,6 +737,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
+  const handleTimelinePinMotionSkill = useCallback(() => {
+    if (!motionStart) return;
+    setPendingSkillPrompt(buildMotionSkillAuthoringPrompt(motionStart));
+    setMotionTimelineActionStatus('drafting reusable motion skill');
+  }, [motionStart]);
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2497,6 +2503,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onRenderMotion={handleTimelineRender}
             onExportPack={handleTimelineExportPack}
             onGenerateVideoClips={handleTimelineGenerateVideoClips}
+            onPinMotionSkill={handleTimelinePinMotionSkill}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}

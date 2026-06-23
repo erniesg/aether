@@ -30,6 +30,7 @@ export interface TimelineLensProps {
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
   onGenerateVideoClips?: () => void;
+  onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   graphNodes?: MotionGraphNode[];
   workflowExamples?: MotionWorkflowExample[];
@@ -47,6 +48,7 @@ export function TimelineLens({
   onRenderMotion,
   onExportPack,
   onGenerateVideoClips,
+  onPinMotionSkill,
   onEditClipSummary,
   graphNodes = [],
   workflowExamples = [],
@@ -90,6 +92,7 @@ export function TimelineLens({
             onRenderMotion={onRenderMotion}
             onExportPack={onExportPack}
             onGenerateVideoClips={onGenerateVideoClips}
+            onPinMotionSkill={onPinMotionSkill}
             onEditClipSummary={onEditClipSummary}
             graphNodes={graphNodes}
             workflowExamples={workflowExamples}
@@ -126,6 +129,7 @@ function MotionPreviewPlanView({
   onRenderMotion,
   onExportPack,
   onGenerateVideoClips,
+  onPinMotionSkill,
   onEditClipSummary,
   graphNodes,
   workflowExamples,
@@ -140,6 +144,7 @@ function MotionPreviewPlanView({
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
   onGenerateVideoClips?: () => void;
+  onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   graphNodes: MotionGraphNode[];
   workflowExamples: MotionWorkflowExample[];
@@ -241,6 +246,9 @@ function MotionPreviewPlanView({
             ) : null}
             {onGenerateVideoClips ? (
               <ImageToVideoActionButton onGenerateVideoClips={onGenerateVideoClips} />
+            ) : null}
+            {onPinMotionSkill ? (
+              <PinMotionSkillButton onPinMotionSkill={onPinMotionSkill} />
             ) : null}
           </div>
         </div>
@@ -603,6 +611,18 @@ function ImageToVideoActionButton({
       className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
     >
       generate clips
+    </button>
+  );
+}
+
+function PinMotionSkillButton({ onPinMotionSkill }: { onPinMotionSkill: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPinMotionSkill}
+      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+    >
+      pin skill
     </button>
   );
 }

@@ -401,6 +401,40 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline pin skill action opens a motion-specific reusable skill draft', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          manifest: {
+            name: 'repo-launch-video',
+            version: 1,
+            description: 'Turn a repo into an editable launch video.',
+            tools: ['motion-brief', 'motion-storyboard', 'motion-render'],
+            referenceFiles: [],
+            instructions:
+              '# repo-launch-video\n\nDraft a launch video.\n\n## Output format\n\n```json\n{ "ok": true, "result": {} }\n```',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^pin skill$/i }));
+
+    expect(await screen.findByTestId('skill-accept-name')).toHaveValue('repo-launch-video');
+    const draftCall = fetchMock.mock.calls.find(
+      (call) => call[0] === '/api/capability/draft-skill'
+    );
+    expect(draftCall?.[1]?.body).toEqual(expect.stringContaining('Repo launch video'));
+    expect(draftCall?.[1]?.body).toEqual(expect.stringContaining('Engines: remotion, hyperframes, provider'));
+    expect(draftCall?.[1]?.body).toEqual(expect.stringContaining('review vs full-auto behavior'));
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {
