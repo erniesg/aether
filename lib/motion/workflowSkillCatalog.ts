@@ -162,6 +162,7 @@ const RECIPE_DEFINITIONS = {
     referencePatternIds: [
       'launch-hook-title',
       'real-product-capture',
+      'screen-zoom-callout',
       'proof-receipt-card',
       'agent-process-trace',
       'skill-drop-announcement',
@@ -169,6 +170,8 @@ const RECIPE_DEFINITIONS = {
       'image-to-video-insert',
       'voice-caption-sync',
       'multi-format-pack',
+      'branded-template-system',
+      'localized-caption-variant',
     ],
     reviewSurfaces: [
       {

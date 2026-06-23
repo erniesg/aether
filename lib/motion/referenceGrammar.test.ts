@@ -39,11 +39,14 @@ describe('buildMotionReferenceGrammarPlan', () => {
       cueLabels: [
         'Launch hook title',
         'Real product capture',
+        'Screen zoom callout',
         'Proof receipt card',
         'Agent process trace',
         'Image-to-video insert',
         'Voice and caption sync',
         'Multi-format export pack',
+        'Branded template system',
+        'Localized voice caption variants',
         'Reusable motion system',
       ],
       componentLabels: [
@@ -77,12 +80,36 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Select source material',
         'Regenerate weak component slots',
       ],
+      researchSourceLabels: expect.arrayContaining([
+        'iart motion-skills: agent-native render and verify loops',
+        'Clueso: script, voiceover, captions, templates, editor handoff',
+        'Screen Studio: cursor zooms and editable zoom timeline',
+        'Arcade: actual-product and brand-aware demo assets',
+      ]),
     });
     expect(plan.cues[1]).toMatchObject({
       patternId: 'real-product-capture',
       componentLabels: ['App frame', 'Soft wipe'],
       verificationLabels: expect.arrayContaining(['capture receipt']),
     });
+    expect(plan.cues.find((cue) => cue.patternId === 'screen-zoom-callout')).toMatchObject({
+      researchSourceLabels: expect.arrayContaining([
+        'Screen Studio: cursor zooms and editable zoom timeline',
+      ]),
+      editSurfaceLabels: expect.arrayContaining(['cursor path', 'zoom keyframes']),
+    });
+    expect(plan.researchSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Screen Studio',
+          url: 'https://screen.studio/',
+        }),
+        expect.objectContaining({
+          label: 'iart motion-skills',
+          url: 'https://github.com/iart-ai/motion-skills',
+        }),
+      ])
+    );
   });
 
   it('keeps PR-to-video grammar centered on code proof instead of product scrape', () => {

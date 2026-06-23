@@ -110,6 +110,8 @@ describe('motion workflow skill catalog', () => {
       'image-to-video-insert',
       'voice-caption-sync',
       'multi-format-pack',
+      'branded-template-system',
+      'localized-caption-variant',
       'reusable-motion-system',
     ]);
     expect(patterns).toEqual(

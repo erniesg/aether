@@ -296,6 +296,8 @@ const previewPlan: MotionPreviewPlan = {
         generationLaneLabels: ['repo facts', 'render'],
         editSurfaceLabels: ['copy', 'timing', 'effect'],
         verificationLabels: ['first-frame readable', 'app name visible', 'claim has receipt'],
+        researchSourceLabels: [],
+        researchSources: [],
       },
       {
         patternId: 'real-product-capture',
@@ -306,6 +308,17 @@ const previewPlan: MotionPreviewPlan = {
         generationLaneLabels: ['capture', 'sync', 'render'],
         editSurfaceLabels: ['capture', 'crop', 'timing', 'effect'],
         verificationLabels: ['capture receipt', 'crop safe area', 'text remains readable'],
+        researchSourceLabels: [
+          'Clueso: script, voiceover, captions, templates, editor handoff',
+        ],
+        researchSources: [
+          {
+            id: 'clueso',
+            label: 'Clueso',
+            url: 'https://www.clueso.io/',
+            observedPattern: 'script, voiceover, captions, templates, editor handoff',
+          },
+        ],
       },
     ],
     componentLabels: [
@@ -325,6 +338,17 @@ const previewPlan: MotionPreviewPlan = {
       'first-frame readable',
       'capture receipt',
       'captions align to voice',
+    ],
+    researchSourceLabels: [
+      'Clueso: script, voiceover, captions, templates, editor handoff',
+    ],
+    researchSources: [
+      {
+        id: 'clueso',
+        label: 'Clueso',
+        url: 'https://www.clueso.io/',
+        observedPattern: 'script, voiceover, captions, templates, editor handoff',
+      },
     ],
     nextActionLabels: [
       'Review video grammar',
@@ -647,6 +671,7 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
   draftVariationLabels: ['Proof-first launch', 'Demo-first launch', 'Founder-note launch'],
   componentSlotLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
   referencePatternLabels: ['Launch hook title', 'Real product capture', 'Proof receipt card'],
+  researchSignalLabels: ['Clueso: script, voiceover, captions, templates, editor handoff'],
   regenerationLabels: ['story beat', 'component', 'capture', 'voice line', 'timing', 'effect'],
   toolNames: ['motion_start', 'motion_capture', 'motion_render', 'motion_export_pack'],
   verificationLabels: ['contact sheet', 'mp4 probe', 'poster', 'subtitles'],

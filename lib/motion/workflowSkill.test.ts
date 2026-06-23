@@ -169,6 +169,7 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.referencePatternLabels).toEqual([
       'Launch hook title',
       'Real product capture',
+      'Screen zoom callout',
       'Proof receipt card',
       'Agent process trace',
       'Skill drop announcement',
@@ -176,11 +177,17 @@ describe('motion workflow skill drafts', () => {
       'Image-to-video insert',
       'Voice and caption sync',
       'Multi-format export pack',
+      'Branded template system',
+      'Localized voice caption variants',
     ]);
     expect(plan.skillDraft.toolNames).toContain('motion_capture');
     expect(plan.skillDraft.manifest.instructions).toContain('Review video plan before continuing');
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
     expect(plan.skillDraft.manifest.instructions).toContain('## Review Surfaces');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Research Signals');
+    expect(plan.skillDraft.manifest.instructions).toContain('Screen Studio');
+    expect(plan.skillDraft.manifest.instructions).toContain('Clueso');
+    expect(plan.skillDraft.manifest.instructions).toContain('iart motion-skills');
     expect(plan.skillDraft.manifest.instructions).toContain('Real product capture');
     expect(plan.skillDraft.manifest.instructions).toContain('Capture plan');
     expect(plan.skillDraft.manifest.instructions).not.toMatch(

@@ -15,6 +15,8 @@ export type MotionReferencePatternId =
   | 'image-to-video-insert'
   | 'voice-caption-sync'
   | 'multi-format-pack'
+  | 'branded-template-system'
+  | 'localized-caption-variant'
   | 'reusable-motion-system';
 
 export type MotionReferencePatternCategory =
@@ -35,7 +37,46 @@ export interface MotionReferencePattern {
   generationLanes: MotionWorkflowGenerationLane[];
   editSurfaces: string[];
   verificationLabels: string[];
+  researchSources: MotionReferenceResearchSource[];
 }
+
+export interface MotionReferenceResearchSource {
+  id: string;
+  label: string;
+  url: string;
+  observedPattern: string;
+}
+
+type MotionReferencePatternDefinition = Omit<MotionReferencePattern, 'researchSources'> & {
+  researchSources?: MotionReferenceResearchSource[];
+};
+
+const RESEARCH_SOURCES = {
+  'iart-motion-skills': {
+    id: 'iart-motion-skills',
+    label: 'iart motion-skills',
+    url: 'https://github.com/iart-ai/motion-skills',
+    observedPattern: 'agent-native render and verify loops',
+  },
+  clueso: {
+    id: 'clueso',
+    label: 'Clueso',
+    url: 'https://www.clueso.io/',
+    observedPattern: 'script, voiceover, captions, templates, editor handoff',
+  },
+  'screen-studio': {
+    id: 'screen-studio',
+    label: 'Screen Studio',
+    url: 'https://screen.studio/',
+    observedPattern: 'cursor zooms and editable zoom timeline',
+  },
+  arcade: {
+    id: 'arcade',
+    label: 'Arcade',
+    url: 'https://www.arcade.software/',
+    observedPattern: 'actual-product and brand-aware demo assets',
+  },
+} satisfies Record<string, MotionReferenceResearchSource>;
 
 const REFERENCE_PATTERNS = {
   'launch-hook-title': {
@@ -59,6 +100,7 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['capture', 'sync', 'render'],
     editSurfaces: ['capture', 'crop', 'timing', 'effect'],
     verificationLabels: ['capture receipt', 'crop safe area', 'text remains readable'],
+    researchSources: [RESEARCH_SOURCES.clueso, RESEARCH_SOURCES.arcade],
   },
   'screen-zoom-callout': {
     id: 'screen-zoom-callout',
@@ -66,10 +108,11 @@ const REFERENCE_PATTERNS = {
     category: 'edit',
     purpose: 'Guide attention to one UI action with zoom, crop, cursor, or callout timing.',
     sourceSignals: ['screen recording', 'interaction trace', 'DOM target'],
-    componentIds: ['app-frame', 'caption-line'],
+    componentIds: ['app-frame', 'soft-wipe'],
     generationLanes: ['capture', 'sync', 'render'],
-    editSurfaces: ['crop', 'timing', 'caption', 'effect'],
+    editSurfaces: ['crop', 'cursor path', 'zoom keyframes', 'timing', 'caption', 'effect'],
     verificationLabels: ['target visible', 'zoom does not blur UI text', 'caption safe area'],
+    researchSources: [RESEARCH_SOURCES['screen-studio'], RESEARCH_SOURCES.clueso],
   },
   'caption-led-social': {
     id: 'caption-led-social',
@@ -136,6 +179,7 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['repo-facts', 'visual-search', 'voice', 'sync', 'render', 'export'],
     editSurfaces: ['copy', 'command', 'caption', 'timing', 'effect'],
     verificationLabels: ['install command visible', 'skill name visible', 'CTA not clipped'],
+    researchSources: [RESEARCH_SOURCES['iart-motion-skills']],
   },
   'terminal-command-proof': {
     id: 'terminal-command-proof',
@@ -158,6 +202,7 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['image-to-video', 'sync', 'render'],
     editSurfaces: ['visual', 'prompt', 'timing', 'effect'],
     verificationLabels: ['source visual preserved', 'generated clip reviewed', 'timeline update receipt'],
+    researchSources: [RESEARCH_SOURCES.arcade, RESEARCH_SOURCES['iart-motion-skills']],
   },
   'voice-caption-sync': {
     id: 'voice-caption-sync',
@@ -169,6 +214,7 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['voice', 'sync', 'render'],
     editSurfaces: ['voice-line', 'caption', 'timing', 'effect'],
     verificationLabels: ['word timing receipt', 'captions align to voice', 'sound cues saved'],
+    researchSources: [RESEARCH_SOURCES.clueso, RESEARCH_SOURCES['iart-motion-skills']],
   },
   'multi-format-pack': {
     id: 'multi-format-pack',
@@ -180,6 +226,35 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['render', 'export'],
     editSurfaces: ['format', 'caption', 'poster', 'manifest'],
     verificationLabels: ['mp4 probe', 'poster still', 'subtitle sidecar', 'pack manifest'],
+    researchSources: [RESEARCH_SOURCES['screen-studio'], RESEARCH_SOURCES.clueso],
+  },
+  'branded-template-system': {
+    id: 'branded-template-system',
+    label: 'Branded template system',
+    category: 'motion',
+    purpose: 'Keep intros, outros, backgrounds, type, and motion tokens reusable across videos.',
+    sourceSignals: ['brand tokens', 'template', 'intro', 'outro', 'background'],
+    componentIds: ['hook-card', 'cta-card', 'caption-line', 'soft-wipe'],
+    generationLanes: ['repo-facts', 'visual-search', 'sync', 'render', 'export'],
+    editSurfaces: ['brand', 'template', 'intro', 'outro', 'effect', 'format'],
+    verificationLabels: ['brand tokens visible', 'template props editable', 'intro and outro safe areas'],
+    researchSources: [
+      RESEARCH_SOURCES.clueso,
+      RESEARCH_SOURCES.arcade,
+      RESEARCH_SOURCES['iart-motion-skills'],
+    ],
+  },
+  'localized-caption-variant': {
+    id: 'localized-caption-variant',
+    label: 'Localized voice caption variants',
+    category: 'audio',
+    purpose: 'Generate locale-specific voice, captions, transcript, and export variants from one plan.',
+    sourceSignals: ['voiceover', 'captions', 'translation', 'platform locale'],
+    componentIds: ['voice-line', 'caption-line', 'cta-card'],
+    generationLanes: ['voice', 'sync', 'render', 'export'],
+    editSurfaces: ['locale', 'voice-line', 'caption', 'translation', 'timing'],
+    verificationLabels: ['locale pack manifest', 'captions align to voice', 'transcript sidecars'],
+    researchSources: [RESEARCH_SOURCES.clueso, RESEARCH_SOURCES['iart-motion-skills']],
   },
   'reusable-motion-system': {
     id: 'reusable-motion-system',
@@ -191,8 +266,9 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['visual-search', 'sync', 'render', 'export'],
     editSurfaces: ['component', 'effect', 'timing', 'format'],
     verificationLabels: ['component props editable', 'effect token saved', 'render parity proof'],
+    researchSources: [RESEARCH_SOURCES['iart-motion-skills']],
   },
-} as const satisfies Record<MotionReferencePatternId, MotionReferencePattern>;
+} as const satisfies Record<MotionReferencePatternId, MotionReferencePatternDefinition>;
 
 export function getMotionReferencePattern(
   id: MotionReferencePatternId
@@ -210,7 +286,7 @@ export function selectMotionReferencePatterns(
   return ids.map((id) => getMotionReferencePattern(id));
 }
 
-function clonePattern(pattern: MotionReferencePattern): MotionReferencePattern {
+function clonePattern(pattern: MotionReferencePatternDefinition): MotionReferencePattern {
   return {
     ...pattern,
     sourceSignals: [...pattern.sourceSignals],
@@ -218,5 +294,6 @@ function clonePattern(pattern: MotionReferencePattern): MotionReferencePattern {
     generationLanes: [...pattern.generationLanes],
     editSurfaces: [...pattern.editSurfaces],
     verificationLabels: [...pattern.verificationLabels],
+    researchSources: [...(pattern.researchSources ?? [])],
   };
 }

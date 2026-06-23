@@ -47,6 +47,7 @@ export interface MotionWorkflowSkillDraft {
   draftVariationLabels: string[];
   componentSlotLabels: string[];
   referencePatternLabels: string[];
+  researchSignalLabels: string[];
   regenerationLabels: string[];
   toolNames: string[];
   verificationLabels: string[];
@@ -74,6 +75,7 @@ export function buildMotionWorkflowSkillDraft(
   const reviewPolicyLabels = reviewPolicyLabelsFor(plan);
   const verificationLabels = verificationLabelsFor(plan.skillContract);
   const sampleCopyLines = uniqueStrings(examples.flatMap((example) => example.sampleCopyLines));
+  const researchSignalLabels = recipe ? researchSignalLabelsFor(recipe) : [];
   const startShorthands = acceptedShorthandsFor(plan.supportedSourceKinds);
   const regenerationLabels = uniqueStrings([
     ...(plan.skillContract?.regenerationTargets.map(labelRegenerationTarget) ?? []),
@@ -112,6 +114,7 @@ export function buildMotionWorkflowSkillDraft(
     draftVariationLabels: recipe?.draftVariations.map((variation) => variation.label) ?? [],
     componentSlotLabels: recipe?.componentSlots.map((slot) => slot.label) ?? [],
     referencePatternLabels: recipe?.referencePatterns.map((pattern) => pattern.label) ?? [],
+    researchSignalLabels,
     regenerationLabels,
     toolNames,
     verificationLabels,
@@ -255,6 +258,9 @@ function buildSkillInstructions({
         `- ${pattern.label}: ${pattern.purpose} Edit: ${pattern.editSurfaces.join(', ')}. Verify: ${pattern.verificationLabels.join(', ')}.`
     ) ?? []),
     recipe ? '' : '',
+    recipe ? '## Research Signals' : '',
+    ...(recipe ? researchSignalLabelsFor(recipe).map((label) => `- ${label}.`) : []),
+    recipe ? '' : '',
     recipe ? '## Review Surfaces' : '',
     ...(recipe?.reviewSurfaces.map(
       (surface) => `- ${surface.label}: ${surface.purpose}`
@@ -322,6 +328,18 @@ function labelRegenerationTarget(target: WorkflowRegenerationTarget): string {
 
 function labelVerificationArtifact(artifact: WorkflowVerificationArtifact): string {
   return artifact.replace(/-/g, ' ');
+}
+
+function researchSignalLabelsFor(recipe: MotionWorkflowSkillRecipe): string[] {
+  const seen = new Set<string>();
+  return recipe.referencePatterns
+    .flatMap((pattern) => pattern.researchSources)
+    .filter((source) => {
+      if (seen.has(source.id)) return false;
+      seen.add(source.id);
+      return true;
+    })
+    .map((source) => `${source.label}: ${source.observedPattern} (${source.url})`);
 }
 
 function formatList(values: string[]): string {

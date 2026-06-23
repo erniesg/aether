@@ -157,11 +157,14 @@ describe('buildMotionPreviewPlan', () => {
       cueLabels: [
         'Launch hook title',
         'Real product capture',
+        'Screen zoom callout',
         'Proof receipt card',
         'Agent process trace',
         'Image-to-video insert',
         'Voice and caption sync',
         'Multi-format export pack',
+        'Branded template system',
+        'Localized voice caption variants',
         'Reusable motion system',
       ],
       componentLabels: expect.arrayContaining([

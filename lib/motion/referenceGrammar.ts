@@ -4,6 +4,7 @@ import {
   selectMotionReferencePatterns,
   type MotionReferencePattern,
   type MotionReferencePatternId,
+  type MotionReferenceResearchSource,
 } from './referencePatterns';
 
 export type MotionReferenceGrammarStatus = 'ready' | 'needs-source';
@@ -17,6 +18,8 @@ export interface MotionReferenceGrammarCue {
   generationLaneLabels: string[];
   editSurfaceLabels: string[];
   verificationLabels: string[];
+  researchSourceLabels: string[];
+  researchSources: MotionReferenceResearchSource[];
 }
 
 export interface MotionReferenceGrammarPlan {
@@ -31,6 +34,8 @@ export interface MotionReferenceGrammarPlan {
   generationLaneLabels: string[];
   editSurfaceLabels: string[];
   verificationLabels: string[];
+  researchSourceLabels: string[];
+  researchSources: MotionReferenceResearchSource[];
   nextActionLabels: string[];
   provenance: MotionProvenanceRef[];
   requestedAt: number;
@@ -49,6 +54,9 @@ export function buildMotionReferenceGrammarPlan(
   const patternIds = selectReferencePatternIds(project);
   const patterns = selectMotionReferencePatterns(patternIds);
   const cues = patterns.map(buildCue);
+  const researchSources = uniqueResearchSources(
+    patterns.flatMap((pattern) => pattern.researchSources)
+  );
 
   return {
     id: `reference-grammar-${project.id}-${draftId}-${options.requestedAt}`,
@@ -64,6 +72,8 @@ export function buildMotionReferenceGrammarPlan(
     ),
     editSurfaceLabels: uniqueLabels(patterns.flatMap((pattern) => pattern.editSurfaces)).sort(),
     verificationLabels: uniqueLabels(patterns.flatMap((pattern) => pattern.verificationLabels)),
+    researchSourceLabels: researchSources.map(formatResearchSourceLabel),
+    researchSources,
     nextActionLabels: nextActionsFor(project),
     provenance: uniqueProvenance([
       ...project.sourceRefs,
@@ -83,6 +93,8 @@ function buildCue(pattern: MotionReferencePattern): MotionReferenceGrammarCue {
     generationLaneLabels: pattern.generationLanes.map(formatLaneLabel),
     editSurfaceLabels: [...pattern.editSurfaces],
     verificationLabels: [...pattern.verificationLabels],
+    researchSourceLabels: pattern.researchSources.map(formatResearchSourceLabel),
+    researchSources: [...pattern.researchSources],
   };
 }
 
@@ -121,11 +133,14 @@ function selectReferencePatternIds(project: MotionProject): MotionReferencePatte
     ids.push(
       'launch-hook-title',
       'real-product-capture',
+      'screen-zoom-callout',
       'proof-receipt-card',
       'agent-process-trace',
       'image-to-video-insert',
       'voice-caption-sync',
       'multi-format-pack',
+      'branded-template-system',
+      'localized-caption-variant',
       'reusable-motion-system'
     );
   }
@@ -197,8 +212,23 @@ function formatLaneLabel(lane: string): string {
   return lane.replace(/-/g, ' ');
 }
 
+function formatResearchSourceLabel(source: MotionReferenceResearchSource): string {
+  return `${source.label}: ${source.observedPattern}`;
+}
+
 function uniqueLabels<T extends string>(values: readonly T[]): T[] {
   return Array.from(new Set(values));
+}
+
+function uniqueResearchSources(
+  sources: MotionReferenceResearchSource[]
+): MotionReferenceResearchSource[] {
+  const seen = new Set<string>();
+  return sources.filter((source) => {
+    if (seen.has(source.id)) return false;
+    seen.add(source.id);
+    return true;
+  });
 }
 
 function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
