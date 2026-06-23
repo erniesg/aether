@@ -8,6 +8,10 @@ import {
 } from './capturePlan';
 import { buildMotionPreviewPlan, type MotionPreviewPlan } from './previewPlan';
 import { buildMotionReviewPlan, type MotionReviewPlan } from './reviewPlan';
+import {
+  listMotionWorkflowExamples,
+  type MotionWorkflowExample,
+} from './workflowExamples';
 import { buildCodeChangeMotionProject } from './storyboard';
 import {
   buildRepoMotionProjectFromUrl,
@@ -86,6 +90,7 @@ export interface AgentMotionStartResult {
   reviewPlan: MotionReviewPlan | null;
   previewPlan: MotionPreviewPlan | null;
   capturePlan: AgentMotionCapturePlan | null;
+  examples: MotionWorkflowExample[];
   requestedInputs: AgentMotionRequestedInput[];
 }
 
@@ -109,6 +114,7 @@ export async function startAgentMotionWorkflow(
       reviewPlan: null,
       previewPlan: null,
       capturePlan: null,
+      examples: examplesFor(workflow),
       requestedInputs: [
         {
           kind: 'source',
@@ -171,6 +177,7 @@ export async function startAgentMotionWorkflow(
     reviewPlan: null,
     previewPlan: null,
     capturePlan: null,
+    examples: examplesFor(workflow),
     requestedInputs: [
       {
         kind: 'project-builder',
@@ -249,6 +256,7 @@ function needsCodeChangeEvidence(
     reviewPlan: null,
     previewPlan: null,
     capturePlan: null,
+    examples: examplesFor(workflow),
     requestedInputs: [
       {
         kind: 'code-change',
@@ -275,8 +283,13 @@ function readyResult(
       requestedAt,
     }),
     capturePlan: capturePlanFor(project),
+    examples: examplesFor(workflow),
     requestedInputs: [],
   };
+}
+
+function examplesFor(workflow: RoutedAgentMotionWorkflow): MotionWorkflowExample[] {
+  return listMotionWorkflowExamples(workflow.workflowId);
 }
 
 function capturePlanFor(project: MotionProject): AgentMotionCapturePlan | null {

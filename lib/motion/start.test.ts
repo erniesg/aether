@@ -79,6 +79,7 @@ describe('startAgentMotionWorkflow', () => {
       primaryAction: 'request-review',
       engines: ['hyperframes'],
     });
+    expect(result.examples).toEqual([]);
     expect(result.project).toMatchObject({
       id: 'motion-aether-launch',
       title: 'aether launch video',
@@ -409,6 +410,23 @@ describe('startAgentMotionWorkflow', () => {
         projectKind: 'pr',
       },
     });
+    expect(result.examples).toEqual([
+      expect.objectContaining({
+        id: 'daily-skill-launch-pr-to-video',
+        label: 'Daily skill launch: PR-to-video',
+        reusableComponentIds: ['hook-card', 'agent-trace', 'proof-card', 'cta-card'],
+        editSurfaces: [
+          'script',
+          'code-evidence',
+          'component',
+          'voice',
+          'timing',
+          'effect',
+          'export',
+        ],
+      }),
+    ]);
+    expect(result.examples[0].sampleCopyLines).toContain('npx skills add heygen-com/hyperframes');
     expect(result.capturePlan).toBeNull();
     expect(result.requestedInputs).toEqual([]);
   });
@@ -446,6 +464,12 @@ describe('startAgentMotionWorkflow', () => {
     });
     expect(result.project).toBeNull();
     expect(result.reviewPlan).toBeNull();
+    expect(result.examples).toEqual([
+      expect.objectContaining({
+        id: 'daily-skill-launch-pr-to-video',
+        storyRoles: ['hook', 'change', 'diff', 'proof', 'cta'],
+      }),
+    ]);
     expect(result.requestedInputs).toEqual([
       {
         kind: 'code-change',

@@ -86,6 +86,7 @@ describe('POST /api/motion/start', () => {
         projectId: 'motion-tong-launch',
         primaryAction: 'request-review',
       },
+      examples: [],
       previewPlan: {
         projectId: 'motion-tong-launch',
         title: 'tong launch video',
@@ -139,6 +140,14 @@ describe('POST /api/motion/start', () => {
       project: null,
       reviewPlan: null,
       previewPlan: null,
+      examples: [
+        expect.objectContaining({
+          id: 'daily-skill-launch-pr-to-video',
+          label: 'Daily skill launch: PR-to-video',
+          storyRoles: ['hook', 'change', 'diff', 'proof', 'cta'],
+          reusableComponentIds: ['hook-card', 'agent-trace', 'proof-card', 'cta-card'],
+        }),
+      ],
       requestedInputs: [
         {
           kind: 'code-change',
@@ -147,6 +156,7 @@ describe('POST /api/motion/start', () => {
         },
       ],
     });
+    expect(json.examples[0].sampleCopyLines).toContain('npx skills add heygen-com/hyperframes');
   });
 
   it('rejects requests without a source', async () => {
