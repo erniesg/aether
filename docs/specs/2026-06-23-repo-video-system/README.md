@@ -1,0 +1,381 @@
+# Repo-to-video motion system
+
+- Date: 2026-06-23
+- Status: planning
+- Branch: `codex/social-03-repo-facts`
+- Scope: reusable launch, feature, demo, and social video generation from any repo or app source
+
+## Summary
+
+aether should treat video as an editable canvas artifact, not as a separate
+operator dashboard or one-shot generation endpoint. The right primitive is a
+repo-aware `MotionProject`: a graph-backed object that contains the brief,
+story beats, assets, timeline clips, generated media, voiceover, captions,
+effects, exports, and typed provenance for every decision.
+
+The creator-facing surface is a timeline lens inside the single synthesis
+shell. The agent-facing surface is a reusable capability stack that can inspect
+a repo, write the launch script, collect or generate visuals, capture product
+demos, synthesize voiceover, sync the edit, render a pack, and iterate on the
+timeline. A node graph can exist, but it should be progressive disclosure for
+advanced image-to-video and render pipelines, not the first screen.
+
+## Proof boundary
+
+Direct `x.com` pages were not readable through the text-fetch path used during
+this research pass. This plan is based on official product pages, accessible
+demo/product-video tooling pages, indexed social snippets, and the repo's
+existing aether motion code. Before locking the component library, run one
+authenticated X and YouTube collection pass over launch/demo posts from
+Anthropic, OpenAI, Cursor, Linear, Screen Studio, Runway, Pika, HeyGen, Arcade,
+Clueso, and Descript.
+
+## Existing aether foundation
+
+- `docs/DESIGN-SOCIAL-CANVAS.md` already defines video as material from the
+  same workspace inputs, compiled from a motion brief, rendered offline, and
+  dropped back on canvas.
+- `components/header/ViewSwitcher.tsx` already reserves `timeline` and `graph`
+  lenses in the single synthesis shell.
+- `lib/motion/brief.ts`, `lib/motion/compile.ts`, and `scripts/render-motion.ts`
+  already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
+- `docs/explorations/motion-graphics/` already contains reusable HyperFrames
+  composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
+  mosaic.
+- `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
+- `lib/providers/video/*` currently covers video understanding only, not render,
+  text-to-video, image-to-video, voiceover, or timeline compilation.
+- `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
+  support for video, and `asset` storage, but `asset.kind` lacks first-class
+  video, audio, subtitle, poster, and motion-project variants.
+
+## Source scan
+
+| Source | Relevant pattern | Implication for aether |
+| --- | --- | --- |
+| [Claude Code](https://claude.com/product/claude-code) | Product narrative is "ask agent, watch it read files, edit, run commands, and preview results" across terminal, IDE, desktop, browser, and Slack. | Add agent-trace video components: prompt chip, file-read stack, diff card, terminal run, preview pane, done state. |
+| [Screen Studio](https://www.screen.studio/) | Product demos depend on auto zoom, cursor smoothing, vertical export, captions, transcript, brand presets, sound cleanup, and social export. | Capture and editing matter as much as generation. Add cursor zoom, click rings, keypress overlays, screen crop, captions, and format fanout. |
+| [Arcade](https://www.arcade.software/) | AI turns product interactions into on-brand demos, videos, and visual stories from browser, desktop, and Figma capture. | Repo video should show the actual product, not generic stock motion. The capture pipeline needs browser and app-state inputs. |
+| [Clueso](https://www.clueso.io/) | Rough screen recordings become product videos and docs; brand fonts, colors, and logos apply across videos. | Store brand motion tokens once and reuse them across every timeline and export. |
+| [Revid](https://www.revid.ai/) | Viral social videos are generated from idea to script, scene plan, voices, templates, subtitles, and publish-ready outputs. | Agent workflow needs explicit script, scene, visual style, voice, caption, and platform-pack nodes. |
+| [Descript](https://www.descript.com/) | Text and transcript editing remain central even with AI video generation; manual precision and timeline editing coexist. | aether should expose transcript/caption/script edits as timeline edits, not only prompt retries. |
+| [Runway](https://runwayml.com/) | Generation spans text/image-to-video, controllable motion, characters, voices, and real-time video agents. | Video generation should be adapter-based clips inside a timeline, not a hardcoded provider or whole-video dependency. |
+| [Pika](https://pika.art/) | AI video effects and MCP-style agent access package creative effects as reusable skills. | Treat effects as pinned capabilities with schemas, thumbnails, and provenance. |
+| [HeyGen](https://www.heygen.com/) | Product image plus script can become avatar ads, talking photos, translated voice/lip-sync, captions, and B-roll. | Voice, avatars, product placement, translation, and captions need separate providers and editable clips. |
+| [Remotion Player](https://www.remotion.dev/docs/player/) and [renderMedia](https://www.remotion.dev/docs/renderer/render-media) | React components can preview video in app; server render can take composition props, frame ranges, concurrency, and artifacts. | Use Remotion for editable React-native timeline preview and deterministic export, alongside existing HyperFrames compositions. |
+| [React Flow](https://reactflow.dev/) | Node/edge graphs are good for custom node pipelines, selection, ports, and advanced flow editing. | Use for advanced generation graphs after the timeline primitive exists. Avoid making it the default creator surface. |
+| [tldraw custom shapes](https://tldraw.dev/docs/shapes) | Custom shapes can represent domain objects on the canvas. | Add motion-project, timeline preview, generated clip, and export-pack shapes on the canvas. |
+
+## Component taxonomy
+
+These are the reusable blocks the research suggests aether will need.
+
+### Social hook and structure
+
+- Hook card: 0-2 seconds, one promise or product name, optional progress bar.
+- Problem beat: compact statement of the pain, gap, or before-state.
+- Proof beat: repo facts, benchmark numbers, screenshots, issue/PR stats,
+  testimonials, or real product state.
+- Demo beat: product in use, agent action trace, capture zoom, or feature flow.
+- Payoff beat: after-state, generated output, pack preview, or user result.
+- CTA beat: launch link, waitlist, repo, case study, or "thread below".
+
+### Product demo and screen capture
+
+- Browser frame, app frame, device frame, terminal frame, and IDE frame.
+- Cursor path, auto zoom, drag zoom, click rings, hover callouts, keypress tags.
+- Before/after split, branch compare, diff reveal, test result reveal.
+- Screen crop and safe-zone presets for 16:9, 9:16, 1:1, and 4:5.
+
+### Agent-native coding story
+
+- User prompt chip.
+- Agent activity stack: read, search, edit, run, test, render, commit.
+- File tree highlight.
+- Diff card with added/removed line focus.
+- Terminal command/result card.
+- Browser or app preview pane.
+- Evidence card: tests passed, artifact rendered, PR opened, export done.
+
+### Repo and app proof
+
+- Repo fact card: stack, languages, releases, test count, routes, components.
+- Feature map: product surfaces, capabilities, workflows, output formats.
+- Claim receipt: text claim with source ref from README, docs, code, or issue.
+- Timeline of shipped milestones.
+- Customer or creator quote card, with attribution and source preservation.
+
+### Visual generation and B-roll
+
+- Image-to-video clip from a key visual, product image, moodboard, or screenshot.
+- Parallax still, depth pan, photo mosaic, atlas reveal, feature carousel.
+- Generated cinematic B-roll as optional clips with provider provenance.
+- Avatar or talking-photo clip when the app needs spokesperson or localization.
+- Product placement clip from product image plus script.
+
+### Voice, captions, and sound
+
+- Script line, narration clip, word-level caption clip, subtitle export.
+- Transcript text editor linked to timeline timing.
+- Music bed, ducking, beat markers, whoosh/click/success stingers.
+- Audio-reactive highlight and effect sync markers.
+- Voice translation and localized captions as linked variants.
+
+### Export pack
+
+- MP4, GIF, poster still, thumbnail, subtitle file, transcript, source manifest.
+- Platform presets: X, LinkedIn, YouTube Shorts, TikTok, Instagram Reels,
+  Product Hunt, website hero, pitch deck embed.
+- Linked multiformat edits: global script/timing edits propagate, local crop,
+  caption, and safe-zone overrides stay scoped.
+
+## Product shape inside aether
+
+### Creator-facing surface
+
+- Left rail, input taxonomy: repos, sites, app URLs, screenshots, captures,
+  references, brand tokens, product facts, competitor videos, social examples.
+- Canvas, making substrate: motion project card, video poster, storyboard beat
+  cards, captured clips, generated B-roll, export pack previews.
+- Timeline lens, tool taxonomy: tracks and clips for script, screen, B-roll,
+  text, captions, voice, music, effects, transitions, and exports.
+- Right rail, output/metadata taxonomy: selected clip settings, provenance,
+  render states, export pack, and debug drawer under `?debug=1`.
+- Bottom composer: scoped commands such as "make this a 30s X launch video",
+  "replace scene 3 with the paillette search flow", or "tighten captions".
+
+### Agent-facing capability stack
+
+- `repo_to_launch_brief`: inspect repo/site/readme/docs/screenshots and emit
+  grounded claims with source refs.
+- `write_video_script`: turn app facts plus target platform into script beats.
+- `compose_storyboard`: choose scene templates, target durations, and assets.
+- `capture_product_demo`: run the app, capture browser or desktop flows, and
+  return clips plus cursor metadata.
+- `find_or_generate_visuals`: collect references, posters, screenshots, B-roll,
+  and image-to-video candidates.
+- `synthesize_voiceover`: create narration clips and word timings.
+- `sync_motion_timeline`: align voice, captions, beat markers, effects,
+  transitions, and scene durations.
+- `render_motion_pack`: preview, render, posterize, subtitle, and export.
+- `revise_motion_project`: make structured timeline edits from natural language.
+- `pin_motion_capability`: save a reusable template or effect into the toolbar.
+
+## Core data model
+
+Names are provisional, but the boundaries should be stable.
+
+```ts
+type MotionProject = {
+  id: string;
+  workspaceId: string;
+  title: string;
+  sourceRefs: ProvenanceRef[];
+  brief: MotionBriefV2;
+  story: StoryBeat[];
+  tracks: TimelineTrack[];
+  graphNodes: MotionGraphNode[];
+  exports: MotionExport[];
+  createdAt: number;
+  updatedAt: number;
+};
+
+type MotionBriefV2 = {
+  projectKind: 'launch' | 'feature' | 'demo' | 'social' | 'case-study';
+  appProfile: AppProfile;
+  audience: string;
+  platformTargets: PlatformTarget[];
+  claims: ClaimReceipt[];
+  tone: string;
+  brandMotion: BrandMotionTokens;
+};
+
+type StoryBeat = {
+  id: string;
+  role: 'hook' | 'problem' | 'proof' | 'demo' | 'payoff' | 'cta';
+  narration: string;
+  targetSeconds: number;
+  selectedAssetIds: string[];
+  templateId?: string;
+  provenance: ProvenanceRef[];
+};
+
+type TimelineTrack = {
+  id: string;
+  kind: 'screen' | 'broll' | 'text' | 'caption' | 'voice' | 'music' | 'sfx' | 'effect' | 'transition';
+  clips: TimelineClip[];
+};
+
+type TimelineClip = {
+  id: string;
+  assetId?: string;
+  componentId?: string;
+  startFrame: number;
+  durationFrames: number;
+  inFrame?: number;
+  outFrame?: number;
+  props: Record<string, unknown>;
+  linkedVariantScope?: 'global' | 'format-local';
+  provenance: ProvenanceRef[];
+};
+
+type MotionGraphNode = {
+  id: string;
+  kind: 'repo-ingest' | 'script' | 'storyboard' | 'capture' | 'visual-search' | 'image-to-video' | 'voice' | 'sync' | 'render';
+  inputRefs: string[];
+  outputRefs: string[];
+  providerId?: string;
+  status: 'planned' | 'running' | 'done' | 'failed';
+  provenance: ProvenanceRef[];
+};
+```
+
+## Provider split
+
+Do not widen the current video provider into a single vague interface. Split
+the contracts by job so providers stay interchangeable and testable.
+
+- `VideoUnderstandingProvider`: already exists.
+- `VideoGenerationProvider`: text-to-video, image-to-video, product placement,
+  avatar, talking photo, and generative B-roll.
+- `VideoRenderProvider`: Remotion and HyperFrames deterministic renders.
+- `ScreenCaptureProvider`: browser, desktop, and app-flow captures.
+- `VoiceProvider`: TTS, voice cloning where allowed, translation, word timings.
+- `MusicProvider`: licensed beds, generated beds, SFX, beat detection.
+- `CaptionProvider`: transcription, alignment, translation, subtitle export.
+
+Every provider returns typed provenance, duration, dimensions, mime type,
+usage/cost hints, and source asset refs. No provider is a default in code.
+
+## Timeline first, node graph second
+
+Recommended approach:
+
+1. Build the timeline primitive first. It gives the creator editability,
+   deterministic rendering, and a stable preview.
+2. Store execution and generation lineage as a graph, but disclose it as
+   provenance, debug, or advanced editing.
+3. Introduce a node editor only when image-to-video, capture, voice, and render
+   chains need manual rewiring.
+
+This keeps aether creator-first. A node-only first version would quickly look
+like an operator workbench; an AI-video-only first version would be fast but
+would produce hard-to-edit outputs.
+
+## Phased implementation
+
+### Phase 0: corpus and taxonomy
+
+- Collect 20-30 launch/demo/social videos from X, YouTube, product pages, and
+  app websites.
+- Tag each with hook, screen capture, agent trace, product proof, B-roll,
+  voice, captions, effects, pacing, CTA, and platform format.
+- Add screenshots or thumbnails to a local research artifact, not `outputs/`
+  unless the files are intentionally archived.
+- Outcome: component inventory and two reference moodboards on canvas.
+
+### Phase 1: MotionBrief v2 from repos
+
+- Extend repo facts into app profile, launch claims, feature map, and receipts.
+- Generate `MotionBriefV2` and `StoryBeat[]` without rendering.
+- Start with aether, accrue, tong, and paillette fixtures.
+- Tests: repo facts to claims, claims to story beats, no invented numbers,
+  source refs preserved.
+
+### Phase 2: component registry
+
+- Create a registry for motion components with schema, thumbnail, supported
+  aspect ratios, render engines, input asset kinds, and edit controls.
+- Port current HyperFrames patterns into registry entries.
+- Add Remotion components for app frame, terminal frame, diff card, captions,
+  and product CTA.
+- Tests: schema validation, prop defaults, static frame render checks.
+
+### Phase 3: timeline lens
+
+- Add `MotionProject`, `TimelineTrack`, and `TimelineClip` persistence.
+- Enable the existing `timeline` lens in the single synthesis shell.
+- Embed Remotion Player for preview; use HyperFrames preview only for legacy
+  HTML compositions.
+- Add tldraw shapes for motion project, video poster, beat card, and export pack.
+- Tests: create project, edit text/timing, reorder clips, undo, provenance.
+
+### Phase 4: render pipeline
+
+- Add `VideoRenderProvider` adapters for Remotion and HyperFrames.
+- Render MP4, poster still, subtitles, transcript, and manifest.
+- Register outputs as assets and drop them onto the canvas.
+- Tests: render contract, frame-range smoke, poster generation, manifest refs.
+
+### Phase 5: agent-native workflow
+
+- Register motion tools as reusable capabilities.
+- Let the bottom composer create and revise motion projects from instructions.
+- Add human validation gates before final render/export.
+- Tests: mocked end-to-end path from repo URL to timeline preview to export.
+
+### Phase 6: image-to-video and advanced graph
+
+- Add `VideoGenerationProvider` adapters behind config.
+- Model generated clips as timeline assets with prompts, seed, source image,
+  provider, duration, dimensions, and safety/rights metadata.
+- Add optional React Flow graph for advanced users and debug views.
+- Tests: adapter contract with fixture responses, graph node provenance,
+  timeline insertion and replacement.
+
+### Phase 7: multiformat launch pack
+
+- Add linked format variants: 16:9, 9:16, 1:1, 4:5.
+- Add global edits plus local crop/caption/safe-zone overrides.
+- Export platform packs with manifests.
+- Tests: format fanout, local override isolation, caption fit, poster previews.
+
+## First build slice
+
+The smallest useful slice is not image-to-video. It is:
+
+1. `MotionBriefV2` and `StoryBeat[]` for repo-to-launch videos.
+2. A registry with 5 components: hook card, app frame, agent trace, proof card,
+   and CTA.
+3. A simple timeline preview backed by Remotion Player.
+4. One render path to MP4 and poster.
+5. One fixture each for aether, tong, paillette, and accrue.
+
+That slice proves the core loop: point aether at a repo, let the agent write
+the script and assemble an editable video, then let the creator tweak text,
+timing, assets, and export format before rendering.
+
+## Example app directions
+
+- aether: agent writes from repo evidence, shows canvas generation, promotes a
+  key visual, fans out formats, pins a capability, exports a pack.
+- tong: city-specific Tokyo launch, using cheki, tickets, physical ephemera,
+  and memory artifacts instead of generic language-app screens.
+- paillette: open-access art search, provenance, museum moodboard, visual
+  comparison, exportable showcase.
+- accrue: repo/product credibility video using grounded app claims and a
+  feature narrative, not generic finance-product B-roll.
+
+## Validation gates
+
+- Unit: brief/schema transforms, story beat generation, no invented numbers,
+  provider availability, component registry validation.
+- Component: timeline lens creates clips, edits timing/text, shows provenance,
+  preserves the bottom composer.
+- Render: key-frame screenshots have non-overlapping text, captions fit,
+  poster renders, audio duration matches timeline, no blank frames.
+- E2E: repo URL to editable timeline to MP4/poster/export manifest.
+- Human: watch first aether and one non-aether rendered video before widening
+  the component set.
+
+## Open decisions
+
+- Remotion should likely own in-app editable timeline preview. HyperFrames
+  should remain useful for compact HTML motion components and existing
+  explorations.
+- React Flow should not ship as the default editing surface. Use it when there
+  is a real advanced need to rewire generation chains.
+- The first corpus pass should decide whether aether needs a dedicated
+  "agent trace" visual language or whether repo/app proof components are enough.
+- Voice cloning, avatars, and talking photos need consent and rights policy
+  before becoming default tools.
