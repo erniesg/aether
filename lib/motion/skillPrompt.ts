@@ -24,6 +24,8 @@ export function buildMotionSkillAuthoringPrompt(result: AgentMotionStartResult):
   const regenerationTargets = contract?.regenerationTargets ?? [];
   const reviewArtifacts = contract?.reviewArtifacts ?? [];
   const verificationArtifacts = contract?.verificationArtifacts ?? [];
+  const sourceInputContract = buildSourceInputContract(workflow.workflowId);
+  const outputContract = buildOutputContract(workflow.mode);
 
   return [
     `Write a reusable aether motion skill for "${workflow.label}".`,
@@ -58,12 +60,93 @@ export function buildMotionSkillAuthoringPrompt(result: AgentMotionStartResult):
     `Regeneration targets: ${regenerationTargets.join(', ') || 'story-beat, component, timing, effect, whole-video'}.`,
     `Verification artifacts: ${verificationArtifacts.join(', ') || 'contact-sheet, mp4-probe, poster, subtitles, transcript, provenance-manifest'}.`,
     '',
+    'Runtime input contract the SKILL.md must document:',
+    sourceInputContract,
+    '',
+    'Output JSON contract the SKILL.md must document:',
+    outputContract,
+    '',
+    'Aether handoff contract:',
+    '- When the skill can start a project directly, produce a `motionStartRequest` object compatible with POST /api/motion/start.',
+    '- For repo, site, and local-path starts, include one of `repoUrl`, `repoPath`, `siteUrl`, or `sourceRefs`.',
+    '- For PR-to-video starts, include `prRef`; when code-change evidence was already collected, also include `appProfile`, `codeChangeSource`, and `codeChange`.',
+    '- The `codeChange` payload must include providerId, title, files, hunks, commits, reviews, ci, and provenance so Aether can create an editable PR video without a separate provider.',
+    '- If evidence is missing, return a review artifact that asks the agent to collect exactly the missing source or code-change evidence instead of inventing claims.',
+    '',
     [
       'The SKILL.md instructions should include a clear input shape, step-by-step workflow,',
       'review vs full-auto behavior, output JSON contract, and explicit guardrails for',
       'visual identity, timing/sync, provenance, and provider selection.',
     ].join(' '),
     'Do not hardcode a default image, voice, video, Remotion, HyperFrames, or hosting provider.',
+  ].join('\n');
+}
+
+function buildSourceInputContract(workflowId: string): string {
+  const base = [
+    '```json',
+    '{',
+    '  "mode": "review | full-auto",',
+    '  "sourceRefs": [{ "kind": "repo | pr | site | capture | upload | reference", "ref": "..." }],',
+    '  "repoPath": "/absolute/local/repo/path",',
+    '  "repoUrl": "https://github.com/owner/repo",',
+    '  "siteUrl": "https://app.example.com/route",',
+    '  "prRef": "owner/repo#123 or https://github.com/owner/repo/pull/123",',
+    '  "audience": "who this video is for",',
+    '  "tone": "motion and copy tone",',
+    '  "platformTargets": [{ "platform": "x | linkedin | youtube | tiktok | instagram | website | deck", "aspectRatio": "16:9 | 9:16 | 1:1 | 4:5", "seconds": 30 }],',
+    '  "requestedEngines": ["remotion", "hyperframes", "provider"],',
+    '  "visualReferences": ["selected reference ids or urls"],',
+    '  "capturePreferences": { "needsScreenshot": true, "needsRecording": false }',
+    '}',
+    '```',
+  ];
+
+  if (workflowId !== 'pr-to-video') return base.join('\n');
+
+  return [
+    ...base,
+    '',
+    'For PR-to-video, also accept agent-collected evidence:',
+    '```json',
+    '{',
+    '  "appProfile": { "name": "app name", "repoUrl": "https://github.com/owner/repo", "summary": "grounded app summary", "stack": ["TypeScript"] },',
+    '  "codeChangeSource": { "kind": "github-pr | local-diff | commit-range", "ref": "owner/repo#123" },',
+    '  "codeChange": {',
+    '    "providerId": "agent-collected-pr",',
+    '    "title": "human-readable PR title",',
+    '    "author": { "name": "author name" },',
+    '    "files": [{ "path": "file.ts", "status": "added | modified | removed | renamed", "additions": 12, "deletions": 3, "language": "TypeScript" }],',
+    '    "hunks": [{ "id": "stable-hunk-id", "filePath": "file.ts", "newStart": 10, "lines": ["+changed line"], "provenance": [{ "kind": "code-change", "ref": "diff:file.ts#10" }] }],',
+    '    "commits": [{ "sha": "abc123", "message": "commit subject" }],',
+    '    "reviews": [{ "reviewer": "name", "state": "approved | changes-requested | commented" }],',
+    '    "ci": [{ "name": "typecheck", "status": "passed | failed | pending | unknown" }],',
+    '    "provenance": [{ "kind": "code-change", "ref": "github:owner/repo#123" }]',
+    '  }',
+    '}',
+    '```',
+  ].join('\n');
+}
+
+function buildOutputContract(mode: string): string {
+  return [
+    '```json',
+    '{',
+    '  "ok": true,',
+    '  "result": {',
+    '    "mode": "review | full-auto",',
+    '    "status": "ready | needs-source | needs-evidence | blocked",',
+    '    "motionStartRequest": { "workspaceId": "workspace", "sourceRefs": [], "platformTargets": [] },',
+    '    "videoPlan": { "title": "video title", "beats": [{ "role": "hook", "narration": "..." }] },',
+    '    "draftOptions": [{ "label": "Primary cut", "angle": "..." }],',
+    '    "reviewArtifacts": [{ "kind": "video-plan | draft-variations | sync-plan | render-proof | export-pack", "label": "..." }],',
+    '    "regenerationActions": [{ "target": "story-beat | component | capture | code-proof | caption | voice-line | timing | effect | whole-video", "label": "..." }],',
+    '    "verification": { "required": ["contact-sheet", "mp4-probe", "poster", "subtitles", "transcript", "provenance-manifest"] },',
+    '    "provenance": [{ "kind": "repo | code-change | site | reference | manual", "ref": "..." }],',
+    `    "nextAction": "${mode === 'full-auto' ? 'continue-through-saved-gates' : 'show-review-artifacts'}"`,
+    '  }',
+    '}',
+    '```',
   ].join('\n');
 }
 
