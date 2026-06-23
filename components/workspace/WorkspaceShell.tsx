@@ -81,6 +81,10 @@ import {
   listMotionWorkflowExamples,
   type MotionWorkflowExample,
 } from '@/lib/motion/workflowExamples';
+import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
+import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
+import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
+import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
 import {
   buildExportRequestBody,
@@ -446,6 +450,36 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
         });
         setMotionTimelineActionStatus(`${json.regenerationRequest?.scope ?? action.scope} regeneration planned`);
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
+  const handleTimelineDraftSelect = useCallback(
+    (draftId: string) => {
+      if (!motionStart?.project) return;
+      const draft = motionStart.project.drafts.find((candidate) => candidate.id === draftId);
+      if (!draft) return;
+
+      try {
+        const requestedAt = Date.now();
+        const project = materializeMotionTimeline(motionStart.project, {
+          draftId,
+          updatedAt: requestedAt,
+        });
+        const capturePlan = buildAgentMotionCapturePlan(project);
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project,
+          reviewPlan: buildMotionReviewPlan(project),
+          previewPlan: buildMotionPreviewPlan(project, {
+            engines: motionStart.workflow.plan.engines,
+            requestedAt,
+          }),
+          capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+        });
+        setMotionTimelineActionStatus(`${draft.label} selected`);
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
@@ -2207,6 +2241,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             previewPlan={motionPreviewPlan}
             selectedClipId={selectedTimelineClipId}
             onSelectClip={setSelectedTimelineClipId}
+            onSelectDraft={handleTimelineDraftSelect}
             onRegenerateComponent={handleTimelineRegenerate}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}

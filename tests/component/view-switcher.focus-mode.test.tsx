@@ -233,6 +233,25 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline draft cards switch the stored motion project to that variation', async () => {
+    setMotionStartResult('demo-ws', storedRegeneratableMotionStart());
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    const demoFirst = screen.getByRole('button', { name: /demo-first cut/i });
+    expect(demoFirst).toHaveAttribute('aria-pressed', 'false');
+
+    await userEvent.click(demoFirst);
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('Demo-first cut selected');
+    });
+    expect(screen.getByRole('button', { name: /demo-first cut/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+  });
+
   it('the focus pill reports aria-current after a click, canvas after another click', async () => {
     renderShell();
 
