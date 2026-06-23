@@ -38,6 +38,43 @@ function request(mode: CaptureRequest['mode']): CaptureRequest {
   };
 }
 
+function localAppRequest(mode: CaptureRequest['mode']): CaptureRequest {
+  return {
+    ...request(mode),
+    target: { kind: 'local-app', ref: 'http://localhost:3000/' },
+    steps: [
+      {
+        id: 'start-source',
+        label: 'Start app',
+        action: 'manual',
+        value: 'npm run dev',
+      },
+      {
+        id: 'goto-source',
+        label: 'Open source',
+        action: 'goto',
+        value: 'http://localhost:3000/',
+      },
+      {
+        id: 'settle-source',
+        label: 'Wait for app state',
+        action: 'wait',
+        value: 'network-idle',
+      },
+    ],
+    appLaunch: {
+      command: 'npm run dev',
+      cwd: '/Users/erniesg/code/erniesg/tong',
+      targetUrl: 'http://localhost:3000/',
+      readiness: {
+        kind: 'http',
+        url: 'http://localhost:3000/',
+        timeoutMs: 60000,
+      },
+    },
+  };
+}
+
 function createFakePage(videoPath?: string) {
   const calls: string[] = [];
   return {
@@ -96,6 +133,42 @@ describe('createPlaywrightCaptureRunner', () => {
       mimeType: 'image/png',
       cursorTargets: [{ stepId: 'click-search', x: 540, y: 960 }],
       provenance: [{ kind: 'provider', ref: 'playwright-browser-runner' }],
+    });
+  });
+
+  it('runs injected local app launch before browser capture and cleans it up', async () => {
+    const outputDir = mkdtempSync(path.join(tmpdir(), 'aether-capture-'));
+    const fake = createFakePage();
+    const launchCalls: string[] = [];
+    const runner = createPlaywrightCaptureRunner({
+      outputDir,
+      launchApp: async (appLaunch) => {
+        launchCalls.push(`${appLaunch.command}:${appLaunch.cwd}:${appLaunch.targetUrl}`);
+        return {
+          close: async () => {
+            launchCalls.push('app.close');
+          },
+        };
+      },
+      openPage: async () => ({
+        page: fake.page,
+        close: async () => {
+          launchCalls.push('page.close');
+        },
+      }),
+    });
+
+    const [artifact] = await runner.capture(localAppRequest('screenshot'));
+
+    expect(launchCalls).toEqual([
+      'npm run dev:/Users/erniesg/code/erniesg/tong:http://localhost:3000/',
+      'page.close',
+      'app.close',
+    ]);
+    expect(fake.calls).toContain('goto:http://localhost:3000/');
+    expect(artifact).toMatchObject({
+      assetUrl: expect.stringContaining('capture-screenshot-localhost-3000.png'),
+      mimeType: 'image/png',
     });
   });
 

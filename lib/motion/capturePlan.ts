@@ -1,5 +1,6 @@
 import type {
   CaptureMode,
+  CaptureAppLaunch,
   CaptureRequest,
   CaptureTarget,
   CaptureViewport,
@@ -92,6 +93,7 @@ export function buildAgentMotionCapturePlan(project: MotionProject): AgentMotion
           aspectRatio,
           viewport,
           setup: candidate.setup,
+          setupCwd: candidate.setupCwd,
           expectedArtifacts: expectedArtifactsFor(candidate.mode),
           provenance: candidate.provenance,
         })
@@ -195,9 +197,12 @@ function buildRequest(input: {
   aspectRatio: MotionAspectRatio;
   viewport: CaptureViewport;
   setup?: string;
+  setupCwd?: string;
   expectedArtifacts: string[];
   provenance: MotionProvenanceRef[];
 }): AgentMotionCapturePlanRequest {
+  const appLaunch = appLaunchFor(input.target, input.setup, input.setupCwd);
+
   return {
     id: input.id,
     label: input.label,
@@ -208,6 +213,7 @@ function buildRequest(input: {
       aspectRatio: input.aspectRatio,
       viewport: input.viewport,
       steps: stepsFor(input.mode, input.target.ref, input.setup),
+      ...(appLaunch ? { appLaunch } : {}),
     },
     expectedArtifacts: input.expectedArtifacts,
     provenance: input.provenance,
@@ -270,6 +276,25 @@ function providerRequirementsFor(
     requirements.push('screen-recording');
   }
   return requirements;
+}
+
+function appLaunchFor(
+  target: CaptureTarget,
+  setup: string | undefined,
+  cwd: string | undefined
+): CaptureAppLaunch | null {
+  if (target.kind !== 'local-app' || !setup) return null;
+
+  return {
+    command: setup,
+    ...(cwd ? { cwd } : {}),
+    targetUrl: target.ref,
+    readiness: {
+      kind: 'http',
+      url: target.ref,
+      timeoutMs: 60000,
+    },
+  };
 }
 
 function viewportForAspectRatio(aspectRatio: MotionAspectRatio): CaptureViewport {

@@ -78,8 +78,11 @@ Clueso, and Descript.
   agent-native JSON boundary: callers send an editable project and selected
   capture request ids, then receive provider-required handoffs, source blockers,
   or completed capture receipts applied back into demo story beats and
-  `app-frame` timeline clips. It lists configured capture providers, preserves
-  computer-use fallback guidance, and does not register a default provider.
+  `app-frame` timeline clips. Local-app capture requests also surface deduped
+  app launch handoffs with command, cwd, target URL, and readiness metadata so
+  agents can start the app before capture when a runner is configured. The route
+  lists configured capture providers, preserves computer-use fallback guidance,
+  and does not register a default provider.
 - `app/api/motion/voice/route.ts` now exposes voiceover and caption-sync
   handoffs through an agent-native JSON boundary: callers send an editable
   project plus voice request or clip ids and receive provider-required
@@ -118,7 +121,7 @@ Clueso, and Descript.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, local-app launch, and computer-use fallback requests with explicit
-  viewport, artifact, setup, and provenance expectations.
+  viewport, artifact, setup, app-launch readiness, and provenance expectations.
 - `lib/providers/capture/browser.ts` now provides a provider-agnostic browser
   capture boundary: an injected runner can execute the request and Aether
   normalizes the result into typed screenshot/snapshot/trace/recording
@@ -126,7 +129,9 @@ Clueso, and Descript.
 - `lib/providers/capture/playwright.ts` now supplies an explicit local
   Playwright runner/factory for that boundary: it can run browser steps, save
   screenshots, DOM snapshots, interaction traces, and Playwright video paths as
-  file-backed capture receipts when a caller opts into it.
+  file-backed capture receipts when a caller opts into it. It can also call an
+  injected app-launch callback before opening the target page, then clean up the
+  app session after capture.
 - `lib/motion/captureApply.ts` now converts capture results back into the
   editable motion project: visual receipts become demo beat assets and
   `app-frame` timeline props, while every receipt completes the capture graph

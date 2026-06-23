@@ -30,6 +30,7 @@ describe('buildAgentMotionCapturePlan', () => {
             targetKind: 'local-app',
             targetRef: 'http://localhost:3000/',
             setup: 'npm run dev',
+            setupCwd: '/Users/erniesg/code/erniesg/tong',
             reason: 'Local repo exposes an app route suitable for a product still.',
             provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
           },
@@ -40,6 +41,7 @@ describe('buildAgentMotionCapturePlan', () => {
             targetKind: 'local-app',
             targetRef: 'http://localhost:3000/',
             setup: 'npm run dev',
+            setupCwd: '/Users/erniesg/code/erniesg/tong',
             reason: 'Launch videos need a real product insert.',
             provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
           },
@@ -85,6 +87,16 @@ describe('buildAgentMotionCapturePlan', () => {
       id: 'capture-local-app-still',
       request: {
         mode: 'screenshot',
+        appLaunch: {
+          command: 'npm run dev',
+          cwd: '/Users/erniesg/code/erniesg/tong',
+          targetUrl: 'http://localhost:3000/',
+          readiness: {
+            kind: 'http',
+            url: 'http://localhost:3000/',
+            timeoutMs: 60000,
+          },
+        },
         steps: [
           { id: 'start-source', action: 'manual', value: 'npm run dev' },
           { id: 'goto-source', action: 'goto', value: 'http://localhost:3000/' },

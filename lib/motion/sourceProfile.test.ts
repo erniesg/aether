@@ -49,6 +49,7 @@ describe('buildRepoMotionSourceProfile', () => {
           targetKind: 'local-app',
           targetRef: 'http://localhost:3000/',
           setup: 'npm run dev',
+          setupCwd: '/Users/erniesg/code/erniesg/tong',
         }),
         expect.objectContaining({
           id: 'record-local-flow',

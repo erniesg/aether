@@ -8,6 +8,7 @@ import {
 } from './browser';
 import type { CaptureProvider } from './types';
 import type {
+  CaptureAppLaunch,
   CaptureCursorTarget,
   CaptureMode,
   CaptureRequest,
@@ -17,6 +18,10 @@ import type { MotionProvenanceRef } from '@/lib/motion/project';
 
 export interface PlaywrightCaptureSession {
   page: PlaywrightCapturePage;
+  close(): Promise<void>;
+}
+
+export interface PlaywrightCaptureAppSession {
   close(): Promise<void>;
 }
 
@@ -50,6 +55,11 @@ export interface CreatePlaywrightCaptureRunnerOptions {
     request: CaptureRequest,
     options: CreatePlaywrightCaptureRunnerOptions
   ) => Promise<PlaywrightCaptureSession>;
+  launchApp?: (
+    appLaunch: CaptureAppLaunch,
+    request: CaptureRequest,
+    options: CreatePlaywrightCaptureRunnerOptions
+  ) => Promise<PlaywrightCaptureAppSession | void>;
 }
 
 const RUNNER_PROVENANCE = {
@@ -66,10 +76,14 @@ export function createPlaywrightCaptureRunner(
       mkdirSync(options.outputDir, { recursive: true });
 
       const openPage = options.openPage ?? openDefaultPlaywrightPage;
-      const session = await openPage(request, options);
+      const appSession = request.appLaunch
+        ? await options.launchApp?.(request.appLaunch, request, options)
+        : undefined;
+      let session: PlaywrightCaptureSession | undefined;
       let closed = false;
 
       try {
+        session = await openPage(request, options);
         await runSteps(session.page, request, options);
 
         if (request.mode === 'screen-recording') {
@@ -89,7 +103,8 @@ export function createPlaywrightCaptureRunner(
 
         return [captureInteractionTrace(session.page, request, options.outputDir)];
       } finally {
-        if (!closed) await session.close();
+        if (session && !closed) await session.close();
+        await appSession?.close();
       }
     },
   };
@@ -243,6 +258,7 @@ async function captureDomSnapshot(
     url: page.url?.() ?? request.target.ref,
     html,
     viewport: request.viewport,
+    appLaunch: request.appLaunch,
   });
 
   return {
@@ -266,6 +282,7 @@ function captureInteractionTrace(
     viewport: request.viewport,
     steps: request.steps,
     cursorTargets: cursorTargetsFromSteps(request),
+    appLaunch: request.appLaunch,
   });
 
   return {

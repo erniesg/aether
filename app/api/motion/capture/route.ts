@@ -8,6 +8,7 @@ import {
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import type { CaptureResult } from '@/lib/providers/capture/types';
+import type { CaptureAppLaunch } from '@/lib/providers/capture/types';
 import {
   CaptureProviderUnavailableError,
   listCaptureProviders,
@@ -54,6 +55,7 @@ export async function POST(request: Request): Promise<Response> {
       project,
       capturePlan,
       selectedRequests: [],
+      appLaunches: [],
       captureResults: [],
       captureResult: null,
       reviewPlan: buildMotionReviewPlan(project),
@@ -69,6 +71,7 @@ export async function POST(request: Request): Promise<Response> {
       project,
       capturePlan,
       selectedRequests: [],
+      appLaunches: [],
       blockers: [
         {
           id: 'capture-source-required',
@@ -90,6 +93,7 @@ export async function POST(request: Request): Promise<Response> {
   if (selectedRequests.length === 0) {
     return jsonError(400, 'no capture requests selected');
   }
+  const appLaunches = selectedAppLaunches(selectedRequests);
 
   try {
     const provider = resolveCaptureProvider(stringValue(body.providerId));
@@ -112,6 +116,7 @@ export async function POST(request: Request): Promise<Response> {
       project: updatedProject,
       capturePlan: buildAgentMotionCapturePlan(updatedProject),
       selectedRequests,
+      appLaunches,
       captureResults,
       captureResult,
       reviewPlan: buildMotionReviewPlan(updatedProject),
@@ -126,6 +131,7 @@ export async function POST(request: Request): Promise<Response> {
         project,
         capturePlan,
         selectedRequests,
+        appLaunches,
         blockers: [
           {
             id: 'capture-provider-required',
@@ -143,6 +149,21 @@ export async function POST(request: Request): Promise<Response> {
     const message = error instanceof Error ? error.message : String(error);
     return jsonError(502, message, { code: 'motion_capture_failed' });
   }
+}
+
+function selectedAppLaunches(
+  selectedRequests: AgentMotionCapturePlanRequest[]
+): CaptureAppLaunch[] {
+  const launches = selectedRequests.flatMap((request) =>
+    request.request.appLaunch ? [request.request.appLaunch] : []
+  );
+  const seen = new Set<string>();
+  return launches.filter((launch) => {
+    const key = `${launch.command}:${launch.cwd ?? ''}:${launch.targetUrl}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function selectCaptureRequests(

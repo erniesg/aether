@@ -31,12 +31,26 @@ export interface CaptureStep {
   expectedArtifactId?: string;
 }
 
+export interface CaptureAppLaunchReadiness {
+  kind: 'http';
+  url: string;
+  timeoutMs: number;
+}
+
+export interface CaptureAppLaunch {
+  command: string;
+  cwd?: string;
+  targetUrl: string;
+  readiness: CaptureAppLaunchReadiness;
+}
+
 export interface CaptureRequest {
   target: CaptureTarget;
   mode: CaptureMode;
   aspectRatio: MotionAspectRatio;
   viewport: CaptureViewport;
   steps: CaptureStep[];
+  appLaunch?: CaptureAppLaunch;
   preferredProviderId?: string;
 }
 

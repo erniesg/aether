@@ -81,9 +81,10 @@
 - Agent-native `/api/motion/capture` route that accepts an editable motion
   project plus selected capture request ids, returns provider-required
   screenshot/DOM/trace/recording handoffs when no capture runner is configured,
-  preserves computer-use fallback guidance, and applies completed capture
-  receipts back into demo beats and `app-frame` timeline clips when an opt-in
-  provider is available.
+  preserves computer-use fallback guidance, returns deduped local-app launch
+  handoffs for runnable repo captures, and applies completed capture receipts
+  back into demo beats and `app-frame` timeline clips when an opt-in provider is
+  available.
 - Agent-native `/api/motion/voice` route that accepts an editable motion
   project plus selected voice request or clip ids, returns provider-required
   narration/word-timing/transcript handoffs when no voice provider is
@@ -129,15 +130,16 @@
   review-plan component slots.
 - Agent capture planner that turns capture-first motion projects into
   screenshot, DOM snapshot, interaction-trace, optional recording, local-app
-  launch, and computer-use fallback requests with viewport, setup, and
-  provenance receipts.
+  launch, and computer-use fallback requests with viewport, setup,
+  app-launch readiness, and provenance receipts.
 - Browser capture provider boundary that executes capture requests through an
   injected runner and normalizes screenshot, snapshot, trace, or recording
   receipts into typed capture artifacts without hardcoding a default provider.
 - Playwright browser capture runner that can execute the browser capture
   boundary locally, write screenshot/DOM/trace files, return Playwright video
-  paths, and wrap itself as a `browser-capture` provider when explicitly
-  configured.
+  paths, invoke an injected local-app launch callback before capture, clean up
+  app sessions after capture, and wrap itself as a `browser-capture` provider
+  when explicitly configured.
 - Capture-result application that turns screenshot or recording receipts into
   selected demo assets, editable `app-frame` timeline props, review-plan slots,
   and completed capture graph nodes while keeping DOM/trace receipts as
@@ -235,5 +237,5 @@ export format.
 The current implementation has the data and workflow seams to ingest that
 corpus, but it does not yet include the corpus artifact, Remotion Player preview,
 real renderer dependency execution in the app process, configured voice
-providers, app launch/capture execution, or authenticated desktop/computer-use
-recording execution.
+providers, configured in-app app launch processes, or authenticated
+desktop/computer-use recording execution.

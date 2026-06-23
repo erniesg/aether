@@ -140,6 +140,7 @@ function buildCaptureCandidates(
         targetKind: 'local-app',
         targetRef,
         setup: setupCommand(input.facts),
+        setupCwd: input.sourceRef,
         reason: 'Local repo exposes an app route suitable for a product still.',
         provenance: [source],
       },
@@ -150,6 +151,7 @@ function buildCaptureCandidates(
         targetKind: 'local-app',
         targetRef,
         setup: setupCommand(input.facts),
+        setupCwd: input.sourceRef,
         reason: 'DOM structure helps captions and component regeneration stay grounded.',
         provenance: [source],
       },
@@ -160,6 +162,7 @@ function buildCaptureCandidates(
         targetKind: 'local-app',
         targetRef,
         setup: setupCommand(input.facts),
+        setupCwd: input.sourceRef,
         reason: 'Launch and feature videos need at least one real product insert.',
         provenance: [source],
       }

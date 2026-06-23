@@ -73,6 +73,67 @@ function repoOnlyProject(): MotionProject {
   );
 }
 
+function localAppProject(): MotionProject {
+  return materializeMotionTimeline(
+    buildRepoLaunchMotionProject({
+      id: 'motion-tong-launch',
+      workspaceId: 'demo-ws',
+      projectKind: 'launch',
+      workflowMode: 'review',
+      audience: 'language learners',
+      tone: 'textural',
+      appProfile: {
+        name: 'tong',
+        repoUrl: '/Users/erniesg/code/erniesg/tong',
+        summary: 'City-specific language learning app.',
+        stack: ['TypeScript'],
+      },
+      sourceProfile: {
+        kind: 'local-repo',
+        label: 'tong source material',
+        sourceRef: '/Users/erniesg/code/erniesg/tong',
+        summary: 'local repo with 1 app route and 3 capture candidates',
+        signals: [],
+        captureCandidates: [
+          {
+            id: 'capture-local-app-still',
+            label: 'Capture local app route /',
+            mode: 'screenshot',
+            targetKind: 'local-app',
+            targetRef: 'http://localhost:3000/',
+            setup: 'npm run dev',
+            setupCwd: '/Users/erniesg/code/erniesg/tong',
+            reason: 'Local repo exposes an app route suitable for a product still.',
+            provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+          },
+          {
+            id: 'record-local-flow',
+            label: 'Record local product flow /',
+            mode: 'screen-recording',
+            targetKind: 'local-app',
+            targetRef: 'http://localhost:3000/',
+            setup: 'npm run dev',
+            setupCwd: '/Users/erniesg/code/erniesg/tong',
+            reason: 'Launch videos need a real product insert.',
+            provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+          },
+        ],
+        storyboardHints: [],
+        provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+      },
+      claims: [
+        {
+          text: 'tong local repo uses TypeScript across 12 source files.',
+          source: { kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' },
+        },
+      ],
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      createdAt: 82,
+    }),
+    { updatedAt: 83 }
+  );
+}
+
 function provider(capture: CaptureProvider['capture']): CaptureProvider {
   return {
     id: 'browser-test',
@@ -122,11 +183,73 @@ describe('POST /api/motion/capture', () => {
         { id: 'capture-home-still', request: { mode: 'screenshot' } },
         { id: 'capture-dom-snapshot', request: { mode: 'dom-snapshot' } },
       ],
+      appLaunches: [],
       providers: [],
       captureResults: [],
       captureResult: null,
     });
     expect(json.blockers[0].id).toBe('capture-provider-required');
+  });
+
+  it('returns local app launch handoffs for local-app capture requests', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: localAppProject(),
+          requestIds: ['capture-local-app-still', 'record-local-flow'],
+          requestedAt: 904,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'provider-required',
+      capturePlan: {
+        status: 'ready',
+        target: { kind: 'local-app', ref: 'http://localhost:3000/' },
+        providerRequirements: ['browser-capture', 'app-launch', 'screen-recording'],
+      },
+      selectedRequests: [
+        {
+          id: 'capture-local-app-still',
+          request: {
+            mode: 'screenshot',
+            appLaunch: {
+              command: 'npm run dev',
+              cwd: '/Users/erniesg/code/erniesg/tong',
+              targetUrl: 'http://localhost:3000/',
+            },
+          },
+        },
+        {
+          id: 'record-local-flow',
+          request: {
+            mode: 'screen-recording',
+            appLaunch: {
+              command: 'npm run dev',
+              cwd: '/Users/erniesg/code/erniesg/tong',
+              targetUrl: 'http://localhost:3000/',
+            },
+          },
+        },
+      ],
+      appLaunches: [
+        {
+          command: 'npm run dev',
+          cwd: '/Users/erniesg/code/erniesg/tong',
+          targetUrl: 'http://localhost:3000/',
+          readiness: { kind: 'http', url: 'http://localhost:3000/', timeoutMs: 60000 },
+        },
+      ],
+      captureResults: [],
+      captureResult: null,
+    });
   });
 
   it('executes selected capture requests and applies visual receipts to the editable timeline', async () => {

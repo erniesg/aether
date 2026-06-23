@@ -87,6 +87,7 @@ export interface MotionSourceCaptureCandidate {
   targetKind: MotionSourceCaptureTargetKind;
   targetRef?: string;
   setup?: string;
+  setupCwd?: string;
   reason: string;
   provenance: MotionProvenanceRef[];
 }
