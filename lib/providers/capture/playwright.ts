@@ -25,6 +25,12 @@ export interface PlaywrightCaptureAppSession {
   close(): Promise<void>;
 }
 
+export type PlaywrightCaptureAppLauncher = (
+  appLaunch: CaptureAppLaunch,
+  request: CaptureRequest,
+  options: CreatePlaywrightCaptureRunnerOptions
+) => Promise<PlaywrightCaptureAppSession | void>;
+
 export interface PlaywrightCapturePage {
   goto?(url: string, options?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
   waitForLoadState?(state: string, options?: { timeout?: number }): Promise<unknown>;
@@ -55,11 +61,7 @@ export interface CreatePlaywrightCaptureRunnerOptions {
     request: CaptureRequest,
     options: CreatePlaywrightCaptureRunnerOptions
   ) => Promise<PlaywrightCaptureSession>;
-  launchApp?: (
-    appLaunch: CaptureAppLaunch,
-    request: CaptureRequest,
-    options: CreatePlaywrightCaptureRunnerOptions
-  ) => Promise<PlaywrightCaptureAppSession | void>;
+  launchApp?: PlaywrightCaptureAppLauncher;
 }
 
 const RUNNER_PROVENANCE = {

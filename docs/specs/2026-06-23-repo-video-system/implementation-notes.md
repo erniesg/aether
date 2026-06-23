@@ -140,6 +140,10 @@
   paths, invoke an injected local-app launch callback before capture, clean up
   app sessions after capture, and wrap itself as a `browser-capture` provider
   when explicitly configured.
+- Trusted local app-launch callback for capture agents that spawns the planned
+  repo command in cwd, waits for HTTP readiness, fails on early process exit,
+  and cleans up the app process after Playwright capture without auto-registering
+  a provider in the API route.
 - Capture-result application that turns screenshot or recording receipts into
   selected demo assets, editable `app-frame` timeline props, review-plan slots,
   and completed capture graph nodes while keeping DOM/trace receipts as
@@ -237,5 +241,5 @@ export format.
 The current implementation has the data and workflow seams to ingest that
 corpus, but it does not yet include the corpus artifact, Remotion Player preview,
 real renderer dependency execution in the app process, configured voice
-providers, configured in-app app launch processes, or authenticated
+providers, UI/config wiring for trusted app-launch execution, or authenticated
 desktop/computer-use recording execution.

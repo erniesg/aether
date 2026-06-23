@@ -132,6 +132,11 @@ Clueso, and Descript.
   file-backed capture receipts when a caller opts into it. It can also call an
   injected app-launch callback before opening the target page, then clean up the
   app session after capture.
+- `lib/providers/capture/local-app-launch.ts` now provides that trusted local
+  app-launch callback for agent-run capture contexts: it spawns a configured
+  command in the repo cwd, polls HTTP readiness, fails if the app exits early,
+  and terminates the process after Playwright capture. It is opt-in and is not
+  registered automatically from the API route.
 - `lib/motion/captureApply.ts` now converts capture results back into the
   editable motion project: visual receipts become demo beat assets and
   `app-frame` timeline props, while every receipt completes the capture graph
