@@ -83,7 +83,8 @@
   skills and filters them by source kind, render engine, or run mode before an
   agent starts a motion project; responses now include workflow recipes for
   video plan review, draft variation selection, component regeneration, and
-  full-auto policy.
+  full-auto policy, plus installable `SKILL.md` drafts for pinning a workflow
+  skill before a concrete source is started.
 - Agent motion workflow router that picks the reusable workflow from intent and
   source refs, then returns the same review/full-auto plan.
 - Agent motion workflow starter that turns a repo source into a routed workflow,

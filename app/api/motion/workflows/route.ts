@@ -11,9 +11,14 @@ import {
   type MotionWorkflowExample,
 } from '@/lib/motion/workflowExamples';
 import {
+  buildAgentMotionWorkflowPlan,
+  type MotionWorkflowPlanSourceRef,
+} from '@/lib/motion/workflowPlan';
+import {
   getMotionWorkflowSkillRecipe,
   type MotionWorkflowSkillRecipe,
 } from '@/lib/motion/workflowSkillCatalog';
+import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,6 +59,7 @@ interface MotionWorkflowSkillResponse {
     defaultMode: WorkflowRunMode;
   };
   workflowRecipe: MotionWorkflowSkillRecipe | null;
+  installableSkillDraft: MotionWorkflowSkillDraft;
   examples: MotionWorkflowExampleResponse[];
   status: WorkflowRegistryEntry['status'];
 }
@@ -165,9 +171,34 @@ function toMotionWorkflowSkillResponse(
       defaultMode: 'review',
     },
     workflowRecipe: getMotionWorkflowSkillRecipe(workflow.id),
+    installableSkillDraft: buildDiscoverySkillDraft(workflow),
     examples: listMotionWorkflowExamples(workflow.id).map(toMotionWorkflowExampleResponse),
     status: workflow.status,
   };
+}
+
+function buildDiscoverySkillDraft(workflow: WorkflowRegistryEntry): MotionWorkflowSkillDraft {
+  const sourceRefs = placeholderSourceRefs(workflow);
+  return buildAgentMotionWorkflowPlan({
+    workflowId: workflow.id,
+    mode: 'review',
+    sourceRefs,
+    requestedEngines: workflow.engines,
+    createdAt: 0,
+  }).skillDraft;
+}
+
+function placeholderSourceRefs(workflow: WorkflowRegistryEntry): MotionWorkflowPlanSourceRef[] {
+  const sourceKind = workflow.sourceKinds?.[0];
+  if (!sourceKind) return [];
+
+  return [
+    {
+      kind: sourceKind,
+      ref: `workflow:${workflow.id}:${sourceKind}`,
+      label: `${workflow.label} source`,
+    },
+  ];
 }
 
 function toMotionWorkflowExampleResponse(

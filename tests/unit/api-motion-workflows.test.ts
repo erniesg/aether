@@ -34,6 +34,28 @@ describe('GET /api/motion/workflows', () => {
         acceptedShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
         defaultMode: 'review',
       },
+      installableSkillDraft: {
+        kind: 'motion-workflow-skill-draft',
+        label: 'Repo launch video',
+        manifestPathRelative: 'lib/agent/skills/repo-launch-video/SKILL.md',
+        startShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
+        draftVariationLabels: [
+          'Proof-first launch',
+          'Demo-first launch',
+          'Founder-note launch',
+        ],
+        componentSlotLabels: [
+          'Hook card',
+          'Proof card',
+          'App frame',
+          'Agent trace',
+          'CTA card',
+        ],
+        manifest: expect.objectContaining({
+          name: 'repo-launch-video',
+          tools: expect.arrayContaining(['motion_start', 'motion_capture', 'motion_render']),
+        }),
+      },
       workflowRecipe: {
         slug: 'repo-launch-video',
         triggerPhrases: expect.arrayContaining([
@@ -168,6 +190,27 @@ describe('GET /api/motion/workflows', () => {
           acceptedShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
           defaultMode: 'review',
         },
+        installableSkillDraft: expect.objectContaining({
+          label: 'PR to video',
+          manifestPathRelative: 'lib/agent/skills/pr-to-video/SKILL.md',
+          startShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
+          draftVariationLabels: [
+            'Daily skill launch',
+            'Maintainer brief',
+            'Mechanism-first cut',
+          ],
+          componentSlotLabels: [
+            'Hook card',
+            'Code diff card',
+            'Mechanism diagram',
+            'Evidence card',
+            'CTA card',
+          ],
+          manifest: expect.objectContaining({
+            name: 'pr-to-video',
+            instructions: expect.stringContaining('npx skills add heygen-com/hyperframes'),
+          }),
+        }),
         workflowRecipe: expect.objectContaining({
           slug: 'pr-to-video',
           triggerPhrases: expect.arrayContaining(['make a PR explainer']),

@@ -230,7 +230,9 @@ Clueso, and Descript.
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start
   shorthands, review gates, reusable tool ids, workflow-skill contracts, and
-  workflow recipes before creating a motion project.
+  workflow recipes before creating a motion project. Discovery responses also
+  include an installable `SKILL.md` draft per workflow, so a `pr-to-video` style
+  skill can be pinned before a concrete repo, PR, or site source is started.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider
