@@ -28,6 +28,7 @@ export interface TimelineLensProps {
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onExportPack?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples?: MotionWorkflowExample[];
   actionStatus?: string | null;
@@ -42,6 +43,7 @@ export function TimelineLens({
   onRegenerateComponent,
   onGenerateVoice,
   onRenderMotion,
+  onExportPack,
   onEditClipSummary,
   workflowExamples = [],
   actionStatus = null,
@@ -82,6 +84,7 @@ export function TimelineLens({
             onRegenerateComponent={onRegenerateComponent}
             onGenerateVoice={onGenerateVoice}
             onRenderMotion={onRenderMotion}
+            onExportPack={onExportPack}
             onEditClipSummary={onEditClipSummary}
             workflowExamples={workflowExamples}
             actionStatus={actionStatus}
@@ -115,6 +118,7 @@ function MotionPreviewPlanView({
   onRegenerateComponent,
   onGenerateVoice,
   onRenderMotion,
+  onExportPack,
   onEditClipSummary,
   workflowExamples,
   actionStatus,
@@ -126,6 +130,7 @@ function MotionPreviewPlanView({
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onExportPack?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples: MotionWorkflowExample[];
   actionStatus: string | null;
@@ -220,6 +225,9 @@ function MotionPreviewPlanView({
                 exportStatus={previewPlan.exportPackSummary.status}
                 onRenderMotion={onRenderMotion}
               />
+            ) : null}
+            {onExportPack ? (
+              <ExportPackActionButton onExportPack={onExportPack} />
             ) : null}
           </div>
         </div>
@@ -548,6 +556,18 @@ function RenderActionButton({
       className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
     >
       {ready ? 'render ready' : `render ${engine}`}
+    </button>
+  );
+}
+
+function ExportPackActionButton({ onExportPack }: { onExportPack: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onExportPack}
+      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+    >
+      export pack
     </button>
   );
 }

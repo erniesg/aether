@@ -324,6 +324,41 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline export action checks pack readiness and reports missing render assets', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          exportPackPlan: {
+            status: 'needs-render',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /export pack/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('render required before export');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/export-pack',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"requestedEngines":["remotion","hyperframes","provider"]'),
+      })
+    );
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {

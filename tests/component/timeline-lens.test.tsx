@@ -315,6 +315,22 @@ describe('TimelineLens', () => {
     expect(onRenderMotion).toHaveBeenCalledWith('remotion');
   });
 
+  it('lets creators check the export pack from the preview plan', async () => {
+    const onExportPack = vi.fn<() => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onExportPack={onExportPack}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /export pack/i }));
+    expect(onExportPack).toHaveBeenCalledTimes(1);
+  });
+
   it('lets creators edit the selected clip summary', async () => {
     const onSelectClip = vi.fn<(clipId: string) => void>();
     const onEditClipSummary = vi.fn<(clipId: string, summary: string) => void>();

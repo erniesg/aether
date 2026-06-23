@@ -639,6 +639,53 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     },
     [motionStart, wsId]
   );
+  const handleTimelineExportPack = useCallback(async () => {
+    if (!motionStart?.project) return;
+
+    setMotionTimelineActionStatus('checking export pack');
+    try {
+      const requestedAt = Date.now();
+      const res = await fetch('/api/motion/export-pack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: motionStart.project,
+          draftId: motionStart.project.currentDraftId,
+          requestedEngines: motionStart.workflow.plan.engines,
+          requestedAt,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        project?: typeof motionStart.project;
+        reviewPlan?: typeof motionStart.reviewPlan;
+        previewPlan?: typeof motionStart.previewPlan;
+        exportPackPlan?: { status?: string };
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error ?? `export pack failed: ${res.status}`);
+      }
+
+      setMotionStartResult(wsId, {
+        ...motionStart,
+        project: json.project ?? motionStart.project,
+        reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+        previewPlan: json.previewPlan ?? motionStart.previewPlan,
+      });
+      if (json.exportPackPlan?.status === 'ready') {
+        setMotionTimelineActionStatus('export pack ready');
+      } else if (json.exportPackPlan?.status === 'needs-render') {
+        setMotionTimelineActionStatus('render required before export');
+      } else if (json.exportPackPlan?.status === 'needs-targets') {
+        setMotionTimelineActionStatus('export targets required');
+      } else {
+        setMotionTimelineActionStatus('export pack planned');
+      }
+    } catch (error) {
+      setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+    }
+  }, [motionStart, wsId]);
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2398,6 +2445,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onRegenerateComponent={handleTimelineRegenerate}
             onGenerateVoice={handleTimelineGenerateVoice}
             onRenderMotion={handleTimelineRender}
+            onExportPack={handleTimelineExportPack}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}
