@@ -42,10 +42,11 @@ Clueso, and Descript.
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
 - `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`, `timeline.ts`,
   `componentRegistry.ts`, `reviewPlan.ts`, `workflowPlan.ts`, and
-  `workflowRouter.ts` now cover the first repo-to-motion-project slice: sourced
-  claims, story beats, draft variations, timeline tracks, editable component
-  slots, scoped regeneration requests, workflow routing, and agent-readable
-  workflow gates.
+  `workflowRouter.ts`, and `start.ts` now cover the first
+  repo-to-motion-project slice: sourced claims, story beats, draft variations,
+  timeline tracks, editable component slots, scoped regeneration requests,
+  workflow routing, agent-readable workflow gates, and the start artifact an
+  agent can hand to the creator for review or full-auto progression.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.

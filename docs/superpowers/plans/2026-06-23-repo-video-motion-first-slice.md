@@ -38,6 +38,8 @@
 - Create `lib/motion/workflowPlan.test.ts`: tests source status, gates, tool ids, engine hints, and full-auto actions.
 - Create `lib/motion/workflowRouter.ts`: route intent and source refs to reusable motion workflows.
 - Create `lib/motion/workflowRouter.test.ts`: tests repo launch, PR, feature/social, website, overlay, motion graphic, and engine-port routing.
+- Create `lib/motion/start.ts`: agent-facing start artifact that combines routing, workflow gates, project creation, review plans, and source/evidence requests.
+- Create `lib/motion/start.test.ts`: tests repo starts, PR evidence requests, and missing-source requests.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -2074,11 +2076,55 @@ Run: `./node_modules/.bin/vitest run lib/motion/workflowRouter.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/workflowRouter.ts lib/motion/workflowRouter.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: route agent motion workflow starts"
+```
+
+## Task 11: Agent Motion Workflow Start Artifact
+
+**Files:**
+- Create: `lib/motion/start.ts`
+- Create: `lib/motion/start.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing start-flow tests**
+
+The tests cover:
+
+- repo source -> routed workflow, materialized motion project, editable review
+  plan, draft variations, and component slots;
+- PR source -> `needs-evidence` request for code-change evidence before project
+  creation;
+- missing source -> `needs-source` request with accepted source kinds.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/start.test.ts`
+
+Expected: FAIL because `lib/motion/start.ts` does not exist.
+
+- [x] **Step 3: Implement the start artifact**
+
+`lib/motion/start.ts` now routes the workflow, returns source/evidence requests
+when inputs are incomplete, and creates a materialized repo motion project plus
+review plan when a repo source can be fetched. PR workflows stay on code-change
+evidence rather than falling back to generic repo facts.
+
+- [x] **Step 4: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/start.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: start agent motion workflows"
 ```
 
 ## Self-Review Checklist

@@ -24,12 +24,15 @@
   into gated tool/artifact plans for review mode or saved full-auto execution.
 - Agent motion workflow router that picks the reusable workflow from intent and
   source refs, then returns the same review/full-auto plan.
+- Agent motion workflow starter that turns a repo source into a routed workflow,
+  materialized motion project, editable review plan, and explicit source/evidence
+  requests when more material is needed.
 
 ## Verification Commands
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx
 npm run typecheck
 git diff --check
