@@ -117,10 +117,17 @@ const WORKFLOW_REGISTRY = {
     label: 'PR to video',
     summary:
       'Turn pull request evidence into a short code-change explainer with diff, mechanism, and proof beats.',
-    toolIds: ['motion-brief', 'motion-storyboard', 'motion-sync', 'motion-render'],
+    toolIds: [
+      'motion-brief',
+      'motion-storyboard',
+      'motion-voice',
+      'motion-sync',
+      'motion-render',
+      'motion-revise',
+    ],
     sourceKinds: ['pr', 'repo'],
     engines: ['remotion', 'hyperframes'],
-    reviewGates: ['plan', 'drafts', 'timeline', 'render', 'export'],
+    reviewGates: ['plan', 'drafts', 'voice', 'timeline', 'render', 'export'],
     status: 'draft',
   },
   'caption-overlay-video': {

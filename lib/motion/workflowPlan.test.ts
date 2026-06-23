@@ -70,7 +70,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
     );
   });
 
-  it('keeps PR-to-video on code-change evidence without capture or voice gates', () => {
+  it('keeps PR-to-video on code-change evidence without capture gates', () => {
     const plan = buildAgentMotionWorkflowPlan({
       workflowId: 'pr-to-video',
       mode: 'full-auto',
@@ -89,19 +89,28 @@ describe('buildAgentMotionWorkflowPlan', () => {
     expect(plan.toolIds).toEqual([
       'motion-brief',
       'motion-storyboard',
+      'motion-voice',
       'motion-sync',
       'motion-render',
+      'motion-revise',
     ]);
     expect(plan.gates.map((gate) => gate.id)).toEqual([
       'plan',
       'drafts',
+      'voice',
       'timeline',
       'render',
       'export',
     ]);
     expect(plan.gates.every((gate) => gate.autoAdvance)).toBe(true);
     expect(plan.gates.some((gate) => gate.id === 'capture')).toBe(false);
-    expect(plan.gates.some((gate) => gate.id === 'voice')).toBe(false);
+    expect(plan.gates.find((gate) => gate.id === 'voice')).toMatchObject({
+      toolIds: ['motion-voice'],
+      expectedArtifacts: ['voice clips', 'word timings'],
+    });
+    expect(plan.gates.find((gate) => gate.id === 'timeline')).toMatchObject({
+      toolIds: ['motion-sync', 'motion-revise'],
+    });
     expect(plan.nextActions[0]).toMatchObject({
       id: 'run-full-auto',
       label: 'Run saved gates',

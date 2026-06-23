@@ -19,7 +19,8 @@
 - Timeline lens scaffold inside the single aether workspace shell.
 - Draft motion tool registry and reusable workflow entries for repo launch,
   feature/social, website/app capture, PR explainers, caption overlays, motion
-  graphics, and Remotion/HyperFrames portability.
+  graphics, and Remotion/HyperFrames portability. PR explainers now include
+  voice and timeline-revision gates without adding capture as source evidence.
 - Agent motion workflow planner that turns a workflow id, mode, and source refs
   into gated tool/artifact plans for review mode or saved full-auto execution.
 - Agent motion workflow router that picks the reusable workflow from intent and
@@ -27,6 +28,11 @@
 - Agent motion workflow starter that turns a repo source into a routed workflow,
   materialized motion project, editable review plan, and explicit source/evidence
   requests when more material is needed.
+- PR motion starter that turns a GitHub PR URL or `owner/repo#number` ref into
+  an editable code-change explainer project through a configured
+  `CodeChangeProvider`, derives app profile facts from the PR repo, materializes
+  timeline/voice/caption clips, and falls back to reviewable evidence requests
+  when no provider is configured.
 - Site/app motion starter that turns a live URL into a capture-first editable
   motion project using extracted page claims, stack hints, timeline tracks, and
   review-plan component slots.
@@ -87,8 +93,8 @@
 ## Verification Commands
 
 ```bash
-./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/revise.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts --pool=forks
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts lib/providers/video/command-render.test.ts lib/providers/video/generation-registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/voice/registry.test.ts

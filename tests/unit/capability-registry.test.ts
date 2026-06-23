@@ -119,10 +119,17 @@ describe('typed capability registries', () => {
 
     expect(getWorkflowRegistryEntry('pr-to-video')).toMatchObject({
       id: 'pr-to-video',
-      toolIds: ['motion-brief', 'motion-storyboard', 'motion-sync', 'motion-render'],
+      toolIds: [
+        'motion-brief',
+        'motion-storyboard',
+        'motion-voice',
+        'motion-sync',
+        'motion-render',
+        'motion-revise',
+      ],
       sourceKinds: ['pr', 'repo'],
       engines: ['remotion', 'hyperframes'],
-      reviewGates: ['plan', 'drafts', 'timeline', 'render', 'export'],
+      reviewGates: ['plan', 'drafts', 'voice', 'timeline', 'render', 'export'],
       status: 'draft',
     });
 

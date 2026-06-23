@@ -3031,6 +3031,80 @@ git add lib/motion/revise.ts lib/motion/revise.test.ts lib/motion/project.ts doc
 git commit -m "feat: add structured motion timeline revisions"
 ```
 
+## Task 29: PR-to-Video Starts
+
+**Files:**
+- Create: `lib/motion/prMotion.ts`
+- Create: `lib/motion/prMotion.test.ts`
+- Modify: `lib/motion/start.ts`
+- Modify: `lib/motion/start.test.ts`
+- Modify: `lib/workflow/registry.ts`
+- Modify: `lib/motion/workflowPlan.test.ts`
+- Modify: `lib/motion/workflowRouter.test.ts`
+- Modify: `tests/unit/capability-registry.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing PR start tests**
+
+The tests cover:
+
+- a GitHub PR URL plus an injected `CodeChangeProvider` producing an editable
+  `MotionProject` with PR story beats, timeline tracks, graph provenance, and
+  repo-derived app profile facts;
+- `owner/repo#number` shorthand working for agent-native PR inputs;
+- `startAgentMotionWorkflow` routing PR sources into a ready PR-to-video
+  project when code-change evidence can be collected;
+- unavailable providers falling back to a reviewable `needs-evidence` request
+  without fetching unrelated repo facts.
+
+- [x] **Step 2: Run the failing tests**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/prMotion.test.ts lib/motion/start.test.ts
+npm run typecheck
+```
+
+Expected: FAIL because `prMotion.ts` does not exist and PR starts still stop at
+`needs-evidence`.
+
+- [x] **Step 3: Implement PR motion starts**
+
+`lib/motion/prMotion.ts` now parses GitHub PR URLs and `owner/repo#number`
+refs, ingests code-change evidence through a configured provider, derives the
+app profile from repo facts when needed, and builds/materializes the PR
+explainer `MotionProject`. `startAgentMotionWorkflow` now uses that builder for
+PR starts, while preserving the existing `needs-evidence` fallback if no
+code-change provider is available.
+
+- [x] **Step 4: Keep PR workflow editable and narrated**
+
+The `pr-to-video` workflow now includes `motion-voice` and `motion-revise`
+beside brief, storyboard, sync, and render. Its gates include voice and
+timeline review, but still omit capture because PR videos source evidence from
+code-change receipts rather than product recordings.
+
+- [x] **Step 5: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/prMotion.test.ts lib/motion/start.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts
+./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts --pool=forks
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 6: Commit**
+
+```bash
+git add lib/motion/prMotion.ts lib/motion/prMotion.test.ts lib/motion/start.ts lib/motion/start.test.ts lib/workflow/registry.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts tests/unit/capability-registry.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: start pr motion projects from code change evidence"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { CodeChangeProvider } from '@/lib/providers/code-change/types';
 import { startAgentMotionWorkflow } from './start';
 
 function githubJson(body: unknown): Response {
@@ -212,7 +213,117 @@ describe('startAgentMotionWorkflow', () => {
     expect(fetcher).toHaveBeenCalledWith('https://tong.app/tokyo');
   });
 
-  it('keeps PR starts on code-change evidence before creating a project', async () => {
+  it('starts a PR-to-video workflow when a code-change provider is available', async () => {
+    const ingest = vi.fn<CodeChangeProvider['ingest']>(async () => ({
+      providerId: 'test-code-change',
+      title: 'Add PR explainer videos',
+      files: [
+        {
+          path: 'lib/motion/start.ts',
+          status: 'modified',
+          additions: 42,
+          deletions: 4,
+          language: 'TypeScript',
+        },
+      ],
+      hunks: [
+        {
+          id: 'hunk-lib-motion-start-ts-32',
+          filePath: 'lib/motion/start.ts',
+          newStart: 32,
+          lines: ['+return await buildPrMotionProjectFromSource(input);'],
+          provenance: [{ kind: 'code-change', ref: 'diff:lib/motion/start.ts#32' }],
+        },
+      ],
+      commits: [{ sha: 'abc123', message: 'Add PR motion start' }],
+      reviews: [{ reviewer: 'reviewer', state: 'approved' }],
+      ci: [{ name: 'typecheck', status: 'passed' }],
+      provenance: [{ kind: 'code-change', ref: 'github:erniesg/aether#123' }],
+    }));
+    const codeChangeProvider: CodeChangeProvider = {
+      id: 'test-code-change',
+      displayName: 'Test code change',
+      available: () => true,
+      ingest,
+    };
+    const fetcher = vi.fn<typeof fetch>(async (url) => {
+      const href = String(url);
+      if (href === 'https://api.github.com/repos/erniesg/aether') {
+        return githubJson({
+          name: 'aether',
+          description: 'Canvas-native creative system.',
+          stargazers_count: 42,
+          forks_count: 7,
+          open_issues_count: 3,
+          pushed_at: '2026-06-09T10:22:00Z',
+          topics: ['nextjs', 'convex', 'tldraw'],
+        });
+      }
+      if (href.endsWith('/languages')) {
+        return githubJson({ TypeScript: 1000, CSS: 200 });
+      }
+      if (href.endsWith('/releases?per_page=5')) return githubJson([]);
+      if (href.endsWith('/readme')) {
+        return githubText('A Next.js 15, Convex, and tldraw creative canvas.');
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const result = await startAgentMotionWorkflow(
+      {
+        id: 'motion-pr-123',
+        workspaceId: 'demo-ws',
+        intent: 'launch',
+        mode: 'full-auto',
+        sourceRefs: [
+          { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+          { kind: 'pr', ref: 'https://github.com/erniesg/aether/pull/123' },
+        ],
+        audience: 'maintainers',
+        tone: 'crisp',
+        platformTargets: [{ platform: 'linkedin', aspectRatio: '16:9', seconds: 45 }],
+        createdAt: 310,
+      },
+      { codeChangeProvider, fetcher }
+    );
+
+    expect(result).toMatchObject({
+      status: 'ready',
+      workflow: {
+        workflowId: 'pr-to-video',
+        reason: 'pull request source selected a code-change workflow',
+      },
+    });
+    expect(result.workflow.plan).toMatchObject({
+      mode: 'full-auto',
+      primaryAction: 'run-full-auto',
+      sourceStatus: 'ready',
+    });
+    expect(result.project).toMatchObject({
+      id: 'motion-pr-123',
+      title: 'aether PR video',
+      workflowMode: 'full-auto',
+      brief: { projectKind: 'pr' },
+    });
+    expect(result.project?.tracks.map((track) => track.kind)).toEqual([
+      'text',
+      'caption',
+      'voice',
+      'transition',
+    ]);
+    expect(result.reviewPlan).toMatchObject({
+      projectId: 'motion-pr-123',
+      primaryAction: 'queue-render',
+      summary: {
+        appName: 'aether',
+        projectKind: 'pr',
+      },
+    });
+    expect(result.capturePlan).toBeNull();
+    expect(result.requestedInputs).toEqual([]);
+  });
+
+  it('keeps PR starts on code-change evidence before creating a project without a provider', async () => {
     const fetcher = vi.fn<typeof fetch>();
 
     const result = await startAgentMotionWorkflow(

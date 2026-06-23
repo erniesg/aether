@@ -60,10 +60,12 @@ describe('routeAgentMotionWorkflow', () => {
     expect(result.plan.gates.map((gate) => gate.id)).toEqual([
       'plan',
       'drafts',
+      'voice',
       'timeline',
       'render',
       'export',
     ]);
+    expect(result.plan.gates.some((gate) => gate.id === 'capture')).toBe(false);
   });
 
   it('routes feature and social intents to the feature-social workflow', () => {

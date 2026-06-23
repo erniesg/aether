@@ -1,5 +1,6 @@
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { WorkflowEngine, WorkflowSourceKind } from '@/lib/workflow/registry';
+import { CodeChangeProviderUnavailableError } from '@/lib/providers/code-change/registry';
 import type { CodeChangeResult, CodeChangeSource } from '@/lib/providers/code-change/types';
 import {
   buildAgentMotionCapturePlan,
@@ -20,6 +21,10 @@ import type {
   MotionProject,
   MotionWorkflowMode,
 } from './project';
+import {
+  buildPrMotionProjectFromSource,
+  type BuildPrMotionProjectFromSourceOptions,
+} from './prMotion';
 import {
   routeAgentMotionWorkflow,
   type MotionWorkflowIntent,
@@ -67,6 +72,10 @@ export interface StartAgentMotionWorkflowInput {
   appProfile?: AppProfile;
 }
 
+export interface StartAgentMotionWorkflowOptions
+  extends BuildRepoMotionProjectFromUrlOptions,
+    BuildPrMotionProjectFromSourceOptions {}
+
 export interface AgentMotionStartResult {
   status: AgentMotionStartStatus;
   workflow: RoutedAgentMotionWorkflow;
@@ -78,7 +87,7 @@ export interface AgentMotionStartResult {
 
 export async function startAgentMotionWorkflow(
   input: StartAgentMotionWorkflowInput,
-  options: BuildRepoMotionProjectFromUrlOptions = {}
+  options: StartAgentMotionWorkflowOptions = {}
 ): Promise<AgentMotionStartResult> {
   const workflow = routeAgentMotionWorkflow({
     intent: input.intent,
@@ -106,7 +115,7 @@ export async function startAgentMotionWorkflow(
   }
 
   if (workflow.workflowId === 'pr-to-video') {
-    return startCodeChangeWorkflow(input, workflow);
+    return await startCodeChangeWorkflow(input, workflow, options);
   }
 
   if (
@@ -165,27 +174,41 @@ export async function startAgentMotionWorkflow(
   };
 }
 
-function startCodeChangeWorkflow(
+async function startCodeChangeWorkflow(
   input: StartAgentMotionWorkflowInput,
-  workflow: RoutedAgentMotionWorkflow
-): AgentMotionStartResult {
+  workflow: RoutedAgentMotionWorkflow,
+  options: StartAgentMotionWorkflowOptions
+): Promise<AgentMotionStartResult> {
   const prSource = findSource(input.sourceRefs, 'pr');
-  if (!input.codeChange || !input.appProfile || !prSource) {
-    return {
-      status: 'needs-evidence',
-      workflow,
-      project: null,
-      reviewPlan: null,
-      capturePlan: null,
-      requestedInputs: [
+  if (!prSource) {
+    return needsCodeChangeEvidence(input, workflow, prSource);
+  }
+
+  if (!input.codeChange || !input.appProfile) {
+    try {
+      const project = await buildPrMotionProjectFromSource(
         {
-          kind: 'code-change',
-          label: 'Collect PR evidence',
-          sourceRef: prSource ?? { kind: 'pr', ref: 'missing-pr-source' },
-          toolId: 'motion-brief',
+          id: input.id,
+          workspaceId: input.workspaceId,
+          prRef: prSource.ref,
+          workflowMode: input.mode,
+          audience: input.audience,
+          tone: input.tone,
+          appProfile: input.appProfile,
+          codeChange: input.codeChange,
+          codeChangeSource: input.codeChangeSource,
+          platformTargets: input.platformTargets,
+          materializeTimeline: true,
+          createdAt: input.createdAt,
         },
-      ],
-    };
+        options
+      );
+
+      return readyResult(workflow, project);
+    } catch (error) {
+      if (!(error instanceof CodeChangeProviderUnavailableError)) throw error;
+      return needsCodeChangeEvidence(input, workflow, prSource);
+    }
   }
 
   const project = materializeMotionTimeline(
@@ -205,6 +228,28 @@ function startCodeChangeWorkflow(
   );
 
   return readyResult(workflow, project);
+}
+
+function needsCodeChangeEvidence(
+  input: StartAgentMotionWorkflowInput,
+  workflow: RoutedAgentMotionWorkflow,
+  prSource: MotionWorkflowPlanSourceRef | undefined
+): AgentMotionStartResult {
+  return {
+    status: 'needs-evidence',
+    workflow,
+    project: null,
+    reviewPlan: null,
+    capturePlan: null,
+    requestedInputs: [
+      {
+        kind: 'code-change',
+        label: 'Collect PR evidence',
+        sourceRef: prSource ?? { kind: 'pr', ref: 'missing-pr-source' },
+        toolId: 'motion-brief',
+      },
+    ],
+  };
 }
 
 function readyResult(

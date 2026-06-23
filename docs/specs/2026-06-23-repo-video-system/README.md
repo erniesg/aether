@@ -41,14 +41,15 @@ Clueso, and Descript.
 - `lib/motion/brief.ts`, `lib/motion/compile.ts`, and `scripts/render-motion.ts`
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
 - `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`, `siteMotion.ts`,
-  `timeline.ts`, `componentRegistry.ts`, `reviewPlan.ts`, `workflowPlan.ts`,
-  `workflowRouter.ts`, and `start.ts` now cover the first
+  `prMotion.ts`, `timeline.ts`, `componentRegistry.ts`, `reviewPlan.ts`,
+  `workflowPlan.ts`, `workflowRouter.ts`, and `start.ts` now cover the first
   repo-to-motion-project slice: sourced claims, story beats, draft variations,
   timeline tracks, editable component slots, scoped regeneration requests,
   workflow routing, agent-readable workflow gates, and the start artifact an
   agent can hand to the creator for review or full-auto progression. Repo and
-  site/app URL sources can now create editable project starts; real screen
-  capture and recording remain provider execution work.
+  site/app URL sources can now create editable project starts; PR sources can
+  create editable code-change explainer starts when a code-change provider is
+  configured. Real screen capture and recording remain provider execution work.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, and computer-use fallback requests with explicit viewport,
@@ -122,7 +123,9 @@ Clueso, and Descript.
   `lib/workflow/registry.ts` now register draft agent-native motion tools and
   reusable video workflows for repo launch, feature/social, website capture,
   PR explainers, caption overlays, motion graphics, and
-  Remotion/HyperFrames portability.
+  Remotion/HyperFrames portability. The PR-to-video workflow now includes
+  voice and timeline-revision gates while staying code-change-sourced rather
+  than capture-sourced.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider
