@@ -3738,6 +3738,57 @@ git add lib/motion/syncPlan.ts lib/motion/syncPlan.test.ts app/api/motion/sync/r
 git commit -m "feat: expose motion sync planning"
 ```
 
+## Task 43: Motion Export Pack API
+
+**Files:**
+- Create: `lib/motion/exportPackPlan.ts`
+- Create: `lib/motion/exportPackPlan.test.ts`
+- Create: `app/api/motion/export-pack/route.ts`
+- Create: `tests/unit/api-motion-export-pack.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing export-pack tests**
+
+The tests cover:
+
+- render blockers and missing artifact kinds before export targets are ready;
+- partial packs that preserve ready canvas drop candidates while still blocking
+  incomplete targets;
+- ready packs with manifest descriptors when every platform target has video,
+  poster, subtitle, transcript, and manifest receipts;
+- target blockers when no export targets exist.
+
+- [x] **Step 2: Implement the export-pack planner**
+
+`lib/motion/exportPackPlan.ts` now turns editable `MotionExport` slots into
+per-platform readiness records, missing artifact lists, canvas drop candidates,
+pack blockers, provenance, and a manifest descriptor once every target is ready.
+
+- [x] **Step 3: Implement the export-pack API route**
+
+`app/api/motion/export-pack/route.ts` now accepts an editable motion project and
+returns the export-pack plan with refreshed review and preview plans. It
+validates JSON, project presence, and requested preview engines.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/exportPackPlan.test.ts tests/unit/api-motion-export-pack.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/exportPackPlan.ts lib/motion/exportPackPlan.test.ts app/api/motion/export-pack/route.ts tests/unit/api-motion-export-pack.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion export packs"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

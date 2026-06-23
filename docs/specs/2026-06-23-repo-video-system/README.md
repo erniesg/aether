@@ -98,6 +98,10 @@ Clueso, and Descript.
   source/output request, timeline blockers, or completed render receipts applied
   back into the editable export slots. The route lists configured providers and
   does not register a default renderer.
+- `app/api/motion/export-pack/route.ts` now exposes export-pack readiness
+  through an agent-native JSON boundary: callers send an editable project and
+  receive ready/missing platform artifacts, canvas drop candidates, blockers,
+  and a pack manifest only when every target has render receipts.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, and computer-use fallback requests with explicit viewport,
@@ -121,6 +125,10 @@ Clueso, and Descript.
 - `lib/motion/renderApply.ts` now converts completed render receipts back into
   editable export assets and the render graph node, so MP4, poster, subtitle,
   transcript, and manifest outputs can return to the canvas/project model.
+- `lib/motion/exportPackPlan.ts` now turns editable export slots into a
+  creator/agent-readable export pack plan: per-platform readiness, missing
+  artifact kinds, video canvas-drop candidates, pack blockers, and a manifest
+  descriptor for fully rendered packs.
 - `lib/providers/video/render-registry.ts` now defines an opt-in render
   provider registry for Remotion and HyperFrames adapters without registering a
   default renderer.

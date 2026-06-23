@@ -80,6 +80,10 @@
   handoffs when no renderer is configured, returns timeline blockers before
   resolving providers, and applies completed render receipts back into export
   slots when an opt-in provider is available.
+- Agent-native `/api/motion/export-pack` route that accepts an editable motion
+  project and returns per-platform export readiness, missing artifact kinds,
+  canvas drop candidates, blockers, and a pack manifest when every target has
+  render receipts.
 - Local repo motion starter that turns an absolute, relative, `~/`, or
   `file://` repo ref into the same editable repo motion project without calling
   GitHub.
@@ -112,6 +116,9 @@
 - Render-result application that turns MP4, poster, subtitle, transcript, and
   manifest receipts into ready export asset refs while merging provider
   provenance into the render graph node.
+- Export-pack planning that turns editable export slots into ready/missing
+  platform artifacts, canvas drop candidates, blockers, and manifest metadata
+  for fully rendered packs.
 - Runner-backed Remotion and HyperFrames render provider factories that execute
   injected runners, fail closed without configuration, reject wrong-engine
   requests, and normalize file receipts against the render plan.
@@ -162,7 +169,8 @@
 ./node_modules/.bin/vitest run tests/unit/api-motion-regenerate.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-revise.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-render.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/syncPlan.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run tests/unit/api-motion-export-pack.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/exportPackPlan.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/syncPlan.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/research/local-repo-facts.test.ts lib/research/repo-facts.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts lib/providers/video/command-render.test.ts lib/providers/video/generation-registry.test.ts
