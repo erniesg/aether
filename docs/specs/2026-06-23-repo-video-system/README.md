@@ -65,6 +65,13 @@ Clueso, and Descript.
   editable motion project: visual receipts become demo beat assets and
   `app-frame` timeline props, while every receipt completes the capture graph
   node with typed provenance.
+- `lib/motion/renderPlan.ts` now turns an editable timeline into a
+  provider-neutral render handoff: engine, composition id, track refs, expected
+  MP4/poster/subtitle/transcript/manifest outputs, dimensions, and render graph
+  node provenance.
+- `lib/providers/video/render-registry.ts` now defines an opt-in render
+  provider registry for Remotion and HyperFrames adapters without registering a
+  default renderer.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.
@@ -74,8 +81,9 @@ Clueso, and Descript.
   PR explainers, caption overlays, motion graphics, and
   Remotion/HyperFrames portability.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
-- `lib/providers/video/*` currently covers video understanding only, not render,
-  text-to-video, image-to-video, voiceover, or timeline compilation.
+- `lib/providers/video/*` currently covers video understanding and render
+  provider contracts, but not concrete render execution, text-to-video,
+  image-to-video, voiceover, or timeline compilation into engine source files.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.

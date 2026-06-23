@@ -856,7 +856,7 @@ Run: `npx vitest run lib/motion/componentRegistry.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/componentRegistry.ts lib/motion/componentRegistry.test.ts
@@ -2367,11 +2367,67 @@ Run: `./node_modules/.bin/vitest run lib/motion/captureApply.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/captureApply.ts lib/motion/captureApply.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: apply motion capture results"
+```
+
+## Task 17: Render Handoff Plan and Registry
+
+**Files:**
+- Create: `lib/motion/renderPlan.ts`
+- Create: `lib/motion/renderPlan.test.ts`
+- Create: `lib/providers/video/render-registry.ts`
+- Create: `lib/providers/video/render-registry.test.ts`
+- Modify: `lib/providers/video/types.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing render handoff tests**
+
+The tests cover:
+
+- editable timeline -> render plan with engine, composition id, duration,
+  component ids, track refs, dimensions, output paths, and planned render graph
+  node;
+- missing timeline -> `needs-timeline` blocker instead of invented render
+  inputs;
+- opt-in render provider registry for Remotion and HyperFrames, with no hidden
+  default renderer.
+
+- [x] **Step 2: Run the failing tests**
+
+Run: `./node_modules/.bin/vitest run lib/motion/renderPlan.test.ts lib/providers/video/render-registry.test.ts`
+
+Expected: FAIL because `lib/motion/renderPlan.ts` and
+`lib/providers/video/render-registry.ts` do not exist.
+
+- [x] **Step 3: Implement render handoff contracts**
+
+`lib/motion/renderPlan.ts` now converts materialized motion timelines into
+provider-neutral render requests for Remotion or HyperFrames. It declares
+expected MP4, poster, subtitle, transcript, and manifest outputs for every
+export target, with dimensions and provenance. `lib/providers/video/types.ts`
+and `render-registry.ts` define the provider contract and opt-in registry.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/renderPlan.test.ts lib/providers/video/render-registry.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/renderPlan.ts lib/motion/renderPlan.test.ts lib/providers/video/render-registry.ts lib/providers/video/render-registry.test.ts lib/providers/video/types.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: plan motion render handoffs"
 ```
 
 ## Self-Review Checklist
