@@ -9,6 +9,7 @@ import {
   resetMotionStartResultsForTests,
   setMotionStartResult,
 } from '@/lib/motion/start-store';
+import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
@@ -397,6 +398,58 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: expect.stringContaining('"draftId":"draft-primary"'),
+      })
+    );
+  });
+
+  it('timeline capture action requests required app captures and reports provider handoff state', async () => {
+    const start = storedRegeneratableMotionStart();
+    const project = {
+      ...start.project!,
+      sourceRefs: [
+        ...start.project!.sourceRefs,
+        { kind: 'site' as const, ref: 'https://aether.local/demo' },
+      ],
+    };
+    const capturePlan = buildAgentMotionCapturePlan(project);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'provider-required',
+          project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          capturePlan,
+          providers: [],
+          selectedRequests: [],
+          captureResults: [],
+          captureResult: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', {
+      ...start,
+      project,
+      capturePlan,
+    });
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /capture stills/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('capture provider required');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/capture',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining(
+          '"requestIds":["capture-home-still","capture-dom-snapshot"]'
+        ),
       })
     );
   });

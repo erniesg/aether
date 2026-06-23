@@ -644,6 +644,60 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
+  const handleTimelineCapture = useCallback(
+    async (requestIds?: string[]) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus('capturing app');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/capture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            requestIds,
+            requestedAt,
+            updatedAt: requestedAt,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          status?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error ?? `capture failed: ${res.status}`);
+        }
+
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project ?? motionStart.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan ?? motionStart.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+        });
+        if (json.status === 'captured') {
+          setMotionTimelineActionStatus('captures added');
+        } else if (json.status === 'provider-required') {
+          setMotionTimelineActionStatus('capture provider required');
+        } else if (json.status === 'blocked') {
+          setMotionTimelineActionStatus('capture source required');
+        } else if (json.status === 'not-needed') {
+          setMotionTimelineActionStatus('capture not needed');
+        } else {
+          setMotionTimelineActionStatus('capture planned');
+        }
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
   const handleTimelineRender = useCallback(
     async (engine: MotionRenderEngine) => {
       if (!motionStart?.project) return;
@@ -2558,9 +2612,11 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onRenderMotion={handleTimelineRender}
             onExportPack={handleTimelineExportPack}
             onGenerateVideoClips={handleTimelineGenerateVideoClips}
+            onCaptureMotion={handleTimelineCapture}
             onPinMotionSkill={handleTimelinePinMotionSkill}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             onEditClipEffect={handleTimelineClipEffectEdit}
+            capturePlan={motionStart?.capturePlan ?? null}
             graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}

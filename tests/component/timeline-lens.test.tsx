@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TimelineLens } from '@/components/workspace/TimelineLens';
 import type { MotionGraphNode, TimelineTrack } from '@/lib/motion/project';
+import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 
@@ -206,6 +207,70 @@ const graphNodes: MotionGraphNode[] = [
   },
 ];
 
+const capturePlan: AgentMotionCapturePlan = {
+  projectId: 'motion-aether-launch',
+  status: 'ready',
+  preferredPath: 'screenshot-first',
+  target: { kind: 'url', ref: 'https://aether.local/demo' },
+  providerRequirements: ['browser-capture'],
+  requests: [
+    {
+      id: 'capture-home-still',
+      label: 'Capture hero still',
+      required: true,
+      request: {
+        target: { kind: 'url', ref: 'https://aether.local/demo' },
+        mode: 'screenshot',
+        aspectRatio: '9:16',
+        viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+        steps: [],
+      },
+      expectedArtifacts: ['screenshot', 'cursor targets', 'viewport receipt'],
+      provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
+    },
+    {
+      id: 'capture-dom-snapshot',
+      label: 'Capture DOM snapshot',
+      required: true,
+      request: {
+        target: { kind: 'url', ref: 'https://aether.local/demo' },
+        mode: 'dom-snapshot',
+        aspectRatio: '9:16',
+        viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+        steps: [],
+      },
+      expectedArtifacts: ['snapshot', 'route metadata', 'viewport receipt'],
+      provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
+    },
+    {
+      id: 'capture-screen-recording',
+      label: 'Record product flow',
+      required: false,
+      request: {
+        target: { kind: 'url', ref: 'https://aether.local/demo' },
+        mode: 'screen-recording',
+        aspectRatio: '9:16',
+        viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+        steps: [],
+      },
+      expectedArtifacts: ['recording', 'cursor targets', 'app-state receipt'],
+      provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
+    },
+  ],
+  fallbacks: [
+    {
+      id: 'computer-use-capture',
+      label: 'Use computer control when browser capture cannot reach the app state',
+      reason: 'Needed for authenticated, native, simulator, or gesture-heavy flows.',
+    },
+  ],
+  nextActions: [
+    { id: 'capture-browser-stills', label: 'Capture browser stills' },
+    { id: 'record-interaction-if-needed', label: 'Record interaction if needed' },
+  ],
+  provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
+};
+
 describe('TimelineLens', () => {
   it('renders creator-facing tracks and clips without raw provenance refs', () => {
     render(<TimelineLens tracks={tracks} selectedClipId={null} onSelectClip={() => {}} />);
@@ -235,6 +300,8 @@ describe('TimelineLens', () => {
         selectedClipId={null}
         onSelectClip={() => {}}
         graphNodes={graphNodes}
+        capturePlan={capturePlan}
+        onCaptureMotion={() => {}}
         actionStatus="capture regeneration planned"
       />
     );
@@ -248,7 +315,7 @@ describe('TimelineLens', () => {
     expect(screen.getByText('assetId / caption / zoom')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /regenerate capture for app frame/i })).toBeInTheDocument();
     expect(screen.getByText('remotion')).toBeInTheDocument();
-    expect(screen.getByText('ready')).toBeInTheDocument();
+    expect(screen.getAllByText('ready').length).toBeGreaterThan(0);
     expect(screen.getByText('provider-required')).toBeInTheDocument();
     expect(screen.getByText('sync')).toBeInTheDocument();
     expect(screen.getByText('needs voice')).toBeInTheDocument();
@@ -260,13 +327,44 @@ describe('TimelineLens', () => {
     expect(screen.getByText('graph')).toBeInTheDocument();
     expect(screen.getByText('script')).toBeInTheDocument();
     expect(screen.getByText('image to video')).toBeInTheDocument();
+    expect(screen.getByText('captures')).toBeInTheDocument();
+    expect(screen.getByText('aether.local')).toBeInTheDocument();
+    expect(screen.getByText('Capture hero still')).toBeInTheDocument();
+    expect(screen.getAllByText(/screenshot/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Record product flow')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /capture stills/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /record flow/i })).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('capture regeneration planned');
     expect(screen.queryByText('clip-beat-demo-text')).not.toBeInTheDocument();
     expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
     expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
     expect(screen.queryByText('node-image-to-video-plan')).not.toBeInTheDocument();
+    expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
+  });
+
+  it('lets creators request required app captures or an interaction recording', async () => {
+    const onCaptureMotion = vi.fn<(requestIds?: string[]) => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        capturePlan={capturePlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onCaptureMotion={onCaptureMotion}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /capture stills/i }));
+    expect(onCaptureMotion).toHaveBeenCalledWith([
+      'capture-home-still',
+      'capture-dom-snapshot',
+    ]);
+
+    await userEvent.click(screen.getByRole('button', { name: /record flow/i }));
+    expect(onCaptureMotion).toHaveBeenCalledWith(['capture-screen-recording']);
   });
 
   it('shows reusable motion examples when no clips are staged yet', () => {

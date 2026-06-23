@@ -8,6 +8,7 @@ import {
   MOTION_EFFECT_PRESETS,
   type MotionEffectPresetId,
 } from '@/lib/motion/effectPresets';
+import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
@@ -34,9 +35,11 @@ export interface TimelineLensProps {
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
   onGenerateVideoClips?: () => void;
+  onCaptureMotion?: (requestIds?: string[]) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
+  capturePlan?: AgentMotionCapturePlan | null;
   graphNodes?: MotionGraphNode[];
   workflowExamples?: MotionWorkflowExample[];
   actionStatus?: string | null;
@@ -53,9 +56,11 @@ export function TimelineLens({
   onRenderMotion,
   onExportPack,
   onGenerateVideoClips,
+  onCaptureMotion,
   onPinMotionSkill,
   onEditClipSummary,
   onEditClipEffect,
+  capturePlan = null,
   graphNodes = [],
   workflowExamples = [],
   actionStatus = null,
@@ -98,9 +103,11 @@ export function TimelineLens({
             onRenderMotion={onRenderMotion}
             onExportPack={onExportPack}
             onGenerateVideoClips={onGenerateVideoClips}
+            onCaptureMotion={onCaptureMotion}
             onPinMotionSkill={onPinMotionSkill}
             onEditClipSummary={onEditClipSummary}
             onEditClipEffect={onEditClipEffect}
+            capturePlan={capturePlan}
             graphNodes={graphNodes}
             workflowExamples={workflowExamples}
             actionStatus={actionStatus}
@@ -136,9 +143,11 @@ function MotionPreviewPlanView({
   onRenderMotion,
   onExportPack,
   onGenerateVideoClips,
+  onCaptureMotion,
   onPinMotionSkill,
   onEditClipSummary,
   onEditClipEffect,
+  capturePlan,
   graphNodes,
   workflowExamples,
   actionStatus,
@@ -152,9 +161,11 @@ function MotionPreviewPlanView({
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
   onGenerateVideoClips?: () => void;
+  onCaptureMotion?: (requestIds?: string[]) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
+  capturePlan: AgentMotionCapturePlan | null;
   graphNodes: MotionGraphNode[];
   workflowExamples: MotionWorkflowExample[];
   actionStatus: string | null;
@@ -266,6 +277,15 @@ function MotionPreviewPlanView({
       {graphNodes.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionGraphStrip nodes={graphNodes} />
+        </section>
+      ) : null}
+
+      {capturePlan ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionCapturePlanView
+            capturePlan={capturePlan}
+            onCaptureMotion={onCaptureMotion}
+          />
         </section>
       ) : null}
 
@@ -664,6 +684,95 @@ function PinMotionSkillButton({ onPinMotionSkill }: { onPinMotionSkill: () => vo
       pin skill
     </button>
   );
+}
+
+function MotionCapturePlanView({
+  capturePlan,
+  onCaptureMotion,
+}: {
+  capturePlan: AgentMotionCapturePlan;
+  onCaptureMotion?: (requestIds?: string[]) => void;
+}) {
+  const requiredRequestIds = capturePlan.requests
+    .filter((request) => request.required)
+    .map((request) => request.id);
+  const recordingRequest = capturePlan.requests.find(
+    (request) => request.request.mode === 'screen-recording'
+  );
+  const targetLabel =
+    capturePlan.target?.kind === 'url'
+      ? captureTargetLabel(capturePlan.target.ref)
+      : 'source needed';
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          captures
+        </span>
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+          {capturePlan.status.replace(/-/g, ' ')}
+        </span>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="min-w-0">
+          <div className="mb-1 font-caption text-xs text-ink">{targetLabel}</div>
+          {capturePlan.requests.length > 0 ? (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {capturePlan.requests.map((request) => (
+                <div
+                  key={request.id}
+                  className="min-w-[160px] rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+                >
+                  <div className="truncate font-caption text-xs text-ink">{request.label}</div>
+                  <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                    {request.request.mode.replace(/-/g, ' ')}
+                  </div>
+                  <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+                    {request.expectedArtifacts.slice(0, 2).join(' / ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="font-caption text-2xs text-ink-dim">
+              {capturePlan.fallbacks[0]?.label ?? 'Add a site or app URL before capture'}
+            </div>
+          )}
+        </div>
+        {onCaptureMotion ? (
+          <div className="flex flex-wrap content-start gap-1.5">
+            {requiredRequestIds.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => onCaptureMotion(requiredRequestIds)}
+                className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+              >
+                capture stills
+              </button>
+            ) : null}
+            {recordingRequest ? (
+              <button
+                type="button"
+                onClick={() => onCaptureMotion([recordingRequest.id])}
+                className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+              >
+                record flow
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function captureTargetLabel(ref: string): string {
+  try {
+    return new URL(ref).hostname;
+  } catch {
+    return 'app source';
+  }
 }
 
 function MotionGraphStrip({ nodes }: { nodes: MotionGraphNode[] }) {
