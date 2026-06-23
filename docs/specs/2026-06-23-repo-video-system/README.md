@@ -186,8 +186,8 @@ Clueso, and Descript.
   reusable video workflows for repo launch, feature/social, website capture,
   PR explainers, caption overlays, motion graphics, and
   Remotion/HyperFrames portability. The PR-to-video workflow now includes
-  voice and timeline-revision gates while staying code-change-sourced rather
-  than capture-sourced.
+  voice, timeline-revision, and export-pack gates while staying
+  code-change-sourced rather than capture-sourced.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start

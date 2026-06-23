@@ -168,6 +168,15 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  'motion-export-pack': {
+    kind: 'tool',
+    id: 'motion-export-pack',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Export pack',
+    outputKind: 'video',
+    status: 'draft',
+  },
   'motion-revise': {
     kind: 'tool',
     id: 'motion-revise',

@@ -114,6 +114,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       'motion-voice',
       'motion-sync',
       'motion-render',
+      'motion-export-pack',
       'motion-revise',
     ]);
     expect(plan.gates.map((gate) => gate.id)).toEqual([
@@ -132,6 +133,10 @@ describe('buildAgentMotionWorkflowPlan', () => {
     });
     expect(plan.gates.find((gate) => gate.id === 'timeline')).toMatchObject({
       toolIds: ['motion-sync', 'motion-revise'],
+    });
+    expect(plan.gates.find((gate) => gate.id === 'export')).toMatchObject({
+      toolIds: ['motion-export-pack'],
+      expectedArtifacts: ['export pack', 'canvas drop candidates', 'pack manifest'],
     });
     expect(plan.skillContract).toMatchObject({
       reviewArtifacts: [

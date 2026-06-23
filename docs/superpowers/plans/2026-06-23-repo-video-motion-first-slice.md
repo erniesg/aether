@@ -3789,6 +3789,54 @@ git add lib/motion/exportPackPlan.ts lib/motion/exportPackPlan.test.ts app/api/m
 git commit -m "feat: expose motion export packs"
 ```
 
+## Task 44: Motion Export Pack Tool Registry
+
+**Files:**
+- Modify: `lib/tool/registry.ts`
+- Modify: `lib/capability/types.ts`
+- Modify: `lib/workflow/registry.ts`
+- Modify: `lib/motion/workflowPlan.ts`
+- Modify: `tests/unit/capability-registry.test.ts`
+- Modify: `lib/motion/workflowPlan.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing registry and workflow gate expectations**
+
+The tests cover:
+
+- `motion-export-pack` being a draft agent-native video tool;
+- reusable video workflows including `motion-export-pack` in their tool chains;
+- the export gate using `motion-export-pack` instead of hiding export packaging
+  behind the render tool;
+- export gate artifacts naming export pack, canvas drop candidates, and pack
+  manifest.
+
+- [x] **Step 2: Implement registry and workflow updates**
+
+`lib/tool/registry.ts`, `lib/capability/types.ts`, and
+`lib/workflow/registry.ts` now expose `motion-export-pack` as a reusable draft
+motion tool. `lib/motion/workflowPlan.ts` now maps the export gate to that tool
+and returns export-pack-specific expected artifacts.
+
+- [x] **Step 3: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts lib/motion/workflowPlan.test.ts tests/unit/api-motion-workflows.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add lib/tool/registry.ts lib/capability/types.ts lib/workflow/registry.ts lib/motion/workflowPlan.ts tests/unit/capability-registry.test.ts lib/motion/workflowPlan.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: register motion export pack tool"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

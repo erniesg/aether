@@ -23,6 +23,7 @@ export type CapabilityTool =
   | 'motion-voice'
   | 'motion-sync'
   | 'motion-render'
+  | 'motion-export-pack'
   | 'motion-revise'
   | 'motion-pin-capability';
 

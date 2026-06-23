@@ -78,7 +78,7 @@ const GATE_TOOLS = {
   voice: ['motion-voice'],
   timeline: ['motion-sync', 'motion-revise'],
   render: ['motion-render'],
-  export: ['motion-render'],
+  export: ['motion-export-pack'],
 } satisfies Record<WorkflowReviewGate, ToolRegistryId[]>;
 
 const GATE_ARTIFACTS = {
@@ -88,7 +88,7 @@ const GATE_ARTIFACTS = {
   voice: ['voice clips', 'word timings'],
   timeline: ['timeline tracks', 'caption clips', 'effect markers'],
   render: ['contact sheet', 'poster still', 'mp4 probe'],
-  export: ['mp4', 'poster', 'subtitles', 'manifest'],
+  export: ['export pack', 'canvas drop candidates', 'pack manifest'],
 } satisfies Record<WorkflowReviewGate, string[]>;
 
 const REVIEW_ACTIONS = {

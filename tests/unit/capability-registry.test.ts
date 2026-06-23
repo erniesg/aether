@@ -78,6 +78,7 @@ describe('typed capability registries', () => {
       'motion-voice',
       'motion-sync',
       'motion-render',
+      'motion-export-pack',
       'motion-revise',
       'motion-pin-capability',
     ] satisfies CapabilityTool[];
@@ -109,6 +110,7 @@ describe('typed capability registries', () => {
         'motion-voice',
         'motion-sync',
         'motion-render',
+        'motion-export-pack',
         'motion-revise',
       ],
       sourceKinds: ['repo', 'site', 'capture', 'reference'],
@@ -155,6 +157,7 @@ describe('typed capability registries', () => {
         'motion-voice',
         'motion-sync',
         'motion-render',
+        'motion-export-pack',
         'motion-revise',
       ],
       sourceKinds: ['pr', 'repo'],

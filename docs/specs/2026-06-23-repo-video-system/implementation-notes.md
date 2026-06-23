@@ -28,7 +28,8 @@
 - Draft motion tool registry and reusable workflow entries for repo launch,
   feature/social, website/app capture, PR explainers, caption overlays, motion
   graphics, and Remotion/HyperFrames portability. PR explainers now include
-  voice and timeline-revision gates without adding capture as source evidence.
+  voice, timeline-revision, and export-pack gates without adding capture as
+  source evidence.
 - Agent motion workflow planner that turns a workflow id, mode, and source refs
   into gated tool/artifact plans for review mode or saved full-auto execution.
 - Workflow skill contracts on video workflows now expose review/full-auto modes,
