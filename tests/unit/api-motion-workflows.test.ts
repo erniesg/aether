@@ -34,6 +34,7 @@ describe('GET /api/motion/workflows', () => {
         acceptedShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
         defaultMode: 'review',
       },
+      examples: [],
       skillContract: {
         runModes: ['review', 'full-auto'],
         reviewArtifacts: [
@@ -95,8 +96,29 @@ describe('GET /api/motion/workflows', () => {
           acceptedShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
           defaultMode: 'review',
         },
+        examples: [
+          expect.objectContaining({
+            id: 'daily-skill-launch-pr-to-video',
+            label: 'Daily skill launch: PR-to-video',
+            suggestedMode: 'review',
+            platformTargets: ['x 9:16 30s', 'linkedin 4:5 45s'],
+            reusableComponentIds: ['hook-card', 'agent-trace', 'proof-card', 'cta-card'],
+            editSurfaces: [
+              'script',
+              'code-evidence',
+              'component',
+              'voice',
+              'timing',
+              'effect',
+              'export',
+            ],
+          }),
+        ],
       }),
     ]);
+    expect(json.workflows[0].examples[0].sampleCopyLines).toContain(
+      'npx skills add heygen-com/hyperframes'
+    );
   });
 
   it('rejects unsupported discovery filters before returning workflow metadata', async () => {

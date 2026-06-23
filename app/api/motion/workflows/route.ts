@@ -6,6 +6,10 @@ import {
   type WorkflowRunMode,
   type WorkflowSourceKind,
 } from '@/lib/workflow/registry';
+import {
+  listMotionWorkflowExamples,
+  type MotionWorkflowExample,
+} from '@/lib/motion/workflowExamples';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,7 +49,22 @@ interface MotionWorkflowSkillResponse {
     acceptedShorthands: string[];
     defaultMode: WorkflowRunMode;
   };
+  examples: MotionWorkflowExampleResponse[];
   status: WorkflowRegistryEntry['status'];
+}
+
+interface MotionWorkflowExampleResponse {
+  id: string;
+  label: string;
+  summary: string;
+  sourceKinds: WorkflowSourceKind[];
+  suggestedMode: WorkflowRunMode;
+  platformTargets: string[];
+  storyRoles: string[];
+  beatPrompts: string[];
+  reusableComponentIds: string[];
+  editSurfaces: string[];
+  sampleCopyLines: string[];
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -140,7 +159,26 @@ function toMotionWorkflowSkillResponse(
       acceptedShorthands: acceptedShorthandsFor(workflow.sourceKinds ?? []),
       defaultMode: 'review',
     },
+    examples: listMotionWorkflowExamples(workflow.id).map(toMotionWorkflowExampleResponse),
     status: workflow.status,
+  };
+}
+
+function toMotionWorkflowExampleResponse(
+  example: MotionWorkflowExample
+): MotionWorkflowExampleResponse {
+  return {
+    id: example.id,
+    label: example.label,
+    summary: example.summary,
+    sourceKinds: [...example.sourceKinds],
+    suggestedMode: example.suggestedMode,
+    platformTargets: [...example.platformTargets],
+    storyRoles: [...example.storyRoles],
+    beatPrompts: [...example.beatPrompts],
+    reusableComponentIds: [...example.reusableComponentIds],
+    editSurfaces: [...example.editSurfaces],
+    sampleCopyLines: [...example.sampleCopyLines],
   };
 }
 
