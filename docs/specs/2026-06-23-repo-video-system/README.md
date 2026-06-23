@@ -61,6 +61,11 @@ Clueso, and Descript.
   sources can create editable code-change explainer starts when a code-change
   provider is configured. Real screen capture and recording remain provider
   execution work.
+- `lib/motion/productionPlan.ts` now derives a concrete production queue from an
+  editable motion project: plan, drafts, capture, image-to-video, voice, sync,
+  render, and export steps are marked complete, ready, blocked, review, or
+  optional with provider needs, blockers, route/tool handoffs, and full-auto
+  advance flags.
 - `lib/motion/sourceProfile.ts` now turns repo facts into creator-facing source
   material: stack/script/route signals, capture candidates, and storyboard
   hints. Local repos with runnable app scripts can now produce local-app
@@ -201,6 +206,10 @@ Clueso, and Descript.
   agent-readable sync plan: beat markers, caption/voice timing links,
   transition cues, sound cues, provider requirements, and blockers until voice
   and word-timing receipts exist.
+- `lib/motion/previewPlan.ts` now carries the production queue into the
+  creator-facing timeline lens and API responses, giving agents and creators the
+  same next action for review mode or full-auto runs without exposing raw route
+  calls as the primary surface.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.

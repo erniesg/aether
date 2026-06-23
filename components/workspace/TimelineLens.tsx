@@ -14,6 +14,10 @@ import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
+import type {
+  MotionProductionPlan,
+  MotionProductionStep,
+} from '@/lib/motion/productionPlan';
 import { motionSeconds } from '@/lib/motion/project';
 import type {
   MotionPreviewEnginePlan,
@@ -319,6 +323,10 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionProductionQueueStrip plan={previewPlan.productionPlan} />
+      </section>
+
       {previewPlan.sourceProfile ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionSourceMaterialStrip sourceProfile={previewPlan.sourceProfile} />
@@ -461,6 +469,94 @@ function MotionPreviewPlanView({
       ) : null}
     </div>
   );
+}
+
+function MotionProductionQueueStrip({
+  plan,
+}: {
+  plan: MotionProductionPlan;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            production queue
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {plan.nextActionLabel ?? 'ready to package'}
+          </div>
+        </div>
+        <Chip tone={plan.status === 'blocked' ? 'warn' : plan.status === 'complete' ? 'ok' : 'info'} size="sm">
+          {plan.completeCount}/{plan.steps.length}
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="grid gap-1.5">
+            {plan.steps.slice(0, 6).map((step) => (
+              <MotionProductionStepRow key={step.id} step={step} isNext={step.id === plan.nextStepId} />
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">
+            {plan.mode === 'full-auto' ? 'full auto' : 'review'} flow
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <Chip tone="neutral" size="sm">
+              {plan.readyCount} ready
+            </Chip>
+            <Chip tone="neutral" size="sm">
+              {plan.blockedCount} blocked
+            </Chip>
+            {plan.optionalCount > 0 ? (
+              <Chip tone="neutral" size="sm">
+                {plan.optionalCount} optional
+              </Chip>
+            ) : null}
+          </div>
+          {plan.blockerLabels.length > 0 ? (
+            <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {plan.blockerLabels[0]}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionProductionStepRow({
+  step,
+  isNext,
+}: {
+  step: MotionProductionStep;
+  isNext: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_74px] items-center gap-2">
+      <div className="min-w-0">
+        <div className="truncate font-caption text-xs text-ink">{step.label}</div>
+        <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+          {isNext ? step.actionLabel : step.artifactLabels.slice(0, 2).join(' / ')}
+        </div>
+      </div>
+      <Chip tone={productionStepTone(step, isNext)} size="sm">
+        {isNext ? 'next' : step.status}
+      </Chip>
+    </div>
+  );
+}
+
+function productionStepTone(
+  step: MotionProductionStep,
+  isNext: boolean
+): 'neutral' | 'info' | 'ok' | 'warn' {
+  if (isNext) return 'info';
+  if (step.status === 'complete') return 'ok';
+  if (step.status === 'blocked') return 'warn';
+  return 'neutral';
 }
 
 function MotionWorkflowSkillStrip({

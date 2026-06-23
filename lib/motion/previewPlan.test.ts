@@ -224,6 +224,26 @@ describe('buildMotionPreviewPlan', () => {
       blockerLabels: ['Capture or generate a key visual before image-to-video'],
       nextActionLabels: [],
     });
+    expect(preview.productionPlan).toMatchObject({
+      status: 'ready',
+      mode: 'review',
+      nextStepId: 'drafts',
+      nextActionLabel: 'Review draft variations',
+      completeCount: 1,
+      readyCount: 3,
+      blockedCount: 3,
+      optionalCount: 1,
+    });
+    expect(preview.productionPlan.steps.map((step) => [step.id, step.status])).toEqual([
+      ['plan', 'complete'],
+      ['drafts', 'review'],
+      ['capture', 'ready'],
+      ['visual-generation', 'optional'],
+      ['voice', 'ready'],
+      ['sync', 'blocked'],
+      ['render', 'blocked'],
+      ['export', 'blocked'],
+    ]);
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {

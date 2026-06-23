@@ -19,6 +19,10 @@ import {
   type MotionImageToVideoPlanStatus,
 } from './imageToVideoPlan';
 import {
+  buildMotionProductionPlan,
+  type MotionProductionPlan,
+} from './productionPlan';
+import {
   buildMotionRenderPlan,
   type MotionRenderPlanStatus,
 } from './renderPlan';
@@ -237,6 +241,7 @@ export interface MotionPreviewPlan {
   syncSoundCues: MotionPreviewSyncSoundCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
+  productionPlan: MotionProductionPlan;
   provenance: MotionProvenanceRef[];
   requestedAt: number;
 }
@@ -271,6 +276,11 @@ export function buildMotionPreviewPlan(
   });
   const imageToVideoPlan = buildMotionImageToVideoPlan(project, {
     draftId: project.currentDraftId,
+    fps,
+    requestedAt: options.requestedAt,
+  });
+  const productionPlan = buildMotionProductionPlan(project, {
+    engines,
     fps,
     requestedAt: options.requestedAt,
   });
@@ -317,6 +327,7 @@ export function buildMotionPreviewPlan(
     syncSoundCues: buildSyncSoundCues(syncPlan),
     exportPackSummary: buildExportPackSummary(exportPackPlan),
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
+    productionPlan,
     provenance: uniqueProvenance([
       ...project.sourceRefs,
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),

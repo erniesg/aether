@@ -41,6 +41,10 @@
   feature/social, demo capture, and PR explainer videos, exposing creator-facing
   component roles, effect presets, editable surfaces, rhythm guidance, and
   verification artifacts without showing raw registry ids in the timeline lens.
+- Preview plans now include a project-aware production queue, so the timeline
+  lens can show review/full-auto next actions, ready work, blockers, and
+  optional image-to-video generation without turning the surface into a route
+  log.
 - Motion rail video starter for repo, PR, site URL, or local path sources with
   review/full-auto mode and target presets for X vertical, LinkedIn feed,
   website demo, and multi-format launch packs.
@@ -58,6 +62,10 @@
 - Agent workflow plans now include an executable run plan: ordered review or
   full-auto steps, motion API routes, tool ids, input/output artifacts, and
   verification artifacts are carried through the same start result.
+- Concrete motion projects now derive their own production queue across plan,
+  drafts, capture, image-to-video, voice, sync, render, and export, with each
+  step marked complete, ready, blocked, review, or optional plus provider needs
+  and full-auto advance flags.
 - Agent workflow plans now include a deterministic `SKILL.md` draft for the
   routed motion workflow, including route-derived tool names, review/full-auto
   policy, start shorthands, sample launch copy, and required verification

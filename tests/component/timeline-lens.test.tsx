@@ -5,6 +5,7 @@ import { TimelineLens } from '@/components/workspace/TimelineLens';
 import type { MotionGraphNode, TimelineTrack } from '@/lib/motion/project';
 import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
+import type { MotionProductionPlan } from '@/lib/motion/productionPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 
@@ -42,6 +43,106 @@ const tracks: TimelineTrack[] = [
     ],
   },
 ];
+
+const productionPlan: MotionProductionPlan = {
+  id: 'production-plan-motion-aether-launch-draft-primary-130',
+  projectId: 'motion-aether-launch',
+  draftId: 'draft-primary',
+  mode: 'review',
+  status: 'ready',
+  nextStepId: 'capture',
+  nextActionLabel: 'Capture product material',
+  readyCount: 3,
+  completeCount: 2,
+  blockedCount: 2,
+  optionalCount: 1,
+  steps: [
+    {
+      id: 'plan',
+      label: 'Video plan',
+      status: 'complete',
+      reviewRequired: false,
+      autoAdvance: false,
+      toolIds: ['motion-brief'],
+      apiRoutes: ['/api/motion/start'],
+      actionLabel: 'Review video plan',
+      artifactLabels: ['grounded brief', 'story beats', 'source receipts'],
+      providerRequirementLabels: [],
+      blockerLabels: [],
+    },
+    {
+      id: 'drafts',
+      label: 'Draft variations',
+      status: 'complete',
+      reviewRequired: false,
+      autoAdvance: false,
+      toolIds: ['motion-storyboard'],
+      apiRoutes: ['/api/motion/regenerate', '/api/motion/revise'],
+      actionLabel: 'Review draft variations',
+      artifactLabels: ['draft options', 'editable timeline', 'component plan'],
+      providerRequirementLabels: [],
+      blockerLabels: [],
+    },
+    {
+      id: 'capture',
+      label: 'Product capture',
+      status: 'ready',
+      reviewRequired: true,
+      autoAdvance: false,
+      toolIds: ['motion-capture'],
+      apiRoutes: ['/api/motion/capture'],
+      actionLabel: 'Capture product material',
+      artifactLabels: ['screenshots', 'recordings', 'DOM snapshots', 'cursor targets'],
+      providerRequirementLabels: ['browser capture'],
+      blockerLabels: [],
+    },
+    {
+      id: 'visual-generation',
+      label: 'Image-to-video',
+      status: 'ready',
+      reviewRequired: true,
+      autoAdvance: false,
+      toolIds: ['motion-visuals'],
+      apiRoutes: ['/api/motion/image-to-video'],
+      actionLabel: 'Generate video clips',
+      artifactLabels: ['generated clips', 'source visual receipts'],
+      providerRequirementLabels: ['image to video'],
+      blockerLabels: [],
+    },
+    {
+      id: 'voice',
+      label: 'Voice and captions',
+      status: 'ready',
+      reviewRequired: true,
+      autoAdvance: false,
+      toolIds: ['motion-voice'],
+      apiRoutes: ['/api/motion/voice'],
+      actionLabel: 'Generate voice and word timings',
+      artifactLabels: ['voice clips', 'word timings', 'transcript'],
+      providerRequirementLabels: ['voice synthesis', 'word timing alignment'],
+      blockerLabels: [],
+    },
+    {
+      id: 'sync',
+      label: 'Timeline sync',
+      status: 'blocked',
+      reviewRequired: true,
+      autoAdvance: false,
+      toolIds: ['motion-sync', 'motion-revise'],
+      apiRoutes: ['/api/motion/sync', '/api/motion/revise'],
+      actionLabel: 'Review sync markers',
+      artifactLabels: ['beat markers', 'caption links', 'sound cues'],
+      providerRequirementLabels: ['voice synthesis', 'word timing alignment'],
+      blockerLabels: ['Generate voice and word timings before final sync'],
+    },
+  ],
+  blockerLabels: [
+    'Generate voice and word timings before final sync',
+    'Review voice and caption sync before render',
+  ],
+  requestedAt: 130,
+  provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+};
 
 const previewPlan: MotionPreviewPlan = {
   id: 'preview-motion-aether-launch-draft-primary-130',
@@ -327,6 +428,7 @@ const previewPlan: MotionPreviewPlan = {
     blockerLabels: [],
     nextActionLabels: ['Generate video clips', 'Review generated clips'],
   },
+  productionPlan,
   provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
   requestedAt: 130,
 };
@@ -488,6 +590,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText(/Create a repo launch video from repo/)).toBeInTheDocument();
     expect(screen.getByText('repoPath / repoUrl / siteUrl / sourceRefs')).toBeInTheDocument();
     expect(screen.getByText('contact sheet')).toBeInTheDocument();
+    expect(screen.getByText('production queue')).toBeInTheDocument();
+    expect(screen.getAllByText('Capture product material').length).toBeGreaterThan(0);
+    expect(screen.getByText('2/6')).toBeInTheDocument();
+    expect(screen.getByText('3 ready')).toBeInTheDocument();
     expect(screen.getByText('source material')).toBeInTheDocument();
     expect(screen.getByText('aether source material')).toBeInTheDocument();
     expect(screen.getByText('3 captures')).toBeInTheDocument();
