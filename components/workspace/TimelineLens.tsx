@@ -5,20 +5,36 @@ import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
 import type { TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import { motionSeconds } from '@/lib/motion/project';
+import type {
+  MotionPreviewEnginePlan,
+  MotionPreviewPlan,
+  MotionPreviewRegenerationAction,
+  MotionPreviewTimelineClip,
+  MotionPreviewTimelineRow,
+} from '@/lib/motion/previewPlan';
 import { cn } from '@/lib/utils/cn';
 
 export interface TimelineLensProps {
   tracks: TimelineTrack[];
+  previewPlan?: MotionPreviewPlan | null;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
+  onSelectDraft?: (draftId: string) => void;
+  onRegenerateComponent?: (actionId: string) => void;
 }
 
 export function TimelineLens({
   tracks,
+  previewPlan,
   selectedClipId,
   onSelectClip,
+  onSelectDraft,
+  onRegenerateComponent,
 }: TimelineLensProps) {
-  const clipCount = tracks.reduce((total, track) => total + track.clips.length, 0);
+  const clipCount = previewPlan
+    ? previewPlan.timelineRows.reduce((total, row) => total + row.clips.length, 0)
+    : tracks.reduce((total, track) => total + track.clips.length, 0);
+  const trackCount = previewPlan ? previewPlan.timelineRows.length : tracks.length;
 
   return (
     <Surface
@@ -33,7 +49,7 @@ export function TimelineLens({
         <div className="flex items-center gap-2">
           <span className="font-caption text-sm text-ink">timeline</span>
           <Chip tone={clipCount > 0 ? 'info' : 'neutral'} size="sm">
-            {tracks.length} tracks
+            {trackCount} tracks
           </Chip>
         </div>
         <Chip tone={clipCount > 0 ? 'ok' : 'neutral'} size="sm">
@@ -42,7 +58,15 @@ export function TimelineLens({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {tracks.length > 0 ? (
+        {previewPlan ? (
+          <MotionPreviewPlanView
+            previewPlan={previewPlan}
+            selectedClipId={selectedClipId}
+            onSelectClip={onSelectClip}
+            onSelectDraft={onSelectDraft}
+            onRegenerateComponent={onRegenerateComponent}
+          />
+        ) : tracks.length > 0 ? (
           tracks.map((track) => (
             <TimelineTrackRow
               key={track.id}
@@ -58,6 +82,269 @@ export function TimelineLens({
         )}
       </div>
     </Surface>
+  );
+}
+
+function MotionPreviewPlanView({
+  previewPlan,
+  selectedClipId,
+  onSelectClip,
+  onSelectDraft,
+  onRegenerateComponent,
+}: {
+  previewPlan: MotionPreviewPlan;
+  selectedClipId: string | null;
+  onSelectClip: (clipId: string) => void;
+  onSelectDraft?: (draftId: string) => void;
+  onRegenerateComponent?: (actionId: string) => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <section className="border-b border-border-soft px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="truncate font-caption text-base text-ink">{previewPlan.title}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              <Chip tone="neutral" size="sm">
+                {previewPlan.summary.appName}
+              </Chip>
+              <Chip tone="neutral" size="sm">
+                {previewPlan.summary.projectKind}
+              </Chip>
+              <Chip tone="info" size="sm">
+                {previewPlan.summary.totalSeconds}s
+              </Chip>
+              {previewPlan.summary.targetPlatforms.map((target) => (
+                <Chip key={target} tone="neutral" size="sm">
+                  {target}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <Chip tone={previewPlan.primaryAction === 'queue-render' ? 'ok' : 'info'} size="sm">
+            {previewPlan.primaryAction === 'queue-render' ? 'full auto' : 'review'}
+          </Chip>
+        </div>
+      </section>
+
+      <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+        <div className="min-w-0">
+          <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            drafts
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {previewPlan.draftOptions.map((draft) => (
+              <button
+                key={draft.draftId}
+                type="button"
+                aria-pressed={draft.isCurrent}
+                onClick={() => onSelectDraft?.(draft.draftId)}
+                className={cn(
+                  'flex min-w-[170px] flex-col rounded-sm border px-3 py-2 text-left transition-colors duration-fast ease-quick',
+                  draft.isCurrent
+                    ? 'border-accent bg-accent/10 text-ink'
+                    : 'border-border-soft bg-surface-panel text-ink-dim hover:border-border hover:text-ink'
+                )}
+              >
+                <span className="truncate font-caption text-xs">{draft.label}</span>
+                <span className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+                  {draft.angle}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            engines
+          </div>
+          <div className="grid gap-1.5">
+            {previewPlan.enginePreviews.map((engine) => (
+              <EnginePreviewRow key={engine.engine} engine={engine} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="min-w-0">
+          <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            story
+          </div>
+          <ol className="grid gap-1.5">
+            {previewPlan.storyboard.map((beat) => (
+              <li
+                key={beat.beatId}
+                className="grid grid-cols-[72px_minmax(0,1fr)_54px] items-start gap-2 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+              >
+                <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+                  {beat.role}
+                </span>
+                <span className="min-w-0 font-caption text-xs text-ink">
+                  {beat.narration}
+                </span>
+                <span className="text-right font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                  {beat.targetSeconds}s
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            editable
+          </div>
+          <div className="grid gap-1.5">
+            {previewPlan.editableComponents.map((component) => (
+              <div
+                key={`${component.clipId}-${component.componentId}`}
+                className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+              >
+                <div className="font-caption text-xs text-ink">{component.componentLabel}</div>
+                <div className="mt-1 font-mono text-2xs text-ink-faint">
+                  {component.editControlIds.join(' / ')}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="flex min-h-[168px] flex-1 flex-col">
+        {previewPlan.timelineRows.length > 0 ? (
+          previewPlan.timelineRows.map((row) => (
+            <PreviewTimelineRow
+              key={row.trackId}
+              row={row}
+              selectedClipId={selectedClipId}
+              onSelectClip={onSelectClip}
+            />
+          ))
+        ) : (
+          <div className="flex min-h-[180px] flex-1 items-center justify-center px-6 text-center font-caption text-sm text-ink-faint">
+            no clips staged
+          </div>
+        )}
+      </div>
+
+      {previewPlan.regenerationActions.length > 0 ? (
+        <section className="flex flex-wrap gap-2 border-t border-border-soft px-4 py-3">
+          {previewPlan.regenerationActions.map((action) => (
+            <RegenerateActionButton
+              key={action.id}
+              action={action}
+              onRegenerateComponent={onRegenerateComponent}
+            />
+          ))}
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function EnginePreviewRow({ engine }: { engine: MotionPreviewEnginePlan }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+      <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+        {engine.engine}
+      </span>
+      <span
+        className={cn(
+          'font-mono text-2xs uppercase tracking-wide',
+          engine.status === 'ready' ? 'text-signal-ok' : 'text-ink-faint'
+        )}
+      >
+        {engine.status}
+      </span>
+    </div>
+  );
+}
+
+function PreviewTimelineRow({
+  row,
+  selectedClipId,
+  onSelectClip,
+}: {
+  row: MotionPreviewTimelineRow;
+  selectedClipId: string | null;
+  onSelectClip: (clipId: string) => void;
+}) {
+  return (
+    <section className="grid grid-cols-[88px_minmax(0,1fr)] border-b border-border-soft">
+      <div className="flex items-start border-r border-border-soft bg-surface-panel-muted px-3 py-3">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          {row.trackKind}
+        </span>
+      </div>
+      <div className="flex min-h-[72px] min-w-0 items-center gap-2 overflow-x-auto px-3 py-2">
+        {row.clips.length > 0 ? (
+          row.clips.map((clip) => (
+            <PreviewTimelineClipButton
+              key={clip.clipId}
+              clip={clip}
+              selected={clip.clipId === selectedClipId}
+              onSelectClip={onSelectClip}
+            />
+          ))
+        ) : (
+          <span className="font-caption text-xs text-ink-faint">empty</span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PreviewTimelineClipButton({
+  clip,
+  selected,
+  onSelectClip,
+}: {
+  clip: MotionPreviewTimelineClip;
+  selected: boolean;
+  onSelectClip: (clipId: string) => void;
+}) {
+  const width = Math.max(112, Math.min(360, clip.durationSeconds * 36));
+
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      aria-label={`${clip.componentLabel} clip`}
+      onClick={() => onSelectClip(clip.clipId)}
+      className={cn(
+        'flex h-12 shrink-0 flex-col justify-center rounded-sm border px-2 text-left transition-colors duration-fast ease-quick',
+        selected
+          ? 'border-accent bg-accent/10 text-ink'
+          : 'border-border-soft bg-surface-panel text-ink-dim hover:border-border hover:text-ink'
+      )}
+      style={{ width }}
+    >
+      <span className="truncate font-caption text-xs">{clip.componentLabel}</span>
+      <span className="flex min-w-0 items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+        {clip.summary ? <span className="truncate">{clip.summary}</span> : null}
+        <span className="shrink-0">{clip.durationSeconds.toFixed(1)}s</span>
+      </span>
+    </button>
+  );
+}
+
+function RegenerateActionButton({
+  action,
+  onRegenerateComponent,
+}: {
+  action: MotionPreviewRegenerationAction;
+  onRegenerateComponent?: (actionId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onRegenerateComponent?.(action.id)}
+      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+    >
+      {action.label}
+    </button>
   );
 }
 

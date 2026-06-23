@@ -21,7 +21,10 @@
 - Preview-plan artifact for the agent/UI to show storyboard beats, draft
   options, editable timeline rows, regeneration actions, and Remotion/HyperFrames
   source readiness without exposing raw source code in the creator-facing plan.
-- Timeline lens scaffold inside the single aether workspace shell.
+- Timeline lens scaffold inside the single aether workspace shell, now able to
+  render preview-plan story, drafts, editable component controls, scoped
+  regeneration actions, engine readiness, and timeline rows without leaking raw
+  beat, clip, source, or provenance ids in the primary UI.
 - Draft motion tool registry and reusable workflow entries for repo launch,
   feature/social, website/app capture, PR explainers, caption overlays, motion
   graphics, and Remotion/HyperFrames portability. PR explainers now include

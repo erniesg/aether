@@ -36,7 +36,10 @@ Clueso, and Descript.
   same workspace inputs, compiled from a motion brief, rendered offline, and
   dropped back on canvas.
 - `components/header/ViewSwitcher.tsx` and `components/workspace/TimelineLens.tsx`
-  now expose the `timeline` lens inside the single synthesis shell; `graph`
+  now expose the `timeline` lens inside the single synthesis shell. The lens can
+  render preview-plan story beats, draft variations, editable component
+  controls, scoped regeneration actions, engine readiness, and timeline rows
+  without exposing raw provenance/debug ids in the primary surface; `graph`
   remains reserved for advanced provenance/generation editing.
 - `lib/motion/brief.ts`, `lib/motion/compile.ts`, and `scripts/render-motion.ts`
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.

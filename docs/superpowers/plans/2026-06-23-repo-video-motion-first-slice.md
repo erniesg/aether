@@ -3219,6 +3219,53 @@ git add lib/motion/previewPlan.ts lib/motion/previewPlan.test.ts lib/motion/star
 git commit -m "feat: add motion preview plans"
 ```
 
+## Task 32: Timeline Lens Preview Review
+
+**Files:**
+- Modify: `components/workspace/TimelineLens.tsx`
+- Modify: `tests/component/timeline-lens.test.tsx`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing timeline preview tests**
+
+The tests cover:
+
+- rendering a `MotionPreviewPlan` in the timeline lens with title, platform,
+  draft choices, storyboard copy, editable component controls, regeneration
+  actions, timeline rows, and engine readiness;
+- preserving the original track-only timeline behavior;
+- avoiding raw beat ids, clip ids, source refs, and provenance refs in the
+  primary creator-facing surface;
+- exposing callbacks for draft selection and scoped component regeneration.
+
+- [x] **Step 2: Implement preview-plan rendering in the lens**
+
+`components/workspace/TimelineLens.tsx` now accepts an optional
+`previewPlan`. When present, the lens renders the video plan as a reviewable
+workspace surface: summary chips, draft buttons, engine status rows, storyboard
+beats, editable component controls, timeline clips, and regeneration buttons.
+The existing `tracks` path still renders simple timeline tracks when no preview
+plan is available.
+
+- [x] **Step 3: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add components/workspace/TimelineLens.tsx tests/component/timeline-lens.test.tsx docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: show motion preview plans in timeline lens"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

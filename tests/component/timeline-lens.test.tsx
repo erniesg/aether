@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TimelineLens } from '@/components/workspace/TimelineLens';
 import type { TimelineTrack } from '@/lib/motion/project';
+import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
 
 afterEach(cleanup);
 
@@ -39,6 +40,132 @@ const tracks: TimelineTrack[] = [
   },
 ];
 
+const previewPlan: MotionPreviewPlan = {
+  id: 'preview-motion-aether-launch-draft-primary-130',
+  projectId: 'motion-aether-launch',
+  draftId: 'draft-primary',
+  title: 'aether launch video',
+  workflowMode: 'review',
+  primaryAction: 'request-review',
+  summary: {
+    appName: 'aether',
+    projectKind: 'launch',
+    totalSeconds: 30,
+    targetPlatforms: ['x 9:16 30s'],
+  },
+  storyboard: [
+    {
+      beatId: 'beat-hook',
+      role: 'hook',
+      narration: 'Turn a repo into a launch video.',
+      targetSeconds: 3,
+      componentId: 'hook-card',
+      sourceRefs: [{ kind: 'repo', ref: 'package.json#description' }],
+    },
+    {
+      beatId: 'beat-demo',
+      role: 'demo',
+      narration: 'Show the generated timeline and capture plan.',
+      targetSeconds: 6,
+      componentId: 'app-frame',
+      sourceRefs: [{ kind: 'timeline', ref: 'track-text' }],
+    },
+  ],
+  draftOptions: [
+    {
+      draftId: 'draft-primary',
+      label: 'Primary launch cut',
+      angle: 'direct repo-to-video launch',
+      status: 'ready',
+      isCurrent: true,
+      durationSeconds: 30,
+      roles: ['hook', 'demo'],
+    },
+    {
+      draftId: 'draft-demo',
+      label: 'Demo-first cut',
+      angle: 'show output before explanation',
+      status: 'ready',
+      isCurrent: false,
+      durationSeconds: 30,
+      roles: ['demo', 'hook'],
+    },
+  ],
+  timelineRows: [
+    {
+      trackId: 'track-text',
+      trackKind: 'text',
+      durationSeconds: 30,
+      clips: [
+        {
+          clipId: 'clip-beat-hook-text',
+          componentId: 'hook-card',
+          componentLabel: 'Hook card',
+          startSeconds: 0,
+          durationSeconds: 3,
+          summary: 'Turn a repo into a launch video.',
+          linkedVariantScope: 'global',
+          editControlIds: ['headline', 'subhead'],
+          regenerateScopes: ['copy', 'timing', 'effect'],
+        },
+      ],
+    },
+  ],
+  editableComponents: [
+    {
+      trackId: 'track-text',
+      clipId: 'clip-beat-demo-text',
+      componentId: 'app-frame',
+      componentLabel: 'App frame',
+      editControlIds: ['assetId', 'caption', 'zoom'],
+      regenerateScopes: ['capture', 'timing', 'caption'],
+    },
+  ],
+  regenerationActions: [
+    {
+      id: 'regen-option-clip-beat-demo-text-capture',
+      clipId: 'clip-beat-demo-text',
+      componentId: 'app-frame',
+      componentLabel: 'App frame',
+      scope: 'capture',
+      label: 'Regenerate capture for App frame',
+    },
+  ],
+  enginePreviews: [
+    {
+      engine: 'remotion',
+      status: 'ready',
+      compositionId: 'motion-aether-launch-draft-primary',
+      entryPoint: 'remotion/index.tsx',
+      durationSeconds: 30,
+      outputKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
+      componentIds: ['hook-card', 'app-frame'],
+      sourceFiles: [
+        { kind: 'entry', path: 'remotion/index.tsx', mimeType: 'text/typescript' },
+      ],
+      blockers: [],
+    },
+    {
+      engine: 'provider',
+      status: 'provider-required',
+      compositionId: null,
+      entryPoint: null,
+      durationSeconds: 0,
+      outputKinds: [],
+      componentIds: [],
+      sourceFiles: [],
+      blockers: [
+        {
+          id: 'provider-adapter-required',
+          label: 'Choose a configured video generation provider before render',
+        },
+      ],
+    },
+  ],
+  provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+  requestedAt: 130,
+};
+
 describe('TimelineLens', () => {
   it('renders creator-facing tracks and clips without raw provenance refs', () => {
     render(<TimelineLens tracks={tracks} selectedClipId={null} onSelectClip={() => {}} />);
@@ -58,5 +185,52 @@ describe('TimelineLens', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /hook card/i }));
     expect(onSelectClip).toHaveBeenCalledWith('clip-hook');
+  });
+
+  it('renders a creator-facing preview plan with drafts, edit controls, and engine readiness', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByText('aether launch video')).toBeInTheDocument();
+    expect(screen.getByText('x 9:16 30s')).toBeInTheDocument();
+    expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
+    expect(screen.getByText('Demo-first cut')).toBeInTheDocument();
+    expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);
+    expect(screen.getByText('App frame')).toBeInTheDocument();
+    expect(screen.getByText('assetId / caption / zoom')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /regenerate capture for app frame/i })).toBeInTheDocument();
+    expect(screen.getByText('remotion')).toBeInTheDocument();
+    expect(screen.getByText('ready')).toBeInTheDocument();
+    expect(screen.getByText('provider-required')).toBeInTheDocument();
+    expect(screen.queryByText('clip-beat-demo-text')).not.toBeInTheDocument();
+    expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
+    expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
+  });
+
+  it('lets creators request draft selection and scoped component regeneration', async () => {
+    const onSelectDraft = vi.fn<(draftId: string) => void>();
+    const onRegenerateComponent = vi.fn<(actionId: string) => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onSelectDraft={onSelectDraft}
+        onRegenerateComponent={onRegenerateComponent}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /demo-first cut/i }));
+    expect(onSelectDraft).toHaveBeenCalledWith('draft-demo');
+
+    await userEvent.click(screen.getByRole('button', { name: /regenerate capture for app frame/i }));
+    expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');
   });
 });
