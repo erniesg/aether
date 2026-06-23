@@ -5,7 +5,10 @@ import {
   motionFrames,
   motionSeconds,
   type MotionDraft,
+  type MotionGraphNode,
   type MotionProject,
+  type MotionProjectKind,
+  type MotionProvenanceRef,
 } from './project';
 
 describe('motion project primitives', () => {
@@ -138,5 +141,26 @@ describe('motion project primitives', () => {
     expect(draft.status).toBe('planned');
     expect(draft.story[0].templateId).toBe('app-frame');
     expect(draft.provenance[0].kind).toBe('story-beat');
+  });
+
+  it('allows pull request videos as code-change explainers', () => {
+    const projectKind: MotionProjectKind = 'pr';
+    const provenance: MotionProvenanceRef = {
+      kind: 'code-change',
+      ref: 'github:erniesg/aether#123',
+    };
+    const graphNode: MotionGraphNode = {
+      id: 'node-pr-ingest',
+      kind: 'pr-ingest',
+      inputRefs: ['github:erniesg/aether#123'],
+      outputRefs: ['code-change:aether#123'],
+      providerId: 'github',
+      status: 'planned',
+      provenance: [provenance],
+    };
+
+    expect(projectKind).toBe('pr');
+    expect(graphNode.kind).toBe('pr-ingest');
+    expect(graphNode.provenance[0].kind).toBe('code-change');
   });
 });

@@ -62,7 +62,7 @@
 - Create: `lib/motion/project.ts`
 - Create: `lib/motion/project.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // lib/motion/project.test.ts
@@ -159,7 +159,7 @@ describe('motion project primitives', () => {
 });
 ```
 
-- [ ] **Step 2: Run the failing tests**
+- [x] **Step 2: Run the failing tests**
 
 Run: `npx vitest run lib/motion/project.test.ts`
 
@@ -1270,7 +1270,7 @@ Run: `npx vitest run lib/providers/code-change/registry.test.ts`
 
 Expected: FAIL because code-change provider files do not exist.
 
-- [ ] **Step 3: Add code-change contracts and registry**
+- [x] **Step 3: Add code-change contracts and registry**
 
 ```ts
 // lib/providers/code-change/types.ts
@@ -1324,13 +1324,13 @@ Use the same registry shape as capture providers. Do not auto-select GitHub or
 `gh` as a default dependency from the domain model; the provider decides whether
 the local CLI, connector, or API token is available.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npx vitest run lib/providers/code-change/registry.test.ts lib/motion/project.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/code-change/types.ts lib/providers/code-change/registry.ts lib/providers/code-change/registry.test.ts lib/motion/project.ts lib/motion/project.test.ts

@@ -1,7 +1,7 @@
 export const DEFAULT_MOTION_FPS = 30;
 export const DEFAULT_MOTION_WORKFLOW_MODE = 'review' satisfies MotionWorkflowMode;
 
-export type MotionProjectKind = 'launch' | 'feature' | 'demo' | 'social' | 'case-study';
+export type MotionProjectKind = 'launch' | 'feature' | 'demo' | 'social' | 'case-study' | 'pr';
 export type MotionWorkflowMode = 'review' | 'full-auto';
 export type MotionDraftStatus = 'planned' | 'generating' | 'ready' | 'approved' | 'rejected';
 export type MotionBeatRole = 'hook' | 'problem' | 'proof' | 'demo' | 'payoff' | 'cta';
@@ -29,6 +29,7 @@ export type MotionTrackKind =
 export interface MotionProvenanceRef {
   kind:
     | 'repo'
+    | 'code-change'
     | 'site'
     | 'upload'
     | 'reference'
@@ -119,6 +120,7 @@ export interface MotionGraphNode {
   id: string;
   kind:
     | 'repo-ingest'
+    | 'pr-ingest'
     | 'script'
     | 'storyboard'
     | 'capture'
