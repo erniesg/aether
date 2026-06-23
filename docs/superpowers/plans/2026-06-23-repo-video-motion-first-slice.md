@@ -1199,7 +1199,7 @@ Run: `npx vitest run lib/providers/video/render-registry.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/video/render-types.ts lib/providers/video/generation-types.ts lib/providers/video/types.ts lib/providers/video/render-registry.ts lib/providers/video/render-registry.test.ts
@@ -2478,11 +2478,61 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/voicePlan.ts lib/motion/voicePlan.test.ts lib/providers/voice/types.ts lib/providers/voice/registry.ts lib/providers/voice/registry.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: plan motion voiceover handoffs"
+```
+
+## Task 19: Voice Result Application
+
+**Files:**
+- Create: `lib/motion/voiceApply.ts`
+- Create: `lib/motion/voiceApply.test.ts`
+- Modify: `lib/motion/project.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing voice-application test**
+
+The test covers:
+
+- completed voice synthesis receipts -> audio asset on the voice clip;
+- word-timing and transcript receipts -> caption clip props for sync;
+- provider/provenance receipts -> completed voice graph node;
+- untouched voice clips stay planned.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/voiceApply.test.ts`
+
+Expected: FAIL because `lib/motion/voiceApply.ts` does not exist.
+
+- [x] **Step 3: Implement voice result application**
+
+`lib/motion/voiceApply.ts` now applies provider-neutral `VoiceSynthesisResult`
+objects to `MotionProject` records. Audio receipts update the target voice clip,
+word-timing and transcript receipts update the matching caption clip, and the
+voice graph node is completed with provider id, output refs, and typed
+provenance.
+
+- [x] **Step 4: Run focused test and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/voiceApply.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/voiceApply.ts lib/motion/voiceApply.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: apply motion voiceover results"
 ```
 
 ## Self-Review Checklist

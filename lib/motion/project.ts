@@ -47,6 +47,7 @@ export interface MotionProvenanceRef {
     | 'story-beat'
     | 'timeline'
     | 'capture'
+    | 'voice'
     | 'provider'
     | 'render'
     | 'manual';

@@ -78,6 +78,9 @@ Clueso, and Descript.
   voice receipts later.
 - `lib/providers/voice/*` now defines an opt-in voice synthesis provider
   contract and registry without hardcoding a TTS vendor.
+- `lib/motion/voiceApply.ts` now converts voice synthesis receipts back into
+  editable voice and caption timeline clips, attaching audio, word-timing, and
+  transcript asset refs for later render/caption sync.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.

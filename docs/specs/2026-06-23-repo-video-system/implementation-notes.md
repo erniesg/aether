@@ -52,12 +52,15 @@
   narration requests with expected audio, word-timing, and transcript receipts.
 - Opt-in motion voice provider registry for TTS and alignment adapters without
   hardcoding a vendor.
+- Voice-result application that turns audio, word-timing, and transcript
+  receipts into editable voice/caption timeline props and a completed voice
+  graph node.
 
 ## Verification Commands
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/renderPlan.test.ts lib/motion/voicePlan.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/renderPlan.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/voice/registry.test.ts
