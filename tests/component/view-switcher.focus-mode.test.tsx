@@ -374,22 +374,19 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
-  it('timeline image-to-video action plans visuals and reports visual-source blockers', async () => {
+  it('timeline image-to-video action plans visual sources before clip generation', async () => {
     const start = storedRegeneratableMotionStart();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
           ok: true,
-          status: 'blocked',
+          status: 'ready',
           project: start.project,
           reviewPlan: start.reviewPlan,
           previewPlan: start.previewPlan,
-          imageToVideoPlan: {
-            status: 'needs-visual-source',
+          visualSourcingPlan: {
+            status: 'ready',
           },
-          selectedRequests: [],
-          generationResults: [],
-          generationResult: null,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
@@ -402,12 +399,10 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /plan visuals/i })[0]);
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'visual source required for video clips'
-      );
+      expect(screen.getByRole('status')).toHaveTextContent('visual sources planned');
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/motion/image-to-video',
+      '/api/motion/visuals',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

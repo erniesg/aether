@@ -52,7 +52,7 @@ const productionPlan: MotionProductionPlan = {
   status: 'ready',
   nextStepId: 'capture',
   nextActionLabel: 'Capture product material',
-  readyCount: 3,
+  readyCount: 4,
   completeCount: 2,
   blockedCount: 2,
   optionalCount: 1,
@@ -94,6 +94,19 @@ const productionPlan: MotionProductionPlan = {
       actionLabel: 'Capture product material',
       artifactLabels: ['screenshots', 'recordings', 'DOM snapshots', 'cursor targets'],
       providerRequirementLabels: ['browser capture'],
+      blockerLabels: [],
+    },
+    {
+      id: 'visual-source',
+      label: 'Visual sourcing',
+      status: 'ready',
+      reviewRequired: true,
+      autoAdvance: false,
+      toolIds: ['motion-visuals'],
+      apiRoutes: ['/api/motion/visuals'],
+      actionLabel: 'Plan source visuals',
+      artifactLabels: ['reference prompts', 'key still prompts', 'source asset picks'],
+      providerRequirementLabels: ['asset library', 'reference search', 'image generation'],
       blockerLabels: [],
     },
     {
@@ -410,6 +423,64 @@ const previewPlan: MotionPreviewPlan = {
     missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
     blockerLabels: ['Render every export target before packaging'],
   },
+  visualSourcingSummary: {
+    status: 'ready',
+    requestCount: 3,
+    providerRequirementLabels: ['asset library', 'reference search', 'image generation'],
+    requestLabels: [
+      'Select product source assets',
+      'Find motion references',
+      'Generate key stills',
+    ],
+    requests: [
+      {
+        requestId: 'visual-source-capture-assets',
+        kind: 'asset-selection',
+        label: 'Select product source assets',
+        prompt: 'Select captured aether app surfaces for the demo beat.',
+        reason: 'Real app surfaces should anchor demo and proof scenes.',
+        targetRoles: ['demo', 'proof', 'payoff'],
+        componentLabels: ['App frame', 'Proof card', 'Agent trace'],
+        sourceLabels: ['Capture local app route /', 'Record local product flow /'],
+        providerRequirementLabels: ['asset library'],
+        apiRoutes: ['/api/motion/capture', '/api/motion/visuals'],
+        expectedOutputs: ['selected source assets', 'beat-to-asset mapping'],
+      },
+      {
+        requestId: 'visual-source-reference-search',
+        kind: 'reference-search',
+        label: 'Find motion references',
+        prompt: 'Find launch video references for aether.',
+        reason: 'References guide pacing, captions, proof cards, and transitions.',
+        targetRoles: ['hook', 'demo', 'payoff', 'cta'],
+        componentLabels: ['Hook card', 'App frame', 'Agent trace', 'CTA card'],
+        sourceLabels: ['Stack: TypeScript, Next.js 15, Convex'],
+        providerRequirementLabels: ['reference search'],
+        apiRoutes: ['/api/research', '/api/reference-ingest'],
+        expectedOutputs: ['reference records', 'moodboard candidates'],
+      },
+      {
+        requestId: 'visual-source-key-stills',
+        kind: 'image-generation',
+        label: 'Generate key stills',
+        prompt: 'Generate editable key still candidates for aether.',
+        reason: 'Key stills can become reusable source material for motion inserts.',
+        targetRoles: ['hook', 'proof', 'payoff', 'cta'],
+        componentLabels: ['Hook card', 'Proof card', 'Agent trace', 'CTA card'],
+        sourceLabels: ['aether uses TypeScript, Next.js 15, Convex'],
+        providerRequirementLabels: ['image generation'],
+        apiRoutes: ['/api/generate', '/api/motion/visuals'],
+        expectedOutputs: ['key still candidates', 'image-to-video source picks'],
+      },
+    ],
+    blockerLabels: [],
+    nextActionLabels: [
+      'Find references',
+      'Generate key stills',
+      'Select source assets',
+      'Review visual sources',
+    ],
+  },
   visualGenerationSummary: {
     status: 'ready',
     requestCount: 1,
@@ -658,8 +729,8 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Real product capture')).toBeInTheDocument();
     expect(screen.getByText('production queue')).toBeInTheDocument();
     expect(screen.getAllByText('Capture product material').length).toBeGreaterThan(0);
-    expect(screen.getByText('2/6')).toBeInTheDocument();
-    expect(screen.getByText('3 ready')).toBeInTheDocument();
+    expect(screen.getByText('2/7')).toBeInTheDocument();
+    expect(screen.getByText('4 ready')).toBeInTheDocument();
     expect(screen.getByText('source material')).toBeInTheDocument();
     expect(screen.getByText('aether source material')).toBeInTheDocument();
     expect(screen.getByText('3 captures')).toBeInTheDocument();
@@ -690,6 +761,13 @@ describe('TimelineLens', () => {
     expect(screen.getByText('needs render')).toBeInTheDocument();
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
     expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();
+    expect(screen.getAllByText('visual sources').length).toBeGreaterThan(0);
+    expect(screen.getByText('3 source requests')).toBeInTheDocument();
+    expect(screen.getAllByText('Select product source assets').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Find motion references').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Generate key stills').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Real app surfaces should anchor/)).toBeInTheDocument();
+    expect(screen.getByText('/api/research / /api/reference-ingest')).toBeInTheDocument();
     expect(screen.getAllByText('visual generation').length).toBeGreaterThan(0);
     expect(screen.getByText('1 clip request')).toBeInTheDocument();
     expect(screen.getByText('Animate the captured aether canvas as a short product insert.')).toBeInTheDocument();

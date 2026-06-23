@@ -33,6 +33,7 @@ import type {
   MotionPreviewVideoPlan,
   MotionPreviewVideoPlanScene,
   MotionPreviewVisualGenerationSummary,
+  MotionPreviewVisualSourcingSummary,
 } from '@/lib/motion/previewPlan';
 import { cn } from '@/lib/utils/cn';
 
@@ -47,6 +48,7 @@ export interface TimelineLensProps {
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
+  onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
   onCaptureMotion?: (requestIds?: string[]) => void;
   onPinMotionSkill?: () => void;
@@ -71,6 +73,7 @@ export function TimelineLens({
   onSyncMotion,
   onRenderMotion,
   onExportPack,
+  onPlanVisuals,
   onGenerateVideoClips,
   onCaptureMotion,
   onPinMotionSkill,
@@ -121,6 +124,7 @@ export function TimelineLens({
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
             onExportPack={onExportPack}
+            onPlanVisuals={onPlanVisuals}
             onGenerateVideoClips={onGenerateVideoClips}
             onCaptureMotion={onCaptureMotion}
             onPinMotionSkill={onPinMotionSkill}
@@ -164,6 +168,7 @@ function MotionPreviewPlanView({
   onSyncMotion,
   onRenderMotion,
   onExportPack,
+  onPlanVisuals,
   onGenerateVideoClips,
   onCaptureMotion,
   onPinMotionSkill,
@@ -185,6 +190,7 @@ function MotionPreviewPlanView({
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
+  onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
   onCaptureMotion?: (requestIds?: string[]) => void;
   onPinMotionSkill?: () => void;
@@ -281,6 +287,7 @@ function MotionPreviewPlanView({
               />
             ) : null}
             <ExportPackSummaryRow summary={previewPlan.exportPackSummary} />
+            <VisualSourcingSummaryRow summary={previewPlan.visualSourcingSummary} />
             <VisualGenerationSummaryRow summary={previewPlan.visualGenerationSummary} />
             {onGenerateVoice ? (
               <VoiceActionButton
@@ -301,6 +308,7 @@ function MotionPreviewPlanView({
             {onGenerateVideoClips ? (
               <ImageToVideoActionButton
                 summary={previewPlan.visualGenerationSummary}
+                onPlanVisuals={onPlanVisuals}
                 onGenerateVideoClips={onGenerateVideoClips}
               />
             ) : null}
@@ -345,6 +353,10 @@ function MotionPreviewPlanView({
           />
         </section>
       ) : null}
+
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionVisualSourcingStrip summary={previewPlan.visualSourcingSummary} />
+      </section>
 
       <section className="border-b border-border-soft px-4 py-3">
         <MotionVisualGenerationStrip
@@ -1080,6 +1092,29 @@ function ExportPackSummaryRow({ summary }: { summary: MotionPreviewExportPackSum
   );
 }
 
+function VisualSourcingSummaryRow({
+  summary,
+}: {
+  summary: MotionPreviewVisualSourcingSummary;
+}) {
+  const detail =
+    summary.requestCount > 0
+      ? formatCount(summary.requestCount, 'source request')
+      : summary.providerRequirementLabels.length > 0
+        ? `Needs ${summary.providerRequirementLabels.join(' + ')}`
+        : 'no source requests';
+  const note = summary.blockerLabels[0] ?? summary.requestLabels[0] ?? 'ready for source review';
+
+  return (
+    <ReadinessRow
+      label="visual sources"
+      status={summary.status}
+      detail={detail}
+      note={note}
+    />
+  );
+}
+
 function VisualGenerationSummaryRow({
   summary,
 }: {
@@ -1181,12 +1216,15 @@ function ExportPackActionButton({ onExportPack }: { onExportPack: () => void }) 
 
 function ImageToVideoActionButton({
   summary,
+  onPlanVisuals,
   onGenerateVideoClips,
 }: {
   summary: MotionPreviewVisualGenerationSummary;
+  onPlanVisuals?: () => void;
   onGenerateVideoClips: () => void;
 }) {
   const ready = summary.status === 'ready';
+  const shouldPlanVisuals = summary.status === 'needs-visual-source' && Boolean(onPlanVisuals);
   const label = ready
     ? 'generate clips'
     : summary.status === 'needs-visual-source'
@@ -1196,7 +1234,7 @@ function ImageToVideoActionButton({
   return (
     <button
       type="button"
-      onClick={onGenerateVideoClips}
+      onClick={shouldPlanVisuals ? onPlanVisuals : onGenerateVideoClips}
       className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
     >
       {label}
@@ -1266,6 +1304,59 @@ function MotionSyncPlanStrip({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MotionVisualSourcingStrip({
+  summary,
+}: {
+  summary: MotionPreviewVisualSourcingSummary;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          visual sources
+        </span>
+        <Chip tone={summary.status === 'ready' || summary.status === 'complete' ? 'ok' : 'info'} size="sm">
+          {summary.status.replace(/-/g, ' ')}
+        </Chip>
+      </div>
+      {summary.requests.length > 0 ? (
+        <div className="grid gap-2 lg:grid-cols-3">
+          {summary.requests.map((request) => (
+            <article
+              key={request.requestId}
+              className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-caption text-xs text-ink">{request.label}</span>
+                <span className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                  {request.kind.replace(/-/g, ' ')}
+                </span>
+              </div>
+              <p className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+                {request.reason}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {request.targetRoles.slice(0, 4).map((role) => (
+                  <Chip key={`${request.requestId}-${role}`} tone="neutral" size="sm">
+                    {role}
+                  </Chip>
+                ))}
+              </div>
+              <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                {request.apiRoutes.slice(0, 2).join(' / ')}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 font-caption text-xs text-ink-dim">
+          {summary.blockerLabels[0] ?? 'No visual source requests for this draft.'}
+        </div>
+      )}
     </div>
   );
 }

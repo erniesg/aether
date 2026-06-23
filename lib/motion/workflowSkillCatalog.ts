@@ -215,7 +215,16 @@ const RECIPE_DEFINITIONS = {
       'Generate optional motion inserts for static feature visuals',
       'Sync captions, effects, and export variants from one timeline',
     ],
-    generationLanes: ['repo-facts', 'capture', 'image-to-video', 'voice', 'sync', 'render', 'export'],
+    generationLanes: [
+      'repo-facts',
+      'capture',
+      'visual-search',
+      'image-to-video',
+      'voice',
+      'sync',
+      'render',
+      'export',
+    ],
     draftVariations: [
       {
         id: 'feature-payoff-first',
@@ -318,7 +327,7 @@ const RECIPE_DEFINITIONS = {
       'Sync zooms, cursor cues, captions, and transitions',
       'Render proof and export the platform pack',
     ],
-    generationLanes: ['capture', 'voice', 'sync', 'render', 'export'],
+    generationLanes: ['capture', 'visual-search', 'voice', 'sync', 'render', 'export'],
     draftVariations: [
       {
         id: 'site-guided-tour',
@@ -407,10 +416,11 @@ const RECIPE_DEFINITIONS = {
       'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status',
       'Write a short explainer script around why the change matters',
       'Build draft variations for hook, diff, mechanism, proof, and install/action',
+      'Select code-proof visuals from the diff, file tree, review, and CI receipts',
       'Render code-diff, mechanism, evidence, caption, and voice components',
       'Verify contact sheet, mp4 probe, subtitles, transcript, and provenance manifest',
     ],
-    generationLanes: ['code-change', 'voice', 'sync', 'render', 'export'],
+    generationLanes: ['code-change', 'visual-search', 'voice', 'sync', 'render', 'export'],
     draftVariations: [
       {
         id: 'pr-launch-note',
@@ -510,10 +520,11 @@ const RECIPE_DEFINITIONS = {
     agentTaskLabels: [
       'Ingest uploaded video, transcript, or reference timing',
       'Plan caption groups, emphasis moments, and overlay components',
+      'Select source visuals for proof overlays and caption emphasis',
       'Generate or align voice/caption timings',
       'Render caption proof and export subtitle/transcript sidecars',
     ],
-    generationLanes: ['voice', 'sync', 'render', 'export'],
+    generationLanes: ['visual-search', 'voice', 'sync', 'render', 'export'],
     draftVariations: [
       {
         id: 'caption-clean-subtitles',

@@ -217,6 +217,28 @@ describe('buildMotionPreviewPlan', () => {
       missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
       blockerLabels: ['Render every export target before packaging'],
     });
+    expect(preview.visualSourcingSummary).toMatchObject({
+      status: 'ready',
+      requestCount: 3,
+      providerRequirementLabels: ['asset library', 'reference search', 'image generation'],
+      requestLabels: [
+        'Select product source assets',
+        'Find motion references',
+        'Generate key stills',
+      ],
+      nextActionLabels: [
+        'Find references',
+        'Generate key stills',
+        'Select source assets',
+        'Review visual sources',
+      ],
+    });
+    expect(preview.visualSourcingSummary.requests[0]).toMatchObject({
+      requestId: 'visual-source-capture-assets',
+      kind: 'asset-selection',
+      componentLabels: ['App frame', 'Proof card', 'Agent trace'],
+      apiRoutes: ['/api/motion/capture', '/api/motion/visuals'],
+    });
     expect(preview.visualGenerationSummary).toMatchObject({
       status: 'needs-visual-source',
       requestCount: 0,
@@ -254,7 +276,7 @@ describe('buildMotionPreviewPlan', () => {
       nextStepId: 'drafts',
       nextActionLabel: 'Review draft variations',
       completeCount: 1,
-      readyCount: 3,
+      readyCount: 4,
       blockedCount: 3,
       optionalCount: 1,
     });
@@ -262,6 +284,7 @@ describe('buildMotionPreviewPlan', () => {
       ['plan', 'complete'],
       ['drafts', 'review'],
       ['capture', 'ready'],
+      ['visual-source', 'ready'],
       ['visual-generation', 'optional'],
       ['voice', 'ready'],
       ['sync', 'blocked'],

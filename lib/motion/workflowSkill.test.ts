@@ -29,6 +29,7 @@ describe('motion workflow skill drafts', () => {
       toolNames: [
         'motion_start',
         'motion_regenerate',
+        'motion_visuals',
         'motion_voice',
         'motion_sync',
         'motion_revise',
@@ -71,7 +72,7 @@ describe('motion workflow skill drafts', () => {
       ]),
       recipe: expect.objectContaining({
         slug: 'pr-to-video',
-        generationLanes: ['code-change', 'voice', 'sync', 'render', 'export'],
+        generationLanes: ['code-change', 'visual-search', 'voice', 'sync', 'render', 'export'],
         referencePatterns: [
           expect.objectContaining({
             id: 'code-diff-explainer',
@@ -96,6 +97,7 @@ describe('motion workflow skill drafts', () => {
       tools: [
         'motion_start',
         'motion_regenerate',
+        'motion_visuals',
         'motion_voice',
         'motion_sync',
         'motion_revise',

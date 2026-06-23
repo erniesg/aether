@@ -290,6 +290,7 @@ describe('POST /api/motion/start', () => {
               tools: [
                 'motion_start',
                 'motion_regenerate',
+                'motion_visuals',
                 'motion_voice',
                 'motion_sync',
                 'motion_revise',
@@ -301,7 +302,7 @@ describe('POST /api/motion/start', () => {
           runPlan: {
             status: 'ready',
             primaryAction: 'run-full-auto',
-            stepCount: 6,
+            stepCount: 7,
             steps: expect.arrayContaining([
               expect.objectContaining({
                 id: 'step-plan',

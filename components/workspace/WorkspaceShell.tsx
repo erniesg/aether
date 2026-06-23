@@ -895,6 +895,51 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
+  const handleTimelinePlanVisuals = useCallback(async () => {
+    if (!motionStart?.project) return;
+
+    setMotionTimelineActionStatus('planning visual sources');
+    try {
+      const requestedAt = Date.now();
+      const res = await fetch('/api/motion/visuals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: motionStart.project,
+          draftId: motionStart.project.currentDraftId,
+          requestedAt,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        status?: string;
+        project?: typeof motionStart.project;
+        reviewPlan?: typeof motionStart.reviewPlan;
+        previewPlan?: typeof motionStart.previewPlan;
+        visualSourcingPlan?: { status?: string };
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error ?? `visual source planning failed: ${res.status}`);
+      }
+
+      setMotionStartResult(wsId, {
+        ...motionStart,
+        project: json.project ?? motionStart.project,
+        reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+        previewPlan: json.previewPlan ?? motionStart.previewPlan,
+      });
+      if (json.status === 'blocked') {
+        setMotionTimelineActionStatus('story required before visual sources');
+      } else if (json.visualSourcingPlan?.status === 'complete') {
+        setMotionTimelineActionStatus('visual sources ready');
+      } else {
+        setMotionTimelineActionStatus('visual sources planned');
+      }
+    } catch (error) {
+      setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+    }
+  }, [motionStart, wsId]);
   const handleTimelineGenerateVideoClips = useCallback(async () => {
     if (!motionStart?.project) return;
 
@@ -2713,6 +2758,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSyncMotion={handleTimelineSync}
             onRenderMotion={handleTimelineRender}
             onExportPack={handleTimelineExportPack}
+            onPlanVisuals={handleTimelinePlanVisuals}
             onGenerateVideoClips={handleTimelineGenerateVideoClips}
             onCaptureMotion={handleTimelineCapture}
             onPinMotionSkill={handleTimelinePinMotionSkill}

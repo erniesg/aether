@@ -42,6 +42,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       'plan',
       'drafts',
       'capture',
+      'visuals',
       'voice',
       'timeline',
       'render',
@@ -57,6 +58,11 @@ describe('buildAgentMotionWorkflowPlan', () => {
       toolIds: ['motion-voice'],
       expectedArtifacts: ['voice clips', 'word timings'],
     });
+    expect(plan.gates.find((gate) => gate.id === 'visuals')).toMatchObject({
+      autoAdvance: false,
+      toolIds: ['motion-visuals'],
+      expectedArtifacts: ['reference requests', 'key still prompts', 'source asset picks'],
+    });
     expect(plan.skillContract).toMatchObject({
       runModes: ['review', 'full-auto'],
       reviewArtifacts: [
@@ -64,6 +70,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
         'draft-variations',
         'component-plan',
         'capture-plan',
+        'visual-source-plan',
         'sync-plan',
         'render-proof',
         'export-pack',
@@ -83,6 +90,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       'review-video-plan',
       'review-draft-variations',
       'collect-captures',
+      'review-visual-sources',
       'generate-voice',
       'open-timeline',
       'render-proof',
@@ -93,12 +101,13 @@ describe('buildAgentMotionWorkflowPlan', () => {
       status: 'ready',
       primaryAction: 'request-review',
       nextStepId: 'step-plan',
-      stepCount: 7,
+      stepCount: 8,
     });
     expect(plan.runPlan.steps.map((step) => step.id)).toEqual([
       'step-plan',
       'step-drafts',
       'step-capture',
+      'step-visuals',
       'step-voice',
       'step-timeline',
       'step-render',
@@ -118,6 +127,10 @@ describe('buildAgentMotionWorkflowPlan', () => {
       apiRoutes: ['/api/motion/capture'],
       outputSummary: ['captures', 'cursor targets', 'crop receipts'],
     });
+    expect(plan.runPlan.steps.find((step) => step.gateId === 'visuals')).toMatchObject({
+      apiRoutes: ['/api/motion/visuals'],
+      outputSummary: ['reference requests', 'key still prompts', 'source asset picks'],
+    });
     expect(plan.runPlan.steps.find((step) => step.gateId === 'timeline')).toMatchObject({
       apiRoutes: ['/api/motion/sync', '/api/motion/revise'],
       inputSummary: ['voice clips', 'word timings'],
@@ -136,7 +149,12 @@ describe('buildAgentMotionWorkflowPlan', () => {
       startShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
       manifest: {
         name: 'repo-launch-video',
-        tools: expect.arrayContaining(['motion_start', 'motion_capture', 'motion_render']),
+        tools: expect.arrayContaining([
+          'motion_start',
+          'motion_capture',
+          'motion_visuals',
+          'motion_render',
+        ]),
       },
     });
     expect(plan.gates.map((gate) => gate.label).join(' ')).not.toMatch(
@@ -164,6 +182,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
     expect(plan.toolIds).toEqual([
       'motion-brief',
       'motion-storyboard',
+      'motion-visuals',
       'motion-voice',
       'motion-sync',
       'motion-render',
@@ -173,6 +192,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
     expect(plan.gates.map((gate) => gate.id)).toEqual([
       'plan',
       'drafts',
+      'visuals',
       'voice',
       'timeline',
       'render',
@@ -180,6 +200,10 @@ describe('buildAgentMotionWorkflowPlan', () => {
     ]);
     expect(plan.gates.every((gate) => gate.autoAdvance)).toBe(true);
     expect(plan.gates.some((gate) => gate.id === 'capture')).toBe(false);
+    expect(plan.gates.find((gate) => gate.id === 'visuals')).toMatchObject({
+      toolIds: ['motion-visuals'],
+      expectedArtifacts: ['reference requests', 'key still prompts', 'source asset picks'],
+    });
     expect(plan.gates.find((gate) => gate.id === 'voice')).toMatchObject({
       toolIds: ['motion-voice'],
       expectedArtifacts: ['voice clips', 'word timings'],
@@ -196,6 +220,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
         'video-plan',
         'draft-variations',
         'component-plan',
+        'visual-source-plan',
         'sync-plan',
         'render-proof',
         'export-pack',
@@ -220,19 +245,24 @@ describe('buildAgentMotionWorkflowPlan', () => {
       status: 'ready',
       primaryAction: 'run-full-auto',
       nextStepId: 'step-plan',
-      stepCount: 6,
+      stepCount: 7,
     });
     expect(plan.runPlan.steps.every((step) => step.autoAdvance)).toBe(true);
     expect(plan.runPlan.steps.every((step) => step.reviewRequired)).toBe(false);
     expect(plan.runPlan.steps.map((step) => step.gateId)).toEqual([
       'plan',
       'drafts',
+      'visuals',
       'voice',
       'timeline',
       'render',
       'export',
     ]);
     expect(plan.runPlan.steps.some((step) => step.gateId === 'capture')).toBe(false);
+    expect(plan.runPlan.steps.find((step) => step.gateId === 'visuals')).toMatchObject({
+      apiRoutes: ['/api/motion/visuals'],
+      outputSummary: ['reference requests', 'key still prompts', 'source asset picks'],
+    });
     expect(plan.runPlan.steps.find((step) => step.gateId === 'voice')).toMatchObject({
       apiRoutes: ['/api/motion/voice'],
       outputSummary: ['voice clips', 'word timings'],
@@ -246,6 +276,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
         tools: [
           'motion_start',
           'motion_regenerate',
+          'motion_visuals',
           'motion_voice',
           'motion_sync',
           'motion_revise',

@@ -170,6 +170,7 @@ describe('GET /api/motion/workflows', () => {
           'draft-variations',
           'component-plan',
           'capture-plan',
+          'visual-source-plan',
           'sync-plan',
           'render-proof',
           'export-pack',
@@ -219,7 +220,7 @@ describe('GET /api/motion/workflows', () => {
         id: 'pr-to-video',
         sourceKinds: ['pr', 'repo'],
         engines: ['remotion', 'hyperframes'],
-        reviewGates: ['plan', 'drafts', 'voice', 'timeline', 'render', 'export'],
+        reviewGates: ['plan', 'drafts', 'visuals', 'voice', 'timeline', 'render', 'export'],
         startHints: {
           acceptedShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
           defaultMode: 'review',
@@ -248,15 +249,17 @@ describe('GET /api/motion/workflows', () => {
           ],
           manifest: expect.objectContaining({
             name: 'pr-to-video',
+            tools: expect.arrayContaining(['motion_visuals']),
             instructions: expect.stringContaining('npx skills add heygen-com/hyperframes'),
           }),
         }),
         workflowRecipe: expect.objectContaining({
           slug: 'pr-to-video',
           triggerPhrases: expect.arrayContaining(['make a PR explainer']),
-          generationLanes: ['code-change', 'voice', 'sync', 'render', 'export'],
+          generationLanes: ['code-change', 'visual-search', 'voice', 'sync', 'render', 'export'],
           agentTaskLabels: expect.arrayContaining([
             'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status',
+            'Select code-proof visuals from the diff, file tree, review, and CI receipts',
           ]),
           draftVariations: [
             expect.objectContaining({

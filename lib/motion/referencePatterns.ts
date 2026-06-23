@@ -98,7 +98,7 @@ const REFERENCE_PATTERNS = {
     purpose: 'Explain a PR or release through readable diffs, changed files, and mechanism beats.',
     sourceSignals: ['PR title', 'diff hunk', 'changed file', 'CI status'],
     componentIds: ['code-diff-card', 'mechanism-diagram', 'evidence-card'],
-    generationLanes: ['code-change', 'voice', 'sync', 'render'],
+    generationLanes: ['code-change', 'visual-search', 'voice', 'sync', 'render'],
     editSurfaces: ['code', 'diagram', 'copy', 'timing'],
     verificationLabels: ['diff is readable', 'files match PR evidence', 'CI/review receipt'],
   },

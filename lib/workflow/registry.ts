@@ -16,6 +16,7 @@ export type WorkflowReviewGate =
   | 'plan'
   | 'drafts'
   | 'capture'
+  | 'visuals'
   | 'voice'
   | 'timeline'
   | 'render'
@@ -25,6 +26,7 @@ export type WorkflowReviewArtifact =
   | 'draft-variations'
   | 'component-plan'
   | 'capture-plan'
+  | 'visual-source-plan'
   | 'sync-plan'
   | 'render-proof'
   | 'export-pack';
@@ -81,6 +83,7 @@ const LAUNCH_VIDEO_SKILL_CONTRACT: WorkflowSkillContract = {
     'draft-variations',
     'component-plan',
     'capture-plan',
+    'visual-source-plan',
     'sync-plan',
     'render-proof',
     'export-pack',
@@ -104,6 +107,7 @@ const PR_VIDEO_SKILL_CONTRACT: WorkflowSkillContract = {
     'video-plan',
     'draft-variations',
     'component-plan',
+    'visual-source-plan',
     'sync-plan',
     'render-proof',
     'export-pack',
@@ -152,7 +156,7 @@ const WORKFLOW_REGISTRY = {
     ],
     sourceKinds: ['repo', 'site', 'capture', 'reference'],
     engines: ['remotion', 'hyperframes', 'provider'],
-    reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+    reviewGates: ['plan', 'drafts', 'capture', 'visuals', 'voice', 'timeline', 'render', 'export'],
     skillContract: LAUNCH_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
@@ -177,7 +181,7 @@ const WORKFLOW_REGISTRY = {
     ],
     sourceKinds: ['repo', 'site', 'capture', 'upload', 'reference'],
     engines: ['remotion', 'hyperframes', 'provider'],
-    reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+    reviewGates: ['plan', 'drafts', 'capture', 'visuals', 'voice', 'timeline', 'render', 'export'],
     skillContract: LAUNCH_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
@@ -201,7 +205,7 @@ const WORKFLOW_REGISTRY = {
     ],
     sourceKinds: ['site', 'capture', 'reference'],
     engines: ['remotion', 'hyperframes', 'provider'],
-    reviewGates: ['plan', 'drafts', 'capture', 'timeline', 'render', 'export'],
+    reviewGates: ['plan', 'drafts', 'capture', 'visuals', 'timeline', 'render', 'export'],
     skillContract: LAUNCH_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
@@ -216,6 +220,7 @@ const WORKFLOW_REGISTRY = {
     toolIds: [
       'motion-brief',
       'motion-storyboard',
+      'motion-visuals',
       'motion-voice',
       'motion-sync',
       'motion-render',
@@ -224,7 +229,7 @@ const WORKFLOW_REGISTRY = {
     ],
     sourceKinds: ['pr', 'repo'],
     engines: ['remotion', 'hyperframes'],
-    reviewGates: ['plan', 'drafts', 'voice', 'timeline', 'render', 'export'],
+    reviewGates: ['plan', 'drafts', 'visuals', 'voice', 'timeline', 'render', 'export'],
     skillContract: PR_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
@@ -239,6 +244,7 @@ const WORKFLOW_REGISTRY = {
     toolIds: [
       'motion-brief',
       'motion-storyboard',
+      'motion-visuals',
       'motion-voice',
       'motion-sync',
       'motion-render',
@@ -246,10 +252,17 @@ const WORKFLOW_REGISTRY = {
     ],
     sourceKinds: ['upload', 'reference', 'capture'],
     engines: ['remotion', 'hyperframes'],
-    reviewGates: ['plan', 'voice', 'timeline', 'render', 'export'],
+    reviewGates: ['plan', 'visuals', 'voice', 'timeline', 'render', 'export'],
     skillContract: {
       ...LAUNCH_VIDEO_SKILL_CONTRACT,
-      reviewArtifacts: ['video-plan', 'component-plan', 'sync-plan', 'render-proof', 'export-pack'],
+      reviewArtifacts: [
+        'video-plan',
+        'component-plan',
+        'visual-source-plan',
+        'sync-plan',
+        'render-proof',
+        'export-pack',
+      ],
       regenerationTargets: ['component', 'caption', 'voice-line', 'timing', 'effect', 'whole-video'],
     },
     status: 'draft',
@@ -272,13 +285,14 @@ const WORKFLOW_REGISTRY = {
     ],
     sourceKinds: ['reference', 'upload'],
     engines: ['remotion', 'hyperframes', 'provider'],
-    reviewGates: ['plan', 'drafts', 'timeline', 'render', 'export'],
+    reviewGates: ['plan', 'drafts', 'visuals', 'timeline', 'render', 'export'],
     skillContract: {
       ...LAUNCH_VIDEO_SKILL_CONTRACT,
       reviewArtifacts: [
         'video-plan',
         'draft-variations',
         'component-plan',
+        'visual-source-plan',
         'sync-plan',
         'render-proof',
         'export-pack',

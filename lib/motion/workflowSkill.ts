@@ -57,6 +57,7 @@ const ROUTE_TOOL_NAMES: Record<string, string> = {
   '/api/motion/start': 'motion_start',
   '/api/motion/regenerate': 'motion_regenerate',
   '/api/motion/capture': 'motion_capture',
+  '/api/motion/visuals': 'motion_visuals',
   '/api/motion/voice': 'motion_voice',
   '/api/motion/sync': 'motion_sync',
   '/api/motion/revise': 'motion_revise',

@@ -19,6 +19,11 @@ import {
   type MotionImageToVideoPlanStatus,
 } from './imageToVideoPlan';
 import {
+  buildMotionVisualSourcingPlan,
+  type MotionVisualSourcingPlanStatus,
+  type MotionVisualSourcingRequestKind,
+} from './visualSourcingPlan';
+import {
   buildMotionProductionPlan,
   type MotionProductionPlan,
 } from './productionPlan';
@@ -248,6 +253,30 @@ export interface MotionPreviewVisualGenerationSummary {
   nextActionLabels: string[];
 }
 
+export interface MotionPreviewVisualSourcingRequest {
+  requestId: string;
+  kind: MotionVisualSourcingRequestKind;
+  label: string;
+  prompt: string;
+  reason: string;
+  targetRoles: string[];
+  componentLabels: string[];
+  sourceLabels: string[];
+  providerRequirementLabels: string[];
+  apiRoutes: string[];
+  expectedOutputs: string[];
+}
+
+export interface MotionPreviewVisualSourcingSummary {
+  status: MotionVisualSourcingPlanStatus;
+  requestCount: number;
+  providerRequirementLabels: string[];
+  requestLabels: string[];
+  requests: MotionPreviewVisualSourcingRequest[];
+  blockerLabels: string[];
+  nextActionLabels: string[];
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -269,6 +298,7 @@ export interface MotionPreviewPlan {
   syncBeats: MotionPreviewSyncBeat[];
   syncSoundCues: MotionPreviewSyncSoundCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
+  visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   productionPlan: MotionProductionPlan;
   provenance: MotionProvenanceRef[];
@@ -300,6 +330,10 @@ export function buildMotionPreviewPlan(
     requestedAt: options.requestedAt,
   });
   const exportPackPlan = buildMotionExportPackPlan(project, {
+    draftId: project.currentDraftId,
+    requestedAt: options.requestedAt,
+  });
+  const visualSourcingPlan = buildMotionVisualSourcingPlan(project, {
     draftId: project.currentDraftId,
     requestedAt: options.requestedAt,
   });
@@ -355,6 +389,7 @@ export function buildMotionPreviewPlan(
     syncBeats: buildSyncBeats(syncPlan),
     syncSoundCues: buildSyncSoundCues(syncPlan),
     exportPackSummary: buildExportPackSummary(exportPackPlan),
+    visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
     productionPlan,
     provenance: uniqueProvenance([
@@ -498,6 +533,38 @@ function buildExportPackSummary(
       exportPackPlan.items.flatMap((item) => item.missingAssetKinds)
     ) as MotionExportPackAssetKind[],
     blockerLabels: exportPackPlan.blockers.map((blocker) => blocker.label),
+  };
+}
+
+function buildVisualSourcingSummary(
+  visualSourcingPlan: ReturnType<typeof buildMotionVisualSourcingPlan>
+): MotionPreviewVisualSourcingSummary {
+  const requests = visualSourcingPlan.requests.map((request) => ({
+    requestId: request.id,
+    kind: request.kind,
+    label: request.label,
+    prompt: request.prompt,
+    reason: request.reason,
+    targetRoles: request.targetRoles,
+    componentLabels: request.componentIds.map((componentId) => componentLabelFor(componentId)),
+    sourceLabels: request.sourceLabels,
+    providerRequirementLabels: request.providerRequirements.map((requirement) =>
+      requirement.replace(/-/g, ' ')
+    ),
+    apiRoutes: request.apiRoutes,
+    expectedOutputs: request.expectedOutputs,
+  }));
+
+  return {
+    status: visualSourcingPlan.status,
+    requestCount: requests.length,
+    providerRequirementLabels: visualSourcingPlan.providerRequirements.map((requirement) =>
+      requirement.replace(/-/g, ' ')
+    ),
+    requestLabels: requests.map((request) => request.label),
+    requests,
+    blockerLabels: visualSourcingPlan.blockers.map((blocker) => blocker.label),
+    nextActionLabels: visualSourcingPlan.nextActions.map((action) => action.label),
   };
 }
 

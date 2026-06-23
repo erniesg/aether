@@ -14,6 +14,10 @@ import {
   type MotionImageToVideoPlan,
 } from './imageToVideoPlan';
 import {
+  buildMotionVisualSourcingPlan,
+  type MotionVisualSourcingPlan,
+} from './visualSourcingPlan';
+import {
   buildMotionRenderPlan,
   type MotionRenderPlan,
 } from './renderPlan';
@@ -38,6 +42,7 @@ export type MotionProductionStepId =
   | 'plan'
   | 'drafts'
   | 'capture'
+  | 'visual-source'
   | 'visual-generation'
   | 'voice'
   | 'sync'
@@ -110,6 +115,13 @@ const STEP_META = {
     actionLabel: 'Capture product material',
     artifactLabels: ['screenshots', 'recordings', 'DOM snapshots', 'cursor targets'],
   },
+  'visual-source': {
+    label: 'Visual sourcing',
+    toolIds: ['motion-visuals'],
+    apiRoutes: ['/api/motion/visuals'],
+    actionLabel: 'Plan source visuals',
+    artifactLabels: ['reference prompts', 'key still prompts', 'source asset picks'],
+  },
   'visual-generation': {
     label: 'Image-to-video',
     toolIds: ['motion-visuals'],
@@ -162,6 +174,10 @@ export function buildMotionProductionPlan(
 ): MotionProductionPlan {
   const fps = options.fps ?? DEFAULT_MOTION_FPS;
   const capturePlan = buildAgentMotionCapturePlan(project);
+  const visualSourcingPlan = buildMotionVisualSourcingPlan(project, {
+    draftId: project.currentDraftId,
+    requestedAt: options.requestedAt,
+  });
   const imageToVideoPlan = buildMotionImageToVideoPlan(project, {
     draftId: project.currentDraftId,
     fps,
@@ -189,6 +205,7 @@ export function buildMotionProductionPlan(
   });
   const steps = buildSteps(project, {
     capturePlan,
+    visualSourcingPlan,
     imageToVideoPlan,
     voicePlan,
     syncPlan,
@@ -237,6 +254,7 @@ function buildSteps(
   project: MotionProject,
   plans: {
     capturePlan: AgentMotionCapturePlan;
+    visualSourcingPlan: MotionVisualSourcingPlan;
     imageToVideoPlan: MotionImageToVideoPlan;
     voicePlan: MotionVoicePlan;
     syncPlan: MotionSyncPlan;
@@ -268,6 +286,7 @@ function buildSteps(
       providerRequirementLabels: [],
     }),
     captureStep(project, plans.capturePlan),
+    visualSourceStep(project, plans.visualSourcingPlan),
     visualGenerationStep(project, plans.imageToVideoPlan),
     step('voice', project, {
       status: voiceComplete ? 'complete' : plans.voicePlan.status === 'ready' ? 'ready' : 'blocked',
@@ -323,6 +342,25 @@ function captureStep(
         ? []
         : capturePlan.fallbacks.map((fallback) => fallback.reason),
     providerRequirementLabels: capturePlan.providerRequirements.map(readableRequirement),
+  });
+}
+
+function visualSourceStep(
+  project: MotionProject,
+  visualSourcingPlan: MotionVisualSourcingPlan
+): MotionProductionStep {
+  if (visualSourcingPlan.status === 'complete' || isGraphDone(project.graphNodes, 'visual-search')) {
+    return step('visual-source', project, {
+      status: 'complete',
+      blockerLabels: [],
+      providerRequirementLabels: [],
+    });
+  }
+
+  return step('visual-source', project, {
+    status: visualSourcingPlan.status === 'ready' ? 'ready' : 'blocked',
+    blockerLabels: visualSourcingPlan.blockers.map((blocker) => blocker.label),
+    providerRequirementLabels: visualSourcingPlan.providerRequirements.map(readableRequirement),
   });
 }
 

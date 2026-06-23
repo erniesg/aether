@@ -115,7 +115,7 @@ describe('typed capability registries', () => {
       ],
       sourceKinds: ['repo', 'site', 'capture', 'reference'],
       engines: ['remotion', 'hyperframes', 'provider'],
-      reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+      reviewGates: ['plan', 'drafts', 'capture', 'visuals', 'voice', 'timeline', 'render', 'export'],
       skillContract: {
         runModes: ['review', 'full-auto'],
         reviewArtifacts: [
@@ -123,6 +123,7 @@ describe('typed capability registries', () => {
           'draft-variations',
           'component-plan',
           'capture-plan',
+          'visual-source-plan',
           'sync-plan',
           'render-proof',
           'export-pack',
@@ -154,6 +155,7 @@ describe('typed capability registries', () => {
       toolIds: [
         'motion-brief',
         'motion-storyboard',
+        'motion-visuals',
         'motion-voice',
         'motion-sync',
         'motion-render',
@@ -162,13 +164,14 @@ describe('typed capability registries', () => {
       ],
       sourceKinds: ['pr', 'repo'],
       engines: ['remotion', 'hyperframes'],
-      reviewGates: ['plan', 'drafts', 'voice', 'timeline', 'render', 'export'],
+      reviewGates: ['plan', 'drafts', 'visuals', 'voice', 'timeline', 'render', 'export'],
       skillContract: {
         runModes: ['review', 'full-auto'],
         reviewArtifacts: [
           'video-plan',
           'draft-variations',
           'component-plan',
+          'visual-source-plan',
           'sync-plan',
           'render-proof',
           'export-pack',

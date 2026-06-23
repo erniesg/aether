@@ -76,7 +76,7 @@ describe('buildMotionProductionPlan', () => {
       nextStepId: 'drafts',
       nextActionLabel: 'Review draft variations',
       completeCount: 1,
-      readyCount: 3,
+      readyCount: 4,
       blockedCount: 3,
       optionalCount: 1,
     });
@@ -84,6 +84,7 @@ describe('buildMotionProductionPlan', () => {
       ['plan', 'complete', false],
       ['drafts', 'review', true],
       ['capture', 'ready', true],
+      ['visual-source', 'ready', true],
       ['visual-generation', 'optional', true],
       ['voice', 'ready', true],
       ['sync', 'blocked', true],
@@ -95,6 +96,11 @@ describe('buildMotionProductionPlan', () => {
       toolIds: ['motion-capture'],
       providerRequirementLabels: ['browser capture', 'screen recording'],
       blockerLabels: [],
+    });
+    expect(plan.steps.find((step) => step.id === 'visual-source')).toMatchObject({
+      apiRoutes: ['/api/motion/visuals'],
+      toolIds: ['motion-visuals'],
+      providerRequirementLabels: ['asset library', 'reference search', 'image generation'],
     });
     expect(plan.steps.find((step) => step.id === 'sync')?.blockerLabels).toEqual([
       'Generate voice and word timings before final sync',
@@ -123,6 +129,10 @@ describe('buildMotionProductionPlan', () => {
     expect(plan.steps.find((step) => step.id === 'capture')).toMatchObject({
       status: 'ready',
       reviewRequired: false,
+      autoAdvance: true,
+    });
+    expect(plan.steps.find((step) => step.id === 'visual-source')).toMatchObject({
+      status: 'ready',
       autoAdvance: true,
     });
     expect(plan.steps.find((step) => step.id === 'voice')).toMatchObject({
