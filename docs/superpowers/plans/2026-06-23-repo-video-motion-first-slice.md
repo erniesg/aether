@@ -2628,11 +2628,60 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/video/local-render.ts lib/providers/video/local-render.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: add runner backed motion render providers"
+```
+
+## Task 22: Render Execution Orchestration
+
+**Files:**
+- Create: `lib/motion/renderExecution.ts`
+- Create: `lib/motion/renderExecution.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing render-execution tests**
+
+The tests cover:
+
+- materialized timelines becoming provider-ready `MotionRenderRequest` objects;
+- selected providers receiving complete track and output data;
+- render receipts being applied back into ready export assets;
+- planned render graph nodes surviving into the completed render graph;
+- missing timeline inputs returning blockers without calling the provider.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/renderExecution.test.ts`
+
+Expected: FAIL because `lib/motion/renderExecution.ts` does not exist.
+
+- [x] **Step 3: Implement render execution orchestration**
+
+`lib/motion/renderExecution.ts` now builds a render plan, returns reviewable
+timeline blockers when the project is not ready, converts ready plans into
+provider requests, calls the selected render provider, stores the planned render
+node, and applies returned render receipts back to the editable motion project.
+
+- [x] **Step 4: Run focused test and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/renderExecution.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/renderExecution.ts lib/motion/renderExecution.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: orchestrate motion render execution"
 ```
 
 ## Self-Review Checklist

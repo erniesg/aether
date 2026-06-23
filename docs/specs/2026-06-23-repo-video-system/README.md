@@ -78,6 +78,9 @@ Clueso, and Descript.
 - `lib/providers/video/local-render.ts` now provides opt-in runner-backed
   Remotion and HyperFrames render providers: engine execution stays injected,
   while Aether normalizes returned files against planned output receipts.
+- `lib/motion/renderExecution.ts` now orchestrates the render loop for agents:
+  build a render plan/request, call the chosen provider, persist the planned
+  render graph node, and apply returned receipts back into editable exports.
 - `lib/motion/voicePlan.ts` now converts voice-line timeline clips into
   provider-neutral narration requests with expected audio, word-timing, and
   transcript artifacts so captions and render duration can sync against real

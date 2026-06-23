@@ -54,6 +54,9 @@
 - Runner-backed Remotion and HyperFrames render provider factories that execute
   injected runners, fail closed without configuration, reject wrong-engine
   requests, and normalize file receipts against the render plan.
+- Render execution orchestration that builds a provider request from the motion
+  project, calls the selected provider, keeps timeline blockers reviewable, and
+  applies render receipts back into editable exports.
 - Voiceover handoff planning that converts voice-line timeline clips into
   narration requests with expected audio, word-timing, and transcript receipts.
 - Opt-in motion voice provider registry for TTS and alignment adapters without
@@ -66,7 +69,7 @@
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderApply.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts
 ./node_modules/.bin/vitest run lib/providers/voice/registry.test.ts
