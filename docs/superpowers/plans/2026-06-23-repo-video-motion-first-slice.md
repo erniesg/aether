@@ -1,0 +1,1497 @@
+# Repo Video Motion First Slice Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build the first testable slice of repo-to-launch-video in aether: repo/app facts become an editable motion project with story beats, reusable motion components, a timeline model, provider seams, and a timeline lens scaffold.
+
+**Architecture:** Keep the creator-facing surface inside the existing single synthesis shell. Represent video as a graph-backed `MotionProject` with story beats and timeline clips; expose a timeline lens for editing while keeping provider runs and raw execution details behind provenance/debug surfaces. Use Remotion for editable React preview/render contracts and keep HyperFrames as a supported render/component engine for existing HTML compositions.
+
+**Tech Stack:** TypeScript, Vitest, React, Next.js, tldraw, Convex schema types, Remotion Player/Renderer, HyperFrames CLI, existing aether capability/tool registries.
+
+---
+
+## Requirement Coverage
+
+- Point aether at any repo or app source: Tasks 1-2 normalize repo/app facts into `MotionBriefV2` and `StoryBeat[]`.
+- Launch, feature, and social videos: Task 2 models project kinds and platform targets; Task 4 builds timeline clips from beats.
+- Reusable motion design, components, and effects: Task 3 adds a component registry with hook, app frame, agent trace, proof card, and CTA components.
+- HyperFrames and Remotion: Task 3 marks supported engines per component; Task 5 adds render provider contracts for Remotion and HyperFrames.
+- Editable outputs: Task 4 creates stable tracks/clips; Task 6 exposes the timeline lens without route-splitting.
+- Agent-native reusable tools/skills: Task 7 widens tool/workflow registries for motion brief, storyboard, render, voice, and sync tools.
+- Script, visuals, voiceover, timing, effects, transitions: Tasks 2, 4, and 5 create typed places for script lines, asset refs, voice/caption tracks, sync markers, effects, and transitions.
+- Provider-agnostic AI: Task 5 splits video contracts by job and keeps provider selection in request/config fields.
+- Provenance: Every task uses `MotionProvenanceRef[]` on claims, beats, clips, graph nodes, and exports.
+
+## File Structure
+
+- Create `lib/motion/project.ts`: shared motion project, brief, beat, timeline, export, and provenance types.
+- Create `lib/motion/project.test.ts`: unit tests for frame math and required provenance fields.
+- Create `lib/motion/storyboard.ts`: pure builder from repo/app facts into `MotionProject`.
+- Create `lib/motion/storyboard.test.ts`: tests for beat ordering, source refs, and no invented numeric claims.
+- Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
+- Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
+- Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
+- Create `lib/motion/timeline.test.ts`: tests for non-overlap, frame durations, captions, planned voice clips, and linked variant scopes.
+- Create `lib/providers/video/render-types.ts`: deterministic render provider contract.
+- Create `lib/providers/video/generation-types.ts`: generative clip provider contract.
+- Modify `lib/providers/video/types.ts`: re-export split video provider contracts while preserving current understanding types.
+- Create `lib/providers/video/render-registry.ts`: registry resolver for render providers.
+- Create `lib/providers/video/render-registry.test.ts`: tests provider unavailable behavior and preferred provider selection.
+- Modify `lib/tool/registry.ts`: add draft motion tool ids.
+- Modify `lib/capability/types.ts`: include motion tool ids in `CapabilityTool`.
+- Modify `lib/workflow/registry.ts`: add draft repo-to-launch-video workflow.
+- Create or modify `tests/unit/tool-registry.test.ts`: assert motion tools are known and draft.
+- Create `components/workspace/TimelineLens.tsx`: first timeline lens scaffold using typed tracks and clips.
+- Modify `components/header/ViewSwitcher.tsx`: enable timeline only after the lens scaffold is wired.
+- Modify `tests/component/view-switcher.test.tsx`: timeline becomes enabled, graph/mood/chat remain disabled.
+- Modify `components/workspace/WorkspaceShell.tsx`: render `TimelineLens` when `view === 'timeline'`.
+- Create `tests/component/timeline-lens.test.tsx`: verifies track grouping, clip selection callback, and no debug ids in primary UI.
+- Create `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`: record first-slice proof commands and corpus follow-up.
+
+## Task 1: Motion Project Domain Types
+
+**Files:**
+- Create: `lib/motion/project.ts`
+- Create: `lib/motion/project.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// lib/motion/project.test.ts
+import { describe, expect, it } from 'vitest';
+import {
+  DEFAULT_MOTION_FPS,
+  motionFrames,
+  motionSeconds,
+  type MotionProject,
+} from './project';
+
+describe('motion project primitives', () => {
+  it('uses deterministic frame math at the default fps', () => {
+    expect(DEFAULT_MOTION_FPS).toBe(30);
+    expect(motionFrames(1.5)).toBe(45);
+    expect(motionSeconds(45)).toBe(1.5);
+  });
+
+  it('requires provenance on claims, beats, clips, and exports', () => {
+    const project: MotionProject = {
+      id: 'motion-aether-launch',
+      workspaceId: 'demo-ws',
+      title: 'aether launch',
+      sourceRefs: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+      brief: {
+        projectKind: 'launch',
+        appProfile: {
+          name: 'aether',
+          repoUrl: 'https://github.com/erniesg/aether',
+          summary: 'Canvas-native creative system.',
+          stack: ['Next.js', 'Convex', 'tldraw'],
+        },
+        audience: 'builders launching creative apps',
+        platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+        claims: [
+          {
+            text: 'Canvas-native creative system.',
+            source: { kind: 'repo', ref: 'package.json#description' },
+          },
+        ],
+        tone: 'precise, visual, maker-led',
+        brandMotion: {
+          palette: ['#f4ede0', '#1a1a1a', '#c8413a'],
+          fontFamilies: ['IBM Plex Mono'],
+          motionStyle: 'technical editorial',
+        },
+      },
+      story: [
+        {
+          id: 'beat-hook',
+          role: 'hook',
+          narration: 'Turn a repo into a launch video.',
+          targetSeconds: 3,
+          selectedAssetIds: [],
+          provenance: [{ kind: 'repo', ref: 'package.json#description' }],
+        },
+      ],
+      tracks: [
+        {
+          id: 'track-text',
+          kind: 'text',
+          clips: [
+            {
+              id: 'clip-hook-title',
+              componentId: 'hook-card',
+              startFrame: 0,
+              durationFrames: 90,
+              props: { text: 'Repo to launch video' },
+              linkedVariantScope: 'global',
+              provenance: [{ kind: 'story-beat', ref: 'beat-hook' }],
+            },
+          ],
+        },
+      ],
+      graphNodes: [],
+      exports: [
+        {
+          id: 'export-x-vertical',
+          platform: 'x',
+          aspectRatio: '9:16',
+          status: 'planned',
+          provenance: [{ kind: 'timeline', ref: 'track-text' }],
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    expect(project.brief.claims[0].source.kind).toBe('repo');
+    expect(project.story[0].provenance[0].kind).toBe('repo');
+    expect(project.tracks[0].clips[0].provenance[0].kind).toBe('story-beat');
+    expect(project.exports[0].provenance[0].kind).toBe('timeline');
+  });
+});
+```
+
+- [ ] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/motion/project.test.ts`
+
+Expected: FAIL because `lib/motion/project.ts` does not exist.
+
+- [ ] **Step 3: Add the domain types**
+
+```ts
+// lib/motion/project.ts
+export const DEFAULT_MOTION_FPS = 30;
+
+export type MotionProjectKind = 'launch' | 'feature' | 'demo' | 'social' | 'case-study';
+export type MotionBeatRole = 'hook' | 'problem' | 'proof' | 'demo' | 'payoff' | 'cta';
+export type MotionAspectRatio = '16:9' | '9:16' | '1:1' | '4:5';
+export type MotionPlatform =
+  | 'x'
+  | 'linkedin'
+  | 'youtube'
+  | 'tiktok'
+  | 'instagram'
+  | 'website'
+  | 'deck';
+
+export type MotionTrackKind =
+  | 'screen'
+  | 'broll'
+  | 'text'
+  | 'caption'
+  | 'voice'
+  | 'music'
+  | 'sfx'
+  | 'effect'
+  | 'transition';
+
+export interface MotionProvenanceRef {
+  kind:
+    | 'repo'
+    | 'site'
+    | 'upload'
+    | 'reference'
+    | 'story-beat'
+    | 'timeline'
+    | 'provider'
+    | 'render'
+    | 'manual';
+  ref: string;
+  label?: string;
+}
+
+export interface AppProfile {
+  name: string;
+  repoUrl?: string;
+  siteUrl?: string;
+  summary: string;
+  stack: string[];
+}
+
+export interface MotionPlatformTarget {
+  platform: MotionPlatform;
+  aspectRatio: MotionAspectRatio;
+  seconds: number;
+}
+
+export interface MotionClaimReceipt {
+  text: string;
+  source: MotionProvenanceRef;
+}
+
+export interface BrandMotionTokens {
+  palette: string[];
+  fontFamilies: string[];
+  motionStyle: string;
+}
+
+export interface MotionBriefV2 {
+  projectKind: MotionProjectKind;
+  appProfile: AppProfile;
+  audience: string;
+  platformTargets: MotionPlatformTarget[];
+  claims: MotionClaimReceipt[];
+  tone: string;
+  brandMotion: BrandMotionTokens;
+}
+
+export interface StoryBeat {
+  id: string;
+  role: MotionBeatRole;
+  narration: string;
+  targetSeconds: number;
+  selectedAssetIds: string[];
+  templateId?: string;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface TimelineClip {
+  id: string;
+  assetId?: string;
+  componentId?: string;
+  startFrame: number;
+  durationFrames: number;
+  inFrame?: number;
+  outFrame?: number;
+  props: Record<string, unknown>;
+  linkedVariantScope?: 'global' | 'format-local';
+  provenance: MotionProvenanceRef[];
+}
+
+export interface TimelineTrack {
+  id: string;
+  kind: MotionTrackKind;
+  clips: TimelineClip[];
+}
+
+export interface MotionGraphNode {
+  id: string;
+  kind:
+    | 'repo-ingest'
+    | 'script'
+    | 'storyboard'
+    | 'capture'
+    | 'visual-search'
+    | 'image-to-video'
+    | 'voice'
+    | 'sync'
+    | 'render';
+  inputRefs: string[];
+  outputRefs: string[];
+  providerId?: string;
+  status: 'planned' | 'running' | 'done' | 'failed';
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionExport {
+  id: string;
+  platform: MotionPlatform;
+  aspectRatio: MotionAspectRatio;
+  status: 'planned' | 'rendering' | 'ready' | 'failed';
+  assetId?: string;
+  posterAssetId?: string;
+  subtitleAssetId?: string;
+  manifestAssetId?: string;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionProject {
+  id: string;
+  workspaceId: string;
+  title: string;
+  sourceRefs: MotionProvenanceRef[];
+  brief: MotionBriefV2;
+  story: StoryBeat[];
+  tracks: TimelineTrack[];
+  graphNodes: MotionGraphNode[];
+  exports: MotionExport[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function motionFrames(seconds: number, fps = DEFAULT_MOTION_FPS): number {
+  return Math.round(seconds * fps);
+}
+
+export function motionSeconds(frames: number, fps = DEFAULT_MOTION_FPS): number {
+  return frames / fps;
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npx vitest run lib/motion/project.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/project.ts lib/motion/project.test.ts
+git commit -m "feat: add motion project primitives"
+```
+
+## Task 2: Repo Facts to Story Beats
+
+**Files:**
+- Create: `lib/motion/storyboard.ts`
+- Create: `lib/motion/storyboard.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// lib/motion/storyboard.test.ts
+import { describe, expect, it } from 'vitest';
+import { buildRepoLaunchMotionProject } from './storyboard';
+
+describe('buildRepoLaunchMotionProject', () => {
+  it('builds a launch story in hook/problem/proof/demo/payoff/cta order', () => {
+    const project = buildRepoLaunchMotionProject({
+      id: 'motion-aether-launch',
+      workspaceId: 'demo-ws',
+      projectKind: 'launch',
+      audience: 'builders',
+      tone: 'precise',
+      appProfile: {
+        name: 'aether',
+        repoUrl: 'https://github.com/erniesg/aether',
+        summary: 'Canvas-native creative system.',
+        stack: ['Next.js', 'Convex', 'tldraw'],
+      },
+      claims: [
+        {
+          text: 'Uses Next.js, Convex, and tldraw.',
+          source: { kind: 'repo', ref: 'package.json#dependencies' },
+        },
+      ],
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      createdAt: 10,
+    });
+
+    expect(project.story.map((beat) => beat.role)).toEqual([
+      'hook',
+      'problem',
+      'proof',
+      'demo',
+      'payoff',
+      'cta',
+    ]);
+    expect(project.story[0].templateId).toBe('hook-card');
+    expect(project.story[2].provenance[0].ref).toBe('package.json#dependencies');
+    expect(project.graphNodes.map((node) => node.kind)).toEqual(['repo-ingest', 'script', 'storyboard']);
+  });
+
+  it('does not invent numeric claims when the source claim has no number', () => {
+    const project = buildRepoLaunchMotionProject({
+      id: 'motion-tong-feature',
+      workspaceId: 'demo-ws',
+      projectKind: 'feature',
+      audience: 'language learners',
+      tone: 'textural',
+      appProfile: {
+        name: 'tong',
+        summary: 'City-specific language learning app.',
+        stack: ['React'],
+      },
+      claims: [
+        {
+          text: 'Tokyo uses physical ephemera as learning material.',
+          source: { kind: 'manual', ref: 'creative-brief:tokyo' },
+        },
+      ],
+      platformTargets: [{ platform: 'instagram', aspectRatio: '9:16', seconds: 30 }],
+      createdAt: 10,
+    });
+
+    const allNarration = project.story.map((beat) => beat.narration).join(' ');
+    expect(allNarration).not.toMatch(/\b\d+%|\b\d+x|\b\d+ users/i);
+    expect(allNarration).toContain('physical ephemera');
+  });
+});
+```
+
+- [ ] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/motion/storyboard.test.ts`
+
+Expected: FAIL because `buildRepoLaunchMotionProject` is not defined.
+
+- [ ] **Step 3: Implement the builder**
+
+```ts
+// lib/motion/storyboard.ts
+import type {
+  AppProfile,
+  MotionBriefV2,
+  MotionClaimReceipt,
+  MotionPlatformTarget,
+  MotionProject,
+  MotionProjectKind,
+  StoryBeat,
+} from './project';
+
+export interface BuildRepoLaunchMotionProjectInput {
+  id: string;
+  workspaceId: string;
+  projectKind: MotionProjectKind;
+  audience: string;
+  tone: string;
+  appProfile: AppProfile;
+  claims: MotionClaimReceipt[];
+  platformTargets: MotionPlatformTarget[];
+  createdAt: number;
+}
+
+const DEFAULT_BRAND_MOTION = {
+  palette: ['#f4ede0', '#1a1a1a', '#c8413a'],
+  fontFamilies: ['IBM Plex Mono'],
+  motionStyle: 'technical editorial',
+};
+
+export function buildRepoLaunchMotionProject(
+  input: BuildRepoLaunchMotionProjectInput
+): MotionProject {
+  const firstClaim = input.claims[0] ?? {
+    text: input.appProfile.summary,
+    source: { kind: 'manual' as const, ref: `${input.appProfile.name}:summary` },
+  };
+  const sourceRefs = input.claims.map((claim) => claim.source);
+  const brief: MotionBriefV2 = {
+    projectKind: input.projectKind,
+    appProfile: input.appProfile,
+    audience: input.audience,
+    platformTargets: input.platformTargets,
+    claims: input.claims,
+    tone: input.tone,
+    brandMotion: DEFAULT_BRAND_MOTION,
+  };
+
+  const story: StoryBeat[] = [
+    {
+      id: 'beat-hook',
+      role: 'hook',
+      narration: `${input.appProfile.name}: ${input.appProfile.summary}`,
+      targetSeconds: 3,
+      selectedAssetIds: [],
+      templateId: 'hook-card',
+      provenance: sourceRefs,
+    },
+    {
+      id: 'beat-problem',
+      role: 'problem',
+      narration: `Most launch posts show the surface. This one shows what ${input.appProfile.name} actually does.`,
+      targetSeconds: 4,
+      selectedAssetIds: [],
+      templateId: 'proof-card',
+      provenance: sourceRefs,
+    },
+    {
+      id: 'beat-proof',
+      role: 'proof',
+      narration: firstClaim.text,
+      targetSeconds: 5,
+      selectedAssetIds: [],
+      templateId: 'proof-card',
+      provenance: [firstClaim.source],
+    },
+    {
+      id: 'beat-demo',
+      role: 'demo',
+      narration: `Show ${input.appProfile.name} in use, with the product flow framed clearly.`,
+      targetSeconds: 8,
+      selectedAssetIds: [],
+      templateId: 'app-frame',
+      provenance: sourceRefs,
+    },
+    {
+      id: 'beat-payoff',
+      role: 'payoff',
+      narration: `The output is ready to edit, adapt, and export across formats.`,
+      targetSeconds: 6,
+      selectedAssetIds: [],
+      templateId: 'agent-trace',
+      provenance: sourceRefs,
+    },
+    {
+      id: 'beat-cta',
+      role: 'cta',
+      narration: `Launch ${input.appProfile.name} with receipts, not generic B-roll.`,
+      targetSeconds: 4,
+      selectedAssetIds: [],
+      templateId: 'cta-card',
+      provenance: sourceRefs,
+    },
+  ];
+
+  return {
+    id: input.id,
+    workspaceId: input.workspaceId,
+    title: `${input.appProfile.name} ${input.projectKind} video`,
+    sourceRefs,
+    brief,
+    story,
+    tracks: [],
+    graphNodes: [
+      {
+        id: 'node-repo-ingest',
+        kind: 'repo-ingest',
+        inputRefs: input.appProfile.repoUrl ? [input.appProfile.repoUrl] : [],
+        outputRefs: sourceRefs.map((source) => source.ref),
+        status: 'done',
+        provenance: sourceRefs,
+      },
+      {
+        id: 'node-script',
+        kind: 'script',
+        inputRefs: sourceRefs.map((source) => source.ref),
+        outputRefs: story.map((beat) => beat.id),
+        status: 'done',
+        provenance: sourceRefs,
+      },
+      {
+        id: 'node-storyboard',
+        kind: 'storyboard',
+        inputRefs: story.map((beat) => beat.id),
+        outputRefs: story.map((beat) => beat.templateId ?? beat.id),
+        status: 'done',
+        provenance: sourceRefs,
+      },
+    ],
+    exports: input.platformTargets.map((target) => ({
+      id: `export-${target.platform}-${target.aspectRatio.replace(':', 'x')}`,
+      platform: target.platform,
+      aspectRatio: target.aspectRatio,
+      status: 'planned',
+      provenance: sourceRefs,
+    })),
+    createdAt: input.createdAt,
+    updatedAt: input.createdAt,
+  };
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npx vitest run lib/motion/storyboard.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/storyboard.ts lib/motion/storyboard.test.ts
+git commit -m "feat: build repo motion storyboards"
+```
+
+## Task 3: Motion Component Registry
+
+**Files:**
+- Create: `lib/motion/componentRegistry.ts`
+- Create: `lib/motion/componentRegistry.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// lib/motion/componentRegistry.test.ts
+import { describe, expect, it } from 'vitest';
+import {
+  getMotionComponent,
+  listMotionComponents,
+  motionComponentIds,
+} from './componentRegistry';
+
+describe('motion component registry', () => {
+  it('ships the first five reusable repo-video components', () => {
+    expect(motionComponentIds()).toEqual([
+      'hook-card',
+      'app-frame',
+      'agent-trace',
+      'proof-card',
+      'cta-card',
+    ]);
+  });
+
+  it('marks engines and aspect ratios per component', () => {
+    const hook = getMotionComponent('hook-card');
+    expect(hook?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(hook?.aspectRatios).toContain('9:16');
+    expect(hook?.editControls.map((control) => control.id)).toContain('headline');
+  });
+
+  it('keeps every component creator-facing', () => {
+    for (const component of listMotionComponents()) {
+      expect(component.label).not.toMatch(/pipeline|operator|dashboard|control plane/i);
+      expect(component.requiredProps.length).toBeGreaterThan(0);
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/motion/componentRegistry.test.ts`
+
+Expected: FAIL because the registry module does not exist.
+
+- [ ] **Step 3: Implement the registry**
+
+```ts
+// lib/motion/componentRegistry.ts
+import type { MotionAspectRatio } from './project';
+
+export type MotionRenderEngine = 'remotion' | 'hyperframes';
+
+export interface MotionEditControl {
+  id: string;
+  label: string;
+  kind: 'text' | 'asset' | 'number' | 'select' | 'color';
+}
+
+export interface MotionComponentDefinition {
+  id: 'hook-card' | 'app-frame' | 'agent-trace' | 'proof-card' | 'cta-card';
+  label: string;
+  description: string;
+  engines: MotionRenderEngine[];
+  aspectRatios: MotionAspectRatio[];
+  requiredProps: string[];
+  editControls: MotionEditControl[];
+}
+
+const ALL_ASPECTS: MotionAspectRatio[] = ['16:9', '9:16', '1:1', '4:5'];
+
+const COMPONENTS: MotionComponentDefinition[] = [
+  {
+    id: 'hook-card',
+    label: 'Hook card',
+    description: 'Opening beat with product name, promise, and optional progress.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['headline', 'subhead'],
+    editControls: [
+      { id: 'headline', label: 'Headline', kind: 'text' },
+      { id: 'subhead', label: 'Subhead', kind: 'text' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+    ],
+  },
+  {
+    id: 'app-frame',
+    label: 'App frame',
+    description: 'Captured product flow in a browser, device, desktop, or canvas frame.',
+    engines: ['remotion'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['assetId', 'caption'],
+    editControls: [
+      { id: 'assetId', label: 'Capture', kind: 'asset' },
+      { id: 'caption', label: 'Caption', kind: 'text' },
+      { id: 'zoom', label: 'Zoom', kind: 'number' },
+    ],
+  },
+  {
+    id: 'agent-trace',
+    label: 'Agent trace',
+    description: 'Prompt, action stack, diff, command, and preview proof for AI-native demos.',
+    engines: ['remotion'],
+    aspectRatios: ['16:9', '9:16'],
+    requiredProps: ['prompt', 'steps'],
+    editControls: [
+      { id: 'prompt', label: 'Prompt', kind: 'text' },
+      { id: 'steps', label: 'Steps', kind: 'text' },
+      { id: 'proofLabel', label: 'Proof label', kind: 'text' },
+    ],
+  },
+  {
+    id: 'proof-card',
+    label: 'Proof card',
+    description: 'Grounded claim, source receipt, metric, or stack proof.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['claim', 'sourceLabel'],
+    editControls: [
+      { id: 'claim', label: 'Claim', kind: 'text' },
+      { id: 'sourceLabel', label: 'Source', kind: 'text' },
+      { id: 'emphasis', label: 'Emphasis', kind: 'select' },
+    ],
+  },
+  {
+    id: 'cta-card',
+    label: 'CTA card',
+    description: 'Closing beat for launch link, repo link, waitlist, or export pack.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['headline', 'action'],
+    editControls: [
+      { id: 'headline', label: 'Headline', kind: 'text' },
+      { id: 'action', label: 'Action', kind: 'text' },
+      { id: 'url', label: 'URL', kind: 'text' },
+    ],
+  },
+];
+
+export function listMotionComponents(): MotionComponentDefinition[] {
+  return COMPONENTS;
+}
+
+export function motionComponentIds(): MotionComponentDefinition['id'][] {
+  return COMPONENTS.map((component) => component.id);
+}
+
+export function getMotionComponent(id: string): MotionComponentDefinition | null {
+  return COMPONENTS.find((component) => component.id === id) ?? null;
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npx vitest run lib/motion/componentRegistry.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/componentRegistry.ts lib/motion/componentRegistry.test.ts
+git commit -m "feat: add motion component registry"
+```
+
+## Task 4: Story Beats to Editable Timeline
+
+**Files:**
+- Create: `lib/motion/timeline.ts`
+- Create: `lib/motion/timeline.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// lib/motion/timeline.test.ts
+import { describe, expect, it } from 'vitest';
+import { buildRepoLaunchMotionProject } from './storyboard';
+import { compileStoryToTimeline } from './timeline';
+
+function project() {
+  return buildRepoLaunchMotionProject({
+    id: 'motion-aether-launch',
+    workspaceId: 'demo-ws',
+    projectKind: 'launch',
+    audience: 'builders',
+    tone: 'precise',
+    appProfile: {
+      name: 'aether',
+      summary: 'Canvas-native creative system.',
+      stack: ['Next.js', 'Convex', 'tldraw'],
+    },
+    claims: [
+      {
+        text: 'Uses Next.js, Convex, and tldraw.',
+        source: { kind: 'repo', ref: 'package.json#dependencies' },
+      },
+    ],
+    platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+    createdAt: 10,
+  });
+}
+
+describe('compileStoryToTimeline', () => {
+  it('creates ordered non-overlapping text, caption, voice, and transition tracks', () => {
+    const timeline = compileStoryToTimeline(project());
+    const text = timeline.find((track) => track.kind === 'text');
+    const caption = timeline.find((track) => track.kind === 'caption');
+    const voice = timeline.find((track) => track.kind === 'voice');
+    const transition = timeline.find((track) => track.kind === 'transition');
+
+    expect(text?.clips).toHaveLength(6);
+    expect(caption?.clips).toHaveLength(6);
+    expect(voice?.clips).toHaveLength(6);
+    expect(transition?.clips.length).toBe(5);
+    expect(text?.clips[0].startFrame).toBe(0);
+    expect(text?.clips[1].startFrame).toBe(text!.clips[0].durationFrames);
+  });
+
+  it('keeps timeline clips globally linked by default', () => {
+    const timeline = compileStoryToTimeline(project());
+    const clips = timeline.flatMap((track) => track.clips);
+    expect(clips.every((clip) => clip.linkedVariantScope === 'global')).toBe(true);
+    expect(clips.every((clip) => clip.provenance.length > 0)).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/motion/timeline.test.ts`
+
+Expected: FAIL because `compileStoryToTimeline` is not defined.
+
+- [ ] **Step 3: Implement timeline compilation**
+
+```ts
+// lib/motion/timeline.ts
+import { motionFrames, type MotionProject, type TimelineClip, type TimelineTrack } from './project';
+
+export function compileStoryToTimeline(project: MotionProject): TimelineTrack[] {
+  let cursor = 0;
+  const textClips: TimelineClip[] = [];
+  const captionClips: TimelineClip[] = [];
+  const voiceClips: TimelineClip[] = [];
+  const transitionClips: TimelineClip[] = [];
+
+  project.story.forEach((beat, index) => {
+    const durationFrames = motionFrames(beat.targetSeconds);
+    textClips.push({
+      id: `clip-${beat.id}-text`,
+      componentId: beat.templateId,
+      startFrame: cursor,
+      durationFrames,
+      props: { narration: beat.narration, role: beat.role },
+      linkedVariantScope: 'global',
+      provenance: [{ kind: 'story-beat', ref: beat.id }, ...beat.provenance],
+    });
+    captionClips.push({
+      id: `clip-${beat.id}-caption`,
+      componentId: 'caption-line',
+      startFrame: cursor,
+      durationFrames,
+      props: { text: beat.narration },
+      linkedVariantScope: 'global',
+      provenance: [{ kind: 'story-beat', ref: beat.id }, ...beat.provenance],
+    });
+    voiceClips.push({
+      id: `clip-${beat.id}-voice`,
+      componentId: 'voice-line',
+      startFrame: cursor,
+      durationFrames,
+      props: { text: beat.narration, status: 'planned' },
+      linkedVariantScope: 'global',
+      provenance: [{ kind: 'story-beat', ref: beat.id }, ...beat.provenance],
+    });
+    if (index > 0) {
+      transitionClips.push({
+        id: `clip-transition-${project.story[index - 1].id}-to-${beat.id}`,
+        componentId: 'soft-wipe',
+        startFrame: Math.max(0, cursor - motionFrames(0.35)),
+        durationFrames: motionFrames(0.35),
+        props: { fromBeatId: project.story[index - 1].id, toBeatId: beat.id },
+        linkedVariantScope: 'global',
+        provenance: [{ kind: 'story-beat', ref: beat.id }],
+      });
+    }
+    cursor += durationFrames;
+  });
+
+  return [
+    { id: 'track-text', kind: 'text', clips: textClips },
+    { id: 'track-caption', kind: 'caption', clips: captionClips },
+    { id: 'track-voice', kind: 'voice', clips: voiceClips },
+    { id: 'track-transition', kind: 'transition', clips: transitionClips },
+  ];
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npx vitest run lib/motion/timeline.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/timeline.ts lib/motion/timeline.test.ts
+git commit -m "feat: compile motion story timeline"
+```
+
+## Task 5: Video Provider Contract Split
+
+**Files:**
+- Create: `lib/providers/video/render-types.ts`
+- Create: `lib/providers/video/generation-types.ts`
+- Modify: `lib/providers/video/types.ts`
+- Create: `lib/providers/video/render-registry.ts`
+- Create: `lib/providers/video/render-registry.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// lib/providers/video/render-registry.test.ts
+import { describe, expect, it } from 'vitest';
+import { VideoRenderProviderUnavailableError, resolveVideoRenderProvider } from './render-registry';
+
+describe('resolveVideoRenderProvider', () => {
+  it('throws a typed unavailable error when no render provider is configured', () => {
+    expect(() => resolveVideoRenderProvider()).toThrow(VideoRenderProviderUnavailableError);
+  });
+
+  it('throws a typed unavailable error for an unknown preferred provider', () => {
+    expect(() => resolveVideoRenderProvider('missing-provider')).toThrow(
+      /missing-provider/
+    );
+  });
+});
+```
+
+- [ ] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/providers/video/render-registry.test.ts`
+
+Expected: FAIL because render provider files do not exist.
+
+- [ ] **Step 3: Add render and generation contracts**
+
+```ts
+// lib/providers/video/render-types.ts
+import type { MotionAspectRatio, MotionPlatform, TimelineTrack } from '@/lib/motion/project';
+
+export interface VideoRenderRequest {
+  projectId: string;
+  compositionId: string;
+  tracks: TimelineTrack[];
+  fps: number;
+  width: number;
+  height: number;
+  platform: MotionPlatform;
+  aspectRatio: MotionAspectRatio;
+  inputProps?: Record<string, unknown>;
+}
+
+export interface VideoRenderResult {
+  assetUrl: string;
+  posterUrl: string;
+  manifestUrl: string;
+  subtitleUrl?: string;
+  durationFrames: number;
+  providerId: string;
+  provenance: Array<{ kind: 'provider' | 'render'; ref: string }>;
+}
+
+export interface VideoRenderProvider {
+  id: 'remotion' | 'hyperframes';
+  displayName: string;
+  available(): boolean;
+  render(req: VideoRenderRequest): Promise<VideoRenderResult>;
+}
+```
+
+```ts
+// lib/providers/video/generation-types.ts
+import type { MotionProvenanceRef } from '@/lib/motion/project';
+
+export interface VideoGenerationRequest {
+  prompt: string;
+  sourceAssetId?: string;
+  durationSeconds: number;
+  aspectRatio: string;
+  providerId?: string;
+  model?: string;
+  seed?: number;
+}
+
+export interface VideoGenerationResult {
+  assetUrl: string;
+  posterUrl?: string;
+  durationSeconds: number;
+  width: number;
+  height: number;
+  providerId: string;
+  modelId?: string;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface VideoGenerationProvider {
+  id: string;
+  displayName: string;
+  available(): boolean;
+  generate(req: VideoGenerationRequest): Promise<VideoGenerationResult>;
+}
+```
+
+```ts
+// lib/providers/video/render-registry.ts
+import type { VideoRenderProvider } from './render-types';
+
+const REGISTRY: Record<string, () => VideoRenderProvider> = {};
+
+export class VideoRenderProviderUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Video render provider unavailable: ${reason}`);
+    this.name = 'VideoRenderProviderUnavailableError';
+  }
+}
+
+export function resolveVideoRenderProvider(preferredId?: string): VideoRenderProvider {
+  if (preferredId) {
+    const factory = REGISTRY[preferredId];
+    if (!factory) {
+      throw new VideoRenderProviderUnavailableError(`unknown provider ${preferredId}`);
+    }
+    const provider = factory();
+    if (provider.available()) return provider;
+    throw new VideoRenderProviderUnavailableError(`${preferredId} is not configured`);
+  }
+
+  for (const factory of Object.values(REGISTRY)) {
+    const provider = factory();
+    if (provider.available()) return provider;
+  }
+
+  throw new VideoRenderProviderUnavailableError('no render provider has been configured');
+}
+```
+
+```ts
+// lib/providers/video/types.ts
+export type VideoUnderstandingTask =
+  | 'summarize'
+  | 'transcribe'
+  | 'extract-moments'
+  | 'describe-shots'
+  | 'free-form';
+
+export interface VideoUnderstandingRequest {
+  videoUrl: string;
+  prompt?: string;
+  task?: VideoUnderstandingTask;
+}
+
+export interface VideoUnderstandingResult {
+  text: string;
+  modelId: string;
+  usageMs: number;
+}
+
+export interface VideoUnderstandingProvider {
+  id: string;
+  displayName: string;
+  available(): boolean;
+  understand(req: VideoUnderstandingRequest): Promise<VideoUnderstandingResult>;
+}
+
+export class VideoProviderUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Video provider unavailable: ${reason}`);
+    this.name = 'VideoProviderUnavailableError';
+  }
+}
+
+export type {
+  VideoRenderProvider,
+  VideoRenderRequest,
+  VideoRenderResult,
+} from './render-types';
+export type {
+  VideoGenerationProvider,
+  VideoGenerationRequest,
+  VideoGenerationResult,
+} from './generation-types';
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npx vitest run lib/providers/video/render-registry.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/providers/video/render-types.ts lib/providers/video/generation-types.ts lib/providers/video/types.ts lib/providers/video/render-registry.ts lib/providers/video/render-registry.test.ts
+git commit -m "feat: split video provider contracts"
+```
+
+## Task 6: Timeline Lens Scaffold
+
+**Files:**
+- Create: `components/workspace/TimelineLens.tsx`
+- Create: `tests/component/timeline-lens.test.tsx`
+- Modify: `components/header/ViewSwitcher.tsx`
+- Modify: `tests/component/view-switcher.test.tsx`
+- Modify: `components/workspace/WorkspaceShell.tsx`
+
+- [ ] **Step 1: Write the component test**
+
+```tsx
+// tests/component/timeline-lens.test.tsx
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { TimelineLens } from '@/components/workspace/TimelineLens';
+import type { TimelineTrack } from '@/lib/motion/project';
+
+afterEach(cleanup);
+
+const tracks: TimelineTrack[] = [
+  {
+    id: 'track-text',
+    kind: 'text',
+    clips: [
+      {
+        id: 'clip-hook',
+        componentId: 'hook-card',
+        startFrame: 0,
+        durationFrames: 90,
+        props: { narration: 'Launch with receipts.' },
+        linkedVariantScope: 'global',
+        provenance: [{ kind: 'story-beat', ref: 'beat-hook' }],
+      },
+    ],
+  },
+];
+
+describe('TimelineLens', () => {
+  it('renders creator-facing tracks and clips without raw provenance refs', () => {
+    render(<TimelineLens tracks={tracks} selectedClipId={null} onSelectClip={() => {}} />);
+    expect(screen.getByRole('region', { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByText('text')).toBeInTheDocument();
+    expect(screen.getByText('Launch with receipts.')).toBeInTheDocument();
+    expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
+  });
+
+  it('selects a clip from the timeline', async () => {
+    const onSelectClip = vi.fn<(clipId: string) => void>();
+    render(<TimelineLens tracks={tracks} selectedClipId={null} onSelectClip={onSelectClip} />);
+    await userEvent.click(screen.getByRole('button', { name: /Launch with receipts/i }));
+    expect(onSelectClip).toHaveBeenCalledWith('clip-hook');
+  });
+});
+```
+
+- [ ] **Step 2: Run failing tests**
+
+Run: `npx vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx`
+
+Expected: FAIL because `TimelineLens` does not exist and the view switcher still disables timeline.
+
+- [ ] **Step 3: Add the scaffold**
+
+```tsx
+// components/workspace/TimelineLens.tsx
+'use client';
+
+import { cn } from '@/lib/utils/cn';
+import type { TimelineTrack } from '@/lib/motion/project';
+
+export interface TimelineLensProps {
+  tracks: TimelineTrack[];
+  selectedClipId: string | null;
+  onSelectClip: (clipId: string) => void;
+}
+
+function clipLabel(props: Record<string, unknown>): string {
+  const narration = props.narration ?? props.text ?? props.claim ?? props.headline;
+  return typeof narration === 'string' && narration.trim() ? narration : 'Untitled clip';
+}
+
+export function TimelineLens({ tracks, selectedClipId, onSelectClip }: TimelineLensProps) {
+  return (
+    <section
+      aria-label="timeline"
+      data-taxonomy="tool"
+      className="flex h-full min-h-0 flex-col gap-3 border-t border-border-soft bg-surface-panel/80 p-3"
+    >
+      <div className="grid min-h-0 flex-1 gap-2">
+        {tracks.map((track) => (
+          <div key={track.id} className="grid grid-cols-[84px_1fr] items-center gap-2">
+            <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+              {track.kind}
+            </div>
+            <div className="flex min-w-0 gap-1 overflow-x-auto">
+              {track.clips.map((clip) => {
+                const selected = clip.id === selectedClipId;
+                return (
+                  <button
+                    key={clip.id}
+                    type="button"
+                    onClick={() => onSelectClip(clip.id)}
+                    className={cn(
+                      'min-w-32 max-w-56 truncate rounded-md border px-2 py-1 text-left text-xs',
+                      selected
+                        ? 'border-ink bg-surface-panel text-ink'
+                        : 'border-border-soft bg-surface-panel-muted text-ink-muted'
+                    )}
+                  >
+                    {clipLabel(clip.props)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+- [ ] **Step 4: Enable the timeline pill**
+
+Modify `components/header/ViewSwitcher.tsx` so the timeline view is live:
+
+```ts
+const VIEWS: ReadonlyArray<ViewDef> = [
+  { id: 'canvas', label: 'canvas', live: true },
+  { id: 'focus', label: 'focus', live: true },
+  { id: 'timeline', label: 'timeline', live: true },
+  { id: 'graph', label: 'graph', live: false },
+  { id: 'mood', label: 'mood', live: false },
+  { id: 'chat', label: 'chat', live: false },
+];
+```
+
+Update `tests/component/view-switcher.test.tsx` so only `graph`, `mood`, and
+`chat` remain disabled, and clicking `timeline` calls `onChangeView('timeline')`.
+
+- [ ] **Step 5: Wire the lens in `WorkspaceShell`**
+
+Add an import:
+
+```ts
+import { TimelineLens } from '@/components/workspace/TimelineLens';
+```
+
+Create temporary empty motion timeline state near the existing `view` state:
+
+```ts
+const [selectedMotionClipId, setSelectedMotionClipId] = useState<string | null>(null);
+const motionTracks = useMemo(() => [], []);
+```
+
+Render the scaffold in the existing shell layout wherever the focus/canvas view branch is handled:
+
+```tsx
+{view === 'timeline' ? (
+  <TimelineLens
+    tracks={motionTracks}
+    selectedClipId={selectedMotionClipId}
+    onSelectClip={setSelectedMotionClipId}
+  />
+) : null}
+```
+
+- [ ] **Step 6: Run tests**
+
+Run: `npx vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx`
+
+Expected: PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add components/workspace/TimelineLens.tsx components/header/ViewSwitcher.tsx components/workspace/WorkspaceShell.tsx tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx
+git commit -m "feat: scaffold motion timeline lens"
+```
+
+## Task 7: Agent Tool and Workflow Registry
+
+**Files:**
+- Modify: `lib/tool/registry.ts`
+- Modify: `lib/capability/types.ts`
+- Modify: `lib/workflow/registry.ts`
+- Modify: `tests/unit/tool-registry.test.ts`
+
+- [ ] **Step 1: Write or extend registry tests**
+
+Add these assertions to `tests/unit/tool-registry.test.ts`:
+
+```ts
+import { getToolRegistryEntry } from '@/lib/tool/registry';
+import { getWorkflowRegistryEntry } from '@/lib/workflow/registry';
+
+it('registers draft motion tools for the agent-native video workflow', () => {
+  expect(getToolRegistryEntry('motion-brief')?.artifactKind).toBe('video');
+  expect(getToolRegistryEntry('motion-storyboard')?.artifactKind).toBe('video');
+  expect(getToolRegistryEntry('motion-sync')?.artifactKind).toBe('video');
+  expect(getToolRegistryEntry('motion-render')?.artifactKind).toBe('video');
+  expect(getToolRegistryEntry('voiceover-gen')?.artifactKind).toBe('audio');
+});
+
+it('registers the draft repo launch video workflow', () => {
+  expect(getWorkflowRegistryEntry('repo-launch-video')?.toolIds).toEqual([
+    'motion-brief',
+    'motion-storyboard',
+    'motion-sync',
+    'voiceover-gen',
+    'motion-render',
+  ]);
+});
+```
+
+- [ ] **Step 2: Run failing tests**
+
+Run: `npx vitest run tests/unit/tool-registry.test.ts`
+
+Expected: FAIL because motion tool ids and workflow are not registered.
+
+- [ ] **Step 3: Add tool ids**
+
+In `lib/tool/registry.ts`, add these draft entries to `TOOL_REGISTRY`:
+
+```ts
+  'motion-brief': {
+    kind: 'tool',
+    id: 'motion-brief',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Motion brief',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'motion-storyboard': {
+    kind: 'tool',
+    id: 'motion-storyboard',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Motion storyboard',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'motion-sync': {
+    kind: 'tool',
+    id: 'motion-sync',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Motion sync',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'motion-render': {
+    kind: 'tool',
+    id: 'motion-render',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Motion render',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'voiceover-gen': {
+    kind: 'tool',
+    id: 'voiceover-gen',
+    version: 1,
+    artifactKind: 'audio',
+    label: 'Voiceover generation',
+    outputKind: 'audio',
+    status: 'draft',
+  },
+```
+
+In `lib/capability/types.ts`, extend `CapabilityTool`:
+
+```ts
+export type CapabilityTool =
+  | 'image-gen'
+  | 'image-edit'
+  | 'bg-fill'
+  | 'cutout'
+  | 'relight'
+  | 'spatial-gen'
+  | 'text-apply'
+  | 'motion-brief'
+  | 'motion-storyboard'
+  | 'motion-sync'
+  | 'motion-render'
+  | 'voiceover-gen';
+```
+
+- [ ] **Step 4: Add workflow registry entry**
+
+In `lib/workflow/registry.ts`, add:
+
+```ts
+  'repo-launch-video': {
+    kind: 'workflow',
+    id: 'repo-launch-video',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Repo launch video',
+    toolIds: ['motion-brief', 'motion-storyboard', 'motion-sync', 'voiceover-gen', 'motion-render'],
+    status: 'draft',
+  },
+```
+
+- [ ] **Step 5: Run tests**
+
+Run: `npx vitest run tests/unit/tool-registry.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/tool/registry.ts lib/capability/types.ts lib/workflow/registry.ts tests/unit/tool-registry.test.ts
+git commit -m "feat: register motion video workflow tools"
+```
+
+## Task 8: Proof Notes and First Slice Gate
+
+**Files:**
+- Create: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [ ] **Step 1: Add implementation notes**
+
+~~~md
+# Repo Video Motion First Slice Notes
+
+- Plan: `docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md`
+- Spec: `docs/specs/2026-06-23-repo-video-system/README.md`
+
+## Implemented slice
+
+- Motion project primitives
+- Repo facts to story beats
+- Motion component registry
+- Story to timeline compiler
+- Split video render/generation provider contracts
+- Timeline lens scaffold
+- Draft agent tool and workflow registry entries
+
+## Verification commands
+
+```bash
+npx vitest run lib/motion/project.test.ts lib/motion/storyboard.test.ts lib/motion/componentRegistry.test.ts lib/motion/timeline.test.ts
+npx vitest run lib/providers/video/render-registry.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/unit/tool-registry.test.ts
+npm run typecheck
+```
+
+## Human validation gate
+
+Before adding real render providers, review the timeline lens in the app and
+confirm it feels like an editing surface inside the canvas shell, not a run
+history panel.
+
+## Corpus follow-up
+
+Run the authenticated X and YouTube corpus pass from the planning spec before
+locking the visual component library. The direct text-fetch path could not
+inspect `x.com` pages during planning.
+~~~
+
+- [ ] **Step 2: Run all first-slice tests**
+
+Run:
+
+```bash
+npx vitest run lib/motion/project.test.ts lib/motion/storyboard.test.ts lib/motion/componentRegistry.test.ts lib/motion/timeline.test.ts
+npx vitest run lib/providers/video/render-registry.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/unit/tool-registry.test.ts
+npm run typecheck
+```
+
+Expected: all commands pass.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "docs: record repo video first slice proof"
+```
+
+## Self-Review Checklist
+
+- Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, real Remotion rendering, image-to-video nodes, and multiformat export packs remain separate later slices.
+- Empty-detail scan: The plan avoids vague fill-ins. File names, functions, test names, commands, and expected outcomes are explicit.
+- Type consistency: `MotionProject`, `MotionBriefV2`, `StoryBeat`, `TimelineTrack`, `TimelineClip`, `VideoRenderProvider`, and registry ids are consistently named across tasks.
+- aether contract: The timeline lens stays inside the synthesis shell, uses tool taxonomy, avoids raw provenance ids in primary UI, keeps provider selection abstract, and preserves the bottom composer pattern.
+
+## Execution Options
+
+Plan complete and saved to `docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md`.
+
+1. Subagent-Driven (recommended): dispatch a fresh subagent per task, review between tasks, fast iteration.
+2. Inline Execution: execute tasks in this session using executing-plans, batch execution with checkpoints.
