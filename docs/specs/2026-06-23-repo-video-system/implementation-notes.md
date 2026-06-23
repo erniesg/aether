@@ -60,6 +60,9 @@
 - Local command render runners that invoke Remotion or HyperFrames command
   plans through an injected executor, write VTT/transcript/manifest sidecars,
   verify planned MP4/poster files, and return file-backed receipts.
+- Image-to-video clip planning that turns asset-backed visual timeline clips
+  into provider-neutral generation requests with planned graph provenance, plus
+  an opt-in image-to-video provider registry with no default model.
 - Voiceover handoff planning that converts voice-line timeline clips into
   narration requests with expected audio, word-timing, and transcript receipts.
 - Opt-in motion voice provider registry for TTS and alignment adapters without
@@ -72,9 +75,9 @@
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/renderPlan.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
-./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts lib/providers/video/command-render.test.ts
+./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts lib/providers/video/command-render.test.ts lib/providers/video/generation-registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/voice/registry.test.ts
 ./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx
 npm run typecheck

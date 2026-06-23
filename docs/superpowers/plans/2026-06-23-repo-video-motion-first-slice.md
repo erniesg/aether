@@ -2733,6 +2733,64 @@ git add lib/providers/video/command-render.ts lib/providers/video/command-render
 git commit -m "feat: add motion command render runners"
 ```
 
+## Task 24: Image-to-Video Clip Planning and Registry
+
+**Files:**
+- Create: `lib/motion/imageToVideoPlan.ts`
+- Create: `lib/motion/imageToVideoPlan.test.ts`
+- Create: `lib/providers/video/generation-registry.ts`
+- Create: `lib/providers/video/generation-registry.test.ts`
+- Modify: `lib/providers/video/types.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing image-to-video plan and registry tests**
+
+The tests cover:
+
+- capture-backed visual clips becoming provider-neutral image-to-video requests;
+- request prompts preserving product context and crisp UI constraints;
+- missing source visuals returning reviewable blockers instead of invented clips;
+- missing timelines returning a timeline blocker;
+- opt-in image-to-video provider registry behavior with no default model.
+
+- [x] **Step 2: Run the failing tests**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/imageToVideoPlan.test.ts lib/providers/video/generation-registry.test.ts
+```
+
+Expected: FAIL because `imageToVideoPlan.ts` and `generation-registry.ts` do
+not exist.
+
+- [x] **Step 3: Implement image-to-video plan and registry**
+
+`lib/motion/imageToVideoPlan.ts` now creates per-clip image-to-video requests
+only for visual timeline clips with source assets, produces a planned
+`image-to-video` graph node, and exposes reviewable blockers when timeline or
+visual sources are missing. `lib/providers/video/types.ts` and
+`generation-registry.ts` define the provider contract and opt-in registry.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/imageToVideoPlan.test.ts lib/providers/video/generation-registry.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/imageToVideoPlan.ts lib/motion/imageToVideoPlan.test.ts lib/providers/video/generation-registry.ts lib/providers/video/generation-registry.test.ts lib/providers/video/types.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: plan motion image to video clips"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, real Remotion rendering, image-to-video nodes, and multiformat export packs remain separate later slices.

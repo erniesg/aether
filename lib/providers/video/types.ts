@@ -92,3 +92,51 @@ export interface MotionRenderProvider {
 }
 
 export type MotionRenderProviderFactory = () => MotionRenderProvider;
+
+export interface MotionImageToVideoOutput {
+  id: string;
+  clipId: string;
+  sourceAssetId: string;
+  width: number;
+  height: number;
+  mimeType: string;
+  path: string;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionImageToVideoRequest {
+  id: string;
+  projectId: string;
+  draftId: string;
+  clipId: string;
+  sourceAssetId: string;
+  prompt: string;
+  aspectRatio: MotionAspectRatio;
+  fps: number;
+  durationFrames: number;
+  width: number;
+  height: number;
+  output: MotionImageToVideoOutput;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionGeneratedVideoClip extends MotionImageToVideoOutput {
+  requestId: string;
+  assetUrl: string;
+  durationMs?: number;
+}
+
+export interface MotionImageToVideoResult {
+  providerId: string;
+  artifacts: MotionGeneratedVideoClip[];
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionImageToVideoProvider {
+  id: string;
+  displayName: string;
+  available(): boolean;
+  generate(req: MotionImageToVideoRequest): Promise<MotionImageToVideoResult>;
+}
+
+export type MotionImageToVideoProviderFactory = () => MotionImageToVideoProvider;
