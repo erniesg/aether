@@ -9,6 +9,7 @@ import {
   Search,
   TrendingUp,
   UserRound,
+  Video,
   type LucideIcon,
 } from 'lucide-react';
 import { RailProvider, useRail } from './RailContext';
@@ -28,6 +29,7 @@ import {
   PresenceSection,
   presenceSectionSummary,
 } from './sections/PresenceSection';
+import { MotionSection, motionSectionSummary } from './sections/MotionSection';
 import {
   ReferencesImagesTab,
   ReferencesManualTab,
@@ -36,6 +38,7 @@ import { useSignals } from '@/lib/signals/store';
 import { useReferences, referenceSummary } from '@/lib/references/store';
 import { useCreatorContext } from '@/lib/context/creator-store';
 import { usePresenceWorkspace } from '@/lib/presence/store';
+import { useMotionStartResult } from '@/lib/motion/start-store';
 import { cn } from '@/lib/utils/cn';
 
 type SectionSpec = {
@@ -111,6 +114,7 @@ function LeftRailInner({
   const references = useReferences(workspaceId);
   const context = useCreatorContext(workspaceId);
   const presence = usePresenceWorkspace(workspaceId);
+  const motionStart = useMotionStartResult(workspaceId);
   const signalsSummary = signalsSectionSummary(signals);
 
   const sections: ReadonlyArray<SectionSpec> = [
@@ -137,6 +141,14 @@ function LeftRailInner({
       summary: campaignSectionSummary(context.campaign),
       hasContent: true,
       body: <CampaignSection workspaceId={workspaceId} />,
+    },
+    {
+      id: 'video',
+      label: 'video',
+      icon: Video,
+      summary: motionSectionSummary(motionStart),
+      hasContent: Boolean(motionStart),
+      body: <MotionSection workspaceId={workspaceId} />,
     },
     {
       id: 'presence',

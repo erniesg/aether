@@ -6,6 +6,7 @@ import { resetSignalsForTests } from '@/lib/signals/store';
 import { resetBrandContextForTests, seedBrandContextForTests } from '@/lib/context/brand-store';
 import { DEMO_CREATOR_CONTEXT } from '@/lib/context/model';
 import { resetPresenceForTests } from '@/lib/presence/store';
+import { resetMotionStartResultsForTests } from '@/lib/motion/start-store';
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -13,6 +14,7 @@ beforeEach(() => {
   resetSignalsForTests();
   resetBrandContextForTests();
   resetPresenceForTests();
+  resetMotionStartResultsForTests();
 });
 
 describe('LeftRail · stable context first, research feeds references', () => {
@@ -27,6 +29,7 @@ describe('LeftRail · stable context first, research feeds references', () => {
       'brand',
       'offer',
       'campaign',
+      'video',
       'presence',
       'signals',
       'research',
@@ -157,6 +160,21 @@ describe('LeftRail · stable context first, research feeds references', () => {
     expect(text).toContain('channels');
     expect(text).toContain('cta');
     expect(text).toContain('active input set');
+  });
+
+  it('video section exposes a repo/PR/site start control', async () => {
+    const { container } = render(<LeftRail />);
+
+    const videoTrigger = container.querySelector<HTMLButtonElement>(
+      '[data-rail-section="video"]'
+    );
+    expect(videoTrigger).not.toBeNull();
+    await userEvent.click(videoTrigger!);
+
+    expect(screen.getByLabelText(/motion source/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/motion intent/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /motion mode/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /start video/i })).toBeInTheDocument();
   });
 
   it('references section exposes images · templates · elements tabs', async () => {

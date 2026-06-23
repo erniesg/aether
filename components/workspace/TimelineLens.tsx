@@ -575,6 +575,7 @@ function TimelineClipButton({
 }
 
 function clipBody(clip: TimelineClip): string {
+  if (typeof clip.props.headline === 'string') return clip.props.headline;
   if (typeof clip.props.narration === 'string') return clip.props.narration;
   if (typeof clip.props.text === 'string' && clip.componentId !== 'voice-line') {
     return clip.props.text;

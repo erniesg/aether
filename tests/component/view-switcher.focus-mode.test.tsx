@@ -4,10 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@/app/design-system/ThemeProvider';
 import { WorkspaceShell } from '@/components/workspace/WorkspaceShell';
 import { resetRunsForTests } from '@/lib/store/runs';
+import type { AgentMotionStartResult } from '@/lib/motion/start';
+import {
+  resetMotionStartResultsForTests,
+  setMotionStartResult,
+} from '@/lib/motion/start-store';
 
 afterEach(() => {
   cleanup();
   resetRunsForTests();
+  resetMotionStartResultsForTests();
 });
 
 function renderShell() {
@@ -16,6 +22,62 @@ function renderShell() {
       <WorkspaceShell wsId="demo-ws" />
     </ThemeProvider>
   );
+}
+
+function storedMotionStart(): AgentMotionStartResult {
+  return {
+    status: 'ready',
+    workflow: {
+      workflowId: 'repo-launch-video',
+      reason: 'repo source selected a launch workflow',
+      plan: {
+        workflowId: 'repo-launch-video',
+        label: 'Repo launch video',
+        artifactKind: 'video',
+        mode: 'review',
+        primaryAction: 'request-review',
+        sourceStatus: 'ready',
+        acceptedSources: [],
+        unsupportedSources: [],
+        missingSourceKinds: [],
+        engines: ['remotion', 'hyperframes', 'provider'],
+        toolIds: [],
+        skillContract: null,
+        gates: [],
+        nextActions: [],
+        createdAt: 1,
+      },
+    },
+    project: {
+      brief: {
+        appProfile: {
+          name: 'aether',
+        },
+      },
+      tracks: [
+        {
+          id: 'track-text',
+          kind: 'text',
+          clips: [
+            {
+              id: 'clip-hook',
+              componentId: 'hook-card',
+              startFrame: 0,
+              durationFrames: 90,
+              props: { headline: 'Aether launch video' },
+              linkedVariantScope: 'global',
+              provenance: [{ kind: 'story-beat', ref: 'beat-hook' }],
+            },
+          ],
+        },
+      ],
+    },
+    reviewPlan: null,
+    previewPlan: null,
+    capturePlan: null,
+    examples: [],
+    requestedInputs: [],
+  } as unknown as AgentMotionStartResult;
 }
 
 /**
@@ -55,6 +117,18 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByText('Feature social cut')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
+  });
+
+  it('timeline lens reads a stored motion start result from the workspace', async () => {
+    setMotionStartResult('demo-ws', storedMotionStart());
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+
+    expect(screen.getByRole('region', { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByText('Hook card')).toBeInTheDocument();
+    expect(screen.getByText('Aether launch video')).toBeInTheDocument();
+    expect(screen.queryByText('clip-hook')).not.toBeInTheDocument();
   });
 
   it('the focus pill reports aria-current after a click, canvas after another click', async () => {

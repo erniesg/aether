@@ -81,6 +81,7 @@ import {
   listMotionWorkflowExamples,
   type MotionWorkflowExample,
 } from '@/lib/motion/workflowExamples';
+import { useMotionStartResult } from '@/lib/motion/start-store';
 import {
   buildExportRequestBody,
   downloadExportPack,
@@ -355,6 +356,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const runs = useRuns();
   const references = useReferences(wsId);
   const creatorContext = useCreatorContext(wsId);
+  const motionStart = useMotionStartResult(wsId);
   const providerPrefs = useWorkspaceProviderPrefs(wsId);
   const saveProviderPrefs = useSaveWorkspaceProviderPrefs();
   const [pinTargetRun, setPinTargetRun] = useState<CapabilityRunRecord | null>(null);
@@ -392,10 +394,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [selectedTimelineClipId, setSelectedTimelineClipId] = useState<string | null>(null);
-  const motionTimelineTracks = useMemo<TimelineTrack[]>(() => [], []);
+  const motionTimelineTracks = useMemo<TimelineTrack[]>(
+    () => motionStart?.project?.tracks ?? [],
+    [motionStart]
+  );
+  const motionPreviewPlan = motionStart?.previewPlan ?? null;
   const motionWorkflowExamples = useMemo<MotionWorkflowExample[]>(
-    () => listMotionWorkflowExamples(),
-    []
+    () => (motionStart?.examples.length ? motionStart.examples : listMotionWorkflowExamples()),
+    [motionStart]
   );
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
@@ -2149,6 +2155,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         {view === 'timeline' ? (
           <TimelineLens
             tracks={motionTimelineTracks}
+            previewPlan={motionPreviewPlan}
             selectedClipId={selectedTimelineClipId}
             onSelectClip={setSelectedTimelineClipId}
             workflowExamples={motionWorkflowExamples}
