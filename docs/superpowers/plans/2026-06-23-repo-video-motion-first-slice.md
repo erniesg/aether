@@ -339,7 +339,7 @@ Run: `npx vitest run lib/motion/project.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/project.ts lib/motion/project.test.ts
@@ -1967,6 +1967,69 @@ Expected: all commands pass.
 ```bash
 git add docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "docs: record repo video first slice proof"
+```
+
+## Task 9: Agent Motion Workflow Planner
+
+**Files:**
+- Create: `lib/motion/workflowPlan.ts`
+- Create: `lib/motion/workflowPlan.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing planner tests**
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { buildAgentMotionWorkflowPlan } from './workflowPlan';
+
+it('turns repo launch workflow metadata into a reviewable agent plan', () => {
+  const plan = buildAgentMotionWorkflowPlan({
+    workflowId: 'repo-launch-video',
+    mode: 'review',
+    sourceRefs: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+    createdAt: 100,
+  });
+
+  expect(plan.primaryAction).toBe('request-review');
+  expect(plan.gates.map((gate) => gate.id)).toEqual([
+    'plan',
+    'drafts',
+    'capture',
+    'voice',
+    'timeline',
+    'render',
+    'export',
+  ]);
+});
+```
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/workflowPlan.test.ts`
+
+Expected: FAIL because `lib/motion/workflowPlan.ts` does not exist.
+
+- [x] **Step 3: Implement the planner**
+
+`lib/motion/workflowPlan.ts` now maps registered workflow metadata to:
+
+- accepted, missing, or unsupported source status;
+- supported Remotion/HyperFrames/provider engine hints;
+- review or full-auto primary action;
+- ordered gates with tool ids and expected artifacts;
+- next actions for review mode and saved full-auto mode.
+
+- [x] **Step 4: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/workflowPlan.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/workflowPlan.ts lib/motion/workflowPlan.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: plan agent motion workflow gates"
 ```
 
 ## Self-Review Checklist

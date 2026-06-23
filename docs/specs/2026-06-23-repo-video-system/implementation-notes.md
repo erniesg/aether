@@ -20,12 +20,14 @@
 - Draft motion tool registry and reusable workflow entries for repo launch,
   feature/social, website/app capture, PR explainers, caption overlays, motion
   graphics, and Remotion/HyperFrames portability.
+- Agent motion workflow planner that turns a workflow id, mode, and source refs
+  into gated tool/artifact plans for review mode or saved full-auto execution.
 
 ## Verification Commands
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts
 ./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx
 npm run typecheck
 git diff --check
