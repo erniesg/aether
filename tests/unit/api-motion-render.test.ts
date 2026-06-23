@@ -105,6 +105,7 @@ describe('POST /api/motion/render', () => {
       'SCRIPT.md',
       'STORYBOARD.md',
       'timeline/draft-primary.json',
+      'EDIT.md',
       'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
     ]);
   });
@@ -165,6 +166,7 @@ describe('POST /api/motion/render', () => {
           { path: 'SCRIPT.md' },
           { path: 'STORYBOARD.md' },
           { path: 'timeline/draft-primary.json' },
+          { path: 'EDIT.md' },
           {
             path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
           },

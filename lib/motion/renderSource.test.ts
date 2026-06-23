@@ -109,6 +109,7 @@ describe('buildMotionRenderSourceBundle', () => {
       ['script', 'SCRIPT.md'],
       ['storyboard', 'STORYBOARD.md'],
       ['timeline', 'timeline/draft-primary.json'],
+      ['edit', 'EDIT.md'],
       ['manifest', 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json'],
     ]);
 
@@ -168,7 +169,27 @@ describe('buildMotionRenderSourceBundle', () => {
       'script',
       'storyboard',
       'timeline',
+      'edit',
     ]);
+    expect(manifest.editContract).toMatchObject({
+      artifactPath: 'EDIT.md',
+      timelinePath: 'timeline/draft-primary.json',
+      scriptPath: 'SCRIPT.md',
+      editableComponentCount: 8,
+      regenerationScopes: expect.arrayContaining(['capture', 'timing', 'caption', 'effect']),
+    });
+    expect(manifest.editContract.editableComponents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clipId: 'clip-beat-demo-text',
+          componentId: 'app-frame',
+          componentLabel: 'App frame',
+          editControlIds: ['assetId', 'caption', 'zoom'],
+          regenerateScopes: ['capture', 'timing', 'caption'],
+          sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
+        }),
+      ])
+    );
     const design = bundle.files.find((file) => file.kind === 'design')?.contents ?? '';
     expect(design).toContain('# aether Motion Design');
     expect(design).toContain('Palette');
@@ -181,6 +202,14 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(storyboard).toContain('# aether Storyboard');
     expect(storyboard).toContain('Template: hook-card');
     expect(storyboard).toContain('Motion: proof-pulse');
+    const edit = bundle.files.find((file) => file.kind === 'edit')?.contents ?? '';
+    expect(edit).toContain('# aether Edit Contract');
+    expect(edit).toContain('## clip-beat-demo-text');
+    expect(edit).toContain('Component: App frame');
+    expect(edit).toContain('Edit controls: assetId, caption, zoom');
+    expect(edit).toContain('Regenerate: capture, timing, caption');
+    expect(edit).toContain('Files: timeline/draft-primary.json, STORYBOARD.md');
+    expect(edit).toContain('Use SCRIPT.md for narration copy changes.');
     const timeline = JSON.parse(
       bundle.files.find((file) => file.kind === 'timeline')?.contents ?? '{}'
     );
@@ -213,6 +242,7 @@ describe('buildMotionRenderSourceBundle', () => {
       ['script', 'SCRIPT.md'],
       ['storyboard', 'STORYBOARD.md'],
       ['timeline', 'timeline/draft-primary.json'],
+      ['edit', 'EDIT.md'],
       ['manifest', 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.source-manifest.json'],
     ]);
 

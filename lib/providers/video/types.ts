@@ -65,6 +65,7 @@ export type MotionRenderSourceFileKind =
   | 'script'
   | 'storyboard'
   | 'timeline'
+  | 'edit'
   | 'manifest';
 
 export interface MotionRenderSourceFile {

@@ -73,6 +73,7 @@ describe('executeMotionRender', () => {
       'SCRIPT.md',
       'STORYBOARD.md',
       'timeline/draft-primary.json',
+      'EDIT.md',
       'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
     ]);
     expect(renderedRequest.sourceFiles?.[0]?.contents).toContain('registerRoot(RemotionRoot)');

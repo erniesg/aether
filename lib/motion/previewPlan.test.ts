@@ -464,6 +464,11 @@ describe('buildMotionPreviewPlan', () => {
         mimeType: 'application/json',
       },
       {
+        kind: 'edit',
+        path: 'EDIT.md',
+        mimeType: 'text/markdown',
+      },
+      {
         kind: 'manifest',
         path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
         mimeType: 'application/json',

@@ -14,6 +14,7 @@ import {
   MOTION_EFFECT_PRESETS,
   motionEffectPresetOrDefault,
 } from './effectPresets';
+import { getMotionComponent } from './componentRegistry';
 
 export interface BuildMotionRenderSourceBundleOptions {
   remotionEntryPoint?: string;
@@ -94,7 +95,14 @@ export function buildMotionRenderSourceBundle(
     contents: timelineArtifactJson(project, request),
     provenance,
   };
-  const sourceFiles = [entryFile, designFile, scriptFile, storyboardFile, timelineFile];
+  const editFile: MotionRenderSourceFile = {
+    kind: 'edit',
+    path: editArtifactPath(),
+    mimeType: 'text/markdown',
+    contents: editMarkdown(project, request),
+    provenance,
+  };
+  const sourceFiles = [entryFile, designFile, scriptFile, storyboardFile, timelineFile, editFile];
   const manifestFile: MotionRenderSourceFile = {
     kind: 'manifest',
     path: sourceManifestPath(request),
@@ -233,6 +241,43 @@ function storyboardMarkdown(project: MotionProject, request: MotionRenderRequest
   return markdown(lines);
 }
 
+function editMarkdown(project: MotionProject, request: MotionRenderRequest): string {
+  const app = project.brief.appProfile;
+  const editContract = buildEditContract(request);
+  const lines = [
+    `# ${app.name} Edit Contract`,
+    '',
+    `Draft: ${request.draftId}`,
+    `Timeline: ${editContract.timelinePath}`,
+    `Script: ${editContract.scriptPath}`,
+    `Storyboard: ${editContract.storyboardPath}`,
+    '',
+    'Use SCRIPT.md for narration copy changes.',
+    'Use timeline JSON for timing, asset ids, generated video urls, captions, effects, and format-local overrides.',
+    'Use STORYBOARD.md to review scene intent before regenerating a component.',
+    '',
+    '## Editable Components',
+    '',
+  ];
+
+  for (const component of editContract.editableComponents) {
+    lines.push(
+      `## ${component.clipId}`,
+      '',
+      `Component: ${component.componentLabel}`,
+      `Track: ${component.trackId}`,
+      `Controls: ${component.editControlLabels.join(', ') || 'none'}`,
+      `Edit controls: ${component.editControlIds.join(', ') || 'none'}`,
+      `Regenerate: ${component.regenerateScopes.join(', ') || 'none'}`,
+      `Files: ${component.sourceFiles.join(', ')}`,
+      `Provenance: ${formatProvenance(component.provenance)}`,
+      ''
+    );
+  }
+
+  return markdown(lines);
+}
+
 function timelineArtifactJson(project: MotionProject, request: MotionRenderRequest): string {
   return stableJson({
     projectId: request.projectId,
@@ -265,6 +310,54 @@ function timelineArtifactJson(project: MotionProject, request: MotionRenderReque
   });
 }
 
+function buildEditContract(request: MotionRenderRequest) {
+  const editableComponents = editableComponentSlots(request);
+  return {
+    artifactPath: editArtifactPath(),
+    timelinePath: timelineArtifactPath(request),
+    scriptPath: 'SCRIPT.md',
+    storyboardPath: 'STORYBOARD.md',
+    editableComponentCount: uniqueStrings(editableComponents.map((component) => component.componentId)).length,
+    regenerationScopes: uniqueStrings(
+      editableComponents.flatMap((component) => component.regenerateScopes)
+    ),
+    editableComponents,
+  };
+}
+
+function editableComponentSlots(request: MotionRenderRequest) {
+  return request.tracks.flatMap((track) =>
+    track.clips.flatMap((clip) => {
+      if (!clip.componentId) return [];
+      const component = getMotionComponent(clip.componentId);
+      if (!component) return [];
+
+      return [
+        {
+          trackId: track.id,
+          trackKind: track.kind,
+          clipId: clip.id,
+          componentId: component.id,
+          componentLabel: component.label,
+          editControlIds: component.editControls.map((control) => control.id),
+          editControlLabels: component.editControls.map((control) => control.label),
+          regenerateScopes: component.regenerateScopes,
+          sourceFiles: sourceFilesForComponent(component.id, request),
+          provenance: clip.provenance,
+        },
+      ];
+    })
+  );
+}
+
+function sourceFilesForComponent(componentId: string, request: MotionRenderRequest): string[] {
+  if (componentId === 'voice-line' || componentId === 'caption-line') {
+    return ['SCRIPT.md', timelineArtifactPath(request)];
+  }
+
+  return [timelineArtifactPath(request), 'STORYBOARD.md'];
+}
+
 function storyForRequest(project: MotionProject, request: MotionRenderRequest): StoryBeat[] {
   return project.drafts.find((draft) => draft.id === request.draftId)?.story ?? project.story;
 }
@@ -285,6 +378,10 @@ function clipForBeat(
 
 function timelineArtifactPath(request: MotionRenderRequest): string {
   return `timeline/${request.draftId}.json`;
+}
+
+function editArtifactPath(): string {
+  return 'EDIT.md';
 }
 
 function remotionEntrySource(project: MotionProject, request: MotionRenderRequest): string {
@@ -1038,6 +1135,7 @@ function sourceManifestJson(
       label: preset.label,
       summary: preset.summary,
     })),
+    editContract: buildEditContract(request),
     outputIds: request.outputs.map((output) => output.id),
     sourceFiles: sourceFileSummaries,
     files: sourceFileSummaries,
