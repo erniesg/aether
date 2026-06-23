@@ -96,6 +96,56 @@ const previewPlan: MotionPreviewPlan = {
       },
     ],
   },
+  designKit: {
+    id: 'repo-launch-kit',
+    label: 'Repo launch kit',
+    summary: 'Hook, proof, product frame, agent trace, CTA, captions, and soft transitions.',
+    rhythm: 'Open fast, prove early, show the app, then close with a clear action.',
+    components: [
+      {
+        componentId: 'hook-card',
+        label: 'Hook card',
+        role: 'hook',
+        engineLabels: ['remotion', 'hyperframes'],
+        regenerateScopes: ['copy', 'timing', 'effect'],
+      },
+      {
+        componentId: 'app-frame',
+        label: 'App frame',
+        role: 'product visual',
+        engineLabels: ['remotion'],
+        regenerateScopes: ['capture', 'timing', 'caption'],
+      },
+      {
+        componentId: 'proof-card',
+        label: 'Proof card',
+        role: 'claim proof',
+        engineLabels: ['remotion', 'hyperframes'],
+        regenerateScopes: ['proof', 'copy', 'effect'],
+      },
+      {
+        componentId: 'soft-wipe',
+        label: 'Soft wipe',
+        role: 'transition',
+        engineLabels: ['remotion', 'hyperframes'],
+        regenerateScopes: ['effect', 'timing'],
+      },
+    ],
+    effects: [
+      {
+        effectPresetId: 'product-glide',
+        label: 'product glide',
+        summary: 'smooth product-focused entrance with restrained camera motion',
+      },
+      {
+        effectPresetId: 'proof-pulse',
+        label: 'proof pulse',
+        summary: 'evidence-first pulse for receipts, diffs, metrics, and claims',
+      },
+    ],
+    editableSurfaceLabels: ['script', 'component', 'capture', 'voice', 'timing', 'effect'],
+    verificationLabels: ['contact sheet', 'mp4 probe', 'poster', 'subtitles', 'manifest'],
+  },
   storyboard: [
     {
       beatId: 'beat-hook',
@@ -397,6 +447,11 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);
     expect(screen.getByText('video plan')).toBeInTheDocument();
     expect(screen.getByText('2 scenes / 30s')).toBeInTheDocument();
+    expect(screen.getByText('motion kit')).toBeInTheDocument();
+    expect(screen.getByText('Repo launch kit')).toBeInTheDocument();
+    expect(screen.getByText(/Open fast, prove early/)).toBeInTheDocument();
+    expect(screen.getAllByText('product glide').length).toBeGreaterThan(0);
+    expect(screen.getByText(/script \/ component \/ capture/)).toBeInTheDocument();
     expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
     expect(screen.getAllByText('1 source').length).toBeGreaterThan(0);
     expect(screen.getByText('assetId / caption / zoom')).toBeInTheDocument();
@@ -435,6 +490,8 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
     expect(screen.queryByText('node-image-to-video-plan')).not.toBeInTheDocument();
     expect(screen.queryByText('image-to-video-clip-beat-demo-text')).not.toBeInTheDocument();
+    expect(screen.queryByText('repo-launch-kit')).not.toBeInTheDocument();
+    expect(screen.queryByText('product-glide')).not.toBeInTheDocument();
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();

@@ -32,6 +32,10 @@
 - Preview plans now include a creator-facing visual generation summary for
   image-to-video: ready clip requests show component, prompt, duration, and
   output shape, while missing key visuals appear as reviewable blockers.
+- Preview plans now include a reusable motion design kit for launch,
+  feature/social, demo capture, and PR explainer videos, exposing creator-facing
+  component roles, effect presets, editable surfaces, rhythm guidance, and
+  verification artifacts without showing raw registry ids in the timeline lens.
 - Motion rail video starter for repo, PR, site URL, or local path sources with
   review/full-auto mode and target presets for X vertical, LinkedIn feed,
   website demo, and multi-format launch packs.

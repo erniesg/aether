@@ -38,8 +38,8 @@ Clueso, and Descript.
 - `components/header/ViewSwitcher.tsx` and `components/workspace/TimelineLens.tsx`
   now expose the `timeline` lens inside the single synthesis shell. The lens can
   render a creator-facing video plan, story beats, draft variations, editable
-  component controls, scoped regeneration actions, engine readiness, and
-  timeline rows without exposing raw provenance/debug ids in the primary
+  motion kit, component controls, scoped regeneration actions, engine readiness,
+  and timeline rows without exposing raw provenance/debug ids in the primary
   surface; `graph` remains reserved for advanced provenance/generation editing.
 - `components/rail/sections/MotionSection.tsx` now starts video projects from
   repo, PR, site URL, or local path sources with review/full-auto mode and
@@ -49,17 +49,17 @@ Clueso, and Descript.
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
 - `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`,
   `localRepoMotion.ts`, `siteMotion.ts`, `prMotion.ts`, `timeline.ts`,
-  `componentRegistry.ts`, `reviewPlan.ts`, `previewPlan.ts`,
+  `componentRegistry.ts`, `designKit.ts`, `reviewPlan.ts`, `previewPlan.ts`,
   `workflowPlan.ts`, `workflowRouter.ts`, and `start.ts` now cover the first
   repo-to-motion-project slice: sourced claims, story beats, draft variations,
-  timeline tracks, editable component slots, scoped regeneration requests,
-  creator-facing preview plans, workflow routing, agent-readable workflow gates,
-  executable run-plan steps, and the start artifact an agent can hand to the
-  creator for review or full-auto progression. GitHub repo URLs, local repo
-  paths, and site/app URL sources can now create editable project starts; PR
-  sources can create editable code-change explainer starts when a code-change
-  provider is configured. Real screen capture and recording remain provider
-  execution work.
+  timeline tracks, reusable motion kit suggestions, editable component slots,
+  scoped regeneration requests, creator-facing preview plans, workflow routing,
+  agent-readable workflow gates, executable run-plan steps, and the start
+  artifact an agent can hand to the creator for review or full-auto progression.
+  GitHub repo URLs, local repo paths, and site/app URL sources can now create
+  editable project starts; PR sources can create editable code-change explainer
+  starts when a code-change provider is configured. Real screen capture and
+  recording remain provider execution work.
 - `app/api/motion/start/route.ts` now exposes that starter through an
   agent-native JSON boundary: callers can pass `sourceRefs` directly or use
   `repoPath`, `repoUrl`, `siteUrl`, or `prRef` shorthands and receive the

@@ -12,6 +12,7 @@ import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
+import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import { motionSeconds } from '@/lib/motion/project';
 import type {
   MotionPreviewEnginePlan,
@@ -305,6 +306,10 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionDesignKitStrip kit={previewPlan.designKit} />
+      </section>
+
       {capturePlan ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionCapturePlanView
@@ -435,6 +440,54 @@ function MotionPreviewPlanView({
           {actionStatus}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MotionDesignKitStrip({
+  kit,
+}: {
+  kit: MotionDesignKitPlan;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            motion kit
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {kit.summary}
+          </div>
+        </div>
+        <Chip tone="info" size="sm">
+          {kit.label}
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">{kit.rhythm}</div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {kit.components.slice(0, 6).map((component) => (
+              <Chip key={`${component.label}-${component.role}`} tone="neutral" size="sm">
+                {component.label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {kit.editableSurfaceLabels.join(' / ')}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {kit.effects.map((effect) => (
+              <Chip key={effect.label} tone="neutral" size="sm">
+                {effect.label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

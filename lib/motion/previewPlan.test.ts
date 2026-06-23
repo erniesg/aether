@@ -83,6 +83,21 @@ describe('buildMotionPreviewPlan', () => {
         }),
       ]),
     });
+    expect(preview.designKit).toMatchObject({
+      id: 'repo-launch-kit',
+      label: 'Repo launch kit',
+      components: expect.arrayContaining([
+        expect.objectContaining({ label: 'Hook card', role: 'hook' }),
+        expect.objectContaining({ label: 'Proof card', role: 'claim proof' }),
+        expect.objectContaining({ label: 'App frame', role: 'product visual' }),
+      ]),
+      effects: expect.arrayContaining([
+        expect.objectContaining({ label: 'product glide' }),
+        expect.objectContaining({ label: 'proof pulse' }),
+        expect.objectContaining({ label: 'caption pop' }),
+      ]),
+      editableSurfaceLabels: ['script', 'component', 'capture', 'voice', 'timing', 'effect'],
+    });
     expect(preview.draftOptions.map((draft) => draft.label)).toEqual([
       'Primary launch cut',
       'Proof-first cut',

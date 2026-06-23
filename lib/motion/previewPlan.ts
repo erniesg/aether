@@ -24,6 +24,10 @@ import {
 } from './renderPlan';
 import { buildMotionRenderSourceBundle } from './renderSource';
 import {
+  buildMotionDesignKitPlan,
+  type MotionDesignKitPlan,
+} from './designKit';
+import {
   buildMotionSyncPlan,
   type MotionCaptionTimingSource,
   type MotionSyncPlanStatus,
@@ -209,6 +213,7 @@ export interface MotionPreviewPlan {
   primaryAction: MotionReviewPlan['primaryAction'];
   summary: MotionReviewPlan['summary'];
   videoPlan: MotionPreviewVideoPlan;
+  designKit: MotionDesignKitPlan;
   storyboard: MotionPreviewStoryBeat[];
   draftOptions: MotionPreviewDraftOption[];
   timelineRows: MotionPreviewTimelineRow[];
@@ -267,6 +272,7 @@ export function buildMotionPreviewPlan(
     primaryAction: reviewPlan.primaryAction,
     summary: reviewPlan.summary,
     videoPlan: buildVideoPlan(reviewPlan, timelineRows, regenerationActions),
+    designKit: buildMotionDesignKitPlan(project),
     storyboard: reviewPlan.storyBeats.map((beat) => ({
       beatId: beat.beatId,
       role: beat.role,
