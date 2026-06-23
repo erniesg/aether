@@ -486,6 +486,60 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     },
     [motionStart, wsId]
   );
+  const handleTimelineClipSummaryEdit = useCallback(
+    async (clipId: string, summary: string) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus('applying edit');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/revise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            id: `revision-${clipId}-${requestedAt}`,
+            requestedAt,
+            updatedAt: requestedAt,
+            requestedEngines: motionStart.workflow.plan.engines,
+            operations: [
+              {
+                kind: 'update-clip-props',
+                clipId,
+                props: {
+                  text: summary,
+                  caption: summary,
+                  narration: summary,
+                },
+              },
+            ],
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+        };
+        if (!res.ok || json.ok === false || !json.project || !json.previewPlan) {
+          throw new Error(json.error ?? `revision failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+        });
+        setMotionTimelineActionStatus('clip updated');
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2243,6 +2297,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSelectClip={setSelectedTimelineClipId}
             onSelectDraft={handleTimelineDraftSelect}
             onRegenerateComponent={handleTimelineRegenerate}
+            onEditClipSummary={handleTimelineClipSummaryEdit}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}
           />

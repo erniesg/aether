@@ -282,4 +282,29 @@ describe('TimelineLens', () => {
     await userEvent.click(screen.getByRole('button', { name: /regenerate capture for app frame/i }));
     expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');
   });
+
+  it('lets creators edit the selected clip summary', async () => {
+    const onSelectClip = vi.fn<(clipId: string) => void>();
+    const onEditClipSummary = vi.fn<(clipId: string, summary: string) => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId="clip-beat-hook-text"
+        onSelectClip={onSelectClip}
+        onEditClipSummary={onEditClipSummary}
+      />
+    );
+
+    const input = screen.getByLabelText(/selected clip summary/i);
+    expect(input).toHaveValue('Turn a repo into a launch video.');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Turn a repo into launch cuts.');
+    await userEvent.click(screen.getByRole('button', { name: /apply/i }));
+
+    expect(onEditClipSummary).toHaveBeenCalledWith(
+      'clip-beat-hook-text',
+      'Turn a repo into launch cuts.'
+    );
+  });
 });

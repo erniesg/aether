@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
@@ -24,6 +25,7 @@ export interface TimelineLensProps {
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples?: MotionWorkflowExample[];
   actionStatus?: string | null;
 }
@@ -35,6 +37,7 @@ export function TimelineLens({
   onSelectClip,
   onSelectDraft,
   onRegenerateComponent,
+  onEditClipSummary,
   workflowExamples = [],
   actionStatus = null,
 }: TimelineLensProps) {
@@ -72,6 +75,7 @@ export function TimelineLens({
             onSelectClip={onSelectClip}
             onSelectDraft={onSelectDraft}
             onRegenerateComponent={onRegenerateComponent}
+            onEditClipSummary={onEditClipSummary}
             workflowExamples={workflowExamples}
             actionStatus={actionStatus}
           />
@@ -102,6 +106,7 @@ function MotionPreviewPlanView({
   onSelectClip,
   onSelectDraft,
   onRegenerateComponent,
+  onEditClipSummary,
   workflowExamples,
   actionStatus,
 }: {
@@ -110,9 +115,12 @@ function MotionPreviewPlanView({
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples: MotionWorkflowExample[];
   actionStatus: string | null;
 }) {
+  const selectedClip = findPreviewClip(previewPlan, selectedClipId);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <section className="border-b border-border-soft px-4 py-3">
@@ -260,6 +268,13 @@ function MotionPreviewPlanView({
         )}
       </div>
 
+      {selectedClip ? (
+        <SelectedClipEditor
+          clip={selectedClip}
+          onEditClipSummary={onEditClipSummary}
+        />
+      ) : null}
+
       {previewPlan.regenerationActions.length > 0 ? (
         <section className="flex flex-wrap gap-2 border-t border-border-soft px-4 py-3">
           {previewPlan.regenerationActions.map((action) => (
@@ -281,6 +296,60 @@ function MotionPreviewPlanView({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function findPreviewClip(
+  previewPlan: MotionPreviewPlan,
+  selectedClipId: string | null
+): MotionPreviewTimelineClip | null {
+  if (!selectedClipId) return null;
+  for (const row of previewPlan.timelineRows) {
+    const clip = row.clips.find((candidate) => candidate.clipId === selectedClipId);
+    if (clip) return clip;
+  }
+  return null;
+}
+
+function SelectedClipEditor({
+  clip,
+  onEditClipSummary,
+}: {
+  clip: MotionPreviewTimelineClip;
+  onEditClipSummary?: (clipId: string, summary: string) => void;
+}) {
+  const [summary, setSummary] = useState(clip.summary);
+
+  useEffect(() => {
+    setSummary(clip.summary);
+  }, [clip.clipId, clip.summary]);
+
+  const canApply = summary.trim().length > 0 && summary.trim() !== clip.summary.trim();
+
+  return (
+    <section className="grid gap-2 border-t border-border-soft px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
+      <div className="min-w-0">
+        <div className="font-caption text-xs text-ink">{clip.componentLabel}</div>
+        <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
+          {clip.durationSeconds.toFixed(1)}s · {clip.linkedVariantScope ?? 'local'}
+        </div>
+      </div>
+      <input
+        type="text"
+        aria-label="selected clip summary"
+        value={summary}
+        onChange={(event) => setSummary(event.target.value)}
+        className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+      />
+      <button
+        type="button"
+        disabled={!canApply}
+        onClick={() => onEditClipSummary?.(clip.clipId, summary.trim())}
+        className="rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        apply
+      </button>
+    </section>
   );
 }
 
