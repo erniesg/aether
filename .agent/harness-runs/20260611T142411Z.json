@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "tool": "rucksack-scaffold",
+  "run_id": "20260611T142411Z",
+  "root": "/Users/erniesg/code/erniesg/aether",
+  "operations": [
+    {
+      "kind": "write",
+      "path": "infra/vm/systemd/rucksack-autopilot-erniesg-aether-drain.service",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "trusted VM autopilot drain service recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/systemd/rucksack-autopilot-erniesg-aether-drain.timer",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "trusted VM nightly autopilot drain timer recipe"
+    }
+  ]
+}

@@ -75,6 +75,3 @@ yarn-error.log*
 
 # claude code agent worktrees + session metadata
 .claude/
-
-# Agent evidence bundles
-.agent/evidence/

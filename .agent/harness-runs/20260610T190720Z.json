@@ -1,0 +1,256 @@
+{
+  "schema_version": "1",
+  "tool": "rucksack-scaffold",
+  "run_id": "20260610T190720Z",
+  "root": "/Users/erniesg/code/erniesg/aether",
+  "operations": [
+    {
+      "kind": "write",
+      "path": ".agent/commands.yaml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "canonical command registry"
+    },
+    {
+      "kind": "write",
+      "path": ".agent/policy.yaml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "agent safety policy"
+    },
+    {
+      "kind": "write",
+      "path": ".agent/verify.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "verification contract"
+    },
+    {
+      "kind": "write",
+      "path": ".agent/env.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "environment/account setup checklist"
+    },
+    {
+      "kind": "write",
+      "path": ".agent/state/README.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "state protocol"
+    },
+    {
+      "kind": "write",
+      "path": ".agent/state/current-task.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "resume template"
+    },
+    {
+      "kind": "write",
+      "path": "scripts/agent-evidence",
+      "existed": false,
+      "backup": null,
+      "mode": 493,
+      "reason": "evidence command"
+    },
+    {
+      "kind": "write",
+      "path": ".github/workflows/agent-evidence.yml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "fork-safe CI evidence workflow"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/README.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "reusable trusted VM runbook"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/bootstrap.sh",
+      "existed": false,
+      "backup": null,
+      "mode": 493,
+      "reason": "dry-run VM bootstrap and hardening script"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/verify.sh",
+      "existed": false,
+      "backup": null,
+      "mode": 493,
+      "reason": "trusted VM verification script"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/compose.yaml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "generic app compose recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/systemd/rucksack-app.service",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "systemd compose service recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/nginx/app.conf",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "nginx reverse proxy recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/Caddyfile",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "Caddy reverse proxy recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/recipes/tailscale.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "Tailscale trusted access recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/recipes/ai-terminal.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "trusted AI terminal setup recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/recipes/ssh-ingress.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "SSH ingress tightening recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/recipes/no-secrets.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "no-secret files and logs recipe"
+    },
+    {
+      "kind": "append",
+      "path": ".gitignore",
+      "existed": true,
+      "backup": ".agent/harness-backups/20260610T190720Z/.gitignore",
+      "mode": null,
+      "reason": "ignore local evidence bundles"
+    },
+    {
+      "kind": "write",
+      "path": ".github/workflows/deploy.yml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "GitHub Environment deploy workflow"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/deploy.sh",
+      "existed": false,
+      "backup": null,
+      "mode": 493,
+      "reason": "VM deploy adapter"
+    },
+    {
+      "kind": "write",
+      "path": ".agent/deploy.yaml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "CI/CD deploy contract"
+    },
+    {
+      "kind": "write",
+      "path": ".agent/autopilot.yaml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "autopilot queue/provider contract"
+    },
+    {
+      "kind": "write",
+      "path": ".github/workflows/rucksack-autopilot.yml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "GitHub issue queue orchestrator"
+    },
+    {
+      "kind": "write",
+      "path": ".github/workflows/rucksack-build.yml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "issue-to-PR build workflow with evidence"
+    },
+    {
+      "kind": "write",
+      "path": ".github/workflows/rucksack-ledger.yml",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "Codex issue ledger refresh workflow"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/systemd/rucksack-autopilot-drain.service",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "trusted VM autopilot drain service recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/systemd/rucksack-autopilot-drain.timer",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "trusted VM nightly autopilot drain timer recipe"
+    },
+    {
+      "kind": "write",
+      "path": "infra/vm/recipes/autopilot-drain.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "trusted VM autopilot drain install guide"
+    },
+    {
+      "kind": "write",
+      "path": "docs/rucksack/issues/README.md",
+      "existed": false,
+      "backup": null,
+      "mode": null,
+      "reason": "issue ledger operating guide"
+    }
+  ]
+}
