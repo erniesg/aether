@@ -65,6 +65,7 @@ Clueso, and Descript.
 | [Remotion Player](https://www.remotion.dev/docs/player/) and [renderMedia](https://www.remotion.dev/docs/renderer/render-media) | React components can preview video in app; server render can take composition props, frame ranges, concurrency, and artifacts. | Use Remotion for editable React-native timeline preview and deterministic export, alongside existing HyperFrames compositions. |
 | [React Flow](https://reactflow.dev/) | Node/edge graphs are good for custom node pipelines, selection, ports, and advanced flow editing. | Use for advanced generation graphs after the timeline primitive exists. Avoid making it the default creator surface. |
 | [tldraw custom shapes](https://tldraw.dev/docs/shapes) | Custom shapes can represent domain objects on the canvas. | Add motion-project, timeline preview, generated clip, and export-pack shapes on the canvas. |
+| [iart-ai motion-skills](https://github.com/iart-ai/motion-skills) | Public index of motion-agent skills. The useful packs for aether are `launch-video`, `product-demo-video`, `short-form-video`, `remotion-video`, `beat-sync-editing`, `shot-composition`, and `motion-art-direction`. | Borrow the agent workflow grammar and verification loop, not the repo as a runtime dependency. Make plan, still-frame proof, contact sheet, MP4 probe, and reusable skill packs first-class in aether. |
 
 ## Component taxonomy
 
@@ -86,6 +87,31 @@ These are the reusable blocks the research suggests aether will need.
 - Cursor path, auto zoom, drag zoom, click rings, hover callouts, keypress tags.
 - Before/after split, branch compare, diff reveal, test result reveal.
 - Screen crop and safe-zone presets for 16:9, 9:16, 1:1, and 4:5.
+
+### Capture, app-use, and recording
+
+This system needs capture tools, but they should feed the canvas and timeline
+instead of becoming a screen-recorder dashboard.
+
+- Browser automation: open URLs, authenticate when allowed, click through flows,
+  capture DPR 2 screenshots, DOM snapshots, route metadata, cursor targets, and
+  viewport-safe crops.
+- App automation: launch local dev servers, desktop apps, simulators, or Figma
+  files when the product cannot be represented by a website alone.
+- Deterministic screenshot-demo path: prefer clean final-state screenshots plus
+  synthetic cursor, click ripple, zoom, and captions for editable product demos.
+- Screen recording path: use real recording when the product interaction,
+  animation, latency, canvas gesture, or native app behavior matters.
+- Computer-use fallback: drive the real desktop only when browser/API capture is
+  insufficient, then convert the take into editable timeline clips, screenshots,
+  cursor metadata, and transcript notes.
+- Capture receipts: each screenshot, recording, app step, crop, and coordinate
+  target must carry source URL/app/repo, viewport, timestamp, command/session,
+  and permission provenance.
+
+For app launch videos, the agent should usually gather stills and state
+captures first, show the creator a video plan and draft variations, then record
+or use computer control only for the beats that need live motion.
 
 ### Agent-native coding story
 
@@ -162,7 +188,8 @@ These are the reusable blocks the research suggests aether will need.
 - `write_video_script`: turn app facts plus target platform into script beats.
 - `compose_storyboard`: choose scene templates, target durations, and assets.
 - `capture_product_demo`: run the app, capture browser or desktop flows, and
-  return clips plus cursor metadata.
+  return screenshots, recordings, app-state receipts, cursor coordinates, click
+  targets, and crop/safe-zone metadata.
 - `find_or_generate_visuals`: collect references, posters, screenshots, B-roll,
   and image-to-video candidates.
 - `synthesize_voiceover`: create narration clips and word timings.
@@ -264,12 +291,67 @@ the contracts by job so providers stay interchangeable and testable.
   avatar, talking photo, and generative B-roll.
 - `VideoRenderProvider`: Remotion and HyperFrames deterministic renders.
 - `ScreenCaptureProvider`: browser, desktop, and app-flow captures.
+- `AppUseProvider`: browser/app/computer-use actions that can collect capture
+  inputs, but never render final videos directly.
 - `VoiceProvider`: TTS, voice cloning where allowed, translation, word timings.
 - `MusicProvider`: licensed beds, generated beds, SFX, beat detection.
 - `CaptionProvider`: transcription, alignment, translation, subtitle export.
 
 Every provider returns typed provenance, duration, dimensions, mime type,
 usage/cost hints, and source asset refs. No provider is a default in code.
+
+The capture split is intentional: capture providers collect real product
+evidence, while render providers turn editable timeline data into MP4s. A raw
+recording can become a clip, but the preferred demo artifact is still
+frame-driven Remotion/HyperFrames output with editable screenshots, cursor
+paths, captions, callouts, and timing.
+
+## Motion-skills assessment
+
+The `iart-ai/motion-skills` repo is useful as a craft/reference corpus, not as
+an aether dependency. The root repository is an index with a showcase and
+verification scripts. The reusable material lives in the linked skill-pack
+repos:
+
+- `ad-video-skills/launch-video`: hook, tease, reveal, feature montage, end-card
+  arc; music/drop-first timing; multi-aspect export checks.
+- `ecommerce-video-skills/product-demo-video`: screenshot-driven app demos with
+  Playwright capture, browser/device frames, synthetic cursor paths, click
+  ripples, zooms, callouts, captions, and screen transitions.
+- `tiktok-video-skills/short-form-video`: hook, retention, pattern interrupts,
+  loop seams, and 9:16 safe areas.
+- `motion-design-skills/remotion-video`: frame-driven Remotion composition,
+  zod props, `Sequence`, `Series`, still-frame verification, and deterministic
+  rendering.
+- `motion-design-skills/beat-sync-editing`,
+  `motion-design-skills/shot-composition`, and
+  `motion-design-skills/motion-art-direction`: edit-timing plans, safe areas,
+  motion personality, focal hierarchy, and transition language.
+
+Adopt these as internal aether skills/capabilities with our vocabulary,
+provenance, graph persistence, and canvas/timeline surfaces. Do not expose them
+as a pile of raw agent instructions or a separate skill console.
+
+## Review and full-auto gates
+
+The agent should be able to run in either mode against the same graph:
+
+1. Brief gate: grounded repo/app claims, missing facts, and source receipts.
+2. Video plan gate: target platform, hook, beats, component choices, capture
+   needs, voice plan, music/sync plan, and export formats.
+3. Draft gate: primary, proof-first, demo-first, and short-form variations with
+   approximate timings and storyboard frames.
+4. Capture gate: screenshots, recordings, coordinates, app state, and any
+   computer-use notes before expensive rendering.
+5. Timeline gate: editable tracks and clips, captions, voice, transitions,
+   effects, and scoped regeneration handles.
+6. Verification gate: stills/contact sheet for hook, reveal/demo, CTA, plus MP4
+   spec probe after render.
+
+Full-auto mode advances through these gates and saves artifacts; review mode
+stops at each gate for creator approval. Regeneration should target a selected
+beat, component, capture, caption pass, voice line, transition, or effect before
+falling back to whole-video regeneration.
 
 ## Timeline first, node graph second
 
@@ -324,21 +406,31 @@ would produce hard-to-edit outputs.
 - Add tldraw shapes for motion project, video poster, beat card, and export pack.
 - Tests: create project, edit text/timing, reorder clips, undo, provenance.
 
-### Phase 4: render pipeline
+### Phase 4: capture and app-use lane
+
+- Add provider contracts for browser screenshots, app-flow capture, screen
+  recording, and computer-use fallback.
+- Start with deterministic screenshot-driven product demos: DPR 2 captures,
+  route/app receipts, cursor target coordinates, and safe-zone crops.
+- Store captures as canvas assets and timeline-ready clips with provenance.
+- Tests: provider availability, artifact metadata, coordinate mapping, no
+  hardcoded browser/app provider, debug details hidden by default.
+
+### Phase 5: render pipeline
 
 - Add `VideoRenderProvider` adapters for Remotion and HyperFrames.
 - Render MP4, poster still, subtitles, transcript, and manifest.
 - Register outputs as assets and drop them onto the canvas.
 - Tests: render contract, frame-range smoke, poster generation, manifest refs.
 
-### Phase 5: agent-native workflow
+### Phase 6: agent-native workflow
 
 - Register motion tools as reusable capabilities.
 - Let the bottom composer create and revise motion projects from instructions.
 - Add human validation gates before final render/export.
 - Tests: mocked end-to-end path from repo URL to timeline preview to export.
 
-### Phase 6: image-to-video and advanced graph
+### Phase 7: image-to-video and advanced graph
 
 - Add `VideoGenerationProvider` adapters behind config.
 - Model generated clips as timeline assets with prompts, seed, source image,
@@ -347,7 +439,7 @@ would produce hard-to-edit outputs.
 - Tests: adapter contract with fixture responses, graph node provenance,
   timeline insertion and replacement.
 
-### Phase 7: multiformat launch pack
+### Phase 8: multiformat launch pack
 
 - Add linked format variants: 16:9, 9:16, 1:1, 4:5.
 - Add global edits plus local crop/caption/safe-zone overrides.
@@ -361,9 +453,11 @@ The smallest useful slice is not image-to-video. It is:
 1. `MotionBriefV2` and `StoryBeat[]` for repo-to-launch videos.
 2. A registry with 5 components: hook card, app frame, agent trace, proof card,
    and CTA.
-3. A simple timeline preview backed by Remotion Player.
-4. One render path to MP4 and poster.
-5. One fixture each for aether, tong, paillette, and accrue.
+3. A screenshot-driven demo capture contract with route/app receipts and cursor
+   coordinate metadata.
+4. A simple timeline preview backed by Remotion Player.
+5. One render path to MP4 and poster.
+6. One fixture each for aether, tong, paillette, and accrue.
 
 That slice proves the core loop: point aether at a repo, let the agent write
 the script and assemble an editable video, then let the creator tweak text,

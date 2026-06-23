@@ -16,6 +16,7 @@
 - Launch, feature, and social videos: Task 2 models project kinds and platform targets; Task 4 builds timeline clips from beats.
 - Reusable motion design, components, and effects: Task 3 adds a component registry with hook, app frame, agent trace, proof card, and CTA components.
 - HyperFrames and Remotion: Task 3 marks supported engines per component; Task 5 adds render provider contracts for Remotion and HyperFrames.
+- Screenshots, app use, recording, and computer-use fallback: Task 5A adds capture provider contracts for screenshot-driven demos and recorded app flows.
 - Editable outputs: Task 4 creates stable tracks/clips; Task 6 exposes the timeline lens without route-splitting.
 - Agent-native reusable tools/skills: Task 7 widens tool/workflow registries for motion brief, storyboard, render, voice, and sync tools.
 - Script, visuals, voiceover, timing, effects, transitions: Tasks 2, 4, and 5 create typed places for script lines, asset refs, voice/caption tracks, sync markers, effects, and transitions.
@@ -37,6 +38,9 @@
 - Modify `lib/providers/video/types.ts`: re-export split video provider contracts while preserving current understanding types.
 - Create `lib/providers/video/render-registry.ts`: registry resolver for render providers.
 - Create `lib/providers/video/render-registry.test.ts`: tests provider unavailable behavior and preferred provider selection.
+- Create `lib/providers/capture/types.ts`: screenshot, app-flow, recording, and computer-use capture contract.
+- Create `lib/providers/capture/registry.ts`: registry resolver for capture providers.
+- Create `lib/providers/capture/registry.test.ts`: tests provider unavailable behavior and no default hardcoding.
 - Modify `lib/tool/registry.ts`: add draft motion tool ids.
 - Modify `lib/capability/types.ts`: include motion tool ids in `CapabilityTool`.
 - Modify `lib/workflow/registry.ts`: add draft repo-to-launch-video workflow.
@@ -1097,6 +1101,138 @@ git add lib/providers/video/render-types.ts lib/providers/video/generation-types
 git commit -m "feat: split video provider contracts"
 ```
 
+## Task 5A: Capture Provider Contract
+
+**Files:**
+- Create: `lib/providers/capture/types.ts`
+- Create: `lib/providers/capture/registry.ts`
+- Create: `lib/providers/capture/registry.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+// lib/providers/capture/registry.test.ts
+import { describe, expect, it } from 'vitest';
+import { CaptureProviderUnavailableError, resolveCaptureProvider } from './registry';
+
+describe('resolveCaptureProvider', () => {
+  it('throws a typed unavailable error when no capture provider is configured', () => {
+    expect(() => resolveCaptureProvider()).toThrow(CaptureProviderUnavailableError);
+  });
+
+  it('throws a typed unavailable error for an unknown preferred provider', () => {
+    expect(() => resolveCaptureProvider('missing-provider')).toThrow(/missing-provider/);
+  });
+});
+```
+
+- [ ] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/providers/capture/registry.test.ts`
+
+Expected: FAIL because capture provider files do not exist.
+
+- [ ] **Step 3: Add capture contracts and registry**
+
+```ts
+// lib/providers/capture/types.ts
+import type { MotionAspectRatio, MotionProvenanceRef } from '@/lib/motion/project';
+
+export type CaptureTargetKind = 'url' | 'local-app' | 'desktop-app' | 'figma' | 'repo';
+export type CaptureMode = 'screenshot' | 'screen-recording' | 'dom-snapshot' | 'interaction-trace';
+
+export interface CaptureStep {
+  id: string;
+  label: string;
+  action: 'goto' | 'click' | 'type' | 'wait' | 'scroll' | 'record' | 'manual';
+  selector?: string;
+  value?: string;
+  targetPoint?: { x: number; y: number };
+  expectedArtifactId?: string;
+}
+
+export interface CaptureRequest {
+  target: { kind: CaptureTargetKind; ref: string };
+  mode: CaptureMode;
+  aspectRatio: MotionAspectRatio;
+  viewport: { width: number; height: number; deviceScaleFactor: number };
+  steps: CaptureStep[];
+  preferredProviderId?: string;
+}
+
+export interface CaptureArtifact {
+  id: string;
+  kind: 'screenshot' | 'recording' | 'snapshot' | 'trace';
+  assetUrl: string;
+  width: number;
+  height: number;
+  durationMs?: number;
+  mimeType: string;
+  viewport: CaptureRequest['viewport'];
+  cursorTargets: Array<{ stepId: string; x: number; y: number }>;
+  provenance: MotionProvenanceRef[];
+}
+
+export interface CaptureResult {
+  providerId: string;
+  artifacts: CaptureArtifact[];
+  provenance: MotionProvenanceRef[];
+}
+
+export interface CaptureProvider {
+  id: string;
+  displayName: string;
+  available(): boolean;
+  capture(req: CaptureRequest): Promise<CaptureResult>;
+}
+```
+
+```ts
+// lib/providers/capture/registry.ts
+import type { CaptureProvider } from './types';
+
+const REGISTRY: Record<string, () => CaptureProvider> = {};
+
+export class CaptureProviderUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Capture provider unavailable: ${reason}`);
+    this.name = 'CaptureProviderUnavailableError';
+  }
+}
+
+export function resolveCaptureProvider(preferredId?: string): CaptureProvider {
+  if (preferredId) {
+    const factory = REGISTRY[preferredId];
+    if (!factory) {
+      throw new CaptureProviderUnavailableError(`unknown provider ${preferredId}`);
+    }
+    const provider = factory();
+    if (provider.available()) return provider;
+    throw new CaptureProviderUnavailableError(`${preferredId} is not configured`);
+  }
+
+  for (const factory of Object.values(REGISTRY)) {
+    const provider = factory();
+    if (provider.available()) return provider;
+  }
+
+  throw new CaptureProviderUnavailableError('no capture provider has been configured');
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npx vitest run lib/providers/capture/registry.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/providers/capture/types.ts lib/providers/capture/registry.ts lib/providers/capture/registry.test.ts
+git commit -m "feat: add capture provider contract"
+```
+
 ## Task 6: Timeline Lens Scaffold
 
 **Files:**
@@ -1439,6 +1575,7 @@ git commit -m "feat: register motion video workflow tools"
 - Motion component registry
 - Story to timeline compiler
 - Split video render/generation provider contracts
+- Capture provider contract
 - Timeline lens scaffold
 - Draft agent tool and workflow registry entries
 
@@ -1446,7 +1583,7 @@ git commit -m "feat: register motion video workflow tools"
 
 ```bash
 npx vitest run lib/motion/project.test.ts lib/motion/storyboard.test.ts lib/motion/componentRegistry.test.ts lib/motion/timeline.test.ts
-npx vitest run lib/providers/video/render-registry.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/unit/tool-registry.test.ts
+npx vitest run lib/providers/video/render-registry.test.ts lib/providers/capture/registry.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/unit/tool-registry.test.ts
 npm run typecheck
 ```
 
@@ -1469,7 +1606,7 @@ Run:
 
 ```bash
 npx vitest run lib/motion/project.test.ts lib/motion/storyboard.test.ts lib/motion/componentRegistry.test.ts lib/motion/timeline.test.ts
-npx vitest run lib/providers/video/render-registry.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/unit/tool-registry.test.ts
+npx vitest run lib/providers/video/render-registry.test.ts lib/providers/capture/registry.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/unit/tool-registry.test.ts
 npm run typecheck
 ```
 
@@ -1486,7 +1623,7 @@ git commit -m "docs: record repo video first slice proof"
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, real Remotion rendering, image-to-video nodes, and multiformat export packs remain separate later slices.
 - Empty-detail scan: The plan avoids vague fill-ins. File names, functions, test names, commands, and expected outcomes are explicit.
-- Type consistency: `MotionProject`, `MotionBriefV2`, `StoryBeat`, `TimelineTrack`, `TimelineClip`, `VideoRenderProvider`, and registry ids are consistently named across tasks.
+- Type consistency: `MotionProject`, `MotionBriefV2`, `StoryBeat`, `TimelineTrack`, `TimelineClip`, `VideoRenderProvider`, `CaptureProvider`, and registry ids are consistently named across tasks.
 - aether contract: The timeline lens stays inside the synthesis shell, uses tool taxonomy, avoids raw provenance ids in primary UI, keeps provider selection abstract, and preserves the bottom composer pattern.
 
 ## Execution Options
