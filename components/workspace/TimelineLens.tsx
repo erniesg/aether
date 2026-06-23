@@ -18,6 +18,8 @@ import type {
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
+  MotionPreviewSyncBeat,
+  MotionPreviewSyncSoundCue,
   MotionPreviewSyncSummary,
   MotionPreviewTimelineClip,
   MotionPreviewTimelineRow,
@@ -32,6 +34,7 @@ export interface TimelineLensProps {
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
+  onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
   onGenerateVideoClips?: () => void;
@@ -53,6 +56,7 @@ export function TimelineLens({
   onSelectDraft,
   onRegenerateComponent,
   onGenerateVoice,
+  onSyncMotion,
   onRenderMotion,
   onExportPack,
   onGenerateVideoClips,
@@ -100,6 +104,7 @@ export function TimelineLens({
             onSelectDraft={onSelectDraft}
             onRegenerateComponent={onRegenerateComponent}
             onGenerateVoice={onGenerateVoice}
+            onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
             onExportPack={onExportPack}
             onGenerateVideoClips={onGenerateVideoClips}
@@ -140,6 +145,7 @@ function MotionPreviewPlanView({
   onSelectDraft,
   onRegenerateComponent,
   onGenerateVoice,
+  onSyncMotion,
   onRenderMotion,
   onExportPack,
   onGenerateVideoClips,
@@ -158,6 +164,7 @@ function MotionPreviewPlanView({
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
+  onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
   onGenerateVideoClips?: () => void;
@@ -247,6 +254,12 @@ function MotionPreviewPlanView({
           </div>
           <div className="grid gap-1.5">
             <SyncSummaryRow summary={previewPlan.syncSummary} />
+            {onSyncMotion ? (
+              <SyncActionButton
+                syncStatus={previewPlan.syncSummary.status}
+                onSyncMotion={onSyncMotion}
+              />
+            ) : null}
             <ExportPackSummaryRow summary={previewPlan.exportPackSummary} />
             {onGenerateVoice ? (
               <VoiceActionButton
@@ -285,6 +298,16 @@ function MotionPreviewPlanView({
           <MotionCapturePlanView
             capturePlan={capturePlan}
             onCaptureMotion={onCaptureMotion}
+          />
+        </section>
+      ) : null}
+
+      {previewPlan.syncBeats.length > 0 || previewPlan.syncSoundCues.length > 0 ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionSyncPlanStrip
+            status={previewPlan.syncSummary.status}
+            beats={previewPlan.syncBeats}
+            soundCues={previewPlan.syncSoundCues}
           />
         </section>
       ) : null}
@@ -623,6 +646,26 @@ function VoiceActionButton({
   );
 }
 
+function SyncActionButton({
+  syncStatus,
+  onSyncMotion,
+}: {
+  syncStatus: MotionPreviewSyncSummary['status'];
+  onSyncMotion: () => void;
+}) {
+  const ready = syncStatus === 'ready';
+
+  return (
+    <button
+      type="button"
+      onClick={onSyncMotion}
+      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+    >
+      {ready ? 'sync ready' : 'sync timeline'}
+    </button>
+  );
+}
+
 function RenderActionButton({
   engine,
   exportStatus,
@@ -683,6 +726,60 @@ function PinMotionSkillButton({ onPinMotionSkill }: { onPinMotionSkill: () => vo
     >
       pin skill
     </button>
+  );
+}
+
+function MotionSyncPlanStrip({
+  status,
+  beats,
+  soundCues,
+}: {
+  status: MotionPreviewSyncSummary['status'];
+  beats: MotionPreviewSyncBeat[];
+  soundCues: MotionPreviewSyncSoundCue[];
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          sync plan
+        </span>
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+          {status.replace(/-/g, ' ')}
+        </span>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {beats.slice(0, 6).map((beat, index) => (
+            <div
+              key={`${beat.role}-${beat.startSeconds}-${index}`}
+              className="min-w-[132px] rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="font-caption text-xs text-ink">{beat.role}</div>
+              <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                {beat.startSeconds}s / {beat.durationSeconds}s
+              </div>
+              <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+                voice {beat.voiceStatus} · {beat.captionTimingSource}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-1.5">
+          {soundCues.slice(0, 3).map((cue, index) => (
+            <div
+              key={`${cue.kind}-${cue.startSeconds}-${index}`}
+              className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="font-caption text-xs text-ink">{cue.label}</div>
+              <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                {cue.kind} · {cue.startSeconds}s
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

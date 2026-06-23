@@ -21,7 +21,9 @@ import {
 import { buildMotionRenderSourceBundle } from './renderSource';
 import {
   buildMotionSyncPlan,
+  type MotionCaptionTimingSource,
   type MotionSyncPlanStatus,
+  type MotionVoiceSyncStatus,
 } from './syncPlan';
 import { getMotionComponent } from './componentRegistry';
 import { getMotionEffectPreset } from './effectPresets';
@@ -129,6 +131,21 @@ export interface MotionPreviewSyncSummary {
   blockerLabels: string[];
 }
 
+export interface MotionPreviewSyncBeat {
+  role: MotionReviewPlan['storyBeats'][number]['role'];
+  startSeconds: number;
+  durationSeconds: number;
+  voiceStatus: MotionVoiceSyncStatus;
+  captionTimingSource: MotionCaptionTimingSource;
+}
+
+export interface MotionPreviewSyncSoundCue {
+  kind: 'transition' | 'emphasis' | 'cta';
+  label: string;
+  startSeconds: number;
+  durationSeconds: number;
+}
+
 export interface MotionPreviewExportPackSummary {
   status: MotionExportPackStatus;
   readyCount: number;
@@ -154,6 +171,8 @@ export interface MotionPreviewPlan {
   regenerationActions: MotionPreviewRegenerationAction[];
   enginePreviews: MotionPreviewEnginePlan[];
   syncSummary: MotionPreviewSyncSummary;
+  syncBeats: MotionPreviewSyncBeat[];
+  syncSoundCues: MotionPreviewSyncSoundCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
   provenance: MotionProvenanceRef[];
   requestedAt: number;
@@ -220,6 +239,8 @@ export function buildMotionPreviewPlan(
       })
     ),
     syncSummary: buildSyncSummary(syncPlan),
+    syncBeats: buildSyncBeats(syncPlan),
+    syncSoundCues: buildSyncSoundCues(syncPlan),
     exportPackSummary: buildExportPackSummary(exportPackPlan),
     provenance: uniqueProvenance([
       ...project.sourceRefs,
@@ -227,6 +248,29 @@ export function buildMotionPreviewPlan(
     ]),
     requestedAt: options.requestedAt,
   };
+}
+
+function buildSyncBeats(
+  syncPlan: ReturnType<typeof buildMotionSyncPlan>
+): MotionPreviewSyncBeat[] {
+  return syncPlan.beatMarkers.map((marker) => ({
+    role: marker.role,
+    startSeconds: marker.startSeconds,
+    durationSeconds: marker.durationSeconds,
+    voiceStatus: marker.voiceStatus,
+    captionTimingSource: marker.captionTimingSource,
+  }));
+}
+
+function buildSyncSoundCues(
+  syncPlan: ReturnType<typeof buildMotionSyncPlan>
+): MotionPreviewSyncSoundCue[] {
+  return syncPlan.soundCues.map((cue) => ({
+    kind: cue.kind,
+    label: cue.label,
+    startSeconds: cue.startSeconds,
+    durationSeconds: cue.durationSeconds,
+  }));
 }
 
 function buildSyncSummary(

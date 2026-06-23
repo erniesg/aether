@@ -104,6 +104,18 @@ describe('buildMotionPreviewPlan', () => {
       requirementLabels: ['voice', 'word timings'],
       blockerLabels: ['Generate voice and word timings before final sync'],
     });
+    expect(preview.syncBeats[0]).toMatchObject({
+      role: 'hook',
+      startSeconds: 0,
+      durationSeconds: 3,
+      voiceStatus: 'planned',
+      captionTimingSource: 'timeline',
+    });
+    expect(preview.syncSoundCues[0]).toMatchObject({
+      kind: 'transition',
+      label: 'Soft transition accent',
+      startSeconds: 2.633,
+    });
     expect(preview.exportPackSummary).toMatchObject({
       status: 'needs-render',
       readyCount: 0,

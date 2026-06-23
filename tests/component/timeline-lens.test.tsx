@@ -175,6 +175,30 @@ const previewPlan: MotionPreviewPlan = {
     requirementLabels: ['voice', 'word timings'],
     blockerLabels: ['Generate voice and word timings before final sync'],
   },
+  syncBeats: [
+    {
+      role: 'hook',
+      startSeconds: 0,
+      durationSeconds: 3,
+      voiceStatus: 'planned',
+      captionTimingSource: 'timeline',
+    },
+    {
+      role: 'demo',
+      startSeconds: 3,
+      durationSeconds: 6,
+      voiceStatus: 'ready',
+      captionTimingSource: 'word-timings',
+    },
+  ],
+  syncSoundCues: [
+    {
+      kind: 'transition',
+      label: 'Soft transition accent',
+      startSeconds: 2.633,
+      durationSeconds: 0.367,
+    },
+  ],
   exportPackSummary: {
     status: 'needs-render',
     readyCount: 0,
@@ -302,6 +326,7 @@ describe('TimelineLens', () => {
         graphNodes={graphNodes}
         capturePlan={capturePlan}
         onCaptureMotion={() => {}}
+        onSyncMotion={() => {}}
         actionStatus="capture regeneration planned"
       />
     );
@@ -318,8 +343,12 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('ready').length).toBeGreaterThan(0);
     expect(screen.getByText('provider-required')).toBeInTheDocument();
     expect(screen.getByText('sync')).toBeInTheDocument();
-    expect(screen.getByText('needs voice')).toBeInTheDocument();
+    expect(screen.getAllByText('needs voice').length).toBeGreaterThan(0);
     expect(screen.getByText('2 beats / 2 captions / 1 transition')).toBeInTheDocument();
+    expect(screen.getByText('sync plan')).toBeInTheDocument();
+    expect(screen.getByText(/voice planned/)).toBeInTheDocument();
+    expect(screen.getByText('Soft transition accent')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sync timeline/i })).toBeInTheDocument();
     expect(screen.getByText('export pack')).toBeInTheDocument();
     expect(screen.getByText('needs render')).toBeInTheDocument();
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
@@ -421,6 +450,22 @@ describe('TimelineLens', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /generate voice/i }));
     expect(onGenerateVoice).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets creators request sync planning from the preview plan', async () => {
+    const onSyncMotion = vi.fn<() => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onSyncMotion={onSyncMotion}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /sync timeline/i }));
+    expect(onSyncMotion).toHaveBeenCalledTimes(1);
   });
 
   it('lets creators request a render from the ready engine plan', async () => {

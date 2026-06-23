@@ -644,6 +644,53 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
+  const handleTimelineSync = useCallback(async () => {
+    if (!motionStart?.project) return;
+
+    setMotionTimelineActionStatus('checking sync');
+    try {
+      const requestedAt = Date.now();
+      const res = await fetch('/api/motion/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: motionStart.project,
+          draftId: motionStart.project.currentDraftId,
+          requestedEngines: motionStart.workflow.plan.engines,
+          requestedAt,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        project?: typeof motionStart.project;
+        reviewPlan?: typeof motionStart.reviewPlan;
+        previewPlan?: typeof motionStart.previewPlan;
+        syncPlan?: { status?: string };
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error ?? `sync failed: ${res.status}`);
+      }
+
+      setMotionStartResult(wsId, {
+        ...motionStart,
+        project: json.project ?? motionStart.project,
+        reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+        previewPlan: json.previewPlan ?? motionStart.previewPlan,
+      });
+      if (json.syncPlan?.status === 'ready') {
+        setMotionTimelineActionStatus('sync ready');
+      } else if (json.syncPlan?.status === 'needs-voice') {
+        setMotionTimelineActionStatus('voice required before sync');
+      } else if (json.syncPlan?.status === 'needs-timeline') {
+        setMotionTimelineActionStatus('timeline required before sync');
+      } else {
+        setMotionTimelineActionStatus('sync planned');
+      }
+    } catch (error) {
+      setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+    }
+  }, [motionStart, wsId]);
   const handleTimelineCapture = useCallback(
     async (requestIds?: string[]) => {
       if (!motionStart?.project) return;
@@ -2609,6 +2656,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSelectDraft={handleTimelineDraftSelect}
             onRegenerateComponent={handleTimelineRegenerate}
             onGenerateVoice={handleTimelineGenerateVoice}
+            onSyncMotion={handleTimelineSync}
             onRenderMotion={handleTimelineRender}
             onExportPack={handleTimelineExportPack}
             onGenerateVideoClips={handleTimelineGenerateVideoClips}

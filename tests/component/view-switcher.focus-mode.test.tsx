@@ -289,6 +289,39 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline sync action requests timing and reports voice blockers', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          syncPlan: { status: 'needs-voice' },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /sync timeline/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('voice required before sync');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/sync',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"draftId":"draft-primary"'),
+      })
+    );
+  });
+
   it('timeline render action requests a proof render and reports provider handoff state', async () => {
     const start = storedRegeneratableMotionStart();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
