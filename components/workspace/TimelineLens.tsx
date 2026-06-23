@@ -3,6 +3,7 @@
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
+import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import { motionSeconds } from '@/lib/motion/project';
 import type {
@@ -23,6 +24,7 @@ export interface TimelineLensProps {
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  workflowExamples?: MotionWorkflowExample[];
 }
 
 export function TimelineLens({
@@ -32,6 +34,7 @@ export function TimelineLens({
   onSelectClip,
   onSelectDraft,
   onRegenerateComponent,
+  workflowExamples = [],
 }: TimelineLensProps) {
   const clipCount = previewPlan
     ? previewPlan.timelineRows.reduce((total, row) => total + row.clips.length, 0)
@@ -67,6 +70,7 @@ export function TimelineLens({
             onSelectClip={onSelectClip}
             onSelectDraft={onSelectDraft}
             onRegenerateComponent={onRegenerateComponent}
+            workflowExamples={workflowExamples}
           />
         ) : tracks.length > 0 ? (
           tracks.map((track) => (
@@ -77,6 +81,8 @@ export function TimelineLens({
               onSelectClip={onSelectClip}
             />
           ))
+        ) : workflowExamples.length > 0 ? (
+          <WorkflowExamplesView examples={workflowExamples} />
         ) : (
           <div className="flex min-h-[220px] flex-1 items-center justify-center px-6 text-center font-caption text-sm text-ink-faint">
             no clips staged
@@ -93,12 +99,14 @@ function MotionPreviewPlanView({
   onSelectClip,
   onSelectDraft,
   onRegenerateComponent,
+  workflowExamples,
 }: {
   previewPlan: MotionPreviewPlan;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  workflowExamples: MotionWorkflowExample[];
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -179,6 +187,12 @@ function MotionPreviewPlanView({
         </div>
       </section>
 
+      {workflowExamples.length > 0 ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <WorkflowExamplesGrid examples={workflowExamples} />
+        </section>
+      ) : null}
+
       <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
@@ -253,6 +267,55 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
     </div>
+  );
+}
+
+function WorkflowExamplesView({ examples }: { examples: MotionWorkflowExample[] }) {
+  return (
+    <div className="flex min-h-[260px] flex-1 flex-col px-4 py-4">
+      <WorkflowExamplesGrid examples={examples} />
+    </div>
+  );
+}
+
+function WorkflowExamplesGrid({ examples }: { examples: MotionWorkflowExample[] }) {
+  return (
+    <div className="grid gap-2 lg:grid-cols-3">
+      {examples.map((example) => (
+        <WorkflowExampleCard key={example.id} example={example} />
+      ))}
+    </div>
+  );
+}
+
+function WorkflowExampleCard({ example }: { example: MotionWorkflowExample }) {
+  return (
+    <article className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate font-caption text-xs text-ink">{example.label}</h3>
+          <p className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+            {example.summary}
+          </p>
+        </div>
+        <Chip tone={example.suggestedMode === 'full-auto' ? 'ok' : 'info'} size="sm">
+          {example.suggestedMode}
+        </Chip>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {example.platformTargets.slice(0, 3).map((target) => (
+          <Chip key={target} tone="neutral" size="sm">
+            {target}
+          </Chip>
+        ))}
+      </div>
+      <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+        {example.storyRoles.join(' / ')}
+      </div>
+      <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+        {example.editSurfaces.join(' / ')}
+      </div>
+    </article>
   );
 }
 

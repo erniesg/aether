@@ -51,6 +51,8 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
 
     expect(screen.getByRole('region', { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByText('Repo app launch')).toBeInTheDocument();
+    expect(screen.getByText('Feature social cut')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
   });

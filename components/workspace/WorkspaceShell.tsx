@@ -78,6 +78,10 @@ import { resolveCapabilityRequest } from '@/lib/capability/request';
 import { resolveToolEntryRef } from '@/lib/tool/registry';
 import { placeSpatialPreviewOnCanvas } from '@/lib/spatial/canvas';
 import {
+  listMotionWorkflowExamples,
+  type MotionWorkflowExample,
+} from '@/lib/motion/workflowExamples';
+import {
   buildExportRequestBody,
   downloadExportPack,
 } from '@/lib/export/client';
@@ -389,6 +393,10 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [view, setView] = useState<ViewId>('canvas');
   const [selectedTimelineClipId, setSelectedTimelineClipId] = useState<string | null>(null);
   const motionTimelineTracks = useMemo<TimelineTrack[]>(() => [], []);
+  const motionWorkflowExamples = useMemo<MotionWorkflowExample[]>(
+    () => listMotionWorkflowExamples(),
+    []
+  );
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2143,6 +2151,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             tracks={motionTimelineTracks}
             selectedClipId={selectedTimelineClipId}
             onSelectClip={setSelectedTimelineClipId}
+            workflowExamples={motionWorkflowExamples}
           />
         ) : (
           <CanvasSubstrate

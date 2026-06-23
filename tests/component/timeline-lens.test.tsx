@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { TimelineLens } from '@/components/workspace/TimelineLens';
 import type { TimelineTrack } from '@/lib/motion/project';
 import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
+import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 
 afterEach(cleanup);
 
@@ -238,6 +239,25 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
+  });
+
+  it('shows reusable motion examples when no clips are staged yet', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        workflowExamples={listMotionWorkflowExamples()}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByRole('region', { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByText('Repo app launch')).toBeInTheDocument();
+    expect(screen.getByText('Feature social cut')).toBeInTheDocument();
+    expect(screen.getByText('Daily skill launch: PR-to-video')).toBeInTheDocument();
+    expect(screen.getAllByText(/capture \/ visual \/ image-to-video/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/hook \/ problem \/ proof \/ demo \/ payoff \/ cta/)).toBeInTheDocument();
+    expect(screen.queryByText('repo-app-launch-video')).not.toBeInTheDocument();
   });
 
   it('lets creators request draft selection and scoped component regeneration', async () => {
