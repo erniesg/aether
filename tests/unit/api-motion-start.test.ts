@@ -165,6 +165,161 @@ describe('POST /api/motion/start', () => {
     expect(json.examples[0].sampleCopyLines).toContain('npx skills add heygen-com/hyperframes');
   });
 
+  it('starts an editable PR-to-video project from agent-collected code evidence', async () => {
+    const { POST } = await import('@/app/api/motion/start/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'motion-pr-456',
+          workspaceId: 'demo-ws',
+          prRef: 'erniesg/aether#456',
+          intent: 'pr',
+          mode: 'full-auto',
+          audience: 'builders',
+          tone: 'precise',
+          platformTargets: [{ platform: 'linkedin', aspectRatio: '16:9', seconds: 45 }],
+          appProfile: {
+            name: 'aether',
+            repoUrl: 'https://github.com/erniesg/aether',
+            summary: 'Creator-first canvas tool.',
+            stack: ['TypeScript', 'Convex', 'tldraw'],
+          },
+          codeChangeSource: { kind: 'github-pr', ref: 'erniesg/aether#456' },
+          codeChange: {
+            providerId: 'agent-collected-pr',
+            title: 'Add motion video sync planning',
+            author: { name: 'Ernie' },
+            files: [
+              {
+                path: 'components/workspace/TimelineLens.tsx',
+                status: 'modified',
+                additions: 97,
+                deletions: 1,
+                language: 'TypeScript',
+              },
+            ],
+            hunks: [
+              {
+                id: 'hunk-timeline-sync-strip',
+                filePath: 'components/workspace/TimelineLens.tsx',
+                newStart: 729,
+                lines: ['+function MotionSyncPlanStrip({ status, beats, soundCues }) {'],
+                provenance: [
+                  { kind: 'code-change', ref: 'diff:TimelineLens.tsx#729' },
+                ],
+              },
+            ],
+            commits: [{ sha: 'fd07d45', message: 'Surface motion sync planning' }],
+            reviews: [{ reviewer: 'designer', state: 'approved' }],
+            ci: [{ name: 'typecheck', status: 'passed' }],
+            provenance: [{ kind: 'code-change', ref: 'github:erniesg/aether#456' }],
+          },
+          createdAt: 702,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'ready',
+      requestedInputs: [],
+      workflow: {
+        workflowId: 'pr-to-video',
+        reason: 'pull request source selected a code-change workflow',
+        plan: {
+          mode: 'full-auto',
+          primaryAction: 'run-full-auto',
+          engines: ['remotion', 'hyperframes'],
+        },
+      },
+      project: {
+        id: 'motion-pr-456',
+        title: 'aether PR video',
+        workflowMode: 'full-auto',
+        brief: {
+          projectKind: 'pr',
+          appProfile: {
+            name: 'aether',
+            repoUrl: 'https://github.com/erniesg/aether',
+          },
+        },
+      },
+      reviewPlan: {
+        projectId: 'motion-pr-456',
+        primaryAction: 'queue-render',
+      },
+      previewPlan: {
+        projectId: 'motion-pr-456',
+        title: 'aether PR video',
+        primaryAction: 'queue-render',
+        syncSummary: {
+          status: 'needs-voice',
+        },
+      },
+      capturePlan: null,
+    });
+    expect(json.project.story.map((beat: { role: string }) => beat.role)).toEqual([
+      'hook',
+      'change',
+      'diff',
+      'mechanism',
+      'evidence',
+      'cta',
+    ]);
+    expect(json.project.tracks.map((track: { kind: string }) => track.kind)).toEqual([
+      'text',
+      'caption',
+      'voice',
+      'transition',
+    ]);
+    expect(json.previewPlan.draftOptions.map((draft: { label: string }) => draft.label)).toEqual([
+      'Primary PR explainer',
+      'Mechanism-first cut',
+      'Reviewer cut',
+    ]);
+    const componentIds = json.previewPlan.editableComponents.map(
+      (component: { componentId: string }) => component.componentId
+    );
+    expect(componentIds).toContain('code-diff-card');
+  });
+
+  it('rejects malformed agent-collected code evidence', async () => {
+    const { POST } = await import('@/app/api/motion/start/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: 'demo-ws',
+          prRef: 'erniesg/aether#456',
+          intent: 'pr',
+          appProfile: {
+            name: 'aether',
+            summary: 'Creator-first canvas tool.',
+            stack: ['TypeScript'],
+          },
+          codeChange: {
+            providerId: 'agent-collected-pr',
+            title: 'Missing arrays',
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: false,
+      error: 'codeChange must include title, files, hunks, commits, reviews, ci, and provenance',
+    });
+  });
+
   it('rejects requests without a source', async () => {
     const { POST } = await import('@/app/api/motion/start/route');
 
