@@ -3,6 +3,7 @@ import {
   type WorkflowEngine,
   type WorkflowRegistryEntry,
   type WorkflowReviewGate,
+  type WorkflowSkillContract,
   type WorkflowSourceKind,
 } from '@/lib/workflow/registry';
 import type { ToolRegistryId } from '@/lib/tool/registry';
@@ -46,6 +47,7 @@ export interface AgentMotionWorkflowPlan {
   missingSourceKinds: WorkflowSourceKind[];
   engines: WorkflowEngine[];
   toolIds: ToolRegistryId[];
+  skillContract: WorkflowSkillContract | null;
   gates: MotionWorkflowPlanGate[];
   nextActions: MotionWorkflowPlanAction[];
   createdAt: number;
@@ -124,6 +126,7 @@ export function buildAgentMotionWorkflowPlan(
     missingSourceKinds,
     engines,
     toolIds: [...workflow.toolIds],
+    skillContract: workflow.skillContract ?? null,
     createdAt: input.createdAt,
   };
 

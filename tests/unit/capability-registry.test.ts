@@ -114,6 +114,36 @@ describe('typed capability registries', () => {
       sourceKinds: ['repo', 'site', 'capture', 'reference'],
       engines: ['remotion', 'hyperframes', 'provider'],
       reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+      skillContract: {
+        runModes: ['review', 'full-auto'],
+        reviewArtifacts: [
+          'video-plan',
+          'draft-variations',
+          'component-plan',
+          'capture-plan',
+          'sync-plan',
+          'render-proof',
+          'export-pack',
+        ],
+        regenerationTargets: [
+          'story-beat',
+          'component',
+          'capture',
+          'caption',
+          'voice-line',
+          'timing',
+          'effect',
+          'whole-video',
+        ],
+        verificationArtifacts: [
+          'contact-sheet',
+          'mp4-probe',
+          'poster',
+          'subtitles',
+          'transcript',
+          'provenance-manifest',
+        ],
+      },
       status: 'draft',
     });
 
@@ -130,6 +160,35 @@ describe('typed capability registries', () => {
       sourceKinds: ['pr', 'repo'],
       engines: ['remotion', 'hyperframes'],
       reviewGates: ['plan', 'drafts', 'voice', 'timeline', 'render', 'export'],
+      skillContract: {
+        runModes: ['review', 'full-auto'],
+        reviewArtifacts: [
+          'video-plan',
+          'draft-variations',
+          'component-plan',
+          'sync-plan',
+          'render-proof',
+          'export-pack',
+        ],
+        regenerationTargets: [
+          'story-beat',
+          'component',
+          'code-proof',
+          'caption',
+          'voice-line',
+          'timing',
+          'effect',
+          'whole-video',
+        ],
+        verificationArtifacts: [
+          'contact-sheet',
+          'mp4-probe',
+          'poster',
+          'subtitles',
+          'transcript',
+          'provenance-manifest',
+        ],
+      },
       status: 'draft',
     });
 

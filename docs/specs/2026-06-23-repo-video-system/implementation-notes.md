@@ -31,6 +31,9 @@
   voice and timeline-revision gates without adding capture as source evidence.
 - Agent motion workflow planner that turns a workflow id, mode, and source refs
   into gated tool/artifact plans for review mode or saved full-auto execution.
+- Workflow skill contracts on video workflows now expose review/full-auto modes,
+  reviewable artifacts, scoped regeneration targets, and verification artifacts
+  directly in registry metadata and agent workflow plans.
 - Agent motion workflow router that picks the reusable workflow from intent and
   source refs, then returns the same review/full-auto plan.
 - Agent motion workflow starter that turns a repo source into a routed workflow,
@@ -136,6 +139,7 @@
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts --pool=forks
+./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts lib/motion/workflowPlan.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-start.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-capture.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-voice.test.ts

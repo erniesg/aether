@@ -11,6 +11,7 @@ export type WorkflowSourceKind =
   | 'remotion'
   | 'hyperframes';
 export type WorkflowEngine = 'remotion' | 'hyperframes' | 'provider';
+export type WorkflowRunMode = 'review' | 'full-auto';
 export type WorkflowReviewGate =
   | 'plan'
   | 'drafts'
@@ -19,6 +20,38 @@ export type WorkflowReviewGate =
   | 'timeline'
   | 'render'
   | 'export';
+export type WorkflowReviewArtifact =
+  | 'video-plan'
+  | 'draft-variations'
+  | 'component-plan'
+  | 'capture-plan'
+  | 'sync-plan'
+  | 'render-proof'
+  | 'export-pack';
+export type WorkflowRegenerationTarget =
+  | 'story-beat'
+  | 'component'
+  | 'capture'
+  | 'code-proof'
+  | 'caption'
+  | 'voice-line'
+  | 'timing'
+  | 'effect'
+  | 'whole-video';
+export type WorkflowVerificationArtifact =
+  | 'contact-sheet'
+  | 'mp4-probe'
+  | 'poster'
+  | 'subtitles'
+  | 'transcript'
+  | 'provenance-manifest';
+
+export interface WorkflowSkillContract {
+  runModes: WorkflowRunMode[];
+  reviewArtifacts: WorkflowReviewArtifact[];
+  regenerationTargets: WorkflowRegenerationTarget[];
+  verificationArtifacts: WorkflowVerificationArtifact[];
+}
 
 export interface WorkflowRegistryEntry extends CapabilityEntryRef<'workflow'> {
   artifactKind: string;
@@ -28,8 +61,65 @@ export interface WorkflowRegistryEntry extends CapabilityEntryRef<'workflow'> {
   sourceKinds?: WorkflowSourceKind[];
   engines?: WorkflowEngine[];
   reviewGates?: WorkflowReviewGate[];
+  skillContract?: WorkflowSkillContract;
   status: 'draft' | 'published' | 'archived';
 }
+
+const VIDEO_VERIFICATION_ARTIFACTS: WorkflowVerificationArtifact[] = [
+  'contact-sheet',
+  'mp4-probe',
+  'poster',
+  'subtitles',
+  'transcript',
+  'provenance-manifest',
+];
+
+const LAUNCH_VIDEO_SKILL_CONTRACT: WorkflowSkillContract = {
+  runModes: ['review', 'full-auto'],
+  reviewArtifacts: [
+    'video-plan',
+    'draft-variations',
+    'component-plan',
+    'capture-plan',
+    'sync-plan',
+    'render-proof',
+    'export-pack',
+  ],
+  regenerationTargets: [
+    'story-beat',
+    'component',
+    'capture',
+    'caption',
+    'voice-line',
+    'timing',
+    'effect',
+    'whole-video',
+  ],
+  verificationArtifacts: VIDEO_VERIFICATION_ARTIFACTS,
+};
+
+const PR_VIDEO_SKILL_CONTRACT: WorkflowSkillContract = {
+  runModes: ['review', 'full-auto'],
+  reviewArtifacts: [
+    'video-plan',
+    'draft-variations',
+    'component-plan',
+    'sync-plan',
+    'render-proof',
+    'export-pack',
+  ],
+  regenerationTargets: [
+    'story-beat',
+    'component',
+    'code-proof',
+    'caption',
+    'voice-line',
+    'timing',
+    'effect',
+    'whole-video',
+  ],
+  verificationArtifacts: VIDEO_VERIFICATION_ARTIFACTS,
+};
 
 const WORKFLOW_REGISTRY = {
   'image-render-basic': {
@@ -62,6 +152,7 @@ const WORKFLOW_REGISTRY = {
     sourceKinds: ['repo', 'site', 'capture', 'reference'],
     engines: ['remotion', 'hyperframes', 'provider'],
     reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+    skillContract: LAUNCH_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
   'feature-social-video': {
@@ -85,6 +176,7 @@ const WORKFLOW_REGISTRY = {
     sourceKinds: ['repo', 'site', 'capture', 'upload', 'reference'],
     engines: ['remotion', 'hyperframes', 'provider'],
     reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+    skillContract: LAUNCH_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
   'website-to-video': {
@@ -107,6 +199,7 @@ const WORKFLOW_REGISTRY = {
     sourceKinds: ['site', 'capture', 'reference'],
     engines: ['remotion', 'hyperframes', 'provider'],
     reviewGates: ['plan', 'drafts', 'capture', 'timeline', 'render', 'export'],
+    skillContract: LAUNCH_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
   'pr-to-video': {
@@ -128,6 +221,7 @@ const WORKFLOW_REGISTRY = {
     sourceKinds: ['pr', 'repo'],
     engines: ['remotion', 'hyperframes'],
     reviewGates: ['plan', 'drafts', 'voice', 'timeline', 'render', 'export'],
+    skillContract: PR_VIDEO_SKILL_CONTRACT,
     status: 'draft',
   },
   'caption-overlay-video': {
@@ -142,6 +236,11 @@ const WORKFLOW_REGISTRY = {
     sourceKinds: ['upload', 'reference', 'capture'],
     engines: ['remotion', 'hyperframes'],
     reviewGates: ['plan', 'voice', 'timeline', 'render', 'export'],
+    skillContract: {
+      ...LAUNCH_VIDEO_SKILL_CONTRACT,
+      reviewArtifacts: ['video-plan', 'component-plan', 'sync-plan', 'render-proof', 'export-pack'],
+      regenerationTargets: ['component', 'caption', 'voice-line', 'timing', 'effect', 'whole-video'],
+    },
     status: 'draft',
   },
   'motion-graphic-video': {
@@ -156,6 +255,18 @@ const WORKFLOW_REGISTRY = {
     sourceKinds: ['reference', 'upload'],
     engines: ['remotion', 'hyperframes', 'provider'],
     reviewGates: ['plan', 'drafts', 'timeline', 'render', 'export'],
+    skillContract: {
+      ...LAUNCH_VIDEO_SKILL_CONTRACT,
+      reviewArtifacts: [
+        'video-plan',
+        'draft-variations',
+        'component-plan',
+        'sync-plan',
+        'render-proof',
+        'export-pack',
+      ],
+      regenerationTargets: ['story-beat', 'component', 'timing', 'effect', 'whole-video'],
+    },
     status: 'draft',
   },
   'remotion-hyperframes-port': {
@@ -170,6 +281,11 @@ const WORKFLOW_REGISTRY = {
     sourceKinds: ['remotion', 'hyperframes'],
     engines: ['remotion', 'hyperframes'],
     reviewGates: ['plan', 'timeline', 'render', 'export'],
+    skillContract: {
+      ...LAUNCH_VIDEO_SKILL_CONTRACT,
+      reviewArtifacts: ['video-plan', 'component-plan', 'render-proof', 'export-pack'],
+      regenerationTargets: ['component', 'timing', 'effect', 'whole-video'],
+    },
     status: 'draft',
   },
 } as const satisfies Record<string, WorkflowRegistryEntry>;

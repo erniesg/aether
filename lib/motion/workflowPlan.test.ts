@@ -56,6 +56,28 @@ describe('buildAgentMotionWorkflowPlan', () => {
       toolIds: ['motion-voice'],
       expectedArtifacts: ['voice clips', 'word timings'],
     });
+    expect(plan.skillContract).toMatchObject({
+      runModes: ['review', 'full-auto'],
+      reviewArtifacts: [
+        'video-plan',
+        'draft-variations',
+        'component-plan',
+        'capture-plan',
+        'sync-plan',
+        'render-proof',
+        'export-pack',
+      ],
+      regenerationTargets: [
+        'story-beat',
+        'component',
+        'capture',
+        'caption',
+        'voice-line',
+        'timing',
+        'effect',
+        'whole-video',
+      ],
+    });
     expect(plan.nextActions.map((action) => action.id)).toEqual([
       'review-video-plan',
       'review-draft-variations',
@@ -110,6 +132,26 @@ describe('buildAgentMotionWorkflowPlan', () => {
     });
     expect(plan.gates.find((gate) => gate.id === 'timeline')).toMatchObject({
       toolIds: ['motion-sync', 'motion-revise'],
+    });
+    expect(plan.skillContract).toMatchObject({
+      reviewArtifacts: [
+        'video-plan',
+        'draft-variations',
+        'component-plan',
+        'sync-plan',
+        'render-proof',
+        'export-pack',
+      ],
+      regenerationTargets: [
+        'story-beat',
+        'component',
+        'code-proof',
+        'caption',
+        'voice-line',
+        'timing',
+        'effect',
+        'whole-video',
+      ],
     });
     expect(plan.nextActions[0]).toMatchObject({
       id: 'run-full-auto',

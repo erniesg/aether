@@ -3549,6 +3549,55 @@ git add app/api/motion/image-to-video/route.ts tests/unit/api-motion-image-to-vi
 git commit -m "feat: expose image-to-video handoffs via api"
 ```
 
+## Task 39: Workflow Skill Contracts
+
+**Files:**
+- Modify: `lib/workflow/registry.ts`
+- Modify: `lib/motion/workflowPlan.ts`
+- Modify: `tests/unit/capability-registry.test.ts`
+- Modify: `lib/motion/workflowPlan.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing workflow contract tests**
+
+The tests cover:
+
+- reusable video workflows advertising `review` and `full-auto` modes;
+- review artifacts for video plan, draft variations, component plan, capture or
+  sync plan, render proof, and export pack;
+- scoped regeneration targets for story beats, components, captures, code proof,
+  captions, voice lines, timing, effects, and explicit whole-video resets;
+- verification artifacts for contact sheet, MP4 probe, poster, subtitles,
+  transcript, and provenance manifest;
+- the agent workflow plan returning the same contract so UI and agent callers do
+  not need to inspect registry internals.
+
+- [x] **Step 2: Implement the registry and planner contract**
+
+`lib/workflow/registry.ts` now defines `WorkflowSkillContract` metadata and
+attaches workflow-specific contracts to repo launch, feature/social,
+website-to-video, PR-to-video, caption overlay, motion graphic, and
+Remotion/HyperFrames port workflows. `lib/motion/workflowPlan.ts` returns that
+contract on `AgentMotionWorkflowPlan`.
+
+- [x] **Step 3: Run focused tests**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts lib/motion/workflowPlan.test.ts
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add lib/workflow/registry.ts lib/motion/workflowPlan.ts tests/unit/capability-registry.test.ts lib/motion/workflowPlan.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: describe motion workflow skill contracts"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

@@ -228,6 +228,29 @@ must still persist them so the creator can review, branch, regenerate a single
 component, or roll back. Review mode pauses at each artifact and exposes the
 same state in the canvas/timeline shell.
 
+## Workflow skill contract
+
+Workflow-specific launch skills should advertise the reviewable artifacts and
+edit handles they produce, not just the tools they call. That keeps
+`pr-to-video`, repo launch, website capture, caption overlays, motion graphics,
+and engine-port workflows interchangeable while preserving their different
+evidence rules.
+
+Each video workflow entry should expose:
+
+- Run modes: `review` and/or `full-auto`.
+- Review artifacts: video plan, draft variations, component plan, capture plan,
+  sync plan, render proof, and export pack as applicable.
+- Regeneration targets: story beat, component, capture, code proof, caption,
+  voice line, timing, effect, or explicit whole-video reset.
+- Verification artifacts: contact sheet, MP4 probe, poster, subtitles,
+  transcript, and provenance manifest.
+
+The agent plan returned to the UI should include that contract directly. Review
+mode uses it to pause at the right canvas/timeline gates. Full-auto mode uses it
+to continue without stopping while still saving every artifact and regeneration
+handle for later review.
+
 ## Component taxonomy
 
 These are the reusable blocks the research suggests aether will need.
