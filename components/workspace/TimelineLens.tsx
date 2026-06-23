@@ -25,6 +25,7 @@ export interface TimelineLensProps {
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  onGenerateVoice?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples?: MotionWorkflowExample[];
   actionStatus?: string | null;
@@ -37,6 +38,7 @@ export function TimelineLens({
   onSelectClip,
   onSelectDraft,
   onRegenerateComponent,
+  onGenerateVoice,
   onEditClipSummary,
   workflowExamples = [],
   actionStatus = null,
@@ -75,6 +77,7 @@ export function TimelineLens({
             onSelectClip={onSelectClip}
             onSelectDraft={onSelectDraft}
             onRegenerateComponent={onRegenerateComponent}
+            onGenerateVoice={onGenerateVoice}
             onEditClipSummary={onEditClipSummary}
             workflowExamples={workflowExamples}
             actionStatus={actionStatus}
@@ -106,6 +109,7 @@ function MotionPreviewPlanView({
   onSelectClip,
   onSelectDraft,
   onRegenerateComponent,
+  onGenerateVoice,
   onEditClipSummary,
   workflowExamples,
   actionStatus,
@@ -115,6 +119,7 @@ function MotionPreviewPlanView({
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  onGenerateVoice?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples: MotionWorkflowExample[];
   actionStatus: string | null;
@@ -196,6 +201,12 @@ function MotionPreviewPlanView({
           <div className="grid gap-1.5">
             <SyncSummaryRow summary={previewPlan.syncSummary} />
             <ExportPackSummaryRow summary={previewPlan.exportPackSummary} />
+            {onGenerateVoice ? (
+              <VoiceActionButton
+                syncStatus={previewPlan.syncSummary.status}
+                onGenerateVoice={onGenerateVoice}
+              />
+            ) : null}
           </div>
         </div>
       </section>
@@ -464,6 +475,27 @@ function ExportPackSummaryRow({ summary }: { summary: MotionPreviewExportPackSum
       detail={`${summary.readyCount}/${summary.totalCount} ready`}
       note={`${targetDetail}; ${note}`}
     />
+  );
+}
+
+function VoiceActionButton({
+  syncStatus,
+  onGenerateVoice,
+}: {
+  syncStatus: MotionPreviewSyncSummary['status'];
+  onGenerateVoice: () => void;
+}) {
+  const ready = syncStatus === 'ready';
+
+  return (
+    <button
+      type="button"
+      disabled={ready}
+      onClick={onGenerateVoice}
+      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {ready ? 'voice ready' : 'generate voice'}
+    </button>
   );
 }
 

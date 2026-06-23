@@ -540,6 +540,53 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     },
     [motionStart, wsId]
   );
+  const handleTimelineGenerateVoice = useCallback(async () => {
+    if (!motionStart?.project) return;
+
+    setMotionTimelineActionStatus('generating voice');
+    try {
+      const requestedAt = Date.now();
+      const res = await fetch('/api/motion/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: motionStart.project,
+          draftId: motionStart.project.currentDraftId,
+          requestedAt,
+          updatedAt: requestedAt,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        status?: string;
+        project?: typeof motionStart.project;
+        reviewPlan?: typeof motionStart.reviewPlan;
+        previewPlan?: typeof motionStart.previewPlan;
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error ?? `voice generation failed: ${res.status}`);
+      }
+
+      setMotionStartResult(wsId, {
+        ...motionStart,
+        project: json.project ?? motionStart.project,
+        reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+        previewPlan: json.previewPlan ?? motionStart.previewPlan,
+      });
+      if (json.status === 'synthesized') {
+        setMotionTimelineActionStatus('voice generated');
+      } else if (json.status === 'provider-required') {
+        setMotionTimelineActionStatus('voice provider required');
+      } else if (json.status === 'blocked') {
+        setMotionTimelineActionStatus('voice blocked');
+      } else {
+        setMotionTimelineActionStatus('voice planned');
+      }
+    } catch (error) {
+      setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+    }
+  }, [motionStart, wsId]);
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2297,6 +2344,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSelectClip={setSelectedTimelineClipId}
             onSelectDraft={handleTimelineDraftSelect}
             onRegenerateComponent={handleTimelineRegenerate}
+            onGenerateVoice={handleTimelineGenerateVoice}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}

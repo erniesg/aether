@@ -252,6 +252,42 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline voice action requests synthesis and reports provider handoff state', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'provider-required',
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          providers: [],
+          selectedRequests: [],
+          voiceResults: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /generate voice/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('voice provider required');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/voice',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"draftId":"draft-primary"'),
+      })
+    );
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {

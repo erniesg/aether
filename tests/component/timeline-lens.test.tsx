@@ -283,6 +283,22 @@ describe('TimelineLens', () => {
     expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');
   });
 
+  it('lets creators request voice generation from the preview plan', async () => {
+    const onGenerateVoice = vi.fn<() => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onGenerateVoice={onGenerateVoice}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /generate voice/i }));
+    expect(onGenerateVoice).toHaveBeenCalledTimes(1);
+  });
+
   it('lets creators edit the selected clip summary', async () => {
     const onSelectClip = vi.fn<(clipId: string) => void>();
     const onEditClipSummary = vi.fn<(clipId: string, summary: string) => void>();
