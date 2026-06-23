@@ -3455,6 +3455,52 @@ git add app/api/motion/capture/route.ts tests/unit/api-motion-capture.test.ts do
 git commit -m "feat: expose motion capture handoffs via api"
 ```
 
+## Task 37: Motion Voice API Boundary
+
+**Files:**
+- Create: `app/api/motion/voice/route.ts`
+- Create: `tests/unit/api-motion-voice.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing API contract tests**
+
+The tests cover:
+
+- returning provider-required voice handoffs with target timing and expected
+  audio, word-timing, and transcript artifacts;
+- executing selected voice requests through an explicitly registered provider;
+- applying audio receipts to voice clips and word-timing/transcript receipts to
+  matching caption clips;
+- returning voice timeline blockers before provider resolution;
+- rejecting missing projects, unknown voice request ids, and malformed JSON.
+
+- [x] **Step 2: Implement the route**
+
+`app/api/motion/voice/route.ts` now accepts editable motion projects plus
+selected request ids or clip ids, builds provider-neutral voice plans, returns
+reviewable blockers/provider requirements when synthesis cannot execute, and
+applies provider receipts back into voice/caption timeline clips when an opt-in
+provider is available.
+
+- [x] **Step 3: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-voice.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/providers/voice/registry.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add app/api/motion/voice/route.ts tests/unit/api-motion-voice.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion voice handoffs via api"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

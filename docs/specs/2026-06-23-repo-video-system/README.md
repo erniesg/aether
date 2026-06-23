@@ -67,6 +67,11 @@ Clueso, and Descript.
   or completed capture receipts applied back into demo story beats and
   `app-frame` timeline clips. It lists configured capture providers, preserves
   computer-use fallback guidance, and does not register a default provider.
+- `app/api/motion/voice/route.ts` now exposes voiceover and caption-sync
+  handoffs through an agent-native JSON boundary: callers send an editable
+  project plus voice request or clip ids and receive provider-required
+  narration requests, timeline blockers, or completed audio, word-timing, and
+  transcript receipts applied back into voice and caption timeline clips.
 - `app/api/motion/revise/route.ts` now exposes structured review edits through
   the same agent-native boundary: callers send an editable `MotionProject` plus
   story, component-prop, retime, or component-replacement operations and receive
