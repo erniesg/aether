@@ -9,6 +9,11 @@ import {
 } from '@/lib/workflow/registry';
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { MotionWorkflowMode } from './project';
+import {
+  buildMotionWorkflowSkillDraft,
+  type MotionWorkflowSkillDraft,
+} from './workflowSkill';
+import { listMotionWorkflowExamples } from './workflowExamples';
 
 export interface MotionWorkflowPlanSourceRef {
   kind: WorkflowSourceKind;
@@ -72,12 +77,14 @@ export interface AgentMotionWorkflowPlan {
   acceptedSources: MotionWorkflowPlanSourceRef[];
   unsupportedSources: MotionWorkflowPlanSourceRef[];
   missingSourceKinds: WorkflowSourceKind[];
+  supportedSourceKinds: WorkflowSourceKind[];
   engines: WorkflowEngine[];
   toolIds: ToolRegistryId[];
   skillContract: WorkflowSkillContract | null;
   gates: MotionWorkflowPlanGate[];
   nextActions: MotionWorkflowPlanAction[];
   runPlan: AgentMotionWorkflowRunPlan;
+  skillDraft: MotionWorkflowSkillDraft;
   createdAt: number;
 }
 
@@ -88,6 +95,8 @@ export interface BuildAgentMotionWorkflowPlanInput {
   requestedEngines?: WorkflowEngine[];
   createdAt: number;
 }
+
+type AgentMotionWorkflowPlanDraft = Omit<AgentMotionWorkflowPlan, 'skillDraft'>;
 
 const GATE_LABELS = {
   plan: 'Video plan',
@@ -162,6 +171,7 @@ export function buildAgentMotionWorkflowPlan(
     acceptedSources,
     unsupportedSources,
     missingSourceKinds,
+    supportedSourceKinds,
     engines,
     toolIds: [...workflow.toolIds],
     skillContract: workflow.skillContract ?? null,
@@ -169,19 +179,27 @@ export function buildAgentMotionWorkflowPlan(
   };
 
   if (sourceStatus !== 'ready') {
-    return {
+    const runPlan = buildSourceRunPlan(input.mode, supportedSourceKinds, workflow);
+    const plan: AgentMotionWorkflowPlanDraft = {
       ...basePlan,
       primaryAction: 'request-source',
       gates: [],
       nextActions: [{ id: 'add-source', label: 'Add source', gateId: 'plan' }],
-      runPlan: buildSourceRunPlan(input.mode, supportedSourceKinds, workflow),
+      runPlan,
+    };
+    return {
+      ...plan,
+      skillDraft: buildMotionWorkflowSkillDraft(
+        plan,
+        listMotionWorkflowExamples(workflow.id)
+      ),
     };
   }
 
   const gates = buildGates(workflow, input.mode);
   const primaryAction = input.mode === 'full-auto' ? 'run-full-auto' : 'request-review';
 
-  return {
+  const plan: AgentMotionWorkflowPlanDraft = {
     ...basePlan,
     primaryAction,
     gates,
@@ -190,6 +208,10 @@ export function buildAgentMotionWorkflowPlan(
         ? [{ id: 'run-full-auto', label: 'Run saved gates', gateId: 'plan' }]
         : gates.map((gate) => ({ ...REVIEW_ACTIONS[gate.id], gateId: gate.id })),
     runPlan: buildRunPlan(input.mode, primaryAction, gates, workflow),
+  };
+  return {
+    ...plan,
+    skillDraft: buildMotionWorkflowSkillDraft(plan, listMotionWorkflowExamples(workflow.id)),
   };
 }
 

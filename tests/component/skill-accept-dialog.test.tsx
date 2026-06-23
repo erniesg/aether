@@ -47,6 +47,30 @@ describe('SkillAcceptDialog', () => {
     );
   });
 
+  it('renders a supplied manifest without calling the draft endpoint', async () => {
+    const mockFetch = vi.mocked(fetch);
+
+    render(
+      <SkillAcceptDialog
+        pendingPrompt={null}
+        pendingManifest={{
+          ...manifest,
+          name: 'repo-launch-video',
+          description: 'Repo launch video skill for editable motion videos.',
+          tools: ['motion_start', 'motion_render'],
+        }}
+        onAccept={() => {}}
+        onReject={() => {}}
+      />
+    );
+
+    expect(screen.getByTestId('skill-accept-name')).toHaveValue('repo-launch-video');
+    expect(screen.getByTestId('skill-accept-description')).toHaveTextContent(
+      'Repo launch video skill for editable motion videos.'
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('toggles the instructions body on demand', async () => {
     render(
       <SkillAcceptDialog

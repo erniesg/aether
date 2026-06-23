@@ -85,7 +85,6 @@ import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
-import { buildMotionSkillAuthoringPrompt } from '@/lib/motion/skillPrompt';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionEffectPresetId } from '@/lib/motion/effectPresets';
@@ -370,6 +369,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   // AC5 — when set, the SkillAcceptDialog is open and a SKILL.md is being
   // drafted (or has been drafted) for this prompt. Cleared on accept/reject.
   const [pendingSkillPrompt, setPendingSkillPrompt] = useState<string | null>(null);
+  const [pendingSkillManifest, setPendingSkillManifest] = useState<SkillManifest | null>(null);
   // Auto Mode state — persisted in component state; ideally moves to Convex later.
   const [autoModeConfig, setAutoModeConfig] = useState<AutoModeConfig>(DEFAULT_AUTO_MODE_CONFIG);
   const [inFlightCampaignId, setInFlightCampaignId] = useState<string | null>(null);
@@ -407,6 +407,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [motionStart]
   );
   const motionPreviewPlan = motionStart?.previewPlan ?? null;
+  const motionWorkflowSkillDraft = motionStart?.workflow.plan.skillDraft ?? null;
   const motionWorkflowExamples = useMemo<MotionWorkflowExample[]>(
     () => (motionStart?.examples.length ? motionStart.examples : listMotionWorkflowExamples()),
     [motionStart]
@@ -946,7 +947,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   }, [motionStart, wsId]);
   const handleTimelinePinMotionSkill = useCallback(() => {
     if (!motionStart) return;
-    setPendingSkillPrompt(buildMotionSkillAuthoringPrompt(motionStart));
+    setPendingSkillManifest(motionStart.workflow.plan.skillDraft.manifest);
+    setPendingSkillPrompt(null);
     setMotionTimelineActionStatus('drafting reusable motion skill');
   }, [motionStart]);
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
@@ -2348,6 +2350,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         if (typeof window !== 'undefined') window.alert(`skill accept failed: ${message}`);
       } finally {
         setPendingSkillPrompt(null);
+        setPendingSkillManifest(null);
       }
     },
     []
@@ -2719,6 +2722,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             capturePlan={motionStart?.capturePlan ?? null}
             graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}
+            workflowSkillDraft={motionWorkflowSkillDraft}
             actionStatus={motionTimelineActionStatus}
           />
         ) : (
@@ -2789,8 +2793,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       <SkillAcceptDialog
         pendingPrompt={pendingSkillPrompt}
+        pendingManifest={pendingSkillManifest}
         onAccept={handleSkillAccept}
-        onReject={() => setPendingSkillPrompt(null)}
+        onReject={() => {
+          setPendingSkillPrompt(null);
+          setPendingSkillManifest(null);
+        }}
         bypassAgent={
           typeof window !== 'undefined' &&
           new URLSearchParams(window.location.search).get('bypass') === '1'

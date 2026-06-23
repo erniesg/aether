@@ -13,6 +13,7 @@ export interface SkillAcceptDialogProps {
    * via /api/capability/draft-skill. Set to null to close the dialog.
    */
   pendingPrompt: string | null;
+  pendingManifest?: SkillManifest | null;
   onAccept: (manifest: SkillManifest) => void;
   onReject: () => void;
   /**
@@ -35,6 +36,7 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'error';
  */
 export function SkillAcceptDialog({
   pendingPrompt,
+  pendingManifest = null,
   onAccept,
   onReject,
   bypassAgent,
@@ -46,6 +48,14 @@ export function SkillAcceptDialog({
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    if (pendingManifest) {
+      setState('ready');
+      setManifest(pendingManifest);
+      setError(null);
+      setShowInstructions(false);
+      return;
+    }
+
     if (!pendingPrompt) {
       setState('idle');
       setManifest(null);
@@ -86,14 +96,14 @@ export function SkillAcceptDialog({
     })();
 
     return () => ctrl.abort();
-  }, [pendingPrompt, bypassAgent]);
+  }, [pendingPrompt, pendingManifest, bypassAgent]);
 
   const handleAccept = () => {
     if (!manifest) return;
     onAccept(manifest);
   };
 
-  const open = pendingPrompt !== null;
+  const open = pendingPrompt !== null || pendingManifest !== null;
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && onReject()}>

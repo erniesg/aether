@@ -35,6 +35,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       createdAt: 100,
     });
     expect(plan.engines).toEqual(['remotion', 'hyperframes', 'provider']);
+    expect(plan.supportedSourceKinds).toEqual(['repo', 'site', 'capture', 'reference']);
     expect(plan.acceptedSources).toEqual([repoSource]);
     expect(plan.unsupportedSources).toEqual([]);
     expect(plan.gates.map((gate) => gate.id)).toEqual([
@@ -129,6 +130,15 @@ describe('buildAgentMotionWorkflowPlan', () => {
       'transcript',
       'provenance-manifest',
     ]);
+    expect(plan.skillDraft).toMatchObject({
+      label: 'Repo launch video',
+      manifestPathRelative: 'lib/agent/skills/repo-launch-video/SKILL.md',
+      startShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
+      manifest: {
+        name: 'repo-launch-video',
+        tools: expect.arrayContaining(['motion_start', 'motion_capture', 'motion_render']),
+      },
+    });
     expect(plan.gates.map((gate) => gate.label).join(' ')).not.toMatch(
       /pipeline|operator|dashboard|control plane/i
     );
@@ -150,6 +160,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       sourceStatus: 'ready',
     });
     expect(plan.engines).toEqual(['hyperframes']);
+    expect(plan.supportedSourceKinds).toEqual(['pr', 'repo']);
     expect(plan.toolIds).toEqual([
       'motion-brief',
       'motion-storyboard',
@@ -225,6 +236,23 @@ describe('buildAgentMotionWorkflowPlan', () => {
     expect(plan.runPlan.steps.find((step) => step.gateId === 'voice')).toMatchObject({
       apiRoutes: ['/api/motion/voice'],
       outputSummary: ['voice clips', 'word timings'],
+    });
+    expect(plan.skillDraft).toMatchObject({
+      label: 'PR to video',
+      manifestPathRelative: 'lib/agent/skills/pr-to-video/SKILL.md',
+      startShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
+      manifest: {
+        name: 'pr-to-video',
+        tools: [
+          'motion_start',
+          'motion_regenerate',
+          'motion_voice',
+          'motion_sync',
+          'motion_revise',
+          'motion_render',
+          'motion_export_pack',
+        ],
+      },
     });
   });
 

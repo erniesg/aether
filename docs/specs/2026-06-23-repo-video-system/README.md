@@ -54,12 +54,13 @@ Clueso, and Descript.
   repo-to-motion-project slice: sourced claims, story beats, draft variations,
   timeline tracks, reusable motion kit suggestions, editable component slots,
   scoped regeneration requests, creator-facing preview plans, workflow routing,
-  agent-readable workflow gates, executable run-plan steps, and the start
-  artifact an agent can hand to the creator for review or full-auto progression.
-  GitHub repo URLs, local repo paths, and site/app URL sources can now create
-  editable project starts; PR sources can create editable code-change explainer
-  starts when a code-change provider is configured. Real screen capture and
-  recording remain provider execution work.
+  agent-readable workflow gates, executable run-plan steps, deterministic
+  workflow-skill manifest drafts, and the start artifact an agent can hand to
+  the creator for review or full-auto progression. GitHub repo URLs, local repo
+  paths, and site/app URL sources can now create editable project starts; PR
+  sources can create editable code-change explainer starts when a code-change
+  provider is configured. Real screen capture and recording remain provider
+  execution work.
 - `app/api/motion/start/route.ts` now exposes that starter through an
   agent-native JSON boundary: callers can pass `sourceRefs` directly or use
   `repoPath`, `repoUrl`, `siteUrl`, or `prRef` shorthands and receive the
@@ -214,6 +215,7 @@ Clueso, and Descript.
 | Source | Relevant pattern | Implication for aether |
 | --- | --- | --- |
 | [HyperFrames pr-to-video launch note](https://x.com/search?q=%22Nobody%20reads%20pull%20requests%22%20%22pr-to-video%22&src=typed_query) | HyperFrames is shipping workflow-specific skills and positioned `pr-to-video` as an agent-written PR explainer installed through `npx skills add heygen-com/hyperframes`. | Treat workflow routing as product surface, not implementation detail: repo launch, website/app capture, PR explainers, overlays/captions, motion graphics, and engine portability should be separate reusable workflows over shared timeline primitives. |
+| [iart-ai/motion-skills](https://github.com/iart-ai/motion-skills) | Open-source motion skills are packaged as installable workflow folders with `SKILL.md`, references, and deliver-and-verify loops for contact sheets, frame checks, and encoded video probes. | Aether workflow plans should emit concrete skill manifests and verification requirements, not just prose prompts, so a known workflow can be pinned and replayed agent-natively. |
 | [Claude Code](https://claude.com/product/claude-code) | Product narrative is "ask agent, watch it read files, edit, run commands, and preview results" across terminal, IDE, desktop, browser, and Slack. | Add agent-trace video components: prompt chip, file-read stack, diff card, terminal run, preview pane, done state. |
 | [Screen Studio](https://www.screen.studio/) | Product demos depend on auto zoom, cursor smoothing, vertical export, captions, transcript, brand presets, sound cleanup, and social export. | Capture and editing matter as much as generation. Add cursor zoom, click rings, keypress overlays, screen crop, captions, and format fanout. |
 | [Arcade](https://www.arcade.software/) | AI turns product interactions into on-brand demos, videos, and visual stories from browser, desktop, and Figma capture. | Repo video should show the actual product, not generic stock motion. The capture pipeline needs browser and app-state inputs. |

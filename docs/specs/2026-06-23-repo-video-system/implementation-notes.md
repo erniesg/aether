@@ -53,6 +53,11 @@
 - Agent workflow plans now include an executable run plan: ordered review or
   full-auto steps, motion API routes, tool ids, input/output artifacts, and
   verification artifacts are carried through the same start result.
+- Agent workflow plans now include a deterministic `SKILL.md` draft for the
+  routed motion workflow, including route-derived tool names, review/full-auto
+  policy, start shorthands, sample launch copy, and required verification
+  artifacts so a known video workflow can be pinned without re-drafting through
+  a generic skill prompt.
 - Workflow skill contracts on video workflows now expose review/full-auto modes,
   reviewable artifacts, scoped regeneration targets, and verification artifacts
   directly in registry metadata and agent workflow plans.

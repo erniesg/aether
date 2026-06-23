@@ -6,6 +6,7 @@ import type { MotionGraphNode, TimelineTrack } from '@/lib/motion/project';
 import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
+import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 
 afterEach(cleanup);
 
@@ -321,6 +322,30 @@ const previewPlan: MotionPreviewPlan = {
   requestedAt: 130,
 };
 
+const workflowSkillDraft: MotionWorkflowSkillDraft = {
+  kind: 'motion-workflow-skill-draft',
+  label: 'Repo launch video',
+  trigger: 'Create a repo launch video from repo, site, capture, reference',
+  manifestPathRelative: 'lib/agent/skills/repo-launch-video/SKILL.md',
+  manifest: {
+    name: 'repo-launch-video',
+    version: 1,
+    description: 'Repo launch video skill for editable, provenance-rich motion videos.',
+    tools: ['motion_start', 'motion_capture', 'motion_render', 'motion_export_pack'],
+    referenceFiles: [],
+    instructions: '# Repo launch video\n\n## Output format\n\n```json\n{}\n```',
+  },
+  startShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
+  reviewPolicyLabels: [
+    'Review video plan before continuing',
+    'Review draft variations before continuing',
+    'Review render proof before continuing',
+  ],
+  toolNames: ['motion_start', 'motion_capture', 'motion_render', 'motion_export_pack'],
+  verificationLabels: ['contact sheet', 'mp4 probe', 'poster', 'subtitles'],
+  sampleCopyLines: ['Point Aether at the repo.'],
+};
+
 const graphNodes: MotionGraphNode[] = [
   {
     id: 'node-script',
@@ -434,6 +459,7 @@ describe('TimelineLens', () => {
         onSelectClip={() => {}}
         graphNodes={graphNodes}
         capturePlan={capturePlan}
+        workflowSkillDraft={workflowSkillDraft}
         onCaptureMotion={() => {}}
         onSyncMotion={() => {}}
         actionStatus="capture regeneration planned"
@@ -447,6 +473,12 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);
     expect(screen.getByText('video plan')).toBeInTheDocument();
     expect(screen.getByText('2 scenes / 30s')).toBeInTheDocument();
+    expect(screen.getByText('workflow skill')).toBeInTheDocument();
+    expect(screen.getByText('SKILL.md ready')).toBeInTheDocument();
+    expect(screen.getByText('Repo launch video skill for editable, provenance-rich motion videos.')).toBeInTheDocument();
+    expect(screen.getByText(/Create a repo launch video from repo/)).toBeInTheDocument();
+    expect(screen.getByText('repoPath / repoUrl / siteUrl / sourceRefs')).toBeInTheDocument();
+    expect(screen.getByText('contact sheet')).toBeInTheDocument();
     expect(screen.getByText('motion kit')).toBeInTheDocument();
     expect(screen.getByText('Repo launch kit')).toBeInTheDocument();
     expect(screen.getByText(/Open fast, prove early/)).toBeInTheDocument();
@@ -492,6 +524,7 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('image-to-video-clip-beat-demo-text')).not.toBeInTheDocument();
     expect(screen.queryByText('repo-launch-kit')).not.toBeInTheDocument();
     expect(screen.queryByText('product-glide')).not.toBeInTheDocument();
+    expect(screen.queryByText('lib/agent/skills/repo-launch-video/SKILL.md')).not.toBeInTheDocument();
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();

@@ -71,6 +71,15 @@ describe('POST /api/motion/start', () => {
         workflowId: 'repo-launch-video',
         reason: 'repo source selected a launch workflow',
         plan: {
+          skillDraft: {
+            label: 'Repo launch video',
+            manifestPathRelative: 'lib/agent/skills/repo-launch-video/SKILL.md',
+            startShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
+            manifest: {
+              name: 'repo-launch-video',
+              tools: expect.arrayContaining(['motion_start', 'motion_capture', 'motion_render']),
+            },
+          },
           runPlan: {
             status: 'ready',
             primaryAction: 'request-review',
@@ -249,6 +258,23 @@ describe('POST /api/motion/start', () => {
           mode: 'full-auto',
           primaryAction: 'run-full-auto',
           engines: ['remotion', 'hyperframes'],
+          skillDraft: {
+            label: 'PR to video',
+            manifestPathRelative: 'lib/agent/skills/pr-to-video/SKILL.md',
+            startShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
+            manifest: {
+              name: 'pr-to-video',
+              tools: [
+                'motion_start',
+                'motion_regenerate',
+                'motion_voice',
+                'motion_sync',
+                'motion_revise',
+                'motion_render',
+                'motion_export_pack',
+              ],
+            },
+          },
           runPlan: {
             status: 'ready',
             primaryAction: 'run-full-auto',

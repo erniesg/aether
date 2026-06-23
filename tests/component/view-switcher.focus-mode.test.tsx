@@ -13,6 +13,7 @@ import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
+import { buildAgentMotionWorkflowPlan } from '@/lib/motion/workflowPlan';
 
 afterEach(() => {
   cleanup();
@@ -35,32 +36,13 @@ function storedMotionStart(): AgentMotionStartResult {
     workflow: {
       workflowId: 'repo-launch-video',
       reason: 'repo source selected a launch workflow',
-      plan: {
+      plan: buildAgentMotionWorkflowPlan({
         workflowId: 'repo-launch-video',
-        label: 'Repo launch video',
-        artifactKind: 'video',
         mode: 'review',
-        primaryAction: 'request-review',
-        sourceStatus: 'ready',
-        acceptedSources: [],
-        unsupportedSources: [],
-        missingSourceKinds: [],
-        engines: ['remotion', 'hyperframes', 'provider'],
-        toolIds: [],
-        skillContract: null,
-        gates: [],
-        nextActions: [],
-        runPlan: {
-          mode: 'review',
-          status: 'ready',
-          primaryAction: 'request-review',
-          nextStepId: null,
-          stepCount: 0,
-          steps: [],
-          verificationArtifacts: [],
-        },
+        sourceRefs: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+        requestedEngines: ['remotion', 'hyperframes', 'provider'],
         createdAt: 1,
-      },
+      }),
     },
     project: {
       brief: {
@@ -129,32 +111,13 @@ function storedRegeneratableMotionStart(): AgentMotionStartResult {
     workflow: {
       workflowId: 'repo-launch-video',
       reason: 'repo source selected a launch workflow',
-      plan: {
+      plan: buildAgentMotionWorkflowPlan({
         workflowId: 'repo-launch-video',
-        label: 'Repo launch video',
-        artifactKind: 'video',
         mode: 'review',
-        primaryAction: 'request-review',
-        sourceStatus: 'ready',
-        acceptedSources: [],
-        unsupportedSources: [],
-        missingSourceKinds: [],
-        engines: ['remotion', 'hyperframes', 'provider'],
-        toolIds: [],
-        skillContract: null,
-        gates: [],
-        nextActions: [],
-        runPlan: {
-          mode: 'review',
-          status: 'ready',
-          primaryAction: 'request-review',
-          nextStepId: null,
-          stepCount: 0,
-          steps: [],
-          verificationArtifacts: [],
-        },
+        sourceRefs: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+        requestedEngines: ['remotion', 'hyperframes', 'provider'],
         createdAt: 1,
-      },
+      }),
     },
     project,
     reviewPlan: null,
@@ -531,12 +494,13 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     await userEvent.click(screen.getByRole('button', { name: /^pin skill$/i }));
 
     expect(await screen.findByTestId('skill-accept-name')).toHaveValue('repo-launch-video');
+    expect(screen.getByTestId('skill-accept-description')).toHaveTextContent(
+      'Repo launch video skill for editable, provenance-rich motion videos.'
+    );
     const draftCall = fetchMock.mock.calls.find(
       (call) => call[0] === '/api/capability/draft-skill'
     );
-    expect(draftCall?.[1]?.body).toEqual(expect.stringContaining('Repo launch video'));
-    expect(draftCall?.[1]?.body).toEqual(expect.stringContaining('Engines: remotion, hyperframes, provider'));
-    expect(draftCall?.[1]?.body).toEqual(expect.stringContaining('review vs full-auto behavior'));
+    expect(draftCall).toBeUndefined();
   });
 
   it('selected timeline clip edits call revise and refresh the preview', async () => {

@@ -13,6 +13,7 @@ import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
+import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import { motionSeconds } from '@/lib/motion/project';
 import type {
   MotionPreviewEnginePlan,
@@ -50,6 +51,7 @@ export interface TimelineLensProps {
   capturePlan?: AgentMotionCapturePlan | null;
   graphNodes?: MotionGraphNode[];
   workflowExamples?: MotionWorkflowExample[];
+  workflowSkillDraft?: MotionWorkflowSkillDraft | null;
   actionStatus?: string | null;
 }
 
@@ -73,6 +75,7 @@ export function TimelineLens({
   capturePlan = null,
   graphNodes = [],
   workflowExamples = [],
+  workflowSkillDraft = null,
   actionStatus = null,
 }: TimelineLensProps) {
   const clipCount = previewPlan
@@ -122,6 +125,7 @@ export function TimelineLens({
             capturePlan={capturePlan}
             graphNodes={graphNodes}
             workflowExamples={workflowExamples}
+            workflowSkillDraft={workflowSkillDraft}
             actionStatus={actionStatus}
           />
         ) : tracks.length > 0 ? (
@@ -164,6 +168,7 @@ function MotionPreviewPlanView({
   capturePlan,
   graphNodes,
   workflowExamples,
+  workflowSkillDraft,
   actionStatus,
 }: {
   previewPlan: MotionPreviewPlan;
@@ -184,6 +189,7 @@ function MotionPreviewPlanView({
   capturePlan: AgentMotionCapturePlan | null;
   graphNodes: MotionGraphNode[];
   workflowExamples: MotionWorkflowExample[];
+  workflowSkillDraft: MotionWorkflowSkillDraft | null;
   actionStatus: string | null;
 }) {
   const selectedClip = findPreviewClip(previewPlan, selectedClipId);
@@ -303,6 +309,12 @@ function MotionPreviewPlanView({
       {graphNodes.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionGraphStrip nodes={graphNodes} />
+        </section>
+      ) : null}
+
+      {workflowSkillDraft ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionWorkflowSkillStrip draft={workflowSkillDraft} />
         </section>
       ) : null}
 
@@ -440,6 +452,54 @@ function MotionPreviewPlanView({
           {actionStatus}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MotionWorkflowSkillStrip({
+  draft,
+}: {
+  draft: MotionWorkflowSkillDraft;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            workflow skill
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {draft.manifest.description}
+          </div>
+        </div>
+        <Chip tone="info" size="sm">
+          SKILL.md ready
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">{draft.trigger}</div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {draft.reviewPolicyLabels.slice(0, 4).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {draft.startShorthands.join(' / ')}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {draft.verificationLabels.slice(0, 4).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
