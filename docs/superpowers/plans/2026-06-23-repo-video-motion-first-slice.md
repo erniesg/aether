@@ -1653,42 +1653,79 @@ git commit -m "feat: scaffold motion timeline lens"
 - Modify: `lib/tool/registry.ts`
 - Modify: `lib/capability/types.ts`
 - Modify: `lib/workflow/registry.ts`
-- Modify: `tests/unit/tool-registry.test.ts`
+- Modify: `tests/unit/capability-registry.test.ts`
 
-- [ ] **Step 1: Write or extend registry tests**
+- [x] **Step 1: Write or extend registry tests**
 
-Add these assertions to `tests/unit/tool-registry.test.ts`:
+Add these assertions to `tests/unit/capability-registry.test.ts`:
 
 ```ts
-import { getToolRegistryEntry } from '@/lib/tool/registry';
+import { getToolRegistryEntry, listPublishedToolRegistryEntries } from '@/lib/tool/registry';
 import { getWorkflowRegistryEntry } from '@/lib/workflow/registry';
+import type { CapabilityTool } from '@/lib/capability/types';
 
-it('registers draft motion tools for the agent-native video workflow', () => {
-  expect(getToolRegistryEntry('motion-brief')?.artifactKind).toBe('video');
-  expect(getToolRegistryEntry('motion-storyboard')?.artifactKind).toBe('video');
-  expect(getToolRegistryEntry('motion-sync')?.artifactKind).toBe('video');
-  expect(getToolRegistryEntry('motion-render')?.artifactKind).toBe('video');
-  expect(getToolRegistryEntry('voiceover-gen')?.artifactKind).toBe('audio');
-});
-
-it('registers the draft repo launch video workflow', () => {
-  expect(getWorkflowRegistryEntry('repo-launch-video')?.toolIds).toEqual([
+it('registers draft motion tools for agent-native video workflows', () => {
+  const motionToolIds = [
     'motion-brief',
     'motion-storyboard',
+    'motion-capture',
+    'motion-visuals',
+    'motion-voice',
     'motion-sync',
-    'voiceover-gen',
     'motion-render',
-  ]);
+    'motion-revise',
+    'motion-pin-capability',
+  ] satisfies CapabilityTool[];
+
+  for (const id of motionToolIds) {
+    expect(getToolRegistryEntry(id)).toMatchObject({
+      kind: 'tool',
+      id,
+      artifactKind: 'video',
+      status: 'draft',
+    });
+  }
+  expect(listPublishedToolRegistryEntries().map((entry) => entry.id)).not.toContain(
+    'motion-render'
+  );
+});
+
+it('registers reusable draft video workflows with review gates and engine hints', () => {
+  expect(getWorkflowRegistryEntry('repo-launch-video')).toMatchObject({
+    id: 'repo-launch-video',
+    toolIds: [
+      'motion-brief',
+      'motion-storyboard',
+      'motion-capture',
+      'motion-visuals',
+      'motion-voice',
+      'motion-sync',
+      'motion-render',
+      'motion-revise',
+    ],
+    sourceKinds: ['repo', 'site', 'capture', 'reference'],
+    engines: ['remotion', 'hyperframes', 'provider'],
+    reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+    status: 'draft',
+  });
+
+  expect(getWorkflowRegistryEntry('pr-to-video')).toMatchObject({
+    id: 'pr-to-video',
+    sourceKinds: ['pr', 'repo'],
+    engines: ['remotion', 'hyperframes'],
+    reviewGates: ['plan', 'drafts', 'timeline', 'render', 'export'],
+    status: 'draft',
+  });
 });
 ```
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
-Run: `npx vitest run tests/unit/tool-registry.test.ts`
+Run: `./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts`
 
 Expected: FAIL because motion tool ids and workflow are not registered.
 
-- [ ] **Step 3: Add tool ids**
+- [x] **Step 3: Add tool ids**
 
 In `lib/tool/registry.ts`, add these draft entries to `TOOL_REGISTRY`:
 
@@ -1711,6 +1748,33 @@ In `lib/tool/registry.ts`, add these draft entries to `TOOL_REGISTRY`:
     outputKind: 'video',
     status: 'draft',
   },
+  'motion-capture': {
+    kind: 'tool',
+    id: 'motion-capture',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Product capture',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'motion-visuals': {
+    kind: 'tool',
+    id: 'motion-visuals',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Visual generation',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'motion-voice': {
+    kind: 'tool',
+    id: 'motion-voice',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Voiceover',
+    outputKind: 'audio',
+    status: 'draft',
+  },
   'motion-sync': {
     kind: 'tool',
     id: 'motion-sync',
@@ -1729,13 +1793,22 @@ In `lib/tool/registry.ts`, add these draft entries to `TOOL_REGISTRY`:
     outputKind: 'video',
     status: 'draft',
   },
-  'voiceover-gen': {
+  'motion-revise': {
     kind: 'tool',
-    id: 'voiceover-gen',
+    id: 'motion-revise',
     version: 1,
-    artifactKind: 'audio',
-    label: 'Voiceover generation',
-    outputKind: 'audio',
+    artifactKind: 'video',
+    label: 'Timeline revise',
+    outputKind: 'video',
+    status: 'draft',
+  },
+  'motion-pin-capability': {
+    kind: 'tool',
+    id: 'motion-pin-capability',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Pin motion capability',
+    outputKind: 'video',
     status: 'draft',
   },
 ```
@@ -1753,14 +1826,41 @@ export type CapabilityTool =
   | 'text-apply'
   | 'motion-brief'
   | 'motion-storyboard'
+  | 'motion-capture'
+  | 'motion-visuals'
+  | 'motion-voice'
   | 'motion-sync'
   | 'motion-render'
-  | 'voiceover-gen';
+  | 'motion-revise'
+  | 'motion-pin-capability';
 ```
 
-- [ ] **Step 4: Add workflow registry entry**
+- [x] **Step 4: Add workflow registry entries**
 
-In `lib/workflow/registry.ts`, add:
+In `lib/workflow/registry.ts`, add optional workflow metadata fields:
+
+```ts
+export type WorkflowSourceKind =
+  | 'repo'
+  | 'pr'
+  | 'site'
+  | 'capture'
+  | 'upload'
+  | 'reference'
+  | 'remotion'
+  | 'hyperframes';
+export type WorkflowEngine = 'remotion' | 'hyperframes' | 'provider';
+export type WorkflowReviewGate =
+  | 'plan'
+  | 'drafts'
+  | 'capture'
+  | 'voice'
+  | 'timeline'
+  | 'render'
+  | 'export';
+```
+
+Then add draft video workflow entries:
 
 ```ts
   'repo-launch-video': {
@@ -1769,21 +1869,38 @@ In `lib/workflow/registry.ts`, add:
     version: 1,
     artifactKind: 'video',
     label: 'Repo launch video',
-    toolIds: ['motion-brief', 'motion-storyboard', 'motion-sync', 'voiceover-gen', 'motion-render'],
+    toolIds: [
+      'motion-brief',
+      'motion-storyboard',
+      'motion-capture',
+      'motion-visuals',
+      'motion-voice',
+      'motion-sync',
+      'motion-render',
+      'motion-revise',
+    ],
+    sourceKinds: ['repo', 'site', 'capture', 'reference'],
+    engines: ['remotion', 'hyperframes', 'provider'],
+    reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
     status: 'draft',
   },
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
-Run: `npx vitest run tests/unit/tool-registry.test.ts`
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts
+```
 
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/tool/registry.ts lib/capability/types.ts lib/workflow/registry.ts tests/unit/tool-registry.test.ts
+git add lib/tool/registry.ts lib/capability/types.ts lib/workflow/registry.ts tests/unit/capability-registry.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md
 git commit -m "feat: register motion video workflow tools"
 ```
 
@@ -1792,7 +1909,7 @@ git commit -m "feat: register motion video workflow tools"
 **Files:**
 - Create: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
 
-- [ ] **Step 1: Add implementation notes**
+- [x] **Step 1: Add implementation notes**
 
 ~~~md
 # Repo Video Motion First Slice Notes
@@ -1832,14 +1949,15 @@ locking the visual component library. The direct text-fetch path could not
 inspect `x.com` pages during planning.
 ~~~
 
-- [ ] **Step 2: Run all first-slice tests**
+- [x] **Step 2: Run all first-slice tests**
 
 Run:
 
 ```bash
-npx vitest run lib/motion/project.test.ts lib/motion/storyboard.test.ts lib/motion/componentRegistry.test.ts lib/motion/timeline.test.ts
-npx vitest run lib/providers/video/render-registry.test.ts lib/providers/capture/registry.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/unit/tool-registry.test.ts
+./node_modules/.bin/vitest run lib/motion/project.test.ts lib/motion/storyboard.test.ts lib/motion/repoMotion.test.ts lib/motion/componentRegistry.test.ts lib/motion/timeline.test.ts lib/motion/reviewPlan.test.ts
+./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/capture/registry.test.ts lib/providers/code-change/registry.test.ts lib/providers/code-change/github-gh.test.ts tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx tests/unit/capability-registry.test.ts
 npm run typecheck
+git diff --check
 ```
 
 Expected: all commands pass.

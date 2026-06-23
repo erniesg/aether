@@ -35,13 +35,23 @@ Clueso, and Descript.
 - `docs/DESIGN-SOCIAL-CANVAS.md` already defines video as material from the
   same workspace inputs, compiled from a motion brief, rendered offline, and
   dropped back on canvas.
-- `components/header/ViewSwitcher.tsx` already reserves `timeline` and `graph`
-  lenses in the single synthesis shell.
+- `components/header/ViewSwitcher.tsx` and `components/workspace/TimelineLens.tsx`
+  now expose the `timeline` lens inside the single synthesis shell; `graph`
+  remains reserved for advanced provenance/generation editing.
 - `lib/motion/brief.ts`, `lib/motion/compile.ts`, and `scripts/render-motion.ts`
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
+- `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`, `timeline.ts`,
+  `componentRegistry.ts`, and `reviewPlan.ts` now cover the first
+  repo-to-motion-project slice: sourced claims, story beats, draft variations,
+  timeline tracks, editable component slots, and scoped regeneration requests.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.
+- `lib/tool/registry.ts`, `lib/capability/types.ts`, and
+  `lib/workflow/registry.ts` now register draft agent-native motion tools and
+  reusable video workflows for repo launch, feature/social, website capture,
+  PR explainers, caption overlays, motion graphics, and
+  Remotion/HyperFrames portability.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding only, not render,
   text-to-video, image-to-video, voiceover, or timeline compilation.
@@ -53,6 +63,7 @@ Clueso, and Descript.
 
 | Source | Relevant pattern | Implication for aether |
 | --- | --- | --- |
+| [HyperFrames pr-to-video launch note](https://x.com/search?q=%22Nobody%20reads%20pull%20requests%22%20%22pr-to-video%22&src=typed_query) | HyperFrames is shipping workflow-specific skills and positioned `pr-to-video` as an agent-written PR explainer installed through `npx skills add heygen-com/hyperframes`. | Treat workflow routing as product surface, not implementation detail: repo launch, website/app capture, PR explainers, overlays/captions, motion graphics, and engine portability should be separate reusable workflows over shared timeline primitives. |
 | [Claude Code](https://claude.com/product/claude-code) | Product narrative is "ask agent, watch it read files, edit, run commands, and preview results" across terminal, IDE, desktop, browser, and Slack. | Add agent-trace video components: prompt chip, file-read stack, diff card, terminal run, preview pane, done state. |
 | [Screen Studio](https://www.screen.studio/) | Product demos depend on auto zoom, cursor smoothing, vertical export, captions, transcript, brand presets, sound cleanup, and social export. | Capture and editing matter as much as generation. Add cursor zoom, click rings, keypress overlays, screen crop, captions, and format fanout. |
 | [Arcade](https://www.arcade.software/) | AI turns product interactions into on-brand demos, videos, and visual stories from browser, desktop, and Figma capture. | Repo video should show the actual product, not generic stock motion. The capture pipeline needs browser and app-state inputs. |
@@ -67,6 +78,36 @@ Clueso, and Descript.
 | [tldraw custom shapes](https://tldraw.dev/docs/shapes) | Custom shapes can represent domain objects on the canvas. | Add motion-project, timeline preview, generated clip, and export-pack shapes on the canvas. |
 | [iart-ai motion-skills](https://github.com/iart-ai/motion-skills) | Public index of motion-agent skills. The useful packs for aether are `launch-video`, `product-demo-video`, `short-form-video`, `remotion-video`, `beat-sync-editing`, `shot-composition`, and `motion-art-direction`. | Borrow the agent workflow grammar and verification loop, not the repo as a runtime dependency. Make plan, still-frame proof, contact sheet, MP4 probe, and reusable skill packs first-class in aether. |
 | [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes) | HyperFrames now ships workflow skills including `product-launch-video`, `website-to-video`, `pr-to-video`, `embedded-captions`, `graphic-overlays`, `motion-graphics`, and `remotion-to-hyperframes`. `pr-to-video` reads PR facts through `gh`, not site capture. | Mirror the workflow router in aether: product/app launch, website/app capture, PR/code-change explainer, footage caption/overlay, motion graphic, and Remotion/HyperFrames portability should be distinct capabilities with shared timeline/render primitives. |
+
+## Research refresh: launch-video component stack
+
+The current external signal is that the useful unit is a workflow skill, not a
+single video model call. HyperFrames' `pr-to-video` launch note matters because
+it frames PRs as an input type with its own evidence rules, while product pages
+from Claude Code, Screen Studio, Arcade, Clueso, Descript, Runway, Pika, and
+HeyGen show that successful app videos combine real product capture, agent
+activity proof, scripted narration, captions, brand presets, and manual edit
+points.
+
+For aether this means the agent should always produce these reviewable artifacts
+before final render:
+
+- Video plan: source, audience, platform, hook, beat order, capture needs,
+  voice/caption plan, and export pack.
+- Draft variations: primary, proof-first, demo-first, and short-form cuts.
+- Component plan: hook card, product/app frame, agent trace, proof/evidence
+  card, diff/mechanism card for PRs, captions, voice lines, transitions, CTA.
+- Capture plan: screenshots first, real recording only when interaction,
+  animation, canvas gesture, or native app behavior needs motion proof.
+- Sync plan: narration duration, captions, beat markers, effects, transitions,
+  music bed, SFX, and format-safe crop overrides.
+- Render proof: still frames/contact sheet, MP4 metadata probe, poster, subtitle
+  file, transcript, and provenance manifest.
+
+Full-auto mode can advance through those artifacts without stopping, but it
+must still persist them so the creator can review, branch, regenerate a single
+component, or roll back. Review mode pauses at each artifact and exposes the
+same state in the canvas/timeline shell.
 
 ## Component taxonomy
 

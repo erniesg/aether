@@ -15,7 +15,16 @@ export type CapabilityTool =
   | 'cutout'
   | 'relight'
   | 'spatial-gen'
-  | 'text-apply';
+  | 'text-apply'
+  | 'motion-brief'
+  | 'motion-storyboard'
+  | 'motion-capture'
+  | 'motion-visuals'
+  | 'motion-voice'
+  | 'motion-sync'
+  | 'motion-render'
+  | 'motion-revise'
+  | 'motion-pin-capability';
 
 /**
  * Minimum shape needed to re-run the same tool-chain against a new layer.

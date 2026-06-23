@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  getToolEntryRef,
   getToolRegistryEntry,
+  getToolEntryRef,
   listPublishedToolRegistryEntries,
 } from '@/lib/tool/registry';
 import { getWorkflowRegistryEntry } from '@/lib/workflow/registry';
 import { getSkillRegistryEntry } from '@/lib/skill/registry';
+import type { CapabilityTool } from '@/lib/capability/types';
 
 describe('typed capability registries', () => {
   it('resolves the built-in image generation tool with a stable versioned entry ref', () => {
@@ -66,5 +67,70 @@ describe('typed capability registries', () => {
     });
 
     expect(listPublishedToolRegistryEntries().map((entry) => entry.id)).not.toContain('spatial-gen');
+  });
+
+  it('registers draft motion tools for agent-native video workflows', () => {
+    const motionToolIds = [
+      'motion-brief',
+      'motion-storyboard',
+      'motion-capture',
+      'motion-visuals',
+      'motion-voice',
+      'motion-sync',
+      'motion-render',
+      'motion-revise',
+      'motion-pin-capability',
+    ] satisfies CapabilityTool[];
+
+    for (const id of motionToolIds) {
+      expect(getToolRegistryEntry(id)).toMatchObject({
+        kind: 'tool',
+        id,
+        artifactKind: 'video',
+        status: 'draft',
+      });
+    }
+    expect(listPublishedToolRegistryEntries().map((entry) => entry.id)).not.toContain(
+      'motion-render'
+    );
+  });
+
+  it('registers reusable draft video workflows with review gates and engine hints', () => {
+    expect(getWorkflowRegistryEntry('repo-launch-video')).toMatchObject({
+      kind: 'workflow',
+      id: 'repo-launch-video',
+      artifactKind: 'video',
+      label: 'Repo launch video',
+      toolIds: [
+        'motion-brief',
+        'motion-storyboard',
+        'motion-capture',
+        'motion-visuals',
+        'motion-voice',
+        'motion-sync',
+        'motion-render',
+        'motion-revise',
+      ],
+      sourceKinds: ['repo', 'site', 'capture', 'reference'],
+      engines: ['remotion', 'hyperframes', 'provider'],
+      reviewGates: ['plan', 'drafts', 'capture', 'voice', 'timeline', 'render', 'export'],
+      status: 'draft',
+    });
+
+    expect(getWorkflowRegistryEntry('pr-to-video')).toMatchObject({
+      id: 'pr-to-video',
+      toolIds: ['motion-brief', 'motion-storyboard', 'motion-sync', 'motion-render'],
+      sourceKinds: ['pr', 'repo'],
+      engines: ['remotion', 'hyperframes'],
+      reviewGates: ['plan', 'drafts', 'timeline', 'render', 'export'],
+      status: 'draft',
+    });
+
+    expect(getWorkflowRegistryEntry('remotion-hyperframes-port')).toMatchObject({
+      id: 'remotion-hyperframes-port',
+      sourceKinds: ['remotion', 'hyperframes'],
+      engines: ['remotion', 'hyperframes'],
+      status: 'draft',
+    });
   });
 });
