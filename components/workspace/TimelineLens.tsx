@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
+import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import { motionSeconds } from '@/lib/motion/project';
@@ -26,6 +27,7 @@ export interface TimelineLensProps {
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
+  onRenderMotion?: (engine: MotionRenderEngine) => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples?: MotionWorkflowExample[];
   actionStatus?: string | null;
@@ -39,6 +41,7 @@ export function TimelineLens({
   onSelectDraft,
   onRegenerateComponent,
   onGenerateVoice,
+  onRenderMotion,
   onEditClipSummary,
   workflowExamples = [],
   actionStatus = null,
@@ -78,6 +81,7 @@ export function TimelineLens({
             onSelectDraft={onSelectDraft}
             onRegenerateComponent={onRegenerateComponent}
             onGenerateVoice={onGenerateVoice}
+            onRenderMotion={onRenderMotion}
             onEditClipSummary={onEditClipSummary}
             workflowExamples={workflowExamples}
             actionStatus={actionStatus}
@@ -110,6 +114,7 @@ function MotionPreviewPlanView({
   onSelectDraft,
   onRegenerateComponent,
   onGenerateVoice,
+  onRenderMotion,
   onEditClipSummary,
   workflowExamples,
   actionStatus,
@@ -120,11 +125,13 @@ function MotionPreviewPlanView({
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
+  onRenderMotion?: (engine: MotionRenderEngine) => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   workflowExamples: MotionWorkflowExample[];
   actionStatus: string | null;
 }) {
   const selectedClip = findPreviewClip(previewPlan, selectedClipId);
+  const renderEngine = preferredRenderEngine(previewPlan.enginePreviews);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -205,6 +212,13 @@ function MotionPreviewPlanView({
               <VoiceActionButton
                 syncStatus={previewPlan.syncSummary.status}
                 onGenerateVoice={onGenerateVoice}
+              />
+            ) : null}
+            {onRenderMotion && renderEngine ? (
+              <RenderActionButton
+                engine={renderEngine.engine}
+                exportStatus={previewPlan.exportPackSummary.status}
+                onRenderMotion={onRenderMotion}
               />
             ) : null}
           </div>
@@ -320,6 +334,22 @@ function findPreviewClip(
     if (clip) return clip;
   }
   return null;
+}
+
+function preferredRenderEngine(
+  engines: MotionPreviewEnginePlan[]
+): (MotionPreviewEnginePlan & { engine: MotionRenderEngine }) | null {
+  return (
+    engines.find(
+      (engine): engine is MotionPreviewEnginePlan & { engine: MotionRenderEngine } =>
+        engine.engine === 'remotion' && engine.status === 'ready'
+    ) ??
+    engines.find(
+      (engine): engine is MotionPreviewEnginePlan & { engine: MotionRenderEngine } =>
+        engine.engine === 'hyperframes' && engine.status === 'ready'
+    ) ??
+    null
+  );
 }
 
 function SelectedClipEditor({
@@ -495,6 +525,29 @@ function VoiceActionButton({
       className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
     >
       {ready ? 'voice ready' : 'generate voice'}
+    </button>
+  );
+}
+
+function RenderActionButton({
+  engine,
+  exportStatus,
+  onRenderMotion,
+}: {
+  engine: MotionRenderEngine;
+  exportStatus: MotionPreviewExportPackSummary['status'];
+  onRenderMotion: (engine: MotionRenderEngine) => void;
+}) {
+  const ready = exportStatus === 'ready';
+
+  return (
+    <button
+      type="button"
+      disabled={ready}
+      onClick={() => onRenderMotion(engine)}
+      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {ready ? 'render ready' : `render ${engine}`}
     </button>
   );
 }

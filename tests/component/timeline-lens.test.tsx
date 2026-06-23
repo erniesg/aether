@@ -299,6 +299,22 @@ describe('TimelineLens', () => {
     expect(onGenerateVoice).toHaveBeenCalledTimes(1);
   });
 
+  it('lets creators request a render from the ready engine plan', async () => {
+    const onRenderMotion = vi.fn<(engine: 'remotion' | 'hyperframes') => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onRenderMotion={onRenderMotion}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /render remotion/i }));
+    expect(onRenderMotion).toHaveBeenCalledWith('remotion');
+  });
+
   it('lets creators edit the selected clip summary', async () => {
     const onSelectClip = vi.fn<(clipId: string) => void>();
     const onEditClipSummary = vi.fn<(clipId: string, summary: string) => void>();

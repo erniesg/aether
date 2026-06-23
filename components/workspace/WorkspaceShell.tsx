@@ -81,6 +81,7 @@ import {
   listMotionWorkflowExamples,
   type MotionWorkflowExample,
 } from '@/lib/motion/workflowExamples';
+import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
@@ -587,6 +588,57 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
+  const handleTimelineRender = useCallback(
+    async (engine: MotionRenderEngine) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus(`rendering ${engine}`);
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            draftId: motionStart.project.currentDraftId,
+            engine,
+            requestedAt,
+            updatedAt: requestedAt,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          status?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error ?? `render failed: ${res.status}`);
+        }
+
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project ?? motionStart.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan ?? motionStart.previewPlan,
+        });
+        if (json.status === 'rendered') {
+          setMotionTimelineActionStatus(`${engine} render ready`);
+        } else if (json.status === 'provider-required') {
+          setMotionTimelineActionStatus(`${engine} renderer required`);
+        } else if (json.status === 'blocked') {
+          setMotionTimelineActionStatus('render blocked');
+        } else {
+          setMotionTimelineActionStatus('render planned');
+        }
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2345,6 +2397,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSelectDraft={handleTimelineDraftSelect}
             onRegenerateComponent={handleTimelineRegenerate}
             onGenerateVoice={handleTimelineGenerateVoice}
+            onRenderMotion={handleTimelineRender}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}

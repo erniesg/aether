@@ -288,6 +288,42 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline render action requests a proof render and reports provider handoff state', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'provider-required',
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          providers: [],
+          request: { engine: 'remotion' },
+          renderResult: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /render remotion/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('remotion renderer required');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/render',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"engine":"remotion"'),
+      })
+    );
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {
