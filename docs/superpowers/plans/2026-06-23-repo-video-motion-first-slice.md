@@ -30,6 +30,8 @@
 - Create `lib/motion/project.test.ts`: unit tests for frame math and required provenance fields.
 - Create `lib/motion/storyboard.ts`: pure builder from repo/app facts into `MotionProject`.
 - Create `lib/motion/storyboard.test.ts`: tests for beat ordering, source refs, and no invented numeric claims.
+- Create `lib/motion/repoMotion.ts`: fetch GitHub repo facts from a repo URL and bridge them into an editable `MotionProject`.
+- Create `lib/motion/repoMotion.test.ts`: tests URL normalization, repo claim provenance, story generation, and optional timeline materialization.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -592,6 +594,44 @@ Expected: PASS.
 ```bash
 git add lib/motion/storyboard.ts lib/motion/storyboard.test.ts
 git commit -m "feat: build repo motion storyboards"
+```
+
+## Task 2A: Repo URL to Motion Project Bridge
+
+**Files:**
+- Create: `lib/motion/repoMotion.ts`
+- Create: `lib/motion/repoMotion.test.ts`
+
+- [x] **Step 1: Write the failing tests**
+
+Cover GitHub repo URL normalization, repo facts fetching through an injected
+fetcher, app profile construction, claim provenance, graph node input refs,
+story beat ordering, and optional timeline materialization.
+
+- [x] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/motion/repoMotion.test.ts`
+
+Expected: FAIL because `lib/motion/repoMotion.ts` does not exist.
+
+- [x] **Step 3: Add the bridge**
+
+Implement `buildRepoMotionProjectFromUrl` as a pure adapter over
+`fetchRepoFacts`, `buildRepoLaunchMotionProject`, and
+`materializeMotionTimeline`. Keep repo URL normalization explicit and preserve
+typed provenance from repo facts into motion claims.
+
+- [x] **Step 4: Run tests**
+
+Run: `npx vitest run lib/motion/repoMotion.test.ts`
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/repoMotion.ts lib/motion/repoMotion.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md
+git commit -m "feat: build repo motion projects from url"
 ```
 
 ## Task 3: Motion Component Registry
@@ -1371,7 +1411,7 @@ Run: `npx vitest run lib/providers/code-change/registry.test.ts lib/providers/co
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/code-change/github-gh.ts lib/providers/code-change/github-gh.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md
