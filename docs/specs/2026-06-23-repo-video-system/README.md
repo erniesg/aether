@@ -57,6 +57,10 @@ Clueso, and Descript.
   capture boundary: an injected runner can execute the request and Aether
   normalizes the result into typed screenshot/snapshot/trace/recording
   artifacts. It is not auto-registered as the default capture provider.
+- `lib/providers/capture/playwright.ts` now supplies an explicit local
+  Playwright runner/factory for that boundary: it can run browser steps, save
+  screenshots, DOM snapshots, interaction traces, and Playwright video paths as
+  file-backed capture receipts when a caller opts into it.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.

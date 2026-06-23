@@ -45,6 +45,8 @@
 - Create `lib/motion/capturePlan.test.ts`: tests provider-ready capture requests and PR no-capture behavior.
 - Create `lib/providers/capture/browser.ts`: provider boundary for executing browser capture requests through an injected runner.
 - Create `lib/providers/capture/browser.test.ts`: tests screenshot, DOM snapshot, trace, artifact, cursor target, and provenance mapping.
+- Create `lib/providers/capture/playwright.ts`: local Playwright runner/factory for browser capture requests.
+- Create `lib/providers/capture/playwright.test.ts`: tests browser steps, screenshot files, DOM/trace receipts, video path receipts, and provider wrapping.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -2272,11 +2274,58 @@ Run: `./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/capture/browser.ts lib/providers/capture/browser.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: add browser motion capture provider"
+```
+
+## Task 15: Playwright Capture Runner
+
+**Files:**
+- Create: `lib/providers/capture/playwright.ts`
+- Create: `lib/providers/capture/playwright.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing Playwright runner tests**
+
+The tests cover:
+
+- browser step execution for `goto`, `wait`, and coordinate click;
+- screenshot capture file receipt mapping;
+- DOM snapshot and interaction trace JSON receipt writing;
+- screen recording mode returning an existing Playwright video path;
+- wrapping the runner in the `browser-capture` provider factory.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/providers/capture/playwright.test.ts`
+
+Expected: FAIL because `lib/providers/capture/playwright.ts` does not exist,
+then FAIL for the missing provider wrapper export.
+
+- [x] **Step 3: Implement the runner**
+
+`lib/providers/capture/playwright.ts` now exposes
+`createPlaywrightCaptureRunner` and `createPlaywrightBrowserCaptureProvider`.
+The runner dynamically imports Playwright only when used, opens a local browser
+context, executes capture steps, writes local screenshot/DOM/trace artifacts,
+returns Playwright video paths for recording mode, and carries runner
+provenance. It does not register itself as the default provider.
+
+- [x] **Step 4: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/providers/capture/playwright.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/providers/capture/playwright.ts lib/providers/capture/playwright.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: add playwright motion capture runner"
 ```
 
 ## Self-Review Checklist
