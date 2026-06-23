@@ -26,6 +26,14 @@ export function buildMotionSkillAuthoringPrompt(result: AgentMotionStartResult):
   const verificationArtifacts = contract?.verificationArtifacts ?? [];
   const sourceInputContract = buildSourceInputContract(workflow.workflowId);
   const outputContract = buildOutputContract(workflow.mode);
+  const runPlanLines = workflow.runPlan.steps.map(
+    (step, index) =>
+      `${index + 1}. ${step.label} - routes: ${step.apiRoutes.join(' + ')}; tools: ${
+        step.toolIds.join(', ') || 'source input'
+      }; outputs: ${step.expectedArtifacts.join(', ')}; ${
+        step.reviewRequired ? 'pause for creator review' : 'auto-advance after saving artifacts'
+      }`
+  );
 
   return [
     `Write a reusable aether motion skill for "${workflow.label}".`,
@@ -59,6 +67,9 @@ export function buildMotionSkillAuthoringPrompt(result: AgentMotionStartResult):
     `Review artifacts to produce: ${reviewArtifacts.join(', ') || 'video-plan, draft-variations, timeline, render-proof, export-pack'}.`,
     `Regeneration targets: ${regenerationTargets.join(', ') || 'story-beat, component, timing, effect, whole-video'}.`,
     `Verification artifacts: ${verificationArtifacts.join(', ') || 'contact-sheet, mp4-probe, poster, subtitles, transcript, provenance-manifest'}.`,
+    '',
+    'Execution run plan the SKILL.md must preserve:',
+    ...runPlanLines,
     '',
     'Runtime input contract the SKILL.md must document:',
     sourceInputContract,

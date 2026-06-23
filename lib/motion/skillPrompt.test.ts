@@ -133,6 +133,12 @@ describe('buildMotionSkillAuthoringPrompt', () => {
     expect(prompt).toContain('Review artifacts to produce: video-plan, draft-variations');
     expect(prompt).toContain('Regeneration targets: story-beat, component');
     expect(prompt).toContain('Verification artifacts: contact-sheet, mp4-probe');
+    expect(prompt).toContain('Execution run plan the SKILL.md must preserve:');
+    expect(prompt).toContain('1. Video plan - routes: /api/motion/start; tools: motion-brief');
+    expect(prompt).toContain(
+      '3. Product capture - routes: /api/motion/capture; tools: motion-capture'
+    );
+    expect(prompt).toContain('pause for creator review');
     expect(prompt).toContain('gather/find/generate visuals');
     expect(prompt).toContain('review vs full-auto behavior');
     expect(prompt).toContain('Do not hardcode a default image, voice, video, Remotion, HyperFrames, or hosting provider.');
@@ -157,6 +163,8 @@ describe('buildMotionSkillAuthoringPrompt', () => {
     expect(prompt).toContain('"hunks": [{ "id": "stable-hunk-id"');
     expect(prompt).toContain('"ci": [{ "name": "typecheck"');
     expect(prompt).toContain('can create an editable PR video without a separate provider');
+    expect(prompt).toContain('auto-advance after saving artifacts');
+    expect(prompt).toContain('4. Timeline sync - routes: /api/motion/sync + /api/motion/revise');
     expect(prompt).toContain('"nextAction": "continue-through-saved-gates"');
   });
 });

@@ -54,11 +54,12 @@ Clueso, and Descript.
   repo-to-motion-project slice: sourced claims, story beats, draft variations,
   timeline tracks, editable component slots, scoped regeneration requests,
   creator-facing preview plans, workflow routing, agent-readable workflow gates,
-  and the start artifact an agent can hand to the creator for review or
-  full-auto progression. GitHub repo URLs, local repo paths, and site/app URL
-  sources can now create editable project starts; PR sources can create editable
-  code-change explainer starts when a code-change provider is configured. Real
-  screen capture and recording remain provider execution work.
+  executable run-plan steps, and the start artifact an agent can hand to the
+  creator for review or full-auto progression. GitHub repo URLs, local repo
+  paths, and site/app URL sources can now create editable project starts; PR
+  sources can create editable code-change explainer starts when a code-change
+  provider is configured. Real screen capture and recording remain provider
+  execution work.
 - `app/api/motion/start/route.ts` now exposes that starter through an
   agent-native JSON boundary: callers can pass `sourceRefs` directly or use
   `repoPath`, `repoUrl`, `siteUrl`, or `prRef` shorthands and receive the

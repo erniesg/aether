@@ -87,6 +87,48 @@ describe('buildAgentMotionWorkflowPlan', () => {
       'render-proof',
       'export-pack',
     ]);
+    expect(plan.runPlan).toMatchObject({
+      mode: 'review',
+      status: 'ready',
+      primaryAction: 'request-review',
+      nextStepId: 'step-plan',
+      stepCount: 7,
+    });
+    expect(plan.runPlan.steps.map((step) => step.id)).toEqual([
+      'step-plan',
+      'step-drafts',
+      'step-capture',
+      'step-voice',
+      'step-timeline',
+      'step-render',
+      'step-export',
+    ]);
+    expect(plan.runPlan.steps[0]).toMatchObject({
+      id: 'step-plan',
+      gateId: 'plan',
+      label: 'Video plan',
+      reviewRequired: true,
+      autoAdvance: false,
+      apiRoutes: ['/api/motion/start'],
+      toolIds: ['motion-brief'],
+      expectedArtifacts: ['grounded brief', 'video plan', 'source receipts'],
+    });
+    expect(plan.runPlan.steps.find((step) => step.gateId === 'capture')).toMatchObject({
+      apiRoutes: ['/api/motion/capture'],
+      outputSummary: ['captures', 'cursor targets', 'crop receipts'],
+    });
+    expect(plan.runPlan.steps.find((step) => step.gateId === 'timeline')).toMatchObject({
+      apiRoutes: ['/api/motion/sync', '/api/motion/revise'],
+      inputSummary: ['voice clips', 'word timings'],
+    });
+    expect(plan.runPlan.verificationArtifacts).toEqual([
+      'contact-sheet',
+      'mp4-probe',
+      'poster',
+      'subtitles',
+      'transcript',
+      'provenance-manifest',
+    ]);
     expect(plan.gates.map((gate) => gate.label).join(' ')).not.toMatch(
       /pipeline|operator|dashboard|control plane/i
     );
@@ -162,6 +204,28 @@ describe('buildAgentMotionWorkflowPlan', () => {
       id: 'run-full-auto',
       label: 'Run saved gates',
     });
+    expect(plan.runPlan).toMatchObject({
+      mode: 'full-auto',
+      status: 'ready',
+      primaryAction: 'run-full-auto',
+      nextStepId: 'step-plan',
+      stepCount: 6,
+    });
+    expect(plan.runPlan.steps.every((step) => step.autoAdvance)).toBe(true);
+    expect(plan.runPlan.steps.every((step) => step.reviewRequired)).toBe(false);
+    expect(plan.runPlan.steps.map((step) => step.gateId)).toEqual([
+      'plan',
+      'drafts',
+      'voice',
+      'timeline',
+      'render',
+      'export',
+    ]);
+    expect(plan.runPlan.steps.some((step) => step.gateId === 'capture')).toBe(false);
+    expect(plan.runPlan.steps.find((step) => step.gateId === 'voice')).toMatchObject({
+      apiRoutes: ['/api/motion/voice'],
+      outputSummary: ['voice clips', 'word timings'],
+    });
   });
 
   it('reports missing or unsupported sources before tool execution', () => {
@@ -184,6 +248,24 @@ describe('buildAgentMotionWorkflowPlan', () => {
         gateId: 'plan',
       },
     ]);
+    expect(missing.runPlan).toMatchObject({
+      status: 'needs-source',
+      primaryAction: 'request-source',
+      nextStepId: 'step-source',
+      stepCount: 1,
+      steps: [
+        {
+          id: 'step-source',
+          gateId: 'source',
+          label: 'Add source',
+          reviewRequired: true,
+          autoAdvance: false,
+          toolIds: [],
+          apiRoutes: ['/api/motion/start'],
+          expectedArtifacts: ['site source', 'capture source', 'reference source'],
+        },
+      ],
+    });
 
     const unsupported = buildAgentMotionWorkflowPlan({
       workflowId: 'repo-launch-video',

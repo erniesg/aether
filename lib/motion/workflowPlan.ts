@@ -5,6 +5,7 @@ import {
   type WorkflowReviewGate,
   type WorkflowSkillContract,
   type WorkflowSourceKind,
+  type WorkflowVerificationArtifact,
 } from '@/lib/workflow/registry';
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { MotionWorkflowMode } from './project';
@@ -35,6 +36,32 @@ export interface MotionWorkflowPlanAction {
   gateId: WorkflowReviewGate;
 }
 
+export type MotionWorkflowRunPlanStatus = 'ready' | 'needs-source';
+export type MotionWorkflowRunStepGate = WorkflowReviewGate | 'source';
+
+export interface MotionWorkflowRunStep {
+  id: string;
+  gateId: MotionWorkflowRunStepGate;
+  label: string;
+  reviewRequired: boolean;
+  autoAdvance: boolean;
+  toolIds: ToolRegistryId[];
+  apiRoutes: string[];
+  inputSummary: string[];
+  expectedArtifacts: string[];
+  outputSummary: string[];
+}
+
+export interface AgentMotionWorkflowRunPlan {
+  mode: MotionWorkflowMode;
+  status: MotionWorkflowRunPlanStatus;
+  primaryAction: MotionWorkflowPrimaryAction;
+  nextStepId: string | null;
+  stepCount: number;
+  steps: MotionWorkflowRunStep[];
+  verificationArtifacts: WorkflowVerificationArtifact[];
+}
+
 export interface AgentMotionWorkflowPlan {
   workflowId: string;
   label: string;
@@ -50,6 +77,7 @@ export interface AgentMotionWorkflowPlan {
   skillContract: WorkflowSkillContract | null;
   gates: MotionWorkflowPlanGate[];
   nextActions: MotionWorkflowPlanAction[];
+  runPlan: AgentMotionWorkflowRunPlan;
   createdAt: number;
 }
 
@@ -89,6 +117,16 @@ const GATE_ARTIFACTS = {
   timeline: ['timeline tracks', 'caption clips', 'effect markers'],
   render: ['contact sheet', 'poster still', 'mp4 probe'],
   export: ['export pack', 'canvas drop candidates', 'pack manifest'],
+} satisfies Record<WorkflowReviewGate, string[]>;
+
+const GATE_ROUTES = {
+  plan: ['/api/motion/start'],
+  drafts: ['/api/motion/regenerate'],
+  capture: ['/api/motion/capture'],
+  voice: ['/api/motion/voice'],
+  timeline: ['/api/motion/sync', '/api/motion/revise'],
+  render: ['/api/motion/render'],
+  export: ['/api/motion/export-pack'],
 } satisfies Record<WorkflowReviewGate, string[]>;
 
 const REVIEW_ACTIONS = {
@@ -136,19 +174,22 @@ export function buildAgentMotionWorkflowPlan(
       primaryAction: 'request-source',
       gates: [],
       nextActions: [{ id: 'add-source', label: 'Add source', gateId: 'plan' }],
+      runPlan: buildSourceRunPlan(input.mode, supportedSourceKinds, workflow),
     };
   }
 
   const gates = buildGates(workflow, input.mode);
+  const primaryAction = input.mode === 'full-auto' ? 'run-full-auto' : 'request-review';
 
   return {
     ...basePlan,
-    primaryAction: input.mode === 'full-auto' ? 'run-full-auto' : 'request-review',
+    primaryAction,
     gates,
     nextActions:
       input.mode === 'full-auto'
         ? [{ id: 'run-full-auto', label: 'Run saved gates', gateId: 'plan' }]
         : gates.map((gate) => ({ ...REVIEW_ACTIONS[gate.id], gateId: gate.id })),
+    runPlan: buildRunPlan(input.mode, primaryAction, gates, workflow),
   };
 }
 
@@ -193,4 +234,74 @@ function buildGates(
     toolIds: GATE_TOOLS[gate].filter((toolId) => workflow.toolIds.includes(toolId)),
     expectedArtifacts: GATE_ARTIFACTS[gate],
   }));
+}
+
+function buildSourceRunPlan(
+  mode: MotionWorkflowMode,
+  sourceKinds: WorkflowSourceKind[],
+  workflow: WorkflowRegistryEntry
+): AgentMotionWorkflowRunPlan {
+  const expectedArtifacts = sourceKinds.map((kind) => `${kind} source`);
+  const steps: MotionWorkflowRunStep[] = [
+    {
+      id: 'step-source',
+      gateId: 'source',
+      label: 'Add source',
+      reviewRequired: true,
+      autoAdvance: false,
+      toolIds: [],
+      apiRoutes: ['/api/motion/start'],
+      inputSummary: ['creator source selection'],
+      expectedArtifacts,
+      outputSummary: expectedArtifacts,
+    },
+  ];
+
+  return {
+    mode,
+    status: 'needs-source',
+    primaryAction: 'request-source',
+    nextStepId: steps[0].id,
+    stepCount: steps.length,
+    steps,
+    verificationArtifacts: workflow.skillContract?.verificationArtifacts ?? [],
+  };
+}
+
+function buildRunPlan(
+  mode: MotionWorkflowMode,
+  primaryAction: MotionWorkflowPrimaryAction,
+  gates: MotionWorkflowPlanGate[],
+  workflow: WorkflowRegistryEntry
+): AgentMotionWorkflowRunPlan {
+  const steps = gates.map((gate, index): MotionWorkflowRunStep => {
+    const previousGate = gates[index - 1];
+    const inputSummary =
+      index === 0
+        ? ['accepted sources', 'brief constraints', 'output targets']
+        : previousGate.expectedArtifacts;
+
+    return {
+      id: `step-${gate.id}`,
+      gateId: gate.id,
+      label: gate.label,
+      reviewRequired: mode === 'review',
+      autoAdvance: gate.autoAdvance,
+      toolIds: gate.toolIds,
+      apiRoutes: GATE_ROUTES[gate.id],
+      inputSummary,
+      expectedArtifacts: gate.expectedArtifacts,
+      outputSummary: gate.expectedArtifacts,
+    };
+  });
+
+  return {
+    mode,
+    status: 'ready',
+    primaryAction,
+    nextStepId: steps[0]?.id ?? null,
+    stepCount: steps.length,
+    steps,
+    verificationArtifacts: workflow.skillContract?.verificationArtifacts ?? [],
+  };
 }

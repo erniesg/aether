@@ -46,6 +46,9 @@
   scene files, contact-sheet proof, and final MP4 render.
 - Agent motion workflow planner that turns a workflow id, mode, and source refs
   into gated tool/artifact plans for review mode or saved full-auto execution.
+- Agent workflow plans now include an executable run plan: ordered review or
+  full-auto steps, motion API routes, tool ids, input/output artifacts, and
+  verification artifacts are carried through the same start result.
 - Workflow skill contracts on video workflows now expose review/full-auto modes,
   reviewable artifacts, scoped regeneration targets, and verification artifacts
   directly in registry metadata and agent workflow plans.

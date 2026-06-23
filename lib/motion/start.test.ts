@@ -78,7 +78,21 @@ describe('startAgentMotionWorkflow', () => {
       sourceStatus: 'ready',
       primaryAction: 'request-review',
       engines: ['hyperframes'],
+      runPlan: {
+        status: 'ready',
+        primaryAction: 'request-review',
+        nextStepId: 'step-plan',
+      },
     });
+    expect(result.workflow.plan.runPlan.steps.map((step) => step.apiRoutes[0])).toEqual([
+      '/api/motion/start',
+      '/api/motion/regenerate',
+      '/api/motion/capture',
+      '/api/motion/voice',
+      '/api/motion/sync',
+      '/api/motion/render',
+      '/api/motion/export-pack',
+    ]);
     expect(result.examples).toEqual([
       expect.objectContaining({
         id: 'repo-app-launch-video',
@@ -395,7 +409,12 @@ describe('startAgentMotionWorkflow', () => {
       mode: 'full-auto',
       primaryAction: 'run-full-auto',
       sourceStatus: 'ready',
+      runPlan: {
+        status: 'ready',
+        primaryAction: 'run-full-auto',
+      },
     });
+    expect(result.workflow.plan.runPlan.steps.every((step) => step.autoAdvance)).toBe(true);
     expect(result.project).toMatchObject({
       id: 'motion-pr-123',
       title: 'aether PR video',

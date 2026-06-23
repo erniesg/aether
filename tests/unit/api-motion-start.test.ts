@@ -70,6 +70,20 @@ describe('POST /api/motion/start', () => {
       workflow: {
         workflowId: 'repo-launch-video',
         reason: 'repo source selected a launch workflow',
+        plan: {
+          runPlan: {
+            status: 'ready',
+            primaryAction: 'request-review',
+            nextStepId: 'step-plan',
+            steps: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'step-plan',
+                apiRoutes: ['/api/motion/start'],
+                reviewRequired: true,
+              }),
+            ]),
+          },
+        },
       },
       project: {
         id: 'motion-tong-launch',
@@ -235,6 +249,18 @@ describe('POST /api/motion/start', () => {
           mode: 'full-auto',
           primaryAction: 'run-full-auto',
           engines: ['remotion', 'hyperframes'],
+          runPlan: {
+            status: 'ready',
+            primaryAction: 'run-full-auto',
+            stepCount: 6,
+            steps: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'step-plan',
+                autoAdvance: true,
+                reviewRequired: false,
+              }),
+            ]),
+          },
         },
       },
       project: {
