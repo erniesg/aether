@@ -60,6 +60,11 @@ Clueso, and Descript.
   `repoPath`, `repoUrl`, `siteUrl`, or `prRef` shorthands and receive the
   routed workflow, editable project, review plan, preview plan, capture plan,
   and requested input blockers.
+- `app/api/motion/revise/route.ts` now exposes structured review edits through
+  the same agent-native boundary: callers send an editable `MotionProject` plus
+  story, component-prop, retime, or component-replacement operations and receive
+  the updated project, review plan, preview plan, and capture status while the
+  core revision validator rejects unsafe overlaps or unknown components.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, and computer-use fallback requests with explicit viewport,

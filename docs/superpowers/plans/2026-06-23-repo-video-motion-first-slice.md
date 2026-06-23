@@ -3312,6 +3312,50 @@ git add app/api/motion/start/route.ts tests/unit/api-motion-start.test.ts docs/s
 git commit -m "feat: expose motion workflow starts via api"
 ```
 
+## Task 34: Motion Revise API Boundary
+
+**Files:**
+- Create: `app/api/motion/revise/route.ts`
+- Create: `tests/unit/api-motion-revise.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing API contract tests**
+
+The tests cover:
+
+- applying story-copy and component-prop edits through `POST /api/motion/revise`;
+- returning the updated editable project, review plan, preview plan, capture
+  status, and revision provenance;
+- rejecting unsafe overlapping timing edits from the shared revision validator;
+- rejecting missing projects and malformed JSON.
+
+- [x] **Step 2: Implement the route**
+
+`app/api/motion/revise/route.ts` now parses scoped story, clip-prop, retime,
+and component-replacement operations, applies them through
+`applyMotionTimelineRevision`, and returns refreshed review/preview/capture
+artifacts so an agent can show a revised draft or keep running in full-auto
+mode without bypassing the editable project model.
+
+- [x] **Step 3: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-revise.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add app/api/motion/revise/route.ts tests/unit/api-motion-revise.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion revisions via api"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.
