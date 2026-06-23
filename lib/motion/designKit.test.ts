@@ -33,8 +33,15 @@ describe('buildMotionDesignKitPlan', () => {
       label: 'Repo launch kit',
       components: expect.arrayContaining([
         expect.objectContaining({ label: 'Hook card', role: 'hook' }),
+        expect.objectContaining({ label: 'Social overlay', role: 'social copy' }),
+        expect.objectContaining({ label: 'Command card', role: 'install command' }),
+        expect.objectContaining({ label: 'Terminal proof', role: 'terminal proof' }),
         expect.objectContaining({ label: 'Proof card', role: 'claim proof' }),
+        expect.objectContaining({ label: 'UI reveal frame', role: 'ui reveal' }),
         expect.objectContaining({ label: 'App frame', role: 'product visual' }),
+        expect.objectContaining({ label: 'Data visual', role: 'data proof' }),
+        expect.objectContaining({ label: 'Outro slate', role: 'outro' }),
+        expect.objectContaining({ label: 'Shader wipe', role: 'motion effect' }),
       ]),
       effects: expect.arrayContaining([
         expect.objectContaining({ label: 'product glide' }),
@@ -112,6 +119,12 @@ describe('buildMotionDesignKitPlan', () => {
     expect(socialKit).toMatchObject({
       id: 'feature-social-kit',
       label: 'Feature social kit',
+      components: expect.arrayContaining([
+        expect.objectContaining({ label: 'Social overlay', role: 'social copy' }),
+        expect.objectContaining({ label: 'UI reveal frame', role: 'ui reveal' }),
+        expect.objectContaining({ label: 'Data visual', role: 'data proof' }),
+        expect.objectContaining({ label: 'Outro slate', role: 'outro' }),
+      ]),
     });
     expect(socialKit.effects.map((effect) => effect.label)).toEqual([
       'caption pop',
@@ -173,7 +186,10 @@ describe('buildMotionDesignKitPlan', () => {
         expect.objectContaining({ label: 'Hook card' }),
         expect.objectContaining({ label: 'Code diff card', role: 'code change' }),
         expect.objectContaining({ label: 'Mechanism diagram', role: 'mechanism' }),
+        expect.objectContaining({ label: 'Command card', role: 'install command' }),
+        expect.objectContaining({ label: 'Terminal proof', role: 'terminal proof' }),
         expect.objectContaining({ label: 'Evidence card', role: 'evidence' }),
+        expect.objectContaining({ label: 'Outro slate', role: 'outro' }),
       ]),
     });
     expect(kit.effects.map((effect) => effect.label)).toEqual(['proof pulse', 'caption pop']);

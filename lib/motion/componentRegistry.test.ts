@@ -13,6 +13,10 @@ describe('motion component registry', () => {
       'agent-trace',
       'command-card',
       'proof-card',
+      'terminal-card',
+      'social-overlay',
+      'ui-reveal-frame',
+      'data-visual-card',
       'code-diff-card',
       'mechanism-diagram',
       'evidence-card',
@@ -20,6 +24,8 @@ describe('motion component registry', () => {
       'caption-line',
       'voice-line',
       'soft-wipe',
+      'shader-wipe',
+      'outro-slate',
     ]);
   });
 
@@ -47,6 +53,38 @@ describe('motion component registry', () => {
       'accentColor',
       'effectPreset',
     ]);
+
+    const terminal = getMotionComponent('terminal-card');
+    expect(terminal?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(terminal?.requiredProps).toEqual(['command', 'result']);
+    expect(terminal?.editControls.map((control) => control.id)).toEqual([
+      'command',
+      'result',
+      'accentColor',
+      'effectPreset',
+    ]);
+    expect(terminal?.regenerateScopes).toEqual(['proof', 'copy', 'timing', 'effect']);
+
+    const socialOverlay = getMotionComponent('social-overlay');
+    expect(socialOverlay?.requiredProps).toEqual(['headline', 'platform']);
+    expect(socialOverlay?.regenerateScopes).toEqual(['copy', 'caption', 'effect']);
+
+    const uiReveal = getMotionComponent('ui-reveal-frame');
+    expect(uiReveal?.requiredProps).toEqual(['assetId', 'revealLabel']);
+    expect(uiReveal?.regenerateScopes).toEqual(['capture', 'timing', 'effect']);
+
+    const dataVisual = getMotionComponent('data-visual-card');
+    expect(dataVisual?.requiredProps).toEqual(['metric', 'label']);
+    expect(dataVisual?.regenerateScopes).toEqual(['proof', 'copy', 'effect']);
+
+    const shaderWipe = getMotionComponent('shader-wipe');
+    expect(shaderWipe?.engines).toEqual(['hyperframes', 'remotion']);
+    expect(shaderWipe?.requiredProps).toEqual(['style', 'accentColor']);
+    expect(shaderWipe?.regenerateScopes).toEqual(['effect', 'timing']);
+
+    const outroSlate = getMotionComponent('outro-slate');
+    expect(outroSlate?.requiredProps).toEqual(['headline', 'signature']);
+    expect(outroSlate?.regenerateScopes).toEqual(['cta', 'copy', 'effect']);
   });
 
   it('keeps every component creator-facing', () => {

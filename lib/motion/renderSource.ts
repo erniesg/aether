@@ -483,6 +483,11 @@ function clipCommand(clip: MotionClipData): string {
   return typeof value === "string" && value.length > 0 ? value : "";
 }
 
+function clipPropText(clip: MotionClipData, key: string, fallback = ""): string {
+  const value = clip.props[key];
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
 function clipMediaUrl(clip: MotionClipData): string | null {
   const value = clip.props.generatedVideoUrl ?? clip.props.assetUrl ?? clip.props.audioUrl;
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -706,6 +711,156 @@ function CommandCard({ brand, clip, text }: MotionComponentRenderProps) {
   );
 }
 
+function TerminalCard({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const command = clipCommand(clip) || text || "run command";
+  const result = clipPropText(clip, "result", "verified");
+
+  return (
+    <CardShell brand={brand}>
+      <code
+        style={{
+          display: "block",
+          padding: "18px 20px",
+          borderRadius: 14,
+          background: palette[1],
+          color: palette[0],
+          fontSize: 38,
+          lineHeight: 1.1,
+          fontFamily: brand.fontFamilies[0] ?? "IBM Plex Mono",
+          fontWeight: 700,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        $ {command}
+      </code>
+      <div style={{ marginTop: 20, color: palette[2], fontSize: 26, fontWeight: 800 }}>
+        {result}
+      </div>
+    </CardShell>
+  );
+}
+
+function SocialOverlay({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const headline = clipPropText(clip, "headline", text || compositionTitle);
+  const platform = clipPropText(clip, "platform", "social");
+
+  return (
+    <CardShell brand={brand} compact>
+      <div style={{ color: palette[2], fontSize: 18, fontWeight: 800, marginBottom: 12 }}>
+        {platform}
+      </div>
+      <DisplayText text={headline} brand={brand} size={48} />
+    </CardShell>
+  );
+}
+
+function UiRevealFrame({ text, brand, clip, mediaUrl, mimeType }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const revealLabel = clipPropText(clip, "revealLabel", text || "Product reveal");
+
+  return (
+    <div style={{ width: "90%", maxWidth: 980, position: "relative" }}>
+      <div
+        style={{
+          position: "absolute",
+          zIndex: 2,
+          left: 28,
+          top: 24,
+          padding: "10px 14px",
+          borderRadius: 999,
+          background: palette[2],
+          color: palette[0],
+          fontSize: 18,
+          fontWeight: 800,
+        }}
+      >
+        {revealLabel}
+      </div>
+      <div
+        style={{
+          overflow: "hidden",
+          border: \`2px solid \${palette[1]}\`,
+          borderRadius: 24,
+          background: "rgba(255,255,255,0.74)",
+          boxShadow: "0 36px 92px rgba(0,0,0,0.28)",
+        }}
+      >
+        {mediaUrl && mimeType.startsWith("video/") ? (
+          <Video src={mediaUrl} muted style={{ width: "100%", height: 820, objectFit: "cover" }} />
+        ) : null}
+        {mediaUrl && mimeType.startsWith("image/") ? (
+          <Img src={mediaUrl} style={{ width: "100%", height: 820, objectFit: "cover" }} />
+        ) : null}
+        {!mediaUrl ? (
+          <div style={{ height: 520, display: "grid", placeItems: "center", fontSize: 42, fontWeight: 800 }}>
+            {text || "Capture pending"}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DataVisualCard({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const metric = clipPropText(clip, "metric", text || "1 result");
+  const label = clipPropText(clip, "label", "ready");
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ color: palette[2], fontSize: 92, lineHeight: 0.95, fontWeight: 900, textAlign: "center" }}>
+        {metric}
+      </div>
+      <div style={{ marginTop: 20, color: palette[1], fontSize: 30, fontWeight: 700, textAlign: "center" }}>
+        {label}
+      </div>
+    </CardShell>
+  );
+}
+
+function ShaderWipe({ brand, clip }: MotionComponentRenderProps) {
+  const frame = useCurrentFrame();
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const scaleX = interpolate(frame, [0, Math.max(1, clip.durationFrames * 0.55), clip.durationFrames], [0, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const style = clipPropText(clip, "style", "sweep");
+
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      <AbsoluteFill
+        style={{
+          background: palette[2],
+          opacity: 0.22,
+          transform: \`scaleX(\${scaleX}) skewX(-12deg)\`,
+          transformOrigin: "left center",
+        }}
+      />
+      <div style={{ position: "absolute", right: 54, bottom: 44, color: palette[2], fontSize: 18, fontWeight: 800 }}>
+        {style}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+function OutroSlate({ brand, clip, text }: MotionComponentRenderProps) {
+  const headline = clipPropText(clip, "headline", text || compositionTitle);
+  const signature = clipPropText(clip, "signature", brand.motionStyle || "made with aether");
+
+  return (
+    <CardShell brand={brand}>
+      <DisplayText text={headline} brand={brand} size={66} />
+      <div style={{ marginTop: 26, fontSize: 22, fontWeight: 800, textAlign: "center" }}>
+        {signature}
+      </div>
+    </CardShell>
+  );
+}
+
 function CtaCard({ text, brand }: MotionComponentRenderProps) {
   return (
     <CardShell brand={brand}>
@@ -763,6 +918,14 @@ function renderMotionComponent(props: MotionComponentRenderProps) {
       return <AgentTrace {...props} />;
     case "command-card":
       return <CommandCard {...props} />;
+    case "terminal-card":
+      return <TerminalCard {...props} />;
+    case "social-overlay":
+      return <SocialOverlay {...props} />;
+    case "ui-reveal-frame":
+      return <UiRevealFrame {...props} />;
+    case "data-visual-card":
+      return <DataVisualCard {...props} />;
     case "proof-card":
     case "evidence-card":
     case "code-diff-card":
@@ -774,6 +937,10 @@ function renderMotionComponent(props: MotionComponentRenderProps) {
       return <CaptionLine {...props} />;
     case "soft-wipe":
       return <SoftWipe {...props} />;
+    case "shader-wipe":
+      return <ShaderWipe {...props} />;
+    case "outro-slate":
+      return <OutroSlate {...props} />;
     default:
       return <DefaultCard {...props} />;
   }
@@ -954,6 +1121,10 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
         .proof-card__source,
         .agent-trace__step,
         .command-card__context,
+        .terminal-card__result,
+        .social-overlay__platform,
+        .ui-reveal-frame__label,
+        .data-visual-card__label,
         .cta-card__action {
           color: ${palette.accent};
           font-size: 20px;
@@ -964,9 +1135,37 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
         .hook-card__headline,
         .proof-card__claim,
         .command-card__command,
+        .terminal-card__command,
+        .social-overlay__headline,
+        .outro-slate__headline,
         .cta-card__headline {
           display: block;
           margin-top: 16px;
+        }
+
+        .terminal-card__command {
+          padding: 18px 20px;
+          border-radius: 14px;
+          background: ${palette.foreground};
+          color: ${palette.background};
+          font-size: 42px;
+          line-height: 1.08;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+
+        .terminal-card__result,
+        .outro-slate__signature {
+          display: block;
+          margin-top: 20px;
+          color: ${palette.accent};
+          font-size: 24px;
+          font-weight: 800;
+        }
+
+        .motion-component--social-overlay {
+          min-width: 48%;
+          font-size: 52px;
         }
 
         .app-frame__chrome {
@@ -995,6 +1194,33 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
           border-top: 0;
           border-radius: 0 0 20px 20px;
           background: rgba(255, 255, 255, 0.7);
+        }
+
+        .ui-reveal-frame__shell {
+          position: relative;
+          overflow: hidden;
+          border: 2px solid ${palette.foreground};
+          border-radius: 24px;
+          background: rgba(255, 255, 255, 0.72);
+        }
+
+        .ui-reveal-frame__label {
+          position: absolute;
+          z-index: 2;
+          left: 24px;
+          top: 24px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          background: ${palette.accent};
+          color: ${palette.background};
+        }
+
+        .data-visual-card__metric {
+          display: block;
+          color: ${palette.accent};
+          font-size: 96px;
+          line-height: 0.95;
+          font-weight: 900;
         }
 
         .motion-component--caption-line {
@@ -1030,6 +1256,27 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
           inset: 0;
           background: ${palette.accent};
           opacity: 0.14;
+          transform-origin: left center;
+        }
+
+        .motion-component--shader-wipe {
+          position: absolute;
+          inset: 0;
+          max-width: none;
+          min-width: 0;
+          padding: 0;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          box-shadow: none;
+        }
+
+        .shader-wipe__band {
+          position: absolute;
+          inset: 0;
+          background: ${palette.accent};
+          opacity: 0.2;
+          transform: skewX(-12deg);
           transform-origin: left center;
         }
       </style>
@@ -1079,7 +1326,7 @@ function hyperframesClipHtml(
 
   if (track.kind === 'voice') return '';
 
-  return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType, effectPreset.label, command, context)}</div>`;
+  return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType, effectPreset.label, clip.props, command, context)}</div>`;
 }
 
 function hyperframesComponentBody(
@@ -1088,6 +1335,7 @@ function hyperframesComponentBody(
   mediaUrl: string | undefined,
   mimeType: string,
   effectLabel: string,
+  props: Record<string, unknown>,
   command?: string,
   context?: string
 ): string {
@@ -1120,6 +1368,45 @@ function hyperframesComponentBody(
 
   if (componentId === 'command-card') {
     return `<span class="command-card__context">${escapeHtml(context ?? 'run this')}</span><code class="command-card__command">${escapeHtml(command ?? text)}</code>`;
+  }
+
+  if (componentId === 'terminal-card') {
+    const result = stringProp(props.result) ?? 'verified';
+    return `<code class="terminal-card__command">$ ${escapeHtml(command ?? text)}</code><span class="terminal-card__result">${escapeHtml(result)}</span>`;
+  }
+
+  if (componentId === 'social-overlay') {
+    const headline = stringProp(props.headline) ?? text;
+    const platform = stringProp(props.platform) ?? 'social';
+    return `<span class="social-overlay__platform">${escapeHtml(platform)}</span><strong class="social-overlay__headline">${escapeHtml(headline)}</strong>`;
+  }
+
+  if (componentId === 'ui-reveal-frame') {
+    const revealLabel = (stringProp(props.revealLabel) ?? text) || 'Product reveal';
+    const media =
+      mediaUrl && mimeType.startsWith('video/')
+        ? `<video class="motion-media" src="${escapeHtml(mediaUrl)}" muted playsinline crossorigin="anonymous"></video>`
+        : mediaUrl && mimeType.startsWith('image/')
+          ? `<img class="motion-media" src="${escapeHtml(mediaUrl)}" alt="" crossorigin="anonymous" />`
+          : `<span>${escapeHtml(text || 'Capture pending')}</span>`;
+
+    return `<div class="ui-reveal-frame__shell"><span class="ui-reveal-frame__label">${escapeHtml(revealLabel)}</span>${media}</div>`;
+  }
+
+  if (componentId === 'data-visual-card') {
+    const metric = stringProp(props.metric) ?? text;
+    const label = stringProp(props.label) ?? 'ready';
+    return `<strong class="data-visual-card__metric">${escapeHtml(metric)}</strong><span class="data-visual-card__label">${escapeHtml(label)}</span>`;
+  }
+
+  if (componentId === 'shader-wipe') {
+    return '<span class="shader-wipe__band" aria-hidden="true"></span>';
+  }
+
+  if (componentId === 'outro-slate') {
+    const headline = stringProp(props.headline) ?? text;
+    const signature = stringProp(props.signature) ?? 'made with aether';
+    return `<strong class="outro-slate__headline">${escapeHtml(headline)}</strong><span class="outro-slate__signature">${escapeHtml(signature)}</span>`;
   }
 
   if (componentId === 'cta-card') {

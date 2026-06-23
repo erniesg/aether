@@ -26,13 +26,19 @@ export interface MotionComponentDefinition {
     | 'agent-trace'
     | 'command-card'
     | 'proof-card'
+    | 'terminal-card'
+    | 'social-overlay'
+    | 'ui-reveal-frame'
+    | 'data-visual-card'
     | 'code-diff-card'
     | 'mechanism-diagram'
     | 'evidence-card'
     | 'cta-card'
     | 'caption-line'
     | 'voice-line'
-    | 'soft-wipe';
+    | 'soft-wipe'
+    | 'shader-wipe'
+    | 'outro-slate';
   label: string;
   description: string;
   engines: MotionRenderEngine[];
@@ -114,6 +120,66 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'claim', label: 'Claim', kind: 'text' },
       { id: 'sourceLabel', label: 'Source', kind: 'text' },
       { id: 'emphasis', label: 'Emphasis', kind: 'select' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['proof', 'copy', 'effect'],
+  },
+  {
+    id: 'terminal-card',
+    label: 'Terminal proof',
+    description: 'Command output, install result, or local verification beat for developer launches.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['command', 'result'],
+    editControls: [
+      { id: 'command', label: 'Command', kind: 'text' },
+      { id: 'result', label: 'Result', kind: 'text' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['proof', 'copy', 'timing', 'effect'],
+  },
+  {
+    id: 'social-overlay',
+    label: 'Social overlay',
+    description: 'Platform-aware headline, lower third, or repost-safe copy layer.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['headline', 'platform'],
+    editControls: [
+      { id: 'headline', label: 'Headline', kind: 'text' },
+      { id: 'platform', label: 'Platform', kind: 'select' },
+      { id: 'position', label: 'Position', kind: 'select' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['copy', 'caption', 'effect'],
+  },
+  {
+    id: 'ui-reveal-frame',
+    label: 'UI reveal frame',
+    description: 'Captured app surface with a reveal label, mask, or focus cue for product demos.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['assetId', 'revealLabel'],
+    editControls: [
+      { id: 'assetId', label: 'Capture', kind: 'asset' },
+      { id: 'revealLabel', label: 'Reveal label', kind: 'text' },
+      { id: 'zoom', label: 'Zoom', kind: 'number' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['capture', 'timing', 'effect'],
+  },
+  {
+    id: 'data-visual-card',
+    label: 'Data visual',
+    description: 'Metric, comparison, count, or proof point with an editable visual treatment.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['metric', 'label'],
+    editControls: [
+      { id: 'metric', label: 'Metric', kind: 'text' },
+      { id: 'label', label: 'Label', kind: 'text' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
       { id: 'effectPreset', label: 'Effect', kind: 'select' },
     ],
     regenerateScopes: ['proof', 'copy', 'effect'],
@@ -215,6 +281,35 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'accentColor', label: 'Accent color', kind: 'color' },
     ],
     regenerateScopes: ['effect', 'timing'],
+  },
+  {
+    id: 'shader-wipe',
+    label: 'Shader wipe',
+    description: 'Reusable transition effect for scene shifts, image-to-video joins, and draft cuts.',
+    engines: ['hyperframes', 'remotion'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['style', 'accentColor'],
+    editControls: [
+      { id: 'style', label: 'Style', kind: 'select' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+      { id: 'durationFrames', label: 'Duration', kind: 'number' },
+    ],
+    regenerateScopes: ['effect', 'timing'],
+  },
+  {
+    id: 'outro-slate',
+    label: 'Outro slate',
+    description: 'Branded closing beat for follow, install, repo, waitlist, or export-pack actions.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['headline', 'signature'],
+    editControls: [
+      { id: 'headline', label: 'Headline', kind: 'text' },
+      { id: 'signature', label: 'Signature', kind: 'text' },
+      { id: 'url', label: 'URL', kind: 'text' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['cta', 'copy', 'effect'],
   },
 ];
 

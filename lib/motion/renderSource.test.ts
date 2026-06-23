@@ -318,4 +318,144 @@ describe('buildMotionRenderSourceBundle', () => {
       'command-card__command">npx skills add heygen-com/hyperframes'
     );
   });
+
+  it('emits source adapters for reusable launch-video component classes', () => {
+    const baseProject = projectWithVisualTimeline();
+    const componentTracks: TimelineTrack[] = [
+      {
+        id: 'track-reusable-components',
+        kind: 'text',
+        clips: [
+          {
+            id: 'clip-terminal-proof',
+            componentId: 'terminal-card',
+            startFrame: 0,
+            durationFrames: 75,
+            props: {
+              command: 'npx skills add heygen-com/hyperframes',
+              result: 'pr-to-video installed',
+              text: 'Install proof',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'reference', ref: 'hyperframes-skill-drop' }],
+          },
+          {
+            id: 'clip-social-overlay',
+            componentId: 'social-overlay',
+            startFrame: 75,
+            durationFrames: 75,
+            props: {
+              headline: 'Nobody reads pull requests',
+              platform: 'x',
+              text: 'Nobody reads pull requests',
+            },
+            linkedVariantScope: 'format-local',
+            provenance: [{ kind: 'reference', ref: 'launch-post' }],
+          },
+          {
+            id: 'clip-ui-reveal',
+            componentId: 'ui-reveal-frame',
+            startFrame: 150,
+            durationFrames: 90,
+            assetId: 'capture-aether-timeline',
+            props: {
+              assetId: 'capture-aether-timeline',
+              assetUrl: 'asset://captures/aether-timeline.png',
+              mimeType: 'image/png',
+              revealLabel: 'Video plan',
+              caption: 'Review drafts before full auto',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'capture', ref: 'aether-timeline' }],
+          },
+          {
+            id: 'clip-data-visual',
+            componentId: 'data-visual-card',
+            startFrame: 240,
+            durationFrames: 75,
+            props: {
+              metric: '3 drafts',
+              label: 'ready to compare',
+              text: 'Review variations',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'manual', ref: 'draft-count' }],
+          },
+          {
+            id: 'clip-shader-wipe',
+            componentId: 'shader-wipe',
+            startFrame: 315,
+            durationFrames: 45,
+            props: {
+              style: 'chromatic sweep',
+              accentColor: '#c8413a',
+              text: 'transition',
+            },
+            linkedVariantScope: 'format-local',
+            provenance: [{ kind: 'manual', ref: 'transition-style' }],
+          },
+          {
+            id: 'clip-outro-slate',
+            componentId: 'outro-slate',
+            startFrame: 360,
+            durationFrames: 90,
+            props: {
+              headline: 'Follow for more',
+              signature: 'HyperFrames workflow skills',
+              text: 'Follow for more',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'reference', ref: 'skill-drop-series' }],
+          },
+        ],
+      },
+    ];
+    const project = {
+      ...baseProject,
+      tracks: componentTracks,
+      drafts: baseProject.drafts.map((draft) =>
+        draft.id === baseProject.currentDraftId
+          ? { ...draft, tracks: componentTracks }
+          : draft
+      ),
+    };
+
+    const remotionBundle = buildMotionRenderSourceBundle(project, renderRequest(project, 'remotion'));
+    const remotionEntry =
+      remotionBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(remotionEntry).toContain('function TerminalCard');
+    expect(remotionEntry).toContain('function SocialOverlay');
+    expect(remotionEntry).toContain('function UiRevealFrame');
+    expect(remotionEntry).toContain('function DataVisualCard');
+    expect(remotionEntry).toContain('function ShaderWipe');
+    expect(remotionEntry).toContain('function OutroSlate');
+    expect(remotionEntry).toContain('case "terminal-card":');
+    expect(remotionEntry).toContain('case "social-overlay":');
+    expect(remotionEntry).toContain('case "ui-reveal-frame":');
+    expect(remotionEntry).toContain('case "data-visual-card":');
+    expect(remotionEntry).toContain('case "shader-wipe":');
+    expect(remotionEntry).toContain('case "outro-slate":');
+    expect(remotionEntry).toContain('pr-to-video installed');
+    expect(remotionEntry).toContain('Review drafts before full auto');
+
+    const hyperframesBundle = buildMotionRenderSourceBundle(
+      project,
+      renderRequest(project, 'hyperframes')
+    );
+    const hyperframesEntry =
+      hyperframesBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(hyperframesEntry).toContain('data-component-id="terminal-card"');
+    expect(hyperframesEntry).toContain('terminal-card__command');
+    expect(hyperframesEntry).toContain('terminal-card__result">pr-to-video installed');
+    expect(hyperframesEntry).toContain('data-component-id="social-overlay"');
+    expect(hyperframesEntry).toContain('social-overlay__platform">x');
+    expect(hyperframesEntry).toContain('data-component-id="ui-reveal-frame"');
+    expect(hyperframesEntry).toContain('ui-reveal-frame__shell');
+    expect(hyperframesEntry).toContain('data-component-id="data-visual-card"');
+    expect(hyperframesEntry).toContain('data-visual-card__metric">3 drafts');
+    expect(hyperframesEntry).toContain('data-component-id="shader-wipe"');
+    expect(hyperframesEntry).toContain('shader-wipe__band');
+    expect(hyperframesEntry).toContain('data-component-id="outro-slate"');
+    expect(hyperframesEntry).toContain('outro-slate__signature">HyperFrames workflow skills');
+  });
 });
