@@ -55,6 +55,47 @@ const previewPlan: MotionPreviewPlan = {
     totalSeconds: 30,
     targetPlatforms: ['x 9:16 30s'],
   },
+  videoPlan: {
+    status: 'needs-review',
+    title: 'aether launch video',
+    sceneCount: 2,
+    totalSeconds: 30,
+    scenes: [
+      {
+        sceneId: 'scene-1',
+        beatId: 'beat-hook',
+        role: 'hook',
+        startSeconds: 0,
+        durationSeconds: 3,
+        narration: 'Turn a repo into a launch video.',
+        visualLabel: 'Hook card',
+        editSummary: 'Turn a repo into a launch video.',
+        evidenceLabel: '1 source',
+        regenerationActions: [],
+      },
+      {
+        sceneId: 'scene-2',
+        beatId: 'beat-demo',
+        role: 'demo',
+        startSeconds: 3,
+        durationSeconds: 6,
+        narration: 'Show the generated timeline and capture plan.',
+        visualLabel: 'App frame',
+        editSummary: 'Show the generated timeline and capture plan.',
+        evidenceLabel: '1 source',
+        regenerationActions: [
+          {
+            id: 'regen-option-clip-beat-demo-text-capture',
+            clipId: 'clip-beat-demo-text',
+            componentId: 'app-frame',
+            componentLabel: 'App frame',
+            scope: 'capture',
+            label: 'Regenerate capture for App frame',
+          },
+        ],
+      },
+    ],
+  },
   storyboard: [
     {
       beatId: 'beat-hook',
@@ -336,7 +377,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
     expect(screen.getByText('Demo-first cut')).toBeInTheDocument();
     expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);
-    expect(screen.getByText('App frame')).toBeInTheDocument();
+    expect(screen.getByText('video plan')).toBeInTheDocument();
+    expect(screen.getByText('2 scenes / 30s')).toBeInTheDocument();
+    expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('1 source').length).toBeGreaterThan(0);
     expect(screen.getByText('assetId / caption / zoom')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /regenerate capture for app frame/i })).toBeInTheDocument();
     expect(screen.getByText('remotion')).toBeInTheDocument();
@@ -433,6 +477,9 @@ describe('TimelineLens', () => {
     expect(onSelectDraft).toHaveBeenCalledWith('draft-demo');
 
     await userEvent.click(screen.getByRole('button', { name: /regenerate capture for app frame/i }));
+    expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');
+
+    await userEvent.click(screen.getByRole('button', { name: /regenerate demo scene capture/i }));
     expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');
   });
 

@@ -121,6 +121,27 @@ export interface MotionPreviewRegenerationAction {
   label: string;
 }
 
+export interface MotionPreviewVideoPlanScene {
+  sceneId: string;
+  beatId: string;
+  role: MotionReviewPlan['storyBeats'][number]['role'];
+  startSeconds: number;
+  durationSeconds: number;
+  narration: string;
+  visualLabel: string;
+  editSummary: string;
+  evidenceLabel: string;
+  regenerationActions: MotionPreviewRegenerationAction[];
+}
+
+export interface MotionPreviewVideoPlan {
+  status: 'needs-review' | 'ready-for-render';
+  title: string;
+  sceneCount: number;
+  totalSeconds: number;
+  scenes: MotionPreviewVideoPlanScene[];
+}
+
 export interface MotionPreviewSyncSummary {
   status: MotionSyncPlanStatus;
   beatCount: number;
@@ -164,6 +185,7 @@ export interface MotionPreviewPlan {
   workflowMode: MotionProject['workflowMode'];
   primaryAction: MotionReviewPlan['primaryAction'];
   summary: MotionReviewPlan['summary'];
+  videoPlan: MotionPreviewVideoPlan;
   storyboard: MotionPreviewStoryBeat[];
   draftOptions: MotionPreviewDraftOption[];
   timelineRows: MotionPreviewTimelineRow[];
@@ -194,6 +216,9 @@ export function buildMotionPreviewPlan(
   const tracks = selectTracks(project, project.currentDraftId);
   const engines = options.engines?.length ? options.engines : DEFAULT_PREVIEW_ENGINES;
   const fps = options.fps ?? DEFAULT_MOTION_FPS;
+  const timelineRows = buildTimelineRows(tracks);
+  const editableComponents = buildEditableComponents(tracks);
+  const regenerationActions = buildRegenerationActions(editableComponents);
   const syncPlan = buildMotionSyncPlan(project, {
     draftId: project.currentDraftId,
     fps,
@@ -212,6 +237,7 @@ export function buildMotionPreviewPlan(
     workflowMode: project.workflowMode,
     primaryAction: reviewPlan.primaryAction,
     summary: reviewPlan.summary,
+    videoPlan: buildVideoPlan(reviewPlan, timelineRows, regenerationActions),
     storyboard: reviewPlan.storyBeats.map((beat) => ({
       beatId: beat.beatId,
       role: beat.role,
@@ -229,9 +255,9 @@ export function buildMotionPreviewPlan(
       durationSeconds: draft.durationSeconds,
       roles: draft.roles,
     })),
-    timelineRows: buildTimelineRows(tracks),
-    editableComponents: buildEditableComponents(tracks),
-    regenerationActions: buildRegenerationActions(tracks),
+    timelineRows,
+    editableComponents,
+    regenerationActions,
     enginePreviews: engines.map((engine) =>
       buildEnginePreview(project, engine, {
         fps,
@@ -248,6 +274,71 @@ export function buildMotionPreviewPlan(
     ]),
     requestedAt: options.requestedAt,
   };
+}
+
+function buildVideoPlan(
+  reviewPlan: MotionReviewPlan,
+  timelineRows: MotionPreviewTimelineRow[],
+  regenerationActions: MotionPreviewRegenerationAction[]
+): MotionPreviewVideoPlan {
+  let cursor = 0;
+  const scenes = reviewPlan.storyBeats.map((beat, index) => {
+    const visualClip = findVisualClipForBeat(timelineRows, beat.beatId);
+    const actions = visualClip
+      ? regenerationActions.filter((action) => action.clipId === visualClip.clipId)
+      : [];
+    const startSeconds = cursor;
+    cursor += beat.targetSeconds;
+
+    return {
+      sceneId: `scene-${index + 1}`,
+      beatId: beat.beatId,
+      role: beat.role,
+      startSeconds: roundSecondValue(startSeconds),
+      durationSeconds: beat.targetSeconds,
+      narration: beat.narration,
+      visualLabel: visualClip?.componentLabel ?? componentLabelFor(beat.componentId),
+      editSummary: visualClip?.summary || beat.narration,
+      evidenceLabel: formatEvidenceLabel(beat.sourceRefs.length),
+      regenerationActions: actions,
+    };
+  });
+
+  return {
+    status: reviewPlan.primaryAction === 'queue-render' ? 'ready-for-render' : 'needs-review',
+    title: reviewPlan.title,
+    sceneCount: scenes.length,
+    totalSeconds: reviewPlan.summary.totalSeconds,
+    scenes,
+  };
+}
+
+function findVisualClipForBeat(
+  timelineRows: MotionPreviewTimelineRow[],
+  beatId: string
+): MotionPreviewTimelineClip | null {
+  const expectedTextClipId = `clip-${beatId}-text`;
+  for (const row of timelineRows) {
+    if (row.trackKind !== 'text' && row.trackKind !== 'screen' && row.trackKind !== 'broll') {
+      continue;
+    }
+
+    const clip = row.clips.find((candidate) => candidate.clipId === expectedTextClipId);
+    if (clip) return clip;
+  }
+
+  return null;
+}
+
+function componentLabelFor(componentId: string | undefined): string {
+  if (!componentId) return 'Scene';
+  return getMotionComponent(componentId)?.label ?? componentId.replace(/-/g, ' ');
+}
+
+function formatEvidenceLabel(count: number): string {
+  if (count === 0) return 'manual scene';
+  if (count === 1) return '1 source';
+  return `${count} sources`;
 }
 
 function buildSyncBeats(
@@ -439,8 +530,10 @@ function buildEditableComponents(tracks: TimelineTrack[]): MotionPreviewEditable
   );
 }
 
-function buildRegenerationActions(tracks: TimelineTrack[]): MotionPreviewRegenerationAction[] {
-  return buildEditableComponents(tracks).flatMap((component) =>
+function buildRegenerationActions(
+  editableComponents: MotionPreviewEditableComponent[]
+): MotionPreviewRegenerationAction[] {
+  return editableComponents.flatMap((component) =>
     component.regenerateScopes.map((scope) => ({
       id: `regen-option-${component.clipId}-${scope}`,
       clipId: component.clipId,
@@ -468,6 +561,10 @@ function trackDurationFrames(track: TimelineTrack): number {
 
 function roundSeconds(frames: number): number {
   return Number(motionSeconds(frames).toFixed(3));
+}
+
+function roundSecondValue(seconds: number): number {
+  return Number(seconds.toFixed(3));
 }
 
 function clipSummary(clip: TimelineClip): string {

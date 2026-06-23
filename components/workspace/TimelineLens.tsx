@@ -23,6 +23,8 @@ import type {
   MotionPreviewSyncSummary,
   MotionPreviewTimelineClip,
   MotionPreviewTimelineRow,
+  MotionPreviewVideoPlan,
+  MotionPreviewVideoPlanScene,
 } from '@/lib/motion/previewPlan';
 import { cn } from '@/lib/utils/cn';
 
@@ -318,6 +320,13 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionVideoPlanReview
+          videoPlan={previewPlan.videoPlan}
+          onRegenerateComponent={onRegenerateComponent}
+        />
+      </section>
+
       <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
@@ -409,6 +418,86 @@ function MotionPreviewPlanView({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function MotionVideoPlanReview({
+  videoPlan,
+  onRegenerateComponent,
+}: {
+  videoPlan: MotionPreviewVideoPlan;
+  onRegenerateComponent?: (actionId: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            video plan
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {videoPlan.sceneCount} scenes / {videoPlan.totalSeconds}s
+          </div>
+        </div>
+        <Chip tone={videoPlan.status === 'ready-for-render' ? 'ok' : 'info'} size="sm">
+          {videoPlan.status.replace(/-/g, ' ')}
+        </Chip>
+      </div>
+      <ol className="flex gap-2 overflow-x-auto pb-1">
+        {videoPlan.scenes.map((scene) => (
+          <MotionVideoPlanSceneCard
+            key={scene.sceneId}
+            scene={scene}
+            onRegenerateComponent={onRegenerateComponent}
+          />
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function MotionVideoPlanSceneCard({
+  scene,
+  onRegenerateComponent,
+}: {
+  scene: MotionPreviewVideoPlanScene;
+  onRegenerateComponent?: (actionId: string) => void;
+}) {
+  return (
+    <li className="flex min-w-[220px] max-w-[260px] flex-col rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          {scene.role}
+        </span>
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+          {scene.startSeconds}s / {scene.durationSeconds}s
+        </span>
+      </div>
+      <div className="mt-1 font-caption text-xs text-ink">{scene.visualLabel}</div>
+      <div className="mt-1 line-clamp-3 font-caption text-2xs text-ink-dim">
+        {scene.narration}
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="truncate font-caption text-2xs text-ink-faint">
+          {scene.evidenceLabel}
+        </span>
+        {onRegenerateComponent && scene.regenerationActions.length > 0 ? (
+          <div className="flex shrink-0 gap-1">
+            {scene.regenerationActions.slice(0, 2).map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                aria-label={`regenerate ${scene.role} scene ${action.scope}`}
+                onClick={() => onRegenerateComponent(action.id)}
+                className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1 font-mono text-[10px] uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+              >
+                regen {action.scope}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </li>
   );
 }
 

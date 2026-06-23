@@ -59,6 +59,30 @@ describe('buildMotionPreviewPlan', () => {
       'payoff',
       'cta',
     ]);
+    expect(preview.videoPlan).toMatchObject({
+      status: 'needs-review',
+      title: 'aether launch video',
+      sceneCount: 6,
+      totalSeconds: 30,
+    });
+    expect(preview.videoPlan.scenes[0]).toMatchObject({
+      sceneId: 'scene-1',
+      role: 'hook',
+      startSeconds: 0,
+      durationSeconds: 3,
+      visualLabel: 'Hook card',
+      evidenceLabel: '1 source',
+    });
+    expect(preview.videoPlan.scenes[3]).toMatchObject({
+      role: 'demo',
+      visualLabel: 'App frame',
+      regenerationActions: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'regen-option-clip-beat-demo-text-capture',
+          label: 'Regenerate capture for App frame',
+        }),
+      ]),
+    });
     expect(preview.draftOptions.map((draft) => draft.label)).toEqual([
       'Primary launch cut',
       'Proof-first cut',
