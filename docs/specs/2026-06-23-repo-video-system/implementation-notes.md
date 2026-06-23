@@ -229,6 +229,12 @@
   `editContract` metadata to Remotion and HyperFrames source bundles, so agents
   can target individual clips, controls, source files, and regeneration scopes
   after a render handoff.
+- Source-bundle round-trip edits now apply edited timeline JSON, `SCRIPT.md`,
+  `STORYBOARD.md`, and `EDIT.md` back into the graph-backed `MotionProject`.
+  Script edits update the story and linked text/caption/voice clips; storyboard
+  edits update narration, timing, component templates, and effect props; and
+  `EDIT.md` now exposes editable control values that can update component props
+  directly.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
@@ -246,10 +252,7 @@
 3. Expand the provider-neutral component registry to cover HyperFrames catalog
    classes: code animation, terminal, caption, social overlay, shader/CSS
    transition, HTML-in-canvas UI reveal, data visual, effect, and outro.
-4. Add source-bundle round-trip import so edited `SCRIPT.md`, `STORYBOARD.md`,
-   timeline JSON, and `EDIT.md` can apply structured revisions back into the
-   graph-backed `MotionProject`.
-5. Wire opt-in capture and render verification receipts into saved full-auto
+4. Wire opt-in capture and render verification receipts into saved full-auto
    execution before making the workflow feel "one click."
 
 ## Verification Commands

@@ -65,6 +65,26 @@ function editableTimelineFile(project: MotionProject) {
   return file;
 }
 
+function editableSourceFile(project: MotionProject, path: string) {
+  const bundle = buildMotionRenderSourceBundle(project, renderRequest(project));
+  const file = bundle.files.find((candidate) => candidate.path === path);
+  if (!file) throw new Error(`missing ${path} source file`);
+
+  return file;
+}
+
+function editMarkdownSection(
+  contents: string,
+  heading: string,
+  edit: (section: string) => string
+): string {
+  const start = contents.indexOf(`## ${heading}\n`);
+  if (start === -1) throw new Error(`missing section ${heading}`);
+  const next = contents.indexOf('\n## ', start + 1);
+  const end = next === -1 ? contents.length : next + 1;
+  return contents.slice(0, start) + edit(contents.slice(start, end)) + contents.slice(end);
+}
+
 describe('applyMotionSourceBundleEdits', () => {
   it('round-trips edited timeline JSON back into the active motion project', () => {
     const original = project();
@@ -180,5 +200,186 @@ describe('applyMotionSourceBundleEdits', () => {
         }),
       ])
     );
+  });
+
+  it('round-trips SCRIPT.md narration edits into story, text, caption, and voice clips', () => {
+    const original = project();
+    const scriptFile = editableSourceFile(original, 'SCRIPT.md');
+    const editedNarration = 'Show the video plan, draft variations, and reusable components.';
+    const editedScript = scriptFile.contents.replace(
+      'Show aether in use, with the product flow framed clearly.',
+      editedNarration
+    );
+
+    const result = applyMotionSourceBundleEdits(original, {
+      id: 'source-edit-script-demo-narration',
+      requestedAt: 204,
+      files: [{ path: scriptFile.path, contents: editedScript }],
+    });
+
+    expect(result.status).toBe('applied');
+    expect(result.blockers).toEqual([]);
+    expect(result.appliedEdits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'story-beat',
+          path: 'SCRIPT.md',
+          beatId: 'beat-demo',
+          changedFields: ['narration'],
+        }),
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          path: 'SCRIPT.md',
+          clipId: 'clip-beat-demo-text',
+          changedFields: ['props.narration'],
+        }),
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          path: 'SCRIPT.md',
+          clipId: 'clip-beat-demo-caption',
+          changedFields: ['props.text'],
+        }),
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          path: 'SCRIPT.md',
+          clipId: 'clip-beat-demo-voice',
+          changedFields: ['props.text'],
+        }),
+      ])
+    );
+    expect(result.project.story.find((beat) => beat.id === 'beat-demo')?.narration).toBe(
+      editedNarration
+    );
+    expect(
+      result.project.tracks
+        .flatMap((track) => track.clips)
+        .find((clip) => clip.id === 'clip-beat-demo-text')?.props.narration
+    ).toBe(editedNarration);
+    expect(
+      result.project.tracks
+        .flatMap((track) => track.clips)
+        .find((clip) => clip.id === 'clip-beat-demo-caption')?.props.text
+    ).toBe(editedNarration);
+    expect(
+      result.project.tracks
+        .flatMap((track) => track.clips)
+        .find((clip) => clip.id === 'clip-beat-demo-voice')?.props.text
+    ).toBe(editedNarration);
+  });
+
+  it('round-trips STORYBOARD.md scene edits into component, timing, effect, and narration changes', () => {
+    const original = project();
+    const storyboardFile = editableSourceFile(original, 'STORYBOARD.md');
+    const editedNarration = 'Reveal the timeline plan before the final render.';
+    const editedStoryboard = editMarkdownSection(storyboardFile.contents, 'beat-demo', (section) => section
+      .replace('Template: app-frame', 'Template: ui-reveal-frame')
+      .replace('Motion: product-glide', 'Motion: proof-pulse')
+      .replace('Duration: 8s', 'Duration: 7s')
+      .replace('Narration: Show aether in use, with the product flow framed clearly.', `Narration: ${editedNarration}`));
+
+    const result = applyMotionSourceBundleEdits(original, {
+      id: 'source-edit-storyboard-demo',
+      requestedAt: 205,
+      files: [{ path: storyboardFile.path, contents: editedStoryboard }],
+    });
+
+    expect(result.status).toBe('applied');
+    expect(result.blockers).toEqual([]);
+    expect(result.appliedEdits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'STORYBOARD.md',
+          clipId: 'clip-beat-demo-text',
+          changedFields: expect.arrayContaining([
+            'componentId',
+            'durationFrames',
+            'props.effectPreset',
+            'props.narration',
+          ]),
+        }),
+        expect.objectContaining({
+          kind: 'story-beat',
+          path: 'STORYBOARD.md',
+          beatId: 'beat-demo',
+          changedFields: ['narration', 'targetSeconds'],
+        }),
+        expect.objectContaining({
+          path: 'STORYBOARD.md',
+          clipId: 'clip-beat-demo-caption',
+          changedFields: expect.arrayContaining(['durationFrames', 'props.text']),
+        }),
+        expect.objectContaining({
+          path: 'STORYBOARD.md',
+          clipId: 'clip-beat-demo-voice',
+          changedFields: expect.arrayContaining(['durationFrames', 'props.text']),
+        }),
+      ])
+    );
+    const clips = result.project.tracks.flatMap((track) => track.clips);
+    const demoClip = clips.find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(demoClip).toMatchObject({
+      componentId: 'ui-reveal-frame',
+      durationFrames: 210,
+      props: expect.objectContaining({
+        effectPreset: 'proof-pulse',
+        narration: editedNarration,
+      }),
+    });
+    expect(clips.find((clip) => clip.id === 'clip-beat-demo-caption')).toMatchObject({
+      durationFrames: 210,
+      props: expect.objectContaining({ text: editedNarration }),
+    });
+    expect(clips.find((clip) => clip.id === 'clip-beat-demo-voice')).toMatchObject({
+      durationFrames: 210,
+      props: expect.objectContaining({ text: editedNarration }),
+    });
+    expect(result.project.story.find((beat) => beat.id === 'beat-demo')).toMatchObject({
+      narration: editedNarration,
+      targetSeconds: 7,
+    });
+  });
+
+  it('surfaces EDIT.md control values and applies edited component props from them', () => {
+    const original = project();
+    const editFile = editableSourceFile(original, 'EDIT.md');
+    expect(editFile.contents).toContain('Editable values:');
+    expect(editFile.contents).toContain('- caption: null');
+
+    const editedEdit = editFile.contents
+      .replace('- assetId: null', '- assetId: "capture-aether-timeline"')
+      .replace('- caption: null', '- caption: "Review drafts before full auto"')
+      .replace('- zoom: null', '- zoom: 1.15');
+
+    const result = applyMotionSourceBundleEdits(original, {
+      id: 'source-edit-editmd-demo-controls',
+      requestedAt: 206,
+      files: [{ path: editFile.path, contents: editedEdit }],
+    });
+
+    expect(result.status).toBe('applied');
+    expect(result.blockers).toEqual([]);
+    expect(result.appliedEdits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          path: 'EDIT.md',
+          clipId: 'clip-beat-demo-text',
+          changedFields: expect.arrayContaining([
+            'props.assetId',
+            'props.caption',
+            'props.zoom',
+          ]),
+        }),
+      ])
+    );
+    expect(
+      result.project.tracks
+        .flatMap((track) => track.clips)
+        .find((clip) => clip.id === 'clip-beat-demo-text')?.props
+    ).toMatchObject({
+      assetId: 'capture-aether-timeline',
+      caption: 'Review drafts before full auto',
+      zoom: 1.15,
+    });
   });
 });

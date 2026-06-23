@@ -284,6 +284,7 @@ function editMarkdown(project: MotionProject, request: MotionRenderRequest): str
   ];
 
   for (const component of editContract.editableComponents) {
+    const clip = clipById(request.tracks, component.clipId);
     lines.push(
       `## ${component.clipId}`,
       '',
@@ -291,6 +292,10 @@ function editMarkdown(project: MotionProject, request: MotionRenderRequest): str
       `Track: ${component.trackId}`,
       `Controls: ${component.editControlLabels.join(', ') || 'none'}`,
       `Edit controls: ${component.editControlIds.join(', ') || 'none'}`,
+      'Editable values:',
+      ...component.editControlIds.map(
+        (controlId) => `- ${controlId}: ${formatEditControlValue(clip, controlId)}`
+      ),
       `Regenerate: ${component.regenerateScopes.join(', ') || 'none'}`,
       `Files: ${component.sourceFiles.join(', ')}`,
       `Provenance: ${formatProvenance(component.provenance)}`,
@@ -403,6 +408,17 @@ function clipForBeat(
   }
 
   return undefined;
+}
+
+function clipById(tracks: TimelineTrack[], clipId: string): TimelineClip | undefined {
+  return tracks.flatMap((track) => track.clips).find((clip) => clip.id === clipId);
+}
+
+function formatEditControlValue(clip: TimelineClip | undefined, controlId: string): string {
+  if (!clip) return 'null';
+
+  const value = controlId === 'assetId' ? clip.props.assetId ?? clip.assetId : clip.props[controlId];
+  return value === undefined ? 'null' : JSON.stringify(value);
 }
 
 function timelineArtifactPath(request: MotionRenderRequest): string {
