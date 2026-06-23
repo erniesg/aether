@@ -12,6 +12,9 @@ describe('motion component registry', () => {
       'app-frame',
       'agent-trace',
       'proof-card',
+      'code-diff-card',
+      'mechanism-diagram',
+      'evidence-card',
       'cta-card',
       'caption-line',
       'voice-line',
@@ -24,6 +27,14 @@ describe('motion component registry', () => {
     expect(hook?.engines).toEqual(['remotion', 'hyperframes']);
     expect(hook?.aspectRatios).toContain('9:16');
     expect(hook?.editControls.map((control) => control.id)).toContain('headline');
+
+    const codeDiff = getMotionComponent('code-diff-card');
+    expect(codeDiff?.requiredProps).toEqual(['filePath', 'lines']);
+    expect(codeDiff?.regenerateScopes).toContain('code');
+
+    const mechanism = getMotionComponent('mechanism-diagram');
+    expect(mechanism?.editControls.map((control) => control.id)).toContain('diagramKind');
+    expect(mechanism?.regenerateScopes).toContain('diagram');
   });
 
   it('keeps every component creator-facing', () => {

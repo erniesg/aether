@@ -8,6 +8,8 @@ export type MotionRegenerateScope =
   | 'timing'
   | 'caption'
   | 'proof'
+  | 'code'
+  | 'diagram'
   | 'cta'
   | 'effect';
 
@@ -23,6 +25,9 @@ export interface MotionComponentDefinition {
     | 'app-frame'
     | 'agent-trace'
     | 'proof-card'
+    | 'code-diff-card'
+    | 'mechanism-diagram'
+    | 'evidence-card'
     | 'cta-card'
     | 'caption-line'
     | 'voice-line'
@@ -94,6 +99,48 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'emphasis', label: 'Emphasis', kind: 'select' },
     ],
     regenerateScopes: ['proof', 'copy', 'effect'],
+  },
+  {
+    id: 'code-diff-card',
+    label: 'Code diff card',
+    description: 'Readable changed hunk with file path, focused lines, and add/remove emphasis.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    requiredProps: ['filePath', 'lines'],
+    editControls: [
+      { id: 'filePath', label: 'File', kind: 'text' },
+      { id: 'lines', label: 'Diff lines', kind: 'text' },
+      { id: 'focusLine', label: 'Focus line', kind: 'number' },
+    ],
+    regenerateScopes: ['code', 'proof', 'timing'],
+  },
+  {
+    id: 'mechanism-diagram',
+    label: 'Mechanism diagram',
+    description: 'Synthetic runtime or data-flow explanation derived from code-change evidence.',
+    engines: ['remotion'],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    requiredProps: ['headline', 'diagramKind'],
+    editControls: [
+      { id: 'headline', label: 'Headline', kind: 'text' },
+      { id: 'diagramKind', label: 'Diagram', kind: 'select' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+    ],
+    regenerateScopes: ['diagram', 'copy', 'timing'],
+  },
+  {
+    id: 'evidence-card',
+    label: 'Evidence card',
+    description: 'PR receipt for tests, approvals, changed files, commits, or release status.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['claim', 'receipt'],
+    editControls: [
+      { id: 'claim', label: 'Claim', kind: 'text' },
+      { id: 'receipt', label: 'Receipt', kind: 'text' },
+      { id: 'emphasis', label: 'Emphasis', kind: 'select' },
+    ],
+    regenerateScopes: ['proof', 'copy', 'timing'],
   },
   {
     id: 'cta-card',

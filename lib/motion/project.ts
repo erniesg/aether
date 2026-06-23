@@ -4,7 +4,18 @@ export const DEFAULT_MOTION_WORKFLOW_MODE = 'review' satisfies MotionWorkflowMod
 export type MotionProjectKind = 'launch' | 'feature' | 'demo' | 'social' | 'case-study' | 'pr';
 export type MotionWorkflowMode = 'review' | 'full-auto';
 export type MotionDraftStatus = 'planned' | 'generating' | 'ready' | 'approved' | 'rejected';
-export type MotionBeatRole = 'hook' | 'problem' | 'proof' | 'demo' | 'payoff' | 'cta';
+export type MotionBeatRole =
+  | 'hook'
+  | 'problem'
+  | 'change'
+  | 'diff'
+  | 'mechanism'
+  | 'evidence'
+  | 'proof'
+  | 'demo'
+  | 'payoff'
+  | 'credits'
+  | 'cta';
 export type MotionAspectRatio = '16:9' | '9:16' | '1:1' | '4:5';
 export type MotionPlatform =
   | 'x'
