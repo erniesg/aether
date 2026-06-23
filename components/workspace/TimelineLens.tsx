@@ -576,18 +576,25 @@ function MotionWorkflowSkillStrip({
           </div>
         </div>
         <Chip tone="info" size="sm">
-          SKILL.md ready
+          {draft.draftVariationLabels.length > 0
+            ? `${draft.draftVariationLabels.length} variations`
+            : 'SKILL.md ready'}
         </Chip>
       </div>
       <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
           <div className="font-caption text-xs text-ink">{draft.trigger}</div>
           <div className="mt-2 flex flex-wrap gap-1">
-            {draft.reviewPolicyLabels.slice(0, 4).map((label) => (
-              <Chip key={label} tone="neutral" size="sm">
-                {label}
-              </Chip>
-            ))}
+            {(draft.draftVariationLabels.length > 0
+              ? draft.draftVariationLabels
+              : draft.reviewPolicyLabels
+            )
+              .slice(0, 4)
+              .map((label) => (
+                <Chip key={label} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
           </div>
         </div>
         <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
@@ -595,11 +602,16 @@ function MotionWorkflowSkillStrip({
             {draft.startShorthands.join(' / ')}
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
-            {draft.verificationLabels.slice(0, 4).map((label) => (
-              <Chip key={label} tone="neutral" size="sm">
-                {label}
-              </Chip>
-            ))}
+            {(draft.componentSlotLabels.length > 0
+              ? draft.componentSlotLabels
+              : draft.verificationLabels
+            )
+              .slice(0, 4)
+              .map((label) => (
+                <Chip key={label} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
           </div>
         </div>
       </div>

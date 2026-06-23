@@ -15,6 +15,10 @@ import type {
   MotionWorkflowSourceStatus,
 } from './workflowPlan';
 import type { MotionWorkflowExample } from './workflowExamples';
+import {
+  getMotionWorkflowSkillRecipe,
+  type MotionWorkflowSkillRecipe,
+} from './workflowSkillCatalog';
 
 export interface MotionWorkflowSkillPlanInput {
   workflowId: string;
@@ -36,8 +40,13 @@ export interface MotionWorkflowSkillDraft {
   trigger: string;
   manifestPathRelative: string;
   manifest: SkillManifest;
+  recipe: MotionWorkflowSkillRecipe | null;
   startShorthands: string[];
   reviewPolicyLabels: string[];
+  agentTaskLabels: string[];
+  draftVariationLabels: string[];
+  componentSlotLabels: string[];
+  regenerationLabels: string[];
   toolNames: string[];
   verificationLabels: string[];
   sampleCopyLines: string[];
@@ -58,11 +67,18 @@ export function buildMotionWorkflowSkillDraft(
   plan: MotionWorkflowSkillPlanInput,
   examples: MotionWorkflowExample[] = []
 ): MotionWorkflowSkillDraft {
+  const recipe = getMotionWorkflowSkillRecipe(plan.workflowId);
   const toolNames = toolNamesFor(plan.runPlan);
   const reviewPolicyLabels = reviewPolicyLabelsFor(plan);
   const verificationLabels = verificationLabelsFor(plan.skillContract);
   const sampleCopyLines = uniqueStrings(examples.flatMap((example) => example.sampleCopyLines));
   const startShorthands = acceptedShorthandsFor(plan.supportedSourceKinds);
+  const regenerationLabels = uniqueStrings([
+    ...(plan.skillContract?.regenerationTargets.map(labelRegenerationTarget) ?? []),
+    ...(recipe?.componentSlots.flatMap((slot) =>
+      slot.regenerateScopes.map((scope) => `${slot.label}: ${scope}`)
+    ) ?? []),
+  ]);
   const manifest: SkillManifest = {
     name: safeSkillName(plan.workflowId),
     version: 1,
@@ -74,6 +90,8 @@ export function buildMotionWorkflowSkillDraft(
       toolNames,
       startShorthands,
       reviewPolicyLabels,
+      recipe,
+      regenerationLabels,
       verificationLabels,
       sampleCopyLines,
     }),
@@ -85,8 +103,13 @@ export function buildMotionWorkflowSkillDraft(
     trigger: triggerFor(plan),
     manifestPathRelative: `lib/agent/skills/${manifest.name}/SKILL.md`,
     manifest,
+    recipe,
     startShorthands,
     reviewPolicyLabels,
+    agentTaskLabels: recipe?.agentTaskLabels ?? [],
+    draftVariationLabels: recipe?.draftVariations.map((variation) => variation.label) ?? [],
+    componentSlotLabels: recipe?.componentSlots.map((slot) => slot.label) ?? [],
+    regenerationLabels,
     toolNames,
     verificationLabels,
     sampleCopyLines,
@@ -153,6 +176,8 @@ function buildSkillInstructions({
   toolNames,
   startShorthands,
   reviewPolicyLabels,
+  recipe,
+  regenerationLabels,
   verificationLabels,
   sampleCopyLines,
 }: {
@@ -160,6 +185,8 @@ function buildSkillInstructions({
   toolNames: string[];
   startShorthands: string[];
   reviewPolicyLabels: string[];
+  recipe: MotionWorkflowSkillRecipe | null;
+  regenerationLabels: string[];
   verificationLabels: string[];
   sampleCopyLines: string[];
 }): string {
@@ -204,6 +231,28 @@ function buildSkillInstructions({
       ].join('\n')
     ),
     '',
+    recipe ? '## Agent Tasks' : '',
+    ...(recipe?.agentTaskLabels.map((label) => `- ${label}.`) ?? []),
+    recipe ? '' : '',
+    recipe ? '## Draft Variations' : '',
+    ...(recipe?.draftVariations.map(
+      (variation) =>
+        `- ${variation.label}: ${variation.angle} Review: ${variation.reviewPrompt}`
+    ) ?? []),
+    recipe ? '' : '',
+    recipe ? '## Component Regeneration' : '',
+    ...(recipe?.componentSlots.map(
+      (slot) =>
+        `- ${slot.label}: ${slot.reason} Regenerate: ${slot.regenerateScopes.join(', ')}.`
+    ) ?? []),
+    recipe ? '' : '',
+    recipe ? '## Review Surfaces' : '',
+    ...(recipe?.reviewSurfaces.map(
+      (surface) => `- ${surface.label}: ${surface.purpose}`
+    ) ?? []),
+    recipe ? `Review mode: ${recipe.reviewPolicy}` : '',
+    recipe ? `Full auto: ${recipe.fullAutoPolicy}` : '',
+    '',
     '## Review Policy',
     '',
     ...reviewPolicyLabels.map((label) => `- ${label}.`),
@@ -211,9 +260,7 @@ function buildSkillInstructions({
     '## Editable Outputs',
     '',
     `Review artifacts: ${formatList(plan.skillContract?.reviewArtifacts.map(labelReviewArtifact) ?? [])}.`,
-    `Regeneration targets: ${formatList(
-      plan.skillContract?.regenerationTargets.map(labelRegenerationTarget) ?? []
-    )}.`,
+    `Regeneration targets: ${formatList(regenerationLabels)}.`,
     '',
     '## Verification',
     '',

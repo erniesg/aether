@@ -220,11 +220,17 @@ Clueso, and Descript.
   Remotion/HyperFrames portability. The PR-to-video workflow now includes
   voice, timeline-revision, and export-pack gates while staying
   code-change-sourced rather than capture-sourced.
+- `lib/motion/workflowSkillCatalog.ts` now gives those workflow skills
+  agent-readable recipes: trigger phrases, agent tasks, draft variations,
+  component slots, regeneration scopes, generation lanes, review surfaces, and
+  review/full-auto policies. This turns the HyperFrames-style `pr-to-video`
+  launch pattern into a reusable discovery contract for repo, PR, site,
+  feature/social, caption, motion-graphic, and engine-port workflows.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start
-  shorthands, review gates, reusable tool ids, and workflow-skill contracts
-  before creating a motion project.
+  shorthands, review gates, reusable tool ids, workflow-skill contracts, and
+  workflow recipes before creating a motion project.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider

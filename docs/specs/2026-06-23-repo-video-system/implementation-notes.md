@@ -71,12 +71,19 @@
   policy, start shorthands, sample launch copy, and required verification
   artifacts so a known video workflow can be pinned without re-drafting through
   a generic skill prompt.
+- Workflow skill drafts now attach catalog-backed recipes with agent tasks,
+  draft variations, reusable component slots, regeneration scopes, generation
+  lanes, and review surfaces, so `pr-to-video`, repo launch, feature/social,
+  site capture, caption overlay, motion graphic, and Remotion/HyperFrames port
+  workflows are discoverable as reusable skills before a project starts.
 - Workflow skill contracts on video workflows now expose review/full-auto modes,
   reviewable artifacts, scoped regeneration targets, and verification artifacts
   directly in registry metadata and agent workflow plans.
 - Agent-native `/api/motion/workflows` route that lists reusable video workflow
   skills and filters them by source kind, render engine, or run mode before an
-  agent starts a motion project.
+  agent starts a motion project; responses now include workflow recipes for
+  video plan review, draft variation selection, component regeneration, and
+  full-auto policy.
 - Agent motion workflow router that picks the reusable workflow from intent and
   source refs, then returns the same review/full-auto plan.
 - Agent motion workflow starter that turns a repo source into a routed workflow,
@@ -208,6 +215,7 @@
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts --pool=forks
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts lib/motion/workflowPlan.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-workflows.test.ts
+./node_modules/.bin/vitest run lib/motion/workflowSkillCatalog.test.ts lib/motion/workflowSkill.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-start.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-capture.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-voice.test.ts

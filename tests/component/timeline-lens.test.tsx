@@ -446,12 +446,17 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
     referenceFiles: [],
     instructions: '# Repo launch video\n\n## Output format\n\n```json\n{}\n```',
   },
+  recipe: null,
   startShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
   reviewPolicyLabels: [
     'Review video plan before continuing',
     'Review draft variations before continuing',
     'Review render proof before continuing',
   ],
+  agentTaskLabels: ['Inspect repo, README, app routes, releases, and product facts'],
+  draftVariationLabels: ['Proof-first launch', 'Demo-first launch', 'Founder-note launch'],
+  componentSlotLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
+  regenerationLabels: ['story beat', 'component', 'capture', 'voice line', 'timing', 'effect'],
   toolNames: ['motion_start', 'motion_capture', 'motion_render', 'motion_export_pack'],
   verificationLabels: ['contact sheet', 'mp4 probe', 'poster', 'subtitles'],
   sampleCopyLines: ['Point Aether at the repo.'],
@@ -585,11 +590,14 @@ describe('TimelineLens', () => {
     expect(screen.getByText('video plan')).toBeInTheDocument();
     expect(screen.getByText('2 scenes / 30s')).toBeInTheDocument();
     expect(screen.getByText('workflow skill')).toBeInTheDocument();
-    expect(screen.getByText('SKILL.md ready')).toBeInTheDocument();
+    expect(screen.getByText('3 variations')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video skill for editable, provenance-rich motion videos.')).toBeInTheDocument();
     expect(screen.getByText(/Create a repo launch video from repo/)).toBeInTheDocument();
+    expect(screen.getByText('Proof-first launch')).toBeInTheDocument();
+    expect(screen.getByText('Founder-note launch')).toBeInTheDocument();
     expect(screen.getByText('repoPath / repoUrl / siteUrl / sourceRefs')).toBeInTheDocument();
-    expect(screen.getByText('contact sheet')).toBeInTheDocument();
+    expect(screen.getAllByText('Proof card').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Agent trace').length).toBeGreaterThan(0);
     expect(screen.getByText('production queue')).toBeInTheDocument();
     expect(screen.getAllByText('Capture product material').length).toBeGreaterThan(0);
     expect(screen.getByText('2/6')).toBeInTheDocument();

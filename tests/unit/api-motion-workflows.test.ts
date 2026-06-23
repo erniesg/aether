@@ -34,6 +34,55 @@ describe('GET /api/motion/workflows', () => {
         acceptedShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
         defaultMode: 'review',
       },
+      workflowRecipe: {
+        slug: 'repo-launch-video',
+        triggerPhrases: expect.arrayContaining([
+          'point Aether at a repo and make video drafts',
+        ]),
+        generationLanes: [
+          'repo-facts',
+          'capture',
+          'visual-search',
+          'image-to-video',
+          'voice',
+          'sync',
+          'render',
+          'export',
+        ],
+        draftVariations: [
+          expect.objectContaining({
+            id: 'launch-proof-first',
+            label: 'Proof-first launch',
+            storyRoles: ['hook', 'proof', 'demo', 'payoff', 'cta'],
+          }),
+          expect.objectContaining({
+            id: 'launch-demo-first',
+            label: 'Demo-first launch',
+          }),
+          expect.objectContaining({
+            id: 'launch-founder-note',
+            label: 'Founder-note launch',
+          }),
+        ],
+        componentSlots: [
+          expect.objectContaining({
+            componentId: 'hook-card',
+            regenerateScopes: ['copy', 'timing', 'effect'],
+          }),
+          expect.objectContaining({
+            componentId: 'proof-card',
+          }),
+          expect.objectContaining({
+            componentId: 'app-frame',
+          }),
+          expect.objectContaining({
+            componentId: 'agent-trace',
+          }),
+          expect.objectContaining({
+            componentId: 'cta-card',
+          }),
+        ],
+      },
       examples: [
         expect.objectContaining({
           id: 'repo-app-launch-video',
@@ -119,6 +168,48 @@ describe('GET /api/motion/workflows', () => {
           acceptedShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
           defaultMode: 'review',
         },
+        workflowRecipe: expect.objectContaining({
+          slug: 'pr-to-video',
+          triggerPhrases: expect.arrayContaining(['make a PR explainer']),
+          generationLanes: ['code-change', 'voice', 'sync', 'render', 'export'],
+          agentTaskLabels: expect.arrayContaining([
+            'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status',
+          ]),
+          draftVariations: [
+            expect.objectContaining({
+              id: 'pr-launch-note',
+              label: 'Daily skill launch',
+              storyRoles: ['hook', 'change', 'diff', 'proof', 'cta'],
+            }),
+            expect.objectContaining({
+              id: 'pr-maintainer-brief',
+              label: 'Maintainer brief',
+            }),
+            expect.objectContaining({
+              id: 'pr-mechanism-first',
+              label: 'Mechanism-first cut',
+            }),
+          ],
+          componentSlots: [
+            expect.objectContaining({
+              componentId: 'hook-card',
+            }),
+            expect.objectContaining({
+              componentId: 'code-diff-card',
+              regenerateScopes: ['code', 'proof', 'timing'],
+            }),
+            expect.objectContaining({
+              componentId: 'mechanism-diagram',
+              regenerateScopes: ['diagram', 'copy', 'timing'],
+            }),
+            expect.objectContaining({
+              componentId: 'evidence-card',
+            }),
+            expect.objectContaining({
+              componentId: 'cta-card',
+            }),
+          ],
+        }),
         examples: [
           expect.objectContaining({
             id: 'daily-skill-launch-pr-to-video',

@@ -43,6 +43,30 @@ describe('motion workflow skill drafts', () => {
         'transcript',
         'provenance manifest',
       ],
+      agentTaskLabels: expect.arrayContaining([
+        'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status',
+      ]),
+      draftVariationLabels: [
+        'Daily skill launch',
+        'Maintainer brief',
+        'Mechanism-first cut',
+      ],
+      componentSlotLabels: [
+        'Hook card',
+        'Code diff card',
+        'Mechanism diagram',
+        'Evidence card',
+        'CTA card',
+      ],
+      regenerationLabels: expect.arrayContaining([
+        'code proof',
+        'Code diff card: code',
+        'Mechanism diagram: diagram',
+      ]),
+      recipe: expect.objectContaining({
+        slug: 'pr-to-video',
+        generationLanes: ['code-change', 'voice', 'sync', 'render', 'export'],
+      }),
     });
     expect(plan.skillDraft.manifest).toMatchObject({
       name: 'pr-to-video',
@@ -63,6 +87,12 @@ describe('motion workflow skill drafts', () => {
       'npx skills add heygen-com/hyperframes'
     );
     expect(plan.skillDraft.manifest.instructions).toContain('## Input shape');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Agent Tasks');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Draft Variations');
+    expect(plan.skillDraft.manifest.instructions).toContain('Daily skill launch');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Component Regeneration');
+    expect(plan.skillDraft.manifest.instructions).toContain('Code diff card');
+    expect(plan.skillDraft.manifest.instructions).toContain('Regenerate: code, proof, timing');
     expect(plan.skillDraft.manifest.instructions).toContain('/api/motion/render');
     expect(plan.skillDraft.manifest.instructions).toContain('## Output format');
     expect(plan.skillDraft.manifest.instructions).toContain('provenance manifest');
@@ -94,9 +124,23 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.reviewPolicyLabels).toContain(
       'Review video plan before continuing'
     );
+    expect(plan.skillDraft.draftVariationLabels).toEqual([
+      'Proof-first launch',
+      'Demo-first launch',
+      'Founder-note launch',
+    ]);
+    expect(plan.skillDraft.componentSlotLabels).toEqual([
+      'Hook card',
+      'Proof card',
+      'App frame',
+      'Agent trace',
+      'CTA card',
+    ]);
     expect(plan.skillDraft.toolNames).toContain('motion_capture');
     expect(plan.skillDraft.manifest.instructions).toContain('Review video plan before continuing');
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Review Surfaces');
+    expect(plan.skillDraft.manifest.instructions).toContain('Capture plan');
     expect(plan.skillDraft.manifest.instructions).not.toMatch(
       /operator|dashboard|control plane/i
     );

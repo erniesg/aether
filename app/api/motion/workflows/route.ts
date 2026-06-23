@@ -10,6 +10,10 @@ import {
   listMotionWorkflowExamples,
   type MotionWorkflowExample,
 } from '@/lib/motion/workflowExamples';
+import {
+  getMotionWorkflowSkillRecipe,
+  type MotionWorkflowSkillRecipe,
+} from '@/lib/motion/workflowSkillCatalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,6 +53,7 @@ interface MotionWorkflowSkillResponse {
     acceptedShorthands: string[];
     defaultMode: WorkflowRunMode;
   };
+  workflowRecipe: MotionWorkflowSkillRecipe | null;
   examples: MotionWorkflowExampleResponse[];
   status: WorkflowRegistryEntry['status'];
 }
@@ -159,6 +164,7 @@ function toMotionWorkflowSkillResponse(
       acceptedShorthands: acceptedShorthandsFor(workflow.sourceKinds ?? []),
       defaultMode: 'review',
     },
+    workflowRecipe: getMotionWorkflowSkillRecipe(workflow.id),
     examples: listMotionWorkflowExamples(workflow.id).map(toMotionWorkflowExampleResponse),
     status: workflow.status,
   };
