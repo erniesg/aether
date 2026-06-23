@@ -103,7 +103,7 @@ import { useCreatorContext } from '@/lib/context/creator-store';
 import { setEyesClosedCapture } from '@/lib/voice/eyes-closed-store';
 import type { EyesClosedCaptureRequest } from '@/components/canvas/EyesClosedHandle';
 import type { SemanticCreativeComponent } from '@/lib/types/semantic-component';
-import type { TimelineTrack } from '@/lib/motion/project';
+import { motionFrames, type TimelineTrack } from '@/lib/motion/project';
 import {
   AutoModeToggle,
   DEFAULT_AUTO_MODE_CONFIG,
@@ -591,6 +591,57 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
         });
         setMotionTimelineActionStatus('effect updated');
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
+  const handleTimelineClipTimingEdit = useCallback(
+    async (clipId: string, startSeconds: number, durationSeconds: number) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus('applying timing');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/revise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            id: `timing-${clipId}-${requestedAt}`,
+            requestedAt,
+            updatedAt: requestedAt,
+            requestedEngines: motionStart.workflow.plan.engines,
+            operations: [
+              {
+                kind: 'retime-clip',
+                clipId,
+                startFrame: motionFrames(startSeconds),
+                durationFrames: motionFrames(durationSeconds),
+              },
+            ],
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+        };
+        if (!res.ok || json.ok === false || !json.project || !json.previewPlan) {
+          throw new Error(json.error ?? `timing edit failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+        });
+        setMotionTimelineActionStatus('timing updated');
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
@@ -2664,6 +2715,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onPinMotionSkill={handleTimelinePinMotionSkill}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             onEditClipEffect={handleTimelineClipEffectEdit}
+            onEditClipTiming={handleTimelineClipTimingEdit}
             capturePlan={motionStart?.capturePlan ?? null}
             graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}

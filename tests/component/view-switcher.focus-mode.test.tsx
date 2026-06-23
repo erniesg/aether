@@ -618,6 +618,53 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('selected timeline clip timing edits call revise with frame timing', async () => {
+    const start = storedRegeneratableMotionStart();
+    const revisedPreview = {
+      ...start.previewPlan!,
+      timelineRows: start.previewPlan!.timelineRows.map((row) => ({
+        ...row,
+        clips: row.clips.map((clip) =>
+          clip.clipId === 'clip-beat-hook-text'
+            ? { ...clip, startSeconds: 1.5, durationSeconds: 4.5 }
+            : clip
+        ),
+      })),
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: revisedPreview,
+          capturePlan: start.capturePlan,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getAllByRole('button', { name: /hook card clip/i })[0]);
+    await userEvent.clear(screen.getByLabelText(/clip start seconds/i));
+    await userEvent.type(screen.getByLabelText(/clip start seconds/i), '1.5');
+    await userEvent.clear(screen.getByLabelText(/clip duration seconds/i));
+    await userEvent.type(screen.getByLabelText(/clip duration seconds/i), '4.5');
+    await userEvent.click(screen.getByRole('button', { name: /apply timing/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('timing updated');
+    });
+    const reviseCall = fetchMock.mock.calls.find((call) => call[0] === '/api/motion/revise');
+    expect(reviseCall?.[1]?.body).toEqual(
+      expect.stringContaining('"kind":"retime-clip"')
+    );
+    expect(reviseCall?.[1]?.body).toEqual(expect.stringContaining('"startFrame":45'));
+    expect(reviseCall?.[1]?.body).toEqual(expect.stringContaining('"durationFrames":135'));
+  });
+
   it('the focus pill reports aria-current after a click, canvas after another click', async () => {
     renderShell();
 

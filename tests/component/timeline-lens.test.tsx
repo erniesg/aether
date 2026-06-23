@@ -596,12 +596,40 @@ describe('TimelineLens', () => {
     expect(input).toHaveValue('Turn a repo into a launch video.');
     await userEvent.clear(input);
     await userEvent.type(input, 'Turn a repo into launch cuts.');
-    await userEvent.click(screen.getByRole('button', { name: /apply/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^apply$/i }));
 
     expect(onEditClipSummary).toHaveBeenCalledWith(
       'clip-beat-hook-text',
       'Turn a repo into launch cuts.'
     );
+  });
+
+  it('lets creators retime the selected clip in seconds', async () => {
+    const onEditClipTiming = vi.fn<
+      (clipId: string, startSeconds: number, durationSeconds: number) => void
+    >();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId="clip-beat-hook-text"
+        onSelectClip={() => {}}
+        onEditClipTiming={onEditClipTiming}
+      />
+    );
+
+    const startInput = screen.getByLabelText(/clip start seconds/i);
+    const durationInput = screen.getByLabelText(/clip duration seconds/i);
+    expect(startInput).toHaveValue(0);
+    expect(durationInput).toHaveValue(3);
+
+    await userEvent.clear(startInput);
+    await userEvent.type(startInput, '1.5');
+    await userEvent.clear(durationInput);
+    await userEvent.type(durationInput, '4.5');
+    await userEvent.click(screen.getByRole('button', { name: /apply timing/i }));
+
+    expect(onEditClipTiming).toHaveBeenCalledWith('clip-beat-hook-text', 1.5, 4.5);
   });
 
   it('lets creators apply a reusable effect preset to the selected clip', async () => {

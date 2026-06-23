@@ -26,6 +26,9 @@
   render preview-plan video-plan scenes, story, drafts, editable component
   controls, scoped regeneration actions, engine readiness, and timeline rows
   without leaking raw beat, clip, source, or provenance ids in the primary UI.
+- Selected timeline clips can now be edited for copy, reusable effect preset,
+  start time, and duration; timing edits reuse the same typed revision endpoint
+  and preserve server-side overlap validation.
 - Motion rail video starter for repo, PR, site URL, or local path sources with
   review/full-auto mode and target presets for X vertical, LinkedIn feed,
   website demo, and multi-format launch packs.

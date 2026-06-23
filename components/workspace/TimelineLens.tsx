@@ -44,6 +44,7 @@ export interface TimelineLensProps {
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
+  onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan?: AgentMotionCapturePlan | null;
   graphNodes?: MotionGraphNode[];
   workflowExamples?: MotionWorkflowExample[];
@@ -66,6 +67,7 @@ export function TimelineLens({
   onPinMotionSkill,
   onEditClipSummary,
   onEditClipEffect,
+  onEditClipTiming,
   capturePlan = null,
   graphNodes = [],
   workflowExamples = [],
@@ -114,6 +116,7 @@ export function TimelineLens({
             onPinMotionSkill={onPinMotionSkill}
             onEditClipSummary={onEditClipSummary}
             onEditClipEffect={onEditClipEffect}
+            onEditClipTiming={onEditClipTiming}
             capturePlan={capturePlan}
             graphNodes={graphNodes}
             workflowExamples={workflowExamples}
@@ -155,6 +158,7 @@ function MotionPreviewPlanView({
   onPinMotionSkill,
   onEditClipSummary,
   onEditClipEffect,
+  onEditClipTiming,
   capturePlan,
   graphNodes,
   workflowExamples,
@@ -174,6 +178,7 @@ function MotionPreviewPlanView({
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
+  onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan: AgentMotionCapturePlan | null;
   graphNodes: MotionGraphNode[];
   workflowExamples: MotionWorkflowExample[];
@@ -394,6 +399,7 @@ function MotionPreviewPlanView({
           clip={selectedClip}
           onEditClipSummary={onEditClipSummary}
           onEditClipEffect={onEditClipEffect}
+          onEditClipTiming={onEditClipTiming}
         />
       ) : null}
 
@@ -533,22 +539,41 @@ function SelectedClipEditor({
   clip,
   onEditClipSummary,
   onEditClipEffect,
+  onEditClipTiming,
 }: {
   clip: MotionPreviewTimelineClip;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
+  onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
 }) {
   const [summary, setSummary] = useState(clip.summary);
+  const [startSeconds, setStartSeconds] = useState(formatSecondsInput(clip.startSeconds));
+  const [durationSeconds, setDurationSeconds] = useState(
+    formatSecondsInput(clip.durationSeconds)
+  );
 
   useEffect(() => {
     setSummary(clip.summary);
-  }, [clip.clipId, clip.summary]);
+    setStartSeconds(formatSecondsInput(clip.startSeconds));
+    setDurationSeconds(formatSecondsInput(clip.durationSeconds));
+  }, [clip.clipId, clip.durationSeconds, clip.startSeconds, clip.summary]);
 
   const canApply = summary.trim().length > 0 && summary.trim() !== clip.summary.trim();
   const canEditEffects = clip.regenerateScopes.includes('effect') && Boolean(onEditClipEffect);
+  const parsedStartSeconds = Number(startSeconds);
+  const parsedDurationSeconds = Number(durationSeconds);
+  const timingIsValid =
+    Number.isFinite(parsedStartSeconds) &&
+    Number.isFinite(parsedDurationSeconds) &&
+    parsedStartSeconds >= 0 &&
+    parsedDurationSeconds > 0;
+  const timingChanged =
+    Math.abs(parsedStartSeconds - clip.startSeconds) > 0.001 ||
+    Math.abs(parsedDurationSeconds - clip.durationSeconds) > 0.001;
+  const canApplyTiming = Boolean(onEditClipTiming) && timingIsValid && timingChanged;
 
   return (
-    <section className="grid gap-2 border-t border-border-soft px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
+    <section className="grid gap-3 border-t border-border-soft px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)]">
       <div className="min-w-0">
         <div className="font-caption text-xs text-ink">{clip.componentLabel}</div>
         <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
@@ -556,13 +581,59 @@ function SelectedClipEditor({
         </div>
       </div>
       <div className="grid min-w-0 gap-2">
-        <input
-          type="text"
-          aria-label="selected clip summary"
-          value={summary}
-          onChange={(event) => setSummary(event.target.value)}
-          className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
-        />
+        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+          <input
+            type="text"
+            aria-label="selected clip summary"
+            value={summary}
+            onChange={(event) => setSummary(event.target.value)}
+            className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            disabled={!canApply}
+            onClick={() => onEditClipSummary?.(clip.clipId, summary.trim())}
+            className="rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            apply
+          </button>
+        </div>
+        <div className="grid gap-2 md:grid-cols-[minmax(0,120px)_minmax(0,120px)_auto]">
+          <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+            start
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              aria-label="clip start seconds"
+              value={startSeconds}
+              onChange={(event) => setStartSeconds(event.target.value)}
+              className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent"
+            />
+          </label>
+          <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+            duration
+            <input
+              type="number"
+              min="0.1"
+              step="0.1"
+              aria-label="clip duration seconds"
+              value={durationSeconds}
+              onChange={(event) => setDurationSeconds(event.target.value)}
+              className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={!canApplyTiming}
+            onClick={() =>
+              onEditClipTiming?.(clip.clipId, parsedStartSeconds, parsedDurationSeconds)
+            }
+            className="self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            apply timing
+          </button>
+        </div>
         {canEditEffects ? (
           <div className="flex flex-wrap gap-1" aria-label="effect presets">
             {MOTION_EFFECT_PRESETS.map((preset) => {
@@ -588,16 +659,12 @@ function SelectedClipEditor({
           </div>
         ) : null}
       </div>
-      <button
-        type="button"
-        disabled={!canApply}
-        onClick={() => onEditClipSummary?.(clip.clipId, summary.trim())}
-        className="rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        apply
-      </button>
     </section>
   );
+}
+
+function formatSecondsInput(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
 }
 
 function WorkflowExamplesView({ examples }: { examples: MotionWorkflowExample[] }) {
