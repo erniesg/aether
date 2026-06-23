@@ -10,6 +10,8 @@ export type MotionReferencePatternId =
   | 'code-diff-explainer'
   | 'before-after-feature'
   | 'agent-process-trace'
+  | 'skill-drop-announcement'
+  | 'terminal-command-proof'
   | 'image-to-video-insert'
   | 'voice-caption-sync'
   | 'multi-format-pack'
@@ -123,6 +125,28 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['repo-facts', 'capture', 'render', 'export'],
     editSurfaces: ['copy', 'proof', 'timing', 'effect'],
     verificationLabels: ['tool receipts present', 'trace avoids raw ids', 'step copy is creator-facing'],
+  },
+  'skill-drop-announcement': {
+    id: 'skill-drop-announcement',
+    label: 'Skill drop announcement',
+    category: 'story',
+    purpose: 'Turn a new reusable workflow skill into a short launch cut with install copy.',
+    sourceSignals: ['skill name', 'workflow result', 'install command', 'social CTA'],
+    componentIds: ['hook-card', 'command-card', 'proof-card', 'cta-card', 'caption-line'],
+    generationLanes: ['repo-facts', 'visual-search', 'voice', 'sync', 'render', 'export'],
+    editSurfaces: ['copy', 'command', 'caption', 'timing', 'effect'],
+    verificationLabels: ['install command visible', 'skill name visible', 'CTA not clipped'],
+  },
+  'terminal-command-proof': {
+    id: 'terminal-command-proof',
+    label: 'Terminal command proof',
+    category: 'story',
+    purpose: 'Show the exact command, package, or tool invocation as reviewable proof.',
+    sourceSignals: ['CLI command', 'package name', 'tool receipt', 'repo script'],
+    componentIds: ['command-card', 'agent-trace', 'evidence-card'],
+    generationLanes: ['repo-facts', 'code-change', 'render'],
+    editSurfaces: ['command', 'copy', 'proof', 'timing'],
+    verificationLabels: ['command copied from source', 'package name readable', 'tool receipt present'],
   },
   'image-to-video-insert': {
     id: 'image-to-video-insert',

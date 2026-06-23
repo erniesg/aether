@@ -149,6 +149,11 @@ function clipText(clip: MotionClipData): string {
   return typeof value === "string" ? value : "";
 }
 
+function clipCommand(clip: MotionClipData): string {
+  const value = clip.props.command;
+  return typeof value === "string" && value.length > 0 ? value : "";
+}
+
 function clipMediaUrl(clip: MotionClipData): string | null {
   const value = clip.props.generatedVideoUrl ?? clip.props.assetUrl ?? clip.props.audioUrl;
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -340,6 +345,38 @@ function AgentTrace({ text, brand }: MotionComponentRenderProps) {
   );
 }
 
+function CommandCard({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const command = clipCommand(clip) || text;
+  const contextValue = clip.props.context;
+  const context = typeof contextValue === "string" && contextValue.length > 0 ? contextValue : "run this";
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ color: palette[2], fontSize: 24, fontWeight: 800, marginBottom: 18 }}>
+        {context}
+      </div>
+      <code
+        style={{
+          display: "block",
+          padding: "18px 20px",
+          borderRadius: 14,
+          background: palette[1],
+          color: palette[0],
+          fontSize: 42,
+          lineHeight: 1.08,
+          fontFamily: brand.fontFamilies[0] ?? "IBM Plex Mono",
+          fontWeight: 700,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        {command}
+      </code>
+    </CardShell>
+  );
+}
+
 function CtaCard({ text, brand }: MotionComponentRenderProps) {
   return (
     <CardShell brand={brand}>
@@ -395,6 +432,8 @@ function renderMotionComponent(props: MotionComponentRenderProps) {
       return <AppFrame {...props} />;
     case "agent-trace":
       return <AgentTrace {...props} />;
+    case "command-card":
+      return <CommandCard {...props} />;
     case "proof-card":
     case "evidence-card":
     case "code-diff-card":
@@ -585,6 +624,7 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
         .hook-card__eyebrow,
         .proof-card__source,
         .agent-trace__step,
+        .command-card__context,
         .cta-card__action {
           color: ${palette.accent};
           font-size: 20px;
@@ -594,6 +634,7 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
 
         .hook-card__headline,
         .proof-card__claim,
+        .command-card__command,
         .cta-card__headline {
           display: block;
           margin-top: 16px;
@@ -694,6 +735,8 @@ function hyperframesClipHtml(
   const mediaUrl = stringProp(clip.props.generatedVideoUrl) ?? stringProp(clip.props.assetUrl);
   const mimeType = stringProp(clip.props.mimeType) ?? '';
   const text = clipText(clip);
+  const command = stringProp(clip.props.command);
+  const context = stringProp(clip.props.context);
   const componentId = componentIdForClip(clip, track.kind);
   const effectPreset = motionEffectPresetOrDefault(clip.props.effectPreset);
   const componentClass = `motion-component--${componentId}`;
@@ -707,7 +750,7 @@ function hyperframesClipHtml(
 
   if (track.kind === 'voice') return '';
 
-  return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType, effectPreset.label)}</div>`;
+  return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType, effectPreset.label, command, context)}</div>`;
 }
 
 function hyperframesComponentBody(
@@ -715,7 +758,9 @@ function hyperframesComponentBody(
   text: string,
   mediaUrl: string | undefined,
   mimeType: string,
-  effectLabel: string
+  effectLabel: string,
+  command?: string,
+  context?: string
 ): string {
   if (componentId === 'hook-card') {
     return `<span class="hook-card__eyebrow">${escapeHtml(effectLabel)}</span><strong class="hook-card__headline">${escapeHtml(text)}</strong>`;
@@ -742,6 +787,10 @@ function hyperframesComponentBody(
 
   if (componentId === 'agent-trace') {
     return `<strong class="proof-card__claim">${escapeHtml(text)}</strong><span class="agent-trace__step">01 / read repo</span><span class="agent-trace__step">02 / render pack</span>`;
+  }
+
+  if (componentId === 'command-card') {
+    return `<span class="command-card__context">${escapeHtml(context ?? 'run this')}</span><code class="command-card__command">${escapeHtml(command ?? text)}</code>`;
   }
 
   if (componentId === 'cta-card') {

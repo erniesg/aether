@@ -122,6 +122,7 @@ const COMPONENT_ROLES = {
   'hook-card': 'hook',
   'app-frame': 'product visual',
   'agent-trace': 'agent proof',
+  'command-card': 'install command',
   'proof-card': 'claim proof',
   'code-diff-card': 'code change',
   'mechanism-diagram': 'mechanism',

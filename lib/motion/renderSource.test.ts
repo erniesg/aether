@@ -197,4 +197,55 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('tl.from(".caption-line__text"');
     expect(entry).toContain('Captured aether canvas');
   });
+
+  it('renders command cards for skill-drop and developer launch clips', () => {
+    const baseProject = projectWithVisualTimeline();
+    const commandTracks: TimelineTrack[] = [
+      {
+        id: 'track-command',
+        kind: 'text',
+        clips: [
+          {
+            id: 'clip-skill-install',
+            componentId: 'command-card',
+            startFrame: 0,
+            durationFrames: 90,
+            props: {
+              command: 'npx skills add heygen-com/hyperframes',
+              context: 'Today is pr-to-video',
+              text: 'npx skills add heygen-com/hyperframes',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'reference', ref: 'skill-drop-announcement' }],
+          },
+        ],
+      },
+    ];
+    const project = {
+      ...baseProject,
+      tracks: commandTracks,
+      drafts: baseProject.drafts.map((draft) =>
+        draft.id === baseProject.currentDraftId ? { ...draft, tracks: commandTracks } : draft
+      ),
+    };
+
+    const remotionBundle = buildMotionRenderSourceBundle(project, renderRequest(project, 'remotion'));
+    const remotionEntry =
+      remotionBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(remotionEntry).toContain('function CommandCard');
+    expect(remotionEntry).toContain('case "command-card":');
+    expect(remotionEntry).toContain('npx skills add heygen-com/hyperframes');
+
+    const hyperframesBundle = buildMotionRenderSourceBundle(
+      project,
+      renderRequest(project, 'hyperframes')
+    );
+    const hyperframesEntry =
+      hyperframesBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(hyperframesEntry).toContain('data-component-id="command-card"');
+    expect(hyperframesEntry).toContain('command-card__context">Today is pr-to-video');
+    expect(hyperframesEntry).toContain(
+      'command-card__command">npx skills add heygen-com/hyperframes'
+    );
+  });
 });

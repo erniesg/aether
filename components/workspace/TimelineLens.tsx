@@ -345,6 +345,10 @@ function MotionPreviewPlanView({
         <MotionDesignKitStrip kit={previewPlan.designKit} />
       </section>
 
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionReferenceGrammarStrip grammar={previewPlan.referenceGrammar} />
+      </section>
+
       {capturePlan ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionCapturePlanView
@@ -732,6 +736,61 @@ function MotionDesignKitStrip({
               </Chip>
             ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionReferenceGrammarStrip({
+  grammar,
+}: {
+  grammar: MotionPreviewPlan['referenceGrammar'];
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            video grammar
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {grammar.sourceFamilyLabels.join(' / ')}
+          </div>
+        </div>
+        <Chip tone={grammar.status === 'ready' ? 'ok' : 'warn'} size="sm">
+          {grammar.cueLabels.length} cues
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">
+            {grammar.cueLabels.slice(0, 3).join(' / ')}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {grammar.componentLabels.slice(0, 6).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {grammar.editSurfaceLabels.slice(0, 4).join(' / ')}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {grammar.nextActionLabels.slice(0, 3).map((label) => (
+              <Chip key={label} tone="info" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+          {grammar.verificationLabels.length > 0 ? (
+            <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {grammar.verificationLabels[0]}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

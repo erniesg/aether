@@ -60,6 +60,7 @@ describe('routeAgentMotionWorkflow', () => {
     expect(result.plan.gates.map((gate) => gate.id)).toEqual([
       'plan',
       'drafts',
+      'visuals',
       'voice',
       'timeline',
       'render',

@@ -11,6 +11,7 @@ describe('motion component registry', () => {
       'hook-card',
       'app-frame',
       'agent-trace',
+      'command-card',
       'proof-card',
       'code-diff-card',
       'mechanism-diagram',
@@ -36,6 +37,16 @@ describe('motion component registry', () => {
     const mechanism = getMotionComponent('mechanism-diagram');
     expect(mechanism?.editControls.map((control) => control.id)).toContain('diagramKind');
     expect(mechanism?.regenerateScopes).toContain('diagram');
+
+    const command = getMotionComponent('command-card');
+    expect(command?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(command?.requiredProps).toEqual(['command', 'context']);
+    expect(command?.editControls.map((control) => control.id)).toEqual([
+      'command',
+      'context',
+      'accentColor',
+      'effectPreset',
+    ]);
   });
 
   it('keeps every component creator-facing', () => {

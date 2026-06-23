@@ -24,6 +24,7 @@ export interface MotionComponentDefinition {
     | 'hook-card'
     | 'app-frame'
     | 'agent-trace'
+    | 'command-card'
     | 'proof-card'
     | 'code-diff-card'
     | 'mechanism-diagram'
@@ -86,6 +87,21 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'proofLabel', label: 'Proof label', kind: 'text' },
     ],
     regenerateScopes: ['copy', 'proof', 'timing'],
+  },
+  {
+    id: 'command-card',
+    label: 'Command card',
+    description: 'Install, run, or try-it command for skill drops, launches, and developer videos.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['command', 'context'],
+    editControls: [
+      { id: 'command', label: 'Command', kind: 'text' },
+      { id: 'context', label: 'Context', kind: 'text' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['copy', 'proof', 'timing', 'effect'],
   },
   {
     id: 'proof-card',

@@ -62,6 +62,7 @@ describe('motion workflow skill drafts', () => {
       referencePatternLabels: [
         'Code diff explainer',
         'Proof receipt card',
+        'Terminal command proof',
         'Voice and caption sync',
         'Multi-format export pack',
       ],
@@ -80,6 +81,9 @@ describe('motion workflow skill drafts', () => {
           }),
           expect.objectContaining({
             id: 'proof-receipt-card',
+          }),
+          expect.objectContaining({
+            id: 'terminal-command-proof',
           }),
           expect.objectContaining({
             id: 'voice-caption-sync',
@@ -167,6 +171,8 @@ describe('motion workflow skill drafts', () => {
       'Real product capture',
       'Proof receipt card',
       'Agent process trace',
+      'Skill drop announcement',
+      'Terminal command proof',
       'Image-to-video insert',
       'Voice and caption sync',
       'Multi-format export pack',

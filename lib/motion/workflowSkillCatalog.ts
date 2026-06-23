@@ -164,6 +164,8 @@ const RECIPE_DEFINITIONS = {
       'real-product-capture',
       'proof-receipt-card',
       'agent-process-trace',
+      'skill-drop-announcement',
+      'terminal-command-proof',
       'image-to-video-insert',
       'voice-caption-sync',
       'multi-format-pack',
@@ -474,6 +476,7 @@ const RECIPE_DEFINITIONS = {
     referencePatternIds: [
       'code-diff-explainer',
       'proof-receipt-card',
+      'terminal-command-proof',
       'voice-caption-sync',
       'multi-format-pack',
     ],

@@ -270,6 +270,70 @@ const previewPlan: MotionPreviewPlan = {
     editableSurfaceLabels: ['script', 'component', 'capture', 'voice', 'timing', 'effect'],
     verificationLabels: ['contact sheet', 'mp4 probe', 'poster', 'subtitles', 'manifest'],
   },
+  referenceGrammar: {
+    id: 'reference-grammar-motion-aether-launch-draft-primary-130',
+    projectId: 'motion-aether-launch',
+    draftId: 'draft-primary',
+    status: 'ready',
+    sourceFamilyLabels: ['repo launch', 'product demo', 'agent-native workflow'],
+    cueLabels: [
+      'Launch hook title',
+      'Real product capture',
+      'Proof receipt card',
+      'Agent process trace',
+      'Image-to-video insert',
+      'Voice and caption sync',
+      'Multi-format export pack',
+      'Reusable motion system',
+    ],
+    cues: [
+      {
+        patternId: 'launch-hook-title',
+        label: 'Launch hook title',
+        purpose: 'Open with the app name, promise, and one concrete reason to watch.',
+        sourceSignals: ['repo name', 'product summary', 'launch claim'],
+        componentLabels: ['Hook card', 'CTA card'],
+        generationLaneLabels: ['repo facts', 'render'],
+        editSurfaceLabels: ['copy', 'timing', 'effect'],
+        verificationLabels: ['first-frame readable', 'app name visible', 'claim has receipt'],
+      },
+      {
+        patternId: 'real-product-capture',
+        label: 'Real product capture',
+        purpose: 'Use screenshots, recordings, DOM snapshots, or traces from the actual app.',
+        sourceSignals: ['site URL', 'local app URL', 'capture candidate', 'recorded flow'],
+        componentLabels: ['App frame', 'Soft wipe'],
+        generationLaneLabels: ['capture', 'sync', 'render'],
+        editSurfaceLabels: ['capture', 'crop', 'timing', 'effect'],
+        verificationLabels: ['capture receipt', 'crop safe area', 'text remains readable'],
+      },
+    ],
+    componentLabels: [
+      'Hook card',
+      'CTA card',
+      'App frame',
+      'Soft wipe',
+      'Proof card',
+      'Evidence card',
+      'Agent trace',
+      'Voice line',
+      'Caption line',
+    ],
+    generationLaneLabels: ['repo facts', 'capture', 'sync', 'render', 'export'],
+    editSurfaceLabels: ['capture', 'component', 'copy', 'effect', 'timing', 'voice-line'],
+    verificationLabels: [
+      'first-frame readable',
+      'capture receipt',
+      'captions align to voice',
+    ],
+    nextActionLabels: [
+      'Review video grammar',
+      'Select source material',
+      'Regenerate weak component slots',
+    ],
+    provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+    requestedAt: 130,
+  },
   storyboard: [
     {
       beatId: 'beat-hook',
@@ -743,6 +807,11 @@ describe('TimelineLens', () => {
     expect(screen.getByText(/Open fast, prove early/)).toBeInTheDocument();
     expect(screen.getAllByText('product glide').length).toBeGreaterThan(0);
     expect(screen.getByText(/script \/ component \/ capture/)).toBeInTheDocument();
+    expect(screen.getByText('video grammar')).toBeInTheDocument();
+    expect(screen.getByText('repo launch / product demo / agent-native workflow')).toBeInTheDocument();
+    expect(screen.getByText(/Launch hook title \/ Real product capture/)).toBeInTheDocument();
+    expect(screen.getByText('8 cues')).toBeInTheDocument();
+    expect(screen.getByText('Review video grammar')).toBeInTheDocument();
     expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
     expect(screen.getAllByText('1 source').length).toBeGreaterThan(0);
     expect(screen.getByText('assetId / caption / zoom')).toBeInTheDocument();

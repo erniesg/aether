@@ -37,6 +37,10 @@ import {
   type MotionDesignKitPlan,
 } from './designKit';
 import {
+  buildMotionReferenceGrammarPlan,
+  type MotionReferenceGrammarPlan,
+} from './referenceGrammar';
+import {
   buildMotionSyncPlan,
   type MotionCaptionTimingSource,
   type MotionSyncPlanStatus,
@@ -298,6 +302,7 @@ export interface MotionPreviewPlan {
   syncBeats: MotionPreviewSyncBeat[];
   syncSoundCues: MotionPreviewSyncSoundCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
+  referenceGrammar: MotionReferenceGrammarPlan;
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   productionPlan: MotionProductionPlan;
@@ -330,6 +335,10 @@ export function buildMotionPreviewPlan(
     requestedAt: options.requestedAt,
   });
   const exportPackPlan = buildMotionExportPackPlan(project, {
+    draftId: project.currentDraftId,
+    requestedAt: options.requestedAt,
+  });
+  const referenceGrammar = buildMotionReferenceGrammarPlan(project, {
     draftId: project.currentDraftId,
     requestedAt: options.requestedAt,
   });
@@ -389,6 +398,7 @@ export function buildMotionPreviewPlan(
     syncBeats: buildSyncBeats(syncPlan),
     syncSoundCues: buildSyncSoundCues(syncPlan),
     exportPackSummary: buildExportPackSummary(exportPackPlan),
+    referenceGrammar,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
     productionPlan,

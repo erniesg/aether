@@ -151,6 +151,33 @@ describe('buildMotionPreviewPlan', () => {
       ]),
       editableSurfaceLabels: ['script', 'component', 'capture', 'voice', 'timing', 'effect'],
     });
+    expect(preview.referenceGrammar).toMatchObject({
+      status: 'ready',
+      sourceFamilyLabels: ['repo launch', 'product demo', 'agent-native workflow'],
+      cueLabels: [
+        'Launch hook title',
+        'Real product capture',
+        'Proof receipt card',
+        'Agent process trace',
+        'Image-to-video insert',
+        'Voice and caption sync',
+        'Multi-format export pack',
+        'Reusable motion system',
+      ],
+      componentLabels: expect.arrayContaining([
+        'Hook card',
+        'App frame',
+        'Agent trace',
+        'Caption line',
+        'Soft wipe',
+      ]),
+      editSurfaceLabels: expect.arrayContaining(['capture', 'component', 'effect']),
+      verificationLabels: expect.arrayContaining([
+        'first-frame readable',
+        'capture receipt',
+        'captions align to voice',
+      ]),
+    });
     expect(preview.draftOptions.map((draft) => draft.label)).toEqual([
       'Primary launch cut',
       'Proof-first cut',

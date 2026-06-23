@@ -105,6 +105,8 @@ describe('motion workflow skill catalog', () => {
       'code-diff-explainer',
       'before-after-feature',
       'agent-process-trace',
+      'skill-drop-announcement',
+      'terminal-command-proof',
       'image-to-video-insert',
       'voice-caption-sync',
       'multi-format-pack',
@@ -116,6 +118,11 @@ describe('motion workflow skill catalog', () => {
           id: 'real-product-capture',
           componentIds: ['app-frame', 'soft-wipe'],
           generationLanes: ['capture', 'sync', 'render'],
+        }),
+        expect.objectContaining({
+          id: 'skill-drop-announcement',
+          componentIds: ['hook-card', 'command-card', 'proof-card', 'cta-card', 'caption-line'],
+          verificationLabels: expect.arrayContaining(['install command visible']),
         }),
         expect.objectContaining({
           id: 'image-to-video-insert',
