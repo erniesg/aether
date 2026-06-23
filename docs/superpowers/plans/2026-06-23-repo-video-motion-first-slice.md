@@ -3598,6 +3598,49 @@ git add lib/workflow/registry.ts lib/motion/workflowPlan.ts tests/unit/capabilit
 git commit -m "feat: describe motion workflow skill contracts"
 ```
 
+## Task 40: Motion Workflow Discovery API
+
+**Files:**
+- Create: `app/api/motion/workflows/route.ts`
+- Create: `tests/unit/api-motion-workflows.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing workflow discovery tests**
+
+The tests cover:
+
+- listing reusable video workflow skills without returning non-video workflows;
+- returning tool ids, source kinds, engine hints, review gates, accepted start
+  shorthands, and workflow-skill contracts;
+- filtering by source kind, render engine, and review/full-auto mode;
+- rejecting unsupported discovery filters before returning workflow metadata.
+
+- [x] **Step 2: Implement the discovery route**
+
+`app/api/motion/workflows/route.ts` now exposes an agent-native GET endpoint for
+motion workflow discovery. It returns video workflow skills from the registry,
+keeps draft workflows visible for agents, supports stable start hints for
+`repoPath`, `repoUrl`, `siteUrl`, `prRef`, and `sourceRefs`, and fails closed on
+unsupported filters.
+
+- [x] **Step 3: Run focused tests**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-workflows.test.ts
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add app/api/motion/workflows/route.ts tests/unit/api-motion-workflows.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion workflow discovery"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.
