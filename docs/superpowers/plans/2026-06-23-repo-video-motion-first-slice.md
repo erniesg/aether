@@ -1002,7 +1002,7 @@ Run: `npx vitest run lib/motion/timeline.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/timeline.ts lib/motion/timeline.test.ts
@@ -2423,11 +2423,66 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/renderPlan.ts lib/motion/renderPlan.test.ts lib/providers/video/render-registry.ts lib/providers/video/render-registry.test.ts lib/providers/video/types.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: plan motion render handoffs"
+```
+
+## Task 18: Voiceover Sync Handoff Plan
+
+**Files:**
+- Create: `lib/motion/voicePlan.ts`
+- Create: `lib/motion/voicePlan.test.ts`
+- Create: `lib/providers/voice/types.ts`
+- Create: `lib/providers/voice/registry.ts`
+- Create: `lib/providers/voice/registry.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing voiceover handoff tests**
+
+The tests cover:
+
+- voice timeline clips -> synthesis requests with text, start/duration frames,
+  target seconds, voice id, and expected audio, word-timing, and transcript
+  artifacts;
+- missing timeline -> `needs-timeline` blocker instead of invented synthesis
+  inputs;
+- opt-in voice provider registry with no hidden default TTS vendor.
+
+- [x] **Step 2: Run the failing tests**
+
+Run: `./node_modules/.bin/vitest run lib/motion/voicePlan.test.ts lib/providers/voice/registry.test.ts`
+
+Expected: FAIL because `lib/motion/voicePlan.ts` and
+`lib/providers/voice/registry.ts` do not exist.
+
+- [x] **Step 3: Implement voice handoff contracts**
+
+`lib/motion/voicePlan.ts` now converts materialized voice-line clips into
+provider-neutral voice synthesis requests. Each request declares audio,
+word-timing, and transcript artifacts for later caption and render sync.
+`lib/providers/voice/types.ts` and `registry.ts` define the provider contract
+and opt-in registry.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/voicePlan.test.ts lib/providers/voice/registry.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/voicePlan.ts lib/motion/voicePlan.test.ts lib/providers/voice/types.ts lib/providers/voice/registry.ts lib/providers/voice/registry.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: plan motion voiceover handoffs"
 ```
 
 ## Self-Review Checklist

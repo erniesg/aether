@@ -72,6 +72,12 @@ Clueso, and Descript.
 - `lib/providers/video/render-registry.ts` now defines an opt-in render
   provider registry for Remotion and HyperFrames adapters without registering a
   default renderer.
+- `lib/motion/voicePlan.ts` now converts voice-line timeline clips into
+  provider-neutral narration requests with expected audio, word-timing, and
+  transcript artifacts so captions and render duration can sync against real
+  voice receipts later.
+- `lib/providers/voice/*` now defines an opt-in voice synthesis provider
+  contract and registry without hardcoding a TTS vendor.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.
@@ -82,8 +88,10 @@ Clueso, and Descript.
   Remotion/HyperFrames portability.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding and render
-  provider contracts, but not concrete render execution, text-to-video,
-  image-to-video, voiceover, or timeline compilation into engine source files.
+  provider contracts, while `lib/providers/voice/*` covers voice provider
+  contracts. Concrete render execution, text-to-video, image-to-video, TTS
+  execution, and timeline compilation into engine source files remain future
+  adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.
