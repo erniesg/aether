@@ -34,6 +34,10 @@
 - Create `lib/motion/repoMotion.test.ts`: tests URL normalization, repo claim provenance, story generation, and optional timeline materialization.
 - Create `lib/motion/reviewPlan.ts`: creator-facing video plan artifact with draft variants, editable component slots, regenerate scopes, and mode actions.
 - Create `lib/motion/reviewPlan.test.ts`: tests review/full-auto plans and scoped component regeneration requests.
+- Create `lib/motion/workflowPlan.ts`: agent-readable review/full-auto gates from registered workflows and source refs.
+- Create `lib/motion/workflowPlan.test.ts`: tests source status, gates, tool ids, engine hints, and full-auto actions.
+- Create `lib/motion/workflowRouter.ts`: route intent and source refs to reusable motion workflows.
+- Create `lib/motion/workflowRouter.test.ts`: tests repo launch, PR, feature/social, website, overlay, motion graphic, and engine-port routing.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -2030,6 +2034,51 @@ Expected: PASS.
 ```bash
 git add lib/motion/workflowPlan.ts lib/motion/workflowPlan.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: plan agent motion workflow gates"
+```
+
+## Task 10: Agent Motion Workflow Router
+
+**Files:**
+- Create: `lib/motion/workflowRouter.ts`
+- Create: `lib/motion/workflowRouter.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing router tests**
+
+The tests cover routing from source refs and intent:
+
+- repo source -> `repo-launch-video`
+- PR source -> `pr-to-video` without capture/voice gates
+- feature/social intent -> `feature-social-video`
+- website demo -> `website-to-video`
+- caption overlay -> `caption-overlay-video`
+- motion graphic -> `motion-graphic-video`
+- Remotion/HyperFrames source -> `remotion-hyperframes-port`
+- missing source -> reviewable request-source plan
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/workflowRouter.test.ts`
+
+Expected: FAIL because `lib/motion/workflowRouter.ts` does not exist.
+
+- [x] **Step 3: Implement the router**
+
+`lib/motion/workflowRouter.ts` now returns a selected workflow id, a routing
+reason, and the `AgentMotionWorkflowPlan` produced by the shared planner.
+
+- [x] **Step 4: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/workflowRouter.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/workflowRouter.ts lib/motion/workflowRouter.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: route agent motion workflow starts"
 ```
 
 ## Self-Review Checklist
