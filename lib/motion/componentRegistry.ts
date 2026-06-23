@@ -18,7 +18,15 @@ export interface MotionEditControl {
 }
 
 export interface MotionComponentDefinition {
-  id: 'hook-card' | 'app-frame' | 'agent-trace' | 'proof-card' | 'cta-card';
+  id:
+    | 'hook-card'
+    | 'app-frame'
+    | 'agent-trace'
+    | 'proof-card'
+    | 'cta-card'
+    | 'caption-line'
+    | 'voice-line'
+    | 'soft-wipe';
   label: string;
   description: string;
   engines: MotionRenderEngine[];
@@ -100,6 +108,48 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'url', label: 'URL', kind: 'text' },
     ],
     regenerateScopes: ['cta', 'copy', 'timing'],
+  },
+  {
+    id: 'caption-line',
+    label: 'Caption line',
+    description: 'Timed subtitle or on-screen transcript line linked to a story beat.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['text'],
+    editControls: [
+      { id: 'text', label: 'Caption', kind: 'text' },
+      { id: 'position', label: 'Position', kind: 'select' },
+      { id: 'emphasis', label: 'Emphasis', kind: 'select' },
+    ],
+    regenerateScopes: ['caption', 'timing'],
+  },
+  {
+    id: 'voice-line',
+    label: 'Voice line',
+    description: 'Narration segment with planned, generated, or replaced voiceover audio.',
+    engines: ['remotion'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['text', 'status'],
+    editControls: [
+      { id: 'text', label: 'Script line', kind: 'text' },
+      { id: 'voice', label: 'Voice', kind: 'select' },
+      { id: 'pace', label: 'Pace', kind: 'number' },
+    ],
+    regenerateScopes: ['copy', 'timing'],
+  },
+  {
+    id: 'soft-wipe',
+    label: 'Soft wipe',
+    description: 'Scene transition that carries the outgoing beat into the incoming beat.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['fromBeatId', 'toBeatId'],
+    editControls: [
+      { id: 'style', label: 'Style', kind: 'select' },
+      { id: 'durationFrames', label: 'Duration', kind: 'number' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+    ],
+    regenerateScopes: ['effect', 'timing'],
   },
 ];
 

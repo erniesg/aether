@@ -6,13 +6,16 @@ import {
 } from './componentRegistry';
 
 describe('motion component registry', () => {
-  it('ships the first five reusable repo-video components', () => {
+  it('ships reusable repo-video, caption, voice, and transition components', () => {
     expect(motionComponentIds()).toEqual([
       'hook-card',
       'app-frame',
       'agent-trace',
       'proof-card',
       'cta-card',
+      'caption-line',
+      'voice-line',
+      'soft-wipe',
     ]);
   });
 
@@ -33,6 +36,9 @@ describe('motion component registry', () => {
   it('declares scoped regeneration affordances for each component', () => {
     const appFrame = getMotionComponent('app-frame');
     expect(appFrame?.regenerateScopes).toEqual(['capture', 'timing', 'caption']);
+
+    const softWipe = getMotionComponent('soft-wipe');
+    expect(softWipe?.regenerateScopes).toEqual(['effect', 'timing']);
 
     for (const component of listMotionComponents()) {
       expect(component.regenerateScopes.length).toBeGreaterThan(0);
