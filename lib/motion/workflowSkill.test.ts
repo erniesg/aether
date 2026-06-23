@@ -58,6 +58,12 @@ describe('motion workflow skill drafts', () => {
         'Evidence card',
         'CTA card',
       ],
+      referencePatternLabels: [
+        'Code diff explainer',
+        'Proof receipt card',
+        'Voice and caption sync',
+        'Multi-format export pack',
+      ],
       regenerationLabels: expect.arrayContaining([
         'code proof',
         'Code diff card: code',
@@ -66,6 +72,21 @@ describe('motion workflow skill drafts', () => {
       recipe: expect.objectContaining({
         slug: 'pr-to-video',
         generationLanes: ['code-change', 'voice', 'sync', 'render', 'export'],
+        referencePatterns: [
+          expect.objectContaining({
+            id: 'code-diff-explainer',
+            componentIds: ['code-diff-card', 'mechanism-diagram', 'evidence-card'],
+          }),
+          expect.objectContaining({
+            id: 'proof-receipt-card',
+          }),
+          expect.objectContaining({
+            id: 'voice-caption-sync',
+          }),
+          expect.objectContaining({
+            id: 'multi-format-pack',
+          }),
+        ],
       }),
     });
     expect(plan.skillDraft.manifest).toMatchObject({
@@ -93,6 +114,9 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('## Component Regeneration');
     expect(plan.skillDraft.manifest.instructions).toContain('Code diff card');
     expect(plan.skillDraft.manifest.instructions).toContain('Regenerate: code, proof, timing');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Reference Patterns');
+    expect(plan.skillDraft.manifest.instructions).toContain('Code diff explainer');
+    expect(plan.skillDraft.manifest.instructions).toContain('Verify: diff is readable');
     expect(plan.skillDraft.manifest.instructions).toContain('/api/motion/render');
     expect(plan.skillDraft.manifest.instructions).toContain('## Output format');
     expect(plan.skillDraft.manifest.instructions).toContain('provenance manifest');
@@ -136,10 +160,20 @@ describe('motion workflow skill drafts', () => {
       'Agent trace',
       'CTA card',
     ]);
+    expect(plan.skillDraft.referencePatternLabels).toEqual([
+      'Launch hook title',
+      'Real product capture',
+      'Proof receipt card',
+      'Agent process trace',
+      'Image-to-video insert',
+      'Voice and caption sync',
+      'Multi-format export pack',
+    ]);
     expect(plan.skillDraft.toolNames).toContain('motion_capture');
     expect(plan.skillDraft.manifest.instructions).toContain('Review video plan before continuing');
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
     expect(plan.skillDraft.manifest.instructions).toContain('## Review Surfaces');
+    expect(plan.skillDraft.manifest.instructions).toContain('Real product capture');
     expect(plan.skillDraft.manifest.instructions).toContain('Capture plan');
     expect(plan.skillDraft.manifest.instructions).not.toMatch(
       /operator|dashboard|control plane/i

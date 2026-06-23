@@ -46,6 +46,7 @@ export interface MotionWorkflowSkillDraft {
   agentTaskLabels: string[];
   draftVariationLabels: string[];
   componentSlotLabels: string[];
+  referencePatternLabels: string[];
   regenerationLabels: string[];
   toolNames: string[];
   verificationLabels: string[];
@@ -109,6 +110,7 @@ export function buildMotionWorkflowSkillDraft(
     agentTaskLabels: recipe?.agentTaskLabels ?? [],
     draftVariationLabels: recipe?.draftVariations.map((variation) => variation.label) ?? [],
     componentSlotLabels: recipe?.componentSlots.map((slot) => slot.label) ?? [],
+    referencePatternLabels: recipe?.referencePatterns.map((pattern) => pattern.label) ?? [],
     regenerationLabels,
     toolNames,
     verificationLabels,
@@ -244,6 +246,12 @@ function buildSkillInstructions({
     ...(recipe?.componentSlots.map(
       (slot) =>
         `- ${slot.label}: ${slot.reason} Regenerate: ${slot.regenerateScopes.join(', ')}.`
+    ) ?? []),
+    recipe ? '' : '',
+    recipe ? '## Reference Patterns' : '',
+    ...(recipe?.referencePatterns.map(
+      (pattern) =>
+        `- ${pattern.label}: ${pattern.purpose} Edit: ${pattern.editSurfaces.join(', ')}. Verify: ${pattern.verificationLabels.join(', ')}.`
     ) ?? []),
     recipe ? '' : '',
     recipe ? '## Review Surfaces' : '',

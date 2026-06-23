@@ -4,7 +4,21 @@ import { getMotionComponent } from './componentRegistry';
 import {
   getMotionWorkflowSkillRecipe,
   listMotionWorkflowSkillRecipes,
+  type MotionWorkflowGenerationLane,
 } from './workflowSkillCatalog';
+import { listMotionReferencePatterns } from './referencePatterns';
+
+const VALID_GENERATION_LANES = new Set<MotionWorkflowGenerationLane>([
+  'repo-facts',
+  'code-change',
+  'capture',
+  'visual-search',
+  'image-to-video',
+  'voice',
+  'sync',
+  'render',
+  'export',
+]);
 
 describe('motion workflow skill catalog', () => {
   it('has a reusable recipe for every registered video workflow skill', () => {
@@ -50,6 +64,13 @@ describe('motion workflow skill catalog', () => {
           variation.reviewPrompt,
         ]),
         ...recipe.componentSlots.flatMap((slot) => [slot.label, slot.role, slot.reason]),
+        ...recipe.referencePatterns.flatMap((pattern) => [
+          pattern.label,
+          pattern.purpose,
+          ...pattern.sourceSignals,
+          ...pattern.editSurfaces,
+          ...pattern.verificationLabels,
+        ]),
         ...recipe.reviewSurfaces.flatMap((surface) => [surface.label, surface.purpose]),
       ].join(' ');
 
@@ -58,6 +79,50 @@ describe('motion workflow skill catalog', () => {
         expect(getMotionComponent(slot.componentId)).not.toBeNull();
         expect(slot.regenerateScopes.length).toBeGreaterThan(0);
       }
+      for (const pattern of recipe.referencePatterns) {
+        expect(pattern.componentIds.length).toBeGreaterThan(0);
+        expect(pattern.editSurfaces.length).toBeGreaterThan(0);
+        expect(pattern.verificationLabels.length).toBeGreaterThan(0);
+        for (const componentId of pattern.componentIds) {
+          expect(getMotionComponent(componentId)).not.toBeNull();
+        }
+        for (const lane of pattern.generationLanes) {
+          expect(VALID_GENERATION_LANES.has(lane)).toBe(true);
+        }
+      }
     }
+  });
+
+  it('lists reusable product-video reference patterns for agents and creators', () => {
+    const patterns = listMotionReferencePatterns();
+
+    expect(patterns.map((pattern) => pattern.id)).toEqual([
+      'launch-hook-title',
+      'real-product-capture',
+      'screen-zoom-callout',
+      'caption-led-social',
+      'proof-receipt-card',
+      'code-diff-explainer',
+      'before-after-feature',
+      'agent-process-trace',
+      'image-to-video-insert',
+      'voice-caption-sync',
+      'multi-format-pack',
+      'reusable-motion-system',
+    ]);
+    expect(patterns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'real-product-capture',
+          componentIds: ['app-frame', 'soft-wipe'],
+          generationLanes: ['capture', 'sync', 'render'],
+        }),
+        expect.objectContaining({
+          id: 'image-to-video-insert',
+          generationLanes: ['image-to-video', 'sync', 'render'],
+          verificationLabels: expect.arrayContaining(['timeline update receipt']),
+        }),
+      ])
+    );
   });
 });

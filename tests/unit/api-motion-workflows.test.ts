@@ -51,6 +51,15 @@ describe('GET /api/motion/workflows', () => {
           'Agent trace',
           'CTA card',
         ],
+        referencePatternLabels: [
+          'Launch hook title',
+          'Real product capture',
+          'Proof receipt card',
+          'Agent process trace',
+          'Image-to-video insert',
+          'Voice and caption sync',
+          'Multi-format export pack',
+        ],
         manifest: expect.objectContaining({
           name: 'repo-launch-video',
           tools: expect.arrayContaining(['motion_start', 'motion_capture', 'motion_render']),
@@ -102,6 +111,31 @@ describe('GET /api/motion/workflows', () => {
           }),
           expect.objectContaining({
             componentId: 'cta-card',
+          }),
+        ],
+        referencePatterns: [
+          expect.objectContaining({
+            id: 'launch-hook-title',
+            label: 'Launch hook title',
+          }),
+          expect.objectContaining({
+            id: 'real-product-capture',
+            componentIds: ['app-frame', 'soft-wipe'],
+          }),
+          expect.objectContaining({
+            id: 'proof-receipt-card',
+          }),
+          expect.objectContaining({
+            id: 'agent-process-trace',
+          }),
+          expect.objectContaining({
+            id: 'image-to-video-insert',
+          }),
+          expect.objectContaining({
+            id: 'voice-caption-sync',
+          }),
+          expect.objectContaining({
+            id: 'multi-format-pack',
           }),
         ],
       },
@@ -206,6 +240,12 @@ describe('GET /api/motion/workflows', () => {
             'Evidence card',
             'CTA card',
           ],
+          referencePatternLabels: [
+            'Code diff explainer',
+            'Proof receipt card',
+            'Voice and caption sync',
+            'Multi-format export pack',
+          ],
           manifest: expect.objectContaining({
             name: 'pr-to-video',
             instructions: expect.stringContaining('npx skills add heygen-com/hyperframes'),
@@ -250,6 +290,21 @@ describe('GET /api/motion/workflows', () => {
             }),
             expect.objectContaining({
               componentId: 'cta-card',
+            }),
+          ],
+          referencePatterns: [
+            expect.objectContaining({
+              id: 'code-diff-explainer',
+              componentIds: ['code-diff-card', 'mechanism-diagram', 'evidence-card'],
+            }),
+            expect.objectContaining({
+              id: 'proof-receipt-card',
+            }),
+            expect.objectContaining({
+              id: 'voice-caption-sync',
+            }),
+            expect.objectContaining({
+              id: 'multi-format-pack',
             }),
           ],
         }),

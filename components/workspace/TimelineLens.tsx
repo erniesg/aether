@@ -613,6 +613,15 @@ function MotionWorkflowSkillStrip({
                 </Chip>
               ))}
           </div>
+          {draft.referencePatternLabels.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {draft.referencePatternLabels.slice(0, 3).map((label) => (
+                <Chip key={label} tone="info" size="sm">
+                  {label}
+                </Chip>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

@@ -7,6 +7,11 @@ import {
   type MotionComponentDefinition,
   type MotionRegenerateScope,
 } from './componentRegistry';
+import {
+  selectMotionReferencePatterns,
+  type MotionReferencePattern,
+  type MotionReferencePatternId,
+} from './referencePatterns';
 import type { MotionBeatRole } from './project';
 
 export type MotionWorkflowGenerationLane =
@@ -51,6 +56,7 @@ export interface MotionWorkflowSkillRecipe {
   generationLanes: MotionWorkflowGenerationLane[];
   draftVariations: MotionWorkflowSkillDraftVariation[];
   componentSlots: MotionWorkflowSkillComponentSlot[];
+  referencePatterns: MotionReferencePattern[];
   reviewSurfaces: MotionWorkflowSkillReviewSurface[];
   fullAutoPolicy: string;
   reviewPolicy: string;
@@ -64,6 +70,7 @@ interface RecipeDefinition {
   generationLanes: MotionWorkflowGenerationLane[];
   draftVariations: MotionWorkflowSkillDraftVariation[];
   componentSlots: ComponentSlotDefinition[];
+  referencePatternIds: MotionReferencePatternId[];
   reviewSurfaces: MotionWorkflowSkillReviewSurface[];
   fullAutoPolicy: string;
   reviewPolicy: string;
@@ -151,6 +158,15 @@ const RECIPE_DEFINITIONS = {
         role: 'launch action',
         reason: 'Closes with a platform-specific action or link.',
       },
+    ],
+    referencePatternIds: [
+      'launch-hook-title',
+      'real-product-capture',
+      'proof-receipt-card',
+      'agent-process-trace',
+      'image-to-video-insert',
+      'voice-caption-sync',
+      'multi-format-pack',
     ],
     reviewSurfaces: [
       {
@@ -250,6 +266,13 @@ const RECIPE_DEFINITIONS = {
         reason: 'Closes the short cut without bloating the timeline.',
       },
     ],
+    referencePatternIds: [
+      'before-after-feature',
+      'real-product-capture',
+      'screen-zoom-callout',
+      'caption-led-social',
+      'multi-format-pack',
+    ],
     reviewSurfaces: [
       {
         artifact: 'video-plan',
@@ -340,6 +363,12 @@ const RECIPE_DEFINITIONS = {
         role: 'scene transition',
         reason: 'Prevents capture clips from feeling like jump cuts.',
       },
+    ],
+    referencePatternIds: [
+      'real-product-capture',
+      'screen-zoom-callout',
+      'caption-led-social',
+      'multi-format-pack',
     ],
     reviewSurfaces: [
       {
@@ -432,6 +461,12 @@ const RECIPE_DEFINITIONS = {
         reason: 'Closes with the repo command, review action, or launch cadence.',
       },
     ],
+    referencePatternIds: [
+      'code-diff-explainer',
+      'proof-receipt-card',
+      'voice-caption-sync',
+      'multi-format-pack',
+    ],
     reviewSurfaces: [
       {
         artifact: 'video-plan',
@@ -511,6 +546,12 @@ const RECIPE_DEFINITIONS = {
         role: 'caption transition',
         reason: 'Makes caption groups feel intentional across cuts.',
       },
+    ],
+    referencePatternIds: [
+      'caption-led-social',
+      'voice-caption-sync',
+      'screen-zoom-callout',
+      'multi-format-pack',
     ],
     reviewSurfaces: [
       {
@@ -592,6 +633,12 @@ const RECIPE_DEFINITIONS = {
         reason: 'Reusable scene transition with controlled timing.',
       },
     ],
+    referencePatternIds: [
+      'launch-hook-title',
+      'image-to-video-insert',
+      'reusable-motion-system',
+      'caption-led-social',
+    ],
     reviewSurfaces: [
       {
         artifact: 'video-plan',
@@ -660,6 +707,7 @@ const RECIPE_DEFINITIONS = {
         reason: 'Verifies transition timing and visual equivalence.',
       },
     ],
+    referencePatternIds: ['reusable-motion-system', 'voice-caption-sync', 'multi-format-pack'],
     reviewSurfaces: [
       {
         artifact: 'component-plan',
@@ -727,6 +775,7 @@ function cloneRecipe(
         },
       ];
     }),
+    referencePatterns: selectMotionReferencePatterns(definition.referencePatternIds),
     reviewSurfaces: definition.reviewSurfaces.map((surface) => ({ ...surface })),
     fullAutoPolicy: definition.fullAutoPolicy,
     reviewPolicy: definition.reviewPolicy,

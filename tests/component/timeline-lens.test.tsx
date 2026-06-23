@@ -511,6 +511,7 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
   agentTaskLabels: ['Inspect repo, README, app routes, releases, and product facts'],
   draftVariationLabels: ['Proof-first launch', 'Demo-first launch', 'Founder-note launch'],
   componentSlotLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
+  referencePatternLabels: ['Launch hook title', 'Real product capture', 'Proof receipt card'],
   regenerationLabels: ['story beat', 'component', 'capture', 'voice line', 'timing', 'effect'],
   toolNames: ['motion_start', 'motion_capture', 'motion_render', 'motion_export_pack'],
   verificationLabels: ['contact sheet', 'mp4 probe', 'poster', 'subtitles'],
@@ -653,6 +654,8 @@ describe('TimelineLens', () => {
     expect(screen.getByText('repoPath / repoUrl / siteUrl / sourceRefs')).toBeInTheDocument();
     expect(screen.getAllByText('Proof card').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Agent trace').length).toBeGreaterThan(0);
+    expect(screen.getByText('Launch hook title')).toBeInTheDocument();
+    expect(screen.getByText('Real product capture')).toBeInTheDocument();
     expect(screen.getByText('production queue')).toBeInTheDocument();
     expect(screen.getAllByText('Capture product material').length).toBeGreaterThan(0);
     expect(screen.getByText('2/6')).toBeInTheDocument();

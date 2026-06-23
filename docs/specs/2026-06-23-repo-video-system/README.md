@@ -248,6 +248,14 @@ Clueso, and Descript.
   review/full-auto policies. This turns the HyperFrames-style `pr-to-video`
   launch pattern into a reusable discovery contract for repo, PR, site,
   feature/social, caption, motion-graphic, and engine-port workflows.
+- `lib/motion/referencePatterns.ts` now records reusable product-video patterns
+  that came out of the launch/demo research pass: launch hooks, real product
+  capture, screen zoom callouts, caption-led social cuts, proof receipts,
+  code-diff explainers, before/after feature beats, agent traces,
+  image-to-video inserts, voice/caption sync, multi-format packs, and reusable
+  motion systems. Workflow recipes carry those patterns into API discovery and
+  generated `SKILL.md` drafts, so agents know which motion moves to assemble and
+  creators can review them before render.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start

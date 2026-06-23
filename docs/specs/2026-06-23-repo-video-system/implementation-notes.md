@@ -85,6 +85,13 @@
   lanes, and review surfaces, so `pr-to-video`, repo launch, feature/social,
   site capture, caption overlay, motion graphic, and Remotion/HyperFrames port
   workflows are discoverable as reusable skills before a project starts.
+- Workflow skill recipes now include reusable reference patterns for actual
+  product-video work: launch hooks, real product capture, screen zoom callouts,
+  caption-led social cuts, proof receipts, code-diff explainers, before/after
+  feature beats, agent process traces, image-to-video inserts, voice/caption
+  sync, multi-format export packs, and reusable motion-system primitives.
+  Generated `SKILL.md` drafts and the timeline lens expose those labels so
+  agents can run them and creators can review them.
 - Workflow skill contracts on video workflows now expose review/full-auto modes,
   reviewable artifacts, scoped regeneration targets, and verification artifacts
   directly in registry metadata and agent workflow plans.
