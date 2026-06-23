@@ -3686,6 +3686,58 @@ git add app/api/motion/regenerate/route.ts tests/unit/api-motion-regenerate.test
 git commit -m "feat: expose scoped motion regeneration"
 ```
 
+## Task 42: Motion Sync Plan API
+
+**Files:**
+- Create: `lib/motion/syncPlan.ts`
+- Create: `lib/motion/syncPlan.test.ts`
+- Create: `app/api/motion/sync/route.ts`
+- Create: `tests/unit/api-motion-sync.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing sync plan tests**
+
+The tests cover:
+
+- timeline beat markers with story beat, text, caption, and voice clip refs;
+- caption timing links that use timeline timing before voice receipts and
+  word-timing artifacts after voice synthesis;
+- transition cues and lightweight sound cues for effect/audio sync review;
+- blockers and provider requirements until voice and word-timing receipts exist;
+- timeline blockers before clips are materialized.
+
+- [x] **Step 2: Implement the sync planner**
+
+`lib/motion/syncPlan.ts` now turns editable timeline tracks into an
+agent-readable sync plan with beat markers, caption/voice timing links,
+transition cues, sound cues, provider requirements, blockers, and a planned sync
+graph node.
+
+- [x] **Step 3: Implement the sync API route**
+
+`app/api/motion/sync/route.ts` now accepts an editable motion project and returns
+the sync plan with refreshed review and preview plans. It validates JSON,
+project presence, and requested preview engines.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/syncPlan.test.ts tests/unit/api-motion-sync.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/syncPlan.ts lib/motion/syncPlan.test.ts app/api/motion/sync/route.ts tests/unit/api-motion-sync.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion sync planning"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

@@ -58,6 +58,9 @@
   configured, returns timeline blockers before provider resolution, and applies
   completed audio/timing receipts back into voice and caption clips when an
   opt-in provider is available.
+- Agent-native `/api/motion/sync` route that accepts an editable motion project
+  and returns beat markers, caption/voice timing links, transition cues, sound
+  cues, blockers, and refreshed review/preview plans for final sync review.
 - Agent-native `/api/motion/image-to-video` route that accepts an editable
   motion project plus selected generation request or clip ids, returns
   provider-required image-to-video handoffs when no generation provider is
@@ -141,6 +144,9 @@
 - Voice-result application that turns audio, word-timing, and transcript
   receipts into editable voice/caption timeline props and a completed voice
   graph node.
+- Sync planning that turns editable timeline tracks into beat markers,
+  caption/voice timing links, transition cues, sound cues, provider
+  requirements, and blockers until voice and word-timing receipts exist.
 
 ## Verification Commands
 
@@ -151,11 +157,12 @@
 ./node_modules/.bin/vitest run tests/unit/api-motion-start.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-capture.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-voice.test.ts
+./node_modules/.bin/vitest run tests/unit/api-motion-sync.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-image-to-video.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-regenerate.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-revise.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-render.test.ts
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/syncPlan.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/research/local-repo-facts.test.ts lib/research/repo-facts.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts lib/providers/video/command-render.test.ts lib/providers/video/generation-registry.test.ts

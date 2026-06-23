@@ -72,6 +72,10 @@ Clueso, and Descript.
   project plus voice request or clip ids and receive provider-required
   narration requests, timeline blockers, or completed audio, word-timing, and
   transcript receipts applied back into voice and caption timeline clips.
+- `app/api/motion/sync/route.ts` now exposes timeline sync planning through an
+  agent-native JSON boundary: callers send an editable project and receive beat
+  markers, caption/voice timing links, transition cues, sound cues, blockers,
+  and refreshed review/preview plans before render.
 - `app/api/motion/image-to-video/route.ts` now exposes the advanced
   image-to-video generation lane through an agent-native JSON boundary:
   callers send an editable project plus generation request or clip ids and
@@ -162,6 +166,10 @@ Clueso, and Descript.
 - `lib/motion/voiceApply.ts` now converts voice synthesis receipts back into
   editable voice and caption timeline clips, attaching audio, word-timing, and
   transcript asset refs for later render/caption sync.
+- `lib/motion/syncPlan.ts` now turns editable timeline tracks into an
+  agent-readable sync plan: beat markers, caption/voice timing links,
+  transition cues, sound cues, provider requirements, and blockers until voice
+  and word-timing receipts exist.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.
