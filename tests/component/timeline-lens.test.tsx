@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TimelineLens } from '@/components/workspace/TimelineLens';
-import type { TimelineTrack } from '@/lib/motion/project';
+import type { MotionGraphNode, TimelineTrack } from '@/lib/motion/project';
 import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 
@@ -185,6 +185,25 @@ const previewPlan: MotionPreviewPlan = {
   requestedAt: 130,
 };
 
+const graphNodes: MotionGraphNode[] = [
+  {
+    id: 'node-script',
+    kind: 'script',
+    inputRefs: ['repo:aether'],
+    outputRefs: ['story'],
+    status: 'done',
+    provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+  },
+  {
+    id: 'node-image-to-video-plan',
+    kind: 'image-to-video',
+    inputRefs: ['clip-beat-demo-text'],
+    outputRefs: ['generated-clip-beat-demo-text-image-to-video'],
+    status: 'planned',
+    provenance: [{ kind: 'timeline', ref: 'clip-beat-demo-text' }],
+  },
+];
+
 describe('TimelineLens', () => {
   it('renders creator-facing tracks and clips without raw provenance refs', () => {
     render(<TimelineLens tracks={tracks} selectedClipId={null} onSelectClip={() => {}} />);
@@ -213,6 +232,7 @@ describe('TimelineLens', () => {
         previewPlan={previewPlan}
         selectedClipId={null}
         onSelectClip={() => {}}
+        graphNodes={graphNodes}
         actionStatus="capture regeneration planned"
       />
     );
@@ -235,10 +255,14 @@ describe('TimelineLens', () => {
     expect(screen.getByText('needs render')).toBeInTheDocument();
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
     expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();
+    expect(screen.getByText('graph')).toBeInTheDocument();
+    expect(screen.getByText('script')).toBeInTheDocument();
+    expect(screen.getByText('image to video')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('capture regeneration planned');
     expect(screen.queryByText('clip-beat-demo-text')).not.toBeInTheDocument();
     expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
     expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
+    expect(screen.queryByText('node-image-to-video-plan')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
   });
@@ -329,6 +353,22 @@ describe('TimelineLens', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /export pack/i }));
     expect(onExportPack).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets creators request image-to-video clip generation from the preview plan', async () => {
+    const onGenerateVideoClips = vi.fn<() => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onGenerateVideoClips={onGenerateVideoClips}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /generate clips/i }));
+    expect(onGenerateVideoClips).toHaveBeenCalledTimes(1);
   });
 
   it('lets creators edit the selected clip summary', async () => {

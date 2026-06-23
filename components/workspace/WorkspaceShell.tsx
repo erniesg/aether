@@ -686,6 +686,56 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
+  const handleTimelineGenerateVideoClips = useCallback(async () => {
+    if (!motionStart?.project) return;
+
+    setMotionTimelineActionStatus('generating video clips');
+    try {
+      const requestedAt = Date.now();
+      const res = await fetch('/api/motion/image-to-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: motionStart.project,
+          draftId: motionStart.project.currentDraftId,
+          requestedAt,
+          updatedAt: requestedAt,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        status?: string;
+        project?: typeof motionStart.project;
+        reviewPlan?: typeof motionStart.reviewPlan;
+        previewPlan?: typeof motionStart.previewPlan;
+        imageToVideoPlan?: { status?: string };
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error ?? `video clip generation failed: ${res.status}`);
+      }
+
+      setMotionStartResult(wsId, {
+        ...motionStart,
+        project: json.project ?? motionStart.project,
+        reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+        previewPlan: json.previewPlan ?? motionStart.previewPlan,
+      });
+      if (json.status === 'generated') {
+        setMotionTimelineActionStatus('video clips generated');
+      } else if (json.status === 'provider-required') {
+        setMotionTimelineActionStatus('image-to-video provider required');
+      } else if (json.imageToVideoPlan?.status === 'needs-visual-source') {
+        setMotionTimelineActionStatus('visual source required for video clips');
+      } else if (json.status === 'blocked') {
+        setMotionTimelineActionStatus('video clip generation blocked');
+      } else {
+        setMotionTimelineActionStatus('video clips planned');
+      }
+    } catch (error) {
+      setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+    }
+  }, [motionStart, wsId]);
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2446,7 +2496,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onGenerateVoice={handleTimelineGenerateVoice}
             onRenderMotion={handleTimelineRender}
             onExportPack={handleTimelineExportPack}
+            onGenerateVideoClips={handleTimelineGenerateVideoClips}
             onEditClipSummary={handleTimelineClipSummaryEdit}
+            graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}
             actionStatus={motionTimelineActionStatus}
           />

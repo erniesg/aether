@@ -359,6 +359,48 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline image-to-video action requests generated clips and reports visual-source blockers', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'blocked',
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          imageToVideoPlan: {
+            status: 'needs-visual-source',
+          },
+          selectedRequests: [],
+          generationResults: [],
+          generationResult: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    expect(screen.getByText('repo ingest')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /generate clips/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'visual source required for video clips'
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/image-to-video',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"draftId":"draft-primary"'),
+      })
+    );
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {

@@ -6,7 +6,7 @@ import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
-import type { TimelineClip, TimelineTrack } from '@/lib/motion/project';
+import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import { motionSeconds } from '@/lib/motion/project';
 import type {
   MotionPreviewEnginePlan,
@@ -29,7 +29,9 @@ export interface TimelineLensProps {
   onGenerateVoice?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
+  onGenerateVideoClips?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  graphNodes?: MotionGraphNode[];
   workflowExamples?: MotionWorkflowExample[];
   actionStatus?: string | null;
 }
@@ -44,7 +46,9 @@ export function TimelineLens({
   onGenerateVoice,
   onRenderMotion,
   onExportPack,
+  onGenerateVideoClips,
   onEditClipSummary,
+  graphNodes = [],
   workflowExamples = [],
   actionStatus = null,
 }: TimelineLensProps) {
@@ -85,7 +89,9 @@ export function TimelineLens({
             onGenerateVoice={onGenerateVoice}
             onRenderMotion={onRenderMotion}
             onExportPack={onExportPack}
+            onGenerateVideoClips={onGenerateVideoClips}
             onEditClipSummary={onEditClipSummary}
+            graphNodes={graphNodes}
             workflowExamples={workflowExamples}
             actionStatus={actionStatus}
           />
@@ -119,7 +125,9 @@ function MotionPreviewPlanView({
   onGenerateVoice,
   onRenderMotion,
   onExportPack,
+  onGenerateVideoClips,
   onEditClipSummary,
+  graphNodes,
   workflowExamples,
   actionStatus,
 }: {
@@ -131,7 +139,9 @@ function MotionPreviewPlanView({
   onGenerateVoice?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onExportPack?: () => void;
+  onGenerateVideoClips?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  graphNodes: MotionGraphNode[];
   workflowExamples: MotionWorkflowExample[];
   actionStatus: string | null;
 }) {
@@ -229,9 +239,18 @@ function MotionPreviewPlanView({
             {onExportPack ? (
               <ExportPackActionButton onExportPack={onExportPack} />
             ) : null}
+            {onGenerateVideoClips ? (
+              <ImageToVideoActionButton onGenerateVideoClips={onGenerateVideoClips} />
+            ) : null}
           </div>
         </div>
       </section>
+
+      {graphNodes.length > 0 ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionGraphStrip nodes={graphNodes} />
+        </section>
+      ) : null}
 
       {workflowExamples.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
@@ -570,6 +589,51 @@ function ExportPackActionButton({ onExportPack }: { onExportPack: () => void }) 
       export pack
     </button>
   );
+}
+
+function ImageToVideoActionButton({
+  onGenerateVideoClips,
+}: {
+  onGenerateVideoClips: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onGenerateVideoClips}
+      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+    >
+      generate clips
+    </button>
+  );
+}
+
+function MotionGraphStrip({ nodes }: { nodes: MotionGraphNode[] }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+        graph
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {nodes.map((node) => (
+          <div
+            key={node.id}
+            className="flex min-w-[132px] flex-col rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+          >
+            <span className="font-caption text-xs text-ink">
+              {graphKindLabel(node.kind)}
+            </span>
+            <span className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
+              {node.status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function graphKindLabel(kind: MotionGraphNode['kind']): string {
+  return kind.replace(/-/g, ' ');
 }
 
 function ReadinessRow({
