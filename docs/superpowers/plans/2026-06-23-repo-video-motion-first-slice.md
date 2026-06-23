@@ -3501,6 +3501,54 @@ git add app/api/motion/voice/route.ts tests/unit/api-motion-voice.test.ts docs/s
 git commit -m "feat: expose motion voice handoffs via api"
 ```
 
+## Task 38: Motion Image-To-Video API Boundary
+
+**Files:**
+- Create: `app/api/motion/image-to-video/route.ts`
+- Create: `tests/unit/api-motion-image-to-video.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing API contract tests**
+
+The tests cover:
+
+- returning provider-required generation handoffs with source asset ids,
+  prompts, expected video outputs, and next review state;
+- executing selected generation requests through an explicitly registered
+  provider;
+- applying generated video receipts back into the source timeline clip while
+  preserving the source visual asset id;
+- returning timeline or visual-source blockers before provider resolution;
+- rejecting missing projects, unknown generation request ids, and malformed
+  JSON.
+
+- [x] **Step 2: Implement the route**
+
+`app/api/motion/image-to-video/route.ts` now accepts editable motion projects
+plus selected request ids or clip ids, builds provider-neutral image-to-video
+plans, returns reviewable blockers/provider requirements when generation cannot
+execute, and applies generated video receipts back into timeline clips when an
+opt-in provider is available.
+
+- [x] **Step 3: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-image-to-video.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/providers/video/generation-registry.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add app/api/motion/image-to-video/route.ts tests/unit/api-motion-image-to-video.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose image-to-video handoffs via api"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

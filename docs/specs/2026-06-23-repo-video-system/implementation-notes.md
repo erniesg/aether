@@ -52,6 +52,12 @@
   configured, returns timeline blockers before provider resolution, and applies
   completed audio/timing receipts back into voice and caption clips when an
   opt-in provider is available.
+- Agent-native `/api/motion/image-to-video` route that accepts an editable
+  motion project plus selected generation request or clip ids, returns
+  provider-required image-to-video handoffs when no generation provider is
+  configured, returns timeline or visual-source blockers before provider
+  resolution, and applies generated video receipts back into the same timeline
+  clips while preserving source visual provenance.
 - Agent-native `/api/motion/revise` route that accepts an editable motion
   project plus scoped story, component, timing, or replacement operations, then
   returns the updated project with refreshed review/preview plans and capture
@@ -133,6 +139,7 @@
 ./node_modules/.bin/vitest run tests/unit/api-motion-start.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-capture.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-voice.test.ts
+./node_modules/.bin/vitest run tests/unit/api-motion-image-to-video.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-revise.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-render.test.ts
 ./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts

@@ -72,6 +72,12 @@ Clueso, and Descript.
   project plus voice request or clip ids and receive provider-required
   narration requests, timeline blockers, or completed audio, word-timing, and
   transcript receipts applied back into voice and caption timeline clips.
+- `app/api/motion/image-to-video/route.ts` now exposes the advanced
+  image-to-video generation lane through an agent-native JSON boundary:
+  callers send an editable project plus generation request or clip ids and
+  receive provider-required generation handoffs, visual-source/timeline
+  blockers, or completed generated video receipts applied back into the same
+  timeline clips while preserving source visual asset provenance.
 - `app/api/motion/revise/route.ts` now exposes structured review edits through
   the same agent-native boundary: callers send an editable `MotionProject` plus
   story, component-prop, retime, or component-replacement operations and receive
