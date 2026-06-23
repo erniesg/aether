@@ -92,6 +92,11 @@ Clueso, and Descript.
   CTA, caption, and transition clips. Render execution attaches those source
   files to each request, and command runners write them before invoking the
   selected engine.
+- `lib/motion/revise.ts` now applies structured timeline revisions for
+  review-mode and agent-driven tweaks: story copy, clip props, retiming, and
+  component replacement update both the editable project and draft timelines,
+  reject unsafe overlaps or unknown components, and persist revision graph
+  provenance.
 - `lib/motion/imageToVideoPlan.ts` and
   `lib/providers/video/generation-registry.ts` now cover the first advanced
   generation graph slice: asset-backed visual clips become provider-neutral

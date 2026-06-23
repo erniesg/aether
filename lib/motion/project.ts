@@ -50,6 +50,7 @@ export interface MotionProvenanceRef {
     | 'voice'
     | 'image-to-video'
     | 'provider'
+    | 'revision'
     | 'render'
     | 'manual';
   ref: string;
@@ -142,6 +143,7 @@ export interface MotionGraphNode {
     | 'image-to-video'
     | 'voice'
     | 'sync'
+    | 'revision'
     | 'render';
   inputRefs: string[];
   outputRefs: string[];

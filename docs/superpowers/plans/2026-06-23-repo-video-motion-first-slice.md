@@ -2974,6 +2974,63 @@ git add lib/motion/renderSource.ts lib/motion/renderSource.test.ts docs/superpow
 git commit -m "feat: add component aware motion source adapters"
 ```
 
+## Task 28: Structured Timeline Revisions
+
+**Files:**
+- Create: `lib/motion/revise.ts`
+- Create: `lib/motion/revise.test.ts`
+- Modify: `lib/motion/project.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing timeline revision tests**
+
+The tests cover:
+
+- story narration edits applying to the editable project and current draft;
+- clip prop edits and timing changes applying to project and draft timelines;
+- component replacement validating against the motion component registry;
+- unsafe retiming being rejected before mutation when a clip would overlap;
+- revision graph nodes recording input/output refs and manual provenance.
+
+- [x] **Step 2: Run the failing test**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/revise.test.ts
+```
+
+Expected: FAIL because `revise.ts` does not exist.
+
+- [x] **Step 3: Implement structured revisions**
+
+`lib/motion/revise.ts` now applies structured revision operations for story
+copy, clip props, retiming, and component replacement. The implementation keeps
+the project timeline and draft timeline in sync, rejects unknown components or
+overlapping retimes, and records a `revision` graph node with manual/revision
+provenance. This backs review-mode tweaks and the future `motion-revise` tool so
+an agent can regenerate or adjust one component without rewriting the whole
+video plan.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/revise.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/revise.ts lib/motion/revise.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: add structured motion timeline revisions"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.
