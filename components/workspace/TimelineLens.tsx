@@ -21,6 +21,7 @@ import type {
 import { motionSeconds } from '@/lib/motion/project';
 import type {
   MotionPreviewEnginePlan,
+  MotionPreviewEditSource,
   MotionPreviewAgentRunbook,
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
@@ -342,6 +343,10 @@ function MotionPreviewPlanView({
         <MotionProductionQueueStrip plan={previewPlan.productionPlan} />
       </section>
 
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionEditSourceStrip editSource={previewPlan.editSource} />
+      </section>
+
       {previewPlan.sourceProfile ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionSourceMaterialStrip sourceProfile={previewPlan.sourceProfile} />
@@ -625,6 +630,80 @@ function MotionProductionQueueStrip({
             <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
               {plan.blockerLabels[0]}
             </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionEditSourceStrip({
+  editSource,
+}: {
+  editSource: MotionPreviewEditSource;
+}) {
+  const filePaths = [
+    editSource.artifactPath,
+    editSource.timelinePath,
+    editSource.scriptPath,
+    editSource.storyboardPath,
+  ].filter((path): path is string => Boolean(path));
+  const scopeLabel = editSource.regenerationScopes.join(' / ');
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            edit source
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {editSource.status === 'ready'
+              ? `${editSource.engine ?? 'render'} source bundle`
+              : editSource.blockerLabels[0] ?? 'source bundle needed'}
+          </div>
+        </div>
+        <Chip tone={editSource.status === 'ready' ? 'ok' : 'warn'} size="sm">
+          {editSource.status === 'ready'
+            ? `${editSource.editableComponentCount} targets`
+            : 'source needed'}
+        </Chip>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="flex flex-wrap gap-1">
+            {filePaths.map((path) => (
+              <Chip key={path} tone="neutral" size="sm">
+                {path}
+              </Chip>
+            ))}
+          </div>
+          {scopeLabel ? (
+            <div className="mt-2 truncate font-caption text-2xs text-ink-faint">
+              {scopeLabel}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="grid gap-1.5">
+            {editSource.components.slice(0, 4).map((component) => (
+              <div
+                key={`${component.trackId}-${component.clipId}-${component.componentId}`}
+                className="min-w-0"
+              >
+                <div className="truncate font-caption text-xs text-ink">
+                  {component.componentLabel}
+                </div>
+                <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+                  {component.regenerateScopes.join(' / ') || component.sourceFiles.join(' / ')}
+                </div>
+              </div>
+            ))}
+          </div>
+          {editSource.components.length === 0 ? (
+            <div className="font-caption text-xs text-ink-faint">no editable targets</div>
           ) : null}
         </div>
       </div>

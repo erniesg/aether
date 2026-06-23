@@ -469,6 +469,48 @@ const previewPlan: MotionPreviewPlan = {
       ],
     },
   ],
+  editSource: {
+    status: 'ready',
+    engine: 'remotion',
+    artifactPath: 'EDIT.md',
+    timelinePath: 'timeline/draft-primary.json',
+    scriptPath: 'SCRIPT.md',
+    storyboardPath: 'STORYBOARD.md',
+    editableComponentCount: 2,
+    regenerationScopes: ['capture', 'timing', 'caption', 'copy', 'effect'],
+    sourceFilePaths: [
+      'remotion/index.tsx',
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline/draft-primary.json',
+      'EDIT.md',
+    ],
+    components: [
+      {
+        trackId: 'track-text',
+        trackKind: 'text',
+        clipId: 'clip-beat-demo-text',
+        componentId: 'app-frame',
+        componentLabel: 'App frame',
+        editControlIds: ['assetId', 'caption', 'zoom'],
+        editControlLabels: ['asset', 'caption', 'zoom'],
+        regenerateScopes: ['capture', 'timing', 'caption'],
+        sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
+      },
+      {
+        trackId: 'track-text',
+        trackKind: 'text',
+        clipId: 'clip-beat-hook-text',
+        componentId: 'hook-card',
+        componentLabel: 'Hook card',
+        editControlIds: ['headline', 'subhead'],
+        editControlLabels: ['headline', 'subhead'],
+        regenerateScopes: ['copy', 'timing', 'effect'],
+        sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
+      },
+    ],
+    blockerLabels: [],
+  },
   syncSummary: {
     status: 'needs-voice',
     beatCount: 2,
@@ -893,6 +935,13 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('Capture product material').length).toBeGreaterThan(0);
     expect(screen.getByText('2/7')).toBeInTheDocument();
     expect(screen.getByText('4 ready')).toBeInTheDocument();
+    expect(screen.getByText('edit source')).toBeInTheDocument();
+    expect(screen.getByText('2 targets')).toBeInTheDocument();
+    expect(screen.getByText('EDIT.md')).toBeInTheDocument();
+    expect(screen.getByText('timeline/draft-primary.json')).toBeInTheDocument();
+    expect(screen.getByText('SCRIPT.md')).toBeInTheDocument();
+    expect(screen.getByText('STORYBOARD.md')).toBeInTheDocument();
+    expect(screen.getByText('capture / timing / caption / copy / effect')).toBeInTheDocument();
     expect(screen.getByText('agent plan')).toBeInTheDocument();
     expect(screen.getByText('5 review gates')).toBeInTheDocument();
     expect(screen.getAllByText('Video plan').length).toBeGreaterThan(0);

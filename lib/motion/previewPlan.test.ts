@@ -475,6 +475,34 @@ describe('buildMotionPreviewPlan', () => {
       },
     ]);
     expect(preview.enginePreviews[0].sourceFiles[0]).not.toHaveProperty('contents');
+    expect(preview.editSource).toMatchObject({
+      status: 'ready',
+      engine: 'remotion',
+      artifactPath: 'EDIT.md',
+      timelinePath: 'timeline/draft-primary.json',
+      scriptPath: 'SCRIPT.md',
+      storyboardPath: 'STORYBOARD.md',
+      editableComponentCount: 8,
+      regenerationScopes: expect.arrayContaining(['capture', 'timing', 'caption', 'effect']),
+      sourceFilePaths: expect.arrayContaining([
+        'EDIT.md',
+        'SCRIPT.md',
+        'STORYBOARD.md',
+        'timeline/draft-primary.json',
+      ]),
+    });
+    expect(preview.editSource.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clipId: 'clip-beat-demo-text',
+          componentId: 'app-frame',
+          componentLabel: 'App frame',
+          editControlIds: ['assetId', 'caption', 'zoom'],
+          regenerateScopes: ['capture', 'timing', 'caption'],
+          sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
+        }),
+      ])
+    );
     expect(preview.enginePreviews[1]).toMatchObject({
       engine: 'hyperframes',
       status: 'ready',

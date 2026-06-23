@@ -31,6 +31,29 @@ export interface MotionRenderSourceBundle {
   provenance: MotionProvenanceRef[];
 }
 
+export interface MotionRenderEditContractComponent {
+  trackId: string;
+  trackKind: TimelineTrack['kind'];
+  clipId: string;
+  componentId: string;
+  componentLabel: string;
+  editControlIds: string[];
+  editControlLabels: string[];
+  regenerateScopes: string[];
+  sourceFiles: string[];
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionRenderEditContract {
+  artifactPath: string;
+  timelinePath: string;
+  scriptPath: string;
+  storyboardPath: string;
+  editableComponentCount: number;
+  regenerationScopes: string[];
+  editableComponents: MotionRenderEditContractComponent[];
+}
+
 interface RenderDimensions {
   width: number;
   height: number;
@@ -310,7 +333,13 @@ function timelineArtifactJson(project: MotionProject, request: MotionRenderReque
   });
 }
 
-function buildEditContract(request: MotionRenderRequest) {
+export function buildMotionRenderEditContract(
+  request: MotionRenderRequest
+): MotionRenderEditContract {
+  return buildEditContract(request);
+}
+
+function buildEditContract(request: MotionRenderRequest): MotionRenderEditContract {
   const editableComponents = editableComponentSlots(request);
   return {
     artifactPath: editArtifactPath(),
@@ -325,7 +354,7 @@ function buildEditContract(request: MotionRenderRequest) {
   };
 }
 
-function editableComponentSlots(request: MotionRenderRequest) {
+function editableComponentSlots(request: MotionRenderRequest): MotionRenderEditContractComponent[] {
   return request.tracks.flatMap((track) =>
     track.clips.flatMap((clip) => {
       if (!clip.componentId) return [];

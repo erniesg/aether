@@ -35,7 +35,11 @@ import {
   buildMotionRenderPlan,
   type MotionRenderPlanStatus,
 } from './renderPlan';
-import { buildMotionRenderSourceBundle } from './renderSource';
+import {
+  buildMotionRenderEditContract,
+  buildMotionRenderSourceBundle,
+  type MotionRenderEditContractComponent,
+} from './renderSource';
 import {
   buildMotionDesignKitPlan,
   type MotionDesignKitPlan,
@@ -145,6 +149,32 @@ export interface MotionPreviewRegenerationAction {
   componentLabel: string;
   scope: string;
   label: string;
+}
+
+export interface MotionPreviewEditSourceComponent {
+  trackId: string;
+  trackKind: MotionTrackKind;
+  clipId: string;
+  componentId: string;
+  componentLabel: string;
+  editControlIds: string[];
+  editControlLabels: string[];
+  regenerateScopes: string[];
+  sourceFiles: string[];
+}
+
+export interface MotionPreviewEditSource {
+  status: 'ready' | 'needs-render-source';
+  engine: MotionRenderEngine | null;
+  artifactPath: string | null;
+  timelinePath: string | null;
+  scriptPath: string | null;
+  storyboardPath: string | null;
+  editableComponentCount: number;
+  regenerationScopes: string[];
+  sourceFilePaths: string[];
+  components: MotionPreviewEditSourceComponent[];
+  blockerLabels: string[];
 }
 
 export interface MotionPreviewVideoPlanScene {
@@ -328,6 +358,7 @@ export interface MotionPreviewPlan {
   editableComponents: MotionPreviewEditableComponent[];
   regenerationActions: MotionPreviewRegenerationAction[];
   enginePreviews: MotionPreviewEnginePlan[];
+  editSource: MotionPreviewEditSource;
   syncSummary: MotionPreviewSyncSummary;
   syncBeats: MotionPreviewSyncBeat[];
   syncSoundCues: MotionPreviewSyncSoundCue[];
@@ -383,6 +414,12 @@ export function buildMotionPreviewPlan(
     fps,
     requestedAt: options.requestedAt,
   });
+  const enginePreviews = engines.map((engine) =>
+    buildEnginePreview(project, engine, {
+      fps,
+      requestedAt: options.requestedAt,
+    })
+  );
   const productionPlan = buildMotionProductionPlan(project, {
     engines,
     fps,
@@ -420,12 +457,11 @@ export function buildMotionPreviewPlan(
     timelineRows,
     editableComponents,
     regenerationActions,
-    enginePreviews: engines.map((engine) =>
-      buildEnginePreview(project, engine, {
-        fps,
-        requestedAt: options.requestedAt,
-      })
-    ),
+    enginePreviews,
+    editSource: buildEditSourceSummary(project, engines, {
+      fps,
+      requestedAt: options.requestedAt,
+    }),
     syncSummary: buildSyncSummary(syncPlan),
     syncBeats: buildSyncBeats(syncPlan),
     syncSoundCues: buildSyncSoundCues(syncPlan),
@@ -882,6 +918,80 @@ function buildEnginePreview(
       mimeType: file.mimeType,
     })),
     blockers: [],
+  };
+}
+
+function buildEditSourceSummary(
+  project: MotionProject,
+  engines: WorkflowEngine[],
+  options: { fps: number; requestedAt: number }
+): MotionPreviewEditSource {
+  const renderEngines = engines.filter(isMotionRenderEngine);
+  const blockerLabels: string[] = [];
+
+  for (const engine of renderEngines) {
+    const renderPlan = buildMotionRenderPlan(project, {
+      engine,
+      fps: options.fps,
+      requestedAt: options.requestedAt,
+    });
+
+    if (renderPlan.status !== 'ready') {
+      blockerLabels.push(...renderPlan.blockers.map((blocker) => blocker.label));
+      continue;
+    }
+
+    const request = renderRequestFromPlan(project, renderPlan, engine);
+    const sourceBundle = buildMotionRenderSourceBundle(project, request);
+    const editContract = buildMotionRenderEditContract(request);
+
+    return {
+      status: 'ready',
+      engine,
+      artifactPath: editContract.artifactPath,
+      timelinePath: editContract.timelinePath,
+      scriptPath: editContract.scriptPath,
+      storyboardPath: editContract.storyboardPath,
+      editableComponentCount: editContract.editableComponentCount,
+      regenerationScopes: editContract.regenerationScopes,
+      sourceFilePaths: sourceBundle.files.map((file) => file.path),
+      components: editContract.editableComponents.map(editSourceComponent),
+      blockerLabels: [],
+    };
+  }
+
+  return {
+    status: 'needs-render-source',
+    engine: renderEngines[0] ?? null,
+    artifactPath: null,
+    timelinePath: null,
+    scriptPath: null,
+    storyboardPath: null,
+    editableComponentCount: 0,
+    regenerationScopes: [],
+    sourceFilePaths: [],
+    components: [],
+    blockerLabels: uniqueStrings(
+      blockerLabels.length
+        ? blockerLabels
+        : ['Prepare a Remotion or HyperFrames source bundle before editing source artifacts']
+    ),
+  };
+}
+
+function editSourceComponent(
+  component: MotionRenderEditContractComponent
+): MotionPreviewEditSourceComponent {
+  return {
+    trackId: component.trackId,
+    trackKind: component.trackKind,
+    clipId: component.clipId,
+    componentId: component.componentId,
+    componentLabel: component.componentLabel,
+    editControlIds: component.editControlIds,
+    editControlLabels: component.editControlLabels,
+    regenerateScopes: component.regenerateScopes,
+    sourceFiles: component.sourceFiles,
   };
 }
 
