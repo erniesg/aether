@@ -2791,9 +2791,68 @@ git add lib/motion/imageToVideoPlan.ts lib/motion/imageToVideoPlan.test.ts lib/p
 git commit -m "feat: plan motion image to video clips"
 ```
 
+## Task 25: Image-to-Video Result Application
+
+**Files:**
+- Create: `lib/motion/imageToVideoApply.ts`
+- Create: `lib/motion/imageToVideoApply.test.ts`
+- Modify: `lib/motion/project.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing image-to-video apply tests**
+
+The tests cover:
+
+- completed provider artifacts updating the matching visual timeline clips;
+- draft clips receiving the same generated clip props for creator review;
+- original source visual refs staying available after generated video replaces
+  the editable clip asset;
+- unrelated clips remaining untouched;
+- image-to-video graph nodes completing with provider and artifact provenance;
+- application still creating a completed graph node when a planned node is
+  missing.
+
+- [x] **Step 2: Run the failing test**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/imageToVideoApply.test.ts
+```
+
+Expected: FAIL because `imageToVideoApply.ts` does not exist.
+
+- [x] **Step 3: Implement image-to-video result application**
+
+`lib/motion/imageToVideoApply.ts` now maps provider result artifacts by
+`clipId`, updates matching timeline and draft clips with generated video asset
+refs, source visual refs, dimensions, MIME type, duration, provider id, and
+ready status, and completes or creates the `image-to-video` graph node with
+merged input, output, and provenance refs. `lib/motion/project.ts` now allows
+`image-to-video` provenance refs.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/imageToVideoApply.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/imageToVideoApply.ts lib/motion/imageToVideoApply.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: apply motion image to video results"
+```
+
 ## Self-Review Checklist
 
-- Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, real Remotion rendering, image-to-video nodes, and multiformat export packs remain separate later slices.
+- Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, real Remotion rendering, image-to-video provider execution, and multiformat export packs remain separate later slices.
 - Empty-detail scan: The plan avoids vague fill-ins. File names, functions, test names, commands, and expected outcomes are explicit.
 - Type consistency: `MotionProject`, `MotionBriefV2`, `StoryBeat`, `TimelineTrack`, `TimelineClip`, `VideoRenderProvider`, `CaptureProvider`, and registry ids are consistently named across tasks.
 - aether contract: The timeline lens stays inside the synthesis shell, uses tool taxonomy, avoids raw provenance ids in primary UI, keeps provider selection abstract, and preserves the bottom composer pattern.

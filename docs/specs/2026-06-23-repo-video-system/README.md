@@ -90,6 +90,10 @@ Clueso, and Descript.
   generation graph slice: asset-backed visual clips become provider-neutral
   image-to-video requests with a planned graph node and opt-in provider
   registry.
+- `lib/motion/imageToVideoApply.ts` now converts completed image-to-video
+  receipts back into editable timeline and draft clips, preserving the original
+  source visual while completing the image-to-video graph node with provider
+  provenance.
 - `lib/motion/voicePlan.ts` now converts voice-line timeline clips into
   provider-neutral narration requests with expected audio, word-timing, and
   transcript artifacts so captions and render duration can sync against real
@@ -111,8 +115,8 @@ Clueso, and Descript.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider
   planning/registry, while `lib/providers/voice/*` covers voice provider
-  contracts. Text-to-video, TTS execution, generated clip application, and
-  timeline compilation into engine source files remain future adapter work.
+  contracts. Text-to-video, TTS execution, image-to-video provider execution,
+  and timeline compilation into engine source files remain future adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.

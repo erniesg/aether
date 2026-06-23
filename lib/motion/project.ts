@@ -48,6 +48,7 @@ export interface MotionProvenanceRef {
     | 'timeline'
     | 'capture'
     | 'voice'
+    | 'image-to-video'
     | 'provider'
     | 'render'
     | 'manual';
