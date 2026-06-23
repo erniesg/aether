@@ -96,6 +96,23 @@ describe('buildMotionPreviewPlan', () => {
       scope: 'capture',
       label: 'Regenerate capture for App frame',
     });
+    expect(preview.syncSummary).toMatchObject({
+      status: 'needs-voice',
+      beatCount: 6,
+      captionCount: 6,
+      transitionCount: 5,
+      requirementLabels: ['voice', 'word timings'],
+      blockerLabels: ['Generate voice and word timings before final sync'],
+    });
+    expect(preview.exportPackSummary).toMatchObject({
+      status: 'needs-render',
+      readyCount: 0,
+      totalCount: 1,
+      targetLabels: ['x 9:16 planned'],
+      canvasDropCount: 0,
+      missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
+      blockerLabels: ['Render every export target before packaging'],
+    });
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {

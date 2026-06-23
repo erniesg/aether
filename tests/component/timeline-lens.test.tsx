@@ -162,6 +162,24 @@ const previewPlan: MotionPreviewPlan = {
       ],
     },
   ],
+  syncSummary: {
+    status: 'needs-voice',
+    beatCount: 2,
+    captionCount: 2,
+    transitionCount: 1,
+    soundCueCount: 3,
+    requirementLabels: ['voice', 'word timings'],
+    blockerLabels: ['Generate voice and word timings before final sync'],
+  },
+  exportPackSummary: {
+    status: 'needs-render',
+    readyCount: 0,
+    totalCount: 1,
+    targetLabels: ['x 9:16 planned'],
+    canvasDropCount: 0,
+    missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
+    blockerLabels: ['Render every export target before packaging'],
+  },
   provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
   requestedAt: 130,
 };
@@ -208,9 +226,18 @@ describe('TimelineLens', () => {
     expect(screen.getByText('remotion')).toBeInTheDocument();
     expect(screen.getByText('ready')).toBeInTheDocument();
     expect(screen.getByText('provider-required')).toBeInTheDocument();
+    expect(screen.getByText('sync')).toBeInTheDocument();
+    expect(screen.getByText('needs voice')).toBeInTheDocument();
+    expect(screen.getByText('2 beats / 2 captions / 1 transition')).toBeInTheDocument();
+    expect(screen.getByText('export pack')).toBeInTheDocument();
+    expect(screen.getByText('needs render')).toBeInTheDocument();
+    expect(screen.getByText('0/1 ready')).toBeInTheDocument();
+    expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();
     expect(screen.queryByText('clip-beat-demo-text')).not.toBeInTheDocument();
     expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
     expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
+    expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
+    expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
   });
 
   it('lets creators request draft selection and scoped component regeneration', async () => {

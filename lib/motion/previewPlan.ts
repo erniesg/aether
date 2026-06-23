@@ -10,10 +10,19 @@ import {
   type MotionReviewPlan,
 } from './reviewPlan';
 import {
+  buildMotionExportPackPlan,
+  type MotionExportPackAssetKind,
+  type MotionExportPackStatus,
+} from './exportPackPlan';
+import {
   buildMotionRenderPlan,
   type MotionRenderPlanStatus,
 } from './renderPlan';
 import { buildMotionRenderSourceBundle } from './renderSource';
+import {
+  buildMotionSyncPlan,
+  type MotionSyncPlanStatus,
+} from './syncPlan';
 import { getMotionComponent } from './componentRegistry';
 import {
   DEFAULT_MOTION_FPS,
@@ -107,6 +116,26 @@ export interface MotionPreviewRegenerationAction {
   label: string;
 }
 
+export interface MotionPreviewSyncSummary {
+  status: MotionSyncPlanStatus;
+  beatCount: number;
+  captionCount: number;
+  transitionCount: number;
+  soundCueCount: number;
+  requirementLabels: string[];
+  blockerLabels: string[];
+}
+
+export interface MotionPreviewExportPackSummary {
+  status: MotionExportPackStatus;
+  readyCount: number;
+  totalCount: number;
+  targetLabels: string[];
+  canvasDropCount: number;
+  missingAssetKinds: MotionExportPackAssetKind[];
+  blockerLabels: string[];
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -121,6 +150,8 @@ export interface MotionPreviewPlan {
   editableComponents: MotionPreviewEditableComponent[];
   regenerationActions: MotionPreviewRegenerationAction[];
   enginePreviews: MotionPreviewEnginePlan[];
+  syncSummary: MotionPreviewSyncSummary;
+  exportPackSummary: MotionPreviewExportPackSummary;
   provenance: MotionProvenanceRef[];
   requestedAt: number;
 }
@@ -140,6 +171,16 @@ export function buildMotionPreviewPlan(
   const reviewPlan = buildMotionReviewPlan(project);
   const tracks = selectTracks(project, project.currentDraftId);
   const engines = options.engines?.length ? options.engines : DEFAULT_PREVIEW_ENGINES;
+  const fps = options.fps ?? DEFAULT_MOTION_FPS;
+  const syncPlan = buildMotionSyncPlan(project, {
+    draftId: project.currentDraftId,
+    fps,
+    requestedAt: options.requestedAt,
+  });
+  const exportPackPlan = buildMotionExportPackPlan(project, {
+    draftId: project.currentDraftId,
+    requestedAt: options.requestedAt,
+  });
 
   return {
     id: `preview-${project.id}-${project.currentDraftId}-${options.requestedAt}`,
@@ -171,16 +212,56 @@ export function buildMotionPreviewPlan(
     regenerationActions: buildRegenerationActions(tracks),
     enginePreviews: engines.map((engine) =>
       buildEnginePreview(project, engine, {
-        fps: options.fps ?? DEFAULT_MOTION_FPS,
+        fps,
         requestedAt: options.requestedAt,
       })
     ),
+    syncSummary: buildSyncSummary(syncPlan),
+    exportPackSummary: buildExportPackSummary(exportPackPlan),
     provenance: uniqueProvenance([
       ...project.sourceRefs,
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),
     ]),
     requestedAt: options.requestedAt,
   };
+}
+
+function buildSyncSummary(
+  syncPlan: ReturnType<typeof buildMotionSyncPlan>
+): MotionPreviewSyncSummary {
+  return {
+    status: syncPlan.status,
+    beatCount: syncPlan.beatMarkers.length,
+    captionCount: syncPlan.captionLinks.length,
+    transitionCount: syncPlan.transitionCues.length,
+    soundCueCount: syncPlan.soundCues.length,
+    requirementLabels: syncPlan.providerRequirements.map(syncRequirementLabel),
+    blockerLabels: syncPlan.blockers.map((blocker) => blocker.label),
+  };
+}
+
+function buildExportPackSummary(
+  exportPackPlan: ReturnType<typeof buildMotionExportPackPlan>
+): MotionPreviewExportPackSummary {
+  return {
+    status: exportPackPlan.status,
+    readyCount: exportPackPlan.readyCount,
+    totalCount: exportPackPlan.totalCount,
+    targetLabels: exportPackPlan.items.map(
+      (item) => `${item.platform} ${item.aspectRatio} ${item.status}`
+    ),
+    canvasDropCount: exportPackPlan.items.filter((item) => item.canvasDrop).length,
+    missingAssetKinds: uniqueStrings(
+      exportPackPlan.items.flatMap((item) => item.missingAssetKinds)
+    ) as MotionExportPackAssetKind[],
+    blockerLabels: exportPackPlan.blockers.map((blocker) => blocker.label),
+  };
+}
+
+function syncRequirementLabel(requirement: string): string {
+  if (requirement === 'voice-synthesis') return 'voice';
+  if (requirement === 'word-timing-alignment') return 'word timings';
+  return requirement.replace(/-/g, ' ');
 }
 
 function buildEnginePreview(

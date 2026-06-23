@@ -7,8 +7,10 @@ import type { TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import { motionSeconds } from '@/lib/motion/project';
 import type {
   MotionPreviewEnginePlan,
+  MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
+  MotionPreviewSyncSummary,
   MotionPreviewTimelineClip,
   MotionPreviewTimelineRow,
 } from '@/lib/motion/previewPlan';
@@ -127,7 +129,7 @@ function MotionPreviewPlanView({
         </div>
       </section>
 
-      <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+      <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
         <div className="min-w-0">
           <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
             drafts
@@ -163,6 +165,16 @@ function MotionPreviewPlanView({
             {previewPlan.enginePreviews.map((engine) => (
               <EnginePreviewRow key={engine.engine} engine={engine} />
             ))}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-2 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            finish
+          </div>
+          <div className="grid gap-1.5">
+            <SyncSummaryRow summary={previewPlan.syncSummary} />
+            <ExportPackSummaryRow summary={previewPlan.exportPackSummary} />
           </div>
         </div>
       </section>
@@ -258,6 +270,85 @@ function EnginePreviewRow({ engine }: { engine: MotionPreviewEnginePlan }) {
       >
         {engine.status}
       </span>
+    </div>
+  );
+}
+
+function SyncSummaryRow({ summary }: { summary: MotionPreviewSyncSummary }) {
+  const details = [
+    formatCount(summary.beatCount, 'beat'),
+    formatCount(summary.captionCount, 'caption'),
+    formatCount(summary.transitionCount, 'transition'),
+  ];
+  const note =
+    summary.blockerLabels[0] ??
+    (summary.requirementLabels.length > 0
+      ? `Needs ${summary.requirementLabels.join(' + ')}`
+      : `${summary.soundCueCount} sound cues`);
+
+  return (
+    <ReadinessRow
+      label="sync"
+      status={summary.status}
+      detail={details.join(' / ')}
+      note={note}
+    />
+  );
+}
+
+function formatCount(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? '' : 's'}`;
+}
+
+function ExportPackSummaryRow({ summary }: { summary: MotionPreviewExportPackSummary }) {
+  const targetDetail =
+    summary.targetLabels.length > 0
+      ? summary.targetLabels.join(' / ')
+      : 'no export targets';
+  const note =
+    summary.blockerLabels[0] ??
+    (summary.missingAssetKinds.length > 0
+      ? `Needs ${summary.missingAssetKinds.join(' + ')}`
+      : `${summary.canvasDropCount} canvas drops`);
+
+  return (
+    <ReadinessRow
+      label="export pack"
+      status={summary.status}
+      detail={`${summary.readyCount}/${summary.totalCount} ready`}
+      note={`${targetDetail}; ${note}`}
+    />
+  );
+}
+
+function ReadinessRow({
+  label,
+  status,
+  detail,
+  note,
+}: {
+  label: string;
+  status: string;
+  detail: string;
+  note: string;
+}) {
+  return (
+    <div className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          {label}
+        </span>
+        <span
+          className={cn(
+            'font-mono text-2xs uppercase tracking-wide',
+            status === 'ready' ? 'text-signal-ok' : 'text-ink-faint'
+          )}
+        >
+          {status.replace(/-/g, ' ')}
+        </span>
+      </div>
+      <div className="mt-1 truncate font-caption text-2xs text-ink-faint">{detail}</div>
+      <div className="mt-0.5 line-clamp-2 font-caption text-2xs text-ink-dim">{note}</div>
     </div>
   );
 }
