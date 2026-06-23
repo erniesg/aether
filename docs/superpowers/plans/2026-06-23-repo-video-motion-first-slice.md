@@ -45,6 +45,8 @@
 - Create `lib/providers/code-change/types.ts`: GitHub PR, diff, commit, review, CI, and contributor evidence contract.
 - Create `lib/providers/code-change/registry.ts`: registry resolver for code-change evidence providers.
 - Create `lib/providers/code-change/registry.test.ts`: tests provider unavailable behavior and no default hardcoding.
+- Create `lib/providers/code-change/github-gh.ts`: GitHub CLI provider that ingests PR metadata, files, full patch hunks, CI, reviews, commits, and author evidence.
+- Create `lib/providers/code-change/github-gh.test.ts`: tests injected `gh` commands, source parsing, evidence mapping, and availability.
 - Modify `lib/tool/registry.ts`: add draft motion tool ids.
 - Modify `lib/capability/types.ts`: include motion tool ids in `CapabilityTool`.
 - Modify `lib/workflow/registry.ts`: add draft repo-to-launch-video workflow.
@@ -346,7 +348,7 @@ git commit -m "feat: add motion project primitives"
 - Create: `lib/motion/storyboard.ts`
 - Create: `lib/motion/storyboard.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // lib/motion/storyboard.test.ts
@@ -419,7 +421,7 @@ describe('buildRepoLaunchMotionProject', () => {
 });
 ```
 
-- [ ] **Step 2: Run the failing tests**
+- [x] **Step 2: Run the failing tests**
 
 Run: `npx vitest run lib/motion/storyboard.test.ts`
 
@@ -1246,7 +1248,7 @@ git commit -m "feat: add capture provider contract"
 - Modify: `lib/motion/project.ts`
 - Modify: `lib/motion/project.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // lib/providers/code-change/registry.test.ts
@@ -1264,7 +1266,7 @@ describe('resolveCodeChangeProvider', () => {
 });
 ```
 
-- [ ] **Step 2: Run the failing tests**
+- [x] **Step 2: Run the failing tests**
 
 Run: `npx vitest run lib/providers/code-change/registry.test.ts`
 
@@ -1335,6 +1337,45 @@ Expected: PASS.
 ```bash
 git add lib/providers/code-change/types.ts lib/providers/code-change/registry.ts lib/providers/code-change/registry.test.ts lib/motion/project.ts lib/motion/project.test.ts
 git commit -m "feat: add code-change provider contract"
+```
+
+## Task 5C: GitHub CLI Code-Change Provider
+
+**Files:**
+- Create: `lib/providers/code-change/github-gh.ts`
+- Create: `lib/providers/code-change/github-gh.test.ts`
+
+- [x] **Step 1: Write the failing tests**
+
+Cover `owner/repo#123` and GitHub pull request URL refs, injected `gh`
+command selection, PR metadata mapping, paginated file parsing, full patch hunk
+parsing, CI/review normalization, unsupported source rejection, and availability.
+
+- [x] **Step 2: Run the failing tests**
+
+Run: `npx vitest run lib/providers/code-change/github-gh.test.ts`
+
+Expected: FAIL because `lib/providers/code-change/github-gh.ts` does not exist.
+
+- [x] **Step 3: Add the GitHub CLI provider**
+
+Implement `createGitHubGhCodeChangeProvider` with an injected command runner.
+Use `gh pr view --json`, `gh api repos/:owner/:repo/pulls/:number/files
+--paginate --slurp`, and `gh pr diff --patch --color never`. Keep registration
+explicit so `github-gh` is available as a provider without becoming a hardcoded
+default.
+
+- [x] **Step 4: Run tests**
+
+Run: `npx vitest run lib/providers/code-change/registry.test.ts lib/providers/code-change/github-gh.test.ts lib/motion/storyboard.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/providers/code-change/github-gh.ts lib/providers/code-change/github-gh.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md
+git commit -m "feat: add github pr evidence provider"
 ```
 
 ## Task 6: Timeline Lens Scaffold
