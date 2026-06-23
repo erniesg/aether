@@ -32,6 +32,8 @@
 - Create `lib/motion/storyboard.test.ts`: tests for beat ordering, source refs, and no invented numeric claims.
 - Create `lib/motion/repoMotion.ts`: fetch GitHub repo facts from a repo URL and bridge them into an editable `MotionProject`.
 - Create `lib/motion/repoMotion.test.ts`: tests URL normalization, repo claim provenance, story generation, and optional timeline materialization.
+- Create `lib/motion/reviewPlan.ts`: creator-facing video plan artifact with draft variants, editable component slots, regenerate scopes, and mode actions.
+- Create `lib/motion/reviewPlan.test.ts`: tests review/full-auto plans and scoped component regeneration requests.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -632,6 +634,50 @@ Expected: PASS.
 ```bash
 git add lib/motion/repoMotion.ts lib/motion/repoMotion.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md
 git commit -m "feat: build repo motion projects from url"
+```
+
+## Task 2B: Motion Review Plan and Scoped Regeneration
+
+**Files:**
+- Create: `lib/motion/reviewPlan.ts`
+- Create: `lib/motion/reviewPlan.test.ts`
+
+- [x] **Step 1: Write the failing tests**
+
+Cover reviewable story outline, draft cards, editable component slots, declared
+regeneration scopes, review-mode next actions, full-auto next actions, and
+single-component regeneration requests.
+
+- [x] **Step 2: Run the failing tests**
+
+Run: `./node_modules/.bin/vitest run lib/motion/reviewPlan.test.ts --reporter verbose`
+
+Expected: FAIL because `lib/motion/reviewPlan.ts` does not exist.
+
+- [x] **Step 3: Add the review plan builder**
+
+Implement `buildMotionReviewPlan` over the existing `MotionProject`,
+`TimelineTrack`, and `componentRegistry` contracts. Keep it creator-facing:
+drafts, story beats, component labels, edit controls, regenerate scopes, and
+mode-specific actions; no raw provider run payloads in the primary artifact.
+
+- [x] **Step 4: Add scoped regeneration requests**
+
+Implement `createMotionComponentRegenerationRequest` so agents can regenerate a
+single clip/component by a declared scope such as capture, timing, caption,
+proof, code, diagram, CTA, or effect.
+
+- [x] **Step 5: Run tests**
+
+Run: `./node_modules/.bin/vitest run lib/motion/reviewPlan.test.ts`
+
+Expected: PASS.
+
+- [x] **Step 6: Commit**
+
+```bash
+git add lib/motion/reviewPlan.ts lib/motion/reviewPlan.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md
+git commit -m "feat: add motion review plan"
 ```
 
 ## Task 3: Motion Component Registry
