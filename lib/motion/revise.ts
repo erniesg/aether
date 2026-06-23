@@ -21,6 +21,11 @@ export type MotionTimelineRevisionOperation =
       props: Record<string, unknown>;
     }
   | {
+      kind: 'replace-clip-props';
+      clipId: string;
+      props: Record<string, unknown>;
+    }
+  | {
       kind: 'retime-clip';
       clipId: string;
       startFrame?: number;
@@ -42,6 +47,7 @@ export interface ApplyMotionTimelineRevisionInput {
 
 interface ClipEdit {
   props?: Record<string, unknown>;
+  replaceProps?: Record<string, unknown>;
   startFrame?: number;
   durationFrames?: number;
   componentId?: string;
@@ -101,6 +107,7 @@ function validateMotionTimelineRevision(
 
     if (
       operation.kind === 'update-clip-props' ||
+      operation.kind === 'replace-clip-props' ||
       operation.kind === 'retime-clip' ||
       operation.kind === 'replace-component'
     ) {
@@ -195,6 +202,14 @@ function clipEditsForOperations(
       return;
     }
 
+    if (operation.kind === 'replace-clip-props') {
+      edits.set(operation.clipId, {
+        ...current,
+        replaceProps: operation.props,
+      });
+      return;
+    }
+
     if (operation.kind === 'retime-clip') {
       edits.set(operation.clipId, {
         ...current,
@@ -245,10 +260,16 @@ function applyClipEdit(
     ...(edit.startFrame === undefined ? {} : { startFrame: edit.startFrame }),
     ...(edit.durationFrames === undefined ? {} : { durationFrames: edit.durationFrames }),
     ...(edit.componentId === undefined ? {} : { componentId: edit.componentId }),
-    props: {
-      ...clip.props,
-      ...(edit.props ?? {}),
-    },
+    props:
+      edit.replaceProps === undefined
+        ? {
+            ...clip.props,
+            ...(edit.props ?? {}),
+          }
+        : {
+            ...edit.replaceProps,
+            ...(edit.props ?? {}),
+          },
     provenance: uniqueProvenance([...clip.provenance, ...provenance]),
   };
 }

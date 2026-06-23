@@ -115,7 +115,7 @@ const GATE_TOOLS = {
   capture: ['motion-capture'],
   visuals: ['motion-visuals'],
   voice: ['motion-voice'],
-  timeline: ['motion-sync', 'motion-revise'],
+  timeline: ['motion-sync', 'motion-revise', 'motion-source-edit'],
   render: ['motion-render'],
   export: ['motion-export-pack'],
 } satisfies Record<WorkflowReviewGate, ToolRegistryId[]>;
@@ -137,7 +137,7 @@ const GATE_ROUTES = {
   capture: ['/api/motion/capture'],
   visuals: ['/api/motion/visuals'],
   voice: ['/api/motion/voice'],
-  timeline: ['/api/motion/sync', '/api/motion/revise'],
+  timeline: ['/api/motion/sync', '/api/motion/revise', '/api/motion/source-edit'],
   render: ['/api/motion/render'],
   export: ['/api/motion/export-pack'],
 } satisfies Record<WorkflowReviewGate, string[]>;

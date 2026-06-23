@@ -138,8 +138,8 @@ const STEP_META = {
   },
   sync: {
     label: 'Timeline sync',
-    toolIds: ['motion-sync', 'motion-revise'],
-    apiRoutes: ['/api/motion/sync', '/api/motion/revise'],
+    toolIds: ['motion-sync', 'motion-revise', 'motion-source-edit'],
+    apiRoutes: ['/api/motion/sync', '/api/motion/revise', '/api/motion/source-edit'],
     actionLabel: 'Review sync markers',
     artifactLabels: ['beat markers', 'caption links', 'sound cues'],
   },

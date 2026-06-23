@@ -132,7 +132,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       outputSummary: ['reference requests', 'key still prompts', 'source asset picks'],
     });
     expect(plan.runPlan.steps.find((step) => step.gateId === 'timeline')).toMatchObject({
-      apiRoutes: ['/api/motion/sync', '/api/motion/revise'],
+      apiRoutes: ['/api/motion/sync', '/api/motion/revise', '/api/motion/source-edit'],
       inputSummary: ['voice clips', 'word timings'],
     });
     expect(plan.runPlan.verificationArtifacts).toEqual([
@@ -153,6 +153,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
           'motion_start',
           'motion_capture',
           'motion_visuals',
+          'motion_source_edit',
           'motion_render',
         ]),
       },
@@ -185,9 +186,10 @@ describe('buildAgentMotionWorkflowPlan', () => {
       'motion-visuals',
       'motion-voice',
       'motion-sync',
+      'motion-revise',
+      'motion-source-edit',
       'motion-render',
       'motion-export-pack',
-      'motion-revise',
     ]);
     expect(plan.gates.map((gate) => gate.id)).toEqual([
       'plan',
@@ -209,7 +211,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       expectedArtifacts: ['voice clips', 'word timings'],
     });
     expect(plan.gates.find((gate) => gate.id === 'timeline')).toMatchObject({
-      toolIds: ['motion-sync', 'motion-revise'],
+      toolIds: ['motion-sync', 'motion-revise', 'motion-source-edit'],
     });
     expect(plan.gates.find((gate) => gate.id === 'export')).toMatchObject({
       toolIds: ['motion-export-pack'],
@@ -280,6 +282,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
           'motion_voice',
           'motion_sync',
           'motion_revise',
+          'motion_source_edit',
           'motion_render',
           'motion_export_pack',
         ],

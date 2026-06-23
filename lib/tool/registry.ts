@@ -186,6 +186,15 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  'motion-source-edit': {
+    kind: 'tool',
+    id: 'motion-source-edit',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Source edit apply',
+    outputKind: 'video',
+    status: 'draft',
+  },
   'motion-pin-capability': {
     kind: 'tool',
     id: 'motion-pin-capability',
