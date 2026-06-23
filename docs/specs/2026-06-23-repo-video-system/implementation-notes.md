@@ -33,12 +33,16 @@
 - Agent capture planner that turns capture-first motion projects into
   screenshot, DOM snapshot, interaction-trace, optional recording, and
   computer-use fallback requests with viewport and provenance receipts.
+- Browser capture provider boundary that executes capture requests through an
+  injected runner and normalizes screenshot, snapshot, trace, or recording
+  receipts into typed capture artifacts without hardcoding a default provider.
 
 ## Verification Commands
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts
 ./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx
 npm run typecheck
 git diff --check

@@ -43,6 +43,8 @@
 - Create `lib/motion/siteMotion.ts`: site/app URL evidence builder for capture-first editable motion projects.
 - Create `lib/motion/capturePlan.ts`: agent-readable capture request planner for screenshots, DOM snapshots, interaction traces, recordings, and computer-use fallback.
 - Create `lib/motion/capturePlan.test.ts`: tests provider-ready capture requests and PR no-capture behavior.
+- Create `lib/providers/capture/browser.ts`: provider boundary for executing browser capture requests through an injected runner.
+- Create `lib/providers/capture/browser.test.ts`: tests screenshot, DOM snapshot, trace, artifact, cursor target, and provenance mapping.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -2226,11 +2228,55 @@ Run: `./node_modules/.bin/vitest run lib/motion/capturePlan.test.ts lib/motion/s
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/motion/capturePlan.ts lib/motion/capturePlan.test.ts lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: plan agent motion captures"
+```
+
+## Task 14: Browser Capture Provider Boundary
+
+**Files:**
+- Create: `lib/providers/capture/browser.ts`
+- Create: `lib/providers/capture/browser.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing browser-provider tests**
+
+The tests cover:
+
+- provider fails closed when no runner is configured;
+- screenshot request execution maps runner output to a typed capture artifact;
+- DOM snapshot and interaction trace modes map to snapshot/trace artifacts while
+  preserving runner receipts, cursor targets, and provenance.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts`
+
+Expected: FAIL because `lib/providers/capture/browser.ts` does not exist.
+
+- [x] **Step 3: Implement the provider boundary**
+
+`lib/providers/capture/browser.ts` now exposes `createBrowserCaptureProvider`
+with an injected `BrowserCaptureRunner`. The provider normalizes runner output
+into `CaptureArtifact` records, derives stable ids, maps modes to artifact
+kinds, carries viewport/cursor/provenance receipts, and does not auto-register
+itself as the default capture provider.
+
+- [x] **Step 4: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/providers/capture/browser.ts lib/providers/capture/browser.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: add browser motion capture provider"
 ```
 
 ## Self-Review Checklist

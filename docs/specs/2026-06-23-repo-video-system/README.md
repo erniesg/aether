@@ -53,6 +53,10 @@ Clueso, and Descript.
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, and computer-use fallback requests with explicit viewport,
   artifact, and provenance expectations.
+- `lib/providers/capture/browser.ts` now provides a provider-agnostic browser
+  capture boundary: an injected runner can execute the request and Aether
+  normalizes the result into typed screenshot/snapshot/trace/recording
+  artifacts. It is not auto-registered as the default capture provider.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.
