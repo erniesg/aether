@@ -2038,7 +2038,7 @@ Run: `./node_modules/.bin/vitest run lib/motion/workflowPlan.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/workflowPlan.ts lib/motion/workflowPlan.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
@@ -2578,11 +2578,61 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/renderApply.ts lib/motion/renderApply.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: apply motion render results"
+```
+
+## Task 21: Runner-Backed Render Providers
+
+**Files:**
+- Create: `lib/providers/video/local-render.ts`
+- Create: `lib/providers/video/local-render.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing render-provider tests**
+
+The tests cover:
+
+- Remotion provider factories fail closed when no runner is configured;
+- runner receipts are normalized against planned render outputs;
+- wrong-engine requests are rejected;
+- unplanned runner outputs are rejected;
+- HyperFrames provider factories use the same opt-in runner boundary.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/providers/video/local-render.test.ts`
+
+Expected: FAIL because `lib/providers/video/local-render.ts` does not exist.
+
+- [x] **Step 3: Implement runner-backed providers**
+
+`lib/providers/video/local-render.ts` now exposes a generic runner-backed
+motion render provider plus explicit `remotion-local` and `hyperframes-local`
+factory helpers. The provider calls an injected runner, maps returned files
+back to the planned render outputs, preserves typed provenance, and does not
+register itself as a default renderer.
+
+- [x] **Step 4: Run focused test and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/providers/video/local-render.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/providers/video/local-render.ts lib/providers/video/local-render.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: add runner backed motion render providers"
 ```
 
 ## Self-Review Checklist

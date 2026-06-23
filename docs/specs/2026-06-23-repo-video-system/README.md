@@ -75,6 +75,9 @@ Clueso, and Descript.
 - `lib/providers/video/render-registry.ts` now defines an opt-in render
   provider registry for Remotion and HyperFrames adapters without registering a
   default renderer.
+- `lib/providers/video/local-render.ts` now provides opt-in runner-backed
+  Remotion and HyperFrames render providers: engine execution stays injected,
+  while Aether normalizes returned files against planned output receipts.
 - `lib/motion/voicePlan.ts` now converts voice-line timeline clips into
   provider-neutral narration requests with expected audio, word-timing, and
   transcript artifacts so captions and render duration can sync against real
