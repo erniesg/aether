@@ -79,6 +79,7 @@ const VALID_PROVENANCE_KINDS = new Set<MotionProvenanceRef['kind']>([
   'timeline',
   'capture',
   'voice',
+  'visual-source',
   'image-to-video',
   'provider',
   'revision',

@@ -25,6 +25,8 @@ import type {
   AppProfile,
   MotionPlatformTarget,
   MotionProject,
+  MotionProvenanceRef,
+  MotionSourceProfile,
   MotionWorkflowMode,
 } from './project';
 import {
@@ -152,13 +154,21 @@ export async function startAgentMotionWorkflow(
             },
             options
           );
-      return readyResult(workflow, project, input.createdAt);
+      return readyResult(
+        workflow,
+        withInputSourceSet(project, input.sourceRefs),
+        input.createdAt
+      );
     }
 
     const siteSource = findSource(input.sourceRefs, 'site');
     if (siteSource) {
       const project = await buildSiteStartProject(input, siteSource, options);
-      return readyResult(workflow, project, input.createdAt);
+      return readyResult(
+        workflow,
+        withInputSourceSet(project, input.sourceRefs),
+        input.createdAt
+      );
     }
   }
 
@@ -166,7 +176,11 @@ export async function startAgentMotionWorkflow(
     const siteSource = findSource(input.sourceRefs, 'site');
     if (siteSource) {
       const project = await buildSiteStartProject(input, siteSource, options);
-      return readyResult(workflow, project, input.createdAt);
+      return readyResult(
+        workflow,
+        withInputSourceSet(project, input.sourceRefs),
+        input.createdAt
+      );
     }
   }
 
@@ -368,6 +382,178 @@ function findSource(
   kind: WorkflowSourceKind
 ): MotionWorkflowPlanSourceRef | undefined {
   return sourceRefs.find((source) => source.kind === kind);
+}
+
+function withInputSourceSet(
+  project: MotionProject,
+  sourceRefs: MotionWorkflowPlanSourceRef[]
+): MotionProject {
+  if (sourceRefs.length <= 1) return project;
+
+  const inputRefs = sourceRefs.flatMap(workflowSourceToMotionProvenance);
+  if (inputRefs.length === 0) return project;
+
+  const sourceProfile = project.sourceProfile
+    ? augmentSourceProfile(project.sourceProfile, inputRefs)
+    : undefined;
+
+  return {
+    ...project,
+    sourceRefs: mergeProvenanceRefs(project.sourceRefs, inputRefs),
+    ...(sourceProfile ? { sourceProfile } : {}),
+    graphNodes: project.graphNodes.map((node) =>
+      node.id === 'node-repo-ingest'
+        ? {
+            ...node,
+            inputRefs: uniqueStrings([...node.inputRefs, ...inputRefs.map((ref) => ref.ref)]),
+            provenance: mergeProvenanceRefs(node.provenance, inputRefs),
+          }
+        : node
+    ),
+  };
+}
+
+function workflowSourceToMotionProvenance(
+  source: MotionWorkflowPlanSourceRef
+): MotionProvenanceRef[] {
+  if (
+    source.kind === 'repo' ||
+    source.kind === 'site' ||
+    source.kind === 'capture' ||
+    source.kind === 'upload' ||
+    source.kind === 'reference'
+  ) {
+    return [{ kind: source.kind, ref: source.ref, ...(source.label ? { label: source.label } : {}) }];
+  }
+
+  if (source.kind === 'pr') {
+    return [
+      {
+        kind: 'code-change',
+        ref: source.ref,
+        label: source.label ?? 'Pull request',
+      },
+    ];
+  }
+
+  if (source.kind === 'remotion' || source.kind === 'hyperframes') {
+    return [
+      {
+        kind: 'reference',
+        ref: source.ref,
+        label: source.label ?? `${source.kind} source`,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function augmentSourceProfile(
+  profile: MotionSourceProfile,
+  inputRefs: MotionProvenanceRef[]
+): MotionSourceProfile {
+  const extraSiteRefs = inputRefs.filter((source) => source.kind === 'site');
+  const referenceRefs = inputRefs.filter(
+    (source) => source.kind === 'reference' || source.kind === 'upload'
+  );
+
+  return {
+    ...profile,
+    summary: sourceProfileSummaryWithInputSet(profile.summary, inputRefs),
+    signals: [
+      ...profile.signals,
+      {
+        id: 'signal-input-set',
+        label: 'Input set',
+        value: sourceSetValue(inputRefs),
+        provenance: inputRefs,
+      },
+    ],
+    captureCandidates: [
+      ...profile.captureCandidates,
+      ...extraSiteRefs.flatMap((source, index) => [
+        {
+          id: `capture-selected-site-${slugifyId(source.ref)}-${index}`,
+          label: `Capture selected site ${sourceLabel(source)}`,
+          mode: 'screenshot' as const,
+          targetKind: 'url' as const,
+          targetRef: source.ref,
+          reason: 'Selected source set includes a live product URL.',
+          provenance: [source],
+        },
+        {
+          id: `record-selected-site-${slugifyId(source.ref)}-${index}`,
+          label: `Record selected site ${sourceLabel(source)}`,
+          mode: 'screen-recording' as const,
+          targetKind: 'url' as const,
+          targetRef: source.ref,
+          reason: 'Selected source set includes a product flow source.',
+          provenance: [source],
+        },
+      ]),
+    ],
+    storyboardHints: [
+      ...profile.storyboardHints,
+      ...referenceRefs.map((source, index) => ({
+        id: `hint-reference-${slugifyId(source.ref)}-${index}`,
+        beatRole: 'hook' as const,
+        label: `Reference: ${sourceLabel(source)}`,
+        reason: 'Use this selected reference to shape motion grammar and social-video pacing.',
+        provenance: [source],
+      })),
+    ],
+    provenance: mergeProvenanceRefs(profile.provenance, inputRefs),
+  };
+}
+
+function sourceProfileSummaryWithInputSet(
+  summary: string,
+  inputRefs: MotionProvenanceRef[]
+): string {
+  const sidecarCount = inputRefs.filter((source) => source.kind !== 'repo').length;
+  if (sidecarCount === 0) return summary;
+  return `${summary}; ${sidecarCount} selected source ${sidecarCount === 1 ? 'sidecar' : 'sidecars'} attached`;
+}
+
+function sourceSetValue(inputRefs: MotionProvenanceRef[]): string {
+  return uniqueStrings(inputRefs.map((source) => source.label ?? source.kind)).join(', ');
+}
+
+function sourceLabel(source: MotionProvenanceRef): string {
+  return source.label ?? source.ref;
+}
+
+function mergeProvenanceRefs(
+  current: MotionProvenanceRef[],
+  incoming: MotionProvenanceRef[]
+): MotionProvenanceRef[] {
+  const refs = [...current];
+  for (const next of incoming) {
+    const index = refs.findIndex((ref) => ref.kind === next.kind && ref.ref === next.ref);
+    if (index === -1) {
+      refs.push(next);
+      continue;
+    }
+    if (next.label && !refs[index].label) {
+      refs[index] = { ...refs[index], label: next.label };
+    }
+  }
+  return refs;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+}
+
+function slugifyId(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 32) || 'source'
+  );
 }
 
 function formatMissingSourceLabel(kinds: WorkflowSourceKind[]): string {

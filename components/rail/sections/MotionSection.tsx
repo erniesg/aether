@@ -6,6 +6,7 @@ import type { AgentMotionStartResult } from '@/lib/motion/start';
 import { motionStartSummary, setMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionWorkflowIntent } from '@/lib/motion/workflowRouter';
 import type { MotionPlatformTarget, MotionWorkflowMode } from '@/lib/motion/project';
+import type { WorkflowSourceKind } from '@/lib/workflow/registry';
 import { cn } from '@/lib/utils/cn';
 
 type MotionStartStatus =
@@ -16,7 +17,7 @@ type MotionStartStatus =
 
 export interface MotionStartClientRequest {
   workspaceId?: string;
-  sourceRefs?: Array<{ kind: 'repo' | 'pr' | 'site'; ref: string; label?: string }>;
+  sourceRefs?: Array<{ kind: WorkflowSourceKind; ref: string; label?: string }>;
   repoPath?: string;
   repoUrl?: string;
   siteUrl?: string;
@@ -132,16 +133,16 @@ export function MotionSection({
     <div className="flex flex-col gap-3" data-testid="motion-section">
       <section className="flex flex-col gap-1.5">
         <span className="font-caption text-ink-dim">source</span>
-        <input
-          type="text"
+        <textarea
           aria-label="motion source"
           value={source}
           onChange={(event) => setSource(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') void runStart();
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void runStart();
           }}
-          placeholder="repo, PR, site URL, or local path"
-          className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
+          placeholder="repo, PR, site URL, local path, or source set"
+          rows={3}
+          className="min-h-16 resize-y rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
         />
       </section>
 
@@ -239,9 +240,33 @@ export function MotionSection({
   );
 }
 
-function sourcePayload(source: string, intent: MotionWorkflowIntent): Partial<MotionStartClientRequest> {
+type MotionSourceEntry = NonNullable<MotionStartClientRequest['sourceRefs']>[number];
+
+const SOURCE_PREFIXES = {
+  repo: { kind: 'repo', label: 'Repo' },
+  pr: { kind: 'pr', label: 'Pull request' },
+  site: { kind: 'site', label: 'Site' },
+  capture: { kind: 'capture', label: 'Capture' },
+  upload: { kind: 'upload', label: 'Upload' },
+  reference: { kind: 'reference', label: 'Reference' },
+  ref: { kind: 'reference', label: 'Reference' },
+  remotion: { kind: 'remotion', label: 'Remotion' },
+  hyperframes: { kind: 'hyperframes', label: 'HyperFrames' },
+} as const satisfies Record<string, { kind: WorkflowSourceKind; label: string }>;
+
+function sourcePayload(
+  source: string,
+  intent: MotionWorkflowIntent
+): Partial<MotionStartClientRequest> {
+  if (hasSourceSetSyntax(source)) {
+    return { sourceRefs: parseSourceSet(source, intent) };
+  }
+
   if (isPullRequestRef(source)) return { prRef: source };
   if (/^https?:\/\/github\.com\//i.test(source)) return { repoUrl: source };
+  if (/^https?:\/\//i.test(source) && isReferenceUrl(source)) {
+    return { sourceRefs: [inferSourceEntry(source, intent)] };
+  }
   if (/^https?:\/\//i.test(source)) return { siteUrl: source };
   if (intent === 'pr' || /^[^/\s#]+\/[^/\s#]+#\d+$/.test(source)) {
     return { sourceRefs: [{ kind: 'pr', ref: source, label: 'Pull request' }] };
@@ -249,6 +274,71 @@ function sourcePayload(source: string, intent: MotionWorkflowIntent): Partial<Mo
   return { repoPath: source };
 }
 
+function hasSourceSetSyntax(source: string): boolean {
+  return splitSourceSet(source).length > 1 || sourcePrefixPattern().test(source);
+}
+
+function parseSourceSet(source: string, intent: MotionWorkflowIntent): MotionSourceEntry[] {
+  return splitSourceSet(source).map((entry) => parseExplicitSourceEntry(entry) ?? inferSourceEntry(entry, intent));
+}
+
+function splitSourceSet(source: string): string[] {
+  return source
+    .split(/\n|;/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseExplicitSourceEntry(source: string): MotionSourceEntry | null {
+  const match = sourcePrefixPattern().exec(source);
+  if (!match) return null;
+
+  const prefix = match[1].toLowerCase() as keyof typeof SOURCE_PREFIXES;
+  const ref = match[2].trim();
+  const config = SOURCE_PREFIXES[prefix];
+  return {
+    kind: config.kind,
+    ref,
+    label: config.label,
+  };
+}
+
+function inferSourceEntry(source: string, intent: MotionWorkflowIntent): MotionSourceEntry {
+  if (isPullRequestRef(source) || intent === 'pr' || /^[^/\s#]+\/[^/\s#]+#\d+$/.test(source)) {
+    return { kind: 'pr', ref: source, label: 'Pull request' };
+  }
+
+  if (/^https?:\/\/github\.com\//i.test(source)) return { kind: 'repo', ref: source, label: 'Repo' };
+  if (/^https?:\/\//i.test(source) && isReferenceUrl(source)) {
+    return { kind: 'reference', ref: source, label: 'Reference' };
+  }
+  if (/^https?:\/\//i.test(source)) return { kind: 'site', ref: source, label: 'Site' };
+
+  return { kind: 'repo', ref: source, label: 'Local repo' };
+}
+
+function sourcePrefixPattern(): RegExp {
+  return /^\s*(repo|pr|site|capture|upload|reference|ref|remotion|hyperframes)\s*:\s*(.+)\s*$/i;
+}
+
 function isPullRequestRef(source: string): boolean {
   return /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/i.test(source);
+}
+
+function isReferenceUrl(source: string): boolean {
+  try {
+    const host = new URL(source).hostname.replace(/^www\./, '').toLowerCase();
+    return [
+      'x.com',
+      'twitter.com',
+      'youtube.com',
+      'youtu.be',
+      'vimeo.com',
+      'tiktok.com',
+      'instagram.com',
+      'producthunt.com',
+    ].some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
 }

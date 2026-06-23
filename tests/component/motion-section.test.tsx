@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MotionSection } from '@/components/rail/sections/MotionSection';
+import {
+  MotionSection,
+  type MotionStartClientRequest,
+} from '@/components/rail/sections/MotionSection';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
 import {
   getMotionStartResult,
@@ -131,5 +134,52 @@ describe('MotionSection', () => {
         mode: 'full-auto',
       })
     );
+  });
+
+  it('can start from a composed source set for a repo app video', async () => {
+    const startMotion = vi.fn(async () => readyResult('tong'));
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      [
+        'repo: /Users/erniesg/code/erniesg/tong',
+        'site: http://localhost:3000/tokyo',
+        'reference: https://x.com/heygen/status/123',
+      ].join('\n')
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    await waitFor(() => {
+      expect(startMotion).toHaveBeenCalled();
+    });
+    const firstCall = startMotion.mock.calls[0] as unknown as
+      | [MotionStartClientRequest]
+      | undefined;
+    const request = firstCall?.[0];
+    expect(request).toMatchObject({
+      workspaceId: 'demo-ws',
+      sourceRefs: [
+        {
+          kind: 'repo',
+          ref: '/Users/erniesg/code/erniesg/tong',
+          label: 'Repo',
+        },
+        {
+          kind: 'site',
+          ref: 'http://localhost:3000/tokyo',
+          label: 'Site',
+        },
+        {
+          kind: 'reference',
+          ref: 'https://x.com/heygen/status/123',
+          label: 'Reference',
+        },
+      ],
+      intent: 'launch',
+      mode: 'review',
+    });
+    expect(request).not.toHaveProperty('repoPath');
+    expect(request).not.toHaveProperty('siteUrl');
   });
 });

@@ -211,6 +211,85 @@ describe('POST /api/motion/start', () => {
     expect(json.examples[0].sampleCopyLines).toContain('npx skills add heygen-com/hyperframes');
   });
 
+  it('keeps site and reference sidecars attached to a repo source set', async () => {
+    const repoPath = await makeLocalRepo();
+    const { POST } = await import('@/app/api/motion/start/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'motion-tong-source-set',
+          workspaceId: 'demo-ws',
+          sourceRefs: [
+            { kind: 'repo', ref: repoPath, label: 'Tong repo' },
+            { kind: 'site', ref: 'http://localhost:3000/tokyo', label: 'Tokyo route' },
+            {
+              kind: 'reference',
+              ref: 'https://x.com/heygen/status/123',
+              label: 'PR-to-video launch post',
+            },
+          ],
+          intent: 'launch',
+          mode: 'review',
+          audience: 'language learners',
+          tone: 'textural',
+          platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+          requestedEngines: ['remotion', 'hyperframes', 'provider'],
+          createdAt: 701,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'ready',
+      workflow: {
+        workflowId: 'repo-launch-video',
+        plan: {
+          acceptedSources: [
+            { kind: 'repo', ref: repoPath, label: 'Tong repo' },
+            { kind: 'site', ref: 'http://localhost:3000/tokyo', label: 'Tokyo route' },
+            {
+              kind: 'reference',
+              ref: 'https://x.com/heygen/status/123',
+              label: 'PR-to-video launch post',
+            },
+          ],
+        },
+      },
+      project: {
+        sourceRefs: expect.arrayContaining([
+          { kind: 'repo', ref: repoPath, label: 'Tong repo' },
+          { kind: 'site', ref: 'http://localhost:3000/tokyo', label: 'Tokyo route' },
+          {
+            kind: 'reference',
+            ref: 'https://x.com/heygen/status/123',
+            label: 'PR-to-video launch post',
+          },
+        ]),
+      },
+      capturePlan: {
+        status: 'ready',
+        target: { kind: 'url', ref: 'http://localhost:3000/tokyo' },
+      },
+      previewPlan: {
+        sourceProfile: {
+          captureCandidateLabels: expect.arrayContaining([
+            'Capture selected site Tokyo route',
+            'Record selected site Tokyo route',
+          ]),
+          storyboardHintLabels: expect.arrayContaining([
+            'hook: Reference: PR-to-video launch post',
+          ]),
+        },
+      },
+    });
+  });
+
   it('starts an editable PR-to-video project from agent-collected code evidence', async () => {
     const { POST } = await import('@/app/api/motion/start/route');
 
@@ -261,7 +340,10 @@ describe('POST /api/motion/start', () => {
             commits: [{ sha: 'fd07d45', message: 'Surface motion sync planning' }],
             reviews: [{ reviewer: 'designer', state: 'approved' }],
             ci: [{ name: 'typecheck', status: 'passed' }],
-            provenance: [{ kind: 'code-change', ref: 'github:erniesg/aether#456' }],
+            provenance: [
+              { kind: 'code-change', ref: 'github:erniesg/aether#456' },
+              { kind: 'visual-source', ref: 'visual-source:diff-card' },
+            ],
           },
           createdAt: 702,
         }),
