@@ -3356,6 +3356,59 @@ git add app/api/motion/revise/route.ts tests/unit/api-motion-revise.test.ts docs
 git commit -m "feat: expose motion revisions via api"
 ```
 
+## Task 35: Motion Render API Boundary
+
+**Files:**
+- Modify: `lib/motion/renderExecution.ts`
+- Create: `app/api/motion/render/route.ts`
+- Create: `tests/unit/api-motion-render.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing API contract tests**
+
+The tests cover:
+
+- returning a provider-required Remotion handoff with source files and expected
+  MP4/poster/subtitle/transcript/manifest outputs when no renderer is
+  configured;
+- executing an explicitly registered render provider and applying returned
+  receipts to editable export slots;
+- returning timeline blockers before provider resolution when a project has no
+  materialized timeline;
+- rejecting missing projects, unsupported engines, and malformed JSON.
+
+- [x] **Step 2: Expose render requests for API handoff**
+
+`lib/motion/renderExecution.ts` now exports `buildMotionRenderRequest`, keeping
+source bundle generation shared between render execution and the API's
+provider-required handoff response.
+
+- [x] **Step 3: Implement the route**
+
+`app/api/motion/render/route.ts` now accepts editable motion projects plus
+Remotion/HyperFrames render options, returns reviewable blockers when timeline
+or provider configuration is missing, lists configured render providers, and
+calls `executeMotionRender` only after resolving an opt-in provider.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-render.test.ts lib/motion/renderExecution.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add app/api/motion/render/route.ts tests/unit/api-motion-render.test.ts lib/motion/renderExecution.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose motion render handoffs via api"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

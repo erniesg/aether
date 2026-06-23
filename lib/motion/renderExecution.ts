@@ -68,7 +68,7 @@ export async function executeMotionRender(
     };
   }
 
-  const request = motionRenderRequestFromPlan(project, plan);
+  const request = buildMotionRenderRequest(project, plan);
   const renderResult = await options.provider.render(request);
   const projectWithRenderNode = plan.renderNode
     ? upsertGraphNode(project, plan.renderNode)
@@ -86,7 +86,7 @@ export async function executeMotionRender(
   };
 }
 
-function motionRenderRequestFromPlan(
+export function buildMotionRenderRequest(
   project: MotionProject,
   plan: MotionRenderPlan
 ): MotionRenderRequest {

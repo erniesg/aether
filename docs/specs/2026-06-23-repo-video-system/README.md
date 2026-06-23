@@ -65,6 +65,12 @@ Clueso, and Descript.
   story, component-prop, retime, or component-replacement operations and receive
   the updated project, review plan, preview plan, and capture status while the
   core revision validator rejects unsafe overlaps or unknown components.
+- `app/api/motion/render/route.ts` now exposes the Remotion/HyperFrames render
+  handoff through an agent-native JSON boundary: callers send an editable
+  project plus engine/provider options and receive either a provider-ready
+  source/output request, timeline blockers, or completed render receipts applied
+  back into the editable export slots. The route lists configured providers and
+  does not register a default renderer.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, and computer-use fallback requests with explicit viewport,
@@ -97,6 +103,8 @@ Clueso, and Descript.
 - `lib/motion/renderExecution.ts` now orchestrates the render loop for agents:
   build a render plan/request, call the chosen provider, persist the planned
   render graph node, and apply returned receipts back into editable exports.
+  The render request builder is reusable so API routes can return source files
+  and expected outputs even before a provider is configured.
 - `lib/providers/video/command-render.ts` now supplies concrete local command
   runners for Remotion and HyperFrames: they run engine CLI commands for video
   and poster artifacts, write subtitle/transcript/manifest sidecars, verify
