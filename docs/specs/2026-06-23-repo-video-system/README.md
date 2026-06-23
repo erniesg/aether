@@ -37,10 +37,14 @@ Clueso, and Descript.
   dropped back on canvas.
 - `components/header/ViewSwitcher.tsx` and `components/workspace/TimelineLens.tsx`
   now expose the `timeline` lens inside the single synthesis shell. The lens can
-  render preview-plan story beats, draft variations, editable component
-  controls, scoped regeneration actions, engine readiness, and timeline rows
-  without exposing raw provenance/debug ids in the primary surface; `graph`
-  remains reserved for advanced provenance/generation editing.
+  render a creator-facing video plan, story beats, draft variations, editable
+  component controls, scoped regeneration actions, engine readiness, and
+  timeline rows without exposing raw provenance/debug ids in the primary
+  surface; `graph` remains reserved for advanced provenance/generation editing.
+- `components/rail/sections/MotionSection.tsx` now starts video projects from
+  repo, PR, site URL, or local path sources with review/full-auto mode and
+  target presets for X vertical, LinkedIn feed, website demo, or a multi-format
+  launch pack.
 - `lib/motion/brief.ts`, `lib/motion/compile.ts`, and `scripts/render-motion.ts`
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
 - `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`,
@@ -221,8 +225,8 @@ Clueso, and Descript.
 | [Remotion Player](https://www.remotion.dev/docs/player/) and [renderMedia](https://www.remotion.dev/docs/renderer/render-media) | React components can preview video in app; server render can take composition props, frame ranges, concurrency, and artifacts. | Use Remotion for editable React-native timeline preview and deterministic export, alongside existing HyperFrames compositions. |
 | [React Flow](https://reactflow.dev/) | Node/edge graphs are good for custom node pipelines, selection, ports, and advanced flow editing. | Use for advanced generation graphs after the timeline primitive exists. Avoid making it the default creator surface. |
 | [tldraw custom shapes](https://tldraw.dev/docs/shapes) | Custom shapes can represent domain objects on the canvas. | Add motion-project, timeline preview, generated clip, and export-pack shapes on the canvas. |
-| [iart-ai motion-skills](https://github.com/iart-ai/motion-skills) | Public index of motion-agent skills. The useful packs for aether are `launch-video`, `product-demo-video`, `short-form-video`, `remotion-video`, `beat-sync-editing`, `shot-composition`, and `motion-art-direction`. | Borrow the agent workflow grammar and verification loop, not the repo as a runtime dependency. Make plan, still-frame proof, contact sheet, MP4 probe, and reusable skill packs first-class in aether. |
-| [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes) | HyperFrames now ships workflow skills including `product-launch-video`, `website-to-video`, `pr-to-video`, `embedded-captions`, `graphic-overlays`, `motion-graphics`, and `remotion-to-hyperframes`. `pr-to-video` reads PR facts through `gh`, not site capture. | Mirror the workflow router in aether: product/app launch, website/app capture, PR/code-change explainer, footage caption/overlay, motion graphic, and Remotion/HyperFrames portability should be distinct capabilities with shared timeline/render primitives. |
+| [iart-ai motion-skills](https://github.com/iart-ai/motion-skills) | Public index of 50 open-source motion-agent skills across 14 installable packs for TikTok/Reels/Shorts, YouTube, e-commerce, ads, data animation, explainers, maps, web animation, motion design, kinetic typography, WebGL, Manim, and related workflows. It describes skills as `SKILL.md` plus references, with a deliver-and-verify loop and scripts for frame/contact-sheet/MP4 checks. | Borrow the pack grammar and verification loop, not the repo as a runtime dependency. Make workflow skills, still-frame proof, contact sheets, MP4 probes, and reusable motion components first-class in aether. |
+| [HeyGen HyperFrames](https://github.com/heygen-com/hyperframes) | HyperFrames is an HTML-native deterministic video renderer for agents. Its README installs skills with `npx skills add heygen-com/hyperframes`, describes a plan/write/animate/lint/preview/render production loop, lists product launches, PR walkthroughs with animated code diffs, social videos, docs/PDF/website videos, and exposes a registry with app showcase, social overlays, captions, transitions, code-diff/code-highlight/code-typing blocks, and design-system-to-video `frame.md`. The live skills directory now includes workflow folders such as `pr-to-video`, `product-launch-video`, and `website-to-video`; `pr-to-video` is a GitHub PR evidence workflow, not a website scrape. | Keep Aether workflow routing explicit: repo/app launch, website capture, PR/code-change explainer, caption/overlay, motion graphic, and Remotion/HyperFrames portability should be distinct capabilities over shared timeline/render primitives. Add catalog-backed component suggestions and design-token-to-frame translation before final render. |
 
 ## Research refresh: launch-video component stack
 
@@ -545,24 +549,21 @@ diff hunks and receipts.
 ## Motion-skills assessment
 
 The `iart-ai/motion-skills` repo is useful as a craft/reference corpus, not as
-an aether dependency. The root repository is an index with a showcase and
-verification scripts. The reusable material lives in the linked skill-pack
-repos:
+an aether dependency. The current root repository is an index with a showcase,
+14 installable packs, and a useful description of skill anatomy: a skill is a
+`SKILL.md` plus references/scripts that teaches one workflow and includes a
+deliver-and-verify loop. The verified packs are organized by audience and
+medium: TikTok/Reels/Shorts, text-message stories, YouTube, e-commerce, ads,
+data animation, explainers, maps, web animation, motion design, kinetic type,
+freelance/studio work, WebGL, and Manim.
 
-- `ad-video-skills/launch-video`: hook, tease, reveal, feature montage, end-card
-  arc; music/drop-first timing; multi-aspect export checks.
-- `ecommerce-video-skills/product-demo-video`: screenshot-driven app demos with
-  Playwright capture, browser/device frames, synthetic cursor paths, click
-  ripples, zooms, callouts, captions, and screen transitions.
-- `tiktok-video-skills/short-form-video`: hook, retention, pattern interrupts,
-  loop seams, and 9:16 safe areas.
-- `motion-design-skills/remotion-video`: frame-driven Remotion composition,
-  zod props, `Sequence`, `Series`, still-frame verification, and deterministic
-  rendering.
-- `motion-design-skills/beat-sync-editing`,
-  `motion-design-skills/shot-composition`, and
-  `motion-design-skills/motion-art-direction`: edit-timing plans, safe areas,
-  motion personality, focal hierarchy, and transition language.
+The important import is the structure:
+
+- Skills are workflow-sized, not model-sized.
+- Skills carry references and scripts, so the agent can verify rendered output.
+- Packs can be audience-specific while sharing motion fundamentals.
+- Visual artifact skills should define how to freeze a frame, build a contact
+  sheet, inspect layout, and probe encoded media.
 
 Adopt these as internal aether skills/capabilities with our vocabulary,
 provenance, graph persistence, and canvas/timeline surfaces. Do not expose them
@@ -570,30 +571,36 @@ as a pile of raw agent instructions or a separate skill console.
 
 ## HeyGen HyperFrames assessment
 
-The HeyGen HyperFrames skill pack is directly relevant because it has moved
-from generic "HTML to video" guidance into workflow-specific skills. Its router
-keeps product launch, website capture, PR explainer, captioning existing
-footage, graphic overlays, motion graphics, and Remotion-to-HyperFrames
-portability separate.
+The HeyGen HyperFrames skill pack is directly relevant because it treats HTML,
+CSS, media, and seekable animations as deterministic video source that agents
+can author. The README's installed-skill path is a production loop: plan the
+video, write valid HTML, wire seekable animation, add media, lint, preview, and
+render. Its examples include product launch videos, feature announcements, PR
+walkthroughs with animated code diffs, narration, and captions, social videos,
+docs/PDF/website explainers, and reusable automated motion graphics.
 
-The `pr-to-video` workflow adds a useful model for aether:
+The current registry also shows the component inventory Aether should be able
+to map into its own component registry: app showcase, X/Instagram/TikTok/YouTube
+social overlays, caption variants, shader and mechanical transitions, device
+VFX, code snippets, code diff, code typing, code highlight, flowcharts, and
+parallax stills. The `frame.md` direction is especially relevant: translate a
+web design system into video-frame rules before the agent composes.
 
-- Treat GitHub PRs as a first-class input beside repos, URLs, screenshots, and
-  app captures.
-- Use `gh`/GitHub evidence to create PR JSON, a full diff patch, a bounded text
-  brief, and optional contributor avatars.
-- Pick a narrative archetype: changelog, feature reveal, fix explainer, or
-  refactor walkthrough.
-- Alternate code beats with mechanism beats. Code beats show real hunks; the
-  mechanism beat explains runtime behavior through an invented diagram.
-- Gate plan, storyboard/script, visual design, frame build, validation, preview,
-  and render separately.
+The current `pr-to-video` skill also confirms the product boundary for PR
+explainers. It accepts a PR URL, `owner/repo#N`, or "this PR"; ingests PR facts
+and a full diff through `gh`; produces `capture/pr.json`, `diff.patch`,
+`tokens.json`, `visible-text.txt`, `people.json`, and optional contributor
+avatars; then gates narrator scripts, audio, visual section planning, grouped
+timeline specs, captions, scene HTML, contact-sheet review, and final MP4
+render. That is the evidence model Aether should mirror behind
+`CodeChangeProvider`, while still exposing the creator-facing review as a
+video plan, drafts, timeline rows, regeneration controls, and export pack.
 
 For aether, the important import is not the exact HyperFrames file layout. It
-is the workflow boundary: PR/code-change videos should share the same
-MotionProject, timeline, caption, voice, component registry, render, and export
-pack primitives, while sourcing evidence from `CodeChangeProvider` instead of
-`ScreenCaptureProvider`.
+is the workflow and verification boundary: PR/code-change videos, product
+launches, website capture, caption overlays, and motion graphics should share
+the same MotionProject, timeline, caption, voice, component registry, render,
+and export-pack primitives while choosing the correct evidence provider.
 
 ## Review and full-auto gates
 

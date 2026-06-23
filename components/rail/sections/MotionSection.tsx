@@ -5,7 +5,7 @@ import { useState } from 'react';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
 import { motionStartSummary, setMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionWorkflowIntent } from '@/lib/motion/workflowRouter';
-import type { MotionWorkflowMode } from '@/lib/motion/project';
+import type { MotionPlatformTarget, MotionWorkflowMode } from '@/lib/motion/project';
 import { cn } from '@/lib/utils/cn';
 
 type MotionStartStatus =
@@ -25,7 +25,7 @@ export interface MotionStartClientRequest {
   mode: MotionWorkflowMode;
   audience: string;
   tone: string;
-  platformTargets: Array<{ platform: 'x'; aspectRatio: '9:16'; seconds: 30 }>;
+  platformTargets: MotionPlatformTarget[];
   requestedEngines: ['remotion', 'hyperframes', 'provider'];
 }
 
@@ -35,6 +35,41 @@ export interface MotionSectionProps {
 }
 
 const INTENTS: MotionWorkflowIntent[] = ['launch', 'feature', 'social', 'demo', 'pr'];
+const TARGET_PRESETS = [
+  {
+    id: 'x-vertical',
+    label: 'x vertical',
+    summary: '9:16 30s',
+    targets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+  },
+  {
+    id: 'linkedin-feed',
+    label: 'linkedin feed',
+    summary: '4:5 45s',
+    targets: [{ platform: 'linkedin', aspectRatio: '4:5', seconds: 45 }],
+  },
+  {
+    id: 'site-demo',
+    label: 'site demo',
+    summary: '16:9 60s',
+    targets: [{ platform: 'website', aspectRatio: '16:9', seconds: 60 }],
+  },
+  {
+    id: 'launch-pack',
+    label: 'launch pack',
+    summary: 'x + linkedin + site',
+    targets: [
+      { platform: 'x', aspectRatio: '9:16', seconds: 30 },
+      { platform: 'linkedin', aspectRatio: '4:5', seconds: 45 },
+      { platform: 'website', aspectRatio: '16:9', seconds: 60 },
+    ],
+  },
+] as const satisfies Array<{
+  id: string;
+  label: string;
+  summary: string;
+  targets: MotionPlatformTarget[];
+}>;
 
 async function defaultStartMotion(
   request: MotionStartClientRequest
@@ -65,9 +100,12 @@ export function MotionSection({
   const [source, setSource] = useState('');
   const [intent, setIntent] = useState<MotionWorkflowIntent>('launch');
   const [mode, setMode] = useState<MotionWorkflowMode>('review');
+  const [targetPresetId, setTargetPresetId] = useState<string>(TARGET_PRESETS[0].id);
   const [status, setStatus] = useState<MotionStartStatus>({ kind: 'idle' });
   const sourceRef = source.trim();
   const canStart = sourceRef.length > 0 && status.kind !== 'running';
+  const selectedTargetPreset =
+    TARGET_PRESETS.find((preset) => preset.id === targetPresetId) ?? TARGET_PRESETS[0];
 
   const runStart = async () => {
     if (!canStart) return;
@@ -80,7 +118,7 @@ export function MotionSection({
         mode,
         audience: 'builders and creators',
         tone: 'clear, visual, product-led',
-        platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+        platformTargets: selectedTargetPreset.targets.map((target) => ({ ...target })),
         requestedEngines: ['remotion', 'hyperframes', 'provider'],
       });
       setMotionStartResult(workspaceId, result);
@@ -144,6 +182,22 @@ export function MotionSection({
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="flex flex-col gap-1.5">
+        <span className="font-caption text-ink-dim">target</span>
+        <select
+          aria-label="motion target"
+          value={targetPresetId}
+          onChange={(event) => setTargetPresetId(event.target.value)}
+          className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+        >
+          {TARGET_PRESETS.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.label} - {preset.summary}
+            </option>
+          ))}
+        </select>
       </section>
 
       <button

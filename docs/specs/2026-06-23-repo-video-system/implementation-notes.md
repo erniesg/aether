@@ -18,18 +18,26 @@
   and linked format scopes.
 - Review-plan artifact for plan/draft review, full-auto action queues, editable
   component slots, and scoped regeneration requests.
-- Preview-plan artifact for the agent/UI to show storyboard beats, draft
-  options, editable timeline rows, regeneration actions, and Remotion/HyperFrames
-  source readiness without exposing raw source code in the creator-facing plan.
+- Preview-plan artifact for the agent/UI to show the video plan, storyboard
+  beats, draft options, editable timeline rows, regeneration actions, and
+  Remotion/HyperFrames source readiness without exposing raw source code in the
+  creator-facing plan.
 - Timeline lens scaffold inside the single aether workspace shell, now able to
-  render preview-plan story, drafts, editable component controls, scoped
-  regeneration actions, engine readiness, and timeline rows without leaking raw
-  beat, clip, source, or provenance ids in the primary UI.
+  render preview-plan video-plan scenes, story, drafts, editable component
+  controls, scoped regeneration actions, engine readiness, and timeline rows
+  without leaking raw beat, clip, source, or provenance ids in the primary UI.
+- Motion rail video starter for repo, PR, site URL, or local path sources with
+  review/full-auto mode and target presets for X vertical, LinkedIn feed,
+  website demo, and multi-format launch packs.
 - Draft motion tool registry and reusable workflow entries for repo launch,
   feature/social, website/app capture, PR explainers, caption overlays, motion
   graphics, and Remotion/HyperFrames portability. PR explainers now include
   voice, timeline-revision, and export-pack gates without adding capture as
   source evidence.
+- HyperFrames `pr-to-video` source research now confirms the PR evidence
+  package Aether should mirror: `gh`-backed PR JSON, full diff, text brief,
+  people/avatars, narrator script, audio metadata, section plan, caption groups,
+  scene files, contact-sheet proof, and final MP4 render.
 - Agent motion workflow planner that turns a workflow id, mode, and source refs
   into gated tool/artifact plans for review mode or saved full-auto execution.
 - Workflow skill contracts on video workflows now expose review/full-auto modes,
@@ -202,4 +210,5 @@ export format.
 
 The current implementation has the data and workflow seams to ingest that
 corpus, but it does not yet include the corpus artifact, Remotion Player preview,
-real render adapters, voice providers, or app capture execution.
+real renderer dependency execution in the app process, configured voice
+providers, or app capture execution.

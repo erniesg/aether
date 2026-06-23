@@ -72,6 +72,7 @@ describe('MotionSection', () => {
         repoUrl: 'https://github.com/erniesg/aether',
         intent: 'launch',
         mode: 'review',
+        platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
         requestedEngines: ['remotion', 'hyperframes', 'provider'],
       })
     );
@@ -83,6 +84,32 @@ describe('MotionSection', () => {
         },
       },
     });
+  });
+
+  it('can start a multi-format launch pack from one source', async () => {
+    const startMotion = vi.fn(async () => readyResult('paillette'));
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      'https://github.com/erniesg/paillette'
+    );
+    await userEvent.selectOptions(screen.getByLabelText(/motion target/i), 'launch-pack');
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    await waitFor(() => {
+      expect(startMotion).toHaveBeenCalled();
+    });
+    expect(startMotion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoUrl: 'https://github.com/erniesg/paillette',
+        platformTargets: [
+          { platform: 'x', aspectRatio: '9:16', seconds: 30 },
+          { platform: 'linkedin', aspectRatio: '4:5', seconds: 45 },
+          { platform: 'website', aspectRatio: '16:9', seconds: 60 },
+        ],
+      })
+    );
   });
 
   it('can start a PR source in full-auto mode', async () => {
