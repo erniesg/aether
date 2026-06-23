@@ -87,7 +87,9 @@ Clueso, and Descript.
   planned files exist, and return file-backed render receipts.
 - `lib/motion/renderSource.ts` now compiles editable timeline render requests
   into provider-neutral source bundles: Remotion entry TSX, HyperFrames
-  `index.html`, and source manifests. Render execution attaches those source
+  `index.html`, and source manifests. The generated source now preserves
+  component ids and reusable effect tokens for hook, proof, app-frame, trace,
+  CTA, caption, and transition clips. Render execution attaches those source
   files to each request, and command runners write them before invoking the
   selected engine.
 - `lib/motion/imageToVideoPlan.ts` and
@@ -121,7 +123,7 @@ Clueso, and Descript.
   provider contracts, command render runners, and image-to-video provider
   planning/registry, while `lib/providers/voice/*` covers voice provider
   contracts. Text-to-video, TTS execution, image-to-video provider execution,
-  engine dependency/project scaffolding, and polished engine-native component
+  engine dependency/project scaffolding, and higher-fidelity visual component
   libraries remain future adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class

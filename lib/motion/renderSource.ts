@@ -30,6 +30,11 @@ interface RenderDimensions {
   height: number;
 }
 
+const RENDER_EFFECT_TOKENS = {
+  entrance: 'accent-rise',
+  transition: 'soft-wipe',
+  caption: 'caption-rise',
+} as const;
 const DEFAULT_REMOTION_ENTRY_POINT = 'remotion/index.tsx';
 const DEFAULT_HYPERFRAMES_ENTRY_POINT = 'index.html';
 
@@ -115,6 +120,7 @@ type MotionCompositionProps = {
 const defaultTracks: MotionTrackData[] = ${tracks};
 const defaultBrand: MotionBrandData = ${brand};
 const compositionTitle = ${title};
+const effectTokens = ${stableJson(RENDER_EFFECT_TOKENS)};
 
 function clipText(clip: MotionClipData): string {
   const value = clip.props.caption ?? clip.props.text ?? clip.props.narration ?? "";
@@ -131,6 +137,249 @@ function clipMimeType(clip: MotionClipData): string {
   return typeof value === "string" ? value : "";
 }
 
+function componentIdFor(clip: MotionClipData, trackKind: string): string {
+  if (clip.componentId) return clip.componentId;
+  if (trackKind === "caption") return "caption-line";
+  if (trackKind === "voice") return "voice-line";
+  if (trackKind === "transition") return "soft-wipe";
+  return "proof-card";
+}
+
+type MotionComponentRenderProps = {
+  clip: MotionClipData;
+  componentId: string;
+  trackKind: string;
+  brand: MotionBrandData;
+  text: string;
+  mediaUrl: string | null;
+  mimeType: string;
+};
+
+function CardShell({
+  brand,
+  children,
+  compact = false,
+}: {
+  brand: MotionBrandData;
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        maxWidth: compact ? "86%" : "82%",
+        padding: compact ? "22px 28px" : "34px 40px",
+        border: \`2px solid \${palette[2]}\`,
+        borderRadius: 18,
+        background: compact ? "rgba(244,237,224,0.88)" : "rgba(244,237,224,0.78)",
+        boxShadow: "0 34px 90px rgba(0,0,0,0.22)",
+        backdropFilter: "blur(16px)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DisplayText({
+  text,
+  brand,
+  size = 72,
+  weight = 800,
+}: {
+  text: string;
+  brand: MotionBrandData;
+  size?: number;
+  weight?: number;
+}) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+
+  return (
+    <div
+      style={{
+        color: palette[1],
+        fontFamily: brand.fontFamilies[0] ?? "IBM Plex Mono",
+        fontSize: size,
+        lineHeight: size >= 60 ? 1.02 : 1.15,
+        fontWeight: weight,
+        textAlign: "center",
+        letterSpacing: 0,
+      }}
+    >
+      {text || compositionTitle}
+    </div>
+  );
+}
+
+function HookCard({ text, brand }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ color: palette[2], fontSize: 18, fontWeight: 800, marginBottom: 18 }}>
+        {brand.motionStyle || effectTokens.entrance}
+      </div>
+      <DisplayText text={text} brand={brand} size={76} />
+    </CardShell>
+  );
+}
+
+function ProofCard({ text, brand, clip }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const sourceLabel = typeof clip.props.sourceLabel === "string" ? clip.props.sourceLabel : "source receipt";
+
+  return (
+    <CardShell brand={brand}>
+      <DisplayText text={text} brand={brand} size={58} />
+      <div
+        style={{
+          marginTop: 24,
+          color: palette[2],
+          fontSize: 20,
+          fontWeight: 700,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {sourceLabel}
+      </div>
+    </CardShell>
+  );
+}
+
+function AppFrame({ text, brand, mediaUrl, mimeType }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+
+  return (
+    <div style={{ width: "88%", maxWidth: 920 }}>
+      <div
+        style={{
+          height: 42,
+          borderRadius: "22px 22px 0 0",
+          background: palette[1],
+          color: palette[0],
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "0 18px",
+          fontSize: 16,
+        }}
+      >
+        <span style={{ width: 10, height: 10, borderRadius: 10, background: palette[2] }} />
+        <span style={{ width: 10, height: 10, borderRadius: 10, background: palette[0] }} />
+        <span style={{ marginLeft: 8 }}>{text || "Product capture"}</span>
+      </div>
+      <div
+        style={{
+          border: \`2px solid \${palette[1]}\`,
+          borderTop: 0,
+          borderRadius: "0 0 24px 24px",
+          overflow: "hidden",
+          background: "rgba(255,255,255,0.72)",
+          boxShadow: "0 36px 92px rgba(0,0,0,0.28)",
+        }}
+      >
+        {mediaUrl && mimeType.startsWith("video/") ? (
+          <Video src={mediaUrl} muted style={{ width: "100%", height: 820, objectFit: "cover" }} />
+        ) : null}
+        {mediaUrl && mimeType.startsWith("image/") ? (
+          <Img src={mediaUrl} style={{ width: "100%", height: 820, objectFit: "cover" }} />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AgentTrace({ text, brand }: MotionComponentRenderProps) {
+  const steps = ["read repo", "write script", "capture app", "render pack"];
+
+  return (
+    <CardShell brand={brand}>
+      <DisplayText text={text} brand={brand} size={48} />
+      <div style={{ marginTop: 28, display: "grid", gap: 12 }}>
+        {steps.map((step, index) => (
+          <div key={step} style={{ fontSize: 24, fontWeight: 700 }}>
+            {String(index + 1).padStart(2, "0")} / {step}
+          </div>
+        ))}
+      </div>
+    </CardShell>
+  );
+}
+
+function CtaCard({ text, brand }: MotionComponentRenderProps) {
+  return (
+    <CardShell brand={brand}>
+      <DisplayText text={text} brand={brand} size={64} />
+      <div style={{ marginTop: 28, fontSize: 24, fontWeight: 700, textAlign: "center" }}>
+        Export the pack
+      </div>
+    </CardShell>
+  );
+}
+
+function CaptionLine({ text, brand }: MotionComponentRenderProps) {
+  return (
+    <CardShell brand={brand} compact>
+      <DisplayText text={text} brand={brand} size={38} weight={500} />
+    </CardShell>
+  );
+}
+
+function SoftWipe({ brand, clip }: MotionComponentRenderProps) {
+  const frame = useCurrentFrame();
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const scaleX = interpolate(frame, [0, clip.durationFrames / 2, clip.durationFrames], [0, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <AbsoluteFill
+      style={{
+        background: palette[2],
+        opacity: 0.18,
+        transform: \`scaleX(\${scaleX})\`,
+        transformOrigin: "left center",
+      }}
+    />
+  );
+}
+
+function DefaultCard(props: MotionComponentRenderProps) {
+  return (
+    <CardShell brand={props.brand}>
+      <DisplayText text={props.text} brand={props.brand} />
+    </CardShell>
+  );
+}
+
+function renderMotionComponent(props: MotionComponentRenderProps) {
+  switch (props.componentId) {
+    case "hook-card":
+      return <HookCard {...props} />;
+    case "app-frame":
+      return <AppFrame {...props} />;
+    case "agent-trace":
+      return <AgentTrace {...props} />;
+    case "proof-card":
+    case "evidence-card":
+    case "code-diff-card":
+    case "mechanism-diagram":
+      return <ProofCard {...props} />;
+    case "cta-card":
+      return <CtaCard {...props} />;
+    case "caption-line":
+      return <CaptionLine {...props} />;
+    case "soft-wipe":
+      return <SoftWipe {...props} />;
+    default:
+      return <DefaultCard {...props} />;
+  }
+}
+
 function MotionClip({
   clip,
   trackKind,
@@ -145,6 +394,7 @@ function MotionClip({
   const text = clipText(clip);
   const mediaUrl = clipMediaUrl(clip);
   const mimeType = clipMimeType(clip);
+  const componentId = componentIdFor(clip, trackKind);
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
   const opacity = interpolate(
     frame,
@@ -164,6 +414,7 @@ function MotionClip({
 
   return (
     <AbsoluteFill
+      data-component-id={componentId}
       style={{
         justifyContent: trackKind === "caption" ? "flex-end" : "center",
         alignItems: "center",
@@ -174,60 +425,7 @@ function MotionClip({
         fontFamily,
       }}
     >
-      {mediaUrl && mimeType.startsWith("video/") ? (
-        <Video
-          src={mediaUrl}
-          muted
-          style={{
-            width: "86%",
-            height: "70%",
-            objectFit: "cover",
-            borderRadius: 24,
-            boxShadow: "0 32px 90px rgba(0,0,0,0.28)",
-          }}
-        />
-      ) : null}
-      {mediaUrl && mimeType.startsWith("image/") ? (
-        <Img
-          src={mediaUrl}
-          style={{
-            width: "86%",
-            height: "70%",
-            objectFit: "cover",
-            borderRadius: 24,
-            boxShadow: "0 32px 90px rgba(0,0,0,0.24)",
-          }}
-        />
-      ) : null}
-      <div
-        style={{
-          maxWidth: trackKind === "caption" ? "86%" : "82%",
-          padding: trackKind === "caption" ? "22px 28px" : "32px 38px",
-          border: \`2px solid \${palette[2]}\`,
-          borderRadius: 18,
-          background: trackKind === "caption" ? "rgba(244,237,224,0.88)" : "rgba(244,237,224,0.78)",
-          backdropFilter: "blur(16px)",
-          fontSize: trackKind === "caption" ? 38 : 72,
-          lineHeight: trackKind === "caption" ? 1.15 : 1.02,
-          fontWeight: trackKind === "caption" ? 500 : 800,
-          textAlign: "center",
-        }}
-      >
-        {text || compositionTitle}
-      </div>
-      {trackKind === "transition" ? (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: palette[2],
-            opacity: interpolate(frame, [0, clip.durationFrames / 2, clip.durationFrames], [0, 0.16, 0], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-            }),
-          }}
-        />
-      ) : null}
+      {renderMotionComponent({ clip, componentId, trackKind, brand, text, mediaUrl, mimeType })}
       <div
         style={{
           position: "absolute",
@@ -340,11 +538,64 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
           text-align: center;
         }
 
-        .motion-clip--caption {
+        .motion-component--hook-card {
+          min-width: 56%;
+        }
+
+        .hook-card__eyebrow,
+        .proof-card__source,
+        .agent-trace__step,
+        .cta-card__action {
+          color: ${palette.accent};
+          font-size: 20px;
+          font-weight: 800;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .hook-card__headline,
+        .proof-card__claim,
+        .cta-card__headline {
+          display: block;
+          margin-top: 16px;
+        }
+
+        .app-frame__chrome {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          height: 38px;
+          padding: 0 16px;
+          border-radius: 18px 18px 0 0;
+          background: ${palette.foreground};
+          color: ${palette.background};
+          font-size: 16px;
+          text-align: left;
+        }
+
+        .app-frame__dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: ${palette.accent};
+        }
+
+        .app-frame__media-shell {
+          overflow: hidden;
+          border: 2px solid ${palette.foreground};
+          border-top: 0;
+          border-radius: 0 0 20px 20px;
+          background: rgba(255, 255, 255, 0.7);
+        }
+
+        .motion-component--caption-line {
           align-self: flex-end;
           font-size: 38px;
           line-height: 1.15;
           font-weight: 500;
+        }
+
+        .caption-line__text {
+          display: block;
         }
 
         .motion-media {
@@ -372,6 +623,7 @@ ${clips.join('\n')}
         window.__timelines = window.__timelines || {};
         const tl = gsap.timeline({ paused: true });
         tl.from(".motion-clip", { y: 34, opacity: 0, duration: 0.45, stagger: 0.04, ease: "power3.out" }, 0.15);
+        tl.from(".caption-line__text", { y: 18, opacity: 0, duration: 0.28, stagger: 0.03, ease: "power2.out" }, 0.22);
         tl.from(".transition-wipe", { scaleX: 0, duration: 0.32, stagger: 0.04, ease: "power2.inOut" }, 0.2);
         window.__timelines["${jsString(request.compositionId)}"] = tl;
       </script>
@@ -392,8 +644,9 @@ function hyperframesClipHtml(
   const mediaUrl = stringProp(clip.props.generatedVideoUrl) ?? stringProp(clip.props.assetUrl);
   const mimeType = stringProp(clip.props.mimeType) ?? '';
   const text = clipText(clip);
-  const kindClass = `motion-clip--${track.kind}`;
-  const attrs = `id="${escapeHtml(clip.id)}" class="motion-clip ${escapeHtml(kindClass)}" data-kind="${escapeHtml(
+  const componentId = componentIdForClip(clip, track.kind);
+  const componentClass = `motion-component--${componentId}`;
+  const attrs = `id="${escapeHtml(clip.id)}" class="motion-clip motion-component ${escapeHtml(componentClass)}" data-component-id="${escapeHtml(componentId)}" data-kind="${escapeHtml(
     track.kind
   )}" data-start="${start}" data-duration="${duration}" data-track-index="${trackIndex}"`;
 
@@ -403,15 +656,47 @@ function hyperframesClipHtml(
 
   if (track.kind === 'voice') return '';
 
-  const media =
-    mediaUrl && mimeType.startsWith('video/')
-      ? `<video class="motion-media" src="${escapeHtml(mediaUrl)}" muted playsinline crossorigin="anonymous"></video>`
-      : mediaUrl && mimeType.startsWith('image/')
-        ? `<img class="motion-media" src="${escapeHtml(mediaUrl)}" alt="" crossorigin="anonymous" />`
-        : '';
-  const transition = track.kind === 'transition' ? '<span class="transition-wipe" aria-hidden="true"></span>' : '';
+  return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType)}</div>`;
+}
 
-  return `        <div ${attrs}>${media}${escapeHtml(text)}${transition}</div>`;
+function hyperframesComponentBody(
+  componentId: string,
+  text: string,
+  mediaUrl: string | undefined,
+  mimeType: string
+): string {
+  if (componentId === 'hook-card') {
+    return `<span class="hook-card__eyebrow">${escapeHtml(RENDER_EFFECT_TOKENS.entrance)}</span><strong class="hook-card__headline">${escapeHtml(text)}</strong>`;
+  }
+
+  if (componentId === 'app-frame') {
+    const media =
+      mediaUrl && mimeType.startsWith('video/')
+        ? `<video class="motion-media" src="${escapeHtml(mediaUrl)}" muted playsinline crossorigin="anonymous"></video>`
+        : mediaUrl && mimeType.startsWith('image/')
+          ? `<img class="motion-media" src="${escapeHtml(mediaUrl)}" alt="" crossorigin="anonymous" />`
+          : '';
+
+    return `<div class="app-frame__chrome"><span class="app-frame__dot"></span><span>${escapeHtml(text || 'Product capture')}</span></div><div class="app-frame__media-shell">${media}</div>`;
+  }
+
+  if (componentId === 'caption-line') {
+    return `<span class="caption-line__text">${escapeHtml(text)}</span>`;
+  }
+
+  if (componentId === 'soft-wipe') {
+    return '<span class="transition-wipe" aria-hidden="true"></span>';
+  }
+
+  if (componentId === 'agent-trace') {
+    return `<strong class="proof-card__claim">${escapeHtml(text)}</strong><span class="agent-trace__step">01 / read repo</span><span class="agent-trace__step">02 / render pack</span>`;
+  }
+
+  if (componentId === 'cta-card') {
+    return `<strong class="cta-card__headline">${escapeHtml(text)}</strong><span class="cta-card__action">Export the pack</span>`;
+  }
+
+  return `<strong class="proof-card__claim">${escapeHtml(text)}</strong><span class="proof-card__source">source receipt</span>`;
 }
 
 function sourceManifestPath(request: MotionRenderRequest): string {
@@ -436,6 +721,8 @@ function sourceManifestJson(
     fps: request.fps,
     durationFrames: request.durationFrames,
     trackIds: request.tracks.map((track) => track.id),
+    componentIds: componentIdsForTracks(request.tracks),
+    effectTokens: RENDER_EFFECT_TOKENS,
     outputIds: request.outputs.map((output) => output.id),
     files: files.map((file) => ({
       kind: file.kind,
@@ -473,6 +760,20 @@ function clipText(clip: TimelineClip): string {
     stringProp(clip.props.text) ??
     stringProp(clip.props.narration) ??
     ''
+  );
+}
+
+function componentIdForClip(clip: TimelineClip, trackKind: string): string {
+  if (clip.componentId) return clip.componentId;
+  if (trackKind === 'caption') return 'caption-line';
+  if (trackKind === 'voice') return 'voice-line';
+  if (trackKind === 'transition') return 'soft-wipe';
+  return 'proof-card';
+}
+
+function componentIdsForTracks(tracks: TimelineTrack[]): string[] {
+  return uniqueStrings(
+    tracks.flatMap((track) => track.clips.map((clip) => componentIdForClip(clip, track.kind)))
   );
 }
 
@@ -517,4 +818,8 @@ function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
     seen.add(key);
     return true;
   });
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
 }

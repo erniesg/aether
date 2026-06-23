@@ -2916,9 +2916,67 @@ git add lib/motion/renderSource.ts lib/motion/renderSource.test.ts lib/providers
 git commit -m "feat: compile motion render source files"
 ```
 
+## Task 27: Component-Aware Render Source Adapters
+
+**Files:**
+- Modify: `lib/motion/renderSource.ts`
+- Modify: `lib/motion/renderSource.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing component-source tests**
+
+The tests cover:
+
+- Remotion source exporting named reusable renderers for hook cards,
+  app frames, agent traces, captions, and soft-wipe transitions;
+- Remotion source preserving `data-component-id` on rendered clips;
+- source manifests listing component ids and reusable effect tokens;
+- HyperFrames source preserving `data-component-id`, component classes,
+  app-frame chrome, hook card typography slots, caption text slots, and
+  component-specific GSAP entrances.
+
+- [x] **Step 2: Run the failing tests**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/renderSource.test.ts
+npm run typecheck
+```
+
+Expected: FAIL because the source compiler still emits mostly generic clip
+cards without component renderer functions or effect-token metadata.
+
+- [x] **Step 3: Implement component-aware render adapters**
+
+`lib/motion/renderSource.ts` now maps existing motion `componentId` values into
+named Remotion render functions, HyperFrames `data-component-id` classes, and
+source-manifest effect tokens. The emitted source keeps timeline timing stable
+while giving agents a reusable component/effect surface for scoped
+regeneration.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/renderSource.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/renderSource.ts lib/motion/renderSource.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: add component aware motion source adapters"
+```
+
 ## Self-Review Checklist
 
-- Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, polished engine-native component libraries, and multiformat export packs remain separate later slices.
+- Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.
 - Empty-detail scan: The plan avoids vague fill-ins. File names, functions, test names, commands, and expected outcomes are explicit.
 - Type consistency: `MotionProject`, `MotionBriefV2`, `StoryBeat`, `TimelineTrack`, `TimelineClip`, `VideoRenderProvider`, `CaptureProvider`, and registry ids are consistently named across tasks.
 - aether contract: The timeline lens stays inside the synthesis shell, uses tool taxonomy, avoids raw provenance ids in primary UI, keeps provider selection abstract, and preserves the bottom composer pattern.

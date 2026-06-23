@@ -64,6 +64,9 @@
   TSX, HyperFrames `index.html`, and source manifest files, then attaches those
   files to render requests so command runners can write them before invoking an
   engine.
+- Component-aware render source adapters that preserve motion component ids,
+  named Remotion renderer functions, HyperFrames component classes, and reusable
+  effect tokens in source manifests for beat-level regeneration.
 - Image-to-video clip planning that turns asset-backed visual timeline clips
   into provider-neutral generation requests with planned graph provenance, plus
   an opt-in image-to-video provider registry with no default model.

@@ -108,10 +108,39 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('durationInFrames={900}');
     expect(entry).toContain('fps={30}');
     expect(entry).toContain('<Sequence');
+    expect(entry).toContain('const effectTokens = ');
+    expect(entry).toContain('function HookCard');
+    expect(entry).toContain('function AppFrame');
+    expect(entry).toContain('function AgentTrace');
+    expect(entry).toContain('function CaptionLine');
+    expect(entry).toContain('function SoftWipe');
+    expect(entry).toContain('function renderMotionComponent');
+    expect(entry).toContain('case "hook-card":');
+    expect(entry).toContain('case "app-frame":');
+    expect(entry).toContain('data-component-id={componentId}');
     expect(entry).toContain('<Img');
     expect(entry).toContain('src={mediaUrl}');
     expect(entry).toContain('Captured aether canvas');
     expect(entry).toContain('const defaultTracks: MotionTrackData[] = ');
+
+    const manifest = JSON.parse(
+      bundle.files.find((file) => file.kind === 'manifest')?.contents ?? '{}'
+    );
+    expect(manifest.componentIds).toEqual([
+      'hook-card',
+      'proof-card',
+      'app-frame',
+      'agent-trace',
+      'cta-card',
+      'caption-line',
+      'voice-line',
+      'soft-wipe',
+    ]);
+    expect(manifest.effectTokens).toMatchObject({
+      entrance: 'accent-rise',
+      transition: 'soft-wipe',
+      caption: 'caption-rise',
+    });
     expect(bundle.provenance).toContainEqual({ kind: 'render', ref: request.id });
   });
 
@@ -136,12 +165,18 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('data-width="1080"');
     expect(entry).toContain('data-height="1920"');
     expect(entry).toContain('data-track-index="0"');
+    expect(entry).toContain('data-component-id="hook-card"');
+    expect(entry).toContain('class="motion-clip motion-component motion-component--hook-card"');
+    expect(entry).toContain('hook-card__eyebrow');
+    expect(entry).toContain('app-frame__chrome');
+    expect(entry).toContain('caption-line__text');
     expect(entry).toContain('data-start="0"');
     expect(entry).toContain('data-duration="3"');
     expect(entry).toContain('src="asset://captures/aether-demo.png"');
     expect(entry).toContain('crossorigin="anonymous"');
     expect(entry).toContain('window.__timelines["motion-aether-launch-draft-primary"] = tl;');
     expect(entry).toContain('tl.from(".motion-clip"');
+    expect(entry).toContain('tl.from(".caption-line__text"');
     expect(entry).toContain('Captured aether canvas');
   });
 });
