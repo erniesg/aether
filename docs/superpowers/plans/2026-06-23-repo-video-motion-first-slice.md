@@ -41,6 +41,8 @@
 - Create `lib/motion/start.ts`: agent-facing start artifact that combines routing, workflow gates, project creation, review plans, and source/evidence requests.
 - Create `lib/motion/start.test.ts`: tests repo starts, PR evidence requests, and missing-source requests.
 - Create `lib/motion/siteMotion.ts`: site/app URL evidence builder for capture-first editable motion projects.
+- Create `lib/motion/capturePlan.ts`: agent-readable capture request planner for screenshots, DOM snapshots, interaction traces, recordings, and computer-use fallback.
+- Create `lib/motion/capturePlan.test.ts`: tests provider-ready capture requests and PR no-capture behavior.
 - Create `lib/motion/componentRegistry.ts`: reusable motion component metadata and schema descriptors.
 - Create `lib/motion/componentRegistry.test.ts`: tests for ids, supported engines, edit controls, and aspect ratios.
 - Create `lib/motion/timeline.ts`: pure compiler from story beats to tracks and clips.
@@ -2171,11 +2173,64 @@ Run: `./node_modules/.bin/vitest run lib/motion/start.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/motion/siteMotion.ts lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: start site motion workflows"
+```
+
+## Task 13: Agent Capture Plan Artifact
+
+**Files:**
+- Create: `lib/motion/capturePlan.ts`
+- Create: `lib/motion/capturePlan.test.ts`
+- Modify: `lib/motion/start.ts`
+- Modify: `lib/motion/start.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write the failing capture-plan tests**
+
+The tests cover:
+
+- site/app motion project -> screenshot-first browser capture plan with
+  screenshot, DOM snapshot, interaction trace, optional screen recording,
+  browser-capture provider requirement, viewport, provenance, and
+  computer-control fallback;
+- PR-only motion project -> no capture requests.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/capturePlan.test.ts lib/motion/start.test.ts`
+
+Expected: FAIL because `lib/motion/capturePlan.ts` does not exist and start
+results do not expose `capturePlan`.
+
+- [x] **Step 3: Implement the capture planner**
+
+`lib/motion/capturePlan.ts` now converts capture-first motion projects into
+provider-ready capture requests with target, mode, viewport, steps, expected
+artifacts, provenance, and fallback guidance. It returns `not-needed` for PR
+motion projects and `needs-source` when a non-PR project lacks a usable capture
+source.
+
+- [x] **Step 4: Wire capture plans into motion starts**
+
+`startAgentMotionWorkflow` now includes `capturePlan` on ready results when the
+project needs capture work.
+
+- [x] **Step 5: Run the focused test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/capturePlan.test.ts lib/motion/start.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/motion/capturePlan.ts lib/motion/capturePlan.test.ts lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: plan agent motion captures"
 ```
 
 ## Self-Review Checklist

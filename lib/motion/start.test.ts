@@ -187,6 +187,17 @@ describe('startAgentMotionWorkflow', () => {
       'storyboard',
       'sync',
     ]);
+    expect(result.capturePlan).toMatchObject({
+      status: 'ready',
+      preferredPath: 'screenshot-first',
+      target: { kind: 'url', ref: 'https://tong.app/tokyo' },
+    });
+    expect(result.capturePlan?.requests.map((request) => request.request.mode)).toEqual([
+      'screenshot',
+      'dom-snapshot',
+      'interaction-trace',
+      'screen-recording',
+    ]);
     expect(result.reviewPlan).toMatchObject({
       projectId: 'motion-tong-demo',
       primaryAction: 'request-review',

@@ -1,6 +1,10 @@
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { WorkflowEngine, WorkflowSourceKind } from '@/lib/workflow/registry';
 import type { CodeChangeResult, CodeChangeSource } from '@/lib/providers/code-change/types';
+import {
+  buildAgentMotionCapturePlan,
+  type AgentMotionCapturePlan,
+} from './capturePlan';
 import { buildMotionReviewPlan, type MotionReviewPlan } from './reviewPlan';
 import { buildCodeChangeMotionProject } from './storyboard';
 import {
@@ -68,6 +72,7 @@ export interface AgentMotionStartResult {
   workflow: RoutedAgentMotionWorkflow;
   project: MotionProject | null;
   reviewPlan: MotionReviewPlan | null;
+  capturePlan: AgentMotionCapturePlan | null;
   requestedInputs: AgentMotionRequestedInput[];
 }
 
@@ -89,6 +94,7 @@ export async function startAgentMotionWorkflow(
       workflow,
       project: null,
       reviewPlan: null,
+      capturePlan: null,
       requestedInputs: [
         {
           kind: 'source',
@@ -148,6 +154,7 @@ export async function startAgentMotionWorkflow(
     workflow,
     project: null,
     reviewPlan: null,
+    capturePlan: null,
     requestedInputs: [
       {
         kind: 'project-builder',
@@ -169,6 +176,7 @@ function startCodeChangeWorkflow(
       workflow,
       project: null,
       reviewPlan: null,
+      capturePlan: null,
       requestedInputs: [
         {
           kind: 'code-change',
@@ -208,8 +216,14 @@ function readyResult(
     workflow,
     project,
     reviewPlan: buildMotionReviewPlan(project),
+    capturePlan: capturePlanFor(project),
     requestedInputs: [],
   };
+}
+
+function capturePlanFor(project: MotionProject): AgentMotionCapturePlan | null {
+  const capturePlan = buildAgentMotionCapturePlan(project);
+  return capturePlan.status === 'not-needed' ? null : capturePlan;
 }
 
 async function buildSiteStartProject(

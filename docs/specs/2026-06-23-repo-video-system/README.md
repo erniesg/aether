@@ -49,6 +49,10 @@ Clueso, and Descript.
   agent can hand to the creator for review or full-auto progression. Repo and
   site/app URL sources can now create editable project starts; real screen
   capture and recording remain provider execution work.
+- `lib/motion/capturePlan.ts` now converts capture-first projects into
+  provider-ready screenshot, DOM snapshot, interaction trace, optional screen
+  recording, and computer-use fallback requests with explicit viewport,
+  artifact, and provenance expectations.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.
