@@ -78,6 +78,11 @@ Clueso, and Descript.
   receive provider-required generation handoffs, visual-source/timeline
   blockers, or completed generated video receipts applied back into the same
   timeline clips while preserving source visual asset provenance.
+- `app/api/motion/regenerate/route.ts` now exposes scoped component
+  regeneration through an agent-native JSON boundary: callers send an editable
+  project, selected clip, scope, and prompt, then receive a planned regeneration
+  request plus refreshed review and preview plans without implying that a
+  provider has already executed the change.
 - `app/api/motion/revise/route.ts` now exposes structured review edits through
   the same agent-native boundary: callers send an editable `MotionProject` plus
   story, component-prop, retime, or component-replacement operations and receive

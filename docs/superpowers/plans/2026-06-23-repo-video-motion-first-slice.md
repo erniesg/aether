@@ -3641,6 +3641,51 @@ git add app/api/motion/workflows/route.ts tests/unit/api-motion-workflows.test.t
 git commit -m "feat: expose motion workflow discovery"
 ```
 
+## Task 41: Motion Component Regeneration API
+
+**Files:**
+- Create: `app/api/motion/regenerate/route.ts`
+- Create: `tests/unit/api-motion-regenerate.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing scoped regeneration tests**
+
+The tests cover:
+
+- creating a planned regeneration request from an editable motion project,
+  selected clip id, regeneration scope, and prompt;
+- returning refreshed review and preview plans so the timeline shell can show
+  the same draft, component, and engine-readiness state after the request;
+- preserving capture-plan context for capture-backed regeneration scopes;
+- rejecting unsupported component scopes, missing project data, missing
+  clip/scope/prompt fields, invalid engine filters, and malformed JSON.
+
+- [x] **Step 2: Implement the regeneration route**
+
+`app/api/motion/regenerate/route.ts` now wraps
+`createMotionComponentRegenerationRequest` in an agent-native JSON boundary. It
+does not claim a provider executed the change; it returns the planned request
+and existing editable project state for the next capture, voice, image-to-video,
+revision, or render handoff.
+
+- [x] **Step 3: Run focused tests**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run tests/unit/api-motion-regenerate.test.ts
+```
+
+Expected: PASS.
+
+- [x] **Step 4: Commit**
+
+```bash
+git add app/api/motion/regenerate/route.ts tests/unit/api-motion-regenerate.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: expose scoped motion regeneration"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.
