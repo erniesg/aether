@@ -157,6 +157,7 @@ export interface MotionExport {
   assetId?: string;
   posterAssetId?: string;
   subtitleAssetId?: string;
+  transcriptAssetId?: string;
   manifestAssetId?: string;
   provenance: MotionProvenanceRef[];
 }

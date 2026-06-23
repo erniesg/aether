@@ -69,6 +69,9 @@ Clueso, and Descript.
   provider-neutral render handoff: engine, composition id, track refs, expected
   MP4/poster/subtitle/transcript/manifest outputs, dimensions, and render graph
   node provenance.
+- `lib/motion/renderApply.ts` now converts completed render receipts back into
+  editable export assets and the render graph node, so MP4, poster, subtitle,
+  transcript, and manifest outputs can return to the canvas/project model.
 - `lib/providers/video/render-registry.ts` now defines an opt-in render
   provider registry for Remotion and HyperFrames adapters without registering a
   default renderer.

@@ -1331,7 +1331,7 @@ Run: `npx vitest run lib/providers/capture/registry.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/capture/types.ts lib/providers/capture/registry.ts lib/providers/capture/registry.test.ts
@@ -2528,11 +2528,61 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/voiceApply.ts lib/motion/voiceApply.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
 git commit -m "feat: apply motion voiceover results"
+```
+
+## Task 20: Render Result Application
+
+**Files:**
+- Create: `lib/motion/renderApply.ts`
+- Create: `lib/motion/renderApply.test.ts`
+- Modify: `lib/motion/project.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing render-application tests**
+
+The tests cover:
+
+- completed render receipts -> ready export asset refs for video, poster,
+  subtitles, transcript, and manifest;
+- partial render results leave unrelated export targets planned;
+- provider/provenance receipts -> completed render graph node;
+- separately completed export targets merge into the same render graph node.
+
+- [x] **Step 2: Run the failing test**
+
+Run: `./node_modules/.bin/vitest run lib/motion/renderApply.test.ts`
+
+Expected: FAIL because `lib/motion/renderApply.ts` does not exist.
+
+- [x] **Step 3: Implement render result application**
+
+`lib/motion/renderApply.ts` now applies provider-neutral `MotionRenderResult`
+objects to `MotionProject` records. Rendered MP4, poster, subtitle, transcript,
+and manifest receipts update the matching export target, while render graph
+output refs and provenance merge across separate export completions.
+
+- [x] **Step 4: Run focused test and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/renderApply.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/motion/renderApply.ts lib/motion/renderApply.test.ts lib/motion/project.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: apply motion render results"
 ```
 
 ## Self-Review Checklist
