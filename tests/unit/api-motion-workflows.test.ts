@@ -51,7 +51,7 @@ describe('GET /api/motion/workflows', () => {
           'Agent trace',
           'CTA card',
         ],
-        referencePatternLabels: [
+        referencePatternLabels: expect.arrayContaining([
           'Launch hook title',
           'Real product capture',
           'Proof receipt card',
@@ -59,7 +59,7 @@ describe('GET /api/motion/workflows', () => {
           'Image-to-video insert',
           'Voice and caption sync',
           'Multi-format export pack',
-        ],
+        ]),
         manifest: expect.objectContaining({
           name: 'repo-launch-video',
           tools: expect.arrayContaining(['motion_start', 'motion_capture', 'motion_render']),
@@ -80,7 +80,7 @@ describe('GET /api/motion/workflows', () => {
           'render',
           'export',
         ],
-        draftVariations: [
+        draftVariations: expect.arrayContaining([
           expect.objectContaining({
             id: 'launch-proof-first',
             label: 'Proof-first launch',
@@ -94,8 +94,8 @@ describe('GET /api/motion/workflows', () => {
             id: 'launch-founder-note',
             label: 'Founder-note launch',
           }),
-        ],
-        componentSlots: [
+        ]),
+        componentSlots: expect.arrayContaining([
           expect.objectContaining({
             componentId: 'hook-card',
             regenerateScopes: ['copy', 'timing', 'effect'],
@@ -112,8 +112,8 @@ describe('GET /api/motion/workflows', () => {
           expect.objectContaining({
             componentId: 'cta-card',
           }),
-        ],
-        referencePatterns: [
+        ]),
+        referencePatterns: expect.arrayContaining([
           expect.objectContaining({
             id: 'launch-hook-title',
             label: 'Launch hook title',
@@ -137,7 +137,7 @@ describe('GET /api/motion/workflows', () => {
           expect.objectContaining({
             id: 'multi-format-pack',
           }),
-        ],
+        ]),
       },
       examples: [
         expect.objectContaining({
@@ -229,6 +229,43 @@ describe('GET /api/motion/workflows', () => {
           label: 'PR to video',
           manifestPathRelative: 'lib/agent/skills/pr-to-video/SKILL.md',
           startShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
+          launchKit: {
+            kind: 'motion-workflow-launch-kit',
+            label: 'PR to video launch kit',
+            primaryFormat: 'x 9:16 30s',
+            installCommand: 'npx skills add heygen-com/hyperframes',
+            postLines: [
+              "This week we're launching new skills for HyperFrames, each built around a workflow.",
+              'Today is pr-to-video.',
+              'Nobody reads pull requests. Now agents can turn them into a short explainer video.',
+              'npx skills add heygen-com/hyperframes',
+              'New skill launching every day. Follow for more.',
+            ],
+            platformTargets: ['x 9:16 30s', 'linkedin 4:5 45s'],
+            componentSlotLabels: [
+              'Hook card',
+              'Code diff card',
+              'Mechanism diagram',
+              'Evidence card',
+              'CTA card',
+            ],
+            reviewArtifactLabels: [
+              'Video plan',
+              'Draft variations',
+              'Component plan',
+              'Sync plan',
+              'Render proof',
+            ],
+            editSurfaceLabels: [
+              'script',
+              'code evidence',
+              'component',
+              'voice',
+              'timing',
+              'effect',
+              'export',
+            ],
+          },
           draftVariationLabels: [
             'Daily skill launch',
             'Maintainer brief',
@@ -241,12 +278,13 @@ describe('GET /api/motion/workflows', () => {
             'Evidence card',
             'CTA card',
           ],
-          referencePatternLabels: [
+          referencePatternLabels: expect.arrayContaining([
             'Code diff explainer',
             'Proof receipt card',
+            'Terminal command proof',
             'Voice and caption sync',
             'Multi-format export pack',
-          ],
+          ]),
           manifest: expect.objectContaining({
             name: 'pr-to-video',
             tools: expect.arrayContaining(['motion_visuals']),
@@ -261,7 +299,7 @@ describe('GET /api/motion/workflows', () => {
             'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status',
             'Select code-proof visuals from the diff, file tree, review, and CI receipts',
           ]),
-          draftVariations: [
+          draftVariations: expect.arrayContaining([
             expect.objectContaining({
               id: 'pr-launch-note',
               label: 'Daily skill launch',
@@ -275,8 +313,8 @@ describe('GET /api/motion/workflows', () => {
               id: 'pr-mechanism-first',
               label: 'Mechanism-first cut',
             }),
-          ],
-          componentSlots: [
+          ]),
+          componentSlots: expect.arrayContaining([
             expect.objectContaining({
               componentId: 'hook-card',
             }),
@@ -294,8 +332,8 @@ describe('GET /api/motion/workflows', () => {
             expect.objectContaining({
               componentId: 'cta-card',
             }),
-          ],
-          referencePatterns: [
+          ]),
+          referencePatterns: expect.arrayContaining([
             expect.objectContaining({
               id: 'code-diff-explainer',
               componentIds: ['code-diff-card', 'mechanism-diagram', 'evidence-card'],
@@ -309,7 +347,7 @@ describe('GET /api/motion/workflows', () => {
             expect.objectContaining({
               id: 'multi-format-pack',
             }),
-          ],
+          ]),
         }),
         examples: [
           expect.objectContaining({

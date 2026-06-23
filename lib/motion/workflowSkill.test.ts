@@ -71,6 +71,43 @@ describe('motion workflow skill drafts', () => {
         'Code diff card: code',
         'Mechanism diagram: diagram',
       ]),
+      launchKit: {
+        kind: 'motion-workflow-launch-kit',
+        label: 'PR to video launch kit',
+        primaryFormat: 'x 9:16 30s',
+        installCommand: 'npx skills add heygen-com/hyperframes',
+        postLines: [
+          "This week we're launching new skills for HyperFrames, each built around a workflow.",
+          'Today is pr-to-video.',
+          'Nobody reads pull requests. Now agents can turn them into a short explainer video.',
+          'npx skills add heygen-com/hyperframes',
+          'New skill launching every day. Follow for more.',
+        ],
+        platformTargets: ['x 9:16 30s', 'linkedin 4:5 45s'],
+        componentSlotLabels: [
+          'Hook card',
+          'Code diff card',
+          'Mechanism diagram',
+          'Evidence card',
+          'CTA card',
+        ],
+        reviewArtifactLabels: [
+          'Video plan',
+          'Draft variations',
+          'Component plan',
+          'Sync plan',
+          'Render proof',
+        ],
+        editSurfaceLabels: [
+          'script',
+          'code evidence',
+          'component',
+          'voice',
+          'timing',
+          'effect',
+          'export',
+        ],
+      },
       recipe: expect.objectContaining({
         slug: 'pr-to-video',
         generationLanes: ['code-change', 'visual-search', 'voice', 'sync', 'render', 'export'],
@@ -117,6 +154,9 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('## Agent Tasks');
     expect(plan.skillDraft.manifest.instructions).toContain('## Draft Variations');
     expect(plan.skillDraft.manifest.instructions).toContain('Daily skill launch');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Launch Kit');
+    expect(plan.skillDraft.manifest.instructions).toContain('x 9:16 30s');
+    expect(plan.skillDraft.manifest.instructions).toContain('Today is pr-to-video.');
     expect(plan.skillDraft.manifest.instructions).toContain('## Component Regeneration');
     expect(plan.skillDraft.manifest.instructions).toContain('Code diff card');
     expect(plan.skillDraft.manifest.instructions).toContain('Regenerate: code, proof, timing');

@@ -808,6 +808,36 @@ function MotionWorkflowSkillStrip({
           ) : null}
         </div>
       </div>
+      <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            launch kit
+          </div>
+          <div className="mt-1 font-caption text-xs text-ink">{draft.launchKit.label}</div>
+          {draft.launchKit.postLines[0] ? (
+            <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {draft.launchKit.postLines[0]}
+            </div>
+          ) : null}
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">
+            {draft.launchKit.installCommand ?? draft.launchKit.primaryFormat ?? 'format draft'}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {(draft.launchKit.platformTargets.length > 0
+              ? draft.launchKit.platformTargets
+              : draft.launchKit.reviewArtifactLabels
+            )
+              .slice(0, 4)
+              .map((label) => (
+                <Chip key={label} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

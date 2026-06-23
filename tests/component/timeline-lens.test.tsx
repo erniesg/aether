@@ -791,6 +791,17 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
   toolNames: ['motion_start', 'motion_capture', 'motion_render', 'motion_export_pack'],
   verificationLabels: ['contact sheet', 'mp4 probe', 'poster', 'subtitles'],
   sampleCopyLines: ['Point Aether at the repo.'],
+  launchKit: {
+    kind: 'motion-workflow-launch-kit',
+    label: 'Repo launch video launch kit',
+    primaryFormat: 'x 9:16 30s',
+    installCommand: null,
+    postLines: ['Point Aether at the repo.'],
+    platformTargets: ['x 9:16 30s', 'linkedin 4:5 45s'],
+    componentSlotLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
+    reviewArtifactLabels: ['Video plan', 'Draft variations', 'Render proof'],
+    editSurfaceLabels: ['script', 'capture', 'visual', 'image to video', 'component', 'voice'],
+  },
 };
 
 const graphNodes: MotionGraphNode[] = [
@@ -914,7 +925,7 @@ describe('TimelineLens', () => {
     );
 
     expect(screen.getByText('aether launch video')).toBeInTheDocument();
-    expect(screen.getByText('x 9:16 30s')).toBeInTheDocument();
+    expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
     expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
     expect(screen.getByText('Demo-first cut')).toBeInTheDocument();
     expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);
@@ -924,6 +935,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText('3 variations')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video skill for editable, provenance-rich motion videos.')).toBeInTheDocument();
     expect(screen.getByText(/Create a repo launch video from repo/)).toBeInTheDocument();
+    expect(screen.getByText('launch kit')).toBeInTheDocument();
+    expect(screen.getByText('Repo launch video launch kit')).toBeInTheDocument();
+    expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Point Aether at the repo.').length).toBeGreaterThan(0);
     expect(screen.getByText('Proof-first launch')).toBeInTheDocument();
     expect(screen.getByText('Founder-note launch')).toBeInTheDocument();
     expect(screen.getByText('repoPath / repoUrl / siteUrl / sourceRefs')).toBeInTheDocument();

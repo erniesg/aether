@@ -52,6 +52,19 @@ export interface MotionWorkflowSkillDraft {
   toolNames: string[];
   verificationLabels: string[];
   sampleCopyLines: string[];
+  launchKit: MotionWorkflowLaunchKit;
+}
+
+export interface MotionWorkflowLaunchKit {
+  kind: 'motion-workflow-launch-kit';
+  label: string;
+  primaryFormat: string | null;
+  installCommand: string | null;
+  postLines: string[];
+  platformTargets: string[];
+  componentSlotLabels: string[];
+  reviewArtifactLabels: string[];
+  editSurfaceLabels: string[];
 }
 
 const ROUTE_TOOL_NAMES: Record<string, string> = {
@@ -83,6 +96,12 @@ export function buildMotionWorkflowSkillDraft(
       slot.regenerateScopes.map((scope) => `${slot.label}: ${scope}`)
     ) ?? []),
   ]);
+  const launchKit = buildLaunchKit({
+    plan,
+    examples,
+    recipe,
+    sampleCopyLines,
+  });
   const manifest: SkillManifest = {
     name: safeSkillName(plan.workflowId),
     version: 1,
@@ -98,6 +117,7 @@ export function buildMotionWorkflowSkillDraft(
       regenerationLabels,
       verificationLabels,
       sampleCopyLines,
+      launchKit,
     }),
   };
 
@@ -119,6 +139,39 @@ export function buildMotionWorkflowSkillDraft(
     toolNames,
     verificationLabels,
     sampleCopyLines,
+    launchKit,
+  };
+}
+
+function buildLaunchKit({
+  plan,
+  examples,
+  recipe,
+  sampleCopyLines,
+}: {
+  plan: MotionWorkflowSkillPlanInput;
+  examples: MotionWorkflowExample[];
+  recipe: MotionWorkflowSkillRecipe | null;
+  sampleCopyLines: string[];
+}): MotionWorkflowLaunchKit {
+  const platformTargets = uniqueStrings(examples.flatMap((example) => example.platformTargets));
+  const editSurfaceLabels = uniqueStrings(
+    examples.flatMap((example) => example.editSurfaces.map(readableLabel))
+  );
+  const reviewArtifactLabels = recipe?.reviewSurfaces.length
+    ? recipe.reviewSurfaces.map((surface) => surface.label)
+    : plan.skillContract?.reviewArtifacts.map((artifact) => titleCase(labelReviewArtifact(artifact))) ?? [];
+
+  return {
+    kind: 'motion-workflow-launch-kit',
+    label: `${plan.label} launch kit`,
+    primaryFormat: platformTargets[0] ?? null,
+    installCommand: sampleCopyLines.find((line) => /^npx\s+/i.test(line.trim())) ?? null,
+    postLines: sampleCopyLines,
+    platformTargets,
+    componentSlotLabels: recipe?.componentSlots.map((slot) => slot.label) ?? [],
+    reviewArtifactLabels,
+    editSurfaceLabels,
   };
 }
 
@@ -186,6 +239,7 @@ function buildSkillInstructions({
   regenerationLabels,
   verificationLabels,
   sampleCopyLines,
+  launchKit,
 }: {
   plan: MotionWorkflowSkillPlanInput;
   toolNames: string[];
@@ -195,6 +249,7 @@ function buildSkillInstructions({
   regenerationLabels: string[];
   verificationLabels: string[];
   sampleCopyLines: string[];
+  launchKit: MotionWorkflowLaunchKit;
 }): string {
   return [
     `# ${plan.label}`,
@@ -246,6 +301,14 @@ function buildSkillInstructions({
         `- ${variation.label}: ${variation.angle} Review: ${variation.reviewPrompt}`
     ) ?? []),
     recipe ? '' : '',
+    '## Launch Kit',
+    '',
+    `Primary format: ${launchKit.primaryFormat ?? 'choose format'}.`,
+    launchKit.installCommand ? `Install command: ${launchKit.installCommand}.` : '',
+    `Launch copy: ${formatList(launchKit.postLines)}.`,
+    `Launch components: ${formatList(launchKit.componentSlotLabels)}.`,
+    `Review artifacts: ${formatList(launchKit.reviewArtifactLabels)}.`,
+    '',
     recipe ? '## Component Regeneration' : '',
     ...(recipe?.componentSlots.map(
       (slot) =>
@@ -328,6 +391,14 @@ function labelRegenerationTarget(target: WorkflowRegenerationTarget): string {
 
 function labelVerificationArtifact(artifact: WorkflowVerificationArtifact): string {
   return artifact.replace(/-/g, ' ');
+}
+
+function readableLabel(value: string): string {
+  return value.replace(/[-_]/g, ' ');
+}
+
+function titleCase(value: string): string {
+  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function researchSignalLabelsFor(recipe: MotionWorkflowSkillRecipe): string[] {
