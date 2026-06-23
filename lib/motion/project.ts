@@ -1,6 +1,9 @@
 export const DEFAULT_MOTION_FPS = 30;
+export const DEFAULT_MOTION_WORKFLOW_MODE = 'review' satisfies MotionWorkflowMode;
 
 export type MotionProjectKind = 'launch' | 'feature' | 'demo' | 'social' | 'case-study';
+export type MotionWorkflowMode = 'review' | 'full-auto';
+export type MotionDraftStatus = 'planned' | 'generating' | 'ready' | 'approved' | 'rejected';
 export type MotionBeatRole = 'hook' | 'problem' | 'proof' | 'demo' | 'payoff' | 'cta';
 export type MotionAspectRatio = '16:9' | '9:16' | '1:1' | '4:5';
 export type MotionPlatform =
@@ -102,6 +105,16 @@ export interface TimelineTrack {
   clips: TimelineClip[];
 }
 
+export interface MotionDraft {
+  id: string;
+  label: string;
+  angle: string;
+  status: MotionDraftStatus;
+  story: StoryBeat[];
+  tracks: TimelineTrack[];
+  provenance: MotionProvenanceRef[];
+}
+
 export interface MotionGraphNode {
   id: string;
   kind:
@@ -140,6 +153,9 @@ export interface MotionProject {
   sourceRefs: MotionProvenanceRef[];
   brief: MotionBriefV2;
   story: StoryBeat[];
+  workflowMode: MotionWorkflowMode;
+  currentDraftId: string;
+  drafts: MotionDraft[];
   tracks: TimelineTrack[];
   graphNodes: MotionGraphNode[];
   exports: MotionExport[];

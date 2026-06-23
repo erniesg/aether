@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MOTION_FPS,
+  DEFAULT_MOTION_WORKFLOW_MODE,
   motionFrames,
   motionSeconds,
+  type MotionDraft,
   type MotionProject,
 } from './project';
 
 describe('motion project primitives', () => {
   it('uses deterministic frame math at the default fps', () => {
     expect(DEFAULT_MOTION_FPS).toBe(30);
+    expect(DEFAULT_MOTION_WORKFLOW_MODE).toBe('review');
     expect(motionFrames(1.5)).toBe(45);
     expect(motionSeconds(45)).toBe(1.5);
   });
@@ -52,6 +55,28 @@ describe('motion project primitives', () => {
           provenance: [{ kind: 'repo', ref: 'package.json#description' }],
         },
       ],
+      workflowMode: 'review',
+      currentDraftId: 'draft-primary',
+      drafts: [
+        {
+          id: 'draft-primary',
+          label: 'Primary launch cut',
+          angle: 'balanced launch story',
+          status: 'planned',
+          story: [
+            {
+              id: 'beat-hook',
+              role: 'hook',
+              narration: 'Turn a repo into a launch video.',
+              targetSeconds: 3,
+              selectedAssetIds: [],
+              provenance: [{ kind: 'repo', ref: 'package.json#description' }],
+            },
+          ],
+          tracks: [],
+          provenance: [{ kind: 'story-beat', ref: 'beat-hook' }],
+        },
+      ],
       tracks: [
         {
           id: 'track-text',
@@ -87,5 +112,31 @@ describe('motion project primitives', () => {
     expect(project.story[0].provenance[0].kind).toBe('repo');
     expect(project.tracks[0].clips[0].provenance[0].kind).toBe('story-beat');
     expect(project.exports[0].provenance[0].kind).toBe('timeline');
+  });
+
+  it('models reviewable draft variations before render work starts', () => {
+    const draft: MotionDraft = {
+      id: 'draft-demo-first',
+      label: 'Demo-first cut',
+      angle: 'show the product flow before the proof cards',
+      status: 'planned',
+      story: [
+        {
+          id: 'beat-demo',
+          role: 'demo',
+          narration: 'Show the app flow first.',
+          targetSeconds: 8,
+          selectedAssetIds: ['capture-home'],
+          templateId: 'app-frame',
+          provenance: [{ kind: 'repo', ref: 'README.md#demo' }],
+        },
+      ],
+      tracks: [],
+      provenance: [{ kind: 'story-beat', ref: 'beat-demo' }],
+    };
+
+    expect(draft.status).toBe('planned');
+    expect(draft.story[0].templateId).toBe('app-frame');
+    expect(draft.provenance[0].kind).toBe('story-beat');
   });
 });

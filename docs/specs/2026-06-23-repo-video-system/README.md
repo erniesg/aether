@@ -137,12 +137,23 @@ These are the reusable blocks the research suggests aether will need.
   references, brand tokens, product facts, competitor videos, social examples.
 - Canvas, making substrate: motion project card, video poster, storyboard beat
   cards, captured clips, generated B-roll, export pack previews.
+- Video plan lens, output taxonomy: a creator-readable plan with story beats,
+  selected components, rough timings, voice/caption plan, needed captures, and
+  receipt coverage before any expensive generation.
+- Draft variations, output taxonomy: primary, proof-first, and demo-first cuts
+  that can be promoted, edited, or regenerated before render.
 - Timeline lens, tool taxonomy: tracks and clips for script, screen, B-roll,
   text, captions, voice, music, effects, transitions, and exports.
 - Right rail, output/metadata taxonomy: selected clip settings, provenance,
   render states, export pack, and debug drawer under `?debug=1`.
 - Bottom composer: scoped commands such as "make this a 30s X launch video",
   "replace scene 3 with the paillette search flow", or "tighten captions".
+- Mode control: review mode pauses at plan, draft, capture, voice, timeline, and
+  export gates; full-auto mode advances through those same gates but still saves
+  every draft, receipt, component choice, and scoped regeneration point.
+- Regeneration control: regenerate a selected beat, clip, component, proof card,
+  caption pass, or effect. Whole-video regeneration is available only as an
+  explicit reset, not the default iteration move.
 
 ### Agent-facing capability stack
 
@@ -173,11 +184,24 @@ type MotionProject = {
   sourceRefs: ProvenanceRef[];
   brief: MotionBriefV2;
   story: StoryBeat[];
+  workflowMode: 'review' | 'full-auto';
+  currentDraftId: string;
+  drafts: MotionDraft[];
   tracks: TimelineTrack[];
   graphNodes: MotionGraphNode[];
   exports: MotionExport[];
   createdAt: number;
   updatedAt: number;
+};
+
+type MotionDraft = {
+  id: string;
+  label: string;
+  angle: string;
+  status: 'planned' | 'generating' | 'ready' | 'approved' | 'rejected';
+  story: StoryBeat[];
+  tracks: TimelineTrack[];
+  provenance: ProvenanceRef[];
 };
 
 type MotionBriefV2 = {

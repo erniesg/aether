@@ -1,17 +1,21 @@
 import type {
   AppProfile,
+  MotionDraft,
   MotionBriefV2,
   MotionClaimReceipt,
   MotionPlatformTarget,
   MotionProject,
   MotionProjectKind,
+  MotionWorkflowMode,
   StoryBeat,
 } from './project';
+import { DEFAULT_MOTION_WORKFLOW_MODE } from './project';
 
 export interface BuildRepoLaunchMotionProjectInput {
   id: string;
   workspaceId: string;
   projectKind: MotionProjectKind;
+  workflowMode?: MotionWorkflowMode;
   audience: string;
   tone: string;
   appProfile: AppProfile;
@@ -25,6 +29,60 @@ const DEFAULT_BRAND_MOTION = {
   fontFamilies: ['IBM Plex Mono'],
   motionStyle: 'technical editorial',
 };
+
+function pickStory(story: StoryBeat[], beatIds: string[]): StoryBeat[] {
+  const beatsById = new Map(story.map((beat) => [beat.id, beat]));
+  return beatIds.flatMap((id) => {
+    const beat = beatsById.get(id);
+    return beat ? [beat] : [];
+  });
+}
+
+function buildDrafts(story: StoryBeat[]): MotionDraft[] {
+  return [
+    {
+      id: 'draft-primary',
+      label: 'Primary launch cut',
+      angle: 'balanced hook, problem, proof, demo, payoff, and call to action',
+      status: 'planned',
+      story,
+      tracks: [],
+      provenance: [{ kind: 'story-beat', ref: story[0]?.id ?? 'story' }],
+    },
+    {
+      id: 'draft-proof-first',
+      label: 'Proof-first cut',
+      angle: 'lead with receipts and move quickly into the product flow',
+      status: 'planned',
+      story: pickStory(story, [
+        'beat-hook',
+        'beat-proof',
+        'beat-demo',
+        'beat-payoff',
+        'beat-problem',
+        'beat-cta',
+      ]),
+      tracks: [],
+      provenance: [{ kind: 'story-beat', ref: 'beat-proof' }],
+    },
+    {
+      id: 'draft-demo-first',
+      label: 'Demo-first cut',
+      angle: 'show the product surface early, then back it with proof',
+      status: 'planned',
+      story: pickStory(story, [
+        'beat-hook',
+        'beat-demo',
+        'beat-proof',
+        'beat-payoff',
+        'beat-problem',
+        'beat-cta',
+      ]),
+      tracks: [],
+      provenance: [{ kind: 'story-beat', ref: 'beat-demo' }],
+    },
+  ];
+}
 
 export function buildRepoLaunchMotionProject(
   input: BuildRepoLaunchMotionProjectInput
@@ -102,6 +160,7 @@ export function buildRepoLaunchMotionProject(
       provenance: sourceRefs,
     },
   ];
+  const drafts = buildDrafts(story);
 
   return {
     id: input.id,
@@ -110,6 +169,9 @@ export function buildRepoLaunchMotionProject(
     sourceRefs,
     brief,
     story,
+    workflowMode: input.workflowMode ?? DEFAULT_MOTION_WORKFLOW_MODE,
+    currentDraftId: drafts[0].id,
+    drafts,
     tracks: [],
     graphNodes: [
       {
