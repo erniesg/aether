@@ -1,6 +1,7 @@
 import {
   DEFAULT_MOTION_FPS,
   motionFrames,
+  type MotionGraphNode,
   type MotionProject,
   type StoryBeat,
   type TimelineClip,
@@ -11,6 +12,10 @@ export interface CompileStoryToTimelineOptions {
   draftId?: string;
   fps?: number;
   transitionSeconds?: number;
+}
+
+export interface MaterializeMotionTimelineOptions extends CompileStoryToTimelineOptions {
+  updatedAt?: number;
 }
 
 function selectStory(project: MotionProject, draftId?: string): StoryBeat[] {
@@ -102,4 +107,35 @@ export function compileStoryToTimeline(
     { id: 'track-voice', kind: 'voice', clips: voiceClips },
     { id: 'track-transition', kind: 'transition', clips: transitionClips },
   ];
+}
+
+export function materializeMotionTimeline(
+  project: MotionProject,
+  options: MaterializeMotionTimelineOptions = {}
+): MotionProject {
+  const selectedDraftId = options.draftId ?? project.currentDraftId;
+  const story = selectStory(project, options.draftId);
+  const tracks = compileStoryToTimeline(project, options);
+  const syncNode: MotionGraphNode = {
+    id: 'node-sync-timeline',
+    kind: 'sync',
+    inputRefs: story.map((beat) => beat.id),
+    outputRefs: tracks.map((track) => track.id),
+    status: 'done',
+    provenance: tracks.map((track) => ({ kind: 'timeline', ref: track.id })),
+  };
+
+  return {
+    ...project,
+    currentDraftId: selectedDraftId,
+    tracks,
+    drafts: project.drafts.map((draft) =>
+      draft.id === selectedDraftId ? { ...draft, status: 'ready', tracks } : draft
+    ),
+    graphNodes: [
+      ...project.graphNodes.filter((node) => node.id !== syncNode.id),
+      syncNode,
+    ],
+    updatedAt: options.updatedAt ?? project.updatedAt,
+  };
 }

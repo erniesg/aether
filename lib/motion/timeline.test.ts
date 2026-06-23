@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getMotionComponent } from './componentRegistry';
 import { buildRepoLaunchMotionProject } from './storyboard';
-import { compileStoryToTimeline } from './timeline';
+import { compileStoryToTimeline, materializeMotionTimeline } from './timeline';
 
 function project() {
   return buildRepoLaunchMotionProject({
@@ -70,5 +70,45 @@ describe('compileStoryToTimeline', () => {
     expect(clips.every((clip) => clip.componentId && getMotionComponent(clip.componentId))).toBe(
       true
     );
+  });
+
+  it('materializes the selected draft into editable project tracks', () => {
+    const baseProject = project();
+    const materialized = materializeMotionTimeline(baseProject, {
+      draftId: 'draft-proof-first',
+      updatedAt: 22,
+    });
+    const selectedDraft = materialized.drafts.find((draft) => draft.id === 'draft-proof-first');
+    const untouchedDraft = materialized.drafts.find((draft) => draft.id === 'draft-demo-first');
+
+    expect(materialized).not.toBe(baseProject);
+    expect(baseProject.tracks).toEqual([]);
+    expect(materialized.currentDraftId).toBe('draft-proof-first');
+    expect(materialized.tracks.map((track) => track.id)).toEqual([
+      'track-text',
+      'track-caption',
+      'track-voice',
+      'track-transition',
+    ]);
+    expect(selectedDraft?.status).toBe('ready');
+    expect(selectedDraft?.tracks).toEqual(materialized.tracks);
+    expect(untouchedDraft?.tracks).toEqual([]);
+    expect(materialized.updatedAt).toBe(22);
+  });
+
+  it('records timeline sync provenance in the motion graph', () => {
+    const materialized = materializeMotionTimeline(project(), { draftId: 'draft-demo-first' });
+    const syncNode = materialized.graphNodes.find((node) => node.id === 'node-sync-timeline');
+
+    expect(syncNode?.kind).toBe('sync');
+    expect(syncNode?.status).toBe('done');
+    expect(syncNode?.inputRefs.slice(0, 3)).toEqual(['beat-hook', 'beat-demo', 'beat-proof']);
+    expect(syncNode?.outputRefs).toEqual([
+      'track-text',
+      'track-caption',
+      'track-voice',
+      'track-transition',
+    ]);
+    expect(syncNode?.provenance.map((ref) => ref.kind)).toContain('timeline');
   });
 });
