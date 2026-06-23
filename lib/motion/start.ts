@@ -13,6 +13,7 @@ import {
   type BuildRepoMotionProjectFromUrlOptions,
   type RepoMotionProjectKind,
 } from './repoMotion';
+import type { BuildLocalRepoMotionProjectFromPathOptions } from './localRepoMotion';
 import { buildSiteMotionProjectFromUrl } from './siteMotion';
 import { materializeMotionTimeline } from './timeline';
 import type {
@@ -74,7 +75,8 @@ export interface StartAgentMotionWorkflowInput {
 
 export interface StartAgentMotionWorkflowOptions
   extends BuildRepoMotionProjectFromUrlOptions,
-    BuildPrMotionProjectFromSourceOptions {}
+    BuildPrMotionProjectFromSourceOptions,
+    BuildLocalRepoMotionProjectFromPathOptions {}
 
 export interface AgentMotionStartResult {
   status: AgentMotionStartStatus;
@@ -124,22 +126,23 @@ export async function startAgentMotionWorkflow(
   ) {
     const repoSource = findSource(input.sourceRefs, 'repo');
     if (repoSource) {
-      const project = await buildRepoMotionProjectFromUrl(
-        {
-          id: input.id,
-          workspaceId: input.workspaceId,
-          repoUrl: repoSource.ref,
-          projectKind: projectKindFor(input),
-          workflowMode: input.mode,
-          audience: input.audience,
-          tone: input.tone,
-          platformTargets: input.platformTargets,
-          materializeTimeline: true,
-          createdAt: input.createdAt,
-        },
-        options
-      );
-
+      const project = isLocalRepoRef(repoSource.ref)
+        ? await buildLocalRepoStartProject(input, repoSource, options)
+        : await buildRepoMotionProjectFromUrl(
+            {
+              id: input.id,
+              workspaceId: input.workspaceId,
+              repoUrl: repoSource.ref,
+              projectKind: projectKindFor(input),
+              workflowMode: input.mode,
+              audience: input.audience,
+              tone: input.tone,
+              platformTargets: input.platformTargets,
+              materializeTimeline: true,
+              createdAt: input.createdAt,
+            },
+            options
+          );
       return readyResult(workflow, project);
     }
 
@@ -294,12 +297,47 @@ async function buildSiteStartProject(
   );
 }
 
+async function buildLocalRepoStartProject(
+  input: StartAgentMotionWorkflowInput,
+  repoSource: MotionWorkflowPlanSourceRef,
+  options: StartAgentMotionWorkflowOptions
+): Promise<MotionProject> {
+  const { buildLocalRepoMotionProjectFromPath } = await import('./localRepoMotion');
+  return await buildLocalRepoMotionProjectFromPath(
+    {
+      id: input.id,
+      workspaceId: input.workspaceId,
+      repoPath: repoSource.ref,
+      projectKind: projectKindFor(input),
+      workflowMode: input.mode,
+      audience: input.audience,
+      tone: input.tone,
+      platformTargets: input.platformTargets,
+      materializeTimeline: true,
+      createdAt: input.createdAt,
+    },
+    options
+  );
+}
+
 function projectKindFor(input: StartAgentMotionWorkflowInput): RepoMotionProjectKind {
   if (input.intent === 'feature' || input.intent === 'social' || input.intent === 'demo') {
     return input.intent;
   }
 
   return 'launch';
+}
+
+function isLocalRepoRef(ref: string): boolean {
+  const trimmed = ref.trim();
+  return (
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('./') ||
+    trimmed.startsWith('../') ||
+    trimmed.startsWith('~/') ||
+    trimmed.startsWith('file://') ||
+    /^[a-zA-Z]:[\\/]/.test(trimmed)
+  );
 }
 
 function findSource(

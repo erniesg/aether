@@ -3105,6 +3105,66 @@ git add lib/motion/prMotion.ts lib/motion/prMotion.test.ts lib/motion/start.ts l
 git commit -m "feat: start pr motion projects from code change evidence"
 ```
 
+## Task 30: Local Repo Motion Starts
+
+**Files:**
+- Create: `lib/research/local-repo-facts.ts`
+- Create: `lib/research/local-repo-facts.test.ts`
+- Create: `lib/motion/localRepoMotion.ts`
+- Create: `lib/motion/localRepoMotion.test.ts`
+- Modify: `lib/motion/start.ts`
+- Modify: `lib/motion/start.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing local repo tests**
+
+The tests cover:
+
+- extracting app profile facts from a local filesystem repo without network
+  access;
+- building an editable repo-launch `MotionProject` from a local path;
+- routing a `sourceRefs.kind = repo` local path through
+  `startAgentMotionWorkflow` without calling the GitHub repo fetcher.
+
+- [x] **Step 2: Implement local repo fact extraction**
+
+`lib/research/local-repo-facts.ts` now normalizes absolute, relative, `~/`, and
+`file://` repo refs, reads package and README signals, walks source files while
+ignoring generated dependency/build folders, and emits sourced claims,
+languages, stack highlights, dependencies, and scripts.
+
+- [x] **Step 3: Implement local repo motion starts**
+
+`lib/motion/localRepoMotion.ts` reuses the existing repo launch motion builder
+with local facts, so local apps like aether, Tong, Paillette, or Accrue can
+start from the same editable story beats, timeline tracks, graph nodes,
+review-plan slots, and full-auto gates as GitHub repo URLs.
+
+- [x] **Step 4: Wire the agent workflow starter**
+
+`startAgentMotionWorkflow` now detects local repo refs before URL fetch,
+dynamically loads the local repo builder, and preserves the provider-agnostic
+repo URL path for provenance and review output.
+
+- [x] **Step 5: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/research/local-repo-facts.test.ts lib/motion/localRepoMotion.test.ts lib/motion/start.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 6: Commit**
+
+```bash
+git add lib/research/local-repo-facts.ts lib/research/local-repo-facts.test.ts lib/motion/localRepoMotion.ts lib/motion/localRepoMotion.test.ts lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: start motion projects from local repos"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

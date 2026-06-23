@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CodeChangeProvider } from '@/lib/providers/code-change/types';
 import { startAgentMotionWorkflow } from './start';
+
+const tempDirs: string[] = [];
 
 function githubJson(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -17,6 +22,10 @@ function githubText(body: string): Response {
 }
 
 describe('startAgentMotionWorkflow', () => {
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
   it('starts a repo launch as a routed workflow with an editable review plan', async () => {
     const fetcher = vi.fn<typeof fetch>(async (url) => {
       const href = String(url);
@@ -211,6 +220,78 @@ describe('startAgentMotionWorkflow', () => {
       result.reviewPlan?.componentSlots.some((slot) => slot.componentId === 'app-frame')
     ).toBe(true);
     expect(fetcher).toHaveBeenCalledWith('https://tong.app/tokyo');
+  });
+
+  it('starts a local repo path as an editable repo video plan', async () => {
+    const repoPath = await mkdtemp(join(tmpdir(), 'aether-start-local-'));
+    tempDirs.push(repoPath);
+    await mkdir(join(repoPath, 'src'), { recursive: true });
+    await writeFile(
+      join(repoPath, 'package.json'),
+      JSON.stringify({
+        name: 'tong',
+        description: 'City-specific language learning app.',
+        dependencies: {
+          next: '^15.0.0',
+          react: '^19.0.0',
+        },
+        devDependencies: {
+          typescript: '^5.0.0',
+        },
+      })
+    );
+    await writeFile(
+      join(repoPath, 'README.md'),
+      'Tong is a Next.js, React, and TypeScript language-learning app.'
+    );
+    await writeFile(join(repoPath, 'src', 'page.tsx'), 'export default function Page() {}');
+    const fetcher = vi.fn<typeof fetch>();
+
+    const result = await startAgentMotionWorkflow(
+      {
+        id: 'motion-tong-launch',
+        workspaceId: 'demo-ws',
+        intent: 'launch',
+        mode: 'review',
+        sourceRefs: [{ kind: 'repo', ref: repoPath, label: 'Tong local repo' }],
+        audience: 'language learners',
+        tone: 'textural',
+        platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+        createdAt: 308,
+      },
+      { fetcher }
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      status: 'ready',
+      requestedInputs: [],
+      workflow: {
+        workflowId: 'repo-launch-video',
+        reason: 'repo source selected a launch workflow',
+      },
+      project: {
+        id: 'motion-tong-launch',
+        title: 'tong launch video',
+        brief: {
+          appProfile: {
+            name: 'tong',
+            repoUrl: repoPath,
+            summary: 'City-specific language learning app.',
+          },
+        },
+      },
+      reviewPlan: {
+        projectId: 'motion-tong-launch',
+        primaryAction: 'request-review',
+      },
+    });
+    expect(result.project?.tracks.map((track) => track.kind)).toEqual([
+      'text',
+      'caption',
+      'voice',
+      'transition',
+    ]);
   });
 
   it('starts a PR-to-video workflow when a code-change provider is available', async () => {

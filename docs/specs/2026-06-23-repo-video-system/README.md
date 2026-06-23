@@ -40,16 +40,18 @@ Clueso, and Descript.
   remains reserved for advanced provenance/generation editing.
 - `lib/motion/brief.ts`, `lib/motion/compile.ts`, and `scripts/render-motion.ts`
   already turn a narrow quote-based `MotionBrief` into a HyperFrames project.
-- `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`, `siteMotion.ts`,
-  `prMotion.ts`, `timeline.ts`, `componentRegistry.ts`, `reviewPlan.ts`,
+- `lib/motion/project.ts`, `storyboard.ts`, `repoMotion.ts`,
+  `localRepoMotion.ts`, `siteMotion.ts`, `prMotion.ts`, `timeline.ts`,
+  `componentRegistry.ts`, `reviewPlan.ts`,
   `workflowPlan.ts`, `workflowRouter.ts`, and `start.ts` now cover the first
   repo-to-motion-project slice: sourced claims, story beats, draft variations,
   timeline tracks, editable component slots, scoped regeneration requests,
   workflow routing, agent-readable workflow gates, and the start artifact an
-  agent can hand to the creator for review or full-auto progression. Repo and
-  site/app URL sources can now create editable project starts; PR sources can
-  create editable code-change explainer starts when a code-change provider is
-  configured. Real screen capture and recording remain provider execution work.
+  agent can hand to the creator for review or full-auto progression. GitHub repo
+  URLs, local repo paths, and site/app URL sources can now create editable
+  project starts; PR sources can create editable code-change explainer starts
+  when a code-change provider is configured. Real screen capture and recording
+  remain provider execution work.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, and computer-use fallback requests with explicit viewport,

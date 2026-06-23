@@ -9,6 +9,8 @@
 - Motion project primitives with frame math, workflow mode, drafts, timeline
   clips, exports, graph nodes, and provenance.
 - Repo facts to launch/feature/social/demo motion projects.
+- Local repo facts to launch/feature/social/demo motion projects from
+  filesystem paths.
 - GitHub PR/code-change evidence provider contract and GitHub CLI provider.
 - Motion component registry for hook, app frame, agent trace, proof, diff,
   mechanism, evidence, captions, voice lines, transitions, and CTA.
@@ -28,6 +30,9 @@
 - Agent motion workflow starter that turns a repo source into a routed workflow,
   materialized motion project, editable review plan, and explicit source/evidence
   requests when more material is needed.
+- Local repo motion starter that turns an absolute, relative, `~/`, or
+  `file://` repo ref into the same editable repo motion project without calling
+  GitHub.
 - PR motion starter that turns a GitHub PR URL or `owner/repo#number` ref into
   an editable code-change explainer project through a configured
   `CodeChangeProvider`, derives app profile facts from the PR repo, materializes
@@ -94,7 +99,8 @@
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts --pool=forks
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/research/local-repo-facts.test.ts lib/research/repo-facts.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts lib/providers/video/command-render.test.ts lib/providers/video/generation-registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/voice/registry.test.ts
