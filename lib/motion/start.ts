@@ -6,6 +6,7 @@ import {
   buildAgentMotionCapturePlan,
   type AgentMotionCapturePlan,
 } from './capturePlan';
+import { buildMotionPreviewPlan, type MotionPreviewPlan } from './previewPlan';
 import { buildMotionReviewPlan, type MotionReviewPlan } from './reviewPlan';
 import { buildCodeChangeMotionProject } from './storyboard';
 import {
@@ -83,6 +84,7 @@ export interface AgentMotionStartResult {
   workflow: RoutedAgentMotionWorkflow;
   project: MotionProject | null;
   reviewPlan: MotionReviewPlan | null;
+  previewPlan: MotionPreviewPlan | null;
   capturePlan: AgentMotionCapturePlan | null;
   requestedInputs: AgentMotionRequestedInput[];
 }
@@ -105,6 +107,7 @@ export async function startAgentMotionWorkflow(
       workflow,
       project: null,
       reviewPlan: null,
+      previewPlan: null,
       capturePlan: null,
       requestedInputs: [
         {
@@ -143,13 +146,13 @@ export async function startAgentMotionWorkflow(
             },
             options
           );
-      return readyResult(workflow, project);
+      return readyResult(workflow, project, input.createdAt);
     }
 
     const siteSource = findSource(input.sourceRefs, 'site');
     if (siteSource) {
       const project = await buildSiteStartProject(input, siteSource, options);
-      return readyResult(workflow, project);
+      return readyResult(workflow, project, input.createdAt);
     }
   }
 
@@ -157,7 +160,7 @@ export async function startAgentMotionWorkflow(
     const siteSource = findSource(input.sourceRefs, 'site');
     if (siteSource) {
       const project = await buildSiteStartProject(input, siteSource, options);
-      return readyResult(workflow, project);
+      return readyResult(workflow, project, input.createdAt);
     }
   }
 
@@ -166,6 +169,7 @@ export async function startAgentMotionWorkflow(
     workflow,
     project: null,
     reviewPlan: null,
+    previewPlan: null,
     capturePlan: null,
     requestedInputs: [
       {
@@ -207,7 +211,7 @@ async function startCodeChangeWorkflow(
         options
       );
 
-      return readyResult(workflow, project);
+      return readyResult(workflow, project, input.createdAt);
     } catch (error) {
       if (!(error instanceof CodeChangeProviderUnavailableError)) throw error;
       return needsCodeChangeEvidence(input, workflow, prSource);
@@ -230,7 +234,7 @@ async function startCodeChangeWorkflow(
     { updatedAt: input.createdAt }
   );
 
-  return readyResult(workflow, project);
+  return readyResult(workflow, project, input.createdAt);
 }
 
 function needsCodeChangeEvidence(
@@ -243,6 +247,7 @@ function needsCodeChangeEvidence(
     workflow,
     project: null,
     reviewPlan: null,
+    previewPlan: null,
     capturePlan: null,
     requestedInputs: [
       {
@@ -257,13 +262,18 @@ function needsCodeChangeEvidence(
 
 function readyResult(
   workflow: RoutedAgentMotionWorkflow,
-  project: MotionProject
+  project: MotionProject,
+  requestedAt: number
 ): AgentMotionStartResult {
   return {
     status: 'ready',
     workflow,
     project,
     reviewPlan: buildMotionReviewPlan(project),
+    previewPlan: buildMotionPreviewPlan(project, {
+      engines: workflow.plan.engines,
+      requestedAt,
+    }),
     capturePlan: capturePlanFor(project),
     requestedInputs: [],
   };

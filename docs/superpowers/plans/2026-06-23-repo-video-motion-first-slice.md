@@ -3165,6 +3165,60 @@ git add lib/research/local-repo-facts.ts lib/research/local-repo-facts.test.ts l
 git commit -m "feat: start motion projects from local repos"
 ```
 
+## Task 31: Motion Preview Plan Artifact
+
+**Files:**
+- Create: `lib/motion/previewPlan.ts`
+- Create: `lib/motion/previewPlan.test.ts`
+- Modify: `lib/motion/start.ts`
+- Modify: `lib/motion/start.test.ts`
+- Modify: `docs/specs/2026-06-23-repo-video-system/README.md`
+- Modify: `docs/specs/2026-06-23-repo-video-system/implementation-notes.md`
+
+- [x] **Step 1: Write failing preview/start tests**
+
+The tests cover:
+
+- a creator-facing preview plan that shows storyboard beats, draft variations,
+  editable timeline rows, and regeneration actions;
+- Remotion and HyperFrames source readiness summarized as entry/manifest file
+  descriptors without exposing raw source code in the preview artifact;
+- provider-backed generation showing an explicit adapter-required blocker;
+- ready `startAgentMotionWorkflow` results returning the preview plan beside
+  the existing review plan.
+
+- [x] **Step 2: Implement the preview plan builder**
+
+`lib/motion/previewPlan.ts` now builds a `MotionPreviewPlan` from an editable
+`MotionProject`: it reuses the review-plan data, summarizes timeline clips with
+component labels and edit/regenerate controls, creates per-scope regeneration
+action options, and builds render-source descriptors for Remotion and
+HyperFrames through the existing render-plan/source-bundle pipeline.
+
+- [x] **Step 3: Wire preview plans into workflow starts**
+
+`startAgentMotionWorkflow` now returns `previewPlan` for ready projects, using
+the routed workflow's engine list so review mode and full-auto starts can show
+the same storyboard, drafts, timeline, and render-readiness artifact.
+
+- [x] **Step 4: Run focused tests and typecheck**
+
+Run:
+
+```bash
+./node_modules/.bin/vitest run lib/motion/previewPlan.test.ts lib/motion/start.test.ts
+npm run typecheck
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add lib/motion/previewPlan.ts lib/motion/previewPlan.test.ts lib/motion/start.ts lib/motion/start.test.ts docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md docs/specs/2026-06-23-repo-video-system/README.md docs/specs/2026-06-23-repo-video-system/implementation-notes.md
+git commit -m "feat: add motion preview plans"
+```
+
 ## Self-Review Checklist
 
 - Spec coverage: The plan covers the first implementation slice from `README.md`, not the entire future product. Full video generation, real voice providers, engine dependency/project scaffolding, image-to-video provider execution, higher-fidelity visual component libraries, and multiformat export packs remain separate later slices.

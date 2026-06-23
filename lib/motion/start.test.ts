@@ -292,6 +292,15 @@ describe('startAgentMotionWorkflow', () => {
       'voice',
       'transition',
     ]);
+    expect(result.previewPlan).toMatchObject({
+      projectId: 'motion-tong-launch',
+      primaryAction: 'request-review',
+      enginePreviews: [
+        { engine: 'remotion', status: 'ready' },
+        { engine: 'hyperframes', status: 'ready' },
+        { engine: 'provider', status: 'provider-required' },
+      ],
+    });
   });
 
   it('starts a PR-to-video workflow when a code-change provider is available', async () => {

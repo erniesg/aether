@@ -18,6 +18,9 @@
   and linked format scopes.
 - Review-plan artifact for plan/draft review, full-auto action queues, editable
   component slots, and scoped regeneration requests.
+- Preview-plan artifact for the agent/UI to show storyboard beats, draft
+  options, editable timeline rows, regeneration actions, and Remotion/HyperFrames
+  source readiness without exposing raw source code in the creator-facing plan.
 - Timeline lens scaffold inside the single aether workspace shell.
 - Draft motion tool registry and reusable workflow entries for repo launch,
   feature/social, website/app capture, PR explainers, caption overlays, motion
@@ -28,8 +31,8 @@
 - Agent motion workflow router that picks the reusable workflow from intent and
   source refs, then returns the same review/full-auto plan.
 - Agent motion workflow starter that turns a repo source into a routed workflow,
-  materialized motion project, editable review plan, and explicit source/evidence
-  requests when more material is needed.
+  materialized motion project, editable review/preview plans, and explicit
+  source/evidence requests when more material is needed.
 - Local repo motion starter that turns an absolute, relative, `~/`, or
   `file://` repo ref into the same editable repo motion project without calling
   GitHub.
@@ -99,7 +102,7 @@
 
 ```bash
 ./node_modules/.bin/vitest run tests/unit/capability-registry.test.ts --pool=forks
-./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
+./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/start.test.ts
 ./node_modules/.bin/vitest run lib/research/local-repo-facts.test.ts lib/research/repo-facts.test.ts
 ./node_modules/.bin/vitest run lib/providers/capture/browser.test.ts lib/providers/capture/playwright.test.ts lib/providers/capture/registry.test.ts
 ./node_modules/.bin/vitest run lib/providers/video/render-registry.test.ts lib/providers/video/local-render.test.ts lib/providers/video/command-render.test.ts lib/providers/video/generation-registry.test.ts
