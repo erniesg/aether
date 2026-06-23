@@ -14,7 +14,7 @@ type ViewDef = {
 const VIEWS: ReadonlyArray<ViewDef> = [
   { id: 'canvas', label: 'canvas', live: true },
   { id: 'focus', label: 'focus', live: true },
-  { id: 'timeline', label: 'timeline', live: false },
+  { id: 'timeline', label: 'timeline', live: true },
   { id: 'graph', label: 'graph', live: false },
   { id: 'mood', label: 'mood', live: false },
   { id: 'chat', label: 'chat', live: false },
@@ -27,7 +27,7 @@ export interface ViewSwitcherProps {
 }
 
 /**
- * Lens toggle for the single synthesis shell. Six views, only canvas + focus
+ * Lens toggle for the single synthesis shell. Six views, canvas/focus/timeline
  * are live today — the rest carry a "soon" affordance so the architectural
  * promise is visible without blowing scope. No route splits; the switch is a
  * state change on the shell.

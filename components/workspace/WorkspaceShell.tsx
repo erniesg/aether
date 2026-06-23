@@ -20,6 +20,7 @@ import { SkillAcceptDialog } from '@/components/capability/SkillAcceptDialog';
 import type { SkillManifest, SkillRef } from '@/lib/agent/skills/types';
 import { PublishPreview } from '@/components/workspace/PublishPreview';
 import { SettingsPopover } from '@/components/workspace/SettingsPopover';
+import { TimelineLens } from '@/components/workspace/TimelineLens';
 import {
   useWorkspaceProviderPrefs,
   useSaveWorkspaceProviderPrefs,
@@ -90,6 +91,7 @@ import { useCreatorContext } from '@/lib/context/creator-store';
 import { setEyesClosedCapture } from '@/lib/voice/eyes-closed-store';
 import type { EyesClosedCaptureRequest } from '@/components/canvas/EyesClosedHandle';
 import type { SemanticCreativeComponent } from '@/lib/types/semantic-component';
+import type { TimelineTrack } from '@/lib/motion/project';
 import {
   AutoModeToggle,
   DEFAULT_AUTO_MODE_CONFIG,
@@ -385,6 +387,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const droppedVariationIndices = useRef<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
+  const [selectedTimelineClipId, setSelectedTimelineClipId] = useState<string | null>(null);
+  const motionTimelineTracks = useMemo<TimelineTrack[]>(() => [], []);
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2134,28 +2138,36 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       <div className="flex flex-1 overflow-hidden">
         <LeftRail workspaceId={wsId} />
-        <CanvasSubstrate
-          workspaceId={wsId}
-          composerRef={composerRef}
-          safeZonesVisible={safeZonesVisible}
-          onSafeZonesToggle={setSafeZonesVisible}
-          pinnedCapabilities={pinnedCapabilities}
-          onCapabilityPress={handleCapabilityPress}
-          onVerbPress={handleVerbPress}
-          onSpatializeFromSelection={async ({ prompt, format, quality }) => {
-            await runSpatialOnCanvas(prompt, {
-              formatOverride: format,
-              qualityOverride: quality,
-            });
-          }}
-          onVoiceGenerate={async (prompt, scope) => {
-            await handlePrompt(prompt, { scope });
-          }}
-          onMoodboardGenerate={async (prompt) => {
-            await handlePrompt(prompt, { scope: 'single' });
-          }}
-          onEyesClosedCapture={handleEyesClosedCapture}
-        />
+        {view === 'timeline' ? (
+          <TimelineLens
+            tracks={motionTimelineTracks}
+            selectedClipId={selectedTimelineClipId}
+            onSelectClip={setSelectedTimelineClipId}
+          />
+        ) : (
+          <CanvasSubstrate
+            workspaceId={wsId}
+            composerRef={composerRef}
+            safeZonesVisible={safeZonesVisible}
+            onSafeZonesToggle={setSafeZonesVisible}
+            pinnedCapabilities={pinnedCapabilities}
+            onCapabilityPress={handleCapabilityPress}
+            onVerbPress={handleVerbPress}
+            onSpatializeFromSelection={async ({ prompt, format, quality }) => {
+              await runSpatialOnCanvas(prompt, {
+                formatOverride: format,
+                qualityOverride: quality,
+              });
+            }}
+            onVoiceGenerate={async (prompt, scope) => {
+              await handlePrompt(prompt, { scope });
+            }}
+            onMoodboardGenerate={async (prompt) => {
+              await handlePrompt(prompt, { scope: 'single' });
+            }}
+            onEyesClosedCapture={handleEyesClosedCapture}
+          />
+        )}
         <RightRail
           onPin={handlePin}
           onExport={handleExport}

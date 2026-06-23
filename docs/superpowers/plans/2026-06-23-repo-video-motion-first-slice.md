@@ -1472,8 +1472,9 @@ git commit -m "feat: add github pr evidence provider"
 - Modify: `components/header/ViewSwitcher.tsx`
 - Modify: `tests/component/view-switcher.test.tsx`
 - Modify: `components/workspace/WorkspaceShell.tsx`
+- Modify: `tests/component/view-switcher.focus-mode.test.tsx`
 
-- [ ] **Step 1: Write the component test**
+- [x] **Step 1: Write the component test**
 
 ```tsx
 // tests/component/timeline-lens.test.tsx
@@ -1521,13 +1522,13 @@ describe('TimelineLens', () => {
 });
 ```
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
-Run: `npx vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx`
+Run: `./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx`
 
 Expected: FAIL because `TimelineLens` does not exist and the view switcher still disables timeline.
 
-- [ ] **Step 3: Add the scaffold**
+- [x] **Step 3: Add the scaffold**
 
 ```tsx
 // components/workspace/TimelineLens.tsx
@@ -1588,7 +1589,7 @@ export function TimelineLens({ tracks, selectedClipId, onSelectClip }: TimelineL
 }
 ```
 
-- [ ] **Step 4: Enable the timeline pill**
+- [x] **Step 4: Enable the timeline pill**
 
 Modify `components/header/ViewSwitcher.tsx` so the timeline view is live:
 
@@ -1606,7 +1607,7 @@ const VIEWS: ReadonlyArray<ViewDef> = [
 Update `tests/component/view-switcher.test.tsx` so only `graph`, `mood`, and
 `chat` remain disabled, and clicking `timeline` calls `onChangeView('timeline')`.
 
-- [ ] **Step 5: Wire the lens in `WorkspaceShell`**
+- [x] **Step 5: Wire the lens in `WorkspaceShell`**
 
 Add an import:
 
@@ -1633,16 +1634,16 @@ Render the scaffold in the existing shell layout wherever the focus/canvas view 
 ) : null}
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
-Run: `npx vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx`
+Run: `./node_modules/.bin/vitest run tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
-git add components/workspace/TimelineLens.tsx components/header/ViewSwitcher.tsx components/workspace/WorkspaceShell.tsx tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx
+git add components/workspace/TimelineLens.tsx components/header/ViewSwitcher.tsx components/workspace/WorkspaceShell.tsx tests/component/timeline-lens.test.tsx tests/component/view-switcher.test.tsx tests/component/view-switcher.focus-mode.test.tsx docs/superpowers/plans/2026-06-23-repo-video-motion-first-slice.md
 git commit -m "feat: scaffold motion timeline lens"
 ```
 

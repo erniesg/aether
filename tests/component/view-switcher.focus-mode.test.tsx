@@ -45,6 +45,16 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
   });
 
+  it('clicking the timeline pill opens the timeline lens inside the same shell', async () => {
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+
+    expect(screen.getByRole('region', { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
+  });
+
   it('the focus pill reports aria-current after a click, canvas after another click', async () => {
     renderShell();
 
