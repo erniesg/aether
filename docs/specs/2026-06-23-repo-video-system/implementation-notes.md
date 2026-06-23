@@ -22,6 +22,11 @@
   beats, draft options, editable timeline rows, regeneration actions, and
   Remotion/HyperFrames source readiness without exposing raw source code in the
   creator-facing plan.
+- Source-material profile artifact for repo/app starts: repo facts now produce
+  creator-facing stack/script/route signals, capture candidates, and storyboard
+  hints. Local repos with app scripts can produce local-app screenshot, DOM
+  snapshot, and screen-recording requests; GitHub repos with homepage URLs can
+  produce hosted capture candidates.
 - Timeline lens scaffold inside the single aether workspace shell, now able to
   render preview-plan video-plan scenes, story, drafts, editable component
   controls, scoped regeneration actions, engine readiness, and timeline rows
@@ -123,8 +128,9 @@
   motion project using extracted page claims, stack hints, timeline tracks, and
   review-plan component slots.
 - Agent capture planner that turns capture-first motion projects into
-  screenshot, DOM snapshot, interaction-trace, optional recording, and
-  computer-use fallback requests with viewport and provenance receipts.
+  screenshot, DOM snapshot, interaction-trace, optional recording, local-app
+  launch, and computer-use fallback requests with viewport, setup, and
+  provenance receipts.
 - Browser capture provider boundary that executes capture requests through an
   injected runner and normalizes screenshot, snapshot, trace, or recording
   receipts into typed capture artifacts without hardcoding a default provider.
@@ -229,4 +235,5 @@ export format.
 The current implementation has the data and workflow seams to ingest that
 corpus, but it does not yet include the corpus artifact, Remotion Player preview,
 real renderer dependency execution in the app process, configured voice
-providers, or app capture execution.
+providers, app launch/capture execution, or authenticated desktop/computer-use
+recording execution.

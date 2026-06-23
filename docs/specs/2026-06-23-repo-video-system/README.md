@@ -61,6 +61,13 @@ Clueso, and Descript.
   sources can create editable code-change explainer starts when a code-change
   provider is configured. Real screen capture and recording remain provider
   execution work.
+- `lib/motion/sourceProfile.ts` now turns repo facts into creator-facing source
+  material: stack/script/route signals, capture candidates, and storyboard
+  hints. Local repos with runnable app scripts can now produce local-app
+  screenshot, DOM snapshot, and screen-recording requests from the start result;
+  GitHub repos with homepage URLs can produce hosted capture candidates.
+  Timeline preview shows this as a source-material strip instead of a repo
+  inspection surface.
 - `app/api/motion/start/route.ts` now exposes that starter through an
   agent-native JSON boundary: callers can pass `sourceRefs` directly or use
   `repoPath`, `repoUrl`, `siteUrl`, or `prRef` shorthands and receive the
@@ -110,8 +117,8 @@ Clueso, and Descript.
   and a pack manifest only when every target has render receipts.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
-  recording, and computer-use fallback requests with explicit viewport,
-  artifact, and provenance expectations.
+  recording, local-app launch, and computer-use fallback requests with explicit
+  viewport, artifact, setup, and provenance expectations.
 - `lib/providers/capture/browser.ts` now provides a provider-agnostic browser
   capture boundary: an injected runner can execute the request and Aether
   normalizes the result into typed screenshot/snapshot/trace/recording
