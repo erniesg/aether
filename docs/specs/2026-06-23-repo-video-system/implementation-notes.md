@@ -37,6 +37,10 @@
 - Preview plans now include a creator-facing visual generation summary for
   image-to-video: ready clip requests show component, prompt, duration, and
   output shape, while missing key visuals appear as reviewable blockers.
+- Preview plans now include a compact image-to-video node plan inside that
+  visual generation summary, so agents and creators can see the source visual,
+  generation, review, and timeline-update dependency chain without opening a
+  separate graph surface.
 - Preview plans now include a reusable motion design kit for launch,
   feature/social, demo capture, and PR explainer videos, exposing creator-facing
   component roles, effect presets, editable surfaces, rhythm guidance, and
@@ -57,6 +61,11 @@
   package Aether should mirror: `gh`-backed PR JSON, full diff, text brief,
   people/avatars, narrator script, audio metadata, section plan, caption groups,
   scene files, contact-sheet proof, and final MP4 render.
+- HyperFrames and iart motion-skill reference refreshes confirm that Aether's
+  reusable workflow skills should stay narrow and installable: `pr-to-video`,
+  product launch, website/app capture, captions, overlays, and motion graphics
+  each need their own trigger, artifact contract, verification loop, and
+  review/full-auto policy.
 - Agent motion workflow planner that turns a workflow id, mode, and source refs
   into gated tool/artifact plans for review mode or saved full-auto execution.
 - Agent workflow plans now include an executable run plan: ordered review or

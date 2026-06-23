@@ -30,6 +30,24 @@ authenticated X and YouTube collection pass over launch/demo posts from
 Anthropic, OpenAI, Cursor, Linear, Screen Studio, Runway, Pika, HeyGen, Arcade,
 Clueso, and Descript.
 
+## Reference refresh: 2026-06-24
+
+- HyperFrames now exposes installable agent skills through
+  `npx skills add heygen-com/hyperframes`, with workflow folders for
+  `pr-to-video`, `product-launch-video`, `website-to-video`, captions, overlays,
+  and engine portability in `https://github.com/heygen-com/hyperframes/tree/main/skills`.
+- The HyperFrames `pr-to-video` skill treats a PR as code-change evidence, not a
+  site scrape: it ingests PR JSON and diffs through `gh`, then produces narrator
+  scripts, audio metadata, section plans, captions, scene compositions, contact
+  sheets, and final MP4 renders.
+- `iart-ai/motion-skills` confirms the broader skill-pack shape Aether should
+  mirror: small workflow-specific skills, installable packs, and a
+  render-and-verify loop for visual artifacts.
+- Clueso, Arcade, Screen Studio, and Descript all reinforce the product-video
+  primitive set: capture or upload real product footage, rewrite/script it,
+  add voice/captions/zoom effects, keep outputs editable, and export/share in
+  multiple formats.
+
 ## Existing aether foundation
 
 - `docs/DESIGN-SOCIAL-CANVAS.md` already defines video as material from the
@@ -210,6 +228,10 @@ Clueso, and Descript.
   creator-facing timeline lens and API responses, giving agents and creators the
   same next action for review mode or full-auto runs without exposing raw route
   calls as the primary surface.
+- `lib/motion/previewPlan.ts` also carries a compact image-to-video node plan:
+  source visuals, image-to-video generation, generated-clip review, and timeline
+  update dependencies are available to agents and shown in the timeline lens as
+  progressive disclosure rather than as a separate graph page.
 - `docs/explorations/motion-graphics/` already contains reusable HyperFrames
   composition patterns: atlas reveal, by-the-numbers, quote cascade, and photo
   mosaic.

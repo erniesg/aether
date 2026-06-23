@@ -1305,6 +1305,53 @@ function MotionVisualGenerationStrip({
           {summary.blockerLabels[0] ?? 'No image-to-video clips planned for this draft.'}
         </div>
       )}
+      {summary.nodePlan.nodes.length > 0 ? (
+        <div className="mt-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+              generation nodes
+            </span>
+            {summary.nodePlan.edges.length > 0 ? (
+              <span className="truncate font-caption text-2xs text-ink-faint">
+                {summary.nodePlan.edges.map((edge) => edge.label).join(' / ')}
+              </span>
+            ) : null}
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {summary.nodePlan.nodes.map((node) => (
+              <div
+                key={node.id}
+                className={cn(
+                  'min-w-0 rounded-sm border bg-surface-panel px-3 py-2',
+                  node.id === summary.nodePlan.nextNodeId
+                    ? 'border-accent/60'
+                    : 'border-border-soft'
+                )}
+              >
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate font-caption text-xs text-ink">
+                    {node.label}
+                  </span>
+                  <Chip tone={visualGenerationNodeTone(node.status)} size="sm">
+                    {node.status}
+                  </Chip>
+                </div>
+                <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+                  {node.inputLabels.slice(0, 2).join(' + ') || 'No inputs yet'}
+                </div>
+                <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                  {node.outputLabels.slice(0, 2).join(' / ') || 'No output yet'}
+                </div>
+                {node.actionLabel ? (
+                  <div className="mt-2 truncate font-caption text-2xs text-accent">
+                    {node.actionLabel}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {summary.nextActionLabels.map((label) => (
           <Chip key={label} tone="neutral" size="sm">
@@ -1323,6 +1370,15 @@ function MotionVisualGenerationStrip({
       </div>
     </div>
   );
+}
+
+function visualGenerationNodeTone(
+  status: MotionPreviewVisualGenerationSummary['nodePlan']['nodes'][number]['status']
+) {
+  if (status === 'complete') return 'ok';
+  if (status === 'ready') return 'info';
+  if (status === 'blocked') return 'warn';
+  return 'neutral';
 }
 
 function MotionCapturePlanView({

@@ -221,6 +221,30 @@ describe('buildMotionPreviewPlan', () => {
       status: 'needs-visual-source',
       requestCount: 0,
       providerRequirementLabels: ['image to video'],
+      nodePlan: {
+        status: 'needs-visual-source',
+        nextNodeId: 'visual-source',
+        nodes: [
+          {
+            id: 'timeline',
+            label: 'Timeline',
+            status: 'complete',
+          },
+          {
+            id: 'visual-source',
+            label: 'Source visuals',
+            status: 'blocked',
+            actionLabel: 'Capture or generate key visual',
+          },
+        ],
+        edges: [
+          {
+            from: 'timeline',
+            to: 'visual-source',
+            label: 'selects clip',
+          },
+        ],
+      },
       blockerLabels: ['Capture or generate a key visual before image-to-video'],
       nextActionLabels: [],
     });

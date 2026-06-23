@@ -209,12 +209,41 @@ export interface MotionPreviewVisualGenerationRequest {
   outputLabel: string;
 }
 
+export type MotionPreviewVisualGenerationNodeStatus =
+  | 'complete'
+  | 'ready'
+  | 'planned'
+  | 'blocked';
+
+export interface MotionPreviewVisualGenerationNode {
+  id: string;
+  label: string;
+  status: MotionPreviewVisualGenerationNodeStatus;
+  inputLabels: string[];
+  outputLabels: string[];
+  actionLabel: string | null;
+}
+
+export interface MotionPreviewVisualGenerationEdge {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export interface MotionPreviewVisualGenerationNodePlan {
+  status: MotionImageToVideoPlanStatus;
+  nodes: MotionPreviewVisualGenerationNode[];
+  edges: MotionPreviewVisualGenerationEdge[];
+  nextNodeId: string | null;
+}
+
 export interface MotionPreviewVisualGenerationSummary {
   status: MotionImageToVideoPlanStatus;
   requestCount: number;
   providerRequirementLabels: string[];
   requestLabels: string[];
   requests: MotionPreviewVisualGenerationRequest[];
+  nodePlan: MotionPreviewVisualGenerationNodePlan;
   blockerLabels: string[];
   nextActionLabels: string[];
 }
@@ -499,8 +528,127 @@ function buildVisualGenerationSummary(
       (request) => `${request.componentLabel} ${request.durationSeconds}s`
     ),
     requests,
+    nodePlan: buildVisualGenerationNodePlan(imageToVideoPlan, requests),
     blockerLabels: imageToVideoPlan.blockers.map((blocker) => blocker.label),
     nextActionLabels: imageToVideoPlan.nextActions.map((action) => action.label),
+  };
+}
+
+function buildVisualGenerationNodePlan(
+  imageToVideoPlan: ReturnType<typeof buildMotionImageToVideoPlan>,
+  requests: MotionPreviewVisualGenerationRequest[]
+): MotionPreviewVisualGenerationNodePlan {
+  if (imageToVideoPlan.status === 'needs-timeline') {
+    return {
+      status: imageToVideoPlan.status,
+      nodes: [
+        {
+          id: 'timeline',
+          label: 'Timeline',
+          status: 'blocked',
+          inputLabels: ['Draft scenes'],
+          outputLabels: ['Timed clips'],
+          actionLabel: 'Build timeline',
+        },
+      ],
+      edges: [],
+      nextNodeId: 'timeline',
+    };
+  }
+
+  if (imageToVideoPlan.status === 'needs-visual-source') {
+    return {
+      status: imageToVideoPlan.status,
+      nodes: [
+        {
+          id: 'timeline',
+          label: 'Timeline',
+          status: 'complete',
+          inputLabels: ['Draft scenes'],
+          outputLabels: ['Timed clips'],
+          actionLabel: null,
+        },
+        {
+          id: 'visual-source',
+          label: 'Source visuals',
+          status: 'blocked',
+          inputLabels: ['Capture', 'Generated key visual'],
+          outputLabels: ['Image-to-video source'],
+          actionLabel: 'Capture or generate key visual',
+        },
+      ],
+      edges: [
+        {
+          from: 'timeline',
+          to: 'visual-source',
+          label: 'selects clip',
+        },
+      ],
+      nextNodeId: 'visual-source',
+    };
+  }
+
+  const sourceLabels = uniqueStrings(requests.map((request) => `${request.componentLabel} source`));
+  const outputLabels = uniqueStrings(requests.map((request) => request.outputLabel));
+
+  return {
+    status: imageToVideoPlan.status,
+    nodes: [
+      {
+        id: 'visual-source',
+        label: 'Source visuals',
+        status: 'complete',
+        inputLabels: sourceLabels,
+        outputLabels: ['Image-to-video source'],
+        actionLabel: null,
+      },
+      {
+        id: 'image-to-video',
+        label: 'Image-to-video',
+        status: 'ready',
+        inputLabels: sourceLabels,
+        outputLabels,
+        actionLabel:
+          imageToVideoPlan.nextActions.find((action) => action.id === 'generate-video-clips')
+            ?.label ?? 'Generate video clips',
+      },
+      {
+        id: 'review-generated-clips',
+        label: 'Review generated clips',
+        status: 'planned',
+        inputLabels: outputLabels,
+        outputLabels: ['Approved clips'],
+        actionLabel:
+          imageToVideoPlan.nextActions.find((action) => action.id === 'review-generated-clips')
+            ?.label ?? 'Review generated clips',
+      },
+      {
+        id: 'timeline-update',
+        label: 'Timeline update',
+        status: 'planned',
+        inputLabels: ['Approved clips'],
+        outputLabels: ['Synced timeline'],
+        actionLabel: 'Apply approved clips',
+      },
+    ],
+    edges: [
+      {
+        from: 'visual-source',
+        to: 'image-to-video',
+        label: 'animates',
+      },
+      {
+        from: 'image-to-video',
+        to: 'review-generated-clips',
+        label: 'offers takes',
+      },
+      {
+        from: 'review-generated-clips',
+        to: 'timeline-update',
+        label: 'updates edit',
+      },
+    ],
+    nextNodeId: 'image-to-video',
   };
 }
 

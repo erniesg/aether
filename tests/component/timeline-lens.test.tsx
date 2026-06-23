@@ -425,6 +425,61 @@ const previewPlan: MotionPreviewPlan = {
         outputLabel: '9:16 1080x1920',
       },
     ],
+    nodePlan: {
+      status: 'ready',
+      nextNodeId: 'image-to-video',
+      nodes: [
+        {
+          id: 'visual-source',
+          label: 'Source visuals',
+          status: 'complete',
+          inputLabels: ['App frame source'],
+          outputLabels: ['Image-to-video source'],
+          actionLabel: null,
+        },
+        {
+          id: 'image-to-video',
+          label: 'Image-to-video',
+          status: 'ready',
+          inputLabels: ['App frame source'],
+          outputLabels: ['9:16 1080x1920'],
+          actionLabel: 'Generate video clips',
+        },
+        {
+          id: 'review-generated-clips',
+          label: 'Review generated clips',
+          status: 'planned',
+          inputLabels: ['9:16 1080x1920'],
+          outputLabels: ['Approved clips'],
+          actionLabel: 'Review generated clips',
+        },
+        {
+          id: 'timeline-update',
+          label: 'Timeline update',
+          status: 'planned',
+          inputLabels: ['Approved clips'],
+          outputLabels: ['Synced timeline'],
+          actionLabel: 'Apply approved clips',
+        },
+      ],
+      edges: [
+        {
+          from: 'visual-source',
+          to: 'image-to-video',
+          label: 'animates',
+        },
+        {
+          from: 'image-to-video',
+          to: 'review-generated-clips',
+          label: 'offers takes',
+        },
+        {
+          from: 'review-generated-clips',
+          to: 'timeline-update',
+          label: 'updates edit',
+        },
+      ],
+    },
     blockerLabels: [],
     nextActionLabels: ['Generate video clips', 'Review generated clips'],
   },
@@ -635,7 +690,7 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('visual generation').length).toBeGreaterThan(0);
     expect(screen.getByText('1 clip request')).toBeInTheDocument();
     expect(screen.getByText('Animate the captured aether canvas as a short product insert.')).toBeInTheDocument();
-    expect(screen.getByText('9:16 1080x1920')).toBeInTheDocument();
+    expect(screen.getAllByText('9:16 1080x1920').length).toBeGreaterThan(0);
     expect(screen.getByText('graph')).toBeInTheDocument();
     expect(screen.getByText('script')).toBeInTheDocument();
     expect(screen.getByText('image to video')).toBeInTheDocument();
@@ -806,6 +861,24 @@ describe('TimelineLens', () => {
     expect(onGenerateVideoClips).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the image-to-video node chain inside the timeline lens', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByText('generation nodes')).toBeInTheDocument();
+    expect(screen.getByText('Source visuals')).toBeInTheDocument();
+    expect(screen.getAllByText('Image-to-video').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Review generated clips').length).toBeGreaterThan(0);
+    expect(screen.getByText('Timeline update')).toBeInTheDocument();
+    expect(screen.getByText('animates / offers takes / updates edit')).toBeInTheDocument();
+  });
+
   it('shows visual-source blockers before image-to-video generation is possible', () => {
     render(
       <TimelineLens
@@ -818,6 +891,35 @@ describe('TimelineLens', () => {
             providerRequirementLabels: ['image to video'],
             requestLabels: [],
             requests: [],
+            nodePlan: {
+              status: 'needs-visual-source',
+              nextNodeId: 'visual-source',
+              nodes: [
+                {
+                  id: 'timeline',
+                  label: 'Timeline',
+                  status: 'complete',
+                  inputLabels: ['Draft scenes'],
+                  outputLabels: ['Timed clips'],
+                  actionLabel: null,
+                },
+                {
+                  id: 'visual-source',
+                  label: 'Source visuals',
+                  status: 'blocked',
+                  inputLabels: ['Capture', 'Generated key visual'],
+                  outputLabels: ['Image-to-video source'],
+                  actionLabel: 'Capture or generate key visual',
+                },
+              ],
+              edges: [
+                {
+                  from: 'timeline',
+                  to: 'visual-source',
+                  label: 'selects clip',
+                },
+              ],
+            },
             blockerLabels: ['Capture or generate a key visual before image-to-video'],
             nextActionLabels: [],
           },
@@ -830,6 +932,8 @@ describe('TimelineLens', () => {
 
     expect(screen.getAllByText('needs visual source').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Capture or generate a key visual before image-to-video').length).toBeGreaterThan(0);
+    expect(screen.getByText('Source visuals')).toBeInTheDocument();
+    expect(screen.getByText('Capture or generate key visual')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /plan visuals/i }).length).toBeGreaterThan(0);
   });
 
