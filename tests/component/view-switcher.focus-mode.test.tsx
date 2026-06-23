@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@/app/design-system/ThemeProvider';
@@ -9,11 +9,15 @@ import {
   resetMotionStartResultsForTests,
   setMotionStartResult,
 } from '@/lib/motion/start-store';
+import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
+import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
+import { materializeMotionTimeline } from '@/lib/motion/timeline';
 
 afterEach(() => {
   cleanup();
   resetRunsForTests();
   resetMotionStartResultsForTests();
+  vi.restoreAllMocks();
 });
 
 function renderShell() {
@@ -80,6 +84,68 @@ function storedMotionStart(): AgentMotionStartResult {
   } as unknown as AgentMotionStartResult;
 }
 
+function storedRegeneratableMotionStart(): AgentMotionStartResult {
+  const project = materializeMotionTimeline(
+    buildRepoLaunchMotionProject({
+      id: 'motion-aether-launch',
+      workspaceId: 'demo-ws',
+      projectKind: 'launch',
+      workflowMode: 'review',
+      audience: 'creative app builders',
+      tone: 'precise',
+      appProfile: {
+        name: 'aether',
+        summary: 'Canvas-native creative system.',
+        stack: ['TypeScript', 'Convex', 'tldraw'],
+      },
+      claims: [
+        {
+          text: 'aether uses TypeScript, Convex, and tldraw in the public repo.',
+          source: { kind: 'repo', ref: 'https://github.com/erniesg/aether' },
+        },
+      ],
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      createdAt: 80,
+    }),
+    { updatedAt: 81 }
+  );
+  const previewPlan = buildMotionPreviewPlan(project, {
+    engines: ['remotion', 'hyperframes', 'provider'],
+    requestedAt: 82,
+  });
+
+  return {
+    status: 'ready',
+    workflow: {
+      workflowId: 'repo-launch-video',
+      reason: 'repo source selected a launch workflow',
+      plan: {
+        workflowId: 'repo-launch-video',
+        label: 'Repo launch video',
+        artifactKind: 'video',
+        mode: 'review',
+        primaryAction: 'request-review',
+        sourceStatus: 'ready',
+        acceptedSources: [],
+        unsupportedSources: [],
+        missingSourceKinds: [],
+        engines: ['remotion', 'hyperframes', 'provider'],
+        toolIds: [],
+        skillContract: null,
+        gates: [],
+        nextActions: [],
+        createdAt: 1,
+      },
+    },
+    project,
+    reviewPlan: null,
+    previewPlan,
+    capturePlan: null,
+    examples: [],
+    requestedInputs: [],
+  };
+}
+
 /**
  * Focus is a lens — a camera/selection change on the same project, not a
  * chrome toggle. Rails stay mounted (brand, offer, campaign, refs, signals
@@ -129,6 +195,42 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByText('Hook card')).toBeInTheDocument();
     expect(screen.getByText('Aether launch video')).toBeInTheDocument();
     expect(screen.queryByText('clip-hook')).not.toBeInTheDocument();
+  });
+
+  it('timeline regeneration button plans a scoped agent handoff and refreshes motion state', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          capturePlan: start.capturePlan,
+          regenerationRequest: {
+            scope: 'capture',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /regenerate capture for app frame/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('capture regeneration planned');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/regenerate',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"clipId":"clip-beat-demo-text"'),
+      })
+    );
   });
 
   it('the focus pill reports aria-current after a click, canvas after another click', async () => {

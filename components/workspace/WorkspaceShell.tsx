@@ -81,7 +81,7 @@ import {
   listMotionWorkflowExamples,
   type MotionWorkflowExample,
 } from '@/lib/motion/workflowExamples';
-import { useMotionStartResult } from '@/lib/motion/start-store';
+import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
 import {
   buildExportRequestBody,
   downloadExportPack,
@@ -394,6 +394,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [selectedTimelineClipId, setSelectedTimelineClipId] = useState<string | null>(null);
+  const [motionTimelineActionStatus, setMotionTimelineActionStatus] = useState<string | null>(null);
   const motionTimelineTracks = useMemo<TimelineTrack[]>(
     () => motionStart?.project?.tracks ?? [],
     [motionStart]
@@ -402,6 +403,54 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const motionWorkflowExamples = useMemo<MotionWorkflowExample[]>(
     () => (motionStart?.examples.length ? motionStart.examples : listMotionWorkflowExamples()),
     [motionStart]
+  );
+  const handleTimelineRegenerate = useCallback(
+    async (actionId: string) => {
+      if (!motionStart?.project || !motionStart.previewPlan) return;
+      const action = motionStart.previewPlan.regenerationActions.find(
+        (candidate) => candidate.id === actionId
+      );
+      if (!action) return;
+
+      setMotionTimelineActionStatus(`planning ${action.scope}`);
+      try {
+        const res = await fetch('/api/motion/regenerate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            clipId: action.clipId,
+            scope: action.scope,
+            prompt: action.label,
+            requestedEngines: motionStart.workflow.plan.engines,
+            requestedAt: Date.now(),
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+          regenerationRequest?: { scope?: string };
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error ?? `regeneration failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project ?? motionStart.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan ?? motionStart.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+        });
+        setMotionTimelineActionStatus(`${json.regenerationRequest?.scope ?? action.scope} regeneration planned`);
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
   );
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
@@ -2158,7 +2207,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             previewPlan={motionPreviewPlan}
             selectedClipId={selectedTimelineClipId}
             onSelectClip={setSelectedTimelineClipId}
+            onRegenerateComponent={handleTimelineRegenerate}
             workflowExamples={motionWorkflowExamples}
+            actionStatus={motionTimelineActionStatus}
           />
         ) : (
           <CanvasSubstrate

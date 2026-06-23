@@ -25,6 +25,7 @@ export interface TimelineLensProps {
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
   workflowExamples?: MotionWorkflowExample[];
+  actionStatus?: string | null;
 }
 
 export function TimelineLens({
@@ -35,6 +36,7 @@ export function TimelineLens({
   onSelectDraft,
   onRegenerateComponent,
   workflowExamples = [],
+  actionStatus = null,
 }: TimelineLensProps) {
   const clipCount = previewPlan
     ? previewPlan.timelineRows.reduce((total, row) => total + row.clips.length, 0)
@@ -71,6 +73,7 @@ export function TimelineLens({
             onSelectDraft={onSelectDraft}
             onRegenerateComponent={onRegenerateComponent}
             workflowExamples={workflowExamples}
+            actionStatus={actionStatus}
           />
         ) : tracks.length > 0 ? (
           tracks.map((track) => (
@@ -100,6 +103,7 @@ function MotionPreviewPlanView({
   onSelectDraft,
   onRegenerateComponent,
   workflowExamples,
+  actionStatus,
 }: {
   previewPlan: MotionPreviewPlan;
   selectedClipId: string | null;
@@ -107,6 +111,7 @@ function MotionPreviewPlanView({
   onSelectDraft?: (draftId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
   workflowExamples: MotionWorkflowExample[];
+  actionStatus: string | null;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -265,6 +270,15 @@ function MotionPreviewPlanView({
             />
           ))}
         </section>
+      ) : null}
+
+      {actionStatus ? (
+        <div
+          role="status"
+          className="border-t border-border-soft px-4 py-2 font-caption text-xs text-ink-dim"
+        >
+          {actionStatus}
+        </div>
       ) : null}
     </div>
   );

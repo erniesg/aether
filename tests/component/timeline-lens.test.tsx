@@ -213,6 +213,7 @@ describe('TimelineLens', () => {
         previewPlan={previewPlan}
         selectedClipId={null}
         onSelectClip={() => {}}
+        actionStatus="capture regeneration planned"
       />
     );
 
@@ -234,6 +235,7 @@ describe('TimelineLens', () => {
     expect(screen.getByText('needs render')).toBeInTheDocument();
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
     expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('capture regeneration planned');
     expect(screen.queryByText('clip-beat-demo-text')).not.toBeInTheDocument();
     expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
     expect(screen.queryByText('package.json#description')).not.toBeInTheDocument();
