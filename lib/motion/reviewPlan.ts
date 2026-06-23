@@ -5,6 +5,7 @@ import {
 } from './componentRegistry';
 import type {
   MotionDraft,
+  MotionGraphNode,
   MotionPlatformTarget,
   MotionProject,
   MotionProvenanceRef,
@@ -181,6 +182,38 @@ export function createMotionComponentRegenerationRequest(
   };
 }
 
+export function stageMotionComponentRegeneration(
+  project: MotionProject,
+  request: MotionComponentRegenerationRequest
+): MotionProject {
+  const node = regenerationRequestToGraphNode(request);
+
+  return {
+    ...project,
+    graphNodes: [
+      ...project.graphNodes.filter((candidate) => candidate.id !== node.id),
+      node,
+    ],
+    updatedAt: Math.max(project.updatedAt, request.requestedAt),
+  };
+}
+
+function regenerationRequestToGraphNode(
+  request: MotionComponentRegenerationRequest
+): MotionGraphNode {
+  return {
+    id: `node-${request.id}`,
+    kind: 'revision',
+    inputRefs: uniqueStrings([request.clipId, ...request.inputRefs]),
+    outputRefs: [request.id],
+    status: 'planned',
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+    ]),
+  };
+}
+
 function findCurrentDraft(project: MotionProject): MotionDraft | undefined {
   return project.drafts.find((draft) => draft.id === project.currentDraftId);
 }
@@ -262,4 +295,18 @@ function findClip(
   }
 
   return null;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+}
+
+function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
+  const seen = new Set<string>();
+  return refs.filter((ref) => {
+    const key = `${ref.kind}:${ref.ref}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

@@ -7,6 +7,7 @@ import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import {
   buildMotionReviewPlan,
   createMotionComponentRegenerationRequest,
+  stageMotionComponentRegeneration,
 } from '@/lib/motion/reviewPlan';
 
 export const runtime = 'nodejs';
@@ -61,14 +62,15 @@ export async function POST(request: Request): Promise<Response> {
       prompt,
       requestedAt,
     });
-    const capturePlan = buildAgentMotionCapturePlan(project);
+    const updatedProject = stageMotionComponentRegeneration(project, regenerationRequest);
+    const capturePlan = buildAgentMotionCapturePlan(updatedProject);
 
     return NextResponse.json({
       ok: true,
       regenerationRequest,
-      project,
-      reviewPlan: buildMotionReviewPlan(project),
-      previewPlan: buildMotionPreviewPlan(project, {
+      project: updatedProject,
+      reviewPlan: buildMotionReviewPlan(updatedProject),
+      previewPlan: buildMotionPreviewPlan(updatedProject, {
         engines: requestedEngines ?? undefined,
         requestedAt,
       }),

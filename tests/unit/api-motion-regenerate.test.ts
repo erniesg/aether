@@ -78,6 +78,21 @@ describe('POST /api/motion/regenerate', () => {
         projectId: 'motion-aether-launch',
         status: 'needs-source',
       },
+      project: {
+        graphNodes: expect.arrayContaining([
+          {
+            id: 'node-regen-clip-beat-demo-text-capture-950',
+            kind: 'revision',
+            inputRefs: expect.arrayContaining(['clip-beat-demo-text', 'beat-demo']),
+            outputRefs: ['regen-clip-beat-demo-text-capture-950'],
+            status: 'planned',
+            provenance: expect.arrayContaining([
+              { kind: 'revision', ref: 'regen-clip-beat-demo-text-capture-950' },
+              { kind: 'timeline', ref: 'clip-beat-demo-text' },
+            ]),
+          },
+        ]),
+      },
     });
     expect(json.regenerationRequest.inputRefs).toContain('clip-beat-demo-text');
     expect(json.regenerationRequest.inputRefs).toContain('beat-demo');
