@@ -149,9 +149,24 @@ const RECIPE_DEFINITIONS = {
         reason: 'Shows the real app surface as the core visual material.',
       },
       {
+        componentId: 'cursor-callout',
+        role: 'attention cue',
+        reason: 'Lets agents and creators retime zooms, cursor paths, and callout labels.',
+      },
+      {
         componentId: 'agent-trace',
         role: 'AI workflow proof',
         reason: 'Shows how the agent gathered facts, wrote, captured, and rendered.',
+      },
+      {
+        componentId: 'avatar-bubble',
+        role: 'voice context',
+        reason: 'Keeps presenter, creator, or agent commentary editable with captions.',
+      },
+      {
+        componentId: 'contact-sheet-proof',
+        role: 'render proof',
+        reason: 'Makes frame samples and poster checks reviewable before export.',
       },
       {
         componentId: 'cta-card',
@@ -265,6 +280,16 @@ const RECIPE_DEFINITIONS = {
         reason: 'Shows the feature in the actual app surface.',
       },
       {
+        componentId: 'cursor-callout',
+        role: 'feature focus',
+        reason: 'Guides attention to the exact product interaction.',
+      },
+      {
+        componentId: 'split-screen-compare',
+        role: 'before and after',
+        reason: 'Makes the feature payoff reviewable as a reusable component.',
+      },
+      {
         componentId: 'proof-card',
         role: 'feature receipt',
         reason: 'Keeps claims grounded in repo or capture evidence.',
@@ -278,6 +303,11 @@ const RECIPE_DEFINITIONS = {
         componentId: 'cta-card',
         role: 'next action',
         reason: 'Closes the short cut without bloating the timeline.',
+      },
+      {
+        componentId: 'contact-sheet-proof',
+        role: 'render proof',
+        reason: 'Lets creators approve proof frames before exporting social variants.',
       },
     ],
     referencePatternIds: [
@@ -363,6 +393,11 @@ const RECIPE_DEFINITIONS = {
         reason: 'Keeps the website or app route as the main visual.',
       },
       {
+        componentId: 'cursor-callout',
+        role: 'interaction focus',
+        reason: 'Makes cursor paths, zoom timing, and callout copy editable.',
+      },
+      {
         componentId: 'caption-line',
         role: 'walkthrough captions',
         reason: 'Explains the capture without adding heavy narration.',
@@ -376,6 +411,11 @@ const RECIPE_DEFINITIONS = {
         componentId: 'soft-wipe',
         role: 'scene transition',
         reason: 'Prevents capture clips from feeling like jump cuts.',
+      },
+      {
+        componentId: 'contact-sheet-proof',
+        role: 'capture proof',
+        reason: 'Shows sampled frames and poster checks before export.',
       },
     ],
     referencePatternIds: [
@@ -486,6 +526,11 @@ const RECIPE_DEFINITIONS = {
         reason: 'Shows tests, approvals, files, or commits as receipts.',
       },
       {
+        componentId: 'contact-sheet-proof',
+        role: 'render proof',
+        reason: 'Confirms code readability, captions, and poster frames before export.',
+      },
+      {
         componentId: 'cta-card',
         role: 'install or merge action',
         reason: 'Closes with the repo command, review action, or launch cadence.',
@@ -569,6 +614,11 @@ const RECIPE_DEFINITIONS = {
         reason: 'Keeps transcript editing and timing editable.',
       },
       {
+        componentId: 'avatar-bubble',
+        role: 'voice context',
+        reason: 'Keeps speaker identity, caption text, and presenter placement editable.',
+      },
+      {
         componentId: 'proof-card',
         role: 'overlay proof',
         reason: 'Adds receipts or callouts without flattening the source video.',
@@ -577,6 +627,11 @@ const RECIPE_DEFINITIONS = {
         componentId: 'soft-wipe',
         role: 'caption transition',
         reason: 'Makes caption groups feel intentional across cuts.',
+      },
+      {
+        componentId: 'contact-sheet-proof',
+        role: 'caption proof',
+        reason: 'Checks safe areas and subtitle sidecars before export.',
       },
     ],
     referencePatternIds: [
@@ -660,6 +715,11 @@ const RECIPE_DEFINITIONS = {
         reason: 'Supports caption-led social and title sequences.',
       },
       {
+        componentId: 'contact-sheet-proof',
+        role: 'render proof',
+        reason: 'Keeps generated motion packs tied to frame samples and checks.',
+      },
+      {
         componentId: 'soft-wipe',
         role: 'transition',
         reason: 'Reusable scene transition with controlled timing.',
@@ -737,6 +797,11 @@ const RECIPE_DEFINITIONS = {
         componentId: 'soft-wipe',
         role: 'portable transition',
         reason: 'Verifies transition timing and visual equivalence.',
+      },
+      {
+        componentId: 'contact-sheet-proof',
+        role: 'port proof',
+        reason: 'Compares source and target engine proof frames before export.',
       },
     ],
     referencePatternIds: ['reusable-motion-system', 'voice-caption-sync', 'multi-format-pack'],

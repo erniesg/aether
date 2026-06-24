@@ -16,6 +16,9 @@ describe('motion component registry', () => {
       'terminal-card',
       'social-overlay',
       'ui-reveal-frame',
+      'cursor-callout',
+      'split-screen-compare',
+      'avatar-bubble',
       'data-visual-card',
       'code-diff-card',
       'code-highlight-card',
@@ -28,6 +31,7 @@ describe('motion component registry', () => {
       'voice-line',
       'soft-wipe',
       'shader-wipe',
+      'contact-sheet-proof',
       'outro-slate',
     ]);
   });
@@ -99,6 +103,40 @@ describe('motion component registry', () => {
     expect(uiReveal?.requiredProps).toEqual(['assetId', 'revealLabel']);
     expect(uiReveal?.regenerateScopes).toEqual(['capture', 'timing', 'effect']);
 
+    const cursorCallout = getMotionComponent('cursor-callout');
+    expect(cursorCallout?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(cursorCallout?.requiredProps).toEqual(['targetLabel', 'cursorPath']);
+    expect(cursorCallout?.editControls.map((control) => control.id)).toEqual([
+      'targetLabel',
+      'cursorPath',
+      'zoom',
+      'effectPreset',
+    ]);
+    expect(cursorCallout?.regenerateScopes).toEqual([
+      'capture',
+      'caption',
+      'timing',
+      'effect',
+    ]);
+
+    const splitScreen = getMotionComponent('split-screen-compare');
+    expect(splitScreen?.requiredProps).toEqual([
+      'beforeAssetId',
+      'afterAssetId',
+      'caption',
+    ]);
+    expect(splitScreen?.regenerateScopes).toEqual([
+      'capture',
+      'asset',
+      'caption',
+      'timing',
+      'effect',
+    ]);
+
+    const avatarBubble = getMotionComponent('avatar-bubble');
+    expect(avatarBubble?.requiredProps).toEqual(['avatarAssetId', 'speakerName', 'caption']);
+    expect(avatarBubble?.regenerateScopes).toEqual(['asset', 'copy', 'caption', 'timing']);
+
     const dataVisual = getMotionComponent('data-visual-card');
     expect(dataVisual?.requiredProps).toEqual(['metric', 'label']);
     expect(dataVisual?.regenerateScopes).toEqual(['proof', 'copy', 'effect']);
@@ -107,6 +145,10 @@ describe('motion component registry', () => {
     expect(shaderWipe?.engines).toEqual(['hyperframes', 'remotion']);
     expect(shaderWipe?.requiredProps).toEqual(['style', 'accentColor']);
     expect(shaderWipe?.regenerateScopes).toEqual(['effect', 'timing']);
+
+    const contactSheet = getMotionComponent('contact-sheet-proof');
+    expect(contactSheet?.requiredProps).toEqual(['frameAssetIds', 'status']);
+    expect(contactSheet?.regenerateScopes).toEqual(['proof', 'asset', 'timing']);
 
     const outroSlate = getMotionComponent('outro-slate');
     expect(outroSlate?.requiredProps).toEqual(['headline', 'signature']);

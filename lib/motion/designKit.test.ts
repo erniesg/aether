@@ -38,8 +38,11 @@ describe('buildMotionDesignKitPlan', () => {
         expect.objectContaining({ label: 'Terminal proof', role: 'terminal proof' }),
         expect.objectContaining({ label: 'Proof card', role: 'claim proof' }),
         expect.objectContaining({ label: 'UI reveal frame', role: 'ui reveal' }),
+        expect.objectContaining({ label: 'Cursor callout', role: 'focus cue' }),
         expect.objectContaining({ label: 'App frame', role: 'product visual' }),
+        expect.objectContaining({ label: 'Presenter bubble', role: 'presenter context' }),
         expect.objectContaining({ label: 'Data visual', role: 'data proof' }),
+        expect.objectContaining({ label: 'Contact sheet proof', role: 'render proof' }),
         expect.objectContaining({ label: 'Outro slate', role: 'outro' }),
         expect.objectContaining({ label: 'Shader wipe', role: 'motion effect' }),
       ]),
@@ -122,7 +125,10 @@ describe('buildMotionDesignKitPlan', () => {
       components: expect.arrayContaining([
         expect.objectContaining({ label: 'Social overlay', role: 'social copy' }),
         expect.objectContaining({ label: 'UI reveal frame', role: 'ui reveal' }),
+        expect.objectContaining({ label: 'Cursor callout', role: 'focus cue' }),
+        expect.objectContaining({ label: 'Split-screen compare', role: 'before after' }),
         expect.objectContaining({ label: 'Data visual', role: 'data proof' }),
+        expect.objectContaining({ label: 'Contact sheet proof', role: 'render proof' }),
         expect.objectContaining({ label: 'Outro slate', role: 'outro' }),
       ]),
     });
@@ -192,6 +198,7 @@ describe('buildMotionDesignKitPlan', () => {
         expect.objectContaining({ label: 'Command card', role: 'install command' }),
         expect.objectContaining({ label: 'Terminal proof', role: 'terminal proof' }),
         expect.objectContaining({ label: 'Evidence card', role: 'evidence' }),
+        expect.objectContaining({ label: 'Contact sheet proof', role: 'render proof' }),
         expect.objectContaining({ label: 'Outro slate', role: 'outro' }),
       ]),
     });

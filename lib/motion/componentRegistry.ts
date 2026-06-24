@@ -29,6 +29,9 @@ export interface MotionComponentDefinition {
     | 'terminal-card'
     | 'social-overlay'
     | 'ui-reveal-frame'
+    | 'cursor-callout'
+    | 'split-screen-compare'
+    | 'avatar-bubble'
     | 'data-visual-card'
     | 'code-diff-card'
     | 'code-highlight-card'
@@ -41,6 +44,7 @@ export interface MotionComponentDefinition {
     | 'voice-line'
     | 'soft-wipe'
     | 'shader-wipe'
+    | 'contact-sheet-proof'
     | 'outro-slate';
   label: string;
   description: string;
@@ -171,6 +175,52 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'effectPreset', label: 'Effect', kind: 'select' },
     ],
     regenerateScopes: ['capture', 'timing', 'effect'],
+  },
+  {
+    id: 'cursor-callout',
+    label: 'Cursor callout',
+    description: 'Cursor path, hotspot, zoom, and callout label for product demos.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['targetLabel', 'cursorPath'],
+    editControls: [
+      { id: 'targetLabel', label: 'Target label', kind: 'text' },
+      { id: 'cursorPath', label: 'Cursor path', kind: 'text' },
+      { id: 'zoom', label: 'Zoom', kind: 'number' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['capture', 'caption', 'timing', 'effect'],
+  },
+  {
+    id: 'split-screen-compare',
+    label: 'Split-screen compare',
+    description: 'Before and after product captures or visuals with an editable divider.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['beforeAssetId', 'afterAssetId', 'caption'],
+    editControls: [
+      { id: 'beforeAssetId', label: 'Before visual', kind: 'asset' },
+      { id: 'afterAssetId', label: 'After visual', kind: 'asset' },
+      { id: 'caption', label: 'Caption', kind: 'text' },
+      { id: 'dividerPosition', label: 'Divider', kind: 'number' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['capture', 'asset', 'caption', 'timing', 'effect'],
+  },
+  {
+    id: 'avatar-bubble',
+    label: 'Presenter bubble',
+    description: 'Creator, agent, or avatar commentary layer tied to voice and captions.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['avatarAssetId', 'speakerName', 'caption'],
+    editControls: [
+      { id: 'avatarAssetId', label: 'Avatar', kind: 'asset' },
+      { id: 'speakerName', label: 'Speaker', kind: 'text' },
+      { id: 'caption', label: 'Caption', kind: 'text' },
+      { id: 'position', label: 'Position', kind: 'select' },
+    ],
+    regenerateScopes: ['asset', 'copy', 'caption', 'timing'],
   },
   {
     id: 'data-visual-card',
@@ -343,6 +393,20 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'durationFrames', label: 'Duration', kind: 'number' },
     ],
     regenerateScopes: ['effect', 'timing'],
+  },
+  {
+    id: 'contact-sheet-proof',
+    label: 'Contact sheet proof',
+    description: 'Review mosaic of sampled frames, poster, and render checks before export.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['frameAssetIds', 'status'],
+    editControls: [
+      { id: 'frameAssetIds', label: 'Frames', kind: 'asset' },
+      { id: 'status', label: 'Status', kind: 'text' },
+      { id: 'note', label: 'Review note', kind: 'text' },
+    ],
+    regenerateScopes: ['proof', 'asset', 'timing'],
   },
   {
     id: 'outro-slate',

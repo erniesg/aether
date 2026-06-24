@@ -54,11 +54,14 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'CTA card',
         'App frame',
         'Soft wipe',
+        'Cursor callout',
         'Proof card',
         'Evidence card',
         'Agent trace',
         'Voice line',
         'Caption line',
+        'Presenter bubble',
+        'Contact sheet proof',
       ],
       editSurfaceLabels: expect.arrayContaining([
         'capture',
@@ -93,6 +96,7 @@ describe('buildMotionReferenceGrammarPlan', () => {
       verificationLabels: expect.arrayContaining(['capture receipt']),
     });
     expect(plan.cues.find((cue) => cue.patternId === 'screen-zoom-callout')).toMatchObject({
+      componentLabels: ['App frame', 'Cursor callout', 'Soft wipe'],
       researchSourceLabels: expect.arrayContaining([
         'Screen Studio: cursor zooms and editable zoom timeline',
       ]),
@@ -180,7 +184,9 @@ describe('buildMotionReferenceGrammarPlan', () => {
       'Agent trace',
       'Voice line',
       'Caption line',
+      'Presenter bubble',
       'Soft wipe',
+      'Contact sheet proof',
       'CTA card',
     ]);
     expect(plan.verificationLabels).toContain('files match PR evidence');

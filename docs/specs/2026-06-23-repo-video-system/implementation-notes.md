@@ -121,6 +121,12 @@
   `captureRunner.kind = "playwright-local"`, the creator-facing capture buttons
   submit that runner with the selected capture request ids so local app launch
   and Playwright capture can run without a global default provider.
+- The reusable motion primitive layer now includes cursor callouts,
+  split-screen before/after comparisons, presenter bubbles, and contact-sheet
+  render proof components. Reference grammar, design kits, and workflow skill
+  recipes expose those as reviewable and regenerable slots, so actual product
+  demos, launch videos, PR explainers, and social cuts can move between
+  full-auto execution and creator review without leaving the timeline lens.
 - Agent-native `/api/motion/start` route that accepts direct `sourceRefs` or
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture

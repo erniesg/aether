@@ -122,6 +122,16 @@ describe('motion workflow skill catalog', () => {
           generationLanes: ['capture', 'sync', 'render'],
         }),
         expect.objectContaining({
+          id: 'screen-zoom-callout',
+          componentIds: ['app-frame', 'cursor-callout', 'soft-wipe'],
+          verificationLabels: expect.arrayContaining(['cursor target visible']),
+        }),
+        expect.objectContaining({
+          id: 'before-after-feature',
+          componentIds: ['split-screen-compare', 'app-frame', 'proof-card', 'soft-wipe'],
+          verificationLabels: expect.arrayContaining(['before and after are distinct']),
+        }),
+        expect.objectContaining({
           id: 'skill-drop-announcement',
           componentIds: ['hook-card', 'command-card', 'proof-card', 'cta-card', 'caption-line'],
           verificationLabels: expect.arrayContaining(['install command visible']),
@@ -142,6 +152,16 @@ describe('motion workflow skill catalog', () => {
           id: 'image-to-video-insert',
           generationLanes: ['image-to-video', 'sync', 'render'],
           verificationLabels: expect.arrayContaining(['timeline update receipt']),
+        }),
+        expect.objectContaining({
+          id: 'voice-caption-sync',
+          componentIds: ['voice-line', 'caption-line', 'avatar-bubble', 'soft-wipe'],
+          verificationLabels: expect.arrayContaining(['word timing receipt']),
+        }),
+        expect.objectContaining({
+          id: 'multi-format-pack',
+          componentIds: ['contact-sheet-proof', 'cta-card', 'caption-line'],
+          verificationLabels: expect.arrayContaining(['contact sheet proof']),
         }),
       ])
     );
