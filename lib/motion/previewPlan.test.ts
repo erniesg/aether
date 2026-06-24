@@ -323,6 +323,40 @@ describe('buildMotionPreviewPlan', () => {
       actionLabels: ['Render proof', 'Tweak source before render'],
       blockerLabels: ['Render every export target before packaging'],
     });
+    expect(preview.canvasMaterialPlan).toMatchObject({
+      id: 'canvas-material-motion-aether-launch-draft-primary',
+      projectId: 'motion-aether-launch',
+      draftId: 'draft-primary',
+      title: 'aether launch video',
+      summaryLabels: ['aether', 'launch', '30s', 'x 9:16 30s'],
+      materialCount: 9,
+    });
+    expect(preview.canvasMaterialPlan.cards.map((card) => card.kind)).toEqual([
+      'motion-project',
+      'story-beat',
+      'story-beat',
+      'story-beat',
+      'story-beat',
+      'story-beat',
+      'story-beat',
+      'render-proof',
+      'export-pack',
+    ]);
+    expect(preview.canvasMaterialPlan.cards[0]).toMatchObject({
+      label: 'aether launch video',
+      body: 'aether launch - 30s',
+      statusLabel: 'review mode',
+      actionLabel: 'review plan',
+    });
+    expect(preview.canvasMaterialPlan.cards[4]).toMatchObject({
+      label: 'demo - App frame',
+      actionLabel: 'Regenerate capture for App frame',
+    });
+    expect(
+      preview.canvasMaterialPlan.cards
+        .flatMap((card) => [card.label, card.body, ...card.detailLabels, card.actionLabel ?? ''])
+        .join('\n')
+    ).not.toContain('clip-beat-demo-text');
     expect(preview.visualSourcingSummary).toMatchObject({
       status: 'ready',
       requestCount: 3,

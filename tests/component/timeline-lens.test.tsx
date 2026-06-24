@@ -669,6 +669,60 @@ const previewPlan: MotionPreviewPlan = {
     ],
     canvasDropTargets: [],
   },
+  canvasMaterialPlan: {
+    id: 'canvas-material-motion-aether-launch-draft-primary',
+    projectId: 'motion-aether-launch',
+    draftId: 'draft-primary',
+    title: 'aether launch video',
+    summaryLabels: ['aether', 'launch', '30s', 'x 9:16 30s'],
+    materialCount: 4,
+    cards: [
+      {
+        id: 'motion-aether-launch-draft-primary-project',
+        kind: 'motion-project',
+        label: 'aether launch video',
+        body: 'aether launch - 30s',
+        detailLabels: ['x 9:16 30s'],
+        statusLabel: 'review mode',
+        actionLabel: 'review plan',
+        width: 380,
+        height: 168,
+      },
+      {
+        id: 'motion-aether-launch-draft-primary-scene-1',
+        kind: 'story-beat',
+        label: 'hook - Hook card',
+        body: 'Turn a repo into a launch video.',
+        detailLabels: ['0s + 3s', '1 source'],
+        statusLabel: 'needs review',
+        actionLabel: 'edit scene',
+        width: 340,
+        height: 156,
+      },
+      {
+        id: 'motion-aether-launch-draft-primary-render-proof',
+        kind: 'render-proof',
+        label: 'render proof',
+        body: 'render proof not generated yet',
+        detailLabels: ['MP4', 'Poster', 'Subtitles'],
+        statusLabel: 'needs render',
+        actionLabel: 'Render proof',
+        width: 380,
+        height: 168,
+      },
+      {
+        id: 'motion-aether-launch-draft-primary-export-pack',
+        kind: 'export-pack',
+        label: 'export pack',
+        body: '0/1 formats ready',
+        detailLabels: ['x 9:16 planned'],
+        statusLabel: 'needs render',
+        actionLabel: 'Render every export target before packaging',
+        width: 380,
+        height: 168,
+      },
+    ],
+  },
   visualSourcingSummary: {
     status: 'ready',
     requestCount: 3,
@@ -1302,12 +1356,12 @@ describe('TimelineLens', () => {
       />
     );
 
-    expect(screen.getByText('aether launch video')).toBeInTheDocument();
+    expect(screen.getAllByText('aether launch video').length).toBeGreaterThan(0);
     expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
     expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
     expect(screen.getByText('Demo-first cut')).toBeInTheDocument();
     expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);
-    expect(screen.getByText('video plan')).toBeInTheDocument();
+    expect(screen.getAllByText('video plan').length).toBeGreaterThan(0);
     expect(screen.getByText('2 scenes / 30s')).toBeInTheDocument();
     expect(screen.getByText('workflow skill')).toBeInTheDocument();
     expect(screen.getByText('3 variations')).toBeInTheDocument();
@@ -1409,7 +1463,7 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('needs render').length).toBeGreaterThan(0);
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
     expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();
-    expect(screen.getByText('render proof')).toBeInTheDocument();
+    expect(screen.getAllByText('render proof').length).toBeGreaterThan(0);
     expect(screen.getByText('remotion output review')).toBeInTheDocument();
     expect(screen.getByText('0/1 targets')).toBeInTheDocument();
     expect(screen.getByText('0 artifacts')).toBeInTheDocument();
@@ -1695,6 +1749,24 @@ describe('TimelineLens', () => {
       motionProjectId: 'motion-aether-launch',
     });
     expect(screen.queryByText('render-export-x-9x16-video')).not.toBeInTheDocument();
+  });
+
+  it('lets creators drop the editable video plan onto the canvas', async () => {
+    const onDropMotionPlanToCanvas = vi.fn();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
+      />
+    );
+
+    expect(screen.getAllByText('video plan').length).toBeGreaterThan(0);
+    expect(screen.getByText('4 canvas cards')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /drop plan on canvas/i }));
+    expect(onDropMotionPlanToCanvas).toHaveBeenCalledWith(previewPlan.canvasMaterialPlan);
   });
 
   it('lets creators request required app captures or an interaction recording', async () => {

@@ -387,6 +387,11 @@ capture, render, and provenance debugging.
   dimensions, MIME type, and motion-project provenance. The timeline lens can
   hand those targets to `dropVideoOnCanvas`, placing rendered videos back onto
   the tldraw canvas as native video material.
+- Preview plans now expose a canvas-material plan for editable video planning:
+  motion-project, story-beat, render-proof, and export-pack cards with
+  creator-facing labels, statuses, and action handles. The timeline lens can
+  hand that plan to `dropMotionCanvasMaterialPlanOnCanvas`, placing ordinary
+  editable tldraw geo cards back onto the canvas with motion provenance.
 - Preview plans now also expose a capability setup surface for full-auto
   readiness: capture providers, local-app launch runners, visual sourcing,
   image-to-video, voice/timing, sync blockers, and Remotion/HyperFrames render

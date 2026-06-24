@@ -49,6 +49,10 @@ import {
   type MotionReferenceGrammarPlan,
 } from './referenceGrammar';
 import {
+  buildMotionCanvasMaterialPlan,
+  type MotionCanvasMaterialPlan,
+} from './canvasMaterial';
+import {
   buildMotionSyncPlan,
   type MotionCaptionTimingSource,
   type MotionSyncPlanStatus,
@@ -489,6 +493,7 @@ export interface MotionPreviewPlan {
   syncSoundCues: MotionPreviewSyncSoundCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
   renderProofSummary: MotionPreviewRenderProofSummary;
+  canvasMaterialPlan: MotionCanvasMaterialPlan;
   referenceGrammar: MotionReferenceGrammarPlan;
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
@@ -521,6 +526,7 @@ export function buildMotionPreviewPlan(
   const timelineRows = buildTimelineRows(tracks);
   const editableComponents = buildEditableComponents(tracks);
   const regenerationActions = buildRegenerationActions(editableComponents);
+  const videoPlan = buildVideoPlan(reviewPlan, timelineRows, regenerationActions);
   const syncPlan = buildMotionSyncPlan(project, {
     draftId: project.currentDraftId,
     fps,
@@ -558,6 +564,24 @@ export function buildMotionPreviewPlan(
     fps,
     requestedAt: options.requestedAt,
   });
+  const exportPackSummary = buildExportPackSummary(exportPackPlan);
+  const renderProofSummary = buildRenderProofSummary(
+    exportPackPlan,
+    project.executionHistory,
+    editSource,
+    engines
+  );
+  const canvasMaterialPlan = buildMotionCanvasMaterialPlan({
+    projectId: project.id,
+    draftId: project.currentDraftId,
+    title: project.title,
+    workflowMode: project.workflowMode,
+    primaryAction: reviewPlan.primaryAction,
+    summary: reviewPlan.summary,
+    videoPlan,
+    renderProofSummary,
+    exportPackSummary,
+  });
 
   return {
     id: `preview-${project.id}-${project.currentDraftId}-${options.requestedAt}`,
@@ -568,7 +592,7 @@ export function buildMotionPreviewPlan(
     primaryAction: reviewPlan.primaryAction,
     summary: reviewPlan.summary,
     sourceProfile: buildSourceProfileSummary(project.sourceProfile),
-    videoPlan: buildVideoPlan(reviewPlan, timelineRows, regenerationActions),
+    videoPlan,
     designKit: buildMotionDesignKitPlan(project),
     storyboard: reviewPlan.storyBeats.map((beat) => ({
       beatId: beat.beatId,
@@ -595,13 +619,9 @@ export function buildMotionPreviewPlan(
     syncSummary: buildSyncSummary(syncPlan),
     syncBeats: buildSyncBeats(syncPlan),
     syncSoundCues: buildSyncSoundCues(syncPlan),
-    exportPackSummary: buildExportPackSummary(exportPackPlan),
-    renderProofSummary: buildRenderProofSummary(
-      exportPackPlan,
-      project.executionHistory,
-      editSource,
-      engines
-    ),
+    exportPackSummary,
+    renderProofSummary,
+    canvasMaterialPlan,
     referenceGrammar,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),

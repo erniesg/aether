@@ -34,6 +34,7 @@ import { useReferences } from '@/lib/references/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { dropVideoOnCanvas } from '@/lib/canvas/dropVideo';
+import { dropMotionCanvasMaterialPlanOnCanvas } from '@/lib/canvas/dropMotionCanvasPlan';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
 import {
@@ -91,6 +92,7 @@ import {
   buildMotionPreviewPlan,
   type MotionPreviewRenderProofCanvasDropTarget,
 } from '@/lib/motion/previewPlan';
+import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
@@ -873,6 +875,18 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         briefId: target.motionProjectId,
       });
       setMotionTimelineActionStatus(`${target.label} on canvas`);
+    },
+    [editor]
+  );
+  const handleTimelineDropMotionPlanToCanvas = useCallback(
+    (plan: MotionCanvasMaterialPlan) => {
+      if (!editor) {
+        setMotionTimelineActionStatus('canvas not ready');
+        return;
+      }
+
+      const result = dropMotionCanvasMaterialPlanOnCanvas(editor, plan);
+      setMotionTimelineActionStatus(`${result.shapeIds.length} plan cards on canvas`);
     },
     [editor]
   );
@@ -2785,6 +2799,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onGenerateVoice={handleTimelineGenerateVoice}
             onSyncMotion={handleTimelineSync}
             onRenderMotion={handleTimelineRender}
+            onDropMotionPlanToCanvas={handleTimelineDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={handleTimelineDropRenderProofToCanvas}
             onExportPack={handleTimelineExportPack}
             onPlanVisuals={handleTimelinePlanVisuals}

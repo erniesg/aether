@@ -15,6 +15,7 @@ import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
 import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
+import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
 import type {
   MotionProductionPlan,
   MotionProductionStep,
@@ -66,6 +67,7 @@ export interface TimelineLensProps {
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
@@ -93,6 +95,7 @@ export function TimelineLens({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
   onExportPack,
   onPlanVisuals,
@@ -146,6 +149,7 @@ export function TimelineLens({
             onGenerateVoice={onGenerateVoice}
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
+            onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={onDropRenderProofToCanvas}
             onExportPack={onExportPack}
             onPlanVisuals={onPlanVisuals}
@@ -192,6 +196,7 @@ function MotionPreviewPlanView({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
   onExportPack,
   onPlanVisuals,
@@ -216,6 +221,7 @@ function MotionPreviewPlanView({
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
@@ -376,6 +382,13 @@ function MotionPreviewPlanView({
         <MotionProductionQueueStrip
           plan={previewPlan.productionPlan}
           executionHistory={previewPlan.executionHistory}
+        />
+      </section>
+
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionCanvasMaterialStrip
+          plan={previewPlan.canvasMaterialPlan}
+          onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
         />
       </section>
 
@@ -850,6 +863,83 @@ function MotionProductionQueueStrip({
       </div>
     </div>
   );
+}
+
+function MotionCanvasMaterialStrip({
+  plan,
+  onDropMotionPlanToCanvas,
+}: {
+  plan: MotionCanvasMaterialPlan;
+  onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
+}) {
+  const visibleCards = plan.cards.slice(0, 4);
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            video plan
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {plan.materialCount} canvas cards
+          </div>
+        </div>
+        <Chip tone="info" size="sm">
+          canvas
+        </Chip>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
+          {visibleCards.map((card) => (
+            <div
+              key={card.id}
+              className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <div className="truncate font-caption text-xs text-ink">{card.label}</div>
+                <Chip tone={motionCanvasCardTone(card.kind)} size="sm">
+                  {card.statusLabel}
+                </Chip>
+              </div>
+              <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+                {card.body}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="flex flex-wrap gap-1">
+            {plan.summaryLabels.slice(0, 4).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+          {onDropMotionPlanToCanvas ? (
+            <button
+              type="button"
+              onClick={() => onDropMotionPlanToCanvas(plan)}
+              className="mt-2 w-full rounded-sm border border-border-soft bg-surface-canvas px-3 py-2 text-left font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+            >
+              drop plan on canvas
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function motionCanvasCardTone(
+  kind: MotionCanvasMaterialPlan['cards'][number]['kind']
+): 'neutral' | 'info' | 'ok' | 'warn' {
+  if (kind === 'render-proof') return 'ok';
+  if (kind === 'export-pack') return 'warn';
+  if (kind === 'story-beat') return 'info';
+  return 'neutral';
 }
 
 function MotionRenderProofStrip({
