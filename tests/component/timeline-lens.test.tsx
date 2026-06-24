@@ -1591,7 +1591,8 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Screenshot / Recording')).toBeInTheDocument();
   });
 
-  it('shows reusable agent actions without exposing raw request bodies', () => {
+  it('shows reusable agent actions without exposing raw request bodies', async () => {
+    const onRunFullAuto = vi.fn();
     render(
       <TimelineLens
         tracks={[]}
@@ -1599,6 +1600,7 @@ describe('TimelineLens', () => {
         agentHandoff={agentHandoff}
         selectedClipId={null}
         onSelectClip={() => {}}
+        onRunFullAuto={onRunFullAuto}
       />
     );
 
@@ -1613,6 +1615,9 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
     expect(screen.queryByText('$editedSourceFiles')).not.toBeInTheDocument();
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /run full auto/i }));
+    expect(onRunFullAuto).toHaveBeenCalledTimes(1);
   });
 
   it('shows saved full-auto receipt history without exposing raw refs', () => {

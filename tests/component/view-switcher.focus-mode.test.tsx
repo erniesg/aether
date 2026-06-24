@@ -10,6 +10,7 @@ import {
   setMotionStartResult,
 } from '@/lib/motion/start-store';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
+import { buildMotionAgentExecutionHandoff } from '@/lib/motion/agentHandoff';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
@@ -126,6 +127,44 @@ function storedRegeneratableMotionStart(): AgentMotionStartResult {
     agentHandoff: null,
     examples: [],
     requestedInputs: [],
+  };
+}
+
+function storedFullAutoMotionStart(): AgentMotionStartResult {
+  const start = storedRegeneratableMotionStart();
+  const project = {
+    ...start.project!,
+    workflowMode: 'full-auto' as const,
+  };
+  const workflow = {
+    workflowId: 'repo-launch-video' as const,
+    reason: 'repo source selected a launch workflow',
+    plan: buildAgentMotionWorkflowPlan({
+      workflowId: 'repo-launch-video',
+      mode: 'full-auto',
+      sourceRefs: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+      requestedEngines: ['remotion', 'hyperframes', 'provider'],
+      createdAt: 1,
+    }),
+  };
+  const capturePlan = buildAgentMotionCapturePlan(project);
+  const normalizedCapturePlan = capturePlan.status === 'not-needed' ? null : capturePlan;
+
+  return {
+    ...start,
+    workflow,
+    project,
+    previewPlan: buildMotionPreviewPlan(project, {
+      engines: workflow.plan.engines,
+      workflowRunPlan: workflow.plan.runPlan,
+      requestedAt: 84,
+    }),
+    capturePlan: normalizedCapturePlan,
+    agentHandoff: buildMotionAgentExecutionHandoff({
+      workflow,
+      project,
+      capturePlan: normalizedCapturePlan,
+    }),
   };
 }
 
@@ -534,6 +573,73 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
       (call) => call[0] === '/api/capability/draft-skill'
     );
     expect(draftCall).toBeUndefined();
+  });
+
+  it('timeline full-auto action calls the saved-gates route and refreshes status', async () => {
+    const start = storedFullAutoMotionStart();
+    const returnedProject = {
+      ...start.project!,
+      executionHistory: [
+        {
+          id: 'execution-capture-browser-test-901',
+          gateId: 'capture' as const,
+          label: 'Product capture',
+          providerId: 'browser-test',
+          savedAt: 901,
+          receiptCount: 1,
+          receiptLabels: ['Screenshot'],
+          receipts: [],
+          provenance: [{ kind: 'provider' as const, ref: 'browser-test' }],
+        },
+      ],
+    };
+    const returnedPreview = buildMotionPreviewPlan(returnedProject, {
+      engines: start.workflow.plan.engines,
+      workflowRunPlan: start.workflow.plan.runPlan,
+      requestedAt: 901,
+    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'paused',
+          project: returnedProject,
+          reviewPlan: start.reviewPlan,
+          previewPlan: returnedPreview,
+          run: {
+            status: 'paused',
+            reason: 'provider-required',
+            stepLabel: 'Voice and captions',
+            advancedStepIds: ['capture'],
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /run full auto/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'full auto paused at Voice and captions'
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/full-auto',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    const fullAutoCall = fetchMock.mock.calls.find(
+      (call) => call[0] === '/api/motion/full-auto'
+    );
+    const body = JSON.parse(String(fullAutoCall?.[1]?.body));
+    expect(body.project.id).toBe('motion-aether-launch');
+    expect(body.requestedEngines).toEqual(['remotion', 'hyperframes', 'provider']);
   });
 
   it('selected timeline clip edits call revise and refresh the preview', async () => {

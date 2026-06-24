@@ -67,6 +67,7 @@ export interface TimelineLensProps {
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onRunFullAuto?: () => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
@@ -95,6 +96,7 @@ export function TimelineLens({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onRunFullAuto,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
   onExportPack,
@@ -149,6 +151,7 @@ export function TimelineLens({
             onGenerateVoice={onGenerateVoice}
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
+            onRunFullAuto={onRunFullAuto}
             onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={onDropRenderProofToCanvas}
             onExportPack={onExportPack}
@@ -196,6 +199,7 @@ function MotionPreviewPlanView({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onRunFullAuto,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
   onExportPack,
@@ -221,6 +225,7 @@ function MotionPreviewPlanView({
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onRunFullAuto?: () => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
@@ -374,7 +379,10 @@ function MotionPreviewPlanView({
 
       {agentHandoff ? (
         <section className="border-b border-border-soft px-4 py-3">
-          <MotionAgentActionsStrip handoff={agentHandoff} />
+          <MotionAgentActionsStrip
+            handoff={agentHandoff}
+            onRunFullAuto={onRunFullAuto}
+          />
         </section>
       ) : null}
 
@@ -644,14 +652,20 @@ function MotionAgentPlanStepRow({
 
 function MotionAgentActionsStrip({
   handoff,
+  onRunFullAuto,
 }: {
   handoff: MotionAgentExecutionHandoff;
+  onRunFullAuto?: () => void;
 }) {
   const nextTemplate =
     handoff.templates.find((template) => template.id === handoff.nextTemplateId) ??
     handoff.templates[0] ??
     null;
   const visibleTemplates = handoff.templates.slice(0, 4);
+  const canRunFullAuto =
+    handoff.mode === 'full-auto' &&
+    nextTemplate?.route === '/api/motion/full-auto' &&
+    Boolean(onRunFullAuto);
 
   return (
     <div className="min-w-0">
@@ -702,6 +716,15 @@ function MotionAgentActionsStrip({
             <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
               {nextTemplate.expectedReceipts.slice(0, 3).join(' / ')}
             </div>
+          ) : null}
+          {canRunFullAuto ? (
+            <button
+              type="button"
+              onClick={onRunFullAuto}
+              className="mt-2 w-full rounded-sm border border-border-soft bg-surface-canvas px-3 py-2 text-left font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+            >
+              run full auto
+            </button>
           ) : null}
         </div>
       </div>
