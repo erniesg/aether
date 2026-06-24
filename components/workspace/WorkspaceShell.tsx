@@ -2767,6 +2767,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onEditClipEffect={handleTimelineClipEffectEdit}
             onEditClipTiming={handleTimelineClipTimingEdit}
             capturePlan={motionStart?.capturePlan ?? null}
+            agentHandoff={motionStart?.agentHandoff ?? null}
             graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}
             workflowSkillDraft={motionWorkflowSkillDraft}

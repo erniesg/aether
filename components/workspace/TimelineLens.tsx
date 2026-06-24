@@ -9,6 +9,7 @@ import {
   type MotionEffectPresetId,
 } from '@/lib/motion/effectPresets';
 import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
+import type { MotionAgentExecutionHandoff } from '@/lib/motion/agentHandoff';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
 import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
@@ -60,6 +61,7 @@ export interface TimelineLensProps {
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan?: AgentMotionCapturePlan | null;
+  agentHandoff?: MotionAgentExecutionHandoff | null;
   graphNodes?: MotionGraphNode[];
   workflowExamples?: MotionWorkflowExample[];
   workflowSkillDraft?: MotionWorkflowSkillDraft | null;
@@ -85,6 +87,7 @@ export function TimelineLens({
   onEditClipEffect,
   onEditClipTiming,
   capturePlan = null,
+  agentHandoff = null,
   graphNodes = [],
   workflowExamples = [],
   workflowSkillDraft = null,
@@ -136,6 +139,7 @@ export function TimelineLens({
             onEditClipEffect={onEditClipEffect}
             onEditClipTiming={onEditClipTiming}
             capturePlan={capturePlan}
+            agentHandoff={agentHandoff}
             graphNodes={graphNodes}
             workflowExamples={workflowExamples}
             workflowSkillDraft={workflowSkillDraft}
@@ -180,6 +184,7 @@ function MotionPreviewPlanView({
   onEditClipEffect,
   onEditClipTiming,
   capturePlan,
+  agentHandoff,
   graphNodes,
   workflowExamples,
   workflowSkillDraft,
@@ -202,6 +207,7 @@ function MotionPreviewPlanView({
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan: AgentMotionCapturePlan | null;
+  agentHandoff: MotionAgentExecutionHandoff | null;
   graphNodes: MotionGraphNode[];
   workflowExamples: MotionWorkflowExample[];
   workflowSkillDraft: MotionWorkflowSkillDraft | null;
@@ -338,6 +344,12 @@ function MotionPreviewPlanView({
       {previewPlan.agentRunbook ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionAgentPlanStrip runbook={previewPlan.agentRunbook} />
+        </section>
+      ) : null}
+
+      {agentHandoff ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionAgentActionsStrip handoff={agentHandoff} />
         </section>
       ) : null}
 
@@ -587,6 +599,120 @@ function MotionAgentPlanStepRow({
         {chipLabel}
       </Chip>
     </div>
+  );
+}
+
+function MotionAgentActionsStrip({
+  handoff,
+}: {
+  handoff: MotionAgentExecutionHandoff;
+}) {
+  const nextTemplate =
+    handoff.templates.find((template) => template.id === handoff.nextTemplateId) ??
+    handoff.templates[0] ??
+    null;
+  const visibleTemplates = handoff.templates.slice(0, 4);
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            agent actions
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {nextTemplate ? nextTemplate.label : 'ready for review'}
+          </div>
+        </div>
+        <Chip tone={handoff.mode === 'full-auto' ? 'ok' : 'info'} size="sm">
+          {handoff.mode === 'full-auto' ? 'full auto' : 'review'}
+        </Chip>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="grid gap-1.5">
+            {visibleTemplates.map((template) => (
+              <MotionAgentActionTemplateRow
+                key={template.id}
+                template={template}
+                isNext={template.id === handoff.nextTemplateId}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">
+            {handoff.templates.length}{' '}
+            {handoff.templates.length === 1 ? 'action' : 'actions'}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {nextTemplate ? (
+              <Chip tone="info" size="sm">
+                next
+              </Chip>
+            ) : null}
+            {handoff.sourceLabels.slice(0, 2).map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+          {nextTemplate ? (
+            <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {nextTemplate.expectedReceipts.slice(0, 3).join(' / ')}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionAgentActionTemplateRow({
+  template,
+  isNext,
+}: {
+  template: MotionAgentExecutionHandoff['templates'][number];
+  isNext: boolean;
+}) {
+  const receiptLabel = template.expectedReceipts.slice(0, 2).join(' / ');
+  const hasLocalRunner = templateHasLocalRunner(template);
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          <span className="truncate font-caption text-xs text-ink">{template.label}</span>
+          {hasLocalRunner ? (
+            <Chip tone="info" size="sm">
+              local runner
+            </Chip>
+          ) : null}
+        </div>
+        <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+          {template.route}
+        </div>
+        {receiptLabel ? (
+          <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+            {receiptLabel}
+          </div>
+        ) : null}
+      </div>
+      <Chip tone={isNext ? 'info' : 'neutral'} size="sm">
+        {isNext ? 'next' : template.method.toLowerCase()}
+      </Chip>
+    </div>
+  );
+}
+
+function templateHasLocalRunner(template: MotionAgentExecutionHandoff['templates'][number]) {
+  const runner = template.body.captureRunner;
+  return (
+    typeof runner === 'object' &&
+    runner !== null &&
+    'kind' in runner &&
+    runner.kind === 'playwright-local'
   );
 }
 

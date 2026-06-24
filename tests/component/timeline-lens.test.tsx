@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { TimelineLens } from '@/components/workspace/TimelineLens';
 import type { MotionGraphNode, TimelineTrack } from '@/lib/motion/project';
 import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
+import type { MotionAgentExecutionHandoff } from '@/lib/motion/agentHandoff';
 import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
 import type { MotionProductionPlan } from '@/lib/motion/productionPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
@@ -1126,6 +1127,68 @@ const capturePlan: AgentMotionCapturePlan = {
   provenance: [{ kind: 'site', ref: 'https://aether.local/demo' }],
 };
 
+const agentHandoff: MotionAgentExecutionHandoff = {
+  id: 'handoff-motion-aether-launch',
+  projectId: 'motion-aether-launch',
+  workflowId: 'repo-launch-video',
+  mode: 'full-auto',
+  nextTemplateId: 'full-auto-run',
+  sourceLabels: ['aether local repo', 'https://aether.local/demo'],
+  templates: [
+    {
+      id: 'full-auto-run',
+      label: 'Run saved gates',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-render',
+      body: {
+        project: '$motionProject',
+        captureRequestIds: ['capture-home-still', 'capture-dom-snapshot'],
+        captureRunner: {
+          kind: 'playwright-local',
+          outputDir: 'outputs/motion-captures/motion-aether-launch',
+          launchLocalApp: true,
+          headless: true,
+        },
+      },
+      inputPlaceholders: ['$motionProject'],
+      expectedReceipts: ['captures', 'voice clips', 'export pack'],
+    },
+    {
+      id: 'review-capture',
+      label: 'Capture product media',
+      method: 'POST',
+      route: '/api/motion/capture',
+      toolId: 'motion-capture',
+      body: {
+        project: '$motionProject',
+        requestIds: ['capture-home-still', 'capture-dom-snapshot'],
+        captureRunner: {
+          kind: 'playwright-local',
+          outputDir: 'outputs/motion-captures/motion-aether-launch',
+          launchLocalApp: true,
+          headless: true,
+        },
+      },
+      inputPlaceholders: ['$motionProject'],
+      expectedReceipts: ['screenshot', 'viewport receipt'],
+    },
+    {
+      id: 'edit-source',
+      label: 'Apply source edits',
+      method: 'POST',
+      route: '/api/motion/source-edit',
+      toolId: 'motion-source-edit',
+      body: {
+        project: '$motionProject',
+        sourceFiles: '$editedSourceFiles',
+      },
+      inputPlaceholders: ['$motionProject', '$editedSourceFiles'],
+      expectedReceipts: ['updated script', 'updated storyboard', 'updated timeline'],
+    },
+  ],
+};
+
 describe('TimelineLens', () => {
   it('renders creator-facing tracks and clips without raw provenance refs', () => {
     render(<TimelineLens tracks={tracks} selectedClipId={null} onSelectClip={() => {}} />);
@@ -1345,6 +1408,30 @@ describe('TimelineLens', () => {
     );
 
     expect(screen.getByText('Screenshot / Recording')).toBeInTheDocument();
+  });
+
+  it('shows reusable agent actions without exposing raw request bodies', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{ ...previewPlan, workflowMode: 'full-auto', primaryAction: 'queue-render' }}
+        agentHandoff={agentHandoff}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByText('agent actions')).toBeInTheDocument();
+    expect(screen.getAllByText('Run saved gates').length).toBeGreaterThan(0);
+    expect(screen.getByText('Capture product media')).toBeInTheDocument();
+    expect(screen.getAllByText('Apply source edits').length).toBeGreaterThan(0);
+    expect(screen.getByText('/api/motion/full-auto')).toBeInTheDocument();
+    expect(screen.getByText('/api/motion/capture')).toBeInTheDocument();
+    expect(screen.getAllByText('local runner').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('captures / voice clips').length).toBeGreaterThan(0);
+    expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
+    expect(screen.queryByText('$editedSourceFiles')).not.toBeInTheDocument();
+    expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
   });
 
   it('shows saved full-auto receipt history without exposing raw refs', () => {

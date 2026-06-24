@@ -144,9 +144,9 @@ capture, render, and provenance debugging.
   now expose the `timeline` lens inside the single synthesis shell. The lens can
   render a creator-facing video plan, story beats, draft variations, editable
   motion kit, component controls, scoped regeneration actions, engine readiness,
-  capability setup, and timeline rows without exposing raw provenance/debug ids
-  in the primary surface; `graph` remains reserved for advanced
-  provenance/generation editing.
+  capability setup, compact agent actions, and timeline rows without exposing
+  raw provenance/debug ids or request bodies in the primary surface; `graph`
+  remains reserved for advanced provenance/generation editing.
 - `components/rail/sections/MotionSection.tsx` now starts video projects from
   repo, PR, site URL, or local path sources with review/full-auto mode and
   target presets for X vertical, LinkedIn feed, website demo, or a multi-format
@@ -165,10 +165,12 @@ capture, render, and provenance debugging.
   the creator for review or full-auto progression. Start results now also carry
   an agent execution handoff with concrete request templates for full-auto,
   capture, image-to-video, voice, sync, source edits, render proof, and export
-  pack gates. GitHub repo URLs, local repo paths, and site/app URL sources can
-  now create editable project starts; PR sources can create editable code-change
-  explainer starts when a code-change provider is configured. Real screen
-  capture and recording remain provider execution work.
+  pack gates. The timeline lens renders those templates as creator-facing agent
+  actions, including local-runner availability and expected receipts, while
+  hiding placeholder JSON bodies. GitHub repo URLs, local repo paths, and
+  site/app URL sources can now create editable project starts; PR sources can
+  create editable code-change explainer starts when a code-change provider is
+  configured. Real screen capture and recording remain provider execution work.
 - `lib/motion/productionPlan.ts` now derives a concrete production queue from an
   editable motion project: plan, drafts, capture, image-to-video, voice, sync,
   render, and export steps are marked complete, ready, blocked, review, or

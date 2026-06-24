@@ -111,6 +111,11 @@
   capture, image-to-video, voice, sync, source-edit, render, and export-pack
   gates. Local repo handoffs include required capture request ids plus the
   request-scoped `playwright-local` runner config.
+- The workspace timeline lens now receives those agent handoffs and renders a
+  compact agent-actions strip inside the creator shell: next action, review or
+  full-auto mode, API route labels, expected receipts, and local-runner
+  availability are visible without exposing raw JSON placeholders or capture
+  request ids.
 - Agent-native `/api/motion/start` route that accepts direct `sourceRefs` or
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture
