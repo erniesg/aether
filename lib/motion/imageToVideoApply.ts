@@ -2,6 +2,7 @@ import type {
   MotionGeneratedVideoClip,
   MotionImageToVideoResult,
 } from '@/lib/providers/video/types';
+import { appendImageToVideoExecutionHistory } from './executionHistory';
 import type {
   MotionGraphNode,
   MotionProject,
@@ -33,6 +34,11 @@ export function applyMotionImageToVideoResultToMotionProject(
           : draft.tracks,
     })),
     graphNodes: upsertImageToVideoNode(project.graphNodes, result, provenance),
+    executionHistory: appendImageToVideoExecutionHistory(
+      project.executionHistory,
+      result,
+      options.updatedAt ?? project.updatedAt
+    ),
     updatedAt: options.updatedAt ?? project.updatedAt,
   };
 }

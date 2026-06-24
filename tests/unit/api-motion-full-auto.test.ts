@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { applyCaptureResultToMotionProject } from '@/lib/motion/captureApply';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
@@ -8,6 +9,12 @@ import type {
   CaptureRequest,
   CaptureResult,
 } from '@/lib/providers/capture/types';
+import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
+import type {
+  MotionImageToVideoProvider,
+  MotionImageToVideoRequest,
+  MotionImageToVideoResult,
+} from '@/lib/providers/video/types';
 
 function project(): MotionProject {
   return materializeMotionTimeline(
@@ -63,6 +70,82 @@ function captureProvider(capture: CaptureProvider['capture']): CaptureProvider {
     displayName: 'Browser test capture',
     available: () => true,
     capture,
+  };
+}
+
+const screenshotCaptureResult: CaptureResult = {
+  providerId: 'browser-test',
+  artifacts: [
+    {
+      id: 'capture-aether-homepage',
+      kind: 'screenshot',
+      assetUrl: 'asset://captures/aether-homepage.png',
+      mimeType: 'image/png',
+      width: 1080,
+      height: 1920,
+      viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+      cursorTargets: [],
+      provenance: [
+        { kind: 'provider', ref: 'browser-test' },
+        { kind: 'site', ref: 'https://aether.example' },
+      ],
+    },
+  ],
+  provenance: [
+    { kind: 'provider', ref: 'browser-test' },
+    { kind: 'site', ref: 'https://aether.example' },
+  ],
+};
+
+function projectWithSelectedVisualSource(): MotionProject {
+  const captured = applyCaptureResultToMotionProject(project(), screenshotCaptureResult, {
+    updatedAt: 710,
+  });
+
+  return {
+    ...captured,
+    graphNodes: [
+      ...captured.graphNodes,
+      {
+        id: 'node-visual-sourcing-plan',
+        kind: 'visual-search',
+        inputRefs: ['capture-aether-homepage'],
+        outputRefs: ['visual-source-capture-assets'],
+        providerId: 'asset-selection',
+        status: 'done',
+        provenance: [{ kind: 'capture', ref: 'capture-aether-homepage' }],
+      },
+    ],
+  };
+}
+
+function imageToVideoProvider(
+  generate: MotionImageToVideoProvider['generate']
+): MotionImageToVideoProvider {
+  return {
+    id: 'image-video-test',
+    displayName: 'Image video test generation',
+    available: () => true,
+    generate,
+  };
+}
+
+function generatedClipFor(request: MotionImageToVideoRequest): MotionImageToVideoResult {
+  return {
+    providerId: 'image-video-test',
+    artifacts: [
+      {
+        ...request.output,
+        requestId: request.id,
+        assetUrl: `asset://${request.output.path}`,
+        durationMs: 8000,
+        provenance: [
+          { kind: 'provider', ref: 'image-video-test' },
+          ...request.output.provenance,
+        ],
+      },
+    ],
+    provenance: [{ kind: 'provider', ref: 'image-video-test' }],
   };
 }
 
@@ -201,6 +284,83 @@ describe('POST /api/motion/full-auto', () => {
     expect(capture.mock.calls[0][0]).toMatchObject({
       mode: 'screenshot',
       preferredProviderId: 'browser-test',
+    });
+  });
+
+  it('executes image-to-video providers for selected visual sources before pausing at voice', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: projectWithSelectedVisualSource(),
+          imageToVideoProviderId: 'image-video-test',
+          imageToVideoClipIds: ['clip-beat-demo-text'],
+          requestedAt: 712,
+          updatedAt: 713,
+          requestedEngines: ['hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'paused',
+      run: {
+        status: 'paused',
+        reason: 'provider-required',
+        stepId: 'voice',
+        advancedStepIds: ['visual-generation'],
+        receiptCount: 2,
+      },
+      project: {
+        id: 'motion-aether-launch',
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'execution-image-to-video-image-video-test-713',
+            gateId: 'visual-generation',
+            receiptCount: 1,
+            receiptLabels: ['Generated clip'],
+          }),
+        ]),
+      },
+      productionPlan: {
+        nextStepId: 'voice',
+      },
+      previewPlan: {
+        productionPlan: {
+          nextStepId: 'voice',
+        },
+      },
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0][0]).toMatchObject({
+      id: 'image-to-video-clip-beat-demo-text',
+      clipId: 'clip-beat-demo-text',
+      sourceAssetId: 'capture-aether-homepage',
+    });
+
+    const generatedClip = json.project.tracks
+      .flatMap((track: { clips: Array<{ id: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { id: string }) => clip.id === 'clip-beat-demo-text');
+    expect(generatedClip).toMatchObject({
+      assetId: 'generated-clip-beat-demo-text-image-to-video',
+      props: {
+        generatedVideoAssetId: 'generated-clip-beat-demo-text-image-to-video',
+        imageToVideoProviderId: 'image-video-test',
+        sourceVisualAssetId: 'capture-aether-homepage',
+        status: 'ready',
+      },
     });
   });
 

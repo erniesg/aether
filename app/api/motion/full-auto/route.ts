@@ -9,6 +9,8 @@ import {
   type MotionFullAutoStepHandler,
   type RunSavedMotionFullAutoOptions,
 } from '@/lib/motion/fullAutoExecution';
+import { applyMotionImageToVideoResultToMotionProject } from '@/lib/motion/imageToVideoApply';
+import { buildMotionImageToVideoPlan } from '@/lib/motion/imageToVideoPlan';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { executeMotionRender } from '@/lib/motion/renderExecution';
@@ -36,6 +38,16 @@ import {
   MotionRenderProviderUnavailableError,
   resolveMotionRenderProvider,
 } from '@/lib/providers/video/render-registry';
+import {
+  listMotionImageToVideoProviders,
+  MotionImageToVideoProviderUnavailableError,
+  resolveMotionImageToVideoProvider,
+} from '@/lib/providers/video/generation-registry';
+import type {
+  MotionImageToVideoProvider,
+  MotionImageToVideoRequest,
+  MotionImageToVideoResult,
+} from '@/lib/providers/video/types';
 import type { WorkflowEngine } from '@/lib/workflow/registry';
 
 export const runtime = 'nodejs';
@@ -118,6 +130,7 @@ export async function POST(request: Request): Promise<Response> {
     }),
     providers: {
       capture: listCaptureProviders(),
+      imageToVideo: listMotionImageToVideoProviders(),
       voice: listVoiceProviders(),
       render: listMotionRenderProviders(),
     },
@@ -135,6 +148,9 @@ function buildProviderHandlers(
   }
 ): RunSavedMotionFullAutoOptions['handlers'] {
   const captureProvider = safeResolveCaptureProvider(stringValue(body.captureProviderId));
+  const imageToVideoProvider = safeResolveImageToVideoProvider(
+    stringValue(body.imageToVideoProviderId)
+  );
   const voiceProvider = safeResolveVoiceProvider(stringValue(body.voiceProviderId));
   const renderEngine = options.renderEngine ?? preferredRenderEngine(options.engines);
   const renderProvider = safeResolveRenderProvider({
@@ -156,6 +172,16 @@ function buildProviderHandlers(
     handlers.voice = voiceHandler({
       body,
       provider: voiceProvider,
+      fps: options.fps,
+      requestedAt: options.requestedAt,
+      updatedAt: options.updatedAt,
+    });
+  }
+
+  if (imageToVideoProvider) {
+    handlers['visual-generation'] = imageToVideoHandler({
+      body,
+      provider: imageToVideoProvider,
       fps: options.fps,
       requestedAt: options.requestedAt,
       updatedAt: options.updatedAt,
@@ -236,6 +262,34 @@ function voiceHandler(input: {
   };
 }
 
+function imageToVideoHandler(input: {
+  body: MotionFullAutoRequestBody;
+  provider: MotionImageToVideoProvider;
+  fps?: number;
+  requestedAt: number;
+  updatedAt?: number;
+}): MotionFullAutoStepHandler {
+  return async ({ project }) => {
+    const imageToVideoPlan = buildMotionImageToVideoPlan(project, {
+      fps: input.fps,
+      requestedAt: input.requestedAt,
+    });
+    if (imageToVideoPlan.status !== 'ready') return project;
+
+    const selectedRequests = selectImageToVideoRequests(imageToVideoPlan.requests, input.body);
+    if (!selectedRequests || selectedRequests.length === 0) return project;
+
+    const generationResults = await Promise.all(
+      selectedRequests.map((generationRequest) => input.provider.generate(generationRequest))
+    );
+    return applyMotionImageToVideoResultToMotionProject(
+      withImageToVideoPlannedNode(project, imageToVideoPlan.imageToVideoNode),
+      mergeImageToVideoResults(input.provider.id, generationResults),
+      { updatedAt: input.updatedAt ?? input.requestedAt }
+    );
+  };
+}
+
 function renderHandler(input: {
   engine: MotionRenderEngine;
   provider: MotionRenderProvider;
@@ -291,6 +345,27 @@ function selectVoiceRequests(
   return requests;
 }
 
+function selectImageToVideoRequests(
+  requests: MotionImageToVideoRequest[],
+  body: MotionFullAutoRequestBody
+): MotionImageToVideoRequest[] | null {
+  const requestIds = parseStringArray(body.imageToVideoRequestIds);
+  if (body.imageToVideoRequestIds !== undefined && !requestIds) return null;
+
+  if (requestIds) {
+    return selectByIds(requests, requestIds, (request) => request.id);
+  }
+
+  const clipIds = parseStringArray(body.imageToVideoClipIds);
+  if (body.imageToVideoClipIds !== undefined && !clipIds) return null;
+
+  if (clipIds) {
+    return selectByIds(requests, clipIds, (request) => request.clipId);
+  }
+
+  return requests;
+}
+
 function selectByIds<T>(
   requests: T[],
   ids: string[],
@@ -312,11 +387,43 @@ function mergeCaptureResults(providerId: string, results: CaptureResult[]): Capt
   };
 }
 
+function mergeImageToVideoResults(
+  providerId: string,
+  results: MotionImageToVideoResult[]
+): MotionImageToVideoResult {
+  return {
+    providerId,
+    artifacts: results.flatMap((result) => result.artifacts),
+    provenance: uniqueProvenance(results.flatMap((result) => result.provenance)),
+  };
+}
+
+function withImageToVideoPlannedNode(
+  project: MotionProject,
+  node: ReturnType<typeof buildMotionImageToVideoPlan>['imageToVideoNode']
+): MotionProject {
+  if (!node) return project;
+  if (project.graphNodes.some((candidate) => candidate.id === node.id)) return project;
+  return {
+    ...project,
+    graphNodes: [...project.graphNodes, node],
+  };
+}
+
 function safeResolveCaptureProvider(providerId?: string): CaptureProvider | null {
   try {
     return resolveCaptureProvider(providerId);
   } catch (error) {
     if (error instanceof CaptureProviderUnavailableError) return null;
+    throw error;
+  }
+}
+
+function safeResolveImageToVideoProvider(providerId?: string): MotionImageToVideoProvider | null {
+  try {
+    return resolveMotionImageToVideoProvider(providerId);
+  } catch (error) {
+    if (error instanceof MotionImageToVideoProviderUnavailableError) return null;
     throw error;
   }
 }
@@ -395,7 +502,7 @@ function numericValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-function uniqueProvenance(refs: CaptureResult['provenance']): CaptureResult['provenance'] {
+function uniqueProvenance<T extends { kind: string; ref: string }>(refs: T[]): T[] {
   const seen = new Set<string>();
   return refs.filter((ref) => {
     const key = `${ref.kind}:${ref.ref}`;

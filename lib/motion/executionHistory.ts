@@ -1,5 +1,10 @@
 import type { CaptureArtifact, CaptureResult } from '@/lib/providers/capture/types';
-import type { MotionRenderedAsset, MotionRenderResult } from '@/lib/providers/video/types';
+import type {
+  MotionGeneratedVideoClip,
+  MotionImageToVideoResult,
+  MotionRenderedAsset,
+  MotionRenderResult,
+} from '@/lib/providers/video/types';
 import type {
   MotionExecutionHistoryEntry,
   MotionExecutionReceipt,
@@ -50,6 +55,28 @@ export function appendRenderExecutionHistory(
   });
 }
 
+export function appendImageToVideoExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  result: MotionImageToVideoResult,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  return appendExecutionEntry(history, {
+    id: `execution-image-to-video-${slugifyId(result.providerId)}-${savedAt}`,
+    gateId: 'visual-generation',
+    label: 'Image-to-video generation',
+    providerId: result.providerId,
+    savedAt,
+    receiptCount: result.artifacts.length,
+    receiptLabels: result.artifacts.map(() => 'Generated clip'),
+    receipts: result.artifacts.map((artifact) => imageToVideoReceipt(result.providerId, artifact)),
+    provenance: uniqueProvenance([
+      ...result.provenance,
+      ...result.artifacts.flatMap((artifact) => artifact.provenance),
+      ...result.artifacts.map((artifact) => ({ kind: 'image-to-video' as const, ref: artifact.id })),
+    ]),
+  });
+}
+
 function appendExecutionEntry(
   history: MotionExecutionHistoryEntry[] | undefined,
   entry: MotionExecutionHistoryEntry
@@ -66,6 +93,22 @@ function captureReceipt(providerId: string, artifact: CaptureArtifact): MotionEx
     ref: artifact.id,
     providerId,
     assetUrl: artifact.assetUrl,
+    mimeType: artifact.mimeType,
+  };
+}
+
+function imageToVideoReceipt(
+  providerId: string,
+  artifact: MotionGeneratedVideoClip
+): MotionExecutionReceipt {
+  return {
+    id: `receipt-image-to-video-${artifact.id}`,
+    kind: 'image-to-video',
+    label: 'Generated clip',
+    ref: artifact.id,
+    providerId,
+    assetUrl: artifact.assetUrl,
+    path: artifact.path,
     mimeType: artifact.mimeType,
   };
 }
