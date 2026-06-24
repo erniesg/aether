@@ -49,6 +49,7 @@ function motionStart(): AgentMotionStartResult {
       requestedAt: 82,
     }),
     capturePlan: null,
+    agentHandoff: null,
     examples: [],
     requestedInputs: [],
   };
@@ -118,6 +119,7 @@ function prMotionStart(): AgentMotionStartResult {
       requestedAt: 92,
     }),
     capturePlan: null,
+    agentHandoff: null,
     examples: [],
     requestedInputs: [],
   };

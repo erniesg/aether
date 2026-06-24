@@ -6,6 +6,10 @@ import {
   buildAgentMotionCapturePlan,
   type AgentMotionCapturePlan,
 } from './capturePlan';
+import {
+  buildMotionAgentExecutionHandoff,
+  type MotionAgentExecutionHandoff,
+} from './agentHandoff';
 import { buildMotionPreviewPlan, type MotionPreviewPlan } from './previewPlan';
 import { buildMotionReviewPlan, type MotionReviewPlan } from './reviewPlan';
 import {
@@ -92,6 +96,7 @@ export interface AgentMotionStartResult {
   reviewPlan: MotionReviewPlan | null;
   previewPlan: MotionPreviewPlan | null;
   capturePlan: AgentMotionCapturePlan | null;
+  agentHandoff: MotionAgentExecutionHandoff | null;
   examples: MotionWorkflowExample[];
   requestedInputs: AgentMotionRequestedInput[];
 }
@@ -116,6 +121,7 @@ export async function startAgentMotionWorkflow(
       reviewPlan: null,
       previewPlan: null,
       capturePlan: null,
+      agentHandoff: null,
       examples: examplesFor(workflow),
       requestedInputs: [
         {
@@ -191,6 +197,7 @@ export async function startAgentMotionWorkflow(
     reviewPlan: null,
     previewPlan: null,
     capturePlan: null,
+    agentHandoff: null,
     examples: examplesFor(workflow),
     requestedInputs: [
       {
@@ -270,6 +277,7 @@ function needsCodeChangeEvidence(
     reviewPlan: null,
     previewPlan: null,
     capturePlan: null,
+    agentHandoff: null,
     examples: examplesFor(workflow),
     requestedInputs: [
       {
@@ -287,6 +295,8 @@ function readyResult(
   project: MotionProject,
   requestedAt: number
 ): AgentMotionStartResult {
+  const capturePlan = capturePlanFor(project);
+
   return {
     status: 'ready',
     workflow,
@@ -297,7 +307,12 @@ function readyResult(
       workflowRunPlan: workflow.plan.runPlan,
       requestedAt,
     }),
-    capturePlan: capturePlanFor(project),
+    capturePlan,
+    agentHandoff: buildMotionAgentExecutionHandoff({
+      workflow,
+      project,
+      capturePlan,
+    }),
     examples: examplesFor(workflow),
     requestedInputs: [],
   };

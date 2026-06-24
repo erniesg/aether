@@ -123,6 +123,7 @@ function storedRegeneratableMotionStart(): AgentMotionStartResult {
     reviewPlan: null,
     previewPlan,
     capturePlan: null,
+    agentHandoff: null,
     examples: [],
     requestedInputs: [],
   };

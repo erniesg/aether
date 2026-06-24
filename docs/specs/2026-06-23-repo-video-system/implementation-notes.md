@@ -106,10 +106,15 @@
 - Agent motion workflow starter that turns a repo source into a routed workflow,
   materialized motion project, editable review/preview plans, and explicit
   source/evidence requests when more material is needed.
+- Agent execution handoffs now sit beside ready start results: they include
+  concrete JSON request templates with `project` placeholders for full-auto,
+  capture, image-to-video, voice, sync, source-edit, render, and export-pack
+  gates. Local repo handoffs include required capture request ids plus the
+  request-scoped `playwright-local` runner config.
 - Agent-native `/api/motion/start` route that accepts direct `sourceRefs` or
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture
-  plan, and requested input blockers.
+  plan, agent request templates, and requested input blockers.
 - Agent-native `/api/motion/capture` route that accepts an editable motion
   project plus selected capture request ids, returns provider-required
   screenshot/DOM/trace/recording handoffs when no capture runner is configured,

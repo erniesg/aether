@@ -163,6 +163,95 @@ describe('POST /api/motion/start', () => {
     ]);
   });
 
+  it('returns agent request templates for local repo full-auto capture and editing gates', async () => {
+    const repoPath = await makeLocalRepo();
+    const { POST } = await import('@/app/api/motion/start/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'motion-tong-full-auto',
+          workspaceId: 'demo-ws',
+          repoPath,
+          intent: 'launch',
+          mode: 'full-auto',
+          audience: 'language learners',
+          tone: 'textural',
+          platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+          requestedEngines: ['remotion', 'hyperframes'],
+          createdAt: 705,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'ready',
+      agentHandoff: {
+        id: 'handoff-motion-tong-full-auto',
+        projectId: 'motion-tong-full-auto',
+        workflowId: 'repo-launch-video',
+        mode: 'full-auto',
+        nextTemplateId: 'full-auto-run',
+        templates: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'full-auto-run',
+            label: 'Run saved gates',
+            method: 'POST',
+            route: '/api/motion/full-auto',
+            toolId: 'motion-render',
+            body: expect.objectContaining({
+              project: '$motionProject',
+              requestedEngines: ['remotion', 'hyperframes'],
+              captureRequestIds: ['capture-local-app-still', 'capture-local-dom'],
+              captureRunner: {
+                kind: 'playwright-local',
+                outputDir: 'outputs/motion-captures/motion-tong-full-auto',
+                launchLocalApp: true,
+                headless: true,
+              },
+            }),
+            expectedReceipts: expect.arrayContaining([
+              'captures',
+              'voice clips',
+              'contact sheet',
+              'export pack',
+            ]),
+          }),
+          expect.objectContaining({
+            id: 'review-capture',
+            route: '/api/motion/capture',
+            toolId: 'motion-capture',
+            body: expect.objectContaining({
+              project: '$motionProject',
+              requestIds: ['capture-local-app-still', 'capture-local-dom'],
+              captureRunner: {
+                kind: 'playwright-local',
+                outputDir: 'outputs/motion-captures/motion-tong-full-auto',
+                launchLocalApp: true,
+                headless: true,
+              },
+            }),
+          }),
+          expect.objectContaining({
+            id: 'edit-source',
+            route: '/api/motion/source-edit',
+            toolId: 'motion-source-edit',
+            body: {
+              project: '$motionProject',
+              sourceFiles: '$editedSourceFiles',
+            },
+          }),
+        ]),
+      },
+    });
+    expect(json.previewPlan.agentRunbook.nextStepId).toBe('step-plan');
+  });
+
   it('accepts sourceRefs directly and returns a reviewable PR evidence request', async () => {
     const { POST } = await import('@/app/api/motion/start/route');
 
@@ -369,16 +458,17 @@ describe('POST /api/motion/start', () => {
             startShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
             manifest: {
               name: 'pr-to-video',
-              tools: [
+              tools: expect.arrayContaining([
                 'motion_start',
                 'motion_regenerate',
                 'motion_visuals',
                 'motion_voice',
                 'motion_sync',
                 'motion_revise',
+                'motion_source_edit',
                 'motion_render',
                 'motion_export_pack',
-              ],
+              ]),
             },
           },
           runPlan: {

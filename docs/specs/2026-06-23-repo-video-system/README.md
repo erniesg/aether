@@ -162,11 +162,13 @@ capture, render, and provenance debugging.
   scoped regeneration requests, creator-facing preview plans, workflow routing,
   agent-readable workflow gates, executable run-plan steps, deterministic
   workflow-skill manifest drafts, and the start artifact an agent can hand to
-  the creator for review or full-auto progression. GitHub repo URLs, local repo
-  paths, and site/app URL sources can now create editable project starts; PR
-  sources can create editable code-change explainer starts when a code-change
-  provider is configured. Real screen capture and recording remain provider
-  execution work.
+  the creator for review or full-auto progression. Start results now also carry
+  an agent execution handoff with concrete request templates for full-auto,
+  capture, image-to-video, voice, sync, source edits, render proof, and export
+  pack gates. GitHub repo URLs, local repo paths, and site/app URL sources can
+  now create editable project starts; PR sources can create editable code-change
+  explainer starts when a code-change provider is configured. Real screen
+  capture and recording remain provider execution work.
 - `lib/motion/productionPlan.ts` now derives a concrete production queue from an
   editable motion project: plan, drafts, capture, image-to-video, voice, sync,
   render, and export steps are marked complete, ready, blocked, review, or
@@ -183,7 +185,7 @@ capture, render, and provenance debugging.
   agent-native JSON boundary: callers can pass `sourceRefs` directly or use
   `repoPath`, `repoUrl`, `siteUrl`, or `prRef` shorthands and receive the
   routed workflow, editable project, review plan, preview plan, capture plan,
-  and requested input blockers.
+  agent handoff request templates, and requested input blockers.
 - `app/api/motion/capture/route.ts` now exposes screenshot, DOM snapshot,
   interaction trace, and optional screen-recording capture through an
   agent-native JSON boundary: callers send an editable project and selected
