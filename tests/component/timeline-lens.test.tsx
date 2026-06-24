@@ -593,6 +593,61 @@ const previewPlan: MotionPreviewPlan = {
     missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
     blockerLabels: ['Render every export target before packaging'],
   },
+  renderProofSummary: {
+    status: 'needs-render',
+    engineLabel: 'remotion',
+    providerLabel: null,
+    readyTargetCount: 0,
+    totalTargetCount: 1,
+    proofArtifactCount: 0,
+    targetLabels: ['x 9:16'],
+    artifactLabels: [],
+    missingArtifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+    actionLabels: ['Render proof', 'Tweak source before render'],
+    blockerLabels: ['Render every export target before packaging'],
+    proofArtifacts: [
+      {
+        kind: 'video',
+        label: 'MP4',
+        status: 'missing',
+        targetLabel: 'x 9:16',
+        path: null,
+        editSurfaceLabels: ['timeline', 'component', 'effect'],
+      },
+      {
+        kind: 'poster',
+        label: 'Poster',
+        status: 'missing',
+        targetLabel: 'x 9:16',
+        path: null,
+        editSurfaceLabels: ['poster', 'first frame'],
+      },
+      {
+        kind: 'subtitle',
+        label: 'Subtitles',
+        status: 'missing',
+        targetLabel: 'x 9:16',
+        path: null,
+        editSurfaceLabels: ['caption', 'timing'],
+      },
+      {
+        kind: 'transcript',
+        label: 'Transcript',
+        status: 'missing',
+        targetLabel: 'x 9:16',
+        path: null,
+        editSurfaceLabels: ['script', 'voice'],
+      },
+      {
+        kind: 'manifest',
+        label: 'Manifest',
+        status: 'missing',
+        targetLabel: 'x 9:16',
+        path: null,
+        editSurfaceLabels: ['provenance', 'export'],
+      },
+    ],
+  },
   visualSourcingSummary: {
     status: 'ready',
     requestCount: 3,
@@ -1330,9 +1385,16 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Soft transition accent')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sync timeline/i })).toBeInTheDocument();
     expect(screen.getAllByText('export pack').length).toBeGreaterThan(0);
-    expect(screen.getByText('needs render')).toBeInTheDocument();
+    expect(screen.getAllByText('needs render').length).toBeGreaterThan(0);
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
     expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();
+    expect(screen.getByText('render proof')).toBeInTheDocument();
+    expect(screen.getByText('remotion output review')).toBeInTheDocument();
+    expect(screen.getByText('0/1 targets')).toBeInTheDocument();
+    expect(screen.getByText('0 artifacts')).toBeInTheDocument();
+    expect(screen.getByText('Render proof / Tweak source before render')).toBeInTheDocument();
+    expect(screen.getAllByText('MP4').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Subtitles').length).toBeGreaterThan(0);
     expect(screen.getAllByText('visual sources').length).toBeGreaterThan(0);
     expect(screen.getByText('3 source requests')).toBeInTheDocument();
     expect(screen.getAllByText('Select product source assets').length).toBeGreaterThan(0);
@@ -1468,6 +1530,49 @@ describe('TimelineLens', () => {
               },
             ],
           },
+          renderProofSummary: {
+            status: 'partial',
+            engineLabel: 'hyperframes',
+            providerLabel: 'hyperframes local',
+            readyTargetCount: 0,
+            totalTargetCount: 1,
+            proofArtifactCount: 2,
+            targetLabels: ['x 9:16'],
+            artifactLabels: ['MP4', 'Manifest'],
+            missingArtifactLabels: ['Poster', 'Subtitles', 'Transcript'],
+            actionLabels: [
+              'Review partial proof',
+              'Render remaining outputs',
+              'Tweak source and rerender',
+            ],
+            blockerLabels: ['Render every export target before packaging'],
+            proofArtifacts: [
+              {
+                kind: 'video',
+                label: 'MP4',
+                status: 'ready',
+                targetLabel: 'x 9:16',
+                path: 'renders/x/video.mp4',
+                editSurfaceLabels: ['timeline', 'component', 'effect'],
+              },
+              {
+                kind: 'manifest',
+                label: 'Manifest',
+                status: 'ready',
+                targetLabel: 'x 9:16',
+                path: 'renders/x/manifest.json',
+                editSurfaceLabels: ['provenance', 'export'],
+              },
+              {
+                kind: 'poster',
+                label: 'Poster',
+                status: 'missing',
+                targetLabel: 'x 9:16',
+                path: null,
+                editSurfaceLabels: ['poster', 'first frame'],
+              },
+            ],
+          },
         }}
         selectedClipId={null}
         onSelectClip={() => {}}
@@ -1477,6 +1582,12 @@ describe('TimelineLens', () => {
     expect(screen.getByText('saved receipts')).toBeInTheDocument();
     expect(screen.getByText('3 receipts')).toBeInTheDocument();
     expect(screen.getByText('Screenshot / MP4')).toBeInTheDocument();
+    expect(screen.getByText('hyperframes output review')).toBeInTheDocument();
+    expect(screen.getByText('2 artifacts')).toBeInTheDocument();
+    expect(screen.getByText('hyperframes local')).toBeInTheDocument();
+    expect(screen.getByText('Review partial proof / Render remaining outputs')).toBeInTheDocument();
+    expect(screen.getByText('renders/x/video.mp4')).toBeInTheDocument();
+    expect(screen.getByText('renders/x/manifest.json')).toBeInTheDocument();
     expect(screen.queryByText('render-export-x-9x16-video')).not.toBeInTheDocument();
   });
 

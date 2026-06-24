@@ -378,6 +378,11 @@ capture, render, and provenance debugging.
   file labels, and regeneration scopes. The timeline lens renders this inside
   the creator shell so source-backed edits remain reviewable without exposing
   full generated source code as the primary surface.
+- Preview plans now expose a render-proof summary that turns saved render
+  receipts into reviewable output artifacts: ready/missing MP4, poster,
+  subtitles, transcript, and manifest rows, provider labels, edit/rerender
+  actions, and export blockers. The timeline lens shows those proof artifacts
+  beside the edit source contract without exposing raw render refs.
 - Preview plans now also expose a capability setup surface for full-auto
   readiness: capture providers, local-app launch runners, visual sourcing,
   image-to-video, voice/timing, sync blockers, and Remotion/HyperFrames render

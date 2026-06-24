@@ -29,6 +29,7 @@ import type {
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
+  MotionPreviewRenderProofSummary,
   MotionPreviewSourceProfile,
   MotionPreviewSyncBeat,
   MotionPreviewSyncSoundCue,
@@ -370,6 +371,10 @@ function MotionPreviewPlanView({
           plan={previewPlan.productionPlan}
           executionHistory={previewPlan.executionHistory}
         />
+      </section>
+
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionRenderProofStrip summary={previewPlan.renderProofSummary} />
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
@@ -836,6 +841,106 @@ function MotionProductionQueueStrip({
       </div>
     </div>
   );
+}
+
+function MotionRenderProofStrip({
+  summary,
+}: {
+  summary: MotionPreviewRenderProofSummary;
+}) {
+  const visibleArtifacts = summary.proofArtifacts.slice(0, 6);
+  const actionLabel =
+    summary.actionLabels.slice(0, 2).join(' / ') ||
+    summary.blockerLabels[0] ||
+    'ready for review';
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            render proof
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {summary.engineLabel
+              ? `${summary.engineLabel} output review`
+              : actionLabel}
+          </div>
+        </div>
+        <Chip tone={renderProofTone(summary.status)} size="sm">
+          {summary.status.replace(/-/g, ' ')}
+        </Chip>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="mb-2 flex flex-wrap items-center gap-1">
+            <Chip tone="neutral" size="sm">
+              {summary.readyTargetCount}/{summary.totalTargetCount} targets
+            </Chip>
+            <Chip tone={summary.proofArtifactCount > 0 ? 'ok' : 'neutral'} size="sm">
+              {summary.proofArtifactCount} artifacts
+            </Chip>
+            {summary.providerLabel ? (
+              <Chip tone="neutral" size="sm">
+                {summary.providerLabel}
+              </Chip>
+            ) : null}
+          </div>
+          <div className="grid gap-1.5">
+            {visibleArtifacts.map((artifact) => (
+              <div
+                key={`${artifact.targetLabel}-${artifact.kind}`}
+                className="grid grid-cols-[minmax(0,1fr)_74px] items-center gap-2"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-caption text-xs text-ink">
+                    {artifact.label}
+                  </div>
+                  <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+                    {artifact.path ?? artifact.targetLabel}
+                  </div>
+                </div>
+                <Chip tone={artifact.status === 'ready' ? 'ok' : 'neutral'} size="sm">
+                  {artifact.status}
+                </Chip>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">{actionLabel}</div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {(summary.artifactLabels.length > 0
+              ? summary.artifactLabels
+              : summary.missingArtifactLabels
+            )
+              .slice(0, 5)
+              .map((label) => (
+                <Chip key={label} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
+          </div>
+          {summary.blockerLabels.length > 0 ? (
+            <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {summary.blockerLabels[0]}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderProofTone(
+  status: MotionPreviewRenderProofSummary['status']
+): 'neutral' | 'info' | 'ok' | 'warn' {
+  if (status === 'ready') return 'ok';
+  if (status === 'partial') return 'info';
+  if (status === 'needs-render') return 'warn';
+  return 'neutral';
 }
 
 function MotionCapabilitySetupStrip({

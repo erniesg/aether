@@ -61,6 +61,7 @@ import {
   motionSeconds,
   type MotionDraft,
   type MotionExecutionHistoryEntry,
+  type MotionExecutionReceipt,
   type MotionProject,
   type MotionProvenanceRef,
   type MotionSourceProfile,
@@ -256,6 +257,38 @@ export interface MotionPreviewExportPackSummary {
   blockerLabels: string[];
 }
 
+export type MotionPreviewRenderProofStatus =
+  | 'needs-targets'
+  | 'needs-render'
+  | 'partial'
+  | 'ready';
+
+export type MotionPreviewRenderProofArtifactStatus = 'ready' | 'missing';
+
+export interface MotionPreviewRenderProofArtifact {
+  kind: MotionExportPackAssetKind;
+  label: string;
+  status: MotionPreviewRenderProofArtifactStatus;
+  targetLabel: string;
+  path: string | null;
+  editSurfaceLabels: string[];
+}
+
+export interface MotionPreviewRenderProofSummary {
+  status: MotionPreviewRenderProofStatus;
+  engineLabel: string | null;
+  providerLabel: string | null;
+  readyTargetCount: number;
+  totalTargetCount: number;
+  proofArtifactCount: number;
+  targetLabels: string[];
+  artifactLabels: string[];
+  missingArtifactLabels: string[];
+  actionLabels: string[];
+  blockerLabels: string[];
+  proofArtifacts: MotionPreviewRenderProofArtifact[];
+}
+
 export interface MotionPreviewVisualGenerationRequest {
   requestId: string;
   clipId: string;
@@ -439,6 +472,7 @@ export interface MotionPreviewPlan {
   syncBeats: MotionPreviewSyncBeat[];
   syncSoundCues: MotionPreviewSyncSoundCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
+  renderProofSummary: MotionPreviewRenderProofSummary;
   referenceGrammar: MotionReferenceGrammarPlan;
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
@@ -499,6 +533,10 @@ export function buildMotionPreviewPlan(
       requestedAt: options.requestedAt,
     })
   );
+  const editSource = buildEditSourceSummary(project, engines, {
+    fps,
+    requestedAt: options.requestedAt,
+  });
   const productionPlan = buildMotionProductionPlan(project, {
     engines,
     fps,
@@ -537,14 +575,17 @@ export function buildMotionPreviewPlan(
     editableComponents,
     regenerationActions,
     enginePreviews,
-    editSource: buildEditSourceSummary(project, engines, {
-      fps,
-      requestedAt: options.requestedAt,
-    }),
+    editSource,
     syncSummary: buildSyncSummary(syncPlan),
     syncBeats: buildSyncBeats(syncPlan),
     syncSoundCues: buildSyncSoundCues(syncPlan),
     exportPackSummary: buildExportPackSummary(exportPackPlan),
+    renderProofSummary: buildRenderProofSummary(
+      exportPackPlan,
+      project.executionHistory,
+      editSource,
+      engines
+    ),
     referenceGrammar,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
@@ -945,6 +986,158 @@ function buildExportPackSummary(
     ) as MotionExportPackAssetKind[],
     blockerLabels: exportPackPlan.blockers.map((blocker) => blocker.label),
   };
+}
+
+function buildRenderProofSummary(
+  exportPackPlan: ReturnType<typeof buildMotionExportPackPlan>,
+  history: MotionExecutionHistoryEntry[] | undefined,
+  editSource: MotionPreviewEditSource,
+  engines: WorkflowEngine[]
+): MotionPreviewRenderProofSummary {
+  const renderEntries = (history ?? []).filter((entry) => entry.gateId === 'render');
+  const latestRenderEntry = renderEntries[renderEntries.length - 1] ?? null;
+  const renderReceipts = renderEntries.flatMap((entry) =>
+    entry.receipts.filter((receipt) => receipt.kind === 'render')
+  );
+  const receiptsByRef = new Map(renderReceipts.map((receipt) => [receipt.ref, receipt]));
+  const proofArtifacts = exportPackPlan.items.flatMap((item) =>
+    renderProofArtifactsForItem(item, receiptsByRef, renderReceipts)
+  );
+  const readyArtifacts = proofArtifacts.filter((artifact) => artifact.status === 'ready');
+  const missingArtifacts = proofArtifacts.filter((artifact) => artifact.status === 'missing');
+  const status = renderProofStatusFor(exportPackPlan.status, readyArtifacts.length);
+  const renderEngine = renderEngineForProof(engines, latestRenderEntry);
+
+  return {
+    status,
+    engineLabel: renderEngine ? readableLabel(renderEngine) : null,
+    providerLabel: latestRenderEntry?.providerId
+      ? readableLabel(latestRenderEntry.providerId)
+      : null,
+    readyTargetCount: exportPackPlan.readyCount,
+    totalTargetCount: exportPackPlan.totalCount,
+    proofArtifactCount: readyArtifacts.length,
+    targetLabels: exportPackPlan.items.map(renderProofTargetLabel),
+    artifactLabels: uniqueStrings(readyArtifacts.map((artifact) => artifact.label)),
+    missingArtifactLabels: uniqueStrings(missingArtifacts.map((artifact) => artifact.label)),
+    actionLabels: renderProofActionLabels(status, editSource.status),
+    blockerLabels: exportPackPlan.blockers.map((blocker) => blocker.label),
+    proofArtifacts,
+  };
+}
+
+function renderProofArtifactsForItem(
+  item: ReturnType<typeof buildMotionExportPackPlan>['items'][number],
+  receiptsByRef: Map<string, MotionExecutionReceipt>,
+  renderReceipts: MotionExecutionReceipt[]
+): MotionPreviewRenderProofArtifact[] {
+  return (
+    ['video', 'poster', 'subtitle', 'transcript', 'manifest'] satisfies MotionExportPackAssetKind[]
+  ).map((kind) => {
+    const assetRef = exportAssetRefForKind(item, kind);
+    const receipt =
+      (assetRef ? receiptsByRef.get(assetRef) : undefined) ??
+      renderReceipts.find(
+        (candidate) =>
+          candidate.ref === `render-${item.exportId}-${kind}` ||
+          candidate.ref.startsWith(`render-${item.exportId}-${kind}-`)
+      ) ??
+      null;
+    const status: MotionPreviewRenderProofArtifactStatus =
+      assetRef || receipt ? 'ready' : 'missing';
+
+    return {
+      kind,
+      label: renderProofArtifactLabel(kind),
+      status,
+      targetLabel: renderProofTargetLabel(item),
+      path: receipt?.path ?? receipt?.assetUrl ?? null,
+      editSurfaceLabels: renderProofEditSurfaceLabels(kind),
+    };
+  });
+}
+
+function renderProofStatusFor(
+  exportStatus: MotionExportPackStatus,
+  readyArtifactCount: number
+): MotionPreviewRenderProofStatus {
+  if (exportStatus === 'needs-targets') return 'needs-targets';
+  if (exportStatus === 'ready') return 'ready';
+  if (readyArtifactCount > 0) return 'partial';
+  return 'needs-render';
+}
+
+function renderEngineForProof(
+  engines: WorkflowEngine[],
+  latestRenderEntry: MotionExecutionHistoryEntry | null
+): MotionRenderEngine | null {
+  const renderEngines = engines.filter(isMotionRenderEngine);
+  const providerId = latestRenderEntry?.providerId ?? '';
+  return (
+    renderEngines.find((engine) => providerId.includes(engine)) ??
+    renderEngines[0] ??
+    null
+  );
+}
+
+function exportAssetRefForKind(
+  item: ReturnType<typeof buildMotionExportPackPlan>['items'][number],
+  kind: MotionExportPackAssetKind
+): string | undefined {
+  if (kind === 'video') return item.videoAssetId;
+  if (kind === 'poster') return item.posterAssetId;
+  if (kind === 'subtitle') return item.subtitleAssetId;
+  if (kind === 'transcript') return item.transcriptAssetId;
+  return item.manifestAssetId;
+}
+
+function renderProofTargetLabel(
+  item: ReturnType<typeof buildMotionExportPackPlan>['items'][number]
+): string {
+  return `${item.platform} ${item.aspectRatio}`;
+}
+
+function renderProofArtifactLabel(kind: MotionExportPackAssetKind): string {
+  if (kind === 'video') return 'MP4';
+  if (kind === 'poster') return 'Poster';
+  if (kind === 'subtitle') return 'Subtitles';
+  if (kind === 'transcript') return 'Transcript';
+  return 'Manifest';
+}
+
+function renderProofEditSurfaceLabels(kind: MotionExportPackAssetKind): string[] {
+  if (kind === 'video') return ['timeline', 'component', 'effect'];
+  if (kind === 'poster') return ['poster', 'first frame'];
+  if (kind === 'subtitle') return ['caption', 'timing'];
+  if (kind === 'transcript') return ['script', 'voice'];
+  return ['provenance', 'export'];
+}
+
+function renderProofActionLabels(
+  status: MotionPreviewRenderProofStatus,
+  editSourceStatus: MotionPreviewEditSource['status']
+): string[] {
+  const labels: string[] = [];
+
+  if (status === 'needs-targets') {
+    labels.push('Add export target');
+  } else if (status === 'ready') {
+    labels.push('Review render proof');
+  } else if (status === 'partial') {
+    labels.push('Review partial proof', 'Render remaining outputs');
+  } else {
+    labels.push('Render proof');
+  }
+
+  if (editSourceStatus === 'ready') {
+    labels.push(
+      status === 'needs-render' ? 'Tweak source before render' : 'Tweak source and rerender'
+    );
+  }
+
+  if (status === 'ready') labels.push('Export pack');
+
+  return labels;
 }
 
 function buildVisualSourcingSummary(

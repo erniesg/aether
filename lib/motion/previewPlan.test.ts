@@ -310,6 +310,19 @@ describe('buildMotionPreviewPlan', () => {
       missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
       blockerLabels: ['Render every export target before packaging'],
     });
+    expect(preview.renderProofSummary).toMatchObject({
+      status: 'needs-render',
+      engineLabel: 'remotion',
+      providerLabel: null,
+      readyTargetCount: 0,
+      totalTargetCount: 1,
+      proofArtifactCount: 0,
+      targetLabels: ['x 9:16'],
+      artifactLabels: [],
+      missingArtifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+      actionLabels: ['Render proof', 'Tweak source before render'],
+      blockerLabels: ['Render every export target before packaging'],
+    });
     expect(preview.visualSourcingSummary).toMatchObject({
       status: 'ready',
       requestCount: 3,
@@ -556,6 +569,41 @@ describe('buildMotionPreviewPlan', () => {
         },
       ],
     });
+    expect(preview.renderProofSummary).toMatchObject({
+      status: 'partial',
+      engineLabel: 'hyperframes',
+      providerLabel: 'hyperframes local',
+      readyTargetCount: 0,
+      totalTargetCount: 1,
+      proofArtifactCount: 2,
+      targetLabels: ['x 9:16'],
+      artifactLabels: ['MP4', 'Manifest'],
+      missingArtifactLabels: ['Poster', 'Subtitles', 'Transcript'],
+      actionLabels: [
+        'Review partial proof',
+        'Render remaining outputs',
+        'Tweak source and rerender',
+      ],
+      blockerLabels: ['Render every export target before packaging'],
+    });
+    expect(preview.renderProofSummary.proofArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'video',
+          label: 'MP4',
+          status: 'ready',
+          targetLabel: 'x 9:16',
+          path: 'renders/x/video.mp4',
+        }),
+        expect.objectContaining({
+          kind: 'manifest',
+          label: 'Manifest',
+          status: 'ready',
+          targetLabel: 'x 9:16',
+          path: 'renders/x/manifest.json',
+        }),
+      ])
+    );
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {
