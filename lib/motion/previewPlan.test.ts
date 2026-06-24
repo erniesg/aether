@@ -564,6 +564,8 @@ describe('buildMotionPreviewPlan', () => {
     expect(preview.editSource).toMatchObject({
       status: 'ready',
       engine: 'remotion',
+      apiRoute: '/api/motion/source-edit',
+      actionLabel: 'Apply source edits',
       artifactPath: 'EDIT.md',
       timelinePath: 'timeline/draft-primary.json',
       scriptPath: 'SCRIPT.md',
@@ -577,6 +579,34 @@ describe('buildMotionPreviewPlan', () => {
         'timeline/draft-primary.json',
       ]),
     });
+    expect(preview.editSource.sourceFiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'EDIT.md',
+          label: 'Edit contract',
+          purpose: 'Review component controls, source files, and regeneration scopes.',
+          editSurfaceLabels: ['component', 'effect', 'regeneration'],
+        }),
+        expect.objectContaining({
+          path: 'SCRIPT.md',
+          label: 'Script',
+          purpose: 'Edit narration copy and voice lines.',
+          editSurfaceLabels: ['script', 'voice'],
+        }),
+        expect.objectContaining({
+          path: 'STORYBOARD.md',
+          label: 'Storyboard',
+          purpose: 'Edit scenes, component choices, timing, and motion effects.',
+          editSurfaceLabels: ['scene', 'component', 'timing', 'effect'],
+        }),
+        expect.objectContaining({
+          path: 'timeline/draft-primary.json',
+          label: 'Timeline JSON',
+          purpose: 'Edit frame timing, component props, assets, and linked variants.',
+          editSurfaceLabels: ['timing', 'props', 'assets', 'variants'],
+        }),
+      ])
+    );
     expect(preview.editSource.components).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -586,6 +616,8 @@ describe('buildMotionPreviewPlan', () => {
           editControlIds: ['assetId', 'caption', 'zoom'],
           regenerateScopes: ['capture', 'timing', 'caption'],
           sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
+          sourceFileLabels: ['Timeline JSON', 'Storyboard'],
+          editSurfaceLabels: ['Capture', 'Caption', 'Zoom', 'capture', 'timing', 'caption'],
         }),
       ])
     );

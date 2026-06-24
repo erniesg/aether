@@ -673,6 +673,8 @@ function MotionEditSourceStrip({
     editSource.storyboardPath,
   ].filter((path): path is string => Boolean(path));
   const scopeLabel = editSource.regenerationScopes.join(' / ');
+  const routeLabel = editSource.apiRoute ?? null;
+  const actionLabel = editSource.actionLabel ?? null;
 
   return (
     <div className="min-w-0">
@@ -686,6 +688,20 @@ function MotionEditSourceStrip({
               ? `${editSource.engine ?? 'render'} source bundle`
               : editSource.blockerLabels[0] ?? 'source bundle needed'}
           </div>
+          {routeLabel || actionLabel ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {routeLabel ? (
+                <Chip tone="neutral" size="sm">
+                  {routeLabel}
+                </Chip>
+              ) : null}
+              {actionLabel ? (
+                <Chip tone="info" size="sm">
+                  {actionLabel}
+                </Chip>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <Chip tone={editSource.status === 'ready' ? 'ok' : 'warn'} size="sm">
           {editSource.status === 'ready'
@@ -696,13 +712,31 @@ function MotionEditSourceStrip({
 
       <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
-          <div className="flex flex-wrap gap-1">
-            {filePaths.map((path) => (
-              <Chip key={path} tone="neutral" size="sm">
-                {path}
-              </Chip>
-            ))}
-          </div>
+          {editSource.sourceFiles.length > 0 ? (
+            <div className="grid gap-2">
+              {editSource.sourceFiles.map((file) => (
+                <div key={file.path} className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="font-caption text-xs text-ink">{file.label}</span>
+                    <Chip tone="neutral" size="sm">
+                      {file.path}
+                    </Chip>
+                  </div>
+                  <div className="mt-0.5 font-caption text-2xs text-ink-faint">
+                    {file.purpose}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {filePaths.map((path) => (
+                <Chip key={path} tone="neutral" size="sm">
+                  {path}
+                </Chip>
+              ))}
+            </div>
+          )}
           {scopeLabel ? (
             <div className="mt-2 truncate font-caption text-2xs text-ink-faint">
               {scopeLabel}
@@ -721,8 +755,14 @@ function MotionEditSourceStrip({
                   {component.componentLabel}
                 </div>
                 <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
-                  {component.regenerateScopes.join(' / ') || component.sourceFiles.join(' / ')}
+                  {component.editControlLabels.join(' / ') ||
+                    component.regenerateScopes.join(' / ')}
                 </div>
+                {component.sourceFileLabels.length > 0 ? (
+                  <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+                    {component.sourceFileLabels.join(' / ')}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

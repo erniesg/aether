@@ -362,6 +362,12 @@ capture, render, and provenance debugging.
   code typing. Remotion source emits named renderer functions for each one, and
   HyperFrames source emits stable component classes so review mode can
   regenerate one code visual rather than reworking the full draft.
+- Preview plans now expose a source-edit contract for generated motion projects:
+  the `/api/motion/source-edit` route, editable `EDIT.md`, `SCRIPT.md`,
+  `STORYBOARD.md`, timeline JSON, file roles, component control labels, source
+  file labels, and regeneration scopes. The timeline lens renders this inside
+  the creator shell so source-backed edits remain reviewable without exposing
+  full generated source code as the primary surface.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start

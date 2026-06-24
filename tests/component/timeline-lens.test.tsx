@@ -479,6 +479,8 @@ const previewPlan: MotionPreviewPlan = {
   editSource: {
     status: 'ready',
     engine: 'remotion',
+    apiRoute: '/api/motion/source-edit',
+    actionLabel: 'Apply source edits',
     artifactPath: 'EDIT.md',
     timelinePath: 'timeline/draft-primary.json',
     scriptPath: 'SCRIPT.md',
@@ -492,6 +494,32 @@ const previewPlan: MotionPreviewPlan = {
       'timeline/draft-primary.json',
       'EDIT.md',
     ],
+    sourceFiles: [
+      {
+        path: 'EDIT.md',
+        label: 'Edit contract',
+        purpose: 'Review component controls, source files, and regeneration scopes.',
+        editSurfaceLabels: ['component', 'effect', 'regeneration'],
+      },
+      {
+        path: 'SCRIPT.md',
+        label: 'Script',
+        purpose: 'Edit narration copy and voice lines.',
+        editSurfaceLabels: ['script', 'voice'],
+      },
+      {
+        path: 'STORYBOARD.md',
+        label: 'Storyboard',
+        purpose: 'Edit scenes, component choices, timing, and motion effects.',
+        editSurfaceLabels: ['scene', 'component', 'timing', 'effect'],
+      },
+      {
+        path: 'timeline/draft-primary.json',
+        label: 'Timeline JSON',
+        purpose: 'Edit frame timing, component props, assets, and linked variants.',
+        editSurfaceLabels: ['timing', 'props', 'assets', 'variants'],
+      },
+    ],
     components: [
       {
         trackId: 'track-text',
@@ -500,9 +528,11 @@ const previewPlan: MotionPreviewPlan = {
         componentId: 'app-frame',
         componentLabel: 'App frame',
         editControlIds: ['assetId', 'caption', 'zoom'],
-        editControlLabels: ['asset', 'caption', 'zoom'],
+        editControlLabels: ['Capture', 'Caption', 'Zoom'],
         regenerateScopes: ['capture', 'timing', 'caption'],
         sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
+        sourceFileLabels: ['Timeline JSON', 'Storyboard'],
+        editSurfaceLabels: ['Capture', 'Caption', 'Zoom', 'capture', 'timing', 'caption'],
       },
       {
         trackId: 'track-text',
@@ -511,9 +541,11 @@ const previewPlan: MotionPreviewPlan = {
         componentId: 'hook-card',
         componentLabel: 'Hook card',
         editControlIds: ['headline', 'subhead'],
-        editControlLabels: ['headline', 'subhead'],
+        editControlLabels: ['Headline', 'Subhead'],
         regenerateScopes: ['copy', 'timing', 'effect'],
         sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
+        sourceFileLabels: ['Timeline JSON', 'Storyboard'],
+        editSurfaceLabels: ['Headline', 'Subhead', 'copy', 'timing', 'effect'],
       },
     ],
     blockerLabels: [],
@@ -1079,11 +1111,23 @@ describe('TimelineLens', () => {
     expect(screen.getByText('4 ready')).toBeInTheDocument();
     expect(screen.getByText('edit source')).toBeInTheDocument();
     expect(screen.getByText('2 targets')).toBeInTheDocument();
+    expect(screen.getByText('/api/motion/source-edit')).toBeInTheDocument();
+    expect(screen.getByText('Apply source edits')).toBeInTheDocument();
+    expect(screen.getByText('Edit contract')).toBeInTheDocument();
+    expect(screen.getByText('Review component controls, source files, and regeneration scopes.')).toBeInTheDocument();
+    expect(screen.getByText('Script')).toBeInTheDocument();
+    expect(screen.getByText('Edit narration copy and voice lines.')).toBeInTheDocument();
+    expect(screen.getByText('Storyboard')).toBeInTheDocument();
+    expect(screen.getByText('Edit scenes, component choices, timing, and motion effects.')).toBeInTheDocument();
+    expect(screen.getByText('Timeline JSON')).toBeInTheDocument();
+    expect(screen.getByText('Edit frame timing, component props, assets, and linked variants.')).toBeInTheDocument();
     expect(screen.getByText('EDIT.md')).toBeInTheDocument();
     expect(screen.getByText('timeline/draft-primary.json')).toBeInTheDocument();
     expect(screen.getByText('SCRIPT.md')).toBeInTheDocument();
     expect(screen.getByText('STORYBOARD.md')).toBeInTheDocument();
     expect(screen.getByText('capture / timing / caption / copy / effect')).toBeInTheDocument();
+    expect(screen.getByText('Capture / Caption / Zoom')).toBeInTheDocument();
+    expect(screen.getAllByText('Timeline JSON / Storyboard').length).toBeGreaterThan(0);
     expect(screen.getByText('agent plan')).toBeInTheDocument();
     expect(screen.getByText('5 review gates')).toBeInTheDocument();
     expect(screen.getAllByText('Video plan').length).toBeGreaterThan(0);

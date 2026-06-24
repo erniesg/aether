@@ -261,6 +261,12 @@
   functions for those primitives; HyperFrames source generation emits stable
   component classes, so agents can regenerate one code visual without rewriting
   the whole video.
+- Preview plans now carry a source-edit review contract for rendered motion
+  projects: the `/api/motion/source-edit` route, `EDIT.md`, `SCRIPT.md`,
+  `STORYBOARD.md`, timeline JSON, file-role guidance, component edit controls,
+  source-file labels, and regeneration scopes. The timeline lens shows that
+  contract as a creator-facing edit source inside the same shell instead of
+  sending creators to a separate source editor or raw render bundle.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
@@ -270,14 +276,11 @@
 
 ## Next Slices
 
-1. Surface `EDIT.md` and `editContract` in `MotionPreviewPlan` and the timeline
-   lens as the reviewable edit source for script, props, timing, effects, and
-   scoped regeneration.
-2. Extend the provider-neutral component registry beyond the current launch,
+1. Extend the provider-neutral component registry beyond the current launch,
    proof, code, terminal, caption, social, UI reveal, data, transition, and
    outro set into richer device/avatar/logo/flowchart primitives as concrete
    video recipes demand them.
-3. Add configured provider wiring and UI controls for trusted local app launch,
+2. Add configured provider wiring and UI controls for trusted local app launch,
    browser/computer-use capture, voice providers, image-to-video providers, and
    real Remotion/HyperFrames render runners in the creator environment.
 

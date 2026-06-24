@@ -162,11 +162,22 @@ export interface MotionPreviewEditSourceComponent {
   editControlLabels: string[];
   regenerateScopes: string[];
   sourceFiles: string[];
+  sourceFileLabels: string[];
+  editSurfaceLabels: string[];
+}
+
+export interface MotionPreviewEditSourceFile {
+  path: string;
+  label: string;
+  purpose: string;
+  editSurfaceLabels: string[];
 }
 
 export interface MotionPreviewEditSource {
   status: 'ready' | 'needs-render-source';
   engine: MotionRenderEngine | null;
+  apiRoute: string | null;
+  actionLabel: string | null;
   artifactPath: string | null;
   timelinePath: string | null;
   scriptPath: string | null;
@@ -174,6 +185,7 @@ export interface MotionPreviewEditSource {
   editableComponentCount: number;
   regenerationScopes: string[];
   sourceFilePaths: string[];
+  sourceFiles: MotionPreviewEditSourceFile[];
   components: MotionPreviewEditSourceComponent[];
   blockerLabels: string[];
 }
@@ -992,6 +1004,8 @@ function buildEditSourceSummary(
     return {
       status: 'ready',
       engine,
+      apiRoute: '/api/motion/source-edit',
+      actionLabel: 'Apply source edits',
       artifactPath: editContract.artifactPath,
       timelinePath: editContract.timelinePath,
       scriptPath: editContract.scriptPath,
@@ -999,6 +1013,7 @@ function buildEditSourceSummary(
       editableComponentCount: editContract.editableComponentCount,
       regenerationScopes: editContract.regenerationScopes,
       sourceFilePaths: sourceBundle.files.map((file) => file.path),
+      sourceFiles: editSourceFiles(editContract),
       components: editContract.editableComponents.map(editSourceComponent),
       blockerLabels: [],
     };
@@ -1007,6 +1022,8 @@ function buildEditSourceSummary(
   return {
     status: 'needs-render-source',
     engine: renderEngines[0] ?? null,
+    apiRoute: null,
+    actionLabel: null,
     artifactPath: null,
     timelinePath: null,
     scriptPath: null,
@@ -1014,6 +1031,7 @@ function buildEditSourceSummary(
     editableComponentCount: 0,
     regenerationScopes: [],
     sourceFilePaths: [],
+    sourceFiles: [],
     components: [],
     blockerLabels: uniqueStrings(
       blockerLabels.length
@@ -1033,10 +1051,57 @@ function editSourceComponent(
     componentId: component.componentId,
     componentLabel: component.componentLabel,
     editControlIds: component.editControlIds,
-    editControlLabels: component.editControlLabels,
-    regenerateScopes: component.regenerateScopes,
-    sourceFiles: component.sourceFiles,
+      editControlLabels: component.editControlLabels,
+      regenerateScopes: component.regenerateScopes,
+      sourceFiles: component.sourceFiles,
+      sourceFileLabels: component.sourceFiles.map(sourceFileLabelFor),
+      editSurfaceLabels: uniqueStrings([
+        ...component.editControlLabels,
+        ...component.regenerateScopes,
+      ]),
   };
+}
+
+function editSourceFiles(editContract: {
+  artifactPath: string;
+  scriptPath: string;
+  storyboardPath: string;
+  timelinePath: string;
+}): MotionPreviewEditSourceFile[] {
+  return [
+    {
+      path: editContract.artifactPath,
+      label: 'Edit contract',
+      purpose: 'Review component controls, source files, and regeneration scopes.',
+      editSurfaceLabels: ['component', 'effect', 'regeneration'],
+    },
+    {
+      path: editContract.scriptPath,
+      label: 'Script',
+      purpose: 'Edit narration copy and voice lines.',
+      editSurfaceLabels: ['script', 'voice'],
+    },
+    {
+      path: editContract.storyboardPath,
+      label: 'Storyboard',
+      purpose: 'Edit scenes, component choices, timing, and motion effects.',
+      editSurfaceLabels: ['scene', 'component', 'timing', 'effect'],
+    },
+    {
+      path: editContract.timelinePath,
+      label: 'Timeline JSON',
+      purpose: 'Edit frame timing, component props, assets, and linked variants.',
+      editSurfaceLabels: ['timing', 'props', 'assets', 'variants'],
+    },
+  ];
+}
+
+function sourceFileLabelFor(path: string): string {
+  if (path === 'EDIT.md') return 'Edit contract';
+  if (path === 'SCRIPT.md') return 'Script';
+  if (path === 'STORYBOARD.md') return 'Storyboard';
+  if (path.endsWith('.json')) return 'Timeline JSON';
+  return readableLabel(path);
 }
 
 function renderRequestFromPlan(
