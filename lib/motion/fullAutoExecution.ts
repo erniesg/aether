@@ -180,7 +180,20 @@ export async function runSavedMotionFullAuto(
       updatedAt: options.updatedAt,
       advancedStepIds: [...advancedStepIds],
     });
-    currentProject = projectFromHandlerResult(handlerResult);
+    const nextProject = projectFromHandlerResult(handlerResult);
+    if (nextProject === currentProject) {
+      return buildResult({
+        status: 'paused',
+        project: currentProject,
+        productionPlan,
+        step: nextStep,
+        reason: 'handler-required',
+        advancedStepIds,
+        requestedAt: options.requestedAt,
+      });
+    }
+
+    currentProject = nextProject;
     advancedStepIds.push(nextStep.id);
   }
 }

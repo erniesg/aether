@@ -162,6 +162,31 @@ describe('runSavedMotionFullAuto', () => {
     ]);
   });
 
+  it('pauses instead of retrying when a handler returns no changed project', async () => {
+    const capture = vi.fn(({ project: currentProject }) => currentProject);
+
+    const result = await runSavedMotionFullAuto(project(), {
+      engines: ['hyperframes'],
+      requestedAt: 602,
+      handlers: {
+        capture,
+      },
+    });
+
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      status: 'paused',
+      run: {
+        reason: 'handler-required',
+        stepId: 'capture',
+        advancedStepIds: [],
+      },
+      productionPlan: {
+        nextStepId: 'capture',
+      },
+    });
+  });
+
   it('pauses for review-mode approvals instead of auto-running review gates', async () => {
     const result = await runSavedMotionFullAuto(project('review'), {
       engines: ['hyperframes'],

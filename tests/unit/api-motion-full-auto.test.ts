@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
+import { registerCaptureProvider } from '@/lib/providers/capture/registry';
+import type {
+  CaptureProvider,
+  CaptureRequest,
+  CaptureResult,
+} from '@/lib/providers/capture/types';
 
 function project(): MotionProject {
   return materializeMotionTimeline(
@@ -51,7 +57,22 @@ function project(): MotionProject {
   );
 }
 
+function captureProvider(capture: CaptureProvider['capture']): CaptureProvider {
+  return {
+    id: 'browser-test',
+    displayName: 'Browser test capture',
+    available: () => true,
+    capture,
+  };
+}
+
 describe('POST /api/motion/full-auto', () => {
+  const unregister: Array<() => void> = [];
+
+  afterEach(() => {
+    while (unregister.length > 0) unregister.pop()?.();
+  });
+
   it('returns a saved full-auto pause with production, review, and preview plans', async () => {
     const { POST } = await import('@/app/api/motion/full-auto/route');
     const res = await POST(
@@ -100,6 +121,86 @@ describe('POST /api/motion/full-auto', () => {
         },
         enginePreviews: [{ engine: 'hyperframes', status: 'ready' }],
       },
+    });
+  });
+
+  it('executes configured capture providers before pausing at the next provider gate', async () => {
+    const capture = vi.fn(async (request: CaptureRequest): Promise<CaptureResult> => ({
+      providerId: 'browser-test',
+      artifacts: [
+        {
+          id: `full-auto-${request.mode}`,
+          kind: request.mode === 'dom-snapshot' ? 'snapshot' : 'screenshot',
+          assetUrl: `asset://full-auto/${request.mode}.png`,
+          width: request.viewport.width,
+          height: request.viewport.height,
+          mimeType: request.mode === 'dom-snapshot' ? 'application/json' : 'image/png',
+          viewport: request.viewport,
+          cursorTargets: [{ stepId: 'goto-source', x: 540, y: 960 }],
+          provenance: [
+            { kind: 'provider', ref: 'browser-test' },
+            { kind: 'site', ref: request.target.ref },
+          ],
+        },
+      ],
+      provenance: [
+        { kind: 'provider', ref: 'browser-test' },
+        { kind: 'site', ref: request.target.ref },
+      ],
+    }));
+    unregister.push(registerCaptureProvider('browser-test', () => captureProvider(capture)));
+
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          captureProviderId: 'browser-test',
+          requestedAt: 702,
+          updatedAt: 703,
+          requestedEngines: ['hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'paused',
+      run: {
+        status: 'paused',
+        reason: 'provider-required',
+        stepId: 'visual-source',
+        advancedStepIds: ['capture'],
+        receiptCount: 1,
+      },
+      project: {
+        id: 'motion-aether-launch',
+        executionHistory: [
+          {
+            id: 'execution-capture-browser-test-703',
+            gateId: 'capture',
+            receiptCount: 1,
+            receiptLabels: ['Screenshot'],
+          },
+        ],
+      },
+      productionPlan: {
+        nextStepId: 'visual-source',
+      },
+      previewPlan: {
+        productionPlan: {
+          nextStepId: 'visual-source',
+        },
+      },
+    });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture.mock.calls[0][0]).toMatchObject({
+      mode: 'screenshot',
+      preferredProviderId: 'browser-test',
     });
   });
 
