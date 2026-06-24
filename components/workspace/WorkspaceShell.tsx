@@ -20,7 +20,10 @@ import { SkillAcceptDialog } from '@/components/capability/SkillAcceptDialog';
 import type { SkillManifest, SkillRef } from '@/lib/agent/skills/types';
 import { PublishPreview } from '@/components/workspace/PublishPreview';
 import { SettingsPopover } from '@/components/workspace/SettingsPopover';
-import { TimelineLens } from '@/components/workspace/TimelineLens';
+import {
+  TimelineLens,
+  type TimelineCaptureActionOptions,
+} from '@/components/workspace/TimelineLens';
 import {
   useWorkspaceProviderPrefs,
   useSaveWorkspaceProviderPrefs,
@@ -745,7 +748,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     }
   }, [motionStart, wsId]);
   const handleTimelineCapture = useCallback(
-    async (requestIds?: string[]) => {
+    async (requestIds?: string[], options?: TimelineCaptureActionOptions) => {
       if (!motionStart?.project) return;
 
       setMotionTimelineActionStatus('capturing app');
@@ -757,6 +760,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           body: JSON.stringify({
             project: motionStart.project,
             requestIds,
+            ...(options?.captureRunner ? { captureRunner: options.captureRunner } : {}),
             requestedAt,
             updatedAt: requestedAt,
           }),

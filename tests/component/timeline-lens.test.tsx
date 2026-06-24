@@ -1481,7 +1481,9 @@ describe('TimelineLens', () => {
   });
 
   it('lets creators request required app captures or an interaction recording', async () => {
-    const onCaptureMotion = vi.fn<(requestIds?: string[]) => void>();
+    const onCaptureMotion = vi.fn<
+      (requestIds?: string[], options?: { captureRunner?: unknown }) => void
+    >();
     render(
       <TimelineLens
         tracks={[]}
@@ -1501,6 +1503,37 @@ describe('TimelineLens', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /record flow/i }));
     expect(onCaptureMotion).toHaveBeenCalledWith(['capture-screen-recording']);
+  });
+
+  it('passes the local runner handoff when creators request app captures', async () => {
+    const onCaptureMotion = vi.fn<
+      (requestIds?: string[], options?: { captureRunner?: unknown }) => void
+    >();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        capturePlan={capturePlan}
+        agentHandoff={agentHandoff}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onCaptureMotion={onCaptureMotion}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /capture stills/i }));
+
+    expect(onCaptureMotion).toHaveBeenCalledWith(
+      ['capture-home-still', 'capture-dom-snapshot'],
+      {
+        captureRunner: {
+          kind: 'playwright-local',
+          outputDir: 'outputs/motion-captures/motion-aether-launch',
+          launchLocalApp: true,
+          headless: true,
+        },
+      }
+    );
   });
 
   it('shows reusable motion examples when no clips are staged yet', () => {

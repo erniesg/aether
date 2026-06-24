@@ -42,6 +42,18 @@ import type {
 } from '@/lib/motion/previewPlan';
 import { cn } from '@/lib/utils/cn';
 
+export interface TimelineCaptureRunnerInput {
+  kind: 'playwright-local';
+  outputDir?: string;
+  launchLocalApp?: boolean;
+  headless?: boolean;
+  timeoutMs?: number;
+}
+
+export interface TimelineCaptureActionOptions {
+  captureRunner?: TimelineCaptureRunnerInput;
+}
+
 export interface TimelineLensProps {
   tracks: TimelineTrack[];
   previewPlan?: MotionPreviewPlan | null;
@@ -55,7 +67,7 @@ export interface TimelineLensProps {
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
-  onCaptureMotion?: (requestIds?: string[]) => void;
+  onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
@@ -201,7 +213,7 @@ function MotionPreviewPlanView({
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
-  onCaptureMotion?: (requestIds?: string[]) => void;
+  onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
@@ -386,6 +398,7 @@ function MotionPreviewPlanView({
         <section className="border-b border-border-soft px-4 py-3">
           <MotionCapturePlanView
             capturePlan={capturePlan}
+            captureRunner={captureRunnerFromAgentHandoff(agentHandoff)}
             onCaptureMotion={onCaptureMotion}
           />
         </section>
@@ -713,6 +726,39 @@ function templateHasLocalRunner(template: MotionAgentExecutionHandoff['templates
     runner !== null &&
     'kind' in runner &&
     runner.kind === 'playwright-local'
+  );
+}
+
+function captureRunnerFromAgentHandoff(
+  handoff: MotionAgentExecutionHandoff | null
+): TimelineCaptureRunnerInput | undefined {
+  const template =
+    handoff?.templates.find((candidate) => candidate.route === '/api/motion/capture') ??
+    handoff?.templates.find((candidate) => candidate.body.captureRunner);
+  const runner = template?.body.captureRunner;
+  if (!isTimelineCaptureRunnerInput(runner)) return undefined;
+
+  return {
+    kind: runner.kind,
+    ...(runner.outputDir ? { outputDir: runner.outputDir } : {}),
+    ...(typeof runner.launchLocalApp === 'boolean'
+      ? { launchLocalApp: runner.launchLocalApp }
+      : {}),
+    ...(typeof runner.headless === 'boolean' ? { headless: runner.headless } : {}),
+    ...(typeof runner.timeoutMs === 'number' ? { timeoutMs: runner.timeoutMs } : {}),
+  };
+}
+
+function isTimelineCaptureRunnerInput(value: unknown): value is TimelineCaptureRunnerInput {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const runner = value as Record<string, unknown>;
+
+  return (
+    runner.kind === 'playwright-local' &&
+    (runner.outputDir === undefined || typeof runner.outputDir === 'string') &&
+    (runner.launchLocalApp === undefined || typeof runner.launchLocalApp === 'boolean') &&
+    (runner.headless === undefined || typeof runner.headless === 'boolean') &&
+    (runner.timeoutMs === undefined || typeof runner.timeoutMs === 'number')
   );
 }
 
@@ -2084,11 +2130,14 @@ function visualGenerationNodeTone(
 
 function MotionCapturePlanView({
   capturePlan,
+  captureRunner,
   onCaptureMotion,
 }: {
   capturePlan: AgentMotionCapturePlan;
-  onCaptureMotion?: (requestIds?: string[]) => void;
+  captureRunner?: TimelineCaptureRunnerInput;
+  onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
 }) {
+  const captureOptions = captureRunner ? { captureRunner } : undefined;
   const requiredRequestIds = capturePlan.requests
     .filter((request) => request.required)
     .map((request) => request.id);
@@ -2141,7 +2190,11 @@ function MotionCapturePlanView({
             {requiredRequestIds.length > 0 ? (
               <button
                 type="button"
-                onClick={() => onCaptureMotion(requiredRequestIds)}
+                onClick={() =>
+                  captureOptions
+                    ? onCaptureMotion(requiredRequestIds, captureOptions)
+                    : onCaptureMotion(requiredRequestIds)
+                }
                 className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
               >
                 capture stills
@@ -2150,7 +2203,11 @@ function MotionCapturePlanView({
             {recordingRequest ? (
               <button
                 type="button"
-                onClick={() => onCaptureMotion([recordingRequest.id])}
+                onClick={() =>
+                  captureOptions
+                    ? onCaptureMotion([recordingRequest.id], captureOptions)
+                    : onCaptureMotion([recordingRequest.id])
+                }
                 className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
               >
                 record flow

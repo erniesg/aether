@@ -116,6 +116,11 @@
   full-auto mode, API route labels, expected receipts, and local-runner
   availability are visible without exposing raw JSON placeholders or capture
   request ids.
+- Timeline capture actions now reuse the same request-scoped runner handoff:
+  when the `/api/motion/capture` action template includes
+  `captureRunner.kind = "playwright-local"`, the creator-facing capture buttons
+  submit that runner with the selected capture request ids so local app launch
+  and Playwright capture can run without a global default provider.
 - Agent-native `/api/motion/start` route that accepts direct `sourceRefs` or
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture

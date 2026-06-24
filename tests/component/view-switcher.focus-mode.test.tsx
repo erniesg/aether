@@ -443,6 +443,35 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
       ...start,
       project,
       capturePlan,
+      agentHandoff: {
+        id: 'handoff-motion-aether-launch',
+        projectId: project.id,
+        workflowId: 'repo-launch-video',
+        mode: 'review',
+        nextTemplateId: 'review-capture',
+        sourceLabels: ['aether local repo'],
+        templates: [
+          {
+            id: 'review-capture',
+            label: 'Capture product media',
+            method: 'POST',
+            route: '/api/motion/capture',
+            toolId: 'motion-capture',
+            body: {
+              project: '$motionProject',
+              requestIds: ['capture-home-still', 'capture-dom-snapshot'],
+              captureRunner: {
+                kind: 'playwright-local',
+                outputDir: 'outputs/motion-captures/motion-aether-launch',
+                launchLocalApp: true,
+                headless: true,
+              },
+            },
+            inputPlaceholders: ['$motionProject'],
+            expectedReceipts: ['screenshot', 'viewport receipt'],
+          },
+        ],
+      },
     });
     renderShell();
 
@@ -462,6 +491,14 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
         ),
       })
     );
+    const captureCall = fetchMock.mock.calls.find((call) => call[0] === '/api/motion/capture');
+    const captureBody = JSON.parse(String(captureCall?.[1]?.body));
+    expect(captureBody.captureRunner).toEqual({
+      kind: 'playwright-local',
+      outputDir: 'outputs/motion-captures/motion-aether-launch',
+      launchLocalApp: true,
+      headless: true,
+    });
   });
 
   it('timeline pin skill action opens a motion-specific reusable skill draft', async () => {
