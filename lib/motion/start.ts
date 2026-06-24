@@ -37,6 +37,7 @@ import {
   buildPrMotionProjectFromSource,
   type BuildPrMotionProjectFromSourceOptions,
 } from './prMotion';
+import { buildSourceSetMotionProject } from './sourceSetMotion';
 import {
   routeAgentMotionWorkflow,
   type MotionWorkflowIntent,
@@ -190,6 +191,29 @@ export async function startAgentMotionWorkflow(
     }
   }
 
+  if (
+    workflow.workflowId === 'caption-overlay-video' ||
+    workflow.workflowId === 'motion-graphic-video' ||
+    workflow.workflowId === 'remotion-hyperframes-port'
+  ) {
+    const project = materializeMotionTimeline(
+      buildSourceSetMotionProject({
+        id: input.id,
+        workspaceId: input.workspaceId,
+        workflowId: workflow.workflowId,
+        workflowMode: input.mode,
+        sourceRefs: input.sourceRefs,
+        audience: input.audience,
+        tone: input.tone,
+        platformTargets: input.platformTargets,
+        createdAt: input.createdAt,
+      }),
+      { updatedAt: input.createdAt }
+    );
+
+    return readyResult(workflow, project, input.createdAt);
+  }
+
   return {
     status: 'planned-only',
     workflow,
@@ -324,7 +348,21 @@ function examplesFor(workflow: RoutedAgentMotionWorkflow): MotionWorkflowExample
 
 function capturePlanFor(project: MotionProject): AgentMotionCapturePlan | null {
   const capturePlan = buildAgentMotionCapturePlan(project);
-  return capturePlan.status === 'not-needed' ? null : capturePlan;
+  if (capturePlan.status === 'not-needed') return null;
+  if (
+    capturePlan.status === 'needs-source' &&
+    capturePlan.requests.length === 0 &&
+    !hasCaptureCapableSource(project)
+  ) {
+    return null;
+  }
+  return capturePlan;
+}
+
+function hasCaptureCapableSource(project: MotionProject): boolean {
+  return project.sourceRefs.some(
+    (source) => source.kind === 'repo' || source.kind === 'site' || source.kind === 'capture'
+  );
 }
 
 async function buildSiteStartProject(

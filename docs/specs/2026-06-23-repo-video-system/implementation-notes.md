@@ -131,6 +131,11 @@
   those product-video primitives, preserving component ids, edit controls,
   source manifest entries, and `EDIT.md` regeneration scopes instead of falling
   back to generic proof cards.
+- Caption overlay, motion-graphic, and Remotion/HyperFrames port workflows now
+  create editable source-set `MotionProject` starts instead of stopping at
+  planned-only. Uploads, references, captures, and engine source bundles can now
+  enter the same review/full-auto timeline, preview, source-edit, render, and
+  export loop.
 - Agent-native `/api/motion/start` route that accepts direct `sourceRefs` or
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture

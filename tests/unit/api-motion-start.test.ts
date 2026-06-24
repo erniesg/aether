@@ -536,6 +536,174 @@ describe('POST /api/motion/start', () => {
     expect(componentIds).toContain('code-diff-card');
   });
 
+  it('starts caption, motion-graphic, and engine-port workflows as editable projects', async () => {
+    const { POST } = await import('@/app/api/motion/start/route');
+
+    const captionRes = await POST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'motion-caption-cut',
+          workspaceId: 'demo-ws',
+          sourceRefs: [
+            {
+              kind: 'upload',
+              ref: 'asset://uploads/demo-recording.mp4',
+              label: 'Demo recording',
+            },
+          ],
+          intent: 'caption-overlay',
+          mode: 'review',
+          audience: 'founders',
+          tone: 'sharp',
+          platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+          requestedEngines: ['remotion', 'hyperframes'],
+          createdAt: 710,
+        }),
+      })
+    );
+    const captionJson = await captionRes.json();
+
+    expect(captionRes.status).toBe(200);
+    expect(captionJson).toMatchObject({
+      ok: true,
+      status: 'ready',
+      workflow: {
+        workflowId: 'caption-overlay-video',
+        reason: 'caption overlay intent selected an overlay workflow',
+      },
+      project: {
+        id: 'motion-caption-cut',
+        title: 'Demo recording caption overlay video',
+        brief: { projectKind: 'social' },
+      },
+      previewPlan: {
+        projectId: 'motion-caption-cut',
+        primaryAction: 'request-review',
+      },
+    });
+    expect(captionJson.project.story.map((beat: { templateId: string }) => beat.templateId)).toEqual([
+      'hook-card',
+      'app-frame',
+      'caption-line',
+      'avatar-bubble',
+      'cta-card',
+    ]);
+    expect(
+      captionJson.previewPlan.editableComponents.map(
+        (component: { componentId: string }) => component.componentId
+      )
+    ).toEqual(expect.arrayContaining(['caption-line', 'avatar-bubble']));
+
+    const graphicRes = await POST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'motion-brand-graphics',
+          workspaceId: 'demo-ws',
+          sourceRefs: [
+            {
+              kind: 'reference',
+              ref: 'https://x.com/heygen/status/pr-to-video',
+              label: 'Skill launch post',
+            },
+          ],
+          intent: 'motion-graphic',
+          mode: 'full-auto',
+          audience: 'builders',
+          tone: 'technical editorial',
+          platformTargets: [{ platform: 'linkedin', aspectRatio: '4:5', seconds: 45 }],
+          requestedEngines: ['hyperframes', 'provider'],
+          createdAt: 711,
+        }),
+      })
+    );
+    const graphicJson = await graphicRes.json();
+
+    expect(graphicRes.status).toBe(200);
+    expect(graphicJson).toMatchObject({
+      ok: true,
+      status: 'ready',
+      workflow: {
+        workflowId: 'motion-graphic-video',
+        reason: 'motion graphic intent selected a motion graphics workflow',
+      },
+      project: {
+        id: 'motion-brand-graphics',
+        workflowMode: 'full-auto',
+        title: 'Skill launch post motion graphic video',
+        brief: { projectKind: 'social' },
+      },
+      reviewPlan: {
+        primaryAction: 'queue-render',
+      },
+    });
+    expect(graphicJson.project.story.map((beat: { templateId: string }) => beat.templateId)).toEqual([
+      'hook-card',
+      'social-overlay',
+      'data-visual-card',
+      'shader-wipe',
+      'contact-sheet-proof',
+      'outro-slate',
+    ]);
+
+    const portRes = await POST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'motion-port-kit',
+          workspaceId: 'demo-ws',
+          sourceRefs: [
+            {
+              kind: 'remotion',
+              ref: 'file://renders/aether/remotion/index.tsx',
+              label: 'Existing Remotion source',
+            },
+            {
+              kind: 'hyperframes',
+              ref: 'file://renders/aether/index.html',
+              label: 'Existing HyperFrames source',
+            },
+          ],
+          intent: 'port',
+          mode: 'review',
+          audience: 'motion engineers',
+          tone: 'precise',
+          platformTargets: [{ platform: 'website', aspectRatio: '16:9', seconds: 45 }],
+          requestedEngines: ['remotion', 'hyperframes'],
+          createdAt: 712,
+        }),
+      })
+    );
+    const portJson = await portRes.json();
+
+    expect(portRes.status).toBe(200);
+    expect(portJson).toMatchObject({
+      ok: true,
+      status: 'ready',
+      workflow: {
+        workflowId: 'remotion-hyperframes-port',
+        reason: 'motion engine source selected a portability workflow',
+      },
+      project: {
+        id: 'motion-port-kit',
+        title: 'Existing Remotion source portable motion video',
+        brief: { projectKind: 'case-study' },
+      },
+    });
+    expect(portJson.project.story.map((beat: { templateId: string }) => beat.templateId)).toEqual([
+      'hook-card',
+      'code-highlight-card',
+      'soft-wipe',
+      'contact-sheet-proof',
+      'cta-card',
+    ]);
+    expect(portJson.capturePlan).toBeNull();
+  });
+
   it('rejects malformed agent-collected code evidence', async () => {
     const { POST } = await import('@/app/api/motion/start/route');
 
