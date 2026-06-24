@@ -191,9 +191,12 @@ capture, render, and provenance debugging.
   or completed capture receipts applied back into demo story beats and
   `app-frame` timeline clips. Local-app capture requests also surface deduped
   app launch handoffs with command, cwd, target URL, and readiness metadata so
-  agents can start the app before capture when a runner is configured. The route
-  lists configured capture providers, preserves computer-use fallback guidance,
-  and does not register a default provider.
+  agents can start the app before capture when a runner is configured. Callers
+  can now opt into a request-scoped `playwright-local` runner that writes
+  capture receipts inside the aether workspace, optionally launches the local
+  app through the trusted readiness poller, and appears in the preview/provider
+  inventory for that request. The route still preserves computer-use fallback
+  guidance and does not register a default provider.
 - `app/api/motion/voice/route.ts` now exposes voiceover and caption-sync
   handoffs through an agent-native JSON boundary: callers send an editable
   project plus voice request or clip ids and receive provider-required
