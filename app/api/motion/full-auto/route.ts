@@ -15,6 +15,8 @@ import type { MotionProject } from '@/lib/motion/project';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { executeMotionRender } from '@/lib/motion/renderExecution';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
+import { applyMotionVisualSourceSelectionToMotionProject } from '@/lib/motion/visualSourceApply';
+import { buildMotionVisualSourcingPlan } from '@/lib/motion/visualSourcingPlan';
 import { applyVoiceSynthesisResultToMotionProject } from '@/lib/motion/voiceApply';
 import {
   buildMotionVoicePlan,
@@ -168,6 +170,13 @@ function buildProviderHandlers(
     });
   }
 
+  handlers['visual-source'] = visualSourceHandler({
+    body,
+    fps: options.fps,
+    requestedAt: options.requestedAt,
+    updatedAt: options.updatedAt,
+  });
+
   if (voiceProvider) {
     handlers.voice = voiceHandler({
       body,
@@ -227,6 +236,36 @@ function captureHandler(input: {
       mergeCaptureResults(input.provider.id, captureResults),
       { updatedAt: input.updatedAt ?? input.requestedAt }
     );
+  };
+}
+
+function visualSourceHandler(input: {
+  body: MotionFullAutoRequestBody;
+  fps?: number;
+  requestedAt: number;
+  updatedAt?: number;
+}): MotionFullAutoStepHandler {
+  return async ({ project }) => {
+    const visualSourcingPlan = buildMotionVisualSourcingPlan(project, {
+      requestedAt: input.requestedAt,
+    });
+    if (visualSourcingPlan.status !== 'ready') return project;
+
+    const imageToVideoPlan = buildMotionImageToVideoPlan(project, {
+      fps: input.fps,
+      requestedAt: input.requestedAt,
+    });
+    if (imageToVideoPlan.status !== 'ready') return project;
+
+    const selectedRequests = selectImageToVideoRequests(imageToVideoPlan.requests, input.body);
+    if (!selectedRequests || selectedRequests.length === 0) return project;
+
+    return applyMotionVisualSourceSelectionToMotionProject(project, visualSourcingPlan, {
+      clipIds: selectedRequests.map((request) => request.clipId),
+      sourceAssetIds: selectedRequests.map((request) => request.sourceAssetId),
+      providerId: 'asset-selection',
+      updatedAt: input.updatedAt ?? input.requestedAt,
+    });
   };
 }
 

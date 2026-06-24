@@ -11,6 +11,20 @@ import type {
   MotionProvenanceRef,
 } from './project';
 
+export interface MotionVisualSourceReceiptInput {
+  providerId: string;
+  selectedAssets: MotionVisualSourceSelectedAsset[];
+  provenance: MotionProvenanceRef[];
+}
+
+export interface MotionVisualSourceSelectedAsset {
+  id: string;
+  label?: string;
+  assetUrl?: string;
+  mimeType?: string;
+  provenance: MotionProvenanceRef[];
+}
+
 export function appendCaptureExecutionHistory(
   history: MotionExecutionHistoryEntry[] | undefined,
   result: CaptureResult,
@@ -77,6 +91,30 @@ export function appendImageToVideoExecutionHistory(
   });
 }
 
+export function appendVisualSourceExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  result: MotionVisualSourceReceiptInput,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  return appendExecutionEntry(history, {
+    id: `execution-visual-source-${slugifyId(result.providerId)}-${savedAt}`,
+    gateId: 'visual-source',
+    label: 'Selected visual sources',
+    providerId: result.providerId,
+    savedAt,
+    receiptCount: result.selectedAssets.length,
+    receiptLabels: result.selectedAssets.map(() => 'Selected source asset'),
+    receipts: result.selectedAssets.map((asset) =>
+      visualSourceReceipt(result.providerId, asset)
+    ),
+    provenance: uniqueProvenance([
+      ...result.provenance,
+      ...result.selectedAssets.flatMap((asset) => asset.provenance),
+      ...result.selectedAssets.map((asset) => visualSourceRef(asset.id)),
+    ]),
+  });
+}
+
 function appendExecutionEntry(
   history: MotionExecutionHistoryEntry[] | undefined,
   entry: MotionExecutionHistoryEntry
@@ -94,6 +132,21 @@ function captureReceipt(providerId: string, artifact: CaptureArtifact): MotionEx
     providerId,
     assetUrl: artifact.assetUrl,
     mimeType: artifact.mimeType,
+  };
+}
+
+function visualSourceReceipt(
+  providerId: string,
+  asset: MotionVisualSourceSelectedAsset
+): MotionExecutionReceipt {
+  return {
+    id: `receipt-visual-source-${asset.id}`,
+    kind: 'visual-source',
+    label: asset.label ?? 'Selected source asset',
+    ref: asset.id,
+    providerId,
+    assetUrl: asset.assetUrl,
+    mimeType: asset.mimeType,
   };
 }
 
@@ -139,6 +192,10 @@ function renderReceiptLabel(kind: MotionRenderedAsset['kind']): string {
   if (kind === 'subtitle') return 'Subtitles';
   if (kind === 'transcript') return 'Transcript';
   return 'Manifest';
+}
+
+function visualSourceRef(ref: string): MotionProvenanceRef {
+  return { kind: 'visual-source', ref };
 }
 
 function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {

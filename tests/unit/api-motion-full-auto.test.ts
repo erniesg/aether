@@ -207,7 +207,7 @@ describe('POST /api/motion/full-auto', () => {
     });
   });
 
-  it('executes configured capture providers before pausing at the next provider gate', async () => {
+  it('executes capture providers and auto-selects captured visual sources', async () => {
     const capture = vi.fn(async (request: CaptureRequest): Promise<CaptureResult> => ({
       providerId: 'browser-test',
       artifacts: [
@@ -256,27 +256,42 @@ describe('POST /api/motion/full-auto', () => {
       run: {
         status: 'paused',
         reason: 'provider-required',
-        stepId: 'visual-source',
-        advancedStepIds: ['capture'],
-        receiptCount: 1,
+        stepId: 'visual-generation',
+        advancedStepIds: ['capture', 'visual-source'],
+        receiptCount: 2,
       },
       project: {
         id: 'motion-aether-launch',
-        executionHistory: [
-          {
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'node-visual-sourcing-plan',
+            kind: 'visual-search',
+            outputRefs: ['full-auto-screenshot'],
+            providerId: 'asset-selection',
+            status: 'done',
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
             id: 'execution-capture-browser-test-703',
             gateId: 'capture',
             receiptCount: 1,
             receiptLabels: ['Screenshot'],
-          },
-        ],
+          }),
+          expect.objectContaining({
+            id: 'execution-visual-source-asset-selection-703',
+            gateId: 'visual-source',
+            receiptCount: 1,
+            receiptLabels: ['Selected source asset'],
+          }),
+        ]),
       },
       productionPlan: {
-        nextStepId: 'visual-source',
+        nextStepId: 'visual-generation',
       },
       previewPlan: {
         productionPlan: {
-          nextStepId: 'visual-source',
+          nextStepId: 'visual-generation',
         },
       },
     });
@@ -361,6 +376,72 @@ describe('POST /api/motion/full-auto', () => {
         sourceVisualAssetId: 'capture-aether-homepage',
         status: 'ready',
       },
+    });
+  });
+
+  it('chains capture, visual-source selection, and image-to-video in full-auto mode', async () => {
+    const capture = vi.fn(async (): Promise<CaptureResult> => screenshotCaptureResult);
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    unregister.push(registerCaptureProvider('browser-test', () => captureProvider(capture)));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          captureProviderId: 'browser-test',
+          imageToVideoProviderId: 'image-video-test',
+          imageToVideoClipIds: ['clip-beat-demo-text'],
+          requestedAt: 722,
+          updatedAt: 723,
+          requestedEngines: ['hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'paused',
+      run: {
+        status: 'paused',
+        reason: 'provider-required',
+        stepId: 'voice',
+        advancedStepIds: ['capture', 'visual-source', 'visual-generation'],
+        receiptCount: 3,
+      },
+      project: {
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'node-visual-sourcing-plan',
+            kind: 'visual-search',
+            outputRefs: ['capture-aether-homepage'],
+            status: 'done',
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({ gateId: 'capture' }),
+          expect.objectContaining({ gateId: 'visual-source' }),
+          expect.objectContaining({ gateId: 'visual-generation' }),
+        ]),
+      },
+      productionPlan: {
+        nextStepId: 'voice',
+      },
+    });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0][0]).toMatchObject({
+      id: 'image-to-video-clip-beat-demo-text',
+      sourceAssetId: 'capture-aether-homepage',
     });
   });
 
