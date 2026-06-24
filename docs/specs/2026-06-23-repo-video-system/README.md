@@ -228,6 +228,11 @@ capture, render, and provenance debugging.
   through an agent-native JSON boundary: callers send an editable project and
   receive ready/missing platform artifacts, canvas drop candidates, blockers,
   and a pack manifest only when every target has render receipts.
+- `app/api/motion/full-auto/route.ts` now runs the saved production queue across
+  configured providers: capture, visual-source selection, image-to-video,
+  voice, sync, render, and export readiness can complete in one run when
+  provider receipts are available, while missing providers or review gates still
+  pause with the same creator-facing plan state.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen
   recording, local-app launch, and computer-use fallback requests with explicit
@@ -311,6 +316,10 @@ capture, render, and provenance debugging.
   agent-readable sync plan: beat markers, caption/voice timing links,
   transition cues, sound cues, provider requirements, and blockers until voice
   and word-timing receipts exist.
+- `lib/motion/fullAutoExecution.ts` now executes ready full-auto gates as a
+  saved run, stops on missing providers, blockers, approvals, or max-step
+  limits, and reports advanced gates plus receipt counts without creating a
+  separate run-history surface.
 - `lib/motion/previewPlan.ts` now carries the production queue into the
   creator-facing timeline lens and API responses, giving agents and creators the
   same next action for review mode or full-auto runs without exposing raw route

@@ -245,6 +245,11 @@
   entries to the same `MotionProject`, preview plans summarize saved steps and
   receipt counts, and the timeline lens exposes a compact saved-receipts trail
   for review or full-auto runs.
+- Saved full-auto execution now chains configured providers through
+  image-to-video, voice synthesis, timeline sync, and Remotion/HyperFrames
+  render. When render receipts provide MP4, poster, subtitles, transcript, and
+  manifest outputs for every target, the same production plan marks export
+  complete and returns a ready export-pack manifest.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
@@ -262,8 +267,9 @@
 3. Expand the provider-neutral component registry to cover HyperFrames catalog
    classes: code animation, terminal, caption, social overlay, shader/CSS
    transition, HTML-in-canvas UI reveal, data visual, effect, and outro.
-4. Add the saved full-auto executor loop that advances ready gates, pauses on
-   provider or approval blockers, and appends to the existing execution history.
+4. Add configured provider wiring and UI controls for trusted local app launch,
+   browser/computer-use capture, voice providers, image-to-video providers, and
+   real Remotion/HyperFrames render runners in the creator environment.
 
 ## Verification Commands
 

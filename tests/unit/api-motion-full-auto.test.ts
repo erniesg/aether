@@ -10,6 +10,7 @@ import type {
   CaptureResult,
 } from '@/lib/providers/capture/types';
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
+import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
 import type {
   VoiceProvider,
@@ -20,6 +21,9 @@ import type {
   MotionImageToVideoProvider,
   MotionImageToVideoRequest,
   MotionImageToVideoResult,
+  MotionRenderProvider,
+  MotionRenderRequest,
+  MotionRenderResult,
 } from '@/lib/providers/video/types';
 
 function project(): MotionProject {
@@ -177,6 +181,32 @@ function voiceResultFor(request: VoiceSynthesisRequest): VoiceSynthesisResult {
       ],
     })),
     provenance: [{ kind: 'provider', ref: 'voice-test' }],
+  };
+}
+
+function renderProvider(render: MotionRenderProvider['render']): MotionRenderProvider {
+  return {
+    id: 'remotion-test',
+    engine: 'remotion',
+    displayName: 'Remotion test render',
+    available: () => true,
+    render,
+  };
+}
+
+function renderResultFor(request: MotionRenderRequest): MotionRenderResult {
+  return {
+    providerId: 'remotion-test',
+    engine: 'remotion',
+    outputs: request.outputs.map((output) => ({
+      ...output,
+      assetUrl: `asset://${output.path}`,
+      provenance: [
+        { kind: 'provider', ref: 'remotion-test' },
+        ...output.provenance,
+      ],
+    })),
+    provenance: [{ kind: 'provider', ref: 'remotion-test' }],
   };
 }
 
@@ -565,6 +595,120 @@ describe('POST /api/motion/full-auto', () => {
       syncPlanId: 'sync-plan-motion-aether-launch-draft-primary',
       syncStatus: 'synced',
       timingSource: 'word-timings',
+    });
+  });
+
+  it('chains image-to-video, voice, sync, and render into a ready export pack', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    const synthesize = vi.fn(async (request: VoiceSynthesisRequest) => voiceResultFor(request));
+    const render = vi.fn(async (request: MotionRenderRequest) => renderResultFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+    unregister.push(registerVoiceProvider('voice-test', () => voiceProvider(synthesize)));
+    unregister.push(registerMotionRenderProvider('remotion-test', () => renderProvider(render)));
+
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: projectWithSelectedVisualSource(),
+          imageToVideoProviderId: 'image-video-test',
+          imageToVideoClipIds: ['clip-beat-demo-text'],
+          voiceProviderId: 'voice-test',
+          renderProviderId: 'remotion-test',
+          renderEngine: 'remotion',
+          requestedAt: 742,
+          updatedAt: 743,
+          requestedEngines: ['remotion'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      run: {
+        status: 'complete',
+        reason: null,
+        stepId: null,
+        advancedStepIds: ['visual-generation', 'voice', 'sync', 'render'],
+      },
+      project: {
+        exports: [
+          {
+            id: 'export-x-9x16',
+            status: 'ready',
+            assetId: 'render-export-x-9x16-video',
+            posterAssetId: 'render-export-x-9x16-poster',
+            subtitleAssetId: 'render-export-x-9x16-subtitle',
+            transcriptAssetId: 'render-export-x-9x16-transcript',
+            manifestAssetId: 'render-export-x-9x16-manifest',
+          },
+        ],
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'node-render-plan-remotion',
+            kind: 'render',
+            providerId: 'remotion-test',
+            status: 'done',
+            outputRefs: expect.arrayContaining([
+              'render-export-x-9x16-video',
+              'render-export-x-9x16-manifest',
+            ]),
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'execution-render-remotion-test-743',
+            gateId: 'render',
+            receiptLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+          }),
+        ]),
+      },
+      productionPlan: {
+        status: 'complete',
+        nextStepId: null,
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'export',
+            status: 'complete',
+            verificationReceipts: [
+              expect.objectContaining({
+                kind: 'export',
+                label: 'Export pack manifest',
+                path: 'export-packs/motion-aether-launch/draft-primary/manifest.json',
+              }),
+            ],
+          }),
+        ]),
+      },
+      previewPlan: {
+        productionPlan: {
+          status: 'complete',
+          nextStepId: null,
+        },
+      },
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(synthesize).toHaveBeenCalledTimes(6);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(render.mock.calls[0][0]).toMatchObject({
+      engine: 'remotion',
+      compositionId: 'motion-aether-launch-draft-primary',
+      outputs: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'render-export-x-9x16-video',
+          kind: 'video',
+          path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+        }),
+      ]),
     });
   });
 
