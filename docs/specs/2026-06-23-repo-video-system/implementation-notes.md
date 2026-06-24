@@ -323,11 +323,15 @@
 
 ## Next Slices
 
-1. Extend the provider-neutral component registry beyond the current launch,
+1. Use `research-corpus-and-next-slices.md` as the next planning anchor:
+   add a typed research corpus fixture, runner setup cards, playable preview,
+   progressive generation node lens, and computer-use capture workflow in that
+   order.
+2. Extend the provider-neutral component registry beyond the current launch,
    proof, code, terminal, caption, social, UI reveal, data, transition, and
    outro set into richer device/avatar/logo/flowchart primitives as concrete
    video recipes demand them.
-2. Add configured provider wiring and UI controls for trusted local app launch,
+3. Add configured provider wiring and UI controls for trusted local app launch,
    browser/computer-use capture, voice providers, image-to-video providers, and
    real Remotion/HyperFrames render runners in the creator environment.
 
@@ -375,6 +379,10 @@ OpenAI, Cursor, Linear, Screen Studio, Runway, Pika, HeyGen, Arcade, Clueso,
 Descript, and HyperFrames daily skill launches. Tag each clip for hook, capture,
 agent trace, proof, captions, voice, effects, transition language, CTA, and
 export format.
+
+The first accessible research matrix now lives in
+`research-corpus-and-next-slices.md`. It should seed that authenticated pass,
+not replace it.
 
 The current implementation has the data and workflow seams to ingest that
 corpus, but it does not yet include the corpus artifact, Remotion Player preview,

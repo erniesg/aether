@@ -1,7 +1,7 @@
 # Repo-to-video motion system
 
 - Date: 2026-06-23
-- Status: planning
+- Status: active implementation
 - Branch: `codex/social-03-repo-facts`
 - Scope: reusable launch, feature, demo, and social video generation from any repo or app source
 
@@ -77,6 +77,14 @@ Clueso, and Descript.
   "This week we're launching new skills for HyperFrames..." maps to
   `daily-skill-launch-pr-to-video`, with source kind `pr`, components
   `hook-card`, `agent-trace`, `proof-card`, `command-card`, captions, and CTA.
+
+## Research matrix: 2026-06-24
+
+See `research-corpus-and-next-slices.md` for the current external research
+matrix and next implementation slices. It maps HyperFrames skills,
+`iart-ai/motion-skills`, Screen Studio, Clueso, Arcade, Descript, Anthropic
+computer-use, and Remotion into Aether component groups, review/full-auto
+behavior, provider seams, and the remaining authenticated X/video corpus pass.
 
 ## Architecture decision
 
