@@ -1143,6 +1143,15 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     setPendingSkillPrompt(null);
     setMotionTimelineActionStatus('drafting reusable motion skill');
   }, [motionStart]);
+  const handleTimelineCapabilitySetupSelect = useCallback(
+    (itemId: string) => {
+      const item = motionStart?.previewPlan?.capabilitySetup.items.find(
+        (candidate) => candidate.id === itemId
+      );
+      setMotionTimelineActionStatus(`${item?.label ?? 'Capability'} setup selected`);
+    },
+    [motionStart]
+  );
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
@@ -2912,6 +2921,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onGenerateVideoClips={handleTimelineGenerateVideoClips}
             onCaptureMotion={handleTimelineCapture}
             onPinMotionSkill={handleTimelinePinMotionSkill}
+            onSelectCapabilitySetup={handleTimelineCapabilitySetupSelect}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             onEditClipEffect={handleTimelineClipEffectEdit}
             onEditClipTiming={handleTimelineClipTimingEdit}

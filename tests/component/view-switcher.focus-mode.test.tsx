@@ -642,6 +642,18 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(body.requestedEngines).toEqual(['remotion', 'hyperframes', 'provider']);
   });
 
+  it('timeline setup cards select a missing runner inside the same shell', async () => {
+    setMotionStartResult('demo-ws', storedFullAutoMotionStart());
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /set up product capture/i }));
+
+    expect(screen.getByRole('status')).toHaveTextContent('Product capture setup selected');
+    expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {

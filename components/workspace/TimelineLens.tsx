@@ -68,6 +68,7 @@ export interface TimelineLensProps {
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onRunFullAuto?: () => void;
+  onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
@@ -97,6 +98,7 @@ export function TimelineLens({
   onSyncMotion,
   onRenderMotion,
   onRunFullAuto,
+  onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
   onExportPack,
@@ -152,6 +154,7 @@ export function TimelineLens({
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
             onRunFullAuto={onRunFullAuto}
+            onSelectCapabilitySetup={onSelectCapabilitySetup}
             onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={onDropRenderProofToCanvas}
             onExportPack={onExportPack}
@@ -200,6 +203,7 @@ function MotionPreviewPlanView({
   onSyncMotion,
   onRenderMotion,
   onRunFullAuto,
+  onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
   onExportPack,
@@ -226,6 +230,7 @@ function MotionPreviewPlanView({
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onRunFullAuto?: () => void;
+  onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
@@ -408,7 +413,10 @@ function MotionPreviewPlanView({
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
-        <MotionCapabilitySetupStrip setup={previewPlan.capabilitySetup} />
+        <MotionCapabilitySetupStrip
+          setup={previewPlan.capabilitySetup}
+          onSelectCapabilitySetup={onSelectCapabilitySetup}
+        />
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
@@ -1080,10 +1088,15 @@ function renderProofTone(
 
 function MotionCapabilitySetupStrip({
   setup,
+  onSelectCapabilitySetup,
 }: {
   setup: MotionPreviewCapabilitySetup;
+  onSelectCapabilitySetup?: (itemId: string) => void;
 }) {
   const visibleItems = setup.items.slice(0, 6);
+  const actionableItems = setup.items.filter((item) =>
+    item.status === 'needs-provider' || item.status === 'needs-runner'
+  );
 
   return (
     <div className="min-w-0">
@@ -1127,8 +1140,90 @@ function MotionCapabilitySetupStrip({
           ) : null}
         </div>
       </div>
+      {actionableItems.length > 0 ? (
+        <div className="mt-3 min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+              setup cards
+            </div>
+            <Chip tone="info" size="sm">
+              {actionableItems.length} actions
+            </Chip>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {actionableItems.map((item) => (
+              <MotionCapabilitySetupCard
+                key={item.id}
+                item={item}
+                onSelectCapabilitySetup={onSelectCapabilitySetup}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function MotionCapabilitySetupCard({
+  item,
+  onSelectCapabilitySetup,
+}: {
+  item: MotionPreviewCapabilitySetup['items'][number];
+  onSelectCapabilitySetup?: (itemId: string) => void;
+}) {
+  const permissionLabel = setupPermissionLabel(item);
+  const proofLabel = setupProofLabel(item);
+
+  return (
+    <article className="min-w-0 rounded-sm border border-border-soft bg-surface-canvas px-3 py-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate font-caption text-xs text-ink">{item.label}</div>
+          <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+            {item.actionLabel}
+          </div>
+        </div>
+        <Chip tone={capabilitySetupTone(item.status)} size="sm">
+          {item.status.replace(/-/g, ' ')}
+        </Chip>
+      </div>
+      <div className="mt-2 grid gap-1 font-caption text-2xs text-ink-faint">
+        {permissionLabel ? <div>{permissionLabel}</div> : null}
+        {proofLabel ? <div>{proofLabel}</div> : null}
+        {item.runnerLabels.length > 0 ? (
+          <div className="truncate">{item.runnerLabels.slice(0, 2).join(' / ')}</div>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        onClick={() => onSelectCapabilitySetup?.(item.id)}
+        className="mt-2 w-full rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 text-left font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={!onSelectCapabilitySetup}
+      >
+        set up {item.label}
+      </button>
+    </article>
+  );
+}
+
+function setupPermissionLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
+  const label =
+    item.requirementLabels[0] ??
+    item.blockerLabels[0] ??
+    item.routeLabels[0] ??
+    null;
+  return label ? `permission: ${label}` : null;
+}
+
+function setupProofLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
+  const labels =
+    item.toolLabels.length > 0
+      ? item.toolLabels
+      : item.providerLabels.length > 0
+        ? item.providerLabels
+        : item.routeLabels;
+  return labels.length > 0 ? `proof: ${labels.slice(0, 2).join(' / ')}` : null;
 }
 
 function MotionCapabilitySetupRow({

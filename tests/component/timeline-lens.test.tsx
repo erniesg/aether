@@ -1437,9 +1437,11 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('Connect browser capture').length).toBeGreaterThan(0);
     expect(screen.getByText('1 ready')).toBeInTheDocument();
     expect(screen.getByText('4 missing')).toBeInTheDocument();
-    expect(screen.getByText('Local app runner')).toBeInTheDocument();
-    expect(screen.getByText('Trust local app launch')).toBeInTheDocument();
-    expect(screen.getByText('npm run dev -> https://aether.local/demo')).toBeInTheDocument();
+    expect(screen.getAllByText('Local app runner').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Trust local app launch').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('npm run dev -> https://aether.local/demo').length).toBeGreaterThan(
+      0
+    );
     expect(screen.getAllByText('needs provider').length).toBeGreaterThan(0);
     expect(screen.getAllByText('needs runner').length).toBeGreaterThan(0);
     expect(screen.getByText('Runway')).toBeInTheDocument();
@@ -1618,6 +1620,31 @@ describe('TimelineLens', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /run full auto/i }));
     expect(onRunFullAuto).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows actionable capability setup cards for missing runners and providers', async () => {
+    const onSelectCapabilitySetup = vi.fn();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onSelectCapabilitySetup={onSelectCapabilitySetup}
+      />
+    );
+
+    expect(screen.getByText('setup cards')).toBeInTheDocument();
+    expect(screen.getByText('permission: browser capture')).toBeInTheDocument();
+    expect(screen.getByText('proof: motion capture')).toBeInTheDocument();
+    expect(screen.getByText('permission: trusted local app launch')).toBeInTheDocument();
+    expect(screen.getByText('proof: app launch / browser capture')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /set up product capture/i }));
+    await userEvent.click(screen.getByRole('button', { name: /set up local app runner/i }));
+
+    expect(onSelectCapabilitySetup).toHaveBeenNthCalledWith(1, 'capture');
+    expect(onSelectCapabilitySetup).toHaveBeenNthCalledWith(2, 'local-app');
   });
 
   it('shows saved full-auto receipt history without exposing raw refs', () => {
