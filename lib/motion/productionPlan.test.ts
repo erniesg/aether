@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { CaptureResult } from '@/lib/providers/capture/types';
+import type { MotionRenderResult } from '@/lib/providers/video/types';
+import { applyCaptureResultToMotionProject } from './captureApply';
 import { buildMotionProductionPlan } from './productionPlan';
+import { applyMotionRenderResultToMotionProject } from './renderApply';
+import { buildMotionRenderPlan } from './renderPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
 
@@ -57,6 +62,98 @@ function project(mode: 'review' | 'full-auto' = 'review') {
       createdAt: 120,
     }),
     { updatedAt: 121 }
+  );
+}
+
+const captureResult: CaptureResult = {
+  providerId: 'browser-capture',
+  artifacts: [
+    {
+      id: 'capture-aether-homepage',
+      kind: 'screenshot',
+      assetUrl: 'asset://captures/aether-homepage.png',
+      mimeType: 'image/png',
+      width: 1440,
+      height: 1200,
+      viewport: { width: 1440, height: 1200, deviceScaleFactor: 1 },
+      cursorTargets: [],
+      provenance: [{ kind: 'capture', ref: 'capture-hosted-still' }],
+    },
+    {
+      id: 'recording-aether-flow',
+      kind: 'recording',
+      assetUrl: 'asset://captures/aether-flow.mp4',
+      mimeType: 'video/mp4',
+      width: 1440,
+      height: 1200,
+      viewport: { width: 1440, height: 1200, deviceScaleFactor: 1 },
+      cursorTargets: [],
+      durationMs: 6000,
+      provenance: [{ kind: 'capture', ref: 'record-hosted-flow' }],
+    },
+  ],
+  provenance: [{ kind: 'provider', ref: 'browser-capture' }],
+};
+
+function renderedAsset(
+  kind: MotionRenderResult['outputs'][number]['kind']
+): MotionRenderResult['outputs'][number] {
+  const extension =
+    kind === 'video'
+      ? 'mp4'
+      : kind === 'poster'
+        ? 'png'
+        : kind === 'manifest'
+          ? 'json'
+          : kind === 'subtitle'
+            ? 'vtt'
+            : 'txt';
+
+  return {
+    id: `render-export-x-9x16-${kind}`,
+    exportId: 'export-x-9x16',
+    kind,
+    platform: 'x',
+    aspectRatio: '9:16',
+    width: 1080,
+    height: 1920,
+    mimeType: kind === 'video' ? 'video/mp4' : 'application/octet-stream',
+    path: `renders/motion-aether-launch/export-x-9x16/${kind}.${extension}`,
+    assetUrl: `asset://renders/x/${kind}.${extension}`,
+    provenance: [{ kind: 'provider', ref: 'hyperframes-local' }],
+  };
+}
+
+function renderedProject() {
+  const captured = applyCaptureResultToMotionProject(project('full-auto'), captureResult, {
+    updatedAt: 260,
+  });
+  const renderPlan = buildMotionRenderPlan(captured, {
+    engine: 'hyperframes',
+    requestedAt: 270,
+  });
+  const withRenderPlan = {
+    ...captured,
+    graphNodes: renderPlan.renderNode
+      ? [...captured.graphNodes, renderPlan.renderNode]
+      : captured.graphNodes,
+  };
+
+  return applyMotionRenderResultToMotionProject(
+    withRenderPlan,
+    {
+      providerId: 'hyperframes-local',
+      engine: 'hyperframes',
+      outputs: [
+        renderedAsset('video'),
+        renderedAsset('poster'),
+        renderedAsset('subtitle'),
+        renderedAsset('transcript'),
+        renderedAsset('manifest'),
+      ],
+      provenance: [{ kind: 'provider', ref: 'hyperframes-local' }],
+    },
+    { updatedAt: 280 }
   );
 }
 
@@ -139,5 +236,64 @@ describe('buildMotionProductionPlan', () => {
       status: 'ready',
       autoAdvance: true,
     });
+  });
+
+  it('surfaces capture and render verification receipts for full-auto completion proof', () => {
+    const plan = buildMotionProductionPlan(renderedProject(), {
+      engines: ['hyperframes'],
+      requestedAt: 281,
+    });
+
+    expect(plan.steps.find((step) => step.id === 'capture')).toMatchObject({
+      status: 'complete',
+      autoAdvance: false,
+      verificationReceipts: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'capture',
+          ref: 'capture-aether-homepage',
+          label: 'Screenshot',
+          providerId: 'browser-capture',
+        }),
+        expect.objectContaining({
+          kind: 'capture',
+          ref: 'recording-aether-flow',
+          label: 'Recording',
+          providerId: 'browser-capture',
+        }),
+      ]),
+    });
+    expect(plan.steps.find((step) => step.id === 'render')).toMatchObject({
+      status: 'complete',
+      autoAdvance: false,
+      verificationReceipts: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'render',
+          ref: 'render-export-x-9x16-video',
+          label: 'MP4',
+          providerId: 'hyperframes-local',
+        }),
+        expect.objectContaining({
+          kind: 'render',
+          ref: 'render-export-x-9x16-poster',
+          label: 'Poster',
+          providerId: 'hyperframes-local',
+        }),
+        expect.objectContaining({
+          kind: 'render',
+          ref: 'render-export-x-9x16-manifest',
+          label: 'Manifest',
+          providerId: 'hyperframes-local',
+        }),
+      ]),
+    });
+    expect(plan.steps.find((step) => step.id === 'export')?.verificationReceipts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'export',
+          ref: 'export-pack-motion-aether-launch-draft-primary-manifest',
+          label: 'Export pack manifest',
+        }),
+      ])
+    );
   });
 });

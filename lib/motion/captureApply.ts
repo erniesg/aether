@@ -55,11 +55,7 @@ export function applyCaptureResultToMotionProject(
             )
           : draft.tracks,
     })),
-    graphNodes: project.graphNodes.map((node) =>
-      node.kind === 'capture'
-        ? completeCaptureNode(node, captureResult, captureRefs, captureProvenance)
-        : node
-    ),
+    graphNodes: upsertCaptureNode(project.graphNodes, captureResult, captureRefs, captureProvenance),
     updatedAt: options.updatedAt ?? project.updatedAt,
   };
 }
@@ -157,6 +153,40 @@ function completeCaptureNode(
     status: 'done',
     provenance: uniqueProvenance([...node.provenance, ...captureProvenance, ...captureRefs]),
   };
+}
+
+function upsertCaptureNode(
+  nodes: MotionGraphNode[],
+  captureResult: CaptureResult,
+  captureRefs: MotionProvenanceRef[],
+  captureProvenance: MotionProvenanceRef[]
+): MotionGraphNode[] {
+  const existingIndex = nodes.findIndex((node) => node.kind === 'capture');
+  if (existingIndex !== -1) {
+    return nodes.map((node, index) =>
+      index === existingIndex
+        ? completeCaptureNode(node, captureResult, captureRefs, captureProvenance)
+        : node
+    );
+  }
+
+  return [
+    ...nodes,
+    completeCaptureNode(
+      {
+        id: `node-capture-${captureResult.providerId}`,
+        kind: 'capture',
+        inputRefs: uniqueStrings(captureResult.provenance.map((ref) => ref.ref)),
+        outputRefs: [],
+        providerId: captureResult.providerId,
+        status: 'running',
+        provenance: captureResult.provenance,
+      },
+      captureResult,
+      captureRefs,
+      captureProvenance
+    ),
+  ];
 }
 
 function captureArtifactRef(artifact: CaptureArtifact): MotionProvenanceRef {

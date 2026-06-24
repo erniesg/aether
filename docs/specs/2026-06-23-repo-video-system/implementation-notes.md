@@ -235,6 +235,11 @@
   edits update narration, timing, component templates, and effect props; and
   `EDIT.md` now exposes editable control values that can update component props
   directly.
+- Production plans now surface completed capture, render, and export
+  verification receipts as first-class step metadata. Full-auto capture
+  results can create completed capture graph nodes, render receipts appear as
+  creator-facing proof labels, and the timeline lens shows compact receipt
+  labels in the production queue without exposing raw ids.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
@@ -252,8 +257,8 @@
 3. Expand the provider-neutral component registry to cover HyperFrames catalog
    classes: code animation, terminal, caption, social overlay, shader/CSS
    transition, HTML-in-canvas UI reveal, data visual, effect, and outro.
-4. Wire opt-in capture and render verification receipts into saved full-auto
-   execution before making the workflow feel "one click."
+4. Persist receipt history through saved full-auto execution before making the
+   workflow feel "one click."
 
 ## Verification Commands
 

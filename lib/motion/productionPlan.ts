@@ -54,6 +54,16 @@ export type MotionProductionStepStatus =
   | 'blocked'
   | 'review'
   | 'optional';
+export type MotionProductionVerificationReceiptKind = 'capture' | 'render' | 'export';
+
+export interface MotionProductionVerificationReceipt {
+  id: string;
+  kind: MotionProductionVerificationReceiptKind;
+  label: string;
+  ref: string;
+  providerId?: string;
+  path?: string;
+}
 
 export interface MotionProductionStep {
   id: MotionProductionStepId;
@@ -65,6 +75,7 @@ export interface MotionProductionStep {
   apiRoutes: string[];
   actionLabel: string;
   artifactLabels: string[];
+  verificationReceipts: MotionProductionVerificationReceipt[];
   providerRequirementLabels: string[];
   blockerLabels: string[];
 }
@@ -292,6 +303,7 @@ function buildSteps(
       status: voiceComplete ? 'complete' : plans.voicePlan.status === 'ready' ? 'ready' : 'blocked',
       blockerLabels: plans.voicePlan.blockers.map((blocker) => blocker.label),
       providerRequirementLabels: plans.voicePlan.providerRequirements.map(readableRequirement),
+      verificationReceipts: nodeReceipts(project, 'voice', 'render'),
     }),
     step('sync', project, {
       status: syncReady ? 'ready' : 'blocked',
@@ -310,11 +322,13 @@ function buildSteps(
         ...(syncReady ? [] : ['Review voice and caption sync before render']),
       ],
       providerRequirementLabels: [],
+      verificationReceipts: renderReceipts(project),
     }),
     step('export', project, {
       status: plans.exportPackPlan.status === 'ready' ? 'complete' : 'blocked',
       blockerLabels: plans.exportPackPlan.blockers.map((blocker) => blocker.label),
       providerRequirementLabels: [],
+      verificationReceipts: exportReceipts(plans.exportPackPlan),
     }),
   ];
 }
@@ -328,11 +342,13 @@ function captureStep(
       status: 'complete',
       blockerLabels: [],
       providerRequirementLabels: [],
+      verificationReceipts: [],
     });
   }
 
+  const verificationReceipts = captureReceipts(project);
   return step('capture', project, {
-    status: isGraphDone(project.graphNodes, 'capture')
+    status: isGraphDone(project.graphNodes, 'capture') || verificationReceipts.length > 0
       ? 'complete'
       : capturePlan.status === 'ready'
         ? 'ready'
@@ -342,6 +358,7 @@ function captureStep(
         ? []
         : capturePlan.fallbacks.map((fallback) => fallback.reason),
     providerRequirementLabels: capturePlan.providerRequirements.map(readableRequirement),
+    verificationReceipts,
   });
 }
 
@@ -354,6 +371,7 @@ function visualSourceStep(
       status: 'complete',
       blockerLabels: [],
       providerRequirementLabels: [],
+      verificationReceipts: nodeReceipts(project, 'visual-search', 'capture'),
     });
   }
 
@@ -361,6 +379,7 @@ function visualSourceStep(
     status: visualSourcingPlan.status === 'ready' ? 'ready' : 'blocked',
     blockerLabels: visualSourcingPlan.blockers.map((blocker) => blocker.label),
     providerRequirementLabels: visualSourcingPlan.providerRequirements.map(readableRequirement),
+    verificationReceipts: [],
   });
 }
 
@@ -373,6 +392,7 @@ function visualGenerationStep(
       status: 'complete',
       blockerLabels: [],
       providerRequirementLabels: [],
+      verificationReceipts: nodeReceipts(project, 'image-to-video', 'render'),
     });
   }
 
@@ -381,6 +401,7 @@ function visualGenerationStep(
       status: 'ready',
       blockerLabels: [],
       providerRequirementLabels: imageToVideoPlan.providerRequirements.map(readableRequirement),
+      verificationReceipts: [],
     });
   }
 
@@ -388,6 +409,7 @@ function visualGenerationStep(
     status: imageToVideoPlan.status === 'needs-visual-source' ? 'optional' : 'blocked',
     blockerLabels: imageToVideoPlan.blockers.map((blocker) => blocker.label),
     providerRequirementLabels: imageToVideoPlan.providerRequirements.map(readableRequirement),
+    verificationReceipts: [],
   });
 }
 
@@ -398,6 +420,7 @@ function step(
     status: MotionProductionStepStatus;
     blockerLabels: string[];
     providerRequirementLabels: string[];
+    verificationReceipts?: MotionProductionVerificationReceipt[];
   }
 ): MotionProductionStep {
   const meta = STEP_META[id];
@@ -413,6 +436,7 @@ function step(
     apiRoutes: meta.apiRoutes,
     actionLabel: meta.actionLabel,
     artifactLabels: meta.artifactLabels,
+    verificationReceipts: input.verificationReceipts ?? [],
     providerRequirementLabels: input.providerRequirementLabels,
     blockerLabels: input.blockerLabels,
   };
@@ -426,6 +450,126 @@ function currentTracks(project: MotionProject): TimelineTrack[] {
   const draft = project.drafts.find((candidate) => candidate.id === project.currentDraftId);
   if (draft?.tracks.length) return draft.tracks;
   return project.tracks;
+}
+
+function captureReceipts(project: MotionProject): MotionProductionVerificationReceipt[] {
+  return project.graphNodes
+    .filter((node) => node.kind === 'capture' && node.status === 'done')
+    .flatMap((node) =>
+      node.outputRefs.map((ref) => ({
+        id: `receipt-capture-${ref}`,
+        kind: 'capture' as const,
+        label: captureReceiptLabel(ref),
+        ref,
+        ...(node.providerId ? { providerId: node.providerId } : {}),
+      }))
+    );
+}
+
+function renderReceipts(project: MotionProject): MotionProductionVerificationReceipt[] {
+  const renderProviderId = [...project.graphNodes]
+    .reverse()
+    .find((node) => node.kind === 'render' && node.status === 'done')?.providerId;
+
+  return project.exports.flatMap((motionExport) => [
+    ...assetReceipt({
+      kind: 'render',
+      label: 'MP4',
+      ref: motionExport.assetId,
+      providerId: renderProviderId,
+    }),
+    ...assetReceipt({
+      kind: 'render',
+      label: 'Poster',
+      ref: motionExport.posterAssetId,
+      providerId: renderProviderId,
+    }),
+    ...assetReceipt({
+      kind: 'render',
+      label: 'Subtitles',
+      ref: motionExport.subtitleAssetId,
+      providerId: renderProviderId,
+    }),
+    ...assetReceipt({
+      kind: 'render',
+      label: 'Transcript',
+      ref: motionExport.transcriptAssetId,
+      providerId: renderProviderId,
+    }),
+    ...assetReceipt({
+      kind: 'render',
+      label: 'Manifest',
+      ref: motionExport.manifestAssetId,
+      providerId: renderProviderId,
+    }),
+  ]);
+}
+
+function exportReceipts(
+  exportPackPlan: MotionExportPackPlan
+): MotionProductionVerificationReceipt[] {
+  return exportPackPlan.manifest
+    ? [
+        {
+          id: `receipt-export-${exportPackPlan.manifest.id}`,
+          kind: 'export',
+          label: 'Export pack manifest',
+          ref: exportPackPlan.manifest.id,
+          path: exportPackPlan.manifest.path,
+        },
+      ]
+    : [];
+}
+
+function nodeReceipts(
+  project: MotionProject,
+  nodeKind: MotionGraphNode['kind'],
+  receiptKind: MotionProductionVerificationReceiptKind
+): MotionProductionVerificationReceipt[] {
+  return project.graphNodes
+    .filter((node) => node.kind === nodeKind && node.status === 'done')
+    .flatMap((node) =>
+      node.outputRefs.map((ref) => ({
+        id: `receipt-${receiptKind}-${ref}`,
+        kind: receiptKind,
+        label: humanizeRef(ref),
+        ref,
+        ...(node.providerId ? { providerId: node.providerId } : {}),
+      }))
+    );
+}
+
+function assetReceipt(input: {
+  kind: MotionProductionVerificationReceiptKind;
+  label: string;
+  ref?: string;
+  providerId?: string;
+}): MotionProductionVerificationReceipt[] {
+  if (!input.ref) return [];
+  return [
+    {
+      id: `receipt-${input.kind}-${input.ref}`,
+      kind: input.kind,
+      label: input.label,
+      ref: input.ref,
+      ...(input.providerId ? { providerId: input.providerId } : {}),
+    },
+  ];
+}
+
+function captureReceiptLabel(ref: string): string {
+  if (/record/i.test(ref)) return 'Recording';
+  if (/snapshot|dom/i.test(ref)) return 'DOM snapshot';
+  if (/trace/i.test(ref)) return 'Interaction trace';
+  return 'Screenshot';
+}
+
+function humanizeRef(ref: string): string {
+  return ref
+    .replace(/^render-/, '')
+    .replace(/^capture-/, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function isGraphDone(

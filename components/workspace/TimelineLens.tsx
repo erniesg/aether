@@ -718,12 +718,17 @@ function MotionProductionStepRow({
   step: MotionProductionStep;
   isNext: boolean;
 }) {
+  const receiptLabels = step.verificationReceipts.map((receipt) => receipt.label);
+  const detailLabel = isNext
+    ? step.actionLabel
+    : (receiptLabels.length > 0 ? receiptLabels : step.artifactLabels).slice(0, 2).join(' / ');
+
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_74px] items-center gap-2">
       <div className="min-w-0">
         <div className="truncate font-caption text-xs text-ink">{step.label}</div>
         <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
-          {isNext ? step.actionLabel : step.artifactLabels.slice(0, 2).join(' / ')}
+          {detailLabel}
         </div>
       </div>
       <Chip tone={productionStepTone(step, isNext)} size="sm">

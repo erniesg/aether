@@ -67,6 +67,7 @@ const productionPlan: MotionProductionPlan = {
       apiRoutes: ['/api/motion/start'],
       actionLabel: 'Review video plan',
       artifactLabels: ['grounded brief', 'story beats', 'source receipts'],
+      verificationReceipts: [],
       providerRequirementLabels: [],
       blockerLabels: [],
     },
@@ -80,6 +81,7 @@ const productionPlan: MotionProductionPlan = {
       apiRoutes: ['/api/motion/regenerate', '/api/motion/revise'],
       actionLabel: 'Review draft variations',
       artifactLabels: ['draft options', 'editable timeline', 'component plan'],
+      verificationReceipts: [],
       providerRequirementLabels: [],
       blockerLabels: [],
     },
@@ -93,6 +95,7 @@ const productionPlan: MotionProductionPlan = {
       apiRoutes: ['/api/motion/capture'],
       actionLabel: 'Capture product material',
       artifactLabels: ['screenshots', 'recordings', 'DOM snapshots', 'cursor targets'],
+      verificationReceipts: [],
       providerRequirementLabels: ['browser capture'],
       blockerLabels: [],
     },
@@ -106,6 +109,7 @@ const productionPlan: MotionProductionPlan = {
       apiRoutes: ['/api/motion/visuals'],
       actionLabel: 'Plan source visuals',
       artifactLabels: ['reference prompts', 'key still prompts', 'source asset picks'],
+      verificationReceipts: [],
       providerRequirementLabels: ['asset library', 'reference search', 'image generation'],
       blockerLabels: [],
     },
@@ -119,6 +123,7 @@ const productionPlan: MotionProductionPlan = {
       apiRoutes: ['/api/motion/image-to-video'],
       actionLabel: 'Generate video clips',
       artifactLabels: ['generated clips', 'source visual receipts'],
+      verificationReceipts: [],
       providerRequirementLabels: ['image to video'],
       blockerLabels: [],
     },
@@ -132,6 +137,7 @@ const productionPlan: MotionProductionPlan = {
       apiRoutes: ['/api/motion/voice'],
       actionLabel: 'Generate voice and word timings',
       artifactLabels: ['voice clips', 'word timings', 'transcript'],
+      verificationReceipts: [],
       providerRequirementLabels: ['voice synthesis', 'word timing alignment'],
       blockerLabels: [],
     },
@@ -145,6 +151,7 @@ const productionPlan: MotionProductionPlan = {
       apiRoutes: ['/api/motion/sync', '/api/motion/revise'],
       actionLabel: 'Review sync markers',
       artifactLabels: ['beat markers', 'caption links', 'sound cues'],
+      verificationReceipts: [],
       providerRequirementLabels: ['voice synthesis', 'word timing alignment'],
       blockerLabels: ['Generate voice and word timings before final sync'],
     },
@@ -1104,6 +1111,48 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
+  });
+
+  it('surfaces verification receipt labels in the production queue', () => {
+    const productionPlanWithReceipts: MotionProductionPlan = {
+      ...productionPlan,
+      nextStepId: 'visual-source',
+      steps: productionPlan.steps.map((step) =>
+        step.id === 'capture'
+          ? {
+              ...step,
+              status: 'complete',
+              verificationReceipts: [
+                {
+                  id: 'receipt-capture-homepage',
+                  kind: 'capture',
+                  label: 'Screenshot',
+                  ref: 'capture-aether-homepage',
+                  providerId: 'browser-capture',
+                },
+                {
+                  id: 'receipt-recording-product-flow',
+                  kind: 'capture',
+                  label: 'Recording',
+                  ref: 'recording-aether-product-flow',
+                  providerId: 'browser-capture',
+                },
+              ],
+            }
+          : step
+      ),
+    };
+
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{ ...previewPlan, productionPlan: productionPlanWithReceipts }}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Screenshot / Recording')).toBeInTheDocument();
   });
 
   it('lets creators request required app captures or an interaction recording', async () => {
