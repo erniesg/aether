@@ -182,4 +182,90 @@ describe('MotionSection', () => {
     expect(request).not.toHaveProperty('repoPath');
     expect(request).not.toHaveProperty('siteUrl');
   });
+
+  it('can start reusable source-set video workflows from the rail', async () => {
+    const startMotion = vi.fn(async () => readyResult('source set'));
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+
+    await userEvent.selectOptions(screen.getByLabelText(/motion intent/i), 'caption-overlay');
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      'upload: asset://uploads/demo-recording.mp4'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    await waitFor(() => {
+      expect(startMotion).toHaveBeenCalledTimes(1);
+    });
+    expect(startMotion).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sourceRefs: [
+          {
+            kind: 'upload',
+            ref: 'asset://uploads/demo-recording.mp4',
+            label: 'Upload',
+          },
+        ],
+        intent: 'caption-overlay',
+      })
+    );
+
+    cleanup();
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+    await userEvent.selectOptions(screen.getByLabelText(/motion intent/i), 'motion-graphic');
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      'https://x.com/heygen/status/123'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    await waitFor(() => {
+      expect(startMotion).toHaveBeenCalledTimes(2);
+    });
+    expect(startMotion).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sourceRefs: [
+          {
+            kind: 'reference',
+            ref: 'https://x.com/heygen/status/123',
+            label: 'Reference',
+          },
+        ],
+        intent: 'motion-graphic',
+      })
+    );
+
+    cleanup();
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+    await userEvent.selectOptions(screen.getByLabelText(/motion intent/i), 'port');
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      [
+        'remotion: file://renders/aether/remotion/index.tsx',
+        'hyperframes: file://renders/aether/index.html',
+      ].join('\n')
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    await waitFor(() => {
+      expect(startMotion).toHaveBeenCalledTimes(3);
+    });
+    expect(startMotion).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sourceRefs: [
+          {
+            kind: 'remotion',
+            ref: 'file://renders/aether/remotion/index.tsx',
+            label: 'Remotion',
+          },
+          {
+            kind: 'hyperframes',
+            ref: 'file://renders/aether/index.html',
+            label: 'HyperFrames',
+          },
+        ],
+        intent: 'port',
+      })
+    );
+  });
 });

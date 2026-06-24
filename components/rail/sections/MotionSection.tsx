@@ -35,7 +35,16 @@ export interface MotionSectionProps {
   startMotion?: (request: MotionStartClientRequest) => Promise<AgentMotionStartResult>;
 }
 
-const INTENTS: MotionWorkflowIntent[] = ['launch', 'feature', 'social', 'demo', 'pr'];
+const INTENTS: MotionWorkflowIntent[] = [
+  'launch',
+  'feature',
+  'social',
+  'demo',
+  'pr',
+  'caption-overlay',
+  'motion-graphic',
+  'port',
+];
 const TARGET_PRESETS = [
   {
     id: 'x-vertical',

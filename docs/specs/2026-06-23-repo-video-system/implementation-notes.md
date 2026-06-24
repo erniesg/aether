@@ -136,6 +136,10 @@
   planned-only. Uploads, references, captures, and engine source bundles can now
   enter the same review/full-auto timeline, preview, source-edit, render, and
   export loop.
+- The motion rail now exposes `caption-overlay`, `motion-graphic`, and `port`
+  intents, using the existing `upload:`, `reference:`, `remotion:`, and
+  `hyperframes:` source-set syntax to start those workflows from the creator
+  shell.
 - Agent-native `/api/motion/start` route that accepts direct `sourceRefs` or
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture
