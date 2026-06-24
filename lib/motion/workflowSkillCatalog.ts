@@ -461,6 +461,21 @@ const RECIPE_DEFINITIONS = {
         reason: 'Shows the smallest readable evidence from the PR.',
       },
       {
+        componentId: 'code-highlight-card',
+        role: 'focus line',
+        reason: 'Highlights the exact token, line, or API call the explainer is about.',
+      },
+      {
+        componentId: 'code-scroll-card',
+        role: 'file walkthrough',
+        reason: 'Guides attention through a longer changed file without losing the target.',
+      },
+      {
+        componentId: 'code-typing-card',
+        role: 'typed command or snippet',
+        reason: 'Animates install commands, API calls, or docs snippets as editable code.',
+      },
+      {
         componentId: 'mechanism-diagram',
         role: 'implementation mechanism',
         reason: 'Turns code changes into a quick mental model.',

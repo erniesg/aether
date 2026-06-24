@@ -18,6 +18,9 @@ describe('motion component registry', () => {
       'ui-reveal-frame',
       'data-visual-card',
       'code-diff-card',
+      'code-highlight-card',
+      'code-scroll-card',
+      'code-typing-card',
       'mechanism-diagram',
       'evidence-card',
       'cta-card',
@@ -39,6 +42,29 @@ describe('motion component registry', () => {
     const codeDiff = getMotionComponent('code-diff-card');
     expect(codeDiff?.requiredProps).toEqual(['filePath', 'lines']);
     expect(codeDiff?.regenerateScopes).toContain('code');
+
+    const codeHighlight = getMotionComponent('code-highlight-card');
+    expect(codeHighlight?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(codeHighlight?.requiredProps).toEqual(['filePath', 'lines', 'focusLine']);
+    expect(codeHighlight?.editControls.map((control) => control.id)).toEqual([
+      'filePath',
+      'lines',
+      'focusLine',
+      'accentColor',
+    ]);
+    expect(codeHighlight?.regenerateScopes).toEqual(['code', 'proof', 'timing', 'effect']);
+
+    const codeScroll = getMotionComponent('code-scroll-card');
+    expect(codeScroll?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(codeScroll?.requiredProps).toEqual(['filePath', 'lines', 'scrollTarget']);
+    expect(codeScroll?.editControls.map((control) => control.id)).toContain('scrollTarget');
+    expect(codeScroll?.regenerateScopes).toEqual(['code', 'timing', 'effect']);
+
+    const codeTyping = getMotionComponent('code-typing-card');
+    expect(codeTyping?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(codeTyping?.requiredProps).toEqual(['filePath', 'code', 'typingPace']);
+    expect(codeTyping?.editControls.map((control) => control.id)).toContain('typingPace');
+    expect(codeTyping?.regenerateScopes).toEqual(['code', 'copy', 'timing', 'effect']);
 
     const mechanism = getMotionComponent('mechanism-diagram');
     expect(mechanism?.editControls.map((control) => control.id)).toContain('diagramKind');

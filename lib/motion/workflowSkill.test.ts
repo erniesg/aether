@@ -56,6 +56,9 @@ describe('motion workflow skill drafts', () => {
       componentSlotLabels: [
         'Hook card',
         'Code diff card',
+        'Code highlight card',
+        'Code scroll card',
+        'Code typing card',
         'Mechanism diagram',
         'Evidence card',
         'CTA card',
@@ -88,6 +91,9 @@ describe('motion workflow skill drafts', () => {
         componentSlotLabels: [
           'Hook card',
           'Code diff card',
+          'Code highlight card',
+          'Code scroll card',
+          'Code typing card',
           'Mechanism diagram',
           'Evidence card',
           'CTA card',
@@ -154,7 +160,14 @@ describe('motion workflow skill drafts', () => {
         referencePatterns: [
           expect.objectContaining({
             id: 'code-diff-explainer',
-            componentIds: ['code-diff-card', 'mechanism-diagram', 'evidence-card'],
+            componentIds: [
+              'code-diff-card',
+              'code-highlight-card',
+              'code-scroll-card',
+              'code-typing-card',
+              'mechanism-diagram',
+              'evidence-card',
+            ],
           }),
           expect.objectContaining({
             id: 'proof-receipt-card',

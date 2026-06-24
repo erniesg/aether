@@ -255,6 +255,12 @@
   packs. The generated `SKILL.md` instructions include those objects, the
   workflows API returns them, and the timeline lens shows one source, draft,
   regeneration, teaser, and export handle in the creator-facing shell.
+- The provider-neutral motion component registry now includes granular code
+  visual primitives for PR/release videos: code diff, code highlight, code
+  scroll, and code typing. Remotion source generation emits named renderer
+  functions for those primitives; HyperFrames source generation emits stable
+  component classes, so agents can regenerate one code visual without rewriting
+  the whole video.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
@@ -267,9 +273,10 @@
 1. Surface `EDIT.md` and `editContract` in `MotionPreviewPlan` and the timeline
    lens as the reviewable edit source for script, props, timing, effects, and
    scoped regeneration.
-2. Expand the provider-neutral component registry to cover HyperFrames catalog
-   classes: code animation, terminal, caption, social overlay, shader/CSS
-   transition, HTML-in-canvas UI reveal, data visual, effect, and outro.
+2. Extend the provider-neutral component registry beyond the current launch,
+   proof, code, terminal, caption, social, UI reveal, data, transition, and
+   outro set into richer device/avatar/logo/flowchart primitives as concrete
+   video recipes demand them.
 3. Add configured provider wiring and UI controls for trusted local app launch,
    browser/computer-use capture, voice providers, image-to-video providers, and
    real Remotion/HyperFrames render runners in the creator environment.

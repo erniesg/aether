@@ -185,6 +185,9 @@ describe('buildMotionDesignKitPlan', () => {
       components: expect.arrayContaining([
         expect.objectContaining({ label: 'Hook card' }),
         expect.objectContaining({ label: 'Code diff card', role: 'code change' }),
+        expect.objectContaining({ label: 'Code highlight card', role: 'focus line' }),
+        expect.objectContaining({ label: 'Code scroll card', role: 'code walkthrough' }),
+        expect.objectContaining({ label: 'Code typing card', role: 'typed snippet' }),
         expect.objectContaining({ label: 'Mechanism diagram', role: 'mechanism' }),
         expect.objectContaining({ label: 'Command card', role: 'install command' }),
         expect.objectContaining({ label: 'Terminal proof', role: 'terminal proof' }),

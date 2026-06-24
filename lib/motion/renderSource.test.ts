@@ -458,4 +458,95 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(hyperframesEntry).toContain('data-component-id="outro-slate"');
     expect(hyperframesEntry).toContain('outro-slate__signature">HyperFrames workflow skills');
   });
+
+  it('emits source adapters for granular code motion primitives', () => {
+    const baseProject = projectWithVisualTimeline();
+    const componentTracks: TimelineTrack[] = [
+      {
+        id: 'track-code-primitives',
+        kind: 'text',
+        clips: [
+          {
+            id: 'clip-code-highlight',
+            componentId: 'code-highlight-card',
+            startFrame: 0,
+            durationFrames: 90,
+            props: {
+              filePath: 'lib/motion/workflowSkill.ts',
+              lines: 'const reviewObjects = buildLaunchKitReviewObjects(recipe);',
+              focusLine: 'reviewObjects',
+              text: 'Launch kit review objects',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'repo', ref: 'lib/motion/workflowSkill.ts' }],
+          },
+          {
+            id: 'clip-code-scroll',
+            componentId: 'code-scroll-card',
+            startFrame: 90,
+            durationFrames: 105,
+            props: {
+              filePath: 'app/api/motion/workflows/route.ts',
+              lines: 'return Response.json({ workflows, launchKit });',
+              scrollTarget: 'launchKit',
+              text: 'Workflow response includes launch kit',
+            },
+            linkedVariantScope: 'format-local',
+            provenance: [{ kind: 'repo', ref: 'app/api/motion/workflows/route.ts' }],
+          },
+          {
+            id: 'clip-code-typing',
+            componentId: 'code-typing-card',
+            startFrame: 195,
+            durationFrames: 105,
+            props: {
+              filePath: 'skills/pr-to-video/SKILL.md',
+              code: 'npx skills add heygen-com/hyperframes',
+              typingPace: 'snappy',
+              text: 'Install the workflow skill',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'reference', ref: 'hyperframes-skill-drop' }],
+          },
+        ],
+      },
+    ];
+    const project = {
+      ...baseProject,
+      tracks: componentTracks,
+      drafts: baseProject.drafts.map((draft) =>
+        draft.id === baseProject.currentDraftId
+          ? { ...draft, tracks: componentTracks }
+          : draft
+      ),
+    };
+
+    const remotionBundle = buildMotionRenderSourceBundle(project, renderRequest(project, 'remotion'));
+    const remotionEntry =
+      remotionBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(remotionEntry).toContain('function CodeHighlightCard');
+    expect(remotionEntry).toContain('function CodeScrollCard');
+    expect(remotionEntry).toContain('function CodeTypingCard');
+    expect(remotionEntry).toContain('case "code-highlight-card":');
+    expect(remotionEntry).toContain('case "code-scroll-card":');
+    expect(remotionEntry).toContain('case "code-typing-card":');
+    expect(remotionEntry).toContain('Launch kit review objects');
+    expect(remotionEntry).toContain('npx skills add heygen-com/hyperframes');
+
+    const hyperframesBundle = buildMotionRenderSourceBundle(
+      project,
+      renderRequest(project, 'hyperframes')
+    );
+    const hyperframesEntry =
+      hyperframesBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(hyperframesEntry).toContain('data-component-id="code-highlight-card"');
+    expect(hyperframesEntry).toContain('code-highlight-card__line');
+    expect(hyperframesEntry).toContain('code-highlight-card__focus">reviewObjects');
+    expect(hyperframesEntry).toContain('data-component-id="code-scroll-card"');
+    expect(hyperframesEntry).toContain('code-scroll-card__target">launchKit');
+    expect(hyperframesEntry).toContain('data-component-id="code-typing-card"');
+    expect(hyperframesEntry).toContain(
+      'code-typing-card__code">npx skills add heygen-com/hyperframes'
+    );
+  });
 });

@@ -170,6 +170,9 @@ describe('buildMotionReferenceGrammarPlan', () => {
     ]);
     expect(plan.componentLabels).toEqual([
       'Code diff card',
+      'Code highlight card',
+      'Code scroll card',
+      'Code typing card',
       'Mechanism diagram',
       'Evidence card',
       'Proof card',

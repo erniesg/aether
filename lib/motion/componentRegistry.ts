@@ -31,6 +31,9 @@ export interface MotionComponentDefinition {
     | 'ui-reveal-frame'
     | 'data-visual-card'
     | 'code-diff-card'
+    | 'code-highlight-card'
+    | 'code-scroll-card'
+    | 'code-typing-card'
     | 'mechanism-diagram'
     | 'evidence-card'
     | 'cta-card'
@@ -197,6 +200,51 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'focusLine', label: 'Focus line', kind: 'number' },
     ],
     regenerateScopes: ['code', 'proof', 'timing'],
+  },
+  {
+    id: 'code-highlight-card',
+    label: 'Code highlight card',
+    description: 'Focused code excerpt with file path, highlighted token, and readable lines.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    requiredProps: ['filePath', 'lines', 'focusLine'],
+    editControls: [
+      { id: 'filePath', label: 'File', kind: 'text' },
+      { id: 'lines', label: 'Code lines', kind: 'text' },
+      { id: 'focusLine', label: 'Focus line', kind: 'text' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+    ],
+    regenerateScopes: ['code', 'proof', 'timing', 'effect'],
+  },
+  {
+    id: 'code-scroll-card',
+    label: 'Code scroll card',
+    description: 'Code excerpt with a named scroll target for longer files or walkthroughs.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    requiredProps: ['filePath', 'lines', 'scrollTarget'],
+    editControls: [
+      { id: 'filePath', label: 'File', kind: 'text' },
+      { id: 'lines', label: 'Code lines', kind: 'text' },
+      { id: 'scrollTarget', label: 'Scroll target', kind: 'text' },
+      { id: 'scrollSpeed', label: 'Scroll speed', kind: 'number' },
+    ],
+    regenerateScopes: ['code', 'timing', 'effect'],
+  },
+  {
+    id: 'code-typing-card',
+    label: 'Code typing card',
+    description: 'Typed command, snippet, or API call for launches, docs, and skill videos.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    requiredProps: ['filePath', 'code', 'typingPace'],
+    editControls: [
+      { id: 'filePath', label: 'File or context', kind: 'text' },
+      { id: 'code', label: 'Code', kind: 'text' },
+      { id: 'typingPace', label: 'Typing pace', kind: 'select' },
+      { id: 'cursorStyle', label: 'Cursor', kind: 'select' },
+    ],
+    regenerateScopes: ['code', 'copy', 'timing', 'effect'],
   },
   {
     id: 'mechanism-diagram',

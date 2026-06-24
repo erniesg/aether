@@ -245,6 +245,9 @@ describe('GET /api/motion/workflows', () => {
             componentSlotLabels: [
               'Hook card',
               'Code diff card',
+              'Code highlight card',
+              'Code scroll card',
+              'Code typing card',
               'Mechanism diagram',
               'Evidence card',
               'CTA card',
@@ -306,6 +309,9 @@ describe('GET /api/motion/workflows', () => {
           componentSlotLabels: [
             'Hook card',
             'Code diff card',
+            'Code highlight card',
+            'Code scroll card',
+            'Code typing card',
             'Mechanism diagram',
             'Evidence card',
             'CTA card',
@@ -368,7 +374,14 @@ describe('GET /api/motion/workflows', () => {
           referencePatterns: expect.arrayContaining([
             expect.objectContaining({
               id: 'code-diff-explainer',
-              componentIds: ['code-diff-card', 'mechanism-diagram', 'evidence-card'],
+              componentIds: [
+                'code-diff-card',
+                'code-highlight-card',
+                'code-scroll-card',
+                'code-typing-card',
+                'mechanism-diagram',
+                'evidence-card',
+              ],
             }),
             expect.objectContaining({
               id: 'proof-receipt-card',

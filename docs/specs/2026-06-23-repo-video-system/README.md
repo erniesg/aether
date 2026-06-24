@@ -357,6 +357,11 @@ capture, render, and provenance debugging.
   motion systems. Workflow recipes carry those patterns into API discovery and
   generated `SKILL.md` drafts, so agents know which motion moves to assemble and
   creators can review them before render.
+- The reusable component catalog now breaks PR/release code visuals into
+  distinct editable primitives: code diff, code highlight, code scroll, and
+  code typing. Remotion source emits named renderer functions for each one, and
+  HyperFrames source emits stable component classes so review mode can
+  regenerate one code visual rather than reworking the full draft.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start

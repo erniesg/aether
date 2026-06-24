@@ -504,6 +504,17 @@ function clipPropText(clip: MotionClipData, key: string, fallback = ""): string 
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
+function clipCodeLines(clip: MotionClipData, key = "lines"): string[] {
+  const value = clip.props[key];
+  if (Array.isArray(value)) {
+    return value.map((line) => (typeof line === "string" ? line : String(line)));
+  }
+  if (typeof value === "string" && value.length > 0) {
+    return value.split(/\\n/);
+  }
+  return [];
+}
+
 function clipMediaUrl(clip: MotionClipData): string | null {
   const value = clip.props.generatedVideoUrl ?? clip.props.assetUrl ?? clip.props.audioUrl;
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -837,6 +848,135 @@ function DataVisualCard({ brand, clip, text }: MotionComponentRenderProps) {
   );
 }
 
+function CodePanel({
+  brand,
+  clip,
+  children,
+  footer,
+}: {
+  brand: MotionBrandData;
+  clip: MotionClipData;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const filePath = clipPropText(clip, "filePath", "changed file");
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ color: palette[2], fontSize: 20, fontWeight: 800, marginBottom: 16 }}>
+        {filePath}
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          minWidth: 760,
+          maxWidth: 860,
+          padding: "20px 22px",
+          border: "2px solid " + palette[1],
+          borderRadius: 16,
+          background: palette[1],
+          color: palette[0],
+          fontSize: 26,
+          lineHeight: 1.28,
+          fontFamily: brand.fontFamilies[0] ?? "IBM Plex Mono",
+          whiteSpace: "pre-wrap",
+          textAlign: "left",
+        }}
+      >
+        {children}
+      </pre>
+      {footer ? <div style={{ marginTop: 18 }}>{footer}</div> : null}
+    </CardShell>
+  );
+}
+
+function CodeHighlightCard({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const lines = clipCodeLines(clip);
+  const focusLine = clipPropText(clip, "focusLine", lines[0] ?? text);
+
+  return (
+    <CodePanel
+      brand={brand}
+      clip={clip}
+      footer={
+        <div style={{ color: palette[2], fontSize: 24, fontWeight: 900 }}>
+          {focusLine}
+        </div>
+      }
+    >
+      {(lines.length > 0 ? lines : [text || focusLine]).map((line, index) => (
+        <div
+          key={String(index)}
+          style={{
+            display: "block",
+            color: line.includes(focusLine) ? palette[2] : palette[0],
+            fontWeight: line.includes(focusLine) ? 900 : 600,
+          }}
+        >
+          {line}
+        </div>
+      ))}
+    </CodePanel>
+  );
+}
+
+function CodeScrollCard({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const frame = useCurrentFrame();
+  const lines = clipCodeLines(clip);
+  const scrollTarget = clipPropText(clip, "scrollTarget", text || "target");
+  const offset = interpolate(frame, [0, Math.max(1, clip.durationFrames)], [0, -36], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <CodePanel
+      brand={brand}
+      clip={clip}
+      footer={
+        <div style={{ color: palette[2], fontSize: 22, fontWeight: 900 }}>
+          {scrollTarget}
+        </div>
+      }
+    >
+      <div style={{ transform: "translateY(" + offset + "px)" }}>
+        {(lines.length > 0 ? lines : [text || scrollTarget]).map((line, index) => (
+          <div key={String(index)} style={{ fontWeight: line.includes(scrollTarget) ? 900 : 600 }}>
+            {line}
+          </div>
+        ))}
+      </div>
+    </CodePanel>
+  );
+}
+
+function CodeTypingCard({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const frame = useCurrentFrame();
+  const code = clipPropText(clip, "code", text || "run command");
+  const chars = Math.max(1, Math.min(code.length, Math.floor((frame / Math.max(1, clip.durationFrames)) * code.length)));
+  const typed = code.slice(0, chars);
+  const pace = clipPropText(clip, "typingPace", "steady");
+
+  return (
+    <CodePanel
+      brand={brand}
+      clip={clip}
+      footer={
+        <div style={{ color: palette[2], fontSize: 20, fontWeight: 800 }}>
+          {pace}
+        </div>
+      }
+    >
+      <span>{typed}</span>
+      <span style={{ color: palette[2] }}>_</span>
+    </CodePanel>
+  );
+}
+
 function ShaderWipe({ brand, clip }: MotionComponentRenderProps) {
   const frame = useCurrentFrame();
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
@@ -942,6 +1082,12 @@ function renderMotionComponent(props: MotionComponentRenderProps) {
       return <UiRevealFrame {...props} />;
     case "data-visual-card":
       return <DataVisualCard {...props} />;
+    case "code-highlight-card":
+      return <CodeHighlightCard {...props} />;
+    case "code-scroll-card":
+      return <CodeScrollCard {...props} />;
+    case "code-typing-card":
+      return <CodeTypingCard {...props} />;
     case "proof-card":
     case "evidence-card":
     case "code-diff-card":
@@ -1239,6 +1385,57 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
           font-weight: 900;
         }
 
+        .motion-component--code-highlight-card,
+        .motion-component--code-scroll-card,
+        .motion-component--code-typing-card {
+          min-width: 58%;
+          max-width: 78%;
+          align-items: stretch;
+          text-align: left;
+        }
+
+        .code-card__file {
+          display: block;
+          margin-bottom: 14px;
+          color: ${palette.accent};
+          font-size: 18px;
+          font-weight: 800;
+        }
+
+        .code-highlight-card__lines,
+        .code-scroll-card__lines,
+        .code-typing-card__line {
+          display: block;
+          margin: 0;
+          padding: 16px 18px;
+          border-radius: 14px;
+          background: ${palette.foreground};
+          color: ${palette.background};
+          font-family: "IBM Plex Mono", monospace;
+          font-size: 22px;
+          line-height: 1.3;
+          white-space: pre-wrap;
+        }
+
+        .code-highlight-card__line,
+        .code-scroll-card__line {
+          display: block;
+        }
+
+        .code-highlight-card__focus,
+        .code-scroll-card__target,
+        .code-typing-card__pace {
+          display: block;
+          margin-top: 14px;
+          color: ${palette.accent};
+          font-size: 20px;
+          font-weight: 900;
+        }
+
+        .code-typing-card__cursor {
+          color: ${palette.accent};
+        }
+
         .motion-component--caption-line {
           align-self: flex-end;
           font-size: 38px;
@@ -1415,6 +1612,33 @@ function hyperframesComponentBody(
     return `<strong class="data-visual-card__metric">${escapeHtml(metric)}</strong><span class="data-visual-card__label">${escapeHtml(label)}</span>`;
   }
 
+  if (componentId === 'code-highlight-card') {
+    const filePath = stringProp(props.filePath) ?? 'changed file';
+    const lines = stringLinesProp(props.lines);
+    const focusLine = stringProp(props.focusLine) ?? lines[0] ?? text;
+    const lineMarkup = (lines.length > 0 ? lines : [text || focusLine])
+      .map((line) => `<span class="code-highlight-card__line">${escapeHtml(line)}</span>`)
+      .join('');
+    return `<span class="code-card__file">${escapeHtml(filePath)}</span><pre class="code-highlight-card__lines">${lineMarkup}</pre><span class="code-highlight-card__focus">${escapeHtml(focusLine)}</span>`;
+  }
+
+  if (componentId === 'code-scroll-card') {
+    const filePath = stringProp(props.filePath) ?? 'changed file';
+    const lines = stringLinesProp(props.lines);
+    const scrollTarget = stringProp(props.scrollTarget) ?? text;
+    const lineMarkup = (lines.length > 0 ? lines : [text || scrollTarget])
+      .map((line) => `<span class="code-scroll-card__line">${escapeHtml(line)}</span>`)
+      .join('');
+    return `<span class="code-card__file">${escapeHtml(filePath)}</span><pre class="code-scroll-card__lines">${lineMarkup}</pre><span class="code-scroll-card__target">${escapeHtml(scrollTarget)}</span>`;
+  }
+
+  if (componentId === 'code-typing-card') {
+    const filePath = stringProp(props.filePath) ?? 'snippet';
+    const code = stringProp(props.code) ?? text;
+    const pace = stringProp(props.typingPace) ?? 'steady';
+    return `<span class="code-card__file">${escapeHtml(filePath)}</span><code class="code-typing-card__line"><span class="code-typing-card__code">${escapeHtml(code)}</span><span class="code-typing-card__cursor">_</span></code><span class="code-typing-card__pace">${escapeHtml(pace)}</span>`;
+  }
+
   if (componentId === 'shader-wipe') {
     return '<span class="shader-wipe__band" aria-hidden="true"></span>';
   }
@@ -1521,6 +1745,21 @@ function componentIdsForTracks(tracks: TimelineTrack[]): string[] {
 
 function stringProp(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function stringLinesProp(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((line) => {
+      if (typeof line !== 'string') return [];
+      const trimmed = line.trimEnd();
+      return trimmed.length > 0 ? [trimmed] : [];
+    });
+  }
+  if (typeof value !== 'string') return [];
+  return value
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0);
 }
 
 function formatProvenance(provenance: MotionProvenanceRef[]): string {

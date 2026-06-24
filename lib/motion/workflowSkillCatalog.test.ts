@@ -127,6 +127,18 @@ describe('motion workflow skill catalog', () => {
           verificationLabels: expect.arrayContaining(['install command visible']),
         }),
         expect.objectContaining({
+          id: 'code-diff-explainer',
+          componentIds: [
+            'code-diff-card',
+            'code-highlight-card',
+            'code-scroll-card',
+            'code-typing-card',
+            'mechanism-diagram',
+            'evidence-card',
+          ],
+          verificationLabels: expect.arrayContaining(['focus line readable']),
+        }),
+        expect.objectContaining({
           id: 'image-to-video-insert',
           generationLanes: ['image-to-video', 'sync', 'render'],
           verificationLabels: expect.arrayContaining(['timeline update receipt']),
