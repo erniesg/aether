@@ -270,8 +270,23 @@ export interface MotionPreviewRenderProofArtifact {
   label: string;
   status: MotionPreviewRenderProofArtifactStatus;
   targetLabel: string;
+  assetUrl: string | null;
   path: string | null;
+  mimeType: string | null;
+  width: number;
+  height: number;
   editSurfaceLabels: string[];
+}
+
+export interface MotionPreviewRenderProofCanvasDropTarget {
+  artifactLabel: string;
+  label: string;
+  targetLabel: string;
+  url: string;
+  width: number;
+  height: number;
+  mimeType: string;
+  motionProjectId: string;
 }
 
 export interface MotionPreviewRenderProofSummary {
@@ -287,6 +302,7 @@ export interface MotionPreviewRenderProofSummary {
   actionLabels: string[];
   blockerLabels: string[];
   proofArtifacts: MotionPreviewRenderProofArtifact[];
+  canvasDropTargets: MotionPreviewRenderProofCanvasDropTarget[];
 }
 
 export interface MotionPreviewVisualGenerationRequest {
@@ -1023,6 +1039,10 @@ function buildRenderProofSummary(
     actionLabels: renderProofActionLabels(status, editSource.status),
     blockerLabels: exportPackPlan.blockers.map((blocker) => blocker.label),
     proofArtifacts,
+    canvasDropTargets: buildRenderProofCanvasDropTargets(
+      exportPackPlan.projectId,
+      proofArtifacts
+    ),
   };
 }
 
@@ -1045,16 +1065,53 @@ function renderProofArtifactsForItem(
       null;
     const status: MotionPreviewRenderProofArtifactStatus =
       assetRef || receipt ? 'ready' : 'missing';
+    const dimensions = renderProofDimensions(item.aspectRatio);
 
     return {
       kind,
       label: renderProofArtifactLabel(kind),
       status,
       targetLabel: renderProofTargetLabel(item),
-      path: receipt?.path ?? receipt?.assetUrl ?? null,
+      assetUrl: receipt?.assetUrl ?? null,
+      path: receipt?.path ?? null,
+      mimeType: receipt?.mimeType ?? null,
+      width: dimensions.width,
+      height: dimensions.height,
       editSurfaceLabels: renderProofEditSurfaceLabels(kind),
     };
   });
+}
+
+function buildRenderProofCanvasDropTargets(
+  motionProjectId: string,
+  proofArtifacts: MotionPreviewRenderProofArtifact[]
+): MotionPreviewRenderProofCanvasDropTarget[] {
+  return proofArtifacts
+    .filter(
+      (
+        artifact
+      ): artifact is MotionPreviewRenderProofArtifact & {
+        kind: 'video';
+        assetUrl: string;
+      } => artifact.kind === 'video' && artifact.status === 'ready' && Boolean(artifact.assetUrl)
+    )
+    .map((artifact) => ({
+      artifactLabel: artifact.label,
+      label: `${artifact.targetLabel} ${artifact.label}`,
+      targetLabel: artifact.targetLabel,
+      url: artifact.assetUrl,
+      width: artifact.width,
+      height: artifact.height,
+      mimeType: artifact.mimeType ?? 'video/mp4',
+      motionProjectId,
+    }));
+}
+
+function renderProofDimensions(aspectRatio: string): { width: number; height: number } {
+  if (aspectRatio === '9:16') return { width: 1080, height: 1920 };
+  if (aspectRatio === '1:1') return { width: 1080, height: 1080 };
+  if (aspectRatio === '4:5') return { width: 1080, height: 1350 };
+  return { width: 1920, height: 1080 };
 }
 
 function renderProofStatusFor(

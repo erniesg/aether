@@ -29,6 +29,7 @@ import type {
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
+  MotionPreviewRenderProofCanvasDropTarget,
   MotionPreviewRenderProofSummary,
   MotionPreviewSourceProfile,
   MotionPreviewSyncBeat,
@@ -65,6 +66,7 @@ export interface TimelineLensProps {
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
@@ -91,6 +93,7 @@ export function TimelineLens({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onDropRenderProofToCanvas,
   onExportPack,
   onPlanVisuals,
   onGenerateVideoClips,
@@ -143,6 +146,7 @@ export function TimelineLens({
             onGenerateVoice={onGenerateVoice}
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
+            onDropRenderProofToCanvas={onDropRenderProofToCanvas}
             onExportPack={onExportPack}
             onPlanVisuals={onPlanVisuals}
             onGenerateVideoClips={onGenerateVideoClips}
@@ -188,6 +192,7 @@ function MotionPreviewPlanView({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onDropRenderProofToCanvas,
   onExportPack,
   onPlanVisuals,
   onGenerateVideoClips,
@@ -211,6 +216,7 @@ function MotionPreviewPlanView({
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
@@ -374,7 +380,10 @@ function MotionPreviewPlanView({
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
-        <MotionRenderProofStrip summary={previewPlan.renderProofSummary} />
+        <MotionRenderProofStrip
+          summary={previewPlan.renderProofSummary}
+          onDropRenderProofToCanvas={onDropRenderProofToCanvas}
+        />
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
@@ -845,10 +854,13 @@ function MotionProductionQueueStrip({
 
 function MotionRenderProofStrip({
   summary,
+  onDropRenderProofToCanvas,
 }: {
   summary: MotionPreviewRenderProofSummary;
+  onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
 }) {
   const visibleArtifacts = summary.proofArtifacts.slice(0, 6);
+  const canvasDropTarget = summary.canvasDropTargets[0] ?? null;
   const actionLabel =
     summary.actionLabels.slice(0, 2).join(' / ') ||
     summary.blockerLabels[0] ||
@@ -923,6 +935,15 @@ function MotionRenderProofStrip({
                 </Chip>
               ))}
           </div>
+          {canvasDropTarget && onDropRenderProofToCanvas ? (
+            <button
+              type="button"
+              onClick={() => onDropRenderProofToCanvas(canvasDropTarget)}
+              className="mt-2 w-full rounded-sm border border-border-soft bg-surface-canvas px-3 py-2 text-left font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+            >
+              drop video on canvas
+            </button>
+          ) : null}
           {summary.blockerLabels.length > 0 ? (
             <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
               {summary.blockerLabels[0]}

@@ -611,7 +611,11 @@ const previewPlan: MotionPreviewPlan = {
         label: 'MP4',
         status: 'missing',
         targetLabel: 'x 9:16',
+        assetUrl: null,
         path: null,
+        mimeType: null,
+        width: 1080,
+        height: 1920,
         editSurfaceLabels: ['timeline', 'component', 'effect'],
       },
       {
@@ -619,7 +623,11 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Poster',
         status: 'missing',
         targetLabel: 'x 9:16',
+        assetUrl: null,
         path: null,
+        mimeType: null,
+        width: 1080,
+        height: 1920,
         editSurfaceLabels: ['poster', 'first frame'],
       },
       {
@@ -627,7 +635,11 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Subtitles',
         status: 'missing',
         targetLabel: 'x 9:16',
+        assetUrl: null,
         path: null,
+        mimeType: null,
+        width: 1080,
+        height: 1920,
         editSurfaceLabels: ['caption', 'timing'],
       },
       {
@@ -635,7 +647,11 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Transcript',
         status: 'missing',
         targetLabel: 'x 9:16',
+        assetUrl: null,
         path: null,
+        mimeType: null,
+        width: 1080,
+        height: 1920,
         editSurfaceLabels: ['script', 'voice'],
       },
       {
@@ -643,10 +659,15 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Manifest',
         status: 'missing',
         targetLabel: 'x 9:16',
+        assetUrl: null,
         path: null,
+        mimeType: null,
+        width: 1080,
+        height: 1920,
         editSurfaceLabels: ['provenance', 'export'],
       },
     ],
+    canvasDropTargets: [],
   },
   visualSourcingSummary: {
     status: 'ready',
@@ -1552,7 +1573,11 @@ describe('TimelineLens', () => {
                 label: 'MP4',
                 status: 'ready',
                 targetLabel: 'x 9:16',
+                assetUrl: 'asset://renders/x/video.mp4',
                 path: 'renders/x/video.mp4',
+                mimeType: 'video/mp4',
+                width: 1080,
+                height: 1920,
                 editSurfaceLabels: ['timeline', 'component', 'effect'],
               },
               {
@@ -1560,7 +1585,11 @@ describe('TimelineLens', () => {
                 label: 'Manifest',
                 status: 'ready',
                 targetLabel: 'x 9:16',
+                assetUrl: null,
                 path: 'renders/x/manifest.json',
+                mimeType: 'application/json',
+                width: 1080,
+                height: 1920,
                 editSurfaceLabels: ['provenance', 'export'],
               },
               {
@@ -1568,8 +1597,24 @@ describe('TimelineLens', () => {
                 label: 'Poster',
                 status: 'missing',
                 targetLabel: 'x 9:16',
+                assetUrl: null,
                 path: null,
+                mimeType: null,
+                width: 1080,
+                height: 1920,
                 editSurfaceLabels: ['poster', 'first frame'],
+              },
+            ],
+            canvasDropTargets: [
+              {
+                artifactLabel: 'MP4',
+                label: 'x 9:16 MP4',
+                targetLabel: 'x 9:16',
+                url: 'asset://renders/x/video.mp4',
+                width: 1080,
+                height: 1920,
+                mimeType: 'video/mp4',
+                motionProjectId: 'motion-aether-launch',
               },
             ],
           },
@@ -1588,6 +1633,67 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Review partial proof / Render remaining outputs')).toBeInTheDocument();
     expect(screen.getByText('renders/x/video.mp4')).toBeInTheDocument();
     expect(screen.getByText('renders/x/manifest.json')).toBeInTheDocument();
+    expect(screen.queryByText('render-export-x-9x16-video')).not.toBeInTheDocument();
+  });
+
+  it('lets creators drop a rendered proof video onto the canvas', async () => {
+    const onDropRenderProofToCanvas = vi.fn();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          renderProofSummary: {
+            ...previewPlan.renderProofSummary,
+            status: 'partial',
+            proofArtifactCount: 1,
+            artifactLabels: ['MP4'],
+            missingArtifactLabels: ['Poster', 'Subtitles', 'Transcript', 'Manifest'],
+            proofArtifacts: [
+              {
+                kind: 'video',
+                label: 'MP4',
+                status: 'ready',
+                targetLabel: 'x 9:16',
+                assetUrl: 'asset://renders/x/video.mp4',
+                path: 'renders/x/video.mp4',
+                mimeType: 'video/mp4',
+                width: 1080,
+                height: 1920,
+                editSurfaceLabels: ['timeline', 'component', 'effect'],
+              },
+            ],
+            canvasDropTargets: [
+              {
+                artifactLabel: 'MP4',
+                label: 'x 9:16 MP4',
+                targetLabel: 'x 9:16',
+                url: 'asset://renders/x/video.mp4',
+                width: 1080,
+                height: 1920,
+                mimeType: 'video/mp4',
+                motionProjectId: 'motion-aether-launch',
+              },
+            ],
+          },
+        }}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onDropRenderProofToCanvas={onDropRenderProofToCanvas}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /drop video on canvas/i }));
+    expect(onDropRenderProofToCanvas).toHaveBeenCalledWith({
+      artifactLabel: 'MP4',
+      label: 'x 9:16 MP4',
+      targetLabel: 'x 9:16',
+      url: 'asset://renders/x/video.mp4',
+      width: 1080,
+      height: 1920,
+      mimeType: 'video/mp4',
+      motionProjectId: 'motion-aether-launch',
+    });
     expect(screen.queryByText('render-export-x-9x16-video')).not.toBeInTheDocument();
   });
 

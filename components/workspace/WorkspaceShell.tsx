@@ -33,6 +33,7 @@ import { useScheduledPosts, getPreviewPublisher } from '@/lib/publisher/store';
 import { useReferences } from '@/lib/references/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
+import { dropVideoOnCanvas } from '@/lib/canvas/dropVideo';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
 import {
@@ -86,7 +87,10 @@ import {
 } from '@/lib/motion/workflowExamples';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
-import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
+import {
+  buildMotionPreviewPlan,
+  type MotionPreviewRenderProofCanvasDropTarget,
+} from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
@@ -852,6 +856,25 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       }
     },
     [motionStart, wsId]
+  );
+  const handleTimelineDropRenderProofToCanvas = useCallback(
+    (target: MotionPreviewRenderProofCanvasDropTarget) => {
+      if (!editor) {
+        setMotionTimelineActionStatus('canvas not ready');
+        return;
+      }
+
+      dropVideoOnCanvas(editor, {
+        url: target.url,
+        width: target.width,
+        height: target.height,
+        mimeType: target.mimeType,
+        label: target.label,
+        briefId: target.motionProjectId,
+      });
+      setMotionTimelineActionStatus(`${target.label} on canvas`);
+    },
+    [editor]
   );
   const handleTimelineExportPack = useCallback(async () => {
     if (!motionStart?.project) return;
@@ -2762,6 +2785,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onGenerateVoice={handleTimelineGenerateVoice}
             onSyncMotion={handleTimelineSync}
             onRenderMotion={handleTimelineRender}
+            onDropRenderProofToCanvas={handleTimelineDropRenderProofToCanvas}
             onExportPack={handleTimelineExportPack}
             onPlanVisuals={handleTimelinePlanVisuals}
             onGenerateVideoClips={handleTimelineGenerateVideoClips}

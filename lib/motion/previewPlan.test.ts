@@ -526,7 +526,9 @@ describe('buildMotionPreviewPlan', () => {
                 label: 'MP4',
                 ref: 'render-export-x-9x16-video',
                 providerId: 'hyperframes-local',
+                assetUrl: 'asset://renders/x/video.mp4',
                 path: 'renders/x/video.mp4',
+                mimeType: 'video/mp4',
               },
               {
                 id: 'receipt-render-manifest',
@@ -593,7 +595,11 @@ describe('buildMotionPreviewPlan', () => {
           label: 'MP4',
           status: 'ready',
           targetLabel: 'x 9:16',
+          assetUrl: 'asset://renders/x/video.mp4',
           path: 'renders/x/video.mp4',
+          mimeType: 'video/mp4',
+          width: 1080,
+          height: 1920,
         }),
         expect.objectContaining({
           kind: 'manifest',
@@ -604,6 +610,18 @@ describe('buildMotionPreviewPlan', () => {
         }),
       ])
     );
+    expect(preview.renderProofSummary.canvasDropTargets).toEqual([
+      {
+        artifactLabel: 'MP4',
+        label: 'x 9:16 MP4',
+        targetLabel: 'x 9:16',
+        url: 'asset://renders/x/video.mp4',
+        width: 1080,
+        height: 1920,
+        mimeType: 'video/mp4',
+        motionProjectId: 'motion-aether-launch',
+      },
+    ]);
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {

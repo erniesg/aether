@@ -383,6 +383,10 @@ capture, render, and provenance debugging.
   subtitles, transcript, and manifest rows, provider labels, edit/rerender
   actions, and export blockers. The timeline lens shows those proof artifacts
   beside the edit source contract without exposing raw render refs.
+- Render-proof MP4 receipts now carry canvas drop targets with asset URL,
+  dimensions, MIME type, and motion-project provenance. The timeline lens can
+  hand those targets to `dropVideoOnCanvas`, placing rendered videos back onto
+  the tldraw canvas as native video material.
 - Preview plans now also expose a capability setup surface for full-auto
   readiness: capture providers, local-app launch runners, visual sourcing,
   image-to-video, voice/timing, sync blockers, and Remotion/HyperFrames render
