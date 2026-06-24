@@ -9,6 +9,7 @@ import type {
   TimelineClip,
   TimelineTrack,
 } from './project';
+import { appendVoiceExecutionHistory } from './executionHistory';
 
 export interface ApplyVoiceSynthesisResultToMotionProjectOptions {
   clipId: string;
@@ -51,6 +52,12 @@ export function applyVoiceSynthesisResultToMotionProject(
       outputRefs: result.artifacts.map((artifact) => artifact.id),
       provenance,
     }),
+    executionHistory: appendVoiceExecutionHistory(
+      project.executionHistory,
+      result,
+      options.clipId,
+      options.updatedAt ?? project.updatedAt
+    ),
     updatedAt: options.updatedAt ?? project.updatedAt,
   };
 }

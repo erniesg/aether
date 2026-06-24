@@ -1,5 +1,9 @@
 import type { CaptureArtifact, CaptureResult } from '@/lib/providers/capture/types';
 import type {
+  VoiceArtifact,
+  VoiceSynthesisResult,
+} from '@/lib/providers/voice/types';
+import type {
   MotionGeneratedVideoClip,
   MotionImageToVideoResult,
   MotionRenderedAsset,
@@ -10,6 +14,7 @@ import type {
   MotionExecutionReceipt,
   MotionProvenanceRef,
 } from './project';
+import type { MotionSyncPlan } from './syncPlan';
 
 export interface MotionVisualSourceReceiptInput {
   providerId: string;
@@ -91,6 +96,29 @@ export function appendImageToVideoExecutionHistory(
   });
 }
 
+export function appendVoiceExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  result: VoiceSynthesisResult,
+  clipId: string,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  return appendExecutionEntry(history, {
+    id: `execution-voice-${slugifyId(result.providerId)}-${slugifyId(clipId)}-${savedAt}`,
+    gateId: 'voice',
+    label: 'Voice synthesis',
+    providerId: result.providerId,
+    savedAt,
+    receiptCount: result.artifacts.length,
+    receiptLabels: result.artifacts.map((artifact) => voiceReceiptLabel(artifact.kind)),
+    receipts: result.artifacts.map((artifact) => voiceReceipt(result.providerId, artifact)),
+    provenance: uniqueProvenance([
+      ...result.provenance,
+      ...result.artifacts.flatMap((artifact) => artifact.provenance),
+      ...result.artifacts.map((artifact) => ({ kind: 'voice' as const, ref: artifact.id })),
+    ]),
+  });
+}
+
 export function appendVisualSourceExecutionHistory(
   history: MotionExecutionHistoryEntry[] | undefined,
   result: MotionVisualSourceReceiptInput,
@@ -115,6 +143,60 @@ export function appendVisualSourceExecutionHistory(
   });
 }
 
+export function appendSyncExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  plan: MotionSyncPlan,
+  providerId: string,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const receipts = [
+    syncReceipt({
+      id: `receipt-sync-${plan.id}-beat-markers`,
+      label: 'Beat markers',
+      ref: `${plan.id}:beat-markers`,
+      count: plan.beatMarkers.length,
+      providerId,
+    }),
+    syncReceipt({
+      id: `receipt-sync-${plan.id}-caption-links`,
+      label: 'Caption links',
+      ref: `${plan.id}:caption-links`,
+      count: plan.captionLinks.length,
+      providerId,
+    }),
+    syncReceipt({
+      id: `receipt-sync-${plan.id}-transition-cues`,
+      label: 'Transition cues',
+      ref: `${plan.id}:transition-cues`,
+      count: plan.transitionCues.length,
+      providerId,
+    }),
+    syncReceipt({
+      id: `receipt-sync-${plan.id}-sound-cues`,
+      label: 'Sound cues',
+      ref: `${plan.id}:sound-cues`,
+      count: plan.soundCues.length,
+      providerId,
+    }),
+  ].filter((receipt): receipt is MotionExecutionReceipt => Boolean(receipt));
+
+  return appendExecutionEntry(history, {
+    id: `execution-sync-${slugifyId(providerId)}-${savedAt}`,
+    gateId: 'sync',
+    label: 'Timeline sync',
+    providerId,
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      ...plan.provenance,
+      ...(plan.syncNode?.provenance ?? []),
+      ...(plan.syncNode?.outputRefs.map((ref) => ({ kind: 'timeline' as const, ref })) ?? []),
+    ]),
+  });
+}
+
 function appendExecutionEntry(
   history: MotionExecutionHistoryEntry[] | undefined,
   entry: MotionExecutionHistoryEntry
@@ -135,6 +217,19 @@ function captureReceipt(providerId: string, artifact: CaptureArtifact): MotionEx
   };
 }
 
+function voiceReceipt(providerId: string, artifact: VoiceArtifact): MotionExecutionReceipt {
+  return {
+    id: `receipt-voice-${artifact.id}`,
+    kind: 'voice',
+    label: voiceReceiptLabel(artifact.kind),
+    ref: artifact.id,
+    providerId,
+    assetUrl: artifact.assetUrl,
+    path: artifact.path,
+    mimeType: artifact.mimeType,
+  };
+}
+
 function visualSourceReceipt(
   providerId: string,
   asset: MotionVisualSourceSelectedAsset
@@ -147,6 +242,24 @@ function visualSourceReceipt(
     providerId,
     assetUrl: asset.assetUrl,
     mimeType: asset.mimeType,
+  };
+}
+
+function syncReceipt(input: {
+  id: string;
+  label: string;
+  ref: string;
+  count: number;
+  providerId: string;
+}): MotionExecutionReceipt | null {
+  if (input.count === 0) return null;
+
+  return {
+    id: input.id,
+    kind: 'sync',
+    label: input.label,
+    ref: input.ref,
+    providerId: input.providerId,
   };
 }
 
@@ -184,6 +297,12 @@ function captureReceiptLabel(artifact: CaptureArtifact): string {
   if (artifact.kind === 'snapshot') return 'DOM snapshot';
   if (artifact.kind === 'trace') return 'Interaction trace';
   return 'Screenshot';
+}
+
+function voiceReceiptLabel(kind: VoiceArtifact['kind']): string {
+  if (kind === 'word-timings') return 'Word timings';
+  if (kind === 'transcript') return 'Transcript';
+  return 'Audio';
 }
 
 function renderReceiptLabel(kind: MotionRenderedAsset['kind']): string {

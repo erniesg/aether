@@ -228,6 +228,7 @@ export type MotionExecutionReceiptKind =
   | 'visual-source'
   | 'image-to-video'
   | 'voice'
+  | 'sync'
   | 'render'
   | 'export';
 

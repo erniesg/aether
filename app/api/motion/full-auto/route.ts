@@ -15,6 +15,8 @@ import type { MotionProject } from '@/lib/motion/project';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { executeMotionRender } from '@/lib/motion/renderExecution';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
+import { applyMotionSyncPlanToMotionProject } from '@/lib/motion/syncApply';
+import { buildMotionSyncPlan } from '@/lib/motion/syncPlan';
 import { applyMotionVisualSourceSelectionToMotionProject } from '@/lib/motion/visualSourceApply';
 import { buildMotionVisualSourcingPlan } from '@/lib/motion/visualSourcingPlan';
 import { applyVoiceSynthesisResultToMotionProject } from '@/lib/motion/voiceApply';
@@ -187,6 +189,12 @@ function buildProviderHandlers(
     });
   }
 
+  handlers.sync = syncHandler({
+    fps: options.fps,
+    requestedAt: options.requestedAt,
+    updatedAt: options.updatedAt,
+  });
+
   if (imageToVideoProvider) {
     handlers['visual-generation'] = imageToVideoHandler({
       body,
@@ -298,6 +306,25 @@ function voiceHandler(input: {
         }),
       project
     );
+  };
+}
+
+function syncHandler(input: {
+  fps?: number;
+  requestedAt: number;
+  updatedAt?: number;
+}): MotionFullAutoStepHandler {
+  return async ({ project }) => {
+    const syncPlan = buildMotionSyncPlan(project, {
+      fps: input.fps,
+      requestedAt: input.requestedAt,
+    });
+    if (syncPlan.status !== 'ready') return project;
+
+    return applyMotionSyncPlanToMotionProject(project, syncPlan, {
+      providerId: 'motion-sync',
+      updatedAt: input.updatedAt ?? input.requestedAt,
+    });
   };
 }
 

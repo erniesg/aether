@@ -10,6 +10,12 @@ import type {
   CaptureResult,
 } from '@/lib/providers/capture/types';
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
+import { registerVoiceProvider } from '@/lib/providers/voice/registry';
+import type {
+  VoiceProvider,
+  VoiceSynthesisRequest,
+  VoiceSynthesisResult,
+} from '@/lib/providers/voice/types';
 import type {
   MotionImageToVideoProvider,
   MotionImageToVideoRequest,
@@ -146,6 +152,31 @@ function generatedClipFor(request: MotionImageToVideoRequest): MotionImageToVide
       },
     ],
     provenance: [{ kind: 'provider', ref: 'image-video-test' }],
+  };
+}
+
+function voiceProvider(synthesize: VoiceProvider['synthesize']): VoiceProvider {
+  return {
+    id: 'voice-test',
+    displayName: 'Voice test synthesis',
+    available: () => true,
+    synthesize,
+  };
+}
+
+function voiceResultFor(request: VoiceSynthesisRequest): VoiceSynthesisResult {
+  return {
+    providerId: 'voice-test',
+    artifacts: request.expectedArtifacts.map((artifact) => ({
+      ...artifact,
+      assetUrl: `asset://${artifact.path}`,
+      ...(artifact.kind === 'audio' ? { durationMs: request.durationFrames * 30 } : {}),
+      provenance: [
+        { kind: 'provider', ref: 'voice-test' },
+        ...artifact.provenance,
+      ],
+    })),
+    provenance: [{ kind: 'provider', ref: 'voice-test' }],
   };
 }
 
@@ -442,6 +473,98 @@ describe('POST /api/motion/full-auto', () => {
     expect(generate.mock.calls[0][0]).toMatchObject({
       id: 'image-to-video-clip-beat-demo-text',
       sourceAssetId: 'capture-aether-homepage',
+    });
+  });
+
+  it('chains image-to-video, voice synthesis, and sync before the render gate', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    const synthesize = vi.fn(async (request: VoiceSynthesisRequest) => voiceResultFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+    unregister.push(registerVoiceProvider('voice-test', () => voiceProvider(synthesize)));
+
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: projectWithSelectedVisualSource(),
+          imageToVideoProviderId: 'image-video-test',
+          imageToVideoClipIds: ['clip-beat-demo-text'],
+          voiceProviderId: 'voice-test',
+          requestedAt: 732,
+          updatedAt: 733,
+          requestedEngines: ['hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'paused',
+      run: {
+        status: 'paused',
+        reason: 'provider-required',
+        stepId: 'render',
+        advancedStepIds: ['visual-generation', 'voice', 'sync'],
+      },
+      project: {
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'node-voice-plan',
+            kind: 'voice',
+            status: 'done',
+          }),
+          expect.objectContaining({
+            id: 'node-sync-plan',
+            kind: 'sync',
+            providerId: 'motion-sync',
+            status: 'done',
+            outputRefs: expect.arrayContaining([
+              'sync-marker-beat-hook',
+              'caption-link-clip-beat-hook-caption',
+              'transition-cue-clip-transition-beat-hook-to-beat-problem',
+              'sfx-clip-transition-beat-hook-to-beat-problem',
+            ]),
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'voice',
+            receiptLabels: ['Audio', 'Word timings', 'Transcript'],
+          }),
+          expect.objectContaining({
+            id: 'execution-sync-motion-sync-733',
+            gateId: 'sync',
+            receiptLabels: ['Beat markers', 'Caption links', 'Transition cues', 'Sound cues'],
+          }),
+        ]),
+      },
+      productionPlan: {
+        nextStepId: 'render',
+      },
+      previewPlan: {
+        productionPlan: {
+          nextStepId: 'render',
+        },
+      },
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(synthesize).toHaveBeenCalledTimes(6);
+
+    const hookCaption = json.project.tracks
+      .flatMap((track: { clips: Array<{ id: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { id: string }) => clip.id === 'clip-beat-hook-caption');
+    expect(hookCaption.props).toMatchObject({
+      syncPlanId: 'sync-plan-motion-aether-launch-draft-primary',
+      syncStatus: 'synced',
+      timingSource: 'word-timings',
     });
   });
 

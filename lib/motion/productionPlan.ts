@@ -277,6 +277,7 @@ function buildSteps(
   const planReady = project.story.length > 0;
   const draftsReady = project.drafts.length > 0 && timelineReady;
   const voiceComplete = isGraphDone(project.graphNodes, 'voice') || plans.syncPlan.status === 'ready';
+  const syncComplete = isGraphNodeDone(project.graphNodes, 'node-sync-plan');
   const syncReady = plans.syncPlan.status === 'ready';
 
   return [
@@ -306,7 +307,7 @@ function buildSteps(
       verificationReceipts: nodeReceipts(project, 'voice', 'render'),
     }),
     step('sync', project, {
-      status: syncReady ? 'ready' : 'blocked',
+      status: syncComplete ? 'complete' : syncReady ? 'ready' : 'blocked',
       blockerLabels: plans.syncPlan.blockers.map((blocker) => blocker.label),
       providerRequirementLabels: plans.syncPlan.providerRequirements.map(readableRequirement),
     }),
@@ -314,12 +315,12 @@ function buildSteps(
       status:
         plans.exportPackPlan.status === 'ready'
           ? 'complete'
-          : plans.renderPlan.status === 'ready' && syncReady
+          : plans.renderPlan.status === 'ready' && syncComplete
             ? 'ready'
             : 'blocked',
       blockerLabels: [
         ...plans.renderPlan.blockers.map((blocker) => blocker.label),
-        ...(syncReady ? [] : ['Review voice and caption sync before render']),
+        ...(syncComplete ? [] : ['Review voice and caption sync before render']),
       ],
       providerRequirementLabels: [],
       verificationReceipts: renderReceipts(project),
@@ -577,6 +578,10 @@ function isGraphDone(
   kind: MotionGraphNode['kind']
 ): boolean {
   return nodes.some((node) => node.kind === kind && node.status === 'done');
+}
+
+function isGraphNodeDone(nodes: MotionGraphNode[], id: string): boolean {
+  return nodes.some((node) => node.id === id && node.status === 'done');
 }
 
 function preferredRenderEngine(engines: WorkflowEngine[] = []): MotionRenderEngine {
