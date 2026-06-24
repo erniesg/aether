@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { NextResponse } from 'next/server';
 import type { MotionProject } from '@/lib/motion/project';
 import { applyCaptureResultToMotionProject } from '@/lib/motion/captureApply';
@@ -8,10 +7,13 @@ import {
 } from '@/lib/motion/capturePlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
-import type { CaptureProvider, CaptureResult } from '@/lib/providers/capture/types';
+import {
+  buildInlineMotionCaptureRunner,
+  captureProviderInventory,
+  type InlineMotionCaptureRunner,
+} from '@/lib/motion/captureRunner';
+import type { CaptureResult } from '@/lib/providers/capture/types';
 import type { CaptureAppLaunch } from '@/lib/providers/capture/types';
-import { createLocalAppLauncher } from '@/lib/providers/capture/local-app-launch';
-import { createPlaywrightBrowserCaptureProvider } from '@/lib/providers/capture/playwright';
 import {
   CaptureProviderUnavailableError,
   listCaptureProviders,
@@ -23,20 +25,6 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 type MotionCaptureRequestBody = Record<string, unknown>;
-
-interface MotionCaptureRunnerSummary {
-  kind: 'playwright-local';
-  providerId: string;
-  outputDir: string;
-  launchLocalApp: boolean;
-  headless: boolean;
-  timeoutMs?: number;
-}
-
-interface InlineCaptureRunner {
-  provider: CaptureProvider;
-  summary: MotionCaptureRunnerSummary;
-}
 
 function jsonError(status: number, error: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, error, ...extra }, { status });
@@ -111,10 +99,10 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(400, 'no capture requests selected');
   }
   const appLaunches = selectedAppLaunches(selectedRequests);
-  let inlineRunner: InlineCaptureRunner | undefined;
+  let inlineRunner: InlineMotionCaptureRunner | undefined;
 
   try {
-    inlineRunner = buildInlineCaptureRunner(body.captureRunner, project);
+    inlineRunner = buildInlineMotionCaptureRunner(body.captureRunner, project);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return jsonError(400, message);
@@ -204,80 +192,6 @@ function selectedAppLaunches(
   });
 }
 
-function buildInlineCaptureRunner(
-  value: unknown,
-  project: MotionProject
-): InlineCaptureRunner | undefined {
-  if (value === undefined) return undefined;
-  if (!isObject(value)) throw new Error('captureRunner must be a JSON object');
-
-  const kind = stringValue(value.kind);
-  if (kind !== 'playwright-local') {
-    throw new Error('captureRunner.kind must be playwright-local');
-  }
-
-  const timeoutMs = optionalPositiveNumber(value.timeoutMs, 'captureRunner.timeoutMs');
-  const headless = booleanValue(value.headless) ?? true;
-  const launchLocalApp = booleanValue(value.launchLocalApp) ?? false;
-  const outputDir = resolveCaptureOutputDir(project, value.outputDir);
-  const provider = createPlaywrightBrowserCaptureProvider({
-    outputDir,
-    headless,
-    timeoutMs,
-    launchApp: launchLocalApp ? createLocalAppLauncher() : undefined,
-  });
-
-  return {
-    provider,
-    summary: {
-      kind,
-      providerId: provider.id,
-      outputDir,
-      launchLocalApp,
-      headless,
-      ...(timeoutMs ? { timeoutMs } : {}),
-    },
-  };
-}
-
-function resolveCaptureOutputDir(project: MotionProject, value: unknown): string {
-  const requested = stringValue(value);
-  const root = process.cwd();
-
-  if (!requested) {
-    return path.join(root, 'outputs', 'motion-captures', slugify(project.id));
-  }
-
-  if (path.isAbsolute(requested)) {
-    throw new Error('captureRunner.outputDir must be relative to the aether workspace');
-  }
-
-  const resolved = path.resolve(root, requested);
-  const relative = path.relative(root, resolved);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error('captureRunner.outputDir must stay inside the aether workspace');
-  }
-
-  return resolved;
-}
-
-function captureProviderInventory(inlineProvider?: CaptureProvider): Array<{
-  id: string;
-  displayName: string;
-  available: boolean;
-}> {
-  const providers = listCaptureProviders();
-  if (!inlineProvider) return providers;
-
-  const inlineSummary = {
-    id: inlineProvider.id,
-    displayName: inlineProvider.displayName,
-    available: inlineProvider.available(),
-  };
-
-  return [inlineSummary, ...providers.filter((provider) => provider.id !== inlineProvider.id)];
-}
-
 function selectCaptureRequests(
   requests: AgentMotionCapturePlanRequest[],
   body: MotionCaptureRequestBody
@@ -322,25 +236,6 @@ function stringValue(value: unknown): string | undefined {
 
 function numericValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function optionalPositiveNumber(value: unknown, label: string): number | undefined {
-  if (value === undefined) return undefined;
-  const parsed = numericValue(value);
-  if (!parsed || parsed <= 0) throw new Error(`${label} must be a positive number`);
-  return parsed;
-}
-
-function booleanValue(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
-}
-
-function slugify(value: string): string {
-  return value
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase()
-    .slice(0, 80);
 }
 
 function uniqueProvenance(refs: CaptureResult['provenance']): CaptureResult['provenance'] {

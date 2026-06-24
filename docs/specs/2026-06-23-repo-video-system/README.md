@@ -235,7 +235,9 @@ capture, render, and provenance debugging.
 - `app/api/motion/full-auto/route.ts` now runs the saved production queue across
   configured providers: capture, visual-source selection, image-to-video,
   voice, sync, render, and export readiness can complete in one run when
-  provider receipts are available, while missing providers or review gates still
+  provider receipts are available. It can also use the request-scoped
+  `playwright-local` capture runner for trusted repo/app capture before
+  continuing the saved queue, while missing providers or review gates still
   pause with the same creator-facing plan state.
 - `lib/motion/capturePlan.ts` now converts capture-first projects into
   provider-ready screenshot, DOM snapshot, interaction trace, optional screen

@@ -259,6 +259,10 @@
   render. When render receipts provide MP4, poster, subtitles, transcript, and
   manifest outputs for every target, the same production plan marks export
   complete and returns a ready export-pack manifest.
+- Saved full-auto execution can now use the same request-scoped
+  `captureRunner.kind = "playwright-local"` contract as the capture route, so a
+  trusted agent can launch a local repo app, collect capture receipts, and
+  continue the saved queue without registering a global capture provider.
 - Workflow skill launch kits now expose review objects for PR/repo evidence,
   draft variations, component regeneration handles, teaser targets, and export
   packs. The generated `SKILL.md` instructions include those objects, the

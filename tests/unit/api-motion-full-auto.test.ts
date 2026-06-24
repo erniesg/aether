@@ -26,6 +26,61 @@ import type {
   MotionRenderResult,
 } from '@/lib/providers/video/types';
 
+const captureRunnerMock = vi.hoisted(() => {
+  const captureCalls: CaptureRequest[] = [];
+  const createdOptions: Array<Record<string, unknown>> = [];
+  const launchApp = vi.fn(async () => ({ close: vi.fn(async () => undefined) }));
+  const createLocalAppLauncher = vi.fn(() => launchApp);
+
+  return {
+    captureCalls,
+    createdOptions,
+    launchApp,
+    createLocalAppLauncher,
+  };
+});
+
+vi.mock('@/lib/providers/capture/local-app-launch', () => ({
+  createLocalAppLauncher: captureRunnerMock.createLocalAppLauncher,
+}));
+
+vi.mock('@/lib/providers/capture/playwright', () => ({
+  createPlaywrightBrowserCaptureProvider: (options: Record<string, unknown>) => {
+    captureRunnerMock.createdOptions.push(options);
+
+    return {
+      id: 'browser-capture',
+      displayName: 'Playwright local capture',
+      available: () => true,
+      capture: async (request: CaptureRequest): Promise<CaptureResult> => {
+        captureRunnerMock.captureCalls.push(request);
+
+        return {
+          providerId: 'browser-capture',
+          artifacts: [
+            {
+              id: `full-auto-${request.mode}`,
+              kind: request.mode === 'screen-recording' ? 'recording' : 'screenshot',
+              assetUrl:
+                request.mode === 'screen-recording'
+                  ? 'file:///workspace/outputs/full-auto-capture.webm'
+                  : 'file:///workspace/outputs/full-auto-capture.png',
+              width: request.viewport.width,
+              height: request.viewport.height,
+              durationMs: request.mode === 'screen-recording' ? 3000 : undefined,
+              mimeType: request.mode === 'screen-recording' ? 'video/webm' : 'image/png',
+              viewport: request.viewport,
+              cursorTargets: [],
+              provenance: [{ kind: 'provider', ref: 'playwright-browser-runner' }],
+            },
+          ],
+          provenance: [{ kind: 'provider', ref: 'browser-capture' }],
+        };
+      },
+    };
+  },
+}));
+
 function project(): MotionProject {
   return materializeMotionTimeline(
     buildRepoLaunchMotionProject({
@@ -81,6 +136,56 @@ function captureProvider(capture: CaptureProvider['capture']): CaptureProvider {
     available: () => true,
     capture,
   };
+}
+
+function localAppProject(): MotionProject {
+  return materializeMotionTimeline(
+    buildRepoLaunchMotionProject({
+      id: 'motion-tong-launch',
+      workspaceId: 'demo-ws',
+      projectKind: 'launch',
+      workflowMode: 'full-auto',
+      audience: 'language learners',
+      tone: 'textural',
+      appProfile: {
+        name: 'tong',
+        repoUrl: '/Users/erniesg/code/erniesg/tong',
+        summary: 'City-specific language learning app.',
+        stack: ['TypeScript'],
+      },
+      sourceProfile: {
+        kind: 'local-repo',
+        label: 'tong source material',
+        sourceRef: '/Users/erniesg/code/erniesg/tong',
+        summary: 'local repo with a runnable app route',
+        signals: [],
+        captureCandidates: [
+          {
+            id: 'capture-local-app-still',
+            label: 'Capture local app route /',
+            mode: 'screenshot',
+            targetKind: 'local-app',
+            targetRef: 'http://localhost:3000/',
+            setup: 'npm run dev',
+            setupCwd: '/Users/erniesg/code/erniesg/tong',
+            reason: 'Local repo exposes an app route suitable for a product still.',
+            provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+          },
+        ],
+        storyboardHints: [],
+        provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+      },
+      claims: [
+        {
+          text: 'tong local repo uses TypeScript across 12 source files.',
+          source: { kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' },
+        },
+      ],
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      createdAt: 82,
+    }),
+    { updatedAt: 83 }
+  );
 }
 
 const screenshotCaptureResult: CaptureResult = {
@@ -360,6 +465,91 @@ describe('POST /api/motion/full-auto', () => {
     expect(capture.mock.calls[0][0]).toMatchObject({
       mode: 'screenshot',
       preferredProviderId: 'browser-test',
+    });
+  });
+
+  it('uses an explicit local Playwright runner for full-auto capture', async () => {
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: localAppProject(),
+          captureRunner: {
+            kind: 'playwright-local',
+            outputDir: 'outputs/motion-captures/tong-full-auto',
+            launchLocalApp: true,
+            headless: false,
+            timeoutMs: 12000,
+          },
+          captureRequestIds: ['capture-local-app-still'],
+          requestedAt: 752,
+          updatedAt: 753,
+          requestedEngines: ['hyperframes'],
+          maxSteps: 1,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'paused',
+      run: {
+        status: 'paused',
+        reason: 'max-steps',
+        stepId: 'visual-source',
+        advancedStepIds: ['capture'],
+        receiptCount: 1,
+      },
+      captureRunner: {
+        kind: 'playwright-local',
+        providerId: 'browser-capture',
+        launchLocalApp: true,
+        headless: false,
+        timeoutMs: 12000,
+      },
+      providers: {
+        capture: [
+          {
+            id: 'browser-capture',
+            displayName: 'Playwright local capture',
+            available: true,
+          },
+        ],
+      },
+      project: {
+        id: 'motion-tong-launch',
+        updatedAt: 753,
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'execution-capture-browser-capture-753',
+            gateId: 'capture',
+            receiptCount: 1,
+            receiptLabels: ['Screenshot'],
+          }),
+        ]),
+      },
+    });
+    expect(json.captureRunner.outputDir).toMatch(/outputs\/motion-captures\/tong-full-auto$/);
+    expect(captureRunnerMock.createLocalAppLauncher).toHaveBeenCalledTimes(1);
+    expect(captureRunnerMock.createdOptions.at(-1)).toMatchObject({
+      headless: false,
+      timeoutMs: 12000,
+    });
+    expect(captureRunnerMock.createdOptions.at(-1)?.launchApp).toBe(
+      captureRunnerMock.launchApp
+    );
+    expect(captureRunnerMock.captureCalls.at(-1)).toMatchObject({
+      mode: 'screenshot',
+      preferredProviderId: 'browser-capture',
+      appLaunch: {
+        command: 'npm run dev',
+        cwd: '/Users/erniesg/code/erniesg/tong',
+        targetUrl: 'http://localhost:3000/',
+      },
     });
   });
 

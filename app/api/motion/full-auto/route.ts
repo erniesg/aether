@@ -12,6 +12,11 @@ import {
 import { applyMotionImageToVideoResultToMotionProject } from '@/lib/motion/imageToVideoApply';
 import { buildMotionImageToVideoPlan } from '@/lib/motion/imageToVideoPlan';
 import type { MotionProject } from '@/lib/motion/project';
+import {
+  buildInlineMotionCaptureRunner,
+  captureProviderInventory,
+  type InlineMotionCaptureRunner,
+} from '@/lib/motion/captureRunner';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { executeMotionRender } from '@/lib/motion/renderExecution';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
@@ -27,7 +32,6 @@ import {
 import type { CaptureProvider, CaptureResult } from '@/lib/providers/capture/types';
 import {
   CaptureProviderUnavailableError,
-  listCaptureProviders,
   resolveCaptureProvider,
 } from '@/lib/providers/capture/registry';
 import type { VoiceProvider } from '@/lib/providers/voice/types';
@@ -106,10 +110,21 @@ export async function POST(request: Request): Promise<Response> {
   if ((body.renderEngine !== undefined || body.engine !== undefined) && !renderEngine) {
     return jsonError(400, 'renderEngine must be remotion or hyperframes');
   }
+  let captureRunner: InlineMotionCaptureRunner | undefined;
+  try {
+    captureRunner = buildInlineMotionCaptureRunner(body.captureRunner, project);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return jsonError(400, message);
+  }
+  if (captureRunner && stringValue(body.captureProviderId)) {
+    return jsonError(400, 'captureProviderId cannot be combined with captureRunner');
+  }
   const handlers = buildProviderHandlers(body, {
     engines: engines ?? undefined,
     fps: fps ?? undefined,
     renderEngine: renderEngine ?? undefined,
+    captureRunner,
     requestedAt,
     updatedAt: numericValue(body.updatedAt),
   });
@@ -123,7 +138,7 @@ export async function POST(request: Request): Promise<Response> {
   };
   const result = await runSavedMotionFullAuto(project, options);
   const providers = {
-    capture: listCaptureProviders(),
+    capture: captureProviderInventory(captureRunner?.provider),
     imageToVideo: listMotionImageToVideoProviders(),
     voice: listVoiceProviders(),
     render: listMotionRenderProviders(),
@@ -140,6 +155,7 @@ export async function POST(request: Request): Promise<Response> {
       requestedAt,
     }),
     providers,
+    captureRunner: captureRunner?.summary ?? null,
   });
 }
 
@@ -149,11 +165,14 @@ function buildProviderHandlers(
     engines?: WorkflowEngine[];
     fps?: number;
     renderEngine?: MotionRenderEngine;
+    captureRunner?: InlineMotionCaptureRunner;
     requestedAt: number;
     updatedAt?: number;
   }
 ): RunSavedMotionFullAutoOptions['handlers'] {
-  const captureProvider = safeResolveCaptureProvider(stringValue(body.captureProviderId));
+  const captureProvider =
+    options.captureRunner?.provider ??
+    safeResolveCaptureProvider(stringValue(body.captureProviderId));
   const imageToVideoProvider = safeResolveImageToVideoProvider(
     stringValue(body.imageToVideoProviderId)
   );
