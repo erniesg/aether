@@ -723,6 +723,93 @@ const previewPlan: MotionPreviewPlan = {
     blockerLabels: [],
     nextActionLabels: ['Generate video clips', 'Review generated clips'],
   },
+  capabilitySetup: {
+    status: 'needs-setup',
+    readyCount: 1,
+    missingCount: 4,
+    blockedCount: 1,
+    nextActionLabel: 'Connect browser capture',
+    items: [
+      {
+        id: 'capture',
+        label: 'Product capture',
+        status: 'needs-provider',
+        actionLabel: 'Connect browser capture',
+        routeLabels: ['/api/motion/capture'],
+        toolLabels: ['motion capture'],
+        requirementLabels: ['browser capture'],
+        providerLabels: [],
+        configuredProviderLabels: [],
+        runnerLabels: [],
+        blockerLabels: [],
+      },
+      {
+        id: 'local-app',
+        label: 'Local app runner',
+        status: 'needs-runner',
+        actionLabel: 'Trust local app launch',
+        routeLabels: ['/api/motion/capture'],
+        toolLabels: ['app launch', 'browser capture'],
+        requirementLabels: ['trusted local app launch'],
+        providerLabels: [],
+        configuredProviderLabels: [],
+        runnerLabels: ['npm run dev -> https://aether.local/demo'],
+        blockerLabels: [],
+      },
+      {
+        id: 'visual-generation',
+        label: 'Image-to-video',
+        status: 'configured',
+        actionLabel: 'Generate video clips',
+        routeLabels: ['/api/motion/image-to-video'],
+        toolLabels: ['motion visuals'],
+        requirementLabels: ['image to video'],
+        providerLabels: ['Runway'],
+        configuredProviderLabels: ['Runway'],
+        runnerLabels: [],
+        blockerLabels: [],
+      },
+      {
+        id: 'voice',
+        label: 'Voice and captions',
+        status: 'needs-provider',
+        actionLabel: 'Connect voice synthesis',
+        routeLabels: ['/api/motion/voice'],
+        toolLabels: ['motion voice'],
+        requirementLabels: ['voice synthesis', 'word timing alignment'],
+        providerLabels: [],
+        configuredProviderLabels: [],
+        runnerLabels: [],
+        blockerLabels: [],
+      },
+      {
+        id: 'sync',
+        label: 'Timeline sync',
+        status: 'blocked',
+        actionLabel: 'Review sync markers',
+        routeLabels: ['/api/motion/sync', '/api/motion/revise'],
+        toolLabels: ['motion sync', 'motion revise'],
+        requirementLabels: ['voice synthesis', 'word timing alignment'],
+        providerLabels: [],
+        configuredProviderLabels: [],
+        runnerLabels: [],
+        blockerLabels: ['Generate voice and word timings before final sync'],
+      },
+      {
+        id: 'render',
+        label: 'Render proof',
+        status: 'needs-runner',
+        actionLabel: 'Connect Remotion or HyperFrames runner',
+        routeLabels: ['/api/motion/render'],
+        toolLabels: ['motion render'],
+        requirementLabels: ['remotion render runner', 'hyperframes render runner'],
+        providerLabels: [],
+        configuredProviderLabels: [],
+        runnerLabels: [],
+        blockerLabels: ['Review voice and caption sync before render'],
+      },
+    ],
+  },
   agentRunbook: {
     mode: 'review',
     status: 'ready',
@@ -1109,6 +1196,18 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('Capture product material').length).toBeGreaterThan(0);
     expect(screen.getByText('2/7')).toBeInTheDocument();
     expect(screen.getByText('4 ready')).toBeInTheDocument();
+    expect(screen.getByText('capability setup')).toBeInTheDocument();
+    expect(screen.getAllByText('Connect browser capture').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 ready')).toBeInTheDocument();
+    expect(screen.getByText('4 missing')).toBeInTheDocument();
+    expect(screen.getByText('Local app runner')).toBeInTheDocument();
+    expect(screen.getByText('Trust local app launch')).toBeInTheDocument();
+    expect(screen.getByText('npm run dev -> https://aether.local/demo')).toBeInTheDocument();
+    expect(screen.getAllByText('needs provider').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('needs runner').length).toBeGreaterThan(0);
+    expect(screen.getByText('Runway')).toBeInTheDocument();
+    expect(screen.getAllByText('voice synthesis / word timing alignment').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('remotion render runner / hyperframes render runner').length).toBeGreaterThan(0);
     expect(screen.getByText('edit source')).toBeInTheDocument();
     expect(screen.getByText('2 targets')).toBeInTheDocument();
     expect(screen.getByText('/api/motion/source-edit')).toBeInTheDocument();

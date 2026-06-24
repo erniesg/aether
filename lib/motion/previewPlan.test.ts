@@ -384,6 +384,66 @@ describe('buildMotionPreviewPlan', () => {
       ['render', 'blocked'],
       ['export', 'blocked'],
     ]);
+    expect(preview.capabilitySetup).toMatchObject({
+      status: 'needs-setup',
+      readyCount: 0,
+      missingCount: 5,
+      blockedCount: 1,
+      nextActionLabel: 'Connect browser capture',
+    });
+    expect(preview.capabilitySetup.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture',
+          label: 'Product capture',
+          status: 'needs-provider',
+          actionLabel: 'Connect browser capture',
+          routeLabels: ['/api/motion/capture'],
+          requirementLabels: expect.arrayContaining(['browser capture']),
+          providerLabels: [],
+        }),
+        expect.objectContaining({
+          id: 'visual-source',
+          label: 'Visual sourcing',
+          status: 'needs-provider',
+          requirementLabels: expect.arrayContaining([
+            'asset library',
+            'reference search',
+            'image generation',
+          ]),
+        }),
+        expect.objectContaining({
+          id: 'visual-generation',
+          label: 'Image-to-video',
+          status: 'needs-provider',
+          requirementLabels: expect.arrayContaining(['image to video']),
+        }),
+        expect.objectContaining({
+          id: 'voice',
+          label: 'Voice and captions',
+          status: 'needs-provider',
+          requirementLabels: expect.arrayContaining([
+            'voice synthesis',
+            'word timing alignment',
+          ]),
+        }),
+        expect.objectContaining({
+          id: 'sync',
+          label: 'Timeline sync',
+          status: 'blocked',
+          blockerLabels: ['Generate voice and word timings before final sync'],
+        }),
+        expect.objectContaining({
+          id: 'render',
+          label: 'Render proof',
+          status: 'needs-runner',
+          requirementLabels: expect.arrayContaining([
+            'remotion render runner',
+            'hyperframes render runner',
+          ]),
+        }),
+      ])
+    );
     expect(preview.agentRunbook).toMatchObject({
       mode: 'review',
       status: 'ready',

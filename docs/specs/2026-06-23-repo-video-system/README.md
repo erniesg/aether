@@ -144,8 +144,9 @@ capture, render, and provenance debugging.
   now expose the `timeline` lens inside the single synthesis shell. The lens can
   render a creator-facing video plan, story beats, draft variations, editable
   motion kit, component controls, scoped regeneration actions, engine readiness,
-  and timeline rows without exposing raw provenance/debug ids in the primary
-  surface; `graph` remains reserved for advanced provenance/generation editing.
+  capability setup, and timeline rows without exposing raw provenance/debug ids
+  in the primary surface; `graph` remains reserved for advanced
+  provenance/generation editing.
 - `components/rail/sections/MotionSection.tsx` now starts video projects from
   repo, PR, site URL, or local path sources with review/full-auto mode and
   target presets for X vertical, LinkedIn feed, website demo, or a multi-format
@@ -368,6 +369,13 @@ capture, render, and provenance debugging.
   file labels, and regeneration scopes. The timeline lens renders this inside
   the creator shell so source-backed edits remain reviewable without exposing
   full generated source code as the primary surface.
+- Preview plans now also expose a capability setup surface for full-auto
+  readiness: capture providers, local-app launch runners, visual sourcing,
+  image-to-video, voice/timing, sync blockers, and Remotion/HyperFrames render
+  runners are normalized into creator-facing `configured`, `needs provider`,
+  `needs runner`, or `blocked` rows. The full-auto route passes configured
+  provider inventory into that preview plan so agents and creators see the same
+  next setup action before trying to advance saved gates.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start

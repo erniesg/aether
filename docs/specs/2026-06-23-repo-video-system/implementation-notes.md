@@ -235,6 +235,12 @@
   edits update narration, timing, component templates, and effect props; and
   `EDIT.md` now exposes editable control values that can update component props
   directly.
+- Preview plans now include a capability setup contract for provider-backed
+  execution. The timeline lens renders capture, local-app launch, visual source,
+  image-to-video, voice/timing, sync, and render readiness as creator-facing
+  rows, while `/api/motion/full-auto` passes configured provider inventory into
+  that contract so full-auto can pause on an actionable setup step instead of a
+  generic missing-provider state.
 - Production plans now surface completed capture, render, and export
   verification receipts as first-class step metadata. Full-auto capture
   results can create completed capture graph nodes, render receipts appear as

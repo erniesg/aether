@@ -372,6 +372,51 @@ export interface MotionPreviewExecutionHistory {
   entries: MotionPreviewExecutionHistoryEntry[];
 }
 
+export type MotionPreviewCapabilitySetupStatus = 'ready' | 'needs-setup' | 'blocked';
+export type MotionPreviewCapabilitySetupItemStatus =
+  | 'configured'
+  | 'needs-provider'
+  | 'needs-runner'
+  | 'blocked';
+
+export interface MotionPreviewCapabilityProvider {
+  id: string;
+  displayName: string;
+  available: boolean;
+  engine?: MotionRenderEngine;
+}
+
+export interface MotionPreviewCapabilitySetupInventory {
+  capture?: MotionPreviewCapabilityProvider[];
+  visualSource?: MotionPreviewCapabilityProvider[];
+  imageToVideo?: MotionPreviewCapabilityProvider[];
+  voice?: MotionPreviewCapabilityProvider[];
+  render?: MotionPreviewCapabilityProvider[];
+}
+
+export interface MotionPreviewCapabilitySetupItem {
+  id: string;
+  label: string;
+  status: MotionPreviewCapabilitySetupItemStatus;
+  actionLabel: string;
+  routeLabels: string[];
+  toolLabels: string[];
+  requirementLabels: string[];
+  providerLabels: string[];
+  configuredProviderLabels: string[];
+  runnerLabels: string[];
+  blockerLabels: string[];
+}
+
+export interface MotionPreviewCapabilitySetup {
+  status: MotionPreviewCapabilitySetupStatus;
+  readyCount: number;
+  missingCount: number;
+  blockedCount: number;
+  nextActionLabel: string | null;
+  items: MotionPreviewCapabilitySetupItem[];
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -397,6 +442,7 @@ export interface MotionPreviewPlan {
   referenceGrammar: MotionReferenceGrammarPlan;
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
+  capabilitySetup: MotionPreviewCapabilitySetup;
   agentRunbook: MotionPreviewAgentRunbook | null;
   productionPlan: MotionProductionPlan;
   executionHistory: MotionPreviewExecutionHistory;
@@ -407,6 +453,7 @@ export interface MotionPreviewPlan {
 export interface BuildMotionPreviewPlanOptions {
   engines?: WorkflowEngine[];
   workflowRunPlan?: AgentMotionWorkflowRunPlan;
+  providerSetup?: MotionPreviewCapabilitySetupInventory;
   fps?: number;
   requestedAt: number;
 }
@@ -501,6 +548,10 @@ export function buildMotionPreviewPlan(
     referenceGrammar,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
+    capabilitySetup: buildCapabilitySetup(project, productionPlan, enginePreviews, {
+      engines,
+      providers: options.providerSetup,
+    }),
     agentRunbook: buildAgentRunbook(options.workflowRunPlan),
     productionPlan,
     executionHistory: buildExecutionHistorySummary(project.executionHistory),
@@ -570,6 +621,194 @@ function agentRunbookStep(step: MotionWorkflowRunStep): MotionPreviewAgentRunboo
     toolLabels: step.toolIds.map(readableLabel),
     routeLabels: step.apiRoutes,
   };
+}
+
+function buildCapabilitySetup(
+  project: MotionProject,
+  productionPlan: MotionProductionPlan,
+  enginePreviews: MotionPreviewEnginePlan[],
+  options: {
+    engines: WorkflowEngine[];
+    providers?: MotionPreviewCapabilitySetupInventory;
+  }
+): MotionPreviewCapabilitySetup {
+  const items = [
+    setupItemForStep(productionPlan, 'capture', {
+      inventory: options.providers?.capture,
+      defaultActionLabel: 'Connect browser capture',
+    }),
+    ...localAppSetupItems(project),
+    setupItemForStep(productionPlan, 'visual-source', {
+      inventory: options.providers?.visualSource,
+      defaultActionLabel: 'Connect visual sources',
+    }),
+    setupItemForStep(productionPlan, 'visual-generation', {
+      inventory: options.providers?.imageToVideo,
+      defaultActionLabel: 'Connect image-to-video',
+    }),
+    setupItemForStep(productionPlan, 'voice', {
+      inventory: options.providers?.voice,
+      defaultActionLabel: 'Connect voice synthesis',
+    }),
+    setupItemForStep(productionPlan, 'sync', {
+      defaultActionLabel: 'Review sync markers',
+      preferBlocked: true,
+    }),
+    renderSetupItem(productionPlan, enginePreviews, options),
+  ].filter((item): item is MotionPreviewCapabilitySetupItem => Boolean(item));
+  const readyCount = items.filter((item) => item.status === 'configured').length;
+  const missingCount = items.filter(
+    (item) => item.status === 'needs-provider' || item.status === 'needs-runner'
+  ).length;
+  const blockedCount = items.filter((item) => item.status === 'blocked').length;
+  const nextItem =
+    items.find((item) => item.status === 'needs-provider' || item.status === 'needs-runner') ??
+    items.find((item) => item.status === 'blocked') ??
+    null;
+
+  return {
+    status: missingCount > 0 ? 'needs-setup' : blockedCount > 0 ? 'blocked' : 'ready',
+    readyCount,
+    missingCount,
+    blockedCount,
+    nextActionLabel: nextItem?.actionLabel ?? null,
+    items,
+  };
+}
+
+function setupItemForStep(
+  productionPlan: MotionProductionPlan,
+  stepId: MotionProductionPlan['steps'][number]['id'],
+  options: {
+    inventory?: MotionPreviewCapabilityProvider[];
+    defaultActionLabel: string;
+    preferBlocked?: boolean;
+  }
+): MotionPreviewCapabilitySetupItem | null {
+  const step = productionPlan.steps.find((candidate) => candidate.id === stepId);
+  if (!step) return null;
+
+  const providerLabels = availableProviderLabels(options.inventory);
+  const needsProvider = step.providerRequirementLabels.length > 0 && providerLabels.length === 0;
+  const blocked = step.blockerLabels.length > 0 && (options.preferBlocked || !needsProvider);
+  const configured = step.status === 'complete' || providerLabels.length > 0;
+  const status: MotionPreviewCapabilitySetupItemStatus = blocked
+    ? 'blocked'
+    : configured
+      ? 'configured'
+      : needsProvider
+        ? 'needs-provider'
+        : step.status === 'blocked'
+          ? 'blocked'
+          : 'configured';
+
+  return {
+    id: step.id,
+    label: step.label,
+    status,
+    actionLabel: status === 'configured' ? step.actionLabel : options.defaultActionLabel,
+    routeLabels: step.apiRoutes,
+    toolLabels: step.toolIds.map(readableLabel),
+    requirementLabels: step.providerRequirementLabels,
+    providerLabels,
+    configuredProviderLabels: providerLabels,
+    runnerLabels: [],
+    blockerLabels: step.blockerLabels,
+  };
+}
+
+function renderSetupItem(
+  productionPlan: MotionProductionPlan,
+  enginePreviews: MotionPreviewEnginePlan[],
+  options: {
+    engines: WorkflowEngine[];
+    providers?: MotionPreviewCapabilitySetupInventory;
+  }
+): MotionPreviewCapabilitySetupItem | null {
+  const step = productionPlan.steps.find((candidate) => candidate.id === 'render');
+  if (!step) return null;
+
+  const requestedRenderEngines = uniqueStrings(
+    options.engines.filter(isMotionRenderEngine)
+  ) as MotionRenderEngine[];
+  const plannedRenderEngines = uniqueStrings(
+    enginePreviews
+      .filter((preview) => isMotionRenderEngine(preview.engine))
+      .map((preview) => preview.engine as MotionRenderEngine)
+  ) as MotionRenderEngine[];
+  const renderEngines = requestedRenderEngines.length
+    ? requestedRenderEngines
+    : plannedRenderEngines.length
+      ? plannedRenderEngines
+      : (['remotion'] satisfies MotionRenderEngine[]);
+  const providerLabels = availableProviderLabels(
+    options.providers?.render?.filter((provider) =>
+      provider.engine ? renderEngines.includes(provider.engine) : true
+    )
+  );
+  const requirementLabels = renderEngines.map((engine) => `${engine} render runner`);
+  const status: MotionPreviewCapabilitySetupItemStatus =
+    step.status === 'complete' || providerLabels.length > 0
+      ? 'configured'
+      : 'needs-runner';
+
+  return {
+    id: step.id,
+    label: step.label,
+    status,
+    actionLabel:
+      status === 'configured'
+        ? step.actionLabel
+        : renderEngines.length > 1
+          ? 'Connect Remotion or HyperFrames runner'
+          : `Connect ${readableLabel(renderEngines[0])} runner`,
+    routeLabels: step.apiRoutes,
+    toolLabels: step.toolIds.map(readableLabel),
+    requirementLabels,
+    providerLabels,
+    configuredProviderLabels: providerLabels,
+    runnerLabels: providerLabels,
+    blockerLabels: step.blockerLabels,
+  };
+}
+
+function localAppSetupItems(project: MotionProject): MotionPreviewCapabilitySetupItem[] {
+  const labels = uniqueStrings(
+    (project.sourceProfile?.captureCandidates ?? []).flatMap((candidate) => {
+      if (candidate.targetKind !== 'local-app' || !candidate.setup || !candidate.targetRef) {
+        return [];
+      }
+      return [`${candidate.setup} -> ${candidate.targetRef}`];
+    })
+  );
+
+  if (labels.length === 0) return [];
+
+  return [
+    {
+      id: 'local-app',
+      label: 'Local app runner',
+      status: 'needs-runner',
+      actionLabel: 'Trust local app launch',
+      routeLabels: ['/api/motion/capture'],
+      toolLabels: ['app launch', 'browser capture'],
+      requirementLabels: ['trusted local app launch'],
+      providerLabels: [],
+      configuredProviderLabels: [],
+      runnerLabels: labels,
+      blockerLabels: [],
+    },
+  ];
+}
+
+function availableProviderLabels(
+  inventory: MotionPreviewCapabilityProvider[] | undefined
+): string[] {
+  return uniqueStrings((inventory ?? []).filter((provider) => provider.available).map(providerLabel));
+}
+
+function providerLabel(provider: MotionPreviewCapabilityProvider): string {
+  return provider.displayName || readableLabel(provider.id);
 }
 
 function buildSourceProfileSummary(

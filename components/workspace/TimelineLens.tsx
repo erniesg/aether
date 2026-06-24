@@ -23,6 +23,7 @@ import type {
   MotionPreviewEnginePlan,
   MotionPreviewEditSource,
   MotionPreviewAgentRunbook,
+  MotionPreviewCapabilitySetup,
   MotionPreviewExecutionHistory,
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
@@ -348,6 +349,10 @@ function MotionPreviewPlanView({
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
+        <MotionCapabilitySetupStrip setup={previewPlan.capabilitySetup} />
+      </section>
+
+      <section className="border-b border-border-soft px-4 py-3">
         <MotionEditSourceStrip editSource={previewPlan.editSource} />
       </section>
 
@@ -659,6 +664,104 @@ function MotionProductionQueueStrip({
       </div>
     </div>
   );
+}
+
+function MotionCapabilitySetupStrip({
+  setup,
+}: {
+  setup: MotionPreviewCapabilitySetup;
+}) {
+  const visibleItems = setup.items.slice(0, 6);
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            capability setup
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {setup.nextActionLabel ?? 'ready for full auto'}
+          </div>
+        </div>
+        <Chip tone={setup.status === 'ready' ? 'ok' : setup.status === 'blocked' ? 'warn' : 'info'} size="sm">
+          {setup.readyCount} ready
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="grid gap-1.5">
+            {visibleItems.map((item) => (
+              <MotionCapabilitySetupRow key={item.id} item={item} />
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="font-caption text-xs text-ink">
+            {setup.status === 'ready' ? 'ready for full auto' : 'setup needed'}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <Chip tone="neutral" size="sm">
+              {setup.missingCount} missing
+            </Chip>
+            <Chip tone="neutral" size="sm">
+              {setup.blockedCount} blocked
+            </Chip>
+          </div>
+          {setup.nextActionLabel ? (
+            <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {setup.nextActionLabel}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionCapabilitySetupRow({
+  item,
+}: {
+  item: MotionPreviewCapabilitySetup['items'][number];
+}) {
+  const detailLabels =
+    item.configuredProviderLabels.length > 0
+      ? item.configuredProviderLabels
+      : item.runnerLabels.length > 0
+        ? item.runnerLabels
+        : item.requirementLabels.length > 0
+          ? item.requirementLabels
+          : item.blockerLabels.length > 0
+            ? item.blockerLabels
+            : item.routeLabels;
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_92px] items-center gap-2">
+      <div className="min-w-0">
+        <div className="truncate font-caption text-xs text-ink">{item.label}</div>
+        <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+          {item.actionLabel}
+        </div>
+        {detailLabels.length > 0 ? (
+          <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+            {detailLabels.slice(0, 2).join(' / ')}
+          </div>
+        ) : null}
+      </div>
+      <Chip tone={capabilitySetupTone(item.status)} size="sm">
+        {item.status.replace(/-/g, ' ')}
+      </Chip>
+    </div>
+  );
+}
+
+function capabilitySetupTone(
+  status: MotionPreviewCapabilitySetup['items'][number]['status']
+): 'neutral' | 'info' | 'ok' | 'warn' {
+  if (status === 'configured') return 'ok';
+  if (status === 'blocked') return 'warn';
+  if (status === 'needs-runner') return 'info';
+  return 'neutral';
 }
 
 function MotionEditSourceStrip({

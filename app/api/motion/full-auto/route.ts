@@ -122,6 +122,12 @@ export async function POST(request: Request): Promise<Response> {
     handlers,
   };
   const result = await runSavedMotionFullAuto(project, options);
+  const providers = {
+    capture: listCaptureProviders(),
+    imageToVideo: listMotionImageToVideoProviders(),
+    voice: listVoiceProviders(),
+    render: listMotionRenderProviders(),
+  };
 
   return NextResponse.json({
     ok: true,
@@ -130,14 +136,10 @@ export async function POST(request: Request): Promise<Response> {
     previewPlan: buildMotionPreviewPlan(result.project, {
       engines: engines ?? undefined,
       fps: fps ?? undefined,
+      providerSetup: providers,
       requestedAt,
     }),
-    providers: {
-      capture: listCaptureProviders(),
-      imageToVideo: listMotionImageToVideoProviders(),
-      voice: listVoiceProviders(),
-      render: listMotionRenderProviders(),
-    },
+    providers,
   });
 }
 
