@@ -212,6 +212,48 @@ export interface MotionExport {
   provenance: MotionProvenanceRef[];
 }
 
+export type MotionExecutionGateId =
+  | 'plan'
+  | 'drafts'
+  | 'capture'
+  | 'visual-source'
+  | 'visual-generation'
+  | 'voice'
+  | 'sync'
+  | 'render'
+  | 'export';
+
+export type MotionExecutionReceiptKind =
+  | 'capture'
+  | 'visual-source'
+  | 'image-to-video'
+  | 'voice'
+  | 'render'
+  | 'export';
+
+export interface MotionExecutionReceipt {
+  id: string;
+  kind: MotionExecutionReceiptKind;
+  label: string;
+  ref: string;
+  providerId?: string;
+  assetUrl?: string;
+  path?: string;
+  mimeType?: string;
+}
+
+export interface MotionExecutionHistoryEntry {
+  id: string;
+  gateId: MotionExecutionGateId;
+  label: string;
+  providerId?: string;
+  savedAt: number;
+  receiptCount: number;
+  receiptLabels: string[];
+  receipts: MotionExecutionReceipt[];
+  provenance: MotionProvenanceRef[];
+}
+
 export interface MotionProject {
   id: string;
   workspaceId: string;
@@ -226,6 +268,7 @@ export interface MotionProject {
   tracks: TimelineTrack[];
   graphNodes: MotionGraphNode[];
   exports: MotionExport[];
+  executionHistory?: MotionExecutionHistoryEntry[];
   createdAt: number;
   updatedAt: number;
 }

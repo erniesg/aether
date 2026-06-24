@@ -412,6 +412,92 @@ describe('buildMotionPreviewPlan', () => {
     });
   });
 
+  it('carries saved full-auto receipt history into the preview plan', () => {
+    const preview = buildMotionPreviewPlan(
+      {
+        ...project(),
+        workflowMode: 'full-auto',
+        executionHistory: [
+          {
+            id: 'execution-capture-browser-capture-452',
+            gateId: 'capture',
+            label: 'Product capture',
+            providerId: 'browser-capture',
+            savedAt: 452,
+            receiptCount: 1,
+            receiptLabels: ['Screenshot'],
+            receipts: [
+              {
+                id: 'receipt-capture-homepage',
+                kind: 'capture',
+                label: 'Screenshot',
+                ref: 'capture-aether-homepage',
+                providerId: 'browser-capture',
+                assetUrl: 'asset://capture/home.png',
+              },
+            ],
+            provenance: [{ kind: 'provider', ref: 'browser-capture' }],
+          },
+          {
+            id: 'execution-render-hyperframes-local-480',
+            gateId: 'render',
+            label: 'Render proof',
+            providerId: 'hyperframes-local',
+            savedAt: 480,
+            receiptCount: 2,
+            receiptLabels: ['MP4', 'Manifest'],
+            receipts: [
+              {
+                id: 'receipt-render-video',
+                kind: 'render',
+                label: 'MP4',
+                ref: 'render-export-x-9x16-video',
+                providerId: 'hyperframes-local',
+                path: 'renders/x/video.mp4',
+              },
+              {
+                id: 'receipt-render-manifest',
+                kind: 'render',
+                label: 'Manifest',
+                ref: 'render-export-x-9x16-manifest',
+                providerId: 'hyperframes-local',
+                path: 'renders/x/manifest.json',
+              },
+            ],
+            provenance: [{ kind: 'provider', ref: 'hyperframes-local' }],
+          },
+        ],
+      },
+      {
+        engines: ['hyperframes'],
+        requestedAt: 500,
+      }
+    );
+
+    expect(preview.executionHistory).toMatchObject({
+      status: 'saved',
+      savedStepCount: 2,
+      receiptCount: 3,
+      latestReceiptLabels: ['MP4', 'Manifest'],
+      entries: [
+        {
+          gateId: 'capture',
+          label: 'Product capture',
+          providerLabel: 'browser capture',
+          savedAt: 452,
+          receiptLabels: ['Screenshot'],
+        },
+        {
+          gateId: 'render',
+          label: 'Render proof',
+          providerLabel: 'hyperframes local',
+          savedAt: 480,
+          receiptLabels: ['MP4', 'Manifest'],
+        },
+      ],
+    });
+  });
+
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {
     const preview = buildMotionPreviewPlan(project(), {
       engines: ['remotion', 'hyperframes', 'provider'],

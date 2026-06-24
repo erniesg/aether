@@ -23,6 +23,7 @@ import type {
   MotionPreviewEnginePlan,
   MotionPreviewEditSource,
   MotionPreviewAgentRunbook,
+  MotionPreviewExecutionHistory,
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
@@ -340,7 +341,10 @@ function MotionPreviewPlanView({
       ) : null}
 
       <section className="border-b border-border-soft px-4 py-3">
-        <MotionProductionQueueStrip plan={previewPlan.productionPlan} />
+        <MotionProductionQueueStrip
+          plan={previewPlan.productionPlan}
+          executionHistory={previewPlan.executionHistory}
+        />
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
@@ -583,9 +587,13 @@ function MotionAgentPlanStepRow({
 
 function MotionProductionQueueStrip({
   plan,
+  executionHistory,
 }: {
   plan: MotionProductionPlan;
+  executionHistory: MotionPreviewExecutionHistory;
 }) {
+  const latestReceiptLabels = executionHistory.latestReceiptLabels.slice(0, 2).join(' / ');
+
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -629,6 +637,22 @@ function MotionProductionQueueStrip({
           {plan.blockerLabels.length > 0 ? (
             <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
               {plan.blockerLabels[0]}
+            </div>
+          ) : null}
+          {executionHistory.status === 'saved' ? (
+            <div className="mt-2 border-t border-border-soft pt-2">
+              <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+                saved receipts
+              </div>
+              <div className="mt-1 font-caption text-xs text-ink">
+                {executionHistory.receiptCount}{' '}
+                {executionHistory.receiptCount === 1 ? 'receipt' : 'receipts'}
+              </div>
+              {latestReceiptLabels ? (
+                <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+                  {latestReceiptLabels}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

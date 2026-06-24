@@ -60,6 +60,7 @@ import {
   DEFAULT_MOTION_FPS,
   motionSeconds,
   type MotionDraft,
+  type MotionExecutionHistoryEntry,
   type MotionProject,
   type MotionProvenanceRef,
   type MotionSourceProfile,
@@ -341,6 +342,24 @@ export interface MotionPreviewAgentRunbook {
   steps: MotionPreviewAgentRunbookStep[];
 }
 
+export interface MotionPreviewExecutionHistoryEntry {
+  id: string;
+  gateId: MotionExecutionHistoryEntry['gateId'];
+  label: string;
+  providerLabel: string | null;
+  savedAt: number;
+  receiptCount: number;
+  receiptLabels: string[];
+}
+
+export interface MotionPreviewExecutionHistory {
+  status: 'empty' | 'saved';
+  savedStepCount: number;
+  receiptCount: number;
+  latestReceiptLabels: string[];
+  entries: MotionPreviewExecutionHistoryEntry[];
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -368,6 +387,7 @@ export interface MotionPreviewPlan {
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   agentRunbook: MotionPreviewAgentRunbook | null;
   productionPlan: MotionProductionPlan;
+  executionHistory: MotionPreviewExecutionHistory;
   provenance: MotionProvenanceRef[];
   requestedAt: number;
 }
@@ -471,11 +491,35 @@ export function buildMotionPreviewPlan(
     visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
     agentRunbook: buildAgentRunbook(options.workflowRunPlan),
     productionPlan,
+    executionHistory: buildExecutionHistorySummary(project.executionHistory),
     provenance: uniqueProvenance([
       ...project.sourceRefs,
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),
     ]),
     requestedAt: options.requestedAt,
+  };
+}
+
+function buildExecutionHistorySummary(
+  history: MotionExecutionHistoryEntry[] | undefined
+): MotionPreviewExecutionHistory {
+  const entries = (history ?? []).map((entry) => ({
+    id: entry.id,
+    gateId: entry.gateId,
+    label: entry.label,
+    providerLabel: entry.providerId ? readableLabel(entry.providerId) : null,
+    savedAt: entry.savedAt,
+    receiptCount: entry.receiptCount,
+    receiptLabels: entry.receiptLabels,
+  }));
+  const latestEntry = entries[entries.length - 1] ?? null;
+
+  return {
+    status: entries.length > 0 ? 'saved' : 'empty',
+    savedStepCount: entries.length,
+    receiptCount: entries.reduce((total, entry) => total + entry.receiptCount, 0),
+    latestReceiptLabels: latestEntry?.receiptLabels ?? [],
+    entries,
   };
 }
 

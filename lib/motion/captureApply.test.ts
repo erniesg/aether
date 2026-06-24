@@ -168,4 +168,33 @@ describe('applyCaptureResultToMotionProject', () => {
       outputRefs: ['capture-dom-snapshot-paillette-app-search'],
     });
   });
+
+  it('saves capture receipts into the project execution history', async () => {
+    const project = await siteProject();
+    const updated = applyCaptureResultToMotionProject(project, screenshotCaptureResult, {
+      updatedAt: 452,
+    });
+
+    expect(updated.executionHistory).toEqual([
+      expect.objectContaining({
+        id: 'execution-capture-browser-capture-452',
+        gateId: 'capture',
+        label: 'Product capture',
+        providerId: 'browser-capture',
+        savedAt: 452,
+        receiptCount: 1,
+        receiptLabels: ['Screenshot'],
+        receipts: [
+          expect.objectContaining({
+            id: 'receipt-capture-capture-screenshot-paillette-app-search',
+            kind: 'capture',
+            label: 'Screenshot',
+            ref: 'capture-screenshot-paillette-app-search',
+            providerId: 'browser-capture',
+            assetUrl: 'asset://capture/home.png',
+          }),
+        ],
+      }),
+    ]);
+  });
 });

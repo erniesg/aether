@@ -765,6 +765,13 @@ const previewPlan: MotionPreviewPlan = {
     ],
   },
   productionPlan,
+  executionHistory: {
+    status: 'empty',
+    savedStepCount: 0,
+    receiptCount: 0,
+    latestReceiptLabels: [],
+    entries: [],
+  },
   provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
   requestedAt: 130,
 };
@@ -1153,6 +1160,52 @@ describe('TimelineLens', () => {
     );
 
     expect(screen.getByText('Screenshot / Recording')).toBeInTheDocument();
+  });
+
+  it('shows saved full-auto receipt history without exposing raw refs', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          workflowMode: 'full-auto',
+          productionPlan: { ...productionPlan, mode: 'full-auto' },
+          executionHistory: {
+            status: 'saved',
+            savedStepCount: 2,
+            receiptCount: 3,
+            latestReceiptLabels: ['Screenshot', 'MP4'],
+            entries: [
+              {
+                id: 'execution-capture-browser-capture-452',
+                gateId: 'capture',
+                label: 'Product capture',
+                providerLabel: 'browser capture',
+                savedAt: 452,
+                receiptCount: 1,
+                receiptLabels: ['Screenshot'],
+              },
+              {
+                id: 'execution-render-hyperframes-local-480',
+                gateId: 'render',
+                label: 'Render proof',
+                providerLabel: 'hyperframes local',
+                savedAt: 480,
+                receiptCount: 2,
+                receiptLabels: ['Screenshot', 'MP4'],
+              },
+            ],
+          },
+        }}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByText('saved receipts')).toBeInTheDocument();
+    expect(screen.getByText('3 receipts')).toBeInTheDocument();
+    expect(screen.getByText('Screenshot / MP4')).toBeInTheDocument();
+    expect(screen.queryByText('render-export-x-9x16-video')).not.toBeInTheDocument();
   });
 
   it('lets creators request required app captures or an interaction recording', async () => {

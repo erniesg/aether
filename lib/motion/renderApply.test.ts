@@ -182,5 +182,38 @@ describe('applyMotionRenderResultToMotionProject', () => {
         'render-export-youtube-16x9-manifest',
       ])
     );
+    expect(afterWide.executionHistory?.map((entry) => entry.id)).toEqual([
+      'execution-render-remotion-local-90',
+      'execution-render-remotion-local-91',
+    ]);
+    expect(afterWide.executionHistory?.[0]).toMatchObject({
+      gateId: 'render',
+      label: 'Render proof',
+      providerId: 'remotion-local',
+      savedAt: 90,
+      receiptCount: 5,
+      receiptLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+      receipts: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'render',
+          label: 'MP4',
+          ref: 'render-export-x-9x16-video',
+          providerId: 'remotion-local',
+          path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+        }),
+      ]),
+    });
+    expect(afterWide.executionHistory?.[1]).toMatchObject({
+      gateId: 'render',
+      providerId: 'remotion-local',
+      savedAt: 91,
+      receipts: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'render',
+          label: 'Manifest',
+          ref: 'render-export-youtube-16x9-manifest',
+        }),
+      ]),
+    });
   });
 });

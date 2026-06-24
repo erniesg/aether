@@ -9,6 +9,7 @@ import type {
   MotionProject,
   MotionProvenanceRef,
 } from './project';
+import { appendRenderExecutionHistory } from './executionHistory';
 
 export interface ApplyMotionRenderResultToMotionProjectOptions {
   updatedAt?: number;
@@ -27,6 +28,11 @@ export function applyMotionRenderResultToMotionProject(
       applyOutputsToExport(motionExport, outputsByExport.get(motionExport.id) ?? [], result)
     ),
     graphNodes: upsertRenderNode(project.graphNodes, result),
+    executionHistory: appendRenderExecutionHistory(
+      project.executionHistory,
+      result,
+      options.updatedAt ?? project.updatedAt
+    ),
     updatedAt: options.updatedAt ?? project.updatedAt,
   };
 }

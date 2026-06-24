@@ -240,6 +240,11 @@
   results can create completed capture graph nodes, render receipts appear as
   creator-facing proof labels, and the timeline lens shows compact receipt
   labels in the production queue without exposing raw ids.
+- Editable motion projects now carry saved execution history for capture and
+  render gates. Capture and render result application appends receipt history
+  entries to the same `MotionProject`, preview plans summarize saved steps and
+  receipt counts, and the timeline lens exposes a compact saved-receipts trail
+  for review or full-auto runs.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
@@ -257,8 +262,8 @@
 3. Expand the provider-neutral component registry to cover HyperFrames catalog
    classes: code animation, terminal, caption, social overlay, shader/CSS
    transition, HTML-in-canvas UI reveal, data visual, effect, and outro.
-4. Persist receipt history through saved full-auto execution before making the
-   workflow feel "one click."
+4. Add the saved full-auto executor loop that advances ready gates, pauses on
+   provider or approval blockers, and appends to the existing execution history.
 
 ## Verification Commands
 

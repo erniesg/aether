@@ -8,6 +8,7 @@ import type {
   TimelineClip,
   TimelineTrack,
 } from './project';
+import { appendCaptureExecutionHistory } from './executionHistory';
 
 export interface ApplyCaptureResultToMotionProjectOptions {
   targetBeatRole?: MotionBeatRole;
@@ -56,6 +57,11 @@ export function applyCaptureResultToMotionProject(
           : draft.tracks,
     })),
     graphNodes: upsertCaptureNode(project.graphNodes, captureResult, captureRefs, captureProvenance),
+    executionHistory: appendCaptureExecutionHistory(
+      project.executionHistory,
+      captureResult,
+      options.updatedAt ?? project.updatedAt
+    ),
     updatedAt: options.updatedAt ?? project.updatedAt,
   };
 }
