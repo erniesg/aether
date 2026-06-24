@@ -250,6 +250,11 @@ function MotionPreviewPlanView({
 }) {
   const selectedClip = findPreviewClip(previewPlan, selectedClipId);
   const renderEngine = preferredRenderEngine(previewPlan.enginePreviews);
+  const [advancedNodeLensOpen, setAdvancedNodeLensOpen] = useState(false);
+
+  useEffect(() => {
+    setAdvancedNodeLensOpen(false);
+  }, [previewPlan.id]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -463,8 +468,23 @@ function MotionPreviewPlanView({
         <MotionVisualGenerationStrip
           summary={previewPlan.visualGenerationSummary}
           onGenerateVideoClips={onGenerateVideoClips}
+          onOpenNodeLens={() => setAdvancedNodeLensOpen(true)}
         />
       </section>
+
+      {advancedNodeLensOpen ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionGenerationNodeLens
+            previewPlan={previewPlan}
+            onPlanVisuals={onPlanVisuals}
+            onGenerateVideoClips={onGenerateVideoClips}
+            onGenerateVoice={onGenerateVoice}
+            onSyncMotion={onSyncMotion}
+            onRenderMotion={onRenderMotion}
+            onExportPack={onExportPack}
+          />
+        </section>
+      ) : null}
 
       {previewPlan.syncBeats.length > 0 || previewPlan.syncSoundCues.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
@@ -808,6 +828,10 @@ function formatPreviewDuration(seconds: number): string {
 
 function uniqueLabels(labels: string[]): string[] {
   return Array.from(new Set(labels.filter((label) => label.trim().length > 0)));
+}
+
+function readableLabel(value: string): string {
+  return value.replace(/[-_]/g, ' ');
 }
 
 function MotionAgentPlanStrip({
@@ -2580,9 +2604,11 @@ function MotionVisualSourcingStrip({
 function MotionVisualGenerationStrip({
   summary,
   onGenerateVideoClips,
+  onOpenNodeLens,
 }: {
   summary: MotionPreviewVisualGenerationSummary;
   onGenerateVideoClips?: () => void;
+  onOpenNodeLens?: () => void;
 }) {
   return (
     <div className="min-w-0">
@@ -2674,6 +2700,15 @@ function MotionVisualGenerationStrip({
             {label}
           </Chip>
         ))}
+        {summary.nodePlan.nodes.length > 0 && onOpenNodeLens ? (
+          <button
+            type="button"
+            onClick={onOpenNodeLens}
+            className="rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+          >
+            open node lens
+          </button>
+        ) : null}
         {onGenerateVideoClips ? (
           <button
             type="button"
@@ -2694,6 +2729,232 @@ function visualGenerationNodeTone(
   if (status === 'complete') return 'ok';
   if (status === 'ready') return 'info';
   if (status === 'blocked') return 'warn';
+  return 'neutral';
+}
+
+type MotionGenerationNodeLensStatus =
+  | MotionPreviewVisualGenerationSummary['nodePlan']['nodes'][number]['status']
+  | MotionPreviewVisualGenerationSummary['nodePlan']['status']
+  | MotionPreviewVisualSourcingSummary['status']
+  | MotionPreviewSyncSummary['status']
+  | MotionPreviewRenderProofSummary['status']
+  | MotionPreviewExportPackSummary['status'];
+
+interface MotionGenerationNodeLensCard {
+  id: string;
+  label: string;
+  status: MotionGenerationNodeLensStatus;
+  inputLabels: string[];
+  outputLabels: string[];
+  providerLabels: string[];
+  receiptLabels: string[];
+  actionLabel: string | null;
+  onAction?: () => void;
+}
+
+function MotionGenerationNodeLens({
+  previewPlan,
+  onPlanVisuals,
+  onGenerateVideoClips,
+  onGenerateVoice,
+  onSyncMotion,
+  onRenderMotion,
+  onExportPack,
+}: {
+  previewPlan: MotionPreviewPlan;
+  onPlanVisuals?: () => void;
+  onGenerateVideoClips?: () => void;
+  onGenerateVoice?: () => void;
+  onSyncMotion?: () => void;
+  onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onExportPack?: () => void;
+}) {
+  const renderEngine = preferredRenderEngine(previewPlan.enginePreviews);
+  const nodes = buildGenerationNodeLensCards(previewPlan, {
+    renderEngine: renderEngine?.engine ?? null,
+    onPlanVisuals,
+    onGenerateVideoClips,
+    onGenerateVoice,
+    onSyncMotion,
+    onRenderMotion,
+    onExportPack,
+  });
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            advanced node lens
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            generation dependencies for visuals, voice, sync, render, and export
+          </div>
+        </div>
+        <Chip tone="info" size="sm">
+          {nodes.length} nodes
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
+        {nodes.map((node) => (
+          <article
+            key={node.id}
+            className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+          >
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-caption text-xs text-ink">{node.label}</div>
+                <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+                  provider: {summarizeNodeLensLabels(node.providerLabels, 'review')}
+                </div>
+              </div>
+              <Chip tone={generationNodeLensTone(node.status)} size="sm">
+                {String(node.status).replace(/-/g, ' ')}
+              </Chip>
+            </div>
+            <div className="mt-2 grid gap-1 font-caption text-2xs text-ink-dim">
+              <div>inputs: {summarizeNodeLensLabels(node.inputLabels, 'source material')}</div>
+              <div>outputs: {summarizeNodeLensLabels(node.outputLabels, 'review artifacts')}</div>
+              <div>receipts: {summarizeNodeLensLabels(node.receiptLabels, 'pending proof')}</div>
+            </div>
+            {node.actionLabel && node.onAction ? (
+              <button
+                type="button"
+                onClick={node.onAction}
+                className="mt-2 w-full rounded-sm border border-border-soft bg-surface-canvas px-2 py-1.5 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+              >
+                {node.actionLabel}
+              </button>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildGenerationNodeLensCards(
+  previewPlan: MotionPreviewPlan,
+  options: {
+    renderEngine: MotionRenderEngine | null;
+    onPlanVisuals?: () => void;
+    onGenerateVideoClips?: () => void;
+    onGenerateVoice?: () => void;
+    onSyncMotion?: () => void;
+    onRenderMotion?: (engine: MotionRenderEngine) => void;
+    onExportPack?: () => void;
+  }
+): MotionGenerationNodeLensCard[] {
+  const visualNode = previewPlan.visualGenerationSummary.nodePlan.nodes.find(
+    (node) => node.id === 'image-to-video'
+  );
+  const renderReceipts =
+    previewPlan.renderProofSummary.artifactLabels.length > 0
+      ? previewPlan.renderProofSummary.artifactLabels
+      : previewPlan.renderProofSummary.missingArtifactLabels;
+
+  return [
+    {
+      id: 'visual-source',
+      label: 'Visual sources',
+      status: previewPlan.visualSourcingSummary.status,
+      inputLabels: uniqueLabels(
+        previewPlan.visualSourcingSummary.requests.flatMap((request) => request.sourceLabels)
+      ),
+      outputLabels: previewPlan.visualSourcingSummary.requestLabels,
+      providerLabels: previewPlan.visualSourcingSummary.providerRequirementLabels,
+      receiptLabels: productionReceiptLabels(previewPlan, 'visual-source'),
+      actionLabel: options.onPlanVisuals ? 'regenerate Visual sources' : null,
+      onAction: options.onPlanVisuals,
+    },
+    {
+      id: 'image-to-video',
+      label: 'Image-to-video',
+      status: visualNode?.status ?? previewPlan.visualGenerationSummary.nodePlan.status,
+      inputLabels: visualNode?.inputLabels ?? previewPlan.visualGenerationSummary.requestLabels,
+      outputLabels: visualNode?.outputLabels ?? previewPlan.visualGenerationSummary.requestLabels,
+      providerLabels: previewPlan.visualGenerationSummary.providerRequirementLabels,
+      receiptLabels: productionReceiptLabels(previewPlan, 'visual-generation'),
+      actionLabel: options.onGenerateVideoClips ? 'regenerate Image-to-video' : null,
+      onAction: options.onGenerateVideoClips,
+    },
+    {
+      id: 'voice',
+      label: 'Voice and captions',
+      status: previewPlan.syncSummary.status,
+      inputLabels: previewPlan.storyboard.map((beat) => readableLabel(beat.role)),
+      outputLabels: ['voice clips', 'word timings', 'captions'],
+      providerLabels: previewPlan.syncSummary.requirementLabels,
+      receiptLabels: productionReceiptLabels(previewPlan, 'voice'),
+      actionLabel: options.onGenerateVoice ? 'regenerate Voice and captions' : null,
+      onAction: options.onGenerateVoice,
+    },
+    {
+      id: 'sync',
+      label: 'Timeline sync',
+      status: previewPlan.syncSummary.status,
+      inputLabels: ['voice clips', 'caption clips', 'effect markers'],
+      outputLabels: ['beat markers', 'caption timing', 'transition cues'],
+      providerLabels: previewPlan.syncSummary.requirementLabels,
+      receiptLabels: productionReceiptLabels(previewPlan, 'sync'),
+      actionLabel: options.onSyncMotion ? 'regenerate Timeline sync' : null,
+      onAction: options.onSyncMotion,
+    },
+    {
+      id: 'render',
+      label: 'Render proof',
+      status: previewPlan.renderProofSummary.status,
+      inputLabels: ['editable timeline', previewPlan.editSource.timelinePath ?? 'timeline JSON'],
+      outputLabels: previewPlan.renderProofSummary.targetLabels,
+      providerLabels:
+        previewPlan.renderProofSummary.providerLabel || options.renderEngine
+          ? [
+              previewPlan.renderProofSummary.providerLabel ??
+                `${options.renderEngine ?? 'motion'} render runner`,
+            ]
+          : previewPlan.capabilitySetup.items.find((item) => item.id === 'render')
+              ?.requirementLabels ?? [],
+      receiptLabels: renderReceipts,
+      actionLabel:
+        options.onRenderMotion && options.renderEngine ? 'regenerate Render proof' : null,
+      onAction:
+        options.onRenderMotion && options.renderEngine
+          ? () => options.onRenderMotion?.(options.renderEngine as MotionRenderEngine)
+          : undefined,
+    },
+    {
+      id: 'export',
+      label: 'Export pack',
+      status: previewPlan.exportPackSummary.status,
+      inputLabels: previewPlan.renderProofSummary.targetLabels,
+      outputLabels: previewPlan.exportPackSummary.targetLabels,
+      providerLabels: ['export manifest'],
+      receiptLabels:
+        previewPlan.exportPackSummary.missingAssetKinds.length > 0
+          ? previewPlan.exportPackSummary.missingAssetKinds.map(readableLabel)
+          : ['manifest'],
+      actionLabel: options.onExportPack ? 'regenerate Export pack' : null,
+      onAction: options.onExportPack,
+    },
+  ];
+}
+
+function productionReceiptLabels(previewPlan: MotionPreviewPlan, gateId: string): string[] {
+  const step = previewPlan.productionPlan.steps.find((candidate) => candidate.id === gateId);
+  return step?.verificationReceipts.map((receipt) => receipt.label) ?? [];
+}
+
+function summarizeNodeLensLabels(labels: string[], fallback: string): string {
+  const visibleLabels = uniqueLabels(labels).slice(0, 3);
+  return visibleLabels.length > 0 ? visibleLabels.join(' / ') : fallback;
+}
+
+function generationNodeLensTone(status: MotionGenerationNodeLensStatus) {
+  if (status === 'complete' || status === 'ready') return 'ok';
+  if (status === 'blocked' || status === 'needs-visual-source' || status === 'needs-voice') {
+    return 'warn';
+  }
+  if (status === 'partial' || status === 'needs-render') return 'info';
   return 'neutral';
 }
 

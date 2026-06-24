@@ -670,6 +670,19 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
   });
 
+  it('advanced node lens opens from the timeline while the graph route stays unavailable', async () => {
+    setMotionStartResult('demo-ws', storedRegeneratableMotionStart());
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /open node lens/i }));
+
+    expect(screen.getByText('advanced node lens')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^graph/i })).toBeDisabled();
+    expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {

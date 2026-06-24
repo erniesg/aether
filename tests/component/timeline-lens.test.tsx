@@ -2068,6 +2068,39 @@ describe('TimelineLens', () => {
     expect(screen.getByText('animates / offers takes / updates edit')).toBeInTheDocument();
   });
 
+  it('opens an advanced generation node lens from the timeline', async () => {
+    const onGenerateVideoClips = vi.fn<() => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onGenerateVideoClips={onGenerateVideoClips}
+      />
+    );
+
+    expect(screen.queryByText('advanced node lens')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /open node lens/i }));
+
+    expect(screen.getByText('advanced node lens')).toBeInTheDocument();
+    expect(screen.getAllByText('Visual sources').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Image-to-video').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Voice and captions').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Timeline sync').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Render proof').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Export pack').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/inputs: /).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/outputs: /).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/provider: image to video/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/receipts: MP4 \/ Poster \/ Subtitles/).length).toBeGreaterThan(0);
+    expect(screen.queryByText('image-to-video-clip-beat-demo-text')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /regenerate image-to-video/i }));
+    expect(onGenerateVideoClips).toHaveBeenCalledTimes(1);
+  });
+
   it('shows visual-source blockers before image-to-video generation is possible', () => {
     render(
       <TimelineLens

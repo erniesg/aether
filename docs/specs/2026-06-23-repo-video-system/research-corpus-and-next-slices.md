@@ -68,8 +68,8 @@ Aether now has the right backbone:
 - The timeline lens shows creator-facing plans, drafts, timeline rows,
   production queue, saved receipts, edit source, image-to-video node chain,
   source-backed playable preview controls, component focus, setup cards,
-  component controls, scoped regeneration, drop-to-canvas actions, and
-  full-auto action wiring.
+  advanced generation node lens, component controls, scoped regeneration,
+  drop-to-canvas actions, and full-auto action wiring.
 - Remotion and HyperFrames source generation preserve component ids and edit
   contracts in source bundles.
 
@@ -86,10 +86,11 @@ Aether now has the right backbone:
    shell with frame scrubbing and component focus. It still needs the real
    Remotion Player / HyperFrames preview iframe once runtime dependencies and
    source-serving are configured.
-4. **Node graph for generation lanes.** The current image-to-video node chain
-   is compact. Advanced users need a progressive node lens for image search,
-   image-to-video, voice, sync, render, and export dependencies without turning
-   the primary UI into a run console.
+4. **Node graph for generation lanes.** The timeline now opens a progressive
+   generation node lens for visual sources, image-to-video, voice, sync,
+   render, and export dependencies. It still needs richer replace-source
+   actions and deeper provider receipt wiring before it can cover every
+   advanced generation workflow.
 5. **Computer-use recording lane.** Aether can plan and locally run browser
    capture, but desktop/computer-use recording needs explicit low-risk
    workflows, permission boundaries, redaction, and receipt review.
@@ -154,6 +155,12 @@ Add a progressive node lens for visual search, image-to-video, voice, sync,
 render, and export dependencies. The primary timeline stays artifact-first;
 the node lens is for creators and agents who need to regenerate a node,
 replace a source asset, or inspect why full-auto paused.
+
+Status: partially implemented. The node lens now opens from the timeline,
+keeps the graph route unavailable, and shows creator-facing node cards for
+visual sources, image-to-video, voice and captions, timeline sync, render
+proof, and export pack dependencies. Replace-source actions and richer
+provider-specific receipts remain follow-up work.
 
 Acceptance evidence:
 

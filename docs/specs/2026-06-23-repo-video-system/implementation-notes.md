@@ -320,6 +320,12 @@
   existing linked clip edit controls while both workspace rails remain mounted.
   This is not yet a real `@remotion/player` embed or HyperFrames iframe; that
   runtime wiring remains a follow-up once source serving is configured.
+- The timeline lens now opens a progressive advanced node lens from the
+  visual-generation strip while the graph route remains unavailable. The lens
+  keeps the surface creator-facing by showing visual source, image-to-video,
+  voice/caption, sync, render, and export cards with input labels, output
+  labels, provider status, receipt labels, and scoped regenerate actions
+  instead of raw graph ids or request payloads.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
