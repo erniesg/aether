@@ -108,6 +108,45 @@ describe('motion workflow skill drafts', () => {
           'effect',
           'export',
         ],
+        reviewObjects: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'source-evidence-0',
+            kind: 'source-evidence',
+            label: 'Aether PR #456',
+            sourceRef: 'erniesg/aether#456',
+            artifactLabels: expect.arrayContaining([
+              'PR metadata',
+              'Changed files',
+              'Diff hunks',
+              'Reviews',
+              'CI status',
+            ]),
+          }),
+          expect.objectContaining({
+            id: 'draft-pr-launch-note',
+            kind: 'draft-variation',
+            label: 'Daily skill launch',
+            artifactLabels: ['hook', 'change', 'diff', 'proof', 'cta'],
+          }),
+          expect.objectContaining({
+            id: 'regen-code-diff-card',
+            kind: 'component-regeneration',
+            label: 'Regenerate Code diff card',
+            componentId: 'code-diff-card',
+            regenerationScopes: ['code', 'proof', 'timing'],
+          }),
+          expect.objectContaining({
+            id: 'teaser-x-9-16-30s',
+            kind: 'teaser-target',
+            label: 'x 9:16 30s',
+          }),
+          expect.objectContaining({
+            id: 'export-x-9-16-30s',
+            kind: 'export-pack',
+            label: 'x 9:16 30s export pack',
+            artifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+          }),
+        ]),
       },
       recipe: expect.objectContaining({
         slug: 'pr-to-video',
@@ -157,6 +196,10 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('## Draft Variations');
     expect(plan.skillDraft.manifest.instructions).toContain('Daily skill launch');
     expect(plan.skillDraft.manifest.instructions).toContain('## Launch Kit');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Launch Kit Review Objects');
+    expect(plan.skillDraft.manifest.instructions).toContain('Aether PR #456');
+    expect(plan.skillDraft.manifest.instructions).toContain('Regenerate Code diff card');
+    expect(plan.skillDraft.manifest.instructions).toContain('x 9:16 30s export pack');
     expect(plan.skillDraft.manifest.instructions).toContain('x 9:16 30s');
     expect(plan.skillDraft.manifest.instructions).toContain('Today is pr-to-video.');
     expect(plan.skillDraft.manifest.instructions).toContain('## Component Regeneration');

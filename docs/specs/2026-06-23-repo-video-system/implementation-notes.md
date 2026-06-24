@@ -250,6 +250,11 @@
   render. When render receipts provide MP4, poster, subtitles, transcript, and
   manifest outputs for every target, the same production plan marks export
   complete and returns a ready export-pack manifest.
+- Workflow skill launch kits now expose review objects for PR/repo evidence,
+  draft variations, component regeneration handles, teaser targets, and export
+  packs. The generated `SKILL.md` instructions include those objects, the
+  workflows API returns them, and the timeline lens shows one source, draft,
+  regeneration, teaser, and export handle in the creator-facing shell.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component
@@ -262,12 +267,10 @@
 1. Surface `EDIT.md` and `editContract` in `MotionPreviewPlan` and the timeline
    lens as the reviewable edit source for script, props, timing, effects, and
    scoped regeneration.
-2. Add `pr-to-video` launch-kit review objects for daily skill drops: install
-   command, social copy, PR evidence, teaser targets, and export pack.
-3. Expand the provider-neutral component registry to cover HyperFrames catalog
+2. Expand the provider-neutral component registry to cover HyperFrames catalog
    classes: code animation, terminal, caption, social overlay, shader/CSS
    transition, HTML-in-canvas UI reveal, data visual, effect, and outro.
-4. Add configured provider wiring and UI controls for trusted local app launch,
+3. Add configured provider wiring and UI controls for trusted local app launch,
    browser/computer-use capture, voice providers, image-to-video providers, and
    real Remotion/HyperFrames render runners in the creator environment.
 

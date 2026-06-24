@@ -17,6 +17,8 @@ import type {
 import type { MotionWorkflowExample } from './workflowExamples';
 import {
   getMotionWorkflowSkillRecipe,
+  type MotionWorkflowSkillComponentSlot,
+  type MotionWorkflowSkillDraftVariation,
   type MotionWorkflowSkillRecipe,
 } from './workflowSkillCatalog';
 
@@ -65,6 +67,27 @@ export interface MotionWorkflowLaunchKit {
   componentSlotLabels: string[];
   reviewArtifactLabels: string[];
   editSurfaceLabels: string[];
+  reviewObjects: MotionWorkflowLaunchKitReviewObject[];
+}
+
+export type MotionWorkflowLaunchKitReviewObjectKind =
+  | 'source-evidence'
+  | 'draft-variation'
+  | 'component-regeneration'
+  | 'teaser-target'
+  | 'export-pack';
+
+export interface MotionWorkflowLaunchKitReviewObject {
+  id: string;
+  kind: MotionWorkflowLaunchKitReviewObjectKind;
+  label: string;
+  description: string;
+  artifactLabels: string[];
+  sourceKind?: WorkflowSourceKind;
+  sourceRef?: string;
+  componentId?: string;
+  targetFormat?: string;
+  regenerationScopes?: string[];
 }
 
 const ROUTE_TOOL_NAMES: Record<string, string> = {
@@ -173,7 +196,120 @@ function buildLaunchKit({
     componentSlotLabels: recipe?.componentSlots.map((slot) => slot.label) ?? [],
     reviewArtifactLabels,
     editSurfaceLabels,
+    reviewObjects: buildLaunchKitReviewObjects({
+      plan,
+      recipe,
+      platformTargets,
+    }),
   };
+}
+
+function buildLaunchKitReviewObjects({
+  plan,
+  recipe,
+  platformTargets,
+}: {
+  plan: MotionWorkflowSkillPlanInput;
+  recipe: MotionWorkflowSkillRecipe | null;
+  platformTargets: string[];
+}): MotionWorkflowLaunchKitReviewObject[] {
+  return uniqueReviewObjects([
+    ...plan.acceptedSources.map((source, index) => sourceEvidenceReviewObject(source, index)),
+    ...(recipe?.draftVariations.map(draftVariationReviewObject) ?? []),
+    ...(recipe?.componentSlots.map(componentRegenerationReviewObject) ?? []),
+    ...platformTargets.map(teaserTargetReviewObject),
+    ...platformTargets.map(exportPackReviewObject),
+  ]);
+}
+
+function sourceEvidenceReviewObject(
+  source: MotionWorkflowPlanSourceRef,
+  index: number
+): MotionWorkflowLaunchKitReviewObject {
+  const label = source.label ?? `${titleCase(source.kind)} source`;
+
+  return {
+    id: `source-evidence-${index}`,
+    kind: 'source-evidence',
+    label,
+    description: `Use ${label} as source evidence before drafting video claims.`,
+    sourceKind: source.kind,
+    sourceRef: source.ref,
+    artifactLabels: evidenceArtifactLabelsFor(source.kind),
+  };
+}
+
+function draftVariationReviewObject(
+  variation: MotionWorkflowSkillDraftVariation
+): MotionWorkflowLaunchKitReviewObject {
+  return {
+    id: `draft-${slugId(variation.id)}`,
+    kind: 'draft-variation',
+    label: variation.label,
+    description: `${variation.angle} Review: ${variation.reviewPrompt}`,
+    artifactLabels: variation.storyRoles,
+  };
+}
+
+function componentRegenerationReviewObject(
+  slot: MotionWorkflowSkillComponentSlot
+): MotionWorkflowLaunchKitReviewObject {
+  return {
+    id: `regen-${slugId(slot.componentId)}`,
+    kind: 'component-regeneration',
+    label: `Regenerate ${slot.label}`,
+    description: slot.reason,
+    artifactLabels: [slot.role],
+    componentId: slot.componentId,
+    regenerationScopes: [...slot.regenerateScopes],
+  };
+}
+
+function teaserTargetReviewObject(target: string): MotionWorkflowLaunchKitReviewObject {
+  return {
+    id: `teaser-${slugId(target)}`,
+    kind: 'teaser-target',
+    label: target,
+    description: `Review teaser copy, crop, caption density, and first-frame hook for ${target}.`,
+    targetFormat: target,
+    artifactLabels: ['Video plan', 'Draft variation', 'Safe crop'],
+  };
+}
+
+function exportPackReviewObject(target: string): MotionWorkflowLaunchKitReviewObject {
+  return {
+    id: `export-${slugId(target)}`,
+    kind: 'export-pack',
+    label: `${target} export pack`,
+    description: `Confirm final rendered assets and sidecars for ${target}.`,
+    targetFormat: target,
+    artifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+  };
+}
+
+function evidenceArtifactLabelsFor(kind: WorkflowSourceKind): string[] {
+  if (kind === 'pr') {
+    return ['PR metadata', 'Changed files', 'Diff hunks', 'Commits', 'Reviews', 'CI status'];
+  }
+  if (kind === 'repo') {
+    return ['Repo facts', 'README claims', 'Package metadata', 'App routes'];
+  }
+  if (kind === 'site') {
+    return ['Visible page copy', 'Screenshot', 'DOM snapshot', 'Route metadata'];
+  }
+  if (kind === 'capture') {
+    return ['Screenshot', 'Recording', 'Cursor targets', 'Viewport receipt'];
+  }
+  if (kind === 'upload') {
+    return ['Uploaded media', 'Transcript', 'Metadata'];
+  }
+  if (kind === 'reference') {
+    return ['Reference brief', 'Moodboard note', 'Source URL'];
+  }
+  if (kind === 'remotion' || kind === 'hyperframes') {
+    return ['Source bundle', 'Timeline source', 'Render manifest'];
+  }
+  return ['Source receipt'];
 }
 
 function toolNamesFor(runPlan: AgentMotionWorkflowRunPlan): string[] {
@@ -326,6 +462,10 @@ function buildSkillInstructions({
     `Launch components: ${formatList(launchKit.componentSlotLabels)}.`,
     `Review artifacts: ${formatList(launchKit.reviewArtifactLabels)}.`,
     '',
+    '## Launch Kit Review Objects',
+    '',
+    ...launchKit.reviewObjects.map(formatLaunchKitReviewObject),
+    launchKit.reviewObjects.length > 0 ? '' : '',
     recipe ? '## Component Regeneration' : '',
     ...(recipe?.componentSlots.map(
       (slot) =>
@@ -415,7 +555,30 @@ function readableLabel(value: string): string {
 }
 
 function titleCase(value: string): string {
-  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function slugId(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function formatLaunchKitReviewObject(object: MotionWorkflowLaunchKitReviewObject): string {
+  const details = [
+    object.sourceRef ? `source: ${object.sourceRef}` : '',
+    object.componentId ? `component: ${object.componentId}` : '',
+    object.targetFormat ? `target: ${object.targetFormat}` : '',
+    object.regenerationScopes?.length
+      ? `regenerate: ${object.regenerationScopes.join(', ')}`
+      : '',
+    object.artifactLabels.length ? `artifacts: ${object.artifactLabels.join(', ')}` : '',
+  ].filter((detail) => detail.length > 0);
+
+  return `- ${object.label} (${object.kind}): ${object.description}${
+    details.length > 0 ? ` ${details.join('; ')}.` : ''
+  }`;
 }
 
 function researchSignalLabelsFor(recipe: MotionWorkflowSkillRecipe): string[] {
@@ -436,4 +599,15 @@ function formatList(values: string[]): string {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+}
+
+function uniqueReviewObjects(
+  objects: MotionWorkflowLaunchKitReviewObject[]
+): MotionWorkflowLaunchKitReviewObject[] {
+  const seen = new Set<string>();
+  return objects.filter((object) => {
+    if (seen.has(object.id)) return false;
+    seen.add(object.id);
+    return true;
+  });
 }

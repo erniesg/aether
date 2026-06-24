@@ -867,8 +867,54 @@ function MotionWorkflowSkillStrip({
           </div>
         </div>
       </div>
+      {draft.launchKit.reviewObjects.length > 0 ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {selectLaunchKitReviewObjects(draft.launchKit.reviewObjects).map((object) => (
+            <div
+              key={object.id}
+              className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                {formatLaunchKitReviewObjectKind(object.kind)}
+              </div>
+              <div className="mt-1 truncate font-caption text-xs text-ink">
+                {object.label}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {object.artifactLabels.slice(0, 3).map((label) => (
+                  <Chip key={label} tone="neutral" size="sm">
+                    {label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function formatLaunchKitReviewObjectKind(kind: string): string {
+  return kind.replace(/-/g, ' ');
+}
+
+function selectLaunchKitReviewObjects<
+  T extends { kind: string; id: string }
+>(objects: T[]): T[] {
+  const priority = [
+    'source-evidence',
+    'draft-variation',
+    'component-regeneration',
+    'teaser-target',
+    'export-pack',
+  ];
+  const selected = priority.flatMap((kind) => {
+    const object = objects.find((candidate) => candidate.kind === kind);
+    return object ? [object] : [];
+  });
+  if (selected.length > 0) return selected;
+  return objects.slice(0, 5);
 }
 
 function MotionSourceMaterialStrip({

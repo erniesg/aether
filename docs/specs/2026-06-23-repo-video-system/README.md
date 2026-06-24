@@ -344,6 +344,11 @@ capture, render, and provenance debugging.
   review/full-auto policies. This turns the HyperFrames-style `pr-to-video`
   launch pattern into a reusable discovery contract for repo, PR, site,
   feature/social, caption, motion-graphic, and engine-port workflows.
+- Workflow skill launch kits now carry concrete review objects: source evidence
+  receipts, draft/teaser targets, component regeneration handles, and export
+  pack proof objects. The timeline lens surfaces those objects inside the same
+  creator shell so review mode can pause on them and full-auto mode still
+  leaves editable handles after a run.
 - `lib/motion/referencePatterns.ts` now records reusable product-video patterns
   that came out of the launch/demo research pass: launch hooks, real product
   capture, screen zoom callouts, caption-led social cuts, proof receipts,

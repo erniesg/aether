@@ -815,6 +815,41 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
     componentSlotLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
     reviewArtifactLabels: ['Video plan', 'Draft variations', 'Render proof'],
     editSurfaceLabels: ['script', 'capture', 'visual', 'image to video', 'component', 'voice'],
+    reviewObjects: [
+      {
+        id: 'source-evidence-0',
+        kind: 'source-evidence',
+        label: 'Tong repo',
+        description: 'Use Tong repo as source evidence before drafting video claims.',
+        sourceKind: 'repo',
+        sourceRef: '/Users/erniesg/code/erniesg/tong',
+        artifactLabels: ['Repo facts', 'README claims', 'App routes'],
+      },
+      {
+        id: 'draft-launch-proof-first',
+        kind: 'draft-variation',
+        label: 'Proof-first launch',
+        description: 'Open with the strongest repo-backed claim.',
+        artifactLabels: ['hook', 'proof', 'demo', 'payoff', 'cta'],
+      },
+      {
+        id: 'regen-app-frame',
+        kind: 'component-regeneration',
+        label: 'Regenerate App frame',
+        description: 'Swap or recapture the product surface.',
+        artifactLabels: ['product capture'],
+        componentId: 'app-frame',
+        regenerationScopes: ['capture', 'timing', 'effect'],
+      },
+      {
+        id: 'export-x-9-16-30s',
+        kind: 'export-pack',
+        label: 'x 9:16 30s export pack',
+        description: 'Confirm rendered assets and sidecars.',
+        artifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+        targetFormat: 'x 9:16 30s',
+      },
+    ],
   },
 };
 
@@ -1022,9 +1057,16 @@ describe('TimelineLens', () => {
     expect(screen.getByText(/Create a repo launch video from repo/)).toBeInTheDocument();
     expect(screen.getByText('launch kit')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video launch kit')).toBeInTheDocument();
+    expect(screen.getByText('source evidence')).toBeInTheDocument();
+    expect(screen.getByText('Tong repo')).toBeInTheDocument();
+    expect(screen.getByText('draft variation')).toBeInTheDocument();
+    expect(screen.getAllByText('Proof-first launch').length).toBeGreaterThan(0);
+    expect(screen.getByText('component regeneration')).toBeInTheDocument();
+    expect(screen.getByText('Regenerate App frame')).toBeInTheDocument();
+    expect(screen.getByText('x 9:16 30s export pack')).toBeInTheDocument();
     expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Point Aether at the repo.').length).toBeGreaterThan(0);
-    expect(screen.getByText('Proof-first launch')).toBeInTheDocument();
+    expect(screen.getAllByText('Proof-first launch').length).toBeGreaterThan(0);
     expect(screen.getByText('Founder-note launch')).toBeInTheDocument();
     expect(screen.getByText('repoPath / repoUrl / siteUrl / sourceRefs')).toBeInTheDocument();
     expect(screen.getAllByText('Proof card').length).toBeGreaterThan(0);
@@ -1081,7 +1123,7 @@ describe('TimelineLens', () => {
     expect(screen.getByText(/voice planned/)).toBeInTheDocument();
     expect(screen.getByText('Soft transition accent')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sync timeline/i })).toBeInTheDocument();
-    expect(screen.getByText('export pack')).toBeInTheDocument();
+    expect(screen.getAllByText('export pack').length).toBeGreaterThan(0);
     expect(screen.getByText('needs render')).toBeInTheDocument();
     expect(screen.getByText('0/1 ready')).toBeInTheDocument();
     expect(screen.getByText(/x 9:16 planned/)).toBeInTheDocument();

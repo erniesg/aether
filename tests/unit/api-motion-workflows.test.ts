@@ -265,6 +265,38 @@ describe('GET /api/motion/workflows', () => {
               'effect',
               'export',
             ],
+            reviewObjects: expect.arrayContaining([
+              expect.objectContaining({
+                kind: 'source-evidence',
+                label: 'PR to video source',
+                artifactLabels: expect.arrayContaining([
+                  'PR metadata',
+                  'Changed files',
+                  'Diff hunks',
+                  'Reviews',
+                  'CI status',
+                ]),
+              }),
+              expect.objectContaining({
+                kind: 'draft-variation',
+                label: 'Daily skill launch',
+              }),
+              expect.objectContaining({
+                kind: 'component-regeneration',
+                label: 'Regenerate Code diff card',
+                componentId: 'code-diff-card',
+                regenerationScopes: ['code', 'proof', 'timing'],
+              }),
+              expect.objectContaining({
+                kind: 'teaser-target',
+                label: 'x 9:16 30s',
+              }),
+              expect.objectContaining({
+                kind: 'export-pack',
+                label: 'x 9:16 30s export pack',
+                artifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+              }),
+            ]),
           },
           draftVariationLabels: [
             'Daily skill launch',
