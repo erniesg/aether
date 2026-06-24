@@ -127,6 +127,10 @@
   recipes expose those as reviewable and regenerable slots, so actual product
   demos, launch videos, PR explainers, and social cuts can move between
   full-auto execution and creator review without leaving the timeline lens.
+- Remotion and HyperFrames source generation now emit explicit adapters for
+  those product-video primitives, preserving component ids, edit controls,
+  source manifest entries, and `EDIT.md` regeneration scopes instead of falling
+  back to generic proof cards.
 - Agent-native `/api/motion/start` route that accepts direct `sourceRefs` or
   `repoPath`, `repoUrl`, `siteUrl`, and `prRef` shorthands, then returns the
   routed workflow, editable motion project, review plan, preview plan, capture

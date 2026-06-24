@@ -459,6 +459,140 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(hyperframesEntry).toContain('outro-slate__signature">HyperFrames workflow skills');
   });
 
+  it('emits source adapters for product-video review primitives', () => {
+    const baseProject = projectWithVisualTimeline();
+    const componentTracks: TimelineTrack[] = [
+      {
+        id: 'track-product-video-primitives',
+        kind: 'text',
+        clips: [
+          {
+            id: 'clip-cursor-callout',
+            componentId: 'cursor-callout',
+            startFrame: 0,
+            durationFrames: 75,
+            props: {
+              targetLabel: 'Regenerate component',
+              cursorPath: '120,380 460,420',
+              zoom: 1.4,
+              text: 'Click regenerate',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'reference', ref: 'screen-zoom-callout' }],
+          },
+          {
+            id: 'clip-split-compare',
+            componentId: 'split-screen-compare',
+            startFrame: 75,
+            durationFrames: 90,
+            props: {
+              beforeAssetId: 'capture-before',
+              afterAssetId: 'capture-after',
+              caption: 'Before / after feature payoff',
+              text: 'Feature payoff',
+            },
+            linkedVariantScope: 'format-local',
+            provenance: [{ kind: 'reference', ref: 'before-after-feature' }],
+          },
+          {
+            id: 'clip-presenter',
+            componentId: 'avatar-bubble',
+            startFrame: 165,
+            durationFrames: 75,
+            props: {
+              avatarAssetId: 'avatar-claude-style',
+              speakerName: 'Aether agent',
+              caption: 'I wrote the script, captured the app, and synced the cut.',
+              text: 'Aether agent',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'reference', ref: 'voice-caption-sync' }],
+          },
+          {
+            id: 'clip-contact-sheet',
+            componentId: 'contact-sheet-proof',
+            startFrame: 240,
+            durationFrames: 75,
+            props: {
+              frameAssetIds: ['frame-01', 'frame-08', 'frame-15'],
+              status: 'ready for review',
+              note: 'Poster, captions, and proof frames present',
+              text: 'Render proof',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'render', ref: 'contact-sheet' }],
+          },
+        ],
+      },
+    ];
+    const project = {
+      ...baseProject,
+      tracks: componentTracks,
+      drafts: baseProject.drafts.map((draft) =>
+        draft.id === baseProject.currentDraftId
+          ? { ...draft, tracks: componentTracks }
+          : draft
+      ),
+    };
+
+    const remotionBundle = buildMotionRenderSourceBundle(project, renderRequest(project, 'remotion'));
+    const remotionEntry =
+      remotionBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(remotionEntry).toContain('function CursorCallout');
+    expect(remotionEntry).toContain('function SplitScreenCompare');
+    expect(remotionEntry).toContain('function AvatarBubble');
+    expect(remotionEntry).toContain('function ContactSheetProof');
+    expect(remotionEntry).toContain('case "cursor-callout":');
+    expect(remotionEntry).toContain('case "split-screen-compare":');
+    expect(remotionEntry).toContain('case "avatar-bubble":');
+    expect(remotionEntry).toContain('case "contact-sheet-proof":');
+    expect(remotionEntry).toContain('Regenerate component');
+    expect(remotionEntry).toContain('ready for review');
+
+    const manifest = JSON.parse(
+      remotionBundle.files.find((file) => file.kind === 'manifest')?.contents ?? '{}'
+    );
+    expect(manifest.componentIds).toEqual([
+      'cursor-callout',
+      'split-screen-compare',
+      'avatar-bubble',
+      'contact-sheet-proof',
+    ]);
+    expect(manifest.editContract.editableComponents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          componentId: 'cursor-callout',
+          editControlIds: ['targetLabel', 'cursorPath', 'zoom', 'effectPreset'],
+        }),
+        expect.objectContaining({
+          componentId: 'split-screen-compare',
+          editControlIds: [
+            'beforeAssetId',
+            'afterAssetId',
+            'caption',
+            'dividerPosition',
+            'effectPreset',
+          ],
+        }),
+      ])
+    );
+
+    const hyperframesBundle = buildMotionRenderSourceBundle(
+      project,
+      renderRequest(project, 'hyperframes')
+    );
+    const hyperframesEntry =
+      hyperframesBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(hyperframesEntry).toContain('data-component-id="cursor-callout"');
+    expect(hyperframesEntry).toContain('cursor-callout__target">Regenerate component');
+    expect(hyperframesEntry).toContain('data-component-id="split-screen-compare"');
+    expect(hyperframesEntry).toContain('split-screen-compare__before">capture-before');
+    expect(hyperframesEntry).toContain('data-component-id="avatar-bubble"');
+    expect(hyperframesEntry).toContain('avatar-bubble__speaker">Aether agent');
+    expect(hyperframesEntry).toContain('data-component-id="contact-sheet-proof"');
+    expect(hyperframesEntry).toContain('contact-sheet-proof__status">ready for review');
+  });
+
   it('emits source adapters for granular code motion primitives', () => {
     const baseProject = projectWithVisualTimeline();
     const componentTracks: TimelineTrack[] = [

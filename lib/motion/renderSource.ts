@@ -831,6 +831,151 @@ function UiRevealFrame({ text, brand, clip, mediaUrl, mimeType }: MotionComponen
   );
 }
 
+function CursorCallout({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const targetLabel = clipPropText(clip, "targetLabel", text || "Target");
+  const cursorPath = clipPropText(clip, "cursorPath", "manual path");
+  const zoomValue = clip.props.zoom;
+  const zoom = typeof zoomValue === "number" ? zoomValue : 1;
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ display: "grid", gap: 18 }}>
+        <DisplayText text={targetLabel} brand={brand} size={48} />
+        <div
+          style={{
+            margin: "0 auto",
+            width: 92,
+            height: 92,
+            borderRadius: 999,
+            border: "4px solid " + palette[2],
+            display: "grid",
+            placeItems: "center",
+            color: palette[2],
+            fontSize: 34,
+            fontWeight: 900,
+          }}
+        >
+          {Math.round(zoom * 10) / 10}x
+        </div>
+        <div style={{ color: palette[2], fontSize: 18, fontWeight: 800, textAlign: "center" }}>
+          {cursorPath}
+        </div>
+      </div>
+    </CardShell>
+  );
+}
+
+function SplitScreenCompare({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const beforeAssetId = clipPropText(clip, "beforeAssetId", "before");
+  const afterAssetId = clipPropText(clip, "afterAssetId", "after");
+  const caption = clipPropText(clip, "caption", text || "Before / after");
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, minWidth: 720 }}>
+        {[["Before", beforeAssetId], ["After", afterAssetId]].map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              minHeight: 240,
+              border: "2px solid " + palette[1],
+              borderRadius: 16,
+              background: label === "After" ? "rgba(200,65,58,0.14)" : "rgba(26,26,26,0.08)",
+              display: "grid",
+              placeItems: "center",
+              padding: 18,
+            }}
+          >
+            <div style={{ color: palette[2], fontSize: 18, fontWeight: 900 }}>{label}</div>
+            <div style={{ marginTop: 12, fontSize: 26, fontWeight: 800, wordBreak: "break-word" }}>
+              {value}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 22, color: palette[1], fontSize: 28, fontWeight: 800, textAlign: "center" }}>
+        {caption}
+      </div>
+    </CardShell>
+  );
+}
+
+function AvatarBubble({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const speakerName = clipPropText(clip, "speakerName", text || "Presenter");
+  const caption = clipPropText(clip, "caption", text || speakerName);
+  const avatarAssetId = clipPropText(clip, "avatarAssetId", speakerName.slice(0, 2).toUpperCase());
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ display: "flex", alignItems: "center", gap: 24, maxWidth: 760 }}>
+        <div
+          style={{
+            width: 112,
+            height: 112,
+            borderRadius: 999,
+            background: palette[2],
+            color: palette[0],
+            display: "grid",
+            placeItems: "center",
+            fontSize: 26,
+            fontWeight: 900,
+            flexShrink: 0,
+          }}
+        >
+          {avatarAssetId.slice(0, 2).toUpperCase()}
+        </div>
+        <div>
+          <div style={{ color: palette[2], fontSize: 22, fontWeight: 900 }}>{speakerName}</div>
+          <div style={{ marginTop: 10, color: palette[1], fontSize: 34, lineHeight: 1.12, fontWeight: 800 }}>
+            {caption}
+          </div>
+        </div>
+      </div>
+    </CardShell>
+  );
+}
+
+function ContactSheetProof({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const frameIds = clipCodeLines(clip, "frameAssetIds");
+  const status = clipPropText(clip, "status", text || "review");
+  const note = clipPropText(clip, "note", "frame samples saved");
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ color: palette[2], fontSize: 22, fontWeight: 900, marginBottom: 18 }}>
+        {status}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, minWidth: 680 }}>
+        {(frameIds.length > 0 ? frameIds : ["frame-01", "frame-02", "frame-03"]).map((frameId) => (
+          <div
+            key={frameId}
+            style={{
+              minHeight: 130,
+              border: "2px solid " + palette[1],
+              borderRadius: 14,
+              background: "rgba(26,26,26,0.08)",
+              display: "grid",
+              placeItems: "center",
+              color: palette[1],
+              fontSize: 22,
+              fontWeight: 800,
+            }}
+          >
+            {frameId}
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 18, color: palette[1], fontSize: 22, fontWeight: 700 }}>
+        {note}
+      </div>
+    </CardShell>
+  );
+}
+
 function DataVisualCard({ brand, clip, text }: MotionComponentRenderProps) {
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
   const metric = clipPropText(clip, "metric", text || "1 result");
@@ -1080,6 +1225,12 @@ function renderMotionComponent(props: MotionComponentRenderProps) {
       return <SocialOverlay {...props} />;
     case "ui-reveal-frame":
       return <UiRevealFrame {...props} />;
+    case "cursor-callout":
+      return <CursorCallout {...props} />;
+    case "split-screen-compare":
+      return <SplitScreenCompare {...props} />;
+    case "avatar-bubble":
+      return <AvatarBubble {...props} />;
     case "data-visual-card":
       return <DataVisualCard {...props} />;
     case "code-highlight-card":
@@ -1101,6 +1252,8 @@ function renderMotionComponent(props: MotionComponentRenderProps) {
       return <SoftWipe {...props} />;
     case "shader-wipe":
       return <ShaderWipe {...props} />;
+    case "contact-sheet-proof":
+      return <ContactSheetProof {...props} />;
     case "outro-slate":
       return <OutroSlate {...props} />;
     default:
@@ -1286,7 +1439,12 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
         .terminal-card__result,
         .social-overlay__platform,
         .ui-reveal-frame__label,
+        .cursor-callout__target,
+        .cursor-callout__zoom,
+        .split-screen-compare__caption,
+        .avatar-bubble__speaker,
         .data-visual-card__label,
+        .contact-sheet-proof__status,
         .cta-card__action {
           color: ${palette.accent};
           font-size: 20px;
@@ -1377,6 +1535,86 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
           color: ${palette.background};
         }
 
+        .cursor-callout__target,
+        .cursor-callout__path,
+        .cursor-callout__zoom {
+          display: block;
+          margin-top: 14px;
+        }
+
+        .cursor-callout__ring {
+          display: grid;
+          place-items: center;
+          width: 94px;
+          height: 94px;
+          margin: 18px auto 0;
+          border: 4px solid ${palette.accent};
+          border-radius: 999px;
+          color: ${palette.accent};
+          font-size: 30px;
+          font-weight: 900;
+        }
+
+        .split-screen-compare__grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          min-width: 680px;
+        }
+
+        .split-screen-compare__before,
+        .split-screen-compare__after,
+        .contact-sheet-proof__frame {
+          display: grid;
+          place-items: center;
+          min-height: 128px;
+          padding: 18px;
+          border: 2px solid ${palette.foreground};
+          border-radius: 14px;
+          background: rgba(26, 26, 26, 0.08);
+          font-size: 24px;
+          font-weight: 800;
+          word-break: break-word;
+        }
+
+        .split-screen-compare__after {
+          background: rgba(200, 65, 58, 0.14);
+        }
+
+        .split-screen-compare__caption {
+          display: block;
+          margin-top: 18px;
+          font-size: 26px;
+        }
+
+        .avatar-bubble__row {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          max-width: 760px;
+        }
+
+        .avatar-bubble__avatar {
+          display: grid;
+          place-items: center;
+          width: 104px;
+          height: 104px;
+          flex-shrink: 0;
+          border-radius: 999px;
+          background: ${palette.accent};
+          color: ${palette.background};
+          font-size: 24px;
+          font-weight: 900;
+        }
+
+        .avatar-bubble__caption {
+          display: block;
+          margin-top: 10px;
+          color: ${palette.foreground};
+          font-size: 32px;
+          line-height: 1.12;
+        }
+
         .data-visual-card__metric {
           display: block;
           color: ${palette.accent};
@@ -1434,6 +1672,22 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
 
         .code-typing-card__cursor {
           color: ${palette.accent};
+        }
+
+        .contact-sheet-proof__grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+          min-width: 680px;
+          margin-top: 16px;
+        }
+
+        .contact-sheet-proof__note {
+          display: block;
+          margin-top: 16px;
+          color: ${palette.foreground};
+          font-size: 20px;
+          font-weight: 700;
         }
 
         .motion-component--caption-line {
@@ -1606,6 +1860,28 @@ function hyperframesComponentBody(
     return `<div class="ui-reveal-frame__shell"><span class="ui-reveal-frame__label">${escapeHtml(revealLabel)}</span>${media}</div>`;
   }
 
+  if (componentId === 'cursor-callout') {
+    const targetLabel = (stringProp(props.targetLabel) ?? text) || 'Target';
+    const cursorPath = stringProp(props.cursorPath) ?? 'manual path';
+    const zoomValue = typeof props.zoom === 'number' ? props.zoom : 1;
+    const zoom = `${Math.round(zoomValue * 10) / 10}x`;
+    return `<span class="cursor-callout__target">${escapeHtml(targetLabel)}</span><span class="cursor-callout__ring">${escapeHtml(zoom)}</span><span class="cursor-callout__path">${escapeHtml(cursorPath)}</span>`;
+  }
+
+  if (componentId === 'split-screen-compare') {
+    const beforeAssetId = stringProp(props.beforeAssetId) ?? 'before';
+    const afterAssetId = stringProp(props.afterAssetId) ?? 'after';
+    const caption = (stringProp(props.caption) ?? text) || 'Before / after';
+    return `<div class="split-screen-compare__grid"><span class="split-screen-compare__before">${escapeHtml(beforeAssetId)}</span><span class="split-screen-compare__after">${escapeHtml(afterAssetId)}</span></div><span class="split-screen-compare__caption">${escapeHtml(caption)}</span>`;
+  }
+
+  if (componentId === 'avatar-bubble') {
+    const speakerName = (stringProp(props.speakerName) ?? text) || 'Presenter';
+    const caption = stringProp(props.caption) ?? text;
+    const avatarAssetId = stringProp(props.avatarAssetId) ?? speakerName.slice(0, 2).toUpperCase();
+    return `<div class="avatar-bubble__row"><span class="avatar-bubble__avatar">${escapeHtml(avatarAssetId.slice(0, 2).toUpperCase())}</span><span><span class="avatar-bubble__speaker">${escapeHtml(speakerName)}</span><span class="avatar-bubble__caption">${escapeHtml(caption)}</span></span></div>`;
+  }
+
   if (componentId === 'data-visual-card') {
     const metric = stringProp(props.metric) ?? text;
     const label = stringProp(props.label) ?? 'ready';
@@ -1641,6 +1917,16 @@ function hyperframesComponentBody(
 
   if (componentId === 'shader-wipe') {
     return '<span class="shader-wipe__band" aria-hidden="true"></span>';
+  }
+
+  if (componentId === 'contact-sheet-proof') {
+    const status = (stringProp(props.status) ?? text) || 'review';
+    const note = stringProp(props.note) ?? 'frame samples saved';
+    const frameIds = stringLinesProp(props.frameAssetIds);
+    const frames = (frameIds.length > 0 ? frameIds : ['frame-01', 'frame-02', 'frame-03'])
+      .map((frameId) => `<span class="contact-sheet-proof__frame">${escapeHtml(frameId)}</span>`)
+      .join('');
+    return `<span class="contact-sheet-proof__status">${escapeHtml(status)}</span><span class="contact-sheet-proof__grid">${frames}</span><span class="contact-sheet-proof__note">${escapeHtml(note)}</span>`;
   }
 
   if (componentId === 'outro-slate') {
