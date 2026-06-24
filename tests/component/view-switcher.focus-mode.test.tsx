@@ -654,6 +654,22 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
   });
 
+  it('timeline source preview focuses a component without leaving the shell', async () => {
+    setMotionStartResult('demo-ws', storedRegeneratableMotionStart());
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    expect(screen.getByText('playable preview')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /focus hook card/i }));
+
+    expect(screen.getByLabelText(/selected clip summary/i)).toHaveValue(
+      'aether: Canvas-native creative system.'
+    );
+    expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
+  });
+
   it('selected timeline clip edits call revise and refresh the preview', async () => {
     const start = storedRegeneratableMotionStart();
     const revisedPreview = {

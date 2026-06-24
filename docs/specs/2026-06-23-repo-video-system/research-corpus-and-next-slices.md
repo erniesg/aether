@@ -67,6 +67,7 @@ Aether now has the right backbone:
   full-auto routes are agent-native JSON boundaries over the same project.
 - The timeline lens shows creator-facing plans, drafts, timeline rows,
   production queue, saved receipts, edit source, image-to-video node chain,
+  source-backed playable preview controls, component focus, setup cards,
   component controls, scoped regeneration, drop-to-canvas actions, and
   full-auto action wiring.
 - Remotion and HyperFrames source generation preserve component ids and edit
@@ -81,9 +82,10 @@ Aether now has the right backbone:
    desktop/computer-use, voice, image-to-video, and render runners need a
    creator-facing setup card with permission, expected receipt, and dry-run
    proof before full-auto.
-3. **In-app playable preview.** The timeline lens can review plans and proofs,
-   but creators still need a Remotion Player/HyperFrames preview surface with
-   frame scrubbing, selected component focus, and source-backed edits.
+3. **Real preview runtime.** The timeline lens now has a source-backed preview
+   shell with frame scrubbing and component focus. It still needs the real
+   Remotion Player / HyperFrames preview iframe once runtime dependencies and
+   source-serving are configured.
 4. **Node graph for generation lanes.** The current image-to-video node chain
    is compact. Advanced users need a progressive node lens for image search,
    image-to-video, voice, sync, render, and export dependencies without turning
@@ -134,6 +136,11 @@ Mount a preview player inside the timeline lens for source bundles. Remotion
 uses `Player`; HyperFrames uses the compiled HTML preview frame. Selecting a
 component should focus the timeline row and expose edit controls for script,
 caption, timing, effect, crop, zoom, or regenerate component.
+
+Status: partially implemented. The timeline lens now includes a source-backed
+preview shell with frame scrubbing, selected component focus, source file
+summary, and linked clip edit controls. The actual Remotion `Player` and
+HyperFrames iframe runtime remain follow-up work.
 
 Acceptance evidence:
 

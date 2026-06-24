@@ -314,6 +314,12 @@
   source-file labels, and regeneration scopes. The timeline lens shows that
   contract as a creator-facing edit source inside the same shell instead of
   sending creators to a separate source editor or raw render bundle.
+- The timeline lens now includes a source-backed playable preview shell for
+  renderable Remotion/HyperFrames source bundles: creators can scrub time,
+  see the composition and entry source, focus editable components, and open the
+  existing linked clip edit controls while both workspace rails remain mounted.
+  This is not yet a real `@remotion/player` embed or HyperFrames iframe; that
+  runtime wiring remains a follow-up once source serving is configured.
 - 2026-06-24 second reference pass folded into the spec: HyperFrames launch
   videos and pipeline docs reinforce capture/design/script/storyboard/voice/
   build/validate artifacts; the catalog informs provider-neutral component

@@ -364,6 +364,14 @@ function MotionPreviewPlanView({
         </div>
       </section>
 
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionPlayablePreviewStrip
+          previewPlan={previewPlan}
+          selectedClipId={selectedClipId}
+          onSelectClip={onSelectClip}
+        />
+      </section>
+
       {graphNodes.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionGraphStrip nodes={graphNodes} />
@@ -574,6 +582,232 @@ function MotionPreviewPlanView({
       ) : null}
     </div>
   );
+}
+
+function MotionPlayablePreviewStrip({
+  previewPlan,
+  selectedClipId,
+  onSelectClip,
+}: {
+  previewPlan: MotionPreviewPlan;
+  selectedClipId: string | null;
+  onSelectClip: (clipId: string) => void;
+}) {
+  const sourcePreview = buildSourcePreview(previewPlan);
+  const [previewSeconds, setPreviewSeconds] = useState(0);
+
+  useEffect(() => {
+    setPreviewSeconds(0);
+  }, [sourcePreview?.compositionId, sourcePreview?.durationSeconds]);
+
+  if (!sourcePreview) {
+    return (
+      <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+        <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          playable preview
+        </div>
+        <div className="mt-1 font-caption text-xs text-ink-faint">
+          Prepare a Remotion or HyperFrames source bundle to preview edits here.
+        </div>
+      </div>
+    );
+  }
+
+  const clampedSeconds = Math.min(previewSeconds, sourcePreview.durationSeconds);
+  const activeComponent =
+    sourcePreview.components.find((component) => component.clipId === selectedClipId) ??
+    sourcePreview.components.find(
+      (component) =>
+        clampedSeconds >= component.startSeconds &&
+        clampedSeconds < component.startSeconds + component.durationSeconds
+    ) ??
+    sourcePreview.components[0] ??
+    null;
+
+  return (
+    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+              playable preview
+            </div>
+            <div className="mt-1 truncate font-caption text-xs text-ink">
+              {sourcePreview.engine} source preview
+            </div>
+          </div>
+          <Chip tone="info" size="sm">
+            source-backed edits
+          </Chip>
+        </div>
+
+        <div
+          role="group"
+          aria-label="source-backed motion preview"
+          className="mt-3 flex aspect-video min-h-[180px] flex-col justify-between overflow-hidden rounded-sm border border-border-soft bg-surface-canvas p-3"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="truncate font-caption text-sm text-ink">
+                {activeComponent?.componentLabel ?? sourcePreview.title}
+              </div>
+              <div className="mt-1 line-clamp-2 font-caption text-xs text-ink-faint">
+                {activeComponent?.summary ?? sourcePreview.compositionId}
+              </div>
+            </div>
+            <div className="shrink-0 text-right font-mono text-2xs uppercase tracking-wide text-ink-faint">
+              {formatPreviewTime(clampedSeconds)} / {formatPreviewDuration(sourcePreview.durationSeconds)}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-1">
+            <input
+              type="range"
+              min="0"
+              max={sourcePreview.durationSeconds}
+              step="0.1"
+              aria-label="preview frame scrubber"
+              value={clampedSeconds}
+              onChange={(event) => setPreviewSeconds(Number(event.currentTarget.value))}
+              className="w-full accent-current"
+            />
+            <div className="flex flex-wrap items-center gap-1">
+              <Chip tone="neutral" size="sm">
+                {sourcePreview.compositionId}
+              </Chip>
+              <Chip tone="neutral" size="sm">
+                {sourcePreview.entryPoint}
+              </Chip>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+        <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          preview controls
+        </div>
+        <div className="mt-2 grid gap-2">
+          {sourcePreview.components.slice(0, 4).map((component) => {
+            const selected = component.clipId === selectedClipId;
+            return (
+              <button
+                key={component.clipId}
+                type="button"
+                aria-label={`focus ${component.componentLabel}`}
+                aria-pressed={selected}
+                onClick={() => onSelectClip(component.clipId)}
+                className={cn(
+                  'rounded-sm border px-3 py-2 text-left transition-colors duration-fast ease-quick',
+                  selected
+                    ? 'border-accent bg-accent/10 text-ink'
+                    : 'border-border-soft bg-surface-canvas text-ink-dim hover:border-border hover:text-ink'
+                )}
+              >
+                <div className="truncate font-caption text-xs">{component.componentLabel}</div>
+                <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+                  {component.editControlLabels.slice(0, 3).join(' / ') || 'timeline edit'}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 grid gap-1 font-caption text-2xs text-ink-faint">
+          <div>{sourcePreview.sourceFileSummary}</div>
+          <div>{sourcePreview.editSurfaceSummary}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface MotionSourcePreviewComponent {
+  clipId: string;
+  componentLabel: string;
+  summary: string;
+  startSeconds: number;
+  durationSeconds: number;
+  editControlLabels: string[];
+}
+
+interface MotionSourcePreview {
+  title: string;
+  engine: MotionRenderEngine;
+  compositionId: string;
+  entryPoint: string;
+  durationSeconds: number;
+  sourceFileSummary: string;
+  editSurfaceSummary: string;
+  components: MotionSourcePreviewComponent[];
+}
+
+function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview | null {
+  const engine = preferredRenderEngine(previewPlan.enginePreviews);
+  const editSource = previewPlan.editSource;
+  if (!engine || !engine.compositionId || !engine.entryPoint || editSource.status !== 'ready') {
+    return null;
+  }
+
+  const components = editSource.components.map((component) => {
+    const clip = findClipById(previewPlan, component.clipId);
+    return {
+      clipId: component.clipId,
+      componentLabel: component.componentLabel,
+      summary: clip?.summary ?? component.editSurfaceLabels.slice(0, 3).join(' / '),
+      startSeconds: clip?.startSeconds ?? 0,
+      durationSeconds: clip?.durationSeconds ?? Math.min(3, engine.durationSeconds),
+      editControlLabels: component.editControlLabels,
+    };
+  });
+
+  return {
+    title: previewPlan.title,
+    engine: engine.engine,
+    compositionId: engine.compositionId,
+    entryPoint: engine.entryPoint,
+    durationSeconds: engine.durationSeconds,
+    sourceFileSummary: summarizePreviewSourceFiles(editSource),
+    editSurfaceSummary: summarizePreviewEditSurfaces(editSource),
+    components,
+  };
+}
+
+function findClipById(
+  previewPlan: MotionPreviewPlan,
+  clipId: string
+): MotionPreviewTimelineClip | null {
+  for (const row of previewPlan.timelineRows) {
+    const clip = row.clips.find((candidate) => candidate.clipId === clipId);
+    if (clip) return clip;
+  }
+  return null;
+}
+
+function summarizePreviewSourceFiles(editSource: MotionPreviewEditSource): string {
+  const importantPaths = [editSource.scriptPath, editSource.storyboardPath].filter(
+    (path): path is string => Boolean(path)
+  );
+  if (importantPaths.length > 0) return importantPaths.join(' / ');
+  return editSource.sourceFilePaths.slice(0, 2).join(' / ') || 'source bundle pending';
+}
+
+function summarizePreviewEditSurfaces(editSource: MotionPreviewEditSource): string {
+  const labels = uniqueLabels(
+    editSource.components.flatMap((component) => component.editSurfaceLabels)
+  ).slice(0, 5);
+  return labels.length > 0 ? labels.join(' / ') : 'timeline / component / effect';
+}
+
+function formatPreviewTime(seconds: number): string {
+  return `${seconds.toFixed(1)}s`;
+}
+
+function formatPreviewDuration(seconds: number): string {
+  return Number.isInteger(seconds) ? `${seconds}s` : `${seconds.toFixed(1)}s`;
+}
+
+function uniqueLabels(labels: string[]): string[] {
+  return Array.from(new Set(labels.filter((label) => label.trim().length > 0)));
 }
 
 function MotionAgentPlanStrip({

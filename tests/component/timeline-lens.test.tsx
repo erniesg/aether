@@ -1464,7 +1464,7 @@ describe('TimelineLens', () => {
     expect(screen.getByText('SCRIPT.md')).toBeInTheDocument();
     expect(screen.getByText('STORYBOARD.md')).toBeInTheDocument();
     expect(screen.getByText('capture / timing / caption / copy / effect')).toBeInTheDocument();
-    expect(screen.getByText('Capture / Caption / Zoom')).toBeInTheDocument();
+    expect(screen.getAllByText('Capture / Caption / Zoom').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Timeline JSON / Storyboard').length).toBeGreaterThan(0);
     expect(screen.getByText('agent plan')).toBeInTheDocument();
     expect(screen.getByText('5 review gates')).toBeInTheDocument();
@@ -1591,6 +1591,32 @@ describe('TimelineLens', () => {
     );
 
     expect(screen.getByText('Screenshot / Recording')).toBeInTheDocument();
+  });
+
+  it('mounts a source-backed playable preview and focuses editable components', async () => {
+    const onSelectClip = vi.fn<(clipId: string) => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={onSelectClip}
+      />
+    );
+
+    expect(screen.getByText('playable preview')).toBeInTheDocument();
+    expect(screen.getByText('remotion source preview')).toBeInTheDocument();
+    expect(screen.getByText('motion-aether-launch-draft-primary')).toBeInTheDocument();
+    expect(screen.getAllByText('remotion/index.tsx').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('preview frame scrubber')).toHaveValue('0');
+    expect(screen.getByText('0.0s / 30s')).toBeInTheDocument();
+    expect(screen.getByText('source-backed edits')).toBeInTheDocument();
+    expect(screen.getByText('SCRIPT.md / STORYBOARD.md')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /focus hook card/i }));
+
+    expect(onSelectClip).toHaveBeenCalledWith('clip-beat-hook-text');
+    expect(screen.queryByText('render-plan-motion-aether-launch-draft-primary-remotion')).not.toBeInTheDocument();
   });
 
   it('shows reusable agent actions without exposing raw request bodies', async () => {
