@@ -675,7 +675,7 @@ const previewPlan: MotionPreviewPlan = {
     draftId: 'draft-primary',
     title: 'aether launch video',
     summaryLabels: ['aether', 'launch', '30s', 'x 9:16 30s'],
-    materialCount: 4,
+    materialCount: 8,
     cards: [
       {
         id: 'motion-aether-launch-draft-primary-project',
@@ -696,6 +696,50 @@ const previewPlan: MotionPreviewPlan = {
         detailLabels: ['0s + 3s', '1 source'],
         statusLabel: 'needs review',
         actionLabel: 'edit scene',
+        width: 340,
+        height: 156,
+      },
+      {
+        id: 'motion-aether-launch-draft-primary-generation-visual-source',
+        kind: 'generation-node',
+        label: 'Source visuals',
+        body: 'App frame source -> Image-to-video source',
+        detailLabels: ['animates', 'offers takes', 'updates edit', 'App frame source'],
+        statusLabel: 'complete',
+        actionLabel: null,
+        width: 340,
+        height: 156,
+      },
+      {
+        id: 'motion-aether-launch-draft-primary-generation-image-to-video',
+        kind: 'generation-node',
+        label: 'Image-to-video',
+        body: 'App frame source -> 9:16 1080x1920',
+        detailLabels: ['animates', 'offers takes', 'updates edit', 'App frame source'],
+        statusLabel: 'ready',
+        actionLabel: 'Generate video clips',
+        width: 340,
+        height: 156,
+      },
+      {
+        id: 'motion-aether-launch-draft-primary-generation-review-generated-clips',
+        kind: 'generation-node',
+        label: 'Review generated clips',
+        body: '9:16 1080x1920 -> Approved clips',
+        detailLabels: ['animates', 'offers takes', 'updates edit', '9:16 1080x1920'],
+        statusLabel: 'planned',
+        actionLabel: 'Review generated clips',
+        width: 340,
+        height: 156,
+      },
+      {
+        id: 'motion-aether-launch-draft-primary-generation-timeline-update',
+        kind: 'generation-node',
+        label: 'Timeline update',
+        body: 'Approved clips -> Synced timeline',
+        detailLabels: ['animates', 'offers takes', 'updates edit', 'Approved clips'],
+        statusLabel: 'planned',
+        actionLabel: 'Apply approved clips',
         width: 340,
         height: 156,
       },
@@ -1764,7 +1808,7 @@ describe('TimelineLens', () => {
     );
 
     expect(screen.getAllByText('video plan').length).toBeGreaterThan(0);
-    expect(screen.getByText('4 canvas cards')).toBeInTheDocument();
+    expect(screen.getByText('8 canvas cards')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /drop plan on canvas/i }));
     expect(onDropMotionPlanToCanvas).toHaveBeenCalledWith(previewPlan.canvasMaterialPlan);
   });
@@ -1959,7 +2003,7 @@ describe('TimelineLens', () => {
     );
 
     expect(screen.getByText('generation nodes')).toBeInTheDocument();
-    expect(screen.getByText('Source visuals')).toBeInTheDocument();
+    expect(screen.getAllByText('Source visuals').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Image-to-video').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Review generated clips').length).toBeGreaterThan(0);
     expect(screen.getByText('Timeline update')).toBeInTheDocument();
@@ -2019,7 +2063,7 @@ describe('TimelineLens', () => {
 
     expect(screen.getAllByText('needs visual source').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Capture or generate a key visual before image-to-video').length).toBeGreaterThan(0);
-    expect(screen.getByText('Source visuals')).toBeInTheDocument();
+    expect(screen.getAllByText('Source visuals').length).toBeGreaterThan(0);
     expect(screen.getByText('Capture or generate key visual')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /plan visuals/i }).length).toBeGreaterThan(0);
   });

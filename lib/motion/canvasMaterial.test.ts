@@ -68,6 +68,62 @@ describe('buildMotionCanvasMaterialPlan', () => {
         missingAssetKinds: ['video', 'poster'],
         blockerLabels: ['Render every export target before packaging'],
       },
+      visualGenerationSummary: {
+        status: 'ready',
+        requestCount: 1,
+        providerRequirementLabels: ['image to video'],
+        requestLabels: ['Hook card 3s'],
+        requests: [
+          {
+            requestId: 'image-to-video-clip-beat-hook-text',
+            clipId: 'clip-beat-hook-text',
+            componentLabel: 'Hook card',
+            durationSeconds: 3,
+            prompt: 'Animate the hook visual as a short product insert.',
+            outputLabel: '9:16 1080x1920',
+          },
+        ],
+        nodePlan: {
+          status: 'ready',
+          nextNodeId: 'image-to-video',
+          nodes: [
+            {
+              id: 'visual-source',
+              label: 'Source visuals',
+              status: 'complete',
+              inputLabels: ['Hook card source'],
+              outputLabels: ['Image-to-video source'],
+              actionLabel: null,
+            },
+            {
+              id: 'image-to-video',
+              label: 'Image-to-video',
+              status: 'ready',
+              inputLabels: ['Hook card source'],
+              outputLabels: ['9:16 1080x1920'],
+              actionLabel: 'Generate video clips',
+            },
+            {
+              id: 'review-generated-clips',
+              label: 'Review generated clips',
+              status: 'planned',
+              inputLabels: ['9:16 1080x1920'],
+              outputLabels: ['Approved clips'],
+              actionLabel: 'Review generated clips',
+            },
+          ],
+          edges: [
+            { from: 'visual-source', to: 'image-to-video', label: 'animates' },
+            {
+              from: 'image-to-video',
+              to: 'review-generated-clips',
+              label: 'offers takes',
+            },
+          ],
+        },
+        blockerLabels: [],
+        nextActionLabels: ['Generate video clips', 'Review generated clips'],
+      },
     });
 
     expect(plan).toMatchObject({
@@ -76,11 +132,14 @@ describe('buildMotionCanvasMaterialPlan', () => {
       draftId: 'draft-primary',
       title: 'aether launch video',
       summaryLabels: ['aether', 'launch', '30s', 'x 9:16 30s'],
-      materialCount: 4,
+      materialCount: 7,
     });
     expect(plan.cards.map((card) => card.kind)).toEqual([
       'motion-project',
       'story-beat',
+      'generation-node',
+      'generation-node',
+      'generation-node',
       'render-proof',
       'export-pack',
     ]);
@@ -96,11 +155,19 @@ describe('buildMotionCanvasMaterialPlan', () => {
       detailLabels: ['0s + 3s', '1 source', 'Hook copy can be revised.'],
       actionLabel: 'Regenerate copy for Hook card',
     });
+    expect(plan.cards[3]).toMatchObject({
+      kind: 'generation-node',
+      label: 'Image-to-video',
+      body: 'Hook card source -> 9:16 1080x1920',
+      statusLabel: 'ready',
+      actionLabel: 'Generate video clips',
+    });
 
     const visibleCardText = plan.cards
       .flatMap((card) => [card.label, card.body, ...card.detailLabels, card.actionLabel ?? ''])
       .join('\n');
     expect(visibleCardText).not.toContain('regen-option-clip');
     expect(visibleCardText).not.toContain('clip-beat-hook-text');
+    expect(visibleCardText).not.toContain('image-to-video-clip');
   });
 });

@@ -329,7 +329,7 @@ describe('buildMotionPreviewPlan', () => {
       draftId: 'draft-primary',
       title: 'aether launch video',
       summaryLabels: ['aether', 'launch', '30s', 'x 9:16 30s'],
-      materialCount: 9,
+      materialCount: 11,
     });
     expect(preview.canvasMaterialPlan.cards.map((card) => card.kind)).toEqual([
       'motion-project',
@@ -339,6 +339,8 @@ describe('buildMotionPreviewPlan', () => {
       'story-beat',
       'story-beat',
       'story-beat',
+      'generation-node',
+      'generation-node',
       'render-proof',
       'export-pack',
     ]);
@@ -351,6 +353,12 @@ describe('buildMotionPreviewPlan', () => {
     expect(preview.canvasMaterialPlan.cards[4]).toMatchObject({
       label: 'demo - App frame',
       actionLabel: 'Regenerate capture for App frame',
+    });
+    expect(preview.canvasMaterialPlan.cards[8]).toMatchObject({
+      kind: 'generation-node',
+      label: 'Source visuals',
+      statusLabel: 'blocked',
+      actionLabel: 'Capture or generate key visual',
     });
     expect(
       preview.canvasMaterialPlan.cards

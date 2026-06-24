@@ -571,6 +571,10 @@ export function buildMotionPreviewPlan(
     editSource,
     engines
   );
+  const visualGenerationSummary = buildVisualGenerationSummary(
+    imageToVideoPlan,
+    timelineRows
+  );
   const canvasMaterialPlan = buildMotionCanvasMaterialPlan({
     projectId: project.id,
     draftId: project.currentDraftId,
@@ -579,6 +583,7 @@ export function buildMotionPreviewPlan(
     primaryAction: reviewPlan.primaryAction,
     summary: reviewPlan.summary,
     videoPlan,
+    visualGenerationSummary,
     renderProofSummary,
     exportPackSummary,
   });
@@ -624,7 +629,7 @@ export function buildMotionPreviewPlan(
     canvasMaterialPlan,
     referenceGrammar,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
-    visualGenerationSummary: buildVisualGenerationSummary(imageToVideoPlan, timelineRows),
+    visualGenerationSummary,
     capabilitySetup: buildCapabilitySetup(project, productionPlan, enginePreviews, {
       engines,
       providers: options.providerSetup,

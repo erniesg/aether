@@ -18,6 +18,7 @@ const ROW_HEIGHT = 192;
 const CARD_COLORS: Record<MotionCanvasMaterialKind, TLGeoShape['props']['color']> = {
   'motion-project': 'violet',
   'story-beat': 'blue',
+  'generation-node': 'light-blue',
   'render-proof': 'green',
   'export-pack': 'orange',
 };

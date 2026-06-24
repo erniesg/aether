@@ -2,6 +2,7 @@ import type {
   MotionPreviewExportPackSummary,
   MotionPreviewRenderProofSummary,
   MotionPreviewVideoPlan,
+  MotionPreviewVisualGenerationSummary,
 } from './previewPlan';
 import type { MotionProject } from './project';
 import type { MotionReviewPlan } from './reviewPlan';
@@ -9,6 +10,7 @@ import type { MotionReviewPlan } from './reviewPlan';
 export type MotionCanvasMaterialKind =
   | 'motion-project'
   | 'story-beat'
+  | 'generation-node'
   | 'render-proof'
   | 'export-pack';
 
@@ -42,6 +44,7 @@ export interface BuildMotionCanvasMaterialPlanInput {
   primaryAction: MotionReviewPlan['primaryAction'];
   summary: MotionReviewPlan['summary'];
   videoPlan: MotionPreviewVideoPlan;
+  visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   renderProofSummary: MotionPreviewRenderProofSummary;
   exportPackSummary: MotionPreviewExportPackSummary;
 }
@@ -86,6 +89,30 @@ export function buildMotionCanvasMaterialPlan(
     height: BEAT_CARD_HEIGHT,
   }));
 
+  const generationNodeCards = input.visualGenerationSummary.nodePlan.nodes
+    .slice(0, 4)
+    .map((node) => ({
+      id: `${input.projectId}-${input.draftId}-generation-${node.id}`,
+      kind: 'generation-node' as const,
+      label: node.label,
+      body: `${formatNodeSide(node.inputLabels, 'No inputs yet')} -> ${formatNodeSide(
+        node.outputLabels,
+        'No output yet'
+      )}`,
+      detailLabels: boundedLabels(
+        [
+          ...input.visualGenerationSummary.nodePlan.edges.map((edge) => edge.label),
+          ...node.inputLabels,
+          ...node.outputLabels,
+        ],
+        4
+      ),
+      statusLabel: node.status,
+      actionLabel: node.actionLabel,
+      width: BEAT_CARD_WIDTH,
+      height: BEAT_CARD_HEIGHT,
+    }));
+
   const renderProofCard: MotionCanvasMaterialCard = {
     id: `${input.projectId}-${input.draftId}-render-proof`,
     kind: 'render-proof',
@@ -121,7 +148,13 @@ export function buildMotionCanvasMaterialPlan(
     height: PROJECT_CARD_HEIGHT,
   };
 
-  const cards = [projectCard, ...storyCards, renderProofCard, exportPackCard];
+  const cards = [
+    projectCard,
+    ...storyCards,
+    ...generationNodeCards,
+    renderProofCard,
+    exportPackCard,
+  ];
 
   return {
     id: `canvas-material-${input.projectId}-${input.draftId}`,
@@ -145,4 +178,8 @@ function boundedLabels(labels: string[], limit: number): string[] {
 
 function readableLabel(value: string): string {
   return value.replace(/[-_]/g, ' ');
+}
+
+function formatNodeSide(labels: string[], fallback: string): string {
+  return labels.slice(0, 2).join(' + ') || fallback;
 }
