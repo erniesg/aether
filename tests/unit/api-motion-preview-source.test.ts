@@ -64,6 +64,13 @@ describe('POST /api/motion/preview-source', () => {
           entryPath: 'remotion/index.tsx',
           timelinePath: 'timeline/draft-primary.json',
         },
+        runtimeHost: {
+          status: 'needs-player-adapter',
+          previewSurface: 'player',
+          dependencyLabels: ['@remotion/player', 'remotion', '@remotion/media'],
+          adapterRequirement:
+            'Compile remotion/index.tsx into a Remotion Player component before same-shell playback.',
+        },
       },
       previewPlan: {
         projectId: 'motion-aether-launch',
@@ -125,6 +132,12 @@ describe('POST /api/motion/preview-source', () => {
         sourceHost: {
           entryPath: 'index.html',
           timelinePath: 'timeline/draft-primary.json',
+        },
+        runtimeHost: {
+          status: 'embedded-preview',
+          previewSurface: 'iframe',
+          dependencyLabels: ['HTML preview frame', 'GSAP timeline'],
+          adapterRequirement: null,
         },
       },
     });

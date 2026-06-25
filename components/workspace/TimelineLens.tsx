@@ -809,6 +809,8 @@ function MotionPreparedPreviewRuntimeHost({
   ].filter((path): path is string => Boolean(path)));
   const editLinks = source.editLinkLabels.slice(0, 3).join(' / ');
   const hyperframesHtml = hyperframesPreviewHtml(source);
+  const runtimeHost = source.runtimeHost;
+  const runtimeStatusLabel = formatPreparedRuntimeStatus(runtimeHost.status);
 
   return (
     <div
@@ -846,6 +848,30 @@ function MotionPreparedPreviewRuntimeHost({
         ))}
         {editLinks ? <div className="truncate text-ink-dim">{editLinks}</div> : null}
       </div>
+      <div className="mt-2 rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="font-caption text-2xs uppercase tracking-wide text-ink-dim">
+            preview surface
+          </div>
+          <Chip tone={runtimeHost.status === 'embedded-preview' ? 'ok' : 'info'} size="sm">
+            {runtimeStatusLabel}
+          </Chip>
+        </div>
+        {runtimeHost.dependencyLabels.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {runtimeHost.dependencyLabels.map((label) => (
+              <Chip key={label} tone="neutral" size="sm">
+                {label}
+              </Chip>
+            ))}
+          </div>
+        ) : null}
+        {runtimeHost.adapterRequirement ? (
+          <div className="mt-2 font-caption text-2xs text-ink-faint">
+            {runtimeHost.adapterRequirement}
+          </div>
+        ) : null}
+      </div>
       {hyperframesHtml ? (
         <iframe
           title={`${source.label} preview`}
@@ -870,6 +896,12 @@ function hyperframesPreviewHtml(source: MotionPreparedPreviewSource): string | n
     );
 
   return entryFile?.contents ?? null;
+}
+
+function formatPreparedRuntimeStatus(status: MotionPreparedPreviewSource['runtimeHost']['status']): string {
+  if (status === 'needs-player-adapter') return 'player adapter needed';
+  if (status === 'embedded-preview') return 'embedded preview';
+  return 'source ready';
 }
 
 interface MotionSourcePreviewComponent {

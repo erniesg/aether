@@ -109,6 +109,7 @@ export async function POST(request: Request): Promise<Response> {
         runtimePreview?.sourceHostRequirement ??
         'Serve the source bundle to the same-shell preview runtime.',
       editLinkLabels: runtimePreview?.editLinkLabels ?? [],
+      runtimeHost: buildRuntimeHost(engine, entryFile?.path),
       sourceHost: {
         apiRoute: '/api/motion/preview-source',
         entryPath: entryFile?.path ?? null,
@@ -121,6 +122,25 @@ export async function POST(request: Request): Promise<Response> {
     reviewPlan: buildMotionReviewPlan(project),
     previewPlan,
   });
+}
+
+function buildRuntimeHost(engine: MotionRenderEngine, entryPath: string | undefined) {
+  if (engine === 'remotion') {
+    const path = entryPath ?? 'remotion/index.tsx';
+    return {
+      status: 'needs-player-adapter' as const,
+      previewSurface: 'player' as const,
+      dependencyLabels: ['@remotion/player', 'remotion', '@remotion/media'],
+      adapterRequirement: `Compile ${path} into a Remotion Player component before same-shell playback.`,
+    };
+  }
+
+  return {
+    status: 'embedded-preview' as const,
+    previewSurface: 'iframe' as const,
+    dependencyLabels: ['HTML preview frame', 'GSAP timeline'],
+    adapterRequirement: null,
+  };
 }
 
 function parseEngine(value: unknown): MotionRenderEngine | null {

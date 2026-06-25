@@ -1101,6 +1101,13 @@ const preparedPreviewSource: MotionPreparedPreviewSource = {
   fps: 30,
   sourceHostRequirement: 'Serve remotion/index.tsx and timeline/draft-primary.json to the preview runtime.',
   editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
+  runtimeHost: {
+    status: 'needs-player-adapter',
+    previewSurface: 'player',
+    dependencyLabels: ['@remotion/player', 'remotion', '@remotion/media'],
+    adapterRequirement:
+      'Compile remotion/index.tsx into a Remotion Player component before same-shell playback.',
+  },
   sourceHost: {
     apiRoute: '/api/motion/preview-source',
     entryPath: 'remotion/index.tsx',
@@ -1147,6 +1154,12 @@ const preparedHyperFramesPreviewSource: MotionPreparedPreviewSource = {
   fps: 30,
   sourceHostRequirement: 'Serve hyperframes/index.html with timeline/draft-primary.json as a same-shell preview frame.',
   editLinkLabels: ['data-start', 'data-duration', 'component classes', 'SCRIPT.md'],
+  runtimeHost: {
+    status: 'embedded-preview',
+    previewSurface: 'iframe',
+    dependencyLabels: ['HTML preview frame', 'GSAP timeline'],
+    adapterRequirement: null,
+  },
   sourceHost: {
     apiRoute: '/api/motion/preview-source',
     entryPath: 'hyperframes/index.html',
@@ -1749,6 +1762,15 @@ describe('TimelineLens', () => {
     expect(within(host).getByText('remotion/index.tsx')).toBeInTheDocument();
     expect(within(host).getByText('timeline/draft-primary.json')).toBeInTheDocument();
     expect(within(host).getByText(/component props \/ timeline JSON \/ SCRIPT\.md/)).toBeInTheDocument();
+    expect(within(host).getByText('player adapter needed')).toBeInTheDocument();
+    expect(within(host).getByText('@remotion/player')).toBeInTheDocument();
+    expect(within(host).getByText('remotion')).toBeInTheDocument();
+    expect(within(host).getByText('@remotion/media')).toBeInTheDocument();
+    expect(
+      within(host).getByText(
+        'Compile remotion/index.tsx into a Remotion Player component before same-shell playback.'
+      )
+    ).toBeInTheDocument();
     expect(screen.queryByText(/registerRoot/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\"tracks\"/)).not.toBeInTheDocument();
   });

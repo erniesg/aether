@@ -109,6 +109,7 @@ export interface MotionPreparedPreviewSource {
   fps: number;
   sourceHostRequirement: string;
   editLinkLabels: string[];
+  runtimeHost: MotionPreparedPreviewRuntimeHost;
   sourceHost: {
     apiRoute: string;
     entryPath: string | null;
@@ -117,6 +118,13 @@ export interface MotionPreparedPreviewSource {
     sourceFileCount: number;
   };
   sourceFiles: MotionRenderSourceFile[];
+}
+
+export interface MotionPreparedPreviewRuntimeHost {
+  status: 'needs-player-adapter' | 'embedded-preview' | 'source-ready';
+  previewSurface: 'player' | 'iframe';
+  dependencyLabels: string[];
+  adapterRequirement: string | null;
 }
 
 export interface AgentMotionStartResult {

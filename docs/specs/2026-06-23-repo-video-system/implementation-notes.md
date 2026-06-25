@@ -22,6 +22,10 @@
   beats, draft options, editable timeline rows, regeneration actions, and
   Remotion/HyperFrames source readiness without exposing raw source code in the
   creator-facing plan.
+- Prepared preview sources now carry the runtime host contract. HyperFrames
+  HTML mounts as a sandboxed same-shell iframe, while Remotion source bundles
+  explicitly show the `@remotion/player`, `remotion`, and `@remotion/media`
+  adapter requirement before an in-app Player mount is attempted.
 - Source-material profile artifact for repo/app starts: repo facts now produce
   creator-facing stack/script/route signals, capture candidates, and storyboard
   hints. Local repos with app scripts can produce local-app screenshot, DOM
