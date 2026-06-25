@@ -109,7 +109,7 @@ export async function POST(request: Request): Promise<Response> {
         runtimePreview?.sourceHostRequirement ??
         'Serve the source bundle to the same-shell preview runtime.',
       editLinkLabels: runtimePreview?.editLinkLabels ?? [],
-      runtimeHost: buildRuntimeHost(engine, entryFile?.path),
+      runtimeHost: buildRuntimeHost(engine),
       sourceHost: {
         apiRoute: '/api/motion/preview-source',
         entryPath: entryFile?.path ?? null,
@@ -124,14 +124,14 @@ export async function POST(request: Request): Promise<Response> {
   });
 }
 
-function buildRuntimeHost(engine: MotionRenderEngine, entryPath: string | undefined) {
+function buildRuntimeHost(engine: MotionRenderEngine) {
   if (engine === 'remotion') {
-    const path = entryPath ?? 'remotion/index.tsx';
+    const timelinePath = 'timeline/draft-primary.json';
     return {
-      status: 'needs-player-adapter' as const,
+      status: 'source-ready' as const,
       previewSurface: 'player' as const,
       dependencyLabels: ['@remotion/player', 'remotion', '@remotion/media'],
-      adapterRequirement: `Compile ${path} into a Remotion Player component before same-shell playback.`,
+      adapterRequirement: `aether Player adapter mounts ${timelinePath} through @remotion/player.`,
     };
   }
 

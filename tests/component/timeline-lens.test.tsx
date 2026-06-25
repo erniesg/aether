@@ -1102,11 +1102,11 @@ const preparedPreviewSource: MotionPreparedPreviewSource = {
   sourceHostRequirement: 'Serve remotion/index.tsx and timeline/draft-primary.json to the preview runtime.',
   editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
   runtimeHost: {
-    status: 'needs-player-adapter',
+    status: 'source-ready',
     previewSurface: 'player',
     dependencyLabels: ['@remotion/player', 'remotion', '@remotion/media'],
     adapterRequirement:
-      'Compile remotion/index.tsx into a Remotion Player component before same-shell playback.',
+      'aether Player adapter mounts timeline/draft-primary.json through @remotion/player.',
   },
   sourceHost: {
     apiRoute: '/api/motion/preview-source',
@@ -1127,7 +1127,8 @@ const preparedPreviewSource: MotionPreparedPreviewSource = {
       kind: 'timeline',
       path: 'timeline/draft-primary.json',
       mimeType: 'application/json',
-      contents: '{"tracks":[]}',
+      contents:
+        '{"compositionId":"motion-aether-launch-draft-primary","fps":30,"durationFrames":900,"tracks":[{"id":"track-text","kind":"text","clips":[{"id":"clip-beat-hook-text","componentId":"hook-card","startFrame":0,"durationFrames":90,"props":{"caption":"Turn a repo into a launch video."}}]}]}',
       provenance: [{ kind: 'timeline', ref: 'track-text' }],
     },
     {
@@ -1762,17 +1763,33 @@ describe('TimelineLens', () => {
     expect(within(host).getByText('remotion/index.tsx')).toBeInTheDocument();
     expect(within(host).getByText('timeline/draft-primary.json')).toBeInTheDocument();
     expect(within(host).getByText(/component props \/ timeline JSON \/ SCRIPT\.md/)).toBeInTheDocument();
-    expect(within(host).getByText('player adapter needed')).toBeInTheDocument();
+    expect(within(host).getAllByText('source ready').length).toBeGreaterThan(0);
     expect(within(host).getByText('@remotion/player')).toBeInTheDocument();
     expect(within(host).getByText('remotion')).toBeInTheDocument();
     expect(within(host).getByText('@remotion/media')).toBeInTheDocument();
     expect(
-      within(host).getByText(
-        'Compile remotion/index.tsx into a Remotion Player component before same-shell playback.'
-      )
+      within(host).getByText('aether Player adapter mounts timeline/draft-primary.json through @remotion/player.')
     ).toBeInTheDocument();
     expect(screen.queryByText(/registerRoot/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\"tracks\"/)).not.toBeInTheDocument();
+  });
+
+  it('mounts prepared Remotion source in a same-shell Player preview surface', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        preparedPreviewSource={preparedPreviewSource}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    const host = screen.getByRole('group', { name: /prepared remotion preview runtime/i });
+    const player = within(host).getByRole('region', { name: /remotion player preview/i });
+    expect(within(player).getAllByText('motion-aether-launch-draft-primary').length).toBeGreaterThan(0);
+    expect(within(player).getByText('Turn a repo into a launch video.')).toBeInTheDocument();
+    expect(screen.queryByText(/registerRoot/)).not.toBeInTheDocument();
   });
 
   it('mounts prepared HyperFrames HTML in a sandboxed preview frame', () => {

@@ -147,11 +147,10 @@ source-ready package for those targets, and the timeline lens can request that
 package from the selected draft/engine. The workspace stores the returned
 package and the timeline lens shows a source-ready runtime host without exposing
 raw TSX/HTML contents. HyperFrames prepared HTML now mounts in a sandboxed
-same-shell iframe. Remotion prepared sources now surface the Player adapter
-boundary, including `@remotion/player`, `remotion`, and `@remotion/media`
-requirements and the need to compile `remotion/index.tsx` into a Player
-component before same-shell playback; the actual Remotion Player embed remains
-follow-up work.
+same-shell iframe. Remotion prepared sources now mount a same-shell
+`@remotion/player` host backed by `timeline/draft-primary.json`, so creators
+can preview the editable timeline while generated TSX remains hidden source
+material.
 
 Acceptance evidence:
 

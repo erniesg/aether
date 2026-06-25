@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
+import { MotionRemotionPlayerPreview } from '@/components/workspace/MotionRemotionPlayerPreview';
 import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
 import {
@@ -879,6 +880,9 @@ function MotionPreparedPreviewRuntimeHost({
           sandbox="allow-scripts"
           className="mt-3 aspect-video w-full rounded-sm border border-border-soft bg-surface-canvas"
         />
+      ) : null}
+      {source.runtimeKind === 'remotion-player' && runtimeHost.status === 'source-ready' ? (
+        <MotionRemotionPlayerPreview source={source} />
       ) : null}
     </div>
   );
