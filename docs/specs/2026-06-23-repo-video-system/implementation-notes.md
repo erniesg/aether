@@ -326,8 +326,10 @@
   Preview plans now also carry a typed runtime target for Remotion `Player` or
   a HyperFrames iframe, with source-host requirements and edit-link labels.
   `/api/motion/preview-source` now returns the source package needed to mount
-  those targets. The actual mounted `@remotion/player` embed or iframe remains
-  follow-up work once runtime dependencies are configured.
+  those targets, and the timeline lens now exposes a creator-facing prepare
+  action that calls that route with the selected draft and engine. The actual
+  mounted `@remotion/player` embed or iframe remains follow-up work once
+  runtime dependencies are configured.
 - The timeline lens now opens a progressive advanced node lens from the
   visual-generation strip while the graph route remains unavailable. The lens
   keeps the surface creator-facing by showing visual source, image-to-video,

@@ -1611,12 +1611,14 @@ describe('TimelineLens', () => {
 
   it('mounts a source-backed playable preview and focuses editable components', async () => {
     const onSelectClip = vi.fn<(clipId: string) => void>();
+    const onPreparePreviewSource = vi.fn<(engine: 'remotion' | 'hyperframes', draftId: string) => void>();
     render(
       <TimelineLens
         tracks={[]}
         previewPlan={previewPlan}
         selectedClipId={null}
         onSelectClip={onSelectClip}
+        onPreparePreviewSource={onPreparePreviewSource}
       />
     );
 
@@ -1632,6 +1634,9 @@ describe('TimelineLens', () => {
     expect(screen.getByText('0.0s / 30s')).toBeInTheDocument();
     expect(screen.getByText('source-backed edits')).toBeInTheDocument();
     expect(screen.getByText('SCRIPT.md / STORYBOARD.md')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /prepare remotion preview source/i }));
+    expect(onPreparePreviewSource).toHaveBeenCalledWith('remotion', 'draft-primary');
 
     await userEvent.click(screen.getByRole('button', { name: /focus hook card/i }));
 

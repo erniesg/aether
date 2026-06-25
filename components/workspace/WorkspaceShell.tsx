@@ -964,6 +964,62 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     },
     [motionStart, wsId]
   );
+  const handleTimelinePreparePreviewSource = useCallback(
+    async (engine: MotionRenderEngine, draftId: string) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus(`preparing ${engine} preview source`);
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/preview-source', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            draftId,
+            engine,
+            requestedAt,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          status?: string;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          previewSource?: {
+            sourceFileCount?: number;
+            sourceFiles?: unknown[];
+          } | null;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error ?? `preview source failed: ${res.status}`);
+        }
+
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan ?? motionStart.previewPlan,
+        });
+        if (json.status === 'ready') {
+          const fileCount =
+            json.previewSource?.sourceFileCount ?? json.previewSource?.sourceFiles?.length ?? 0;
+          setMotionTimelineActionStatus(
+            fileCount > 0
+              ? `${engine} preview source ready (${fileCount} files)`
+              : `${engine} preview source ready`
+          );
+        } else if (json.status === 'blocked') {
+          setMotionTimelineActionStatus('preview source blocked');
+        } else {
+          setMotionTimelineActionStatus('preview source planned');
+        }
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
   const handleTimelineDropRenderProofToCanvas = useCallback(
     (target: MotionPreviewRenderProofCanvasDropTarget) => {
       if (!editor) {
@@ -2913,6 +2969,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onGenerateVoice={handleTimelineGenerateVoice}
             onSyncMotion={handleTimelineSync}
             onRenderMotion={handleTimelineRender}
+            onPreparePreviewSource={handleTimelinePreparePreviewSource}
             onRunFullAuto={handleTimelineRunFullAuto}
             onDropMotionPlanToCanvas={handleTimelineDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={handleTimelineDropRenderProofToCanvas}

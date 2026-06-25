@@ -143,7 +143,8 @@ Status: partially implemented. The timeline lens now includes a source-backed
 preview shell with frame scrubbing, selected component focus, source file
 summary, linked clip edit controls, and a typed runtime target for Remotion
 `Player` or a HyperFrames iframe. `/api/motion/preview-source` now returns the
-source-ready package for those targets. The actual mounted preview runtime
+source-ready package for those targets, and the timeline lens can request that
+package from the selected draft/engine. The actual mounted preview runtime
 remains follow-up work.
 
 Acceptance evidence:

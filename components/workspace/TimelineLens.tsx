@@ -68,6 +68,7 @@ export interface TimelineLensProps {
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
   onRunFullAuto?: () => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
@@ -98,6 +99,7 @@ export function TimelineLens({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onPreparePreviewSource,
   onRunFullAuto,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
@@ -154,6 +156,7 @@ export function TimelineLens({
             onGenerateVoice={onGenerateVoice}
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
+            onPreparePreviewSource={onPreparePreviewSource}
             onRunFullAuto={onRunFullAuto}
             onSelectCapabilitySetup={onSelectCapabilitySetup}
             onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
@@ -203,6 +206,7 @@ function MotionPreviewPlanView({
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
+  onPreparePreviewSource,
   onRunFullAuto,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
@@ -230,6 +234,7 @@ function MotionPreviewPlanView({
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
+  onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
   onRunFullAuto?: () => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
@@ -375,6 +380,7 @@ function MotionPreviewPlanView({
           previewPlan={previewPlan}
           selectedClipId={selectedClipId}
           onSelectClip={onSelectClip}
+          onPreparePreviewSource={onPreparePreviewSource}
         />
       </section>
 
@@ -609,10 +615,12 @@ function MotionPlayablePreviewStrip({
   previewPlan,
   selectedClipId,
   onSelectClip,
+  onPreparePreviewSource,
 }: {
   previewPlan: MotionPreviewPlan;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
+  onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
 }) {
   const sourcePreview = buildSourcePreview(previewPlan);
   const [previewSeconds, setPreviewSeconds] = useState(0);
@@ -696,6 +704,15 @@ function MotionPlayablePreviewStrip({
             <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
               {sourcePreview.runtimePreview.sourceHostRequirement}
             </div>
+            {onPreparePreviewSource ? (
+              <button
+                type="button"
+                onClick={() => onPreparePreviewSource(sourcePreview.engine, previewPlan.draftId)}
+                className="mt-2 w-full rounded-sm border border-border-soft bg-surface-canvas px-3 py-2 text-left font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+              >
+                prepare {sourcePreview.engine} preview source
+              </button>
+            ) : null}
           </div>
 
           <div className="mt-4 grid gap-1">
