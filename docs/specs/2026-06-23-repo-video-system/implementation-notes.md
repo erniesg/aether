@@ -108,9 +108,9 @@
   source/evidence requests when more material is needed.
 - Agent execution handoffs now sit beside ready start results: they include
   concrete JSON request templates with `project` placeholders for full-auto,
-  capture, image-to-video, voice, sync, source-edit, render, and export-pack
-  gates. Local repo handoffs include required capture request ids plus the
-  request-scoped `playwright-local` runner config.
+  capture, image-to-video, voice, sync, preview-source, source-edit, render,
+  and export-pack gates. Local repo handoffs include required capture request
+  ids plus the request-scoped `playwright-local` runner config.
 - The workspace timeline lens now receives those agent handoffs and renders a
   compact agent-actions strip inside the creator shell: next action, review or
   full-auto mode, API route labels, expected receipts, and local-runner
@@ -177,6 +177,11 @@
   project plus scoped story, component, timing, or replacement operations, then
   returns the updated project with refreshed review/preview plans and capture
   status while rejecting unsafe timeline edits.
+- Agent-native `/api/motion/preview-source` route that accepts an editable
+  motion project plus a Remotion or HyperFrames engine, returns a source-ready
+  preview package with source file contents, runtime mount target, edit-link
+  labels, refreshed preview plan, and timeline blockers without requiring a
+  render provider.
 - Agent-native `/api/motion/render` route that accepts an editable motion
   project plus Remotion/HyperFrames render options, returns source/output
   handoffs when no renderer is configured, returns timeline blockers before
@@ -319,9 +324,10 @@
   see the composition and entry source, focus editable components, and open the
   existing linked clip edit controls while both workspace rails remain mounted.
   Preview plans now also carry a typed runtime target for Remotion `Player` or
-  a HyperFrames iframe, with source-host requirements and edit-link labels. The
-  actual mounted `@remotion/player` embed or iframe remains follow-up work once
-  source serving is configured.
+  a HyperFrames iframe, with source-host requirements and edit-link labels.
+  `/api/motion/preview-source` now returns the source package needed to mount
+  those targets. The actual mounted `@remotion/player` embed or iframe remains
+  follow-up work once runtime dependencies are configured.
 - The timeline lens now opens a progressive advanced node lens from the
   visual-generation strip while the graph route remains unavailable. The lens
   keeps the surface creator-facing by showing visual source, image-to-video,
@@ -363,6 +369,7 @@
 ./node_modules/.bin/vitest run tests/unit/api-motion-image-to-video.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-regenerate.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-revise.test.ts
+./node_modules/.bin/vitest run tests/unit/api-motion-preview-source.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-render.test.ts
 ./node_modules/.bin/vitest run tests/unit/api-motion-export-pack.test.ts
 ./node_modules/.bin/vitest run lib/motion/componentRegistry.test.ts lib/motion/reviewPlan.test.ts lib/motion/previewPlan.test.ts lib/motion/revise.test.ts lib/motion/prMotion.test.ts lib/motion/localRepoMotion.test.ts lib/motion/workflowPlan.test.ts lib/motion/workflowRouter.test.ts lib/motion/capturePlan.test.ts lib/motion/captureApply.test.ts lib/motion/imageToVideoPlan.test.ts lib/motion/imageToVideoApply.test.ts lib/motion/renderPlan.test.ts lib/motion/renderSource.test.ts lib/motion/renderApply.test.ts lib/motion/renderExecution.test.ts lib/motion/exportPackPlan.test.ts lib/motion/voicePlan.test.ts lib/motion/voiceApply.test.ts lib/motion/syncPlan.test.ts lib/motion/start.test.ts

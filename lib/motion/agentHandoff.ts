@@ -136,6 +136,19 @@ function buildTemplates(input: {
       expectedReceipts: ['beat markers', 'caption links', 'transition cues', 'sound cues'],
     },
     {
+      id: 'prepare-preview-source',
+      label: 'Prepare preview source',
+      method: 'POST',
+      route: '/api/motion/preview-source',
+      toolId: 'motion-preview-source',
+      body: cleanBody({
+        project: PROJECT_PLACEHOLDER,
+        engine: preferredRenderEngine(engines),
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
+      expectedReceipts: ['preview source files', 'runtime mount target', 'edit contract'],
+    },
+    {
       id: 'edit-source',
       label: 'Apply source edits',
       method: 'POST',

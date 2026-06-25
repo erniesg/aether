@@ -98,6 +98,7 @@ const ROUTE_TOOL_NAMES: Record<string, string> = {
   '/api/motion/voice': 'motion_voice',
   '/api/motion/sync': 'motion_sync',
   '/api/motion/revise': 'motion_revise',
+  '/api/motion/preview-source': 'motion_preview_source',
   '/api/motion/source-edit': 'motion_source_edit',
   '/api/motion/render': 'motion_render',
   '/api/motion/export-pack': 'motion_export_pack',

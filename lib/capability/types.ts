@@ -23,8 +23,10 @@ export type CapabilityTool =
   | 'motion-voice'
   | 'motion-sync'
   | 'motion-render'
+  | 'motion-preview-source'
   | 'motion-export-pack'
   | 'motion-revise'
+  | 'motion-source-edit'
   | 'motion-pin-capability';
 
 /**

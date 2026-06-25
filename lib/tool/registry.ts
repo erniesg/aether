@@ -168,6 +168,15 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  'motion-preview-source': {
+    kind: 'tool',
+    id: 'motion-preview-source',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Preview source',
+    outputKind: 'video',
+    status: 'draft',
+  },
   'motion-export-pack': {
     kind: 'tool',
     id: 'motion-export-pack',

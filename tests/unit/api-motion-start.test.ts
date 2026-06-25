@@ -238,6 +238,17 @@ describe('POST /api/motion/start', () => {
             }),
           }),
           expect.objectContaining({
+            id: 'prepare-preview-source',
+            label: 'Prepare preview source',
+            route: '/api/motion/preview-source',
+            toolId: 'motion-preview-source',
+            body: {
+              project: '$motionProject',
+              engine: 'remotion',
+            },
+            expectedReceipts: ['preview source files', 'runtime mount target', 'edit contract'],
+          }),
+          expect.objectContaining({
             id: 'edit-source',
             route: '/api/motion/source-edit',
             toolId: 'motion-source-edit',

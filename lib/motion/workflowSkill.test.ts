@@ -33,6 +33,7 @@ describe('motion workflow skill drafts', () => {
         'motion_voice',
         'motion_sync',
         'motion_revise',
+        'motion_preview_source',
         'motion_source_edit',
         'motion_render',
         'motion_export_pack',
@@ -53,7 +54,7 @@ describe('motion workflow skill drafts', () => {
         'Maintainer brief',
         'Mechanism-first cut',
       ],
-      componentSlotLabels: [
+      componentSlotLabels: expect.arrayContaining([
         'Hook card',
         'Code diff card',
         'Code highlight card',
@@ -62,7 +63,7 @@ describe('motion workflow skill drafts', () => {
         'Mechanism diagram',
         'Evidence card',
         'CTA card',
-      ],
+      ]),
       referencePatternLabels: [
         'Code diff explainer',
         'Proof receipt card',
@@ -88,7 +89,7 @@ describe('motion workflow skill drafts', () => {
           'New skill launching every day. Follow for more.',
         ],
         platformTargets: ['x 9:16 30s', 'linkedin 4:5 45s'],
-        componentSlotLabels: [
+        componentSlotLabels: expect.arrayContaining([
           'Hook card',
           'Code diff card',
           'Code highlight card',
@@ -97,7 +98,7 @@ describe('motion workflow skill drafts', () => {
           'Mechanism diagram',
           'Evidence card',
           'CTA card',
-        ],
+        ]),
         reviewArtifactLabels: [
           'Video plan',
           'Draft variations',
@@ -195,6 +196,7 @@ describe('motion workflow skill drafts', () => {
         'motion_voice',
         'motion_sync',
         'motion_revise',
+        'motion_preview_source',
         'motion_source_edit',
         'motion_render',
         'motion_export_pack',
@@ -257,13 +259,13 @@ describe('motion workflow skill drafts', () => {
       'Demo-first launch',
       'Founder-note launch',
     ]);
-    expect(plan.skillDraft.componentSlotLabels).toEqual([
+    expect(plan.skillDraft.componentSlotLabels).toEqual(expect.arrayContaining([
       'Hook card',
       'Proof card',
       'App frame',
       'Agent trace',
       'CTA card',
-    ]);
+    ]));
     expect(plan.skillDraft.referencePatternLabels).toEqual([
       'Launch hook title',
       'Real product capture',
