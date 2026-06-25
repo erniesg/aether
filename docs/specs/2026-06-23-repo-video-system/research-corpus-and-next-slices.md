@@ -146,8 +146,8 @@ summary, linked clip edit controls, and a typed runtime target for Remotion
 source-ready package for those targets, and the timeline lens can request that
 package from the selected draft/engine. The workspace stores the returned
 package and the timeline lens shows a source-ready runtime host without exposing
-raw TSX/HTML contents. The actual mounted preview runtime remains follow-up
-work.
+raw TSX/HTML contents. HyperFrames prepared HTML now mounts in a sandboxed
+same-shell iframe; the actual Remotion Player embed remains follow-up work.
 
 Acceptance evidence:
 

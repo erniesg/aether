@@ -808,6 +808,7 @@ function MotionPreparedPreviewRuntimeHost({
     source.sourceHost.manifestPath,
   ].filter((path): path is string => Boolean(path)));
   const editLinks = source.editLinkLabels.slice(0, 3).join(' / ');
+  const hyperframesHtml = hyperframesPreviewHtml(source);
 
   return (
     <div
@@ -845,8 +846,30 @@ function MotionPreparedPreviewRuntimeHost({
         ))}
         {editLinks ? <div className="truncate text-ink-dim">{editLinks}</div> : null}
       </div>
+      {hyperframesHtml ? (
+        <iframe
+          title={`${source.label} preview`}
+          srcDoc={hyperframesHtml}
+          sandbox="allow-scripts"
+          className="mt-3 aspect-video w-full rounded-sm border border-border-soft bg-surface-canvas"
+        />
+      ) : null}
     </div>
   );
+}
+
+function hyperframesPreviewHtml(source: MotionPreparedPreviewSource): string | null {
+  if (source.runtimeKind !== 'hyperframes-iframe') return null;
+  const entryPath = source.sourceHost.entryPath ?? source.entryPoint;
+  const entryFile =
+    source.sourceFiles.find(
+      (file) => file.kind === 'entry' && file.mimeType === 'text/html'
+    ) ??
+    source.sourceFiles.find(
+      (file) => file.path === entryPath && file.mimeType.includes('html')
+    );
+
+  return entryFile?.contents ?? null;
 }
 
 interface MotionSourcePreviewComponent {

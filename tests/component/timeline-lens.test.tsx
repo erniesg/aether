@@ -1133,6 +1133,45 @@ const preparedPreviewSource: MotionPreparedPreviewSource = {
   ],
 };
 
+const preparedHyperFramesPreviewSource: MotionPreparedPreviewSource = {
+  id: 'preview-source-render-plan-motion-aether-launch-draft-primary-hyperframes',
+  projectId: 'motion-aether-launch',
+  draftId: 'draft-primary',
+  engine: 'hyperframes',
+  runtimeKind: 'hyperframes-iframe',
+  label: 'HyperFrames iframe',
+  mountLabel: 'Mount HyperFrames iframe',
+  compositionId: 'motion-aether-launch-draft-primary',
+  entryPoint: 'hyperframes/index.html',
+  durationSeconds: 30,
+  fps: 30,
+  sourceHostRequirement: 'Serve hyperframes/index.html with timeline/draft-primary.json as a same-shell preview frame.',
+  editLinkLabels: ['data-start', 'data-duration', 'component classes', 'SCRIPT.md'],
+  sourceHost: {
+    apiRoute: '/api/motion/preview-source',
+    entryPath: 'hyperframes/index.html',
+    timelinePath: 'timeline/draft-primary.json',
+    manifestPath: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.source-manifest.json',
+    sourceFileCount: 7,
+  },
+  sourceFiles: [
+    {
+      kind: 'entry',
+      path: 'hyperframes/index.html',
+      mimeType: 'text/html',
+      contents: '<!doctype html><html><body><div data-composition-id="motion-aether-launch-draft-primary">HyperFrames preview</div></body></html>',
+      provenance: [{ kind: 'timeline', ref: 'track-text' }],
+    },
+    {
+      kind: 'timeline',
+      path: 'timeline/draft-primary.json',
+      mimeType: 'application/json',
+      contents: '{"tracks":[]}',
+      provenance: [{ kind: 'timeline', ref: 'track-text' }],
+    },
+  ],
+};
+
 const workflowSkillDraft: MotionWorkflowSkillDraft = {
   kind: 'motion-workflow-skill-draft',
   label: 'Repo launch video',
@@ -1712,6 +1751,49 @@ describe('TimelineLens', () => {
     expect(within(host).getByText(/component props \/ timeline JSON \/ SCRIPT\.md/)).toBeInTheDocument();
     expect(screen.queryByText(/registerRoot/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\"tracks\"/)).not.toBeInTheDocument();
+  });
+
+  it('mounts prepared HyperFrames HTML in a sandboxed preview frame', () => {
+    const hyperframesPreviewPlan: MotionPreviewPlan = {
+      ...previewPlan,
+      enginePreviews: [
+        {
+          ...previewPlan.enginePreviews[0],
+          engine: 'hyperframes',
+          compositionId: 'motion-aether-launch-draft-primary',
+          entryPoint: 'hyperframes/index.html',
+          runtimePreview: {
+            kind: 'hyperframes-iframe',
+            label: 'HyperFrames iframe',
+            status: 'needs-source-host',
+            mountLabel: 'Mount HyperFrames iframe',
+            sourceHostRequirement:
+              'Serve hyperframes/index.html with timeline/draft-primary.json as a same-shell preview frame.',
+            editLinkLabels: ['data-start', 'data-duration', 'component classes', 'SCRIPT.md'],
+          },
+        },
+      ],
+      editSource: {
+        ...previewPlan.editSource,
+        engine: 'hyperframes',
+        sourceFilePaths: ['hyperframes/index.html', 'timeline/draft-primary.json', 'EDIT.md'],
+      },
+    };
+
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={hyperframesPreviewPlan}
+        preparedPreviewSource={preparedHyperFramesPreviewSource}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    const frame = screen.getByTitle('HyperFrames iframe preview');
+    expect(frame).toHaveAttribute('sandbox', 'allow-scripts');
+    expect(frame.getAttribute('srcdoc')).toContain('data-composition-id="motion-aether-launch-draft-primary"');
+    expect(screen.getByRole('group', { name: /prepared hyperframes preview runtime/i })).toBeInTheDocument();
   });
 
   it('shows reusable agent actions without exposing raw request bodies', async () => {

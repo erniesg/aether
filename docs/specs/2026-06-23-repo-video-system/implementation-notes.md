@@ -330,9 +330,10 @@
   action that calls that route with the selected draft and engine. The
   workspace stores the returned source package and the timeline lens shows a
   source-ready runtime host with file counts, entry/timeline paths, fps, and
-  edit links without exposing raw TSX/HTML contents. The actual mounted
-  `@remotion/player` embed or iframe remains follow-up work once runtime
-  dependencies are configured.
+  edit links without exposing raw TSX/HTML contents. HyperFrames packages now
+  mount their prepared HTML in a sandboxed same-shell iframe. The actual
+  `@remotion/player` embed remains follow-up work once runtime dependencies
+  are configured.
 - The timeline lens now opens a progressive advanced node lens from the
   visual-generation strip while the graph route remains unavailable. The lens
   keeps the surface creator-facing by showing visual source, image-to-video,
