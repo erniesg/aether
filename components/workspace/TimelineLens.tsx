@@ -16,6 +16,7 @@ import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/
 import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
+import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
 import type {
   MotionProductionPlan,
   MotionProductionStep,
@@ -61,6 +62,7 @@ export interface TimelineCaptureActionOptions {
 export interface TimelineLensProps {
   tracks: TimelineTrack[];
   previewPlan?: MotionPreviewPlan | null;
+  preparedPreviewSource?: MotionPreparedPreviewSource | null;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
@@ -92,6 +94,7 @@ export interface TimelineLensProps {
 export function TimelineLens({
   tracks,
   previewPlan,
+  preparedPreviewSource = null,
   selectedClipId,
   onSelectClip,
   onSelectDraft,
@@ -149,6 +152,7 @@ export function TimelineLens({
         {previewPlan ? (
           <MotionPreviewPlanView
             previewPlan={previewPlan}
+            preparedPreviewSource={preparedPreviewSource}
             selectedClipId={selectedClipId}
             onSelectClip={onSelectClip}
             onSelectDraft={onSelectDraft}
@@ -199,6 +203,7 @@ export function TimelineLens({
 
 function MotionPreviewPlanView({
   previewPlan,
+  preparedPreviewSource,
   selectedClipId,
   onSelectClip,
   onSelectDraft,
@@ -227,6 +232,7 @@ function MotionPreviewPlanView({
   actionStatus,
 }: {
   previewPlan: MotionPreviewPlan;
+  preparedPreviewSource: MotionPreparedPreviewSource | null;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
@@ -378,6 +384,7 @@ function MotionPreviewPlanView({
       <section className="border-b border-border-soft px-4 py-3">
         <MotionPlayablePreviewStrip
           previewPlan={previewPlan}
+          preparedPreviewSource={preparedPreviewSource}
           selectedClipId={selectedClipId}
           onSelectClip={onSelectClip}
           onPreparePreviewSource={onPreparePreviewSource}
@@ -613,11 +620,13 @@ function MotionPreviewPlanView({
 
 function MotionPlayablePreviewStrip({
   previewPlan,
+  preparedPreviewSource,
   selectedClipId,
   onSelectClip,
   onPreparePreviewSource,
 }: {
   previewPlan: MotionPreviewPlan;
+  preparedPreviewSource: MotionPreparedPreviewSource | null;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
@@ -652,6 +661,13 @@ function MotionPlayablePreviewStrip({
     ) ??
     sourcePreview.components[0] ??
     null;
+  const preparedSource = preparedPreviewMatchesSource(
+    preparedPreviewSource,
+    sourcePreview,
+    previewPlan
+  )
+    ? preparedPreviewSource
+    : null;
 
   return (
     <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -715,6 +731,10 @@ function MotionPlayablePreviewStrip({
             ) : null}
           </div>
 
+          {preparedSource ? (
+            <MotionPreparedPreviewRuntimeHost source={preparedSource} />
+          ) : null}
+
           <div className="mt-4 grid gap-1">
             <input
               type="range"
@@ -771,6 +791,59 @@ function MotionPlayablePreviewStrip({
           <div>{sourcePreview.sourceFileSummary}</div>
           <div>{sourcePreview.editSurfaceSummary}</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionPreparedPreviewRuntimeHost({
+  source,
+}: {
+  source: MotionPreparedPreviewSource;
+}) {
+  const sourceFileCount = source.sourceHost.sourceFileCount || source.sourceFiles.length;
+  const sourcePaths = uniqueLabels([
+    source.sourceHost.entryPath,
+    source.sourceHost.timelinePath,
+    source.sourceHost.manifestPath,
+  ].filter((path): path is string => Boolean(path)));
+  const editLinks = source.editLinkLabels.slice(0, 3).join(' / ');
+
+  return (
+    <div
+      role="group"
+      aria-label={`prepared ${source.engine} preview runtime`}
+      className="mt-3 rounded-sm border border-accent/40 bg-surface-panel/70 px-2 py-2"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          runtime host
+        </div>
+        <Chip tone="ok" size="sm">
+          source ready
+        </Chip>
+      </div>
+      <div className="mt-1 truncate font-caption text-xs text-ink">
+        {source.label} source ready
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <Chip tone="neutral" size="sm">
+          {sourceFileCount} source files
+        </Chip>
+        <Chip tone="neutral" size="sm">
+          {source.fps} fps
+        </Chip>
+        <Chip tone="neutral" size="sm">
+          {formatPreviewDuration(source.durationSeconds)}
+        </Chip>
+      </div>
+      <div className="mt-2 grid gap-1 font-caption text-2xs text-ink-faint">
+        {sourcePaths.slice(0, 3).map((path) => (
+          <div key={path} className="truncate">
+            {path}
+          </div>
+        ))}
+        {editLinks ? <div className="truncate text-ink-dim">{editLinks}</div> : null}
       </div>
     </div>
   );
@@ -833,6 +906,19 @@ function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview
     editSurfaceSummary: summarizePreviewEditSurfaces(editSource),
     components,
   };
+}
+
+function preparedPreviewMatchesSource(
+  preparedSource: MotionPreparedPreviewSource | null,
+  sourcePreview: MotionSourcePreview,
+  previewPlan: MotionPreviewPlan
+): preparedSource is MotionPreparedPreviewSource {
+  return Boolean(
+    preparedSource &&
+      preparedSource.draftId === previewPlan.draftId &&
+      preparedSource.engine === sourcePreview.engine &&
+      preparedSource.compositionId === sourcePreview.compositionId
+  );
 }
 
 function findClipById(

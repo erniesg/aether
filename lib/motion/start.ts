@@ -11,6 +11,7 @@ import {
   type MotionAgentExecutionHandoff,
 } from './agentHandoff';
 import { buildMotionPreviewPlan, type MotionPreviewPlan } from './previewPlan';
+import type { MotionPreviewRuntimeKind } from './previewPlan';
 import { buildMotionReviewPlan, type MotionReviewPlan } from './reviewPlan';
 import {
   listMotionWorkflowExamples,
@@ -44,6 +45,10 @@ import {
   type RoutedAgentMotionWorkflow,
 } from './workflowRouter';
 import type { MotionWorkflowPlanSourceRef } from './workflowPlan';
+import type {
+  MotionRenderEngine,
+  MotionRenderSourceFile,
+} from '@/lib/providers/video/types';
 
 export type AgentMotionStartStatus =
   | 'ready'
@@ -90,12 +95,37 @@ export interface StartAgentMotionWorkflowOptions
     BuildPrMotionProjectFromSourceOptions,
     BuildLocalRepoMotionProjectFromPathOptions {}
 
+export interface MotionPreparedPreviewSource {
+  id: string;
+  projectId: string;
+  draftId: string;
+  engine: MotionRenderEngine;
+  runtimeKind: MotionPreviewRuntimeKind;
+  label: string;
+  mountLabel: string;
+  compositionId: string;
+  entryPoint: string;
+  durationSeconds: number;
+  fps: number;
+  sourceHostRequirement: string;
+  editLinkLabels: string[];
+  sourceHost: {
+    apiRoute: string;
+    entryPath: string | null;
+    timelinePath: string | null;
+    manifestPath: string | null;
+    sourceFileCount: number;
+  };
+  sourceFiles: MotionRenderSourceFile[];
+}
+
 export interface AgentMotionStartResult {
   status: AgentMotionStartStatus;
   workflow: RoutedAgentMotionWorkflow;
   project: MotionProject | null;
   reviewPlan: MotionReviewPlan | null;
   previewPlan: MotionPreviewPlan | null;
+  preparedPreviewSource?: MotionPreparedPreviewSource | null;
   capturePlan: AgentMotionCapturePlan | null;
   agentHandoff: MotionAgentExecutionHandoff | null;
   examples: MotionWorkflowExample[];

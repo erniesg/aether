@@ -98,6 +98,7 @@ import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
+import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
 import type { MotionEffectPresetId } from '@/lib/motion/effectPresets';
 import {
   buildExportRequestBody,
@@ -987,10 +988,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           status?: string;
           reviewPlan?: typeof motionStart.reviewPlan;
           previewPlan?: typeof motionStart.previewPlan;
-          previewSource?: {
-            sourceFileCount?: number;
-            sourceFiles?: unknown[];
-          } | null;
+          previewSource?: MotionPreparedPreviewSource | null;
         };
         if (!res.ok || json.ok === false) {
           throw new Error(json.error ?? `preview source failed: ${res.status}`);
@@ -1000,10 +998,16 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           ...motionStart,
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan ?? motionStart.previewPlan,
+          preparedPreviewSource:
+            json.status === 'ready'
+              ? json.previewSource ?? null
+              : motionStart.preparedPreviewSource ?? null,
         });
         if (json.status === 'ready') {
           const fileCount =
-            json.previewSource?.sourceFileCount ?? json.previewSource?.sourceFiles?.length ?? 0;
+            json.previewSource?.sourceHost.sourceFileCount ??
+            json.previewSource?.sourceFiles.length ??
+            0;
           setMotionTimelineActionStatus(
             fileCount > 0
               ? `${engine} preview source ready (${fileCount} files)`
@@ -2987,6 +2991,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             graphNodes={motionStart?.project?.graphNodes ?? []}
             workflowExamples={motionWorkflowExamples}
             workflowSkillDraft={motionWorkflowSkillDraft}
+            preparedPreviewSource={motionStart?.preparedPreviewSource ?? null}
             actionStatus={motionTimelineActionStatus}
           />
         ) : (

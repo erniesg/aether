@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TimelineLens } from '@/components/workspace/TimelineLens';
 import type { MotionGraphNode, TimelineTrack } from '@/lib/motion/project';
@@ -9,6 +9,7 @@ import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
 import type { MotionProductionPlan } from '@/lib/motion/productionPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
+import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
 
 afterEach(cleanup);
 
@@ -1086,6 +1087,52 @@ const previewPlan: MotionPreviewPlan = {
   requestedAt: 130,
 };
 
+const preparedPreviewSource: MotionPreparedPreviewSource = {
+  id: 'preview-source-render-plan-motion-aether-launch-draft-primary-remotion',
+  projectId: 'motion-aether-launch',
+  draftId: 'draft-primary',
+  engine: 'remotion',
+  runtimeKind: 'remotion-player',
+  label: 'Remotion Player',
+  mountLabel: 'Mount Remotion Player',
+  compositionId: 'motion-aether-launch-draft-primary',
+  entryPoint: 'remotion/index.tsx',
+  durationSeconds: 30,
+  fps: 30,
+  sourceHostRequirement: 'Serve remotion/index.tsx and timeline/draft-primary.json to the preview runtime.',
+  editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
+  sourceHost: {
+    apiRoute: '/api/motion/preview-source',
+    entryPath: 'remotion/index.tsx',
+    timelinePath: 'timeline/draft-primary.json',
+    manifestPath: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
+    sourceFileCount: 7,
+  },
+  sourceFiles: [
+    {
+      kind: 'entry',
+      path: 'remotion/index.tsx',
+      mimeType: 'text/typescript',
+      contents: 'registerRoot(RemotionRoot);',
+      provenance: [{ kind: 'timeline', ref: 'track-text' }],
+    },
+    {
+      kind: 'timeline',
+      path: 'timeline/draft-primary.json',
+      mimeType: 'application/json',
+      contents: '{"tracks":[]}',
+      provenance: [{ kind: 'timeline', ref: 'track-text' }],
+    },
+    {
+      kind: 'manifest',
+      path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
+      mimeType: 'application/json',
+      contents: '{"id":"render-plan-motion-aether-launch-draft-primary-remotion"}',
+      provenance: [{ kind: 'timeline', ref: 'track-text' }],
+    },
+  ],
+};
+
 const workflowSkillDraft: MotionWorkflowSkillDraft = {
   kind: 'motion-workflow-skill-draft',
   label: 'Repo launch video',
@@ -1642,6 +1689,29 @@ describe('TimelineLens', () => {
 
     expect(onSelectClip).toHaveBeenCalledWith('clip-beat-hook-text');
     expect(screen.queryByText('render-plan-motion-aether-launch-draft-primary-remotion')).not.toBeInTheDocument();
+  });
+
+  it('shows a prepared preview runtime host without exposing raw source contents', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        preparedPreviewSource={preparedPreviewSource}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    const host = screen.getByRole('group', { name: /prepared remotion preview runtime/i });
+    expect(within(host).getByText('runtime host')).toBeInTheDocument();
+    expect(within(host).getByText('Remotion Player source ready')).toBeInTheDocument();
+    expect(within(host).getByText('7 source files')).toBeInTheDocument();
+    expect(within(host).getByText('30 fps')).toBeInTheDocument();
+    expect(within(host).getByText('remotion/index.tsx')).toBeInTheDocument();
+    expect(within(host).getByText('timeline/draft-primary.json')).toBeInTheDocument();
+    expect(within(host).getByText(/component props \/ timeline JSON \/ SCRIPT\.md/)).toBeInTheDocument();
+    expect(screen.queryByText(/registerRoot/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\"tracks\"/)).not.toBeInTheDocument();
   });
 
   it('shows reusable agent actions without exposing raw request bodies', async () => {
