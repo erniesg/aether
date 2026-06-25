@@ -318,8 +318,10 @@
   renderable Remotion/HyperFrames source bundles: creators can scrub time,
   see the composition and entry source, focus editable components, and open the
   existing linked clip edit controls while both workspace rails remain mounted.
-  This is not yet a real `@remotion/player` embed or HyperFrames iframe; that
-  runtime wiring remains a follow-up once source serving is configured.
+  Preview plans now also carry a typed runtime target for Remotion `Player` or
+  a HyperFrames iframe, with source-host requirements and edit-link labels. The
+  actual mounted `@remotion/player` embed or iframe remains follow-up work once
+  source serving is configured.
 - The timeline lens now opens a progressive advanced node lens from the
   visual-generation strip while the graph route remains unavailable. The lens
   keeps the surface creator-facing by showing visual source, image-to-video,
@@ -397,7 +399,7 @@ The first accessible research matrix now lives in
 not replace it.
 
 The current implementation has the data and workflow seams to ingest that
-corpus, but it does not yet include the corpus artifact, Remotion Player preview,
-real renderer dependency execution in the app process, configured voice
-providers, creator UI controls for trusted runner execution, or authenticated
-desktop/computer-use recording execution.
+corpus, but it does not yet include the corpus artifact, a mounted Remotion
+Player or HyperFrames iframe preview, real renderer dependency execution in the
+app process, configured voice providers, creator UI controls for trusted runner
+execution, or authenticated desktop/computer-use recording execution.

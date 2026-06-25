@@ -87,6 +87,25 @@ export interface MotionPreviewBlocker {
   label: string;
 }
 
+export type MotionPreviewRuntimeKind =
+  | 'remotion-player'
+  | 'hyperframes-iframe'
+  | 'provider-preview';
+
+export type MotionPreviewRuntimeStatus =
+  | 'needs-source-host'
+  | 'needs-render-source'
+  | 'provider-required';
+
+export interface MotionPreviewRuntimeTarget {
+  kind: MotionPreviewRuntimeKind;
+  label: string;
+  status: MotionPreviewRuntimeStatus;
+  mountLabel: string;
+  sourceHostRequirement: string;
+  editLinkLabels: string[];
+}
+
 export interface MotionPreviewEnginePlan {
   engine: WorkflowEngine;
   status: MotionPreviewEngineStatus;
@@ -97,6 +116,7 @@ export interface MotionPreviewEnginePlan {
   componentIds: string[];
   sourceFiles: MotionPreviewSourceFile[];
   blockers: MotionPreviewBlocker[];
+  runtimePreview: MotionPreviewRuntimeTarget | null;
 }
 
 export interface MotionPreviewStoryBeat {
@@ -1447,6 +1467,14 @@ function buildEnginePreview(
           label: 'Choose a configured video generation provider before render',
         },
       ],
+      runtimePreview: {
+        kind: 'provider-preview',
+        label: 'Provider preview',
+        status: 'provider-required',
+        mountLabel: 'Choose provider preview',
+        sourceHostRequirement: 'Configure a video provider preview before mounting generated media.',
+        editLinkLabels: [],
+      },
     };
   }
 
@@ -1466,6 +1494,14 @@ function buildEnginePreview(
       componentIds: renderPlan.componentIds,
       sourceFiles: [],
       blockers: renderPlan.blockers,
+      runtimePreview: {
+        kind: engine === 'remotion' ? 'remotion-player' : 'hyperframes-iframe',
+        label: engine === 'remotion' ? 'Remotion Player' : 'HyperFrames iframe',
+        status: 'needs-render-source',
+        mountLabel: engine === 'remotion' ? 'Prepare Remotion Player' : 'Prepare HyperFrames iframe',
+        sourceHostRequirement: 'Resolve timeline blockers before source-backed preview can mount.',
+        editLinkLabels: [],
+      },
     };
   }
 
@@ -1488,6 +1524,51 @@ function buildEnginePreview(
       mimeType: file.mimeType,
     })),
     blockers: [],
+    runtimePreview: buildRuntimePreviewTarget(engine, sourceBundle.files),
+  };
+}
+
+function buildRuntimePreviewTarget(
+  engine: MotionRenderEngine,
+  sourceFiles: MotionRenderRequest['sourceFiles']
+): MotionPreviewRuntimeTarget {
+  const entryPath =
+    sourceFiles?.find((file) => file.kind === 'entry')?.path ??
+    (engine === 'remotion' ? 'remotion/index.tsx' : 'hyperframes/index.html');
+  const timelinePath =
+    sourceFiles?.find((file) => file.kind === 'timeline')?.path ?? 'timeline JSON';
+  const scriptPath = sourceFiles?.find((file) => file.kind === 'script')?.path;
+  const storyboardPath = sourceFiles?.find((file) => file.kind === 'storyboard')?.path;
+
+  if (engine === 'remotion') {
+    return {
+      kind: 'remotion-player',
+      label: 'Remotion Player',
+      status: 'needs-source-host',
+      mountLabel: 'Mount Remotion Player',
+      sourceHostRequirement: `Serve ${entryPath} and ${timelinePath} to the preview runtime.`,
+      editLinkLabels: uniqueStrings([
+        'component props',
+        'timeline JSON',
+        scriptPath ?? 'SCRIPT.md',
+        storyboardPath ?? 'STORYBOARD.md',
+      ]),
+    };
+  }
+
+  return {
+    kind: 'hyperframes-iframe',
+    label: 'HyperFrames iframe',
+    status: 'needs-source-host',
+    mountLabel: 'Mount HyperFrames iframe',
+    sourceHostRequirement: `Serve ${entryPath} with ${timelinePath} as a same-shell preview frame.`,
+    editLinkLabels: uniqueStrings([
+      'data-start',
+      'data-duration',
+      'component classes',
+      scriptPath ?? 'SCRIPT.md',
+      storyboardPath ?? 'STORYBOARD.md',
+    ]),
   };
 }
 

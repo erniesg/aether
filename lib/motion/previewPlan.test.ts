@@ -690,6 +690,23 @@ describe('buildMotionPreviewPlan', () => {
         'voice-line',
         'soft-wipe',
       ],
+      runtimePreview: {
+        kind: 'remotion-player',
+        label: 'Remotion Player',
+        status: 'needs-source-host',
+        mountLabel: 'Mount Remotion Player',
+        sourceHostRequirement: 'Serve remotion/index.tsx and timeline/draft-primary.json to the preview runtime.',
+        editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
+      },
+    });
+    expect(preview.enginePreviews[1]).toMatchObject({
+      engine: 'hyperframes',
+      runtimePreview: {
+        kind: 'hyperframes-iframe',
+        label: 'HyperFrames iframe',
+        status: 'needs-source-host',
+        mountLabel: 'Mount HyperFrames iframe',
+      },
     });
     expect(preview.enginePreviews[0].sourceFiles).toEqual([
       {

@@ -459,6 +459,14 @@ const previewPlan: MotionPreviewPlan = {
         { kind: 'entry', path: 'remotion/index.tsx', mimeType: 'text/typescript' },
       ],
       blockers: [],
+      runtimePreview: {
+        kind: 'remotion-player',
+        label: 'Remotion Player',
+        status: 'needs-source-host',
+        mountLabel: 'Mount Remotion Player',
+        sourceHostRequirement: 'Serve remotion/index.tsx and timeline/draft-primary.json to the preview runtime.',
+        editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
+      },
     },
     {
       engine: 'provider',
@@ -475,6 +483,14 @@ const previewPlan: MotionPreviewPlan = {
           label: 'Choose a configured video generation provider before render',
         },
       ],
+      runtimePreview: {
+        kind: 'provider-preview',
+        label: 'Provider preview',
+        status: 'provider-required',
+        mountLabel: 'Choose provider preview',
+        sourceHostRequirement: 'Configure a video provider preview before mounting generated media.',
+        editLinkLabels: [],
+      },
     },
   ],
   editSource: {
@@ -1608,6 +1624,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText('remotion source preview')).toBeInTheDocument();
     expect(screen.getByText('motion-aether-launch-draft-primary')).toBeInTheDocument();
     expect(screen.getAllByText('remotion/index.tsx').length).toBeGreaterThan(0);
+    expect(screen.getByText('Remotion Player target')).toBeInTheDocument();
+    expect(screen.getByText('Mount Remotion Player')).toBeInTheDocument();
+    expect(screen.getByText('component props / timeline JSON / SCRIPT.md')).toBeInTheDocument();
+    expect(screen.getByText(/Serve remotion\/index\.tsx and timeline\/draft-primary\.json/)).toBeInTheDocument();
     expect(screen.getByLabelText('preview frame scrubber')).toHaveValue('0');
     expect(screen.getByText('0.0s / 30s')).toBeInTheDocument();
     expect(screen.getByText('source-backed edits')).toBeInTheDocument();

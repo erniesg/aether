@@ -83,9 +83,9 @@ Aether now has the right backbone:
    creator-facing setup card with permission, expected receipt, and dry-run
    proof before full-auto.
 3. **Real preview runtime.** The timeline lens now has a source-backed preview
-   shell with frame scrubbing and component focus. It still needs the real
-   Remotion Player / HyperFrames preview iframe once runtime dependencies and
-   source-serving are configured.
+   shell with frame scrubbing, component focus, and explicit Remotion Player /
+   HyperFrames iframe runtime targets. It still needs the real mounted Player
+   or iframe once runtime dependencies and source-serving are configured.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source
@@ -140,8 +140,9 @@ caption, timing, effect, crop, zoom, or regenerate component.
 
 Status: partially implemented. The timeline lens now includes a source-backed
 preview shell with frame scrubbing, selected component focus, source file
-summary, and linked clip edit controls. The actual Remotion `Player` and
-HyperFrames iframe runtime remain follow-up work.
+summary, linked clip edit controls, and a typed runtime target for Remotion
+`Player` or a HyperFrames iframe. The actual mounted preview runtime remains
+follow-up work.
 
 Acceptance evidence:
 

@@ -32,6 +32,7 @@ import type {
   MotionPreviewRegenerationAction,
   MotionPreviewRenderProofCanvasDropTarget,
   MotionPreviewRenderProofSummary,
+  MotionPreviewRuntimeTarget,
   MotionPreviewSourceProfile,
   MotionPreviewSyncBeat,
   MotionPreviewSyncSoundCue,
@@ -680,6 +681,23 @@ function MotionPlayablePreviewStrip({
             </div>
           </div>
 
+          <div className="mt-3 rounded-sm border border-border-soft bg-surface-panel/60 px-2 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-caption text-xs text-ink">
+                {sourcePreview.runtimePreview.label} target
+              </div>
+              <Chip tone="info" size="sm">
+                {sourcePreview.runtimePreview.mountLabel}
+              </Chip>
+            </div>
+            <div className="mt-1 truncate font-caption text-2xs text-ink-dim">
+              {summarizeRuntimeEditLinks(sourcePreview.runtimePreview)}
+            </div>
+            <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {sourcePreview.runtimePreview.sourceHostRequirement}
+            </div>
+          </div>
+
           <div className="mt-4 grid gap-1">
             <input
               type="range"
@@ -756,6 +774,7 @@ interface MotionSourcePreview {
   compositionId: string;
   entryPoint: string;
   durationSeconds: number;
+  runtimePreview: MotionPreviewRuntimeTarget;
   sourceFileSummary: string;
   editSurfaceSummary: string;
   components: MotionSourcePreviewComponent[];
@@ -764,7 +783,13 @@ interface MotionSourcePreview {
 function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview | null {
   const engine = preferredRenderEngine(previewPlan.enginePreviews);
   const editSource = previewPlan.editSource;
-  if (!engine || !engine.compositionId || !engine.entryPoint || editSource.status !== 'ready') {
+  if (
+    !engine ||
+    !engine.compositionId ||
+    !engine.entryPoint ||
+    !engine.runtimePreview ||
+    editSource.status !== 'ready'
+  ) {
     return null;
   }
 
@@ -786,6 +811,7 @@ function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview
     compositionId: engine.compositionId,
     entryPoint: engine.entryPoint,
     durationSeconds: engine.durationSeconds,
+    runtimePreview: engine.runtimePreview,
     sourceFileSummary: summarizePreviewSourceFiles(editSource),
     editSurfaceSummary: summarizePreviewEditSurfaces(editSource),
     components,
@@ -816,6 +842,10 @@ function summarizePreviewEditSurfaces(editSource: MotionPreviewEditSource): stri
     editSource.components.flatMap((component) => component.editSurfaceLabels)
   ).slice(0, 5);
   return labels.length > 0 ? labels.join(' / ') : 'timeline / component / effect';
+}
+
+function summarizeRuntimeEditLinks(runtimePreview: MotionPreviewRuntimeTarget): string {
+  return runtimePreview.editLinkLabels.slice(0, 3).join(' / ') || 'timeline / component / effect';
 }
 
 function formatPreviewTime(seconds: number): string {
