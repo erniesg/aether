@@ -318,12 +318,40 @@ export interface MotionPreviewVideoPlan {
   scenes: MotionPreviewVideoPlanScene[];
 }
 
+export interface MotionPreviewSourceCaptureActionRequestTemplate {
+  project: '$motionProject';
+  requestIds: string[];
+  requestedAt: '$now';
+}
+
+export interface MotionPreviewSourceCaptureAction {
+  id: string;
+  label: string;
+  route: '/api/motion/capture';
+  method: 'POST';
+  toolId: 'motion-capture';
+  requestTemplate: MotionPreviewSourceCaptureActionRequestTemplate;
+  expectedReceiptLabels: string[];
+}
+
+export interface MotionPreviewSourceCaptureCandidate {
+  id: string;
+  label: string;
+  mode: MotionSourceProfile['captureCandidates'][number]['mode'];
+  targetKind: MotionSourceProfile['captureCandidates'][number]['targetKind'];
+  targetRef: string | null;
+  setupLabel: string | null;
+  reason: string;
+  action: MotionPreviewSourceCaptureAction | null;
+}
+
 export interface MotionPreviewSourceProfile {
   label: string;
   sourceKind: MotionSourceProfile['kind'];
   summary: string;
   signalLabels: string[];
   captureCandidateLabels: string[];
+  captureCandidates: MotionPreviewSourceCaptureCandidate[];
   storyboardHintLabels: string[];
   readyCaptureCount: number;
 }
@@ -1215,9 +1243,65 @@ function buildSourceProfileSummary(
     summary: profile.summary,
     signalLabels: profile.signals.map((signal) => `${signal.label}: ${signal.value}`),
     captureCandidateLabels: profile.captureCandidates.map((candidate) => candidate.label),
+    captureCandidates: profile.captureCandidates.map(sourceCaptureCandidateSummary),
     storyboardHintLabels: profile.storyboardHints.map((hint) => `${hint.beatRole}: ${hint.label}`),
     readyCaptureCount: profile.captureCandidates.filter((candidate) => candidate.targetRef).length,
   };
+}
+
+function sourceCaptureCandidateSummary(
+  candidate: MotionSourceProfile['captureCandidates'][number]
+): MotionPreviewSourceCaptureCandidate {
+  return {
+    id: candidate.id,
+    label: candidate.label,
+    mode: candidate.mode,
+    targetKind: candidate.targetKind,
+    targetRef: candidate.targetRef ?? null,
+    setupLabel: candidate.setup
+      ? candidate.targetRef
+        ? `${candidate.setup} -> ${candidate.targetRef}`
+        : candidate.setup
+      : null,
+    reason: candidate.reason,
+    action: candidate.targetRef ? sourceCaptureAction(candidate) : null,
+  };
+}
+
+function sourceCaptureAction(
+  candidate: MotionSourceProfile['captureCandidates'][number]
+): MotionPreviewSourceCaptureAction {
+  return {
+    id: `capture-source-${candidate.id}`,
+    label: sourceCaptureActionLabel(candidate.mode),
+    route: '/api/motion/capture',
+    method: 'POST',
+    toolId: 'motion-capture',
+    requestTemplate: {
+      project: '$motionProject',
+      requestIds: [candidate.id],
+      requestedAt: '$now',
+    },
+    expectedReceiptLabels: sourceCaptureExpectedReceiptLabels(candidate.mode),
+  };
+}
+
+function sourceCaptureActionLabel(
+  mode: MotionSourceProfile['captureCandidates'][number]['mode']
+): string {
+  if (mode === 'screen-recording') return 'record flow';
+  if (mode === 'dom-snapshot') return 'read structure';
+  if (mode === 'interaction-trace') return 'trace interaction';
+  return 'capture route';
+}
+
+function sourceCaptureExpectedReceiptLabels(
+  mode: MotionSourceProfile['captureCandidates'][number]['mode']
+): string[] {
+  if (mode === 'screen-recording') return ['recording', 'interaction receipt', 'viewport receipt'];
+  if (mode === 'dom-snapshot') return ['snapshot', 'route metadata', 'viewport receipt'];
+  if (mode === 'interaction-trace') return ['interaction trace', 'cursor targets', 'viewport receipt'];
+  return ['screenshot', 'cursor targets', 'viewport receipt'];
 }
 
 function buildVideoPlan(

@@ -35,6 +35,7 @@ import type {
   MotionPreviewRegenerationAction,
   MotionPreviewRenderProofCanvasDropTarget,
   MotionPreviewRenderProofSummary,
+  MotionPreviewSourceCaptureCandidate,
   MotionPreviewRuntimeTarget,
   MotionPreviewSourceProfile,
   MotionPreviewSyncBeat,
@@ -458,7 +459,11 @@ function MotionPreviewPlanView({
 
       {previewPlan.sourceProfile ? (
         <section className="border-b border-border-soft px-4 py-3">
-          <MotionSourceMaterialStrip sourceProfile={previewPlan.sourceProfile} />
+          <MotionSourceMaterialStrip
+            sourceProfile={previewPlan.sourceProfile}
+            captureRunner={captureRunnerFromAgentHandoff(agentHandoff)}
+            onCaptureMotion={onCaptureMotion}
+          />
         </section>
       ) : null}
 
@@ -2078,9 +2083,16 @@ function selectLaunchKitReviewObjects<
 
 function MotionSourceMaterialStrip({
   sourceProfile,
+  captureRunner,
+  onCaptureMotion,
 }: {
   sourceProfile: MotionPreviewSourceProfile;
+  captureRunner?: TimelineCaptureRunnerInput;
+  onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
 }) {
+  const captureOptions = captureRunner ? { captureRunner } : undefined;
+  const visibleCandidates = sourceProfile.captureCandidates.slice(0, 3);
+
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -2098,7 +2110,7 @@ function MotionSourceMaterialStrip({
             : sourceProfile.sourceKind.replace(/-/g, ' ')}
         </Chip>
       </div>
-      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
           <div className="font-caption text-xs text-ink">{sourceProfile.label}</div>
           <div className="mt-2 flex flex-wrap gap-1">
@@ -2110,18 +2122,79 @@ function MotionSourceMaterialStrip({
           </div>
         </div>
         <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
-          <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
-            {sourceProfile.captureCandidateLabels.slice(0, 2).join(' / ')}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {sourceProfile.storyboardHintLabels.slice(0, 3).map((label) => (
-              <Chip key={label} tone="neutral" size="sm">
-                {label}
-              </Chip>
-            ))}
-          </div>
+          {visibleCandidates.length > 0 ? (
+            <div className="grid gap-1.5">
+              {visibleCandidates.map((candidate) => (
+                <MotionSourceCaptureCandidateRow
+                  key={candidate.id}
+                  candidate={candidate}
+                  captureOptions={captureOptions}
+                  onCaptureMotion={onCaptureMotion}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {sourceProfile.captureCandidateLabels.slice(0, 2).join(' / ')}
+            </div>
+          )}
         </div>
       </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {sourceProfile.storyboardHintLabels.slice(0, 3).map((label) => (
+          <Chip key={label} tone="neutral" size="sm">
+            {label}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MotionSourceCaptureCandidateRow({
+  candidate,
+  captureOptions,
+  onCaptureMotion,
+}: {
+  candidate: MotionPreviewSourceCaptureCandidate;
+  captureOptions?: TimelineCaptureActionOptions;
+  onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
+}) {
+  const action = candidate.action;
+  const targetLabel = candidate.targetRef ? captureTargetLabel(candidate.targetRef) : 'source needed';
+
+  return (
+    <div className="rounded-sm border border-border-soft/80 bg-surface-canvas px-2 py-1.5">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="truncate font-caption text-xs text-ink">{candidate.label}</span>
+        <Chip tone={candidate.action ? 'neutral' : 'warn'} size="sm">
+          {candidate.mode.replace(/-/g, ' ')}
+        </Chip>
+      </div>
+      <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+        {targetLabel}
+      </div>
+      {candidate.setupLabel ? (
+        <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+          {candidate.setupLabel}
+        </div>
+      ) : null}
+      <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+        {candidate.reason}
+      </div>
+      {action && onCaptureMotion ? (
+        <button
+          type="button"
+          onClick={() =>
+            captureOptions
+              ? onCaptureMotion(action.requestTemplate.requestIds, captureOptions)
+              : onCaptureMotion(action.requestTemplate.requestIds)
+          }
+          className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-mono text-[10px] uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+        >
+          {action.label}
+        </button>
+      ) : null}
     </div>
   );
 }

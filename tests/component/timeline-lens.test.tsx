@@ -185,6 +185,74 @@ const previewPlan: MotionPreviewPlan = {
     summary: 'local repo with 2 app routes and 3 capture candidates',
     signalLabels: ['Stack: TypeScript, Next.js 15, Convex', 'Routes: /, /canvas'],
     captureCandidateLabels: ['Capture local app route /', 'Record local product flow /'],
+    captureCandidates: [
+      {
+        id: 'capture-local-app-still',
+        label: 'Capture local app route /',
+        mode: 'screenshot',
+        targetKind: 'local-app',
+        targetRef: 'https://aether.local/demo',
+        setupLabel: 'npm run dev -> https://aether.local/demo',
+        reason: 'Local repo exposes an app route suitable for a product still.',
+        action: {
+          id: 'capture-source-capture-local-app-still',
+          label: 'capture route',
+          route: '/api/motion/capture',
+          method: 'POST',
+          toolId: 'motion-capture',
+          requestTemplate: {
+            project: '$motionProject',
+            requestIds: ['capture-local-app-still'],
+            requestedAt: '$now',
+          },
+          expectedReceiptLabels: ['screenshot', 'cursor targets', 'viewport receipt'],
+        },
+      },
+      {
+        id: 'record-local-flow',
+        label: 'Record local product flow /',
+        mode: 'screen-recording',
+        targetKind: 'local-app',
+        targetRef: 'https://aether.local/demo',
+        setupLabel: 'npm run dev -> https://aether.local/demo',
+        reason: 'Launch and feature videos need at least one real product insert.',
+        action: {
+          id: 'capture-source-record-local-flow',
+          label: 'record flow',
+          route: '/api/motion/capture',
+          method: 'POST',
+          toolId: 'motion-capture',
+          requestTemplate: {
+            project: '$motionProject',
+            requestIds: ['record-local-flow'],
+            requestedAt: '$now',
+          },
+          expectedReceiptLabels: ['recording', 'interaction receipt', 'viewport receipt'],
+        },
+      },
+      {
+        id: 'capture-local-dom',
+        label: 'Read local app structure /',
+        mode: 'dom-snapshot',
+        targetKind: 'local-app',
+        targetRef: 'https://aether.local/demo',
+        setupLabel: 'npm run dev -> https://aether.local/demo',
+        reason: 'DOM structure helps captions and component regeneration stay grounded.',
+        action: {
+          id: 'capture-source-capture-local-dom',
+          label: 'read structure',
+          route: '/api/motion/capture',
+          method: 'POST',
+          toolId: 'motion-capture',
+          requestTemplate: {
+            project: '$motionProject',
+            requestIds: ['capture-local-dom'],
+            requestedAt: '$now',
+          },
+          expectedReceiptLabels: ['snapshot', 'route metadata', 'viewport receipt'],
+        },
+      },
+    ],
     storyboardHintLabels: ['hook: Canvas-native creative system', 'demo: Capture local app route /'],
     readyCaptureCount: 3,
   },
@@ -1835,12 +1903,12 @@ describe('TimelineLens', () => {
     expect(screen.getByText('script')).toBeInTheDocument();
     expect(screen.getByText('image to video')).toBeInTheDocument();
     expect(screen.getByText('captures')).toBeInTheDocument();
-    expect(screen.getByText('aether.local')).toBeInTheDocument();
+    expect(screen.getAllByText('aether.local').length).toBeGreaterThan(0);
     expect(screen.getByText('Capture hero still')).toBeInTheDocument();
     expect(screen.getAllByText(/screenshot/).length).toBeGreaterThan(0);
     expect(screen.getByText('Record product flow')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /capture stills/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /record flow/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /record flow/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole('status')).toHaveTextContent('capture regeneration planned');
     expect(screen.queryByText('clip-beat-demo-text')).not.toBeInTheDocument();
     expect(screen.queryByText('beat-hook')).not.toBeInTheDocument();
@@ -2379,8 +2447,35 @@ describe('TimelineLens', () => {
       'capture-dom-snapshot',
     ]);
 
-    await userEvent.click(screen.getByRole('button', { name: /record flow/i }));
+    const recordButtons = screen.getAllByRole('button', { name: /record flow/i });
+    await userEvent.click(recordButtons[recordButtons.length - 1]);
     expect(onCaptureMotion).toHaveBeenCalledWith(['capture-screen-recording']);
+  });
+
+  it('lets creators capture a specific source material target with the local runner handoff', async () => {
+    const onCaptureMotion = vi.fn<
+      (requestIds?: string[], options?: { captureRunner?: unknown }) => void
+    >();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        agentHandoff={agentHandoff}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onCaptureMotion={onCaptureMotion}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /capture route/i }));
+    expect(onCaptureMotion).toHaveBeenCalledWith(['capture-local-app-still'], {
+      captureRunner: {
+        kind: 'playwright-local',
+        outputDir: 'outputs/motion-captures/motion-aether-launch',
+        launchLocalApp: true,
+        headless: true,
+      },
+    });
   });
 
   it('shows the guarded computer-use fallback inside the capture plan', () => {
