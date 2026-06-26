@@ -1989,6 +1989,62 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
   });
 
+  it('keeps extra repo capture targets compact until creators open them', async () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          sourceProfile: {
+            ...previewPlan.sourceProfile!,
+            summary: 'local repo with 4 app routes and 5 capture candidates',
+            readyCaptureCount: 5,
+            captureCandidateLabels: [
+              ...previewPlan.sourceProfile!.captureCandidateLabels,
+              'Capture local app route /settings',
+              'Read local app structure /settings',
+            ],
+            captureCandidates: [
+              ...previewPlan.sourceProfile!.captureCandidates,
+              {
+                id: 'capture-local-app-still-settings',
+                label: 'Capture local app route /settings',
+                mode: 'screenshot',
+                targetKind: 'local-app',
+                targetRef: 'https://aether.local/settings',
+                setupLabel: 'npm run dev -> https://aether.local/settings',
+                reason: 'Settings route shows provider choices before recording.',
+                action: null,
+              },
+              {
+                id: 'capture-local-dom-settings',
+                label: 'Read local app structure /settings',
+                mode: 'dom-snapshot',
+                targetKind: 'local-app',
+                targetRef: 'https://aether.local/settings',
+                setupLabel: 'npm run dev -> https://aether.local/settings',
+                reason: 'DOM structure keeps regenerated captions grounded.',
+                action: null,
+              },
+            ],
+          },
+        }}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /show all captures \+2/i })).toBeInTheDocument();
+    expect(screen.queryByText('Capture local app route /settings')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /show all captures/i }));
+
+    expect(screen.getByText('Capture local app route /settings')).toBeInTheDocument();
+    expect(screen.getByText('Read local app structure /settings')).toBeInTheDocument();
+    expect(screen.getAllByText('npm run dev -> https://aether.local/settings').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /show fewer captures/i })).toBeInTheDocument();
+  });
+
   it('surfaces verification receipt labels in the production queue', () => {
     const productionPlanWithReceipts: MotionProductionPlan = {
       ...productionPlan,

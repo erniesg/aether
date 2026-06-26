@@ -2131,7 +2131,11 @@ function MotionSourceMaterialStrip({
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
 }) {
   const captureOptions = captureRunner ? { captureRunner } : undefined;
-  const visibleCandidates = sourceProfile.captureCandidates.slice(0, 3);
+  const [allCapturesOpen, setAllCapturesOpen] = useState(false);
+  const hiddenCaptureCount = Math.max(sourceProfile.captureCandidates.length - 3, 0);
+  const visibleCandidates = allCapturesOpen
+    ? sourceProfile.captureCandidates
+    : sourceProfile.captureCandidates.slice(0, 3);
 
   return (
     <div className="min-w-0">
@@ -2162,6 +2166,22 @@ function MotionSourceMaterialStrip({
           </div>
         </div>
         <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          {hiddenCaptureCount > 0 ? (
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                capture targets
+              </span>
+              <button
+                type="button"
+                onClick={() => setAllCapturesOpen((open) => !open)}
+                className="rounded-sm border border-border-soft bg-surface-canvas px-2 py-1 font-mono text-[10px] uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+              >
+                {allCapturesOpen
+                  ? 'show fewer captures'
+                  : `show all captures +${hiddenCaptureCount}`}
+              </button>
+            </div>
+          ) : null}
           {visibleCandidates.length > 0 ? (
             <div className="grid gap-1.5">
               {visibleCandidates.map((candidate) => (
