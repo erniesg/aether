@@ -1421,6 +1421,7 @@ function motionCanvasCardTone(
 ): 'neutral' | 'info' | 'ok' | 'warn' {
   if (kind === 'render-proof') return 'ok';
   if (kind === 'export-pack') return 'warn';
+  if (kind === 'captured-material') return 'ok';
   if (kind === 'generation-node') return 'info';
   if (kind === 'story-beat') return 'info';
   return 'neutral';

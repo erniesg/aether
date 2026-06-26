@@ -633,6 +633,7 @@ export function buildMotionPreviewPlan(
     visualGenerationSummary,
     renderProofSummary,
     exportPackSummary,
+    executionHistory: project.executionHistory,
   });
 
   return {

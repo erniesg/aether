@@ -688,6 +688,7 @@ describe('buildMotionPreviewPlan', () => {
                 ref: 'capture-aether-homepage',
                 providerId: 'browser-capture',
                 assetUrl: 'asset://capture/home.png',
+                mimeType: 'image/png',
               },
             ],
             provenance: [{ kind: 'provider', ref: 'browser-capture' }],
@@ -803,6 +804,22 @@ describe('buildMotionPreviewPlan', () => {
         motionProjectId: 'motion-aether-launch',
       },
     ]);
+    expect(preview.canvasMaterialPlan.cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'motion-aether-launch-draft-primary-capture-capture-aether-homepage',
+          kind: 'captured-material',
+          label: 'Screenshot material',
+          body: 'Captured via browser capture',
+          detailLabels: ['image/png', 'asset ready', 'Product capture receipt'],
+          statusLabel: 'captured',
+          actionLabel: 'use in scene',
+          assetUrl: 'asset://capture/home.png',
+          mimeType: 'image/png',
+          sourceRef: 'capture-aether-homepage',
+        }),
+      ])
+    );
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {

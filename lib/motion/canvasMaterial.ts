@@ -4,11 +4,16 @@ import type {
   MotionPreviewVideoPlan,
   MotionPreviewVisualGenerationSummary,
 } from './previewPlan';
-import type { MotionProject } from './project';
+import type {
+  MotionExecutionHistoryEntry,
+  MotionExecutionReceipt,
+  MotionProject,
+} from './project';
 import type { MotionReviewPlan } from './reviewPlan';
 
 export type MotionCanvasMaterialKind =
   | 'motion-project'
+  | 'captured-material'
   | 'story-beat'
   | 'generation-node'
   | 'render-proof'
@@ -24,6 +29,10 @@ export interface MotionCanvasMaterialCard {
   actionLabel: string | null;
   width: number;
   height: number;
+  sourceRef?: string;
+  assetUrl?: string;
+  path?: string;
+  mimeType?: string;
 }
 
 export interface MotionCanvasMaterialPlan {
@@ -47,6 +56,7 @@ export interface BuildMotionCanvasMaterialPlanInput {
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   renderProofSummary: MotionPreviewRenderProofSummary;
   exportPackSummary: MotionPreviewExportPackSummary;
+  executionHistory?: MotionExecutionHistoryEntry[];
 }
 
 const PROJECT_CARD_WIDTH = 380;
@@ -69,6 +79,12 @@ export function buildMotionCanvasMaterialPlan(
     width: PROJECT_CARD_WIDTH,
     height: PROJECT_CARD_HEIGHT,
   };
+
+  const captureCards = buildCapturedMaterialCards({
+    projectId: input.projectId,
+    draftId: input.draftId,
+    executionHistory: input.executionHistory,
+  });
 
   const storyCards = input.videoPlan.scenes.slice(0, 6).map((scene) => ({
     id: `${input.projectId}-${input.draftId}-${scene.sceneId}`,
@@ -150,6 +166,7 @@ export function buildMotionCanvasMaterialPlan(
 
   const cards = [
     projectCard,
+    ...captureCards,
     ...storyCards,
     ...generationNodeCards,
     renderProofCard,
@@ -172,12 +189,63 @@ export function buildMotionCanvasMaterialPlan(
   };
 }
 
+function buildCapturedMaterialCards(input: {
+  projectId: string;
+  draftId: string;
+  executionHistory?: MotionExecutionHistoryEntry[];
+}): MotionCanvasMaterialCard[] {
+  const captureReceipts = (input.executionHistory ?? []).flatMap((entry) =>
+    entry.gateId === 'capture'
+      ? entry.receipts
+          .filter(isCapturedMaterialReceipt)
+          .map((receipt) => ({ entry, receipt }))
+      : []
+  );
+
+  return captureReceipts.slice(-4).map(({ entry, receipt }) => {
+    const providerLabel = readableLabel(receipt.providerId ?? entry.providerId ?? 'capture');
+
+    return {
+      id: `${input.projectId}-${input.draftId}-capture-${idPart(receipt.ref)}`,
+      kind: 'captured-material',
+      label: `${receipt.label} material`,
+      body: `Captured via ${providerLabel}`,
+      detailLabels: boundedLabels(
+        [
+          receipt.mimeType ?? '',
+          receipt.assetUrl ? 'asset ready' : receipt.path ? 'file ready' : '',
+          `${entry.label} receipt`,
+        ],
+        3
+      ),
+      statusLabel: 'captured',
+      actionLabel: 'use in scene',
+      width: BEAT_CARD_WIDTH,
+      height: BEAT_CARD_HEIGHT,
+      sourceRef: receipt.ref,
+      assetUrl: receipt.assetUrl,
+      path: receipt.path,
+      mimeType: receipt.mimeType,
+    };
+  });
+}
+
+function isCapturedMaterialReceipt(
+  receipt: MotionExecutionReceipt
+): receipt is MotionExecutionReceipt & { kind: 'capture' } {
+  return receipt.kind === 'capture' && Boolean(receipt.assetUrl || receipt.path);
+}
+
 function boundedLabels(labels: string[], limit: number): string[] {
   return labels.map((label) => label.trim()).filter(Boolean).slice(0, limit);
 }
 
 function readableLabel(value: string): string {
   return value.replace(/[-_]/g, ' ');
+}
+
+function idPart(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'asset';
 }
 
 function formatNodeSide(labels: string[], fallback: string): string {

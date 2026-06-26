@@ -17,6 +17,7 @@ const ROW_HEIGHT = 192;
 
 const CARD_COLORS: Record<MotionCanvasMaterialKind, TLGeoShape['props']['color']> = {
   'motion-project': 'violet',
+  'captured-material': 'green',
   'story-beat': 'blue',
   'generation-node': 'light-blue',
   'render-proof': 'green',
@@ -77,6 +78,10 @@ export function dropMotionCanvasMaterialPlanOnCanvas(
         aetherMotionMaterialKind: card.kind,
         aetherMotionMaterialId: card.id,
         aetherMotionCardText: cardText(card),
+        aetherMotionSourceRef: card.sourceRef,
+        aetherMotionAssetUrl: card.assetUrl,
+        aetherMotionPath: card.path,
+        aetherMotionMimeType: card.mimeType,
       },
     });
 
