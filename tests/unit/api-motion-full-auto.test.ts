@@ -1035,6 +1035,21 @@ describe('POST /api/motion/full-auto', () => {
             gateId: 'render',
             receiptLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
           }),
+          expect.objectContaining({
+            id: 'execution-render-package-remotion-test-render-plan-motion-aether-launch-draft-primary-remotion-743',
+            gateId: 'render',
+            label: 'Render package verification',
+            providerId: 'remotion-test',
+            receiptLabels: [
+              'Render source manifest',
+              'Render one-frame layout check',
+              'MP4 artifact check',
+              'Poster artifact check',
+              'Subtitles artifact check',
+              'Transcript artifact check',
+              'Manifest artifact check',
+            ],
+          }),
         ]),
       },
       productionPlan: {
@@ -1055,6 +1070,17 @@ describe('POST /api/motion/full-auto', () => {
         ]),
       },
       previewPlan: {
+        executionHistory: {
+          entries: expect.arrayContaining([
+            expect.objectContaining({
+              label: 'Render package verification',
+              receiptLabels: expect.arrayContaining([
+                'Render one-frame layout check',
+                'MP4 artifact check',
+              ]),
+            }),
+          ]),
+        },
         productionPlan: {
           status: 'complete',
           nextStepId: null,

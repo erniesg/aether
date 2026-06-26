@@ -1,6 +1,7 @@
 import type {
   MotionRenderedAsset,
   MotionRenderOutputKind,
+  MotionRenderRequest,
   MotionRenderResult,
 } from '@/lib/providers/video/types';
 import type {
@@ -9,10 +10,14 @@ import type {
   MotionProject,
   MotionProvenanceRef,
 } from './project';
-import { appendRenderExecutionHistory } from './executionHistory';
+import {
+  appendRenderExecutionHistory,
+  appendRenderPackageExecutionHistory,
+} from './executionHistory';
 
 export interface ApplyMotionRenderResultToMotionProjectOptions {
   updatedAt?: number;
+  renderRequest?: MotionRenderRequest;
 }
 
 export function applyMotionRenderResultToMotionProject(
@@ -21,6 +26,12 @@ export function applyMotionRenderResultToMotionProject(
   options: ApplyMotionRenderResultToMotionProjectOptions = {}
 ): MotionProject {
   const outputsByExport = groupOutputsByExport(result.outputs);
+  const savedAt = options.updatedAt ?? project.updatedAt;
+  const executionHistory = appendRenderExecutionHistory(
+    project.executionHistory,
+    result,
+    savedAt
+  );
 
   return {
     ...project,
@@ -28,12 +39,15 @@ export function applyMotionRenderResultToMotionProject(
       applyOutputsToExport(motionExport, outputsByExport.get(motionExport.id) ?? [], result)
     ),
     graphNodes: upsertRenderNode(project.graphNodes, result),
-    executionHistory: appendRenderExecutionHistory(
-      project.executionHistory,
-      result,
-      options.updatedAt ?? project.updatedAt
-    ),
-    updatedAt: options.updatedAt ?? project.updatedAt,
+    executionHistory: options.renderRequest
+      ? appendRenderPackageExecutionHistory(
+          executionHistory,
+          options.renderRequest,
+          result,
+          savedAt
+        )
+      : executionHistory,
+    updatedAt: savedAt,
   };
 }
 

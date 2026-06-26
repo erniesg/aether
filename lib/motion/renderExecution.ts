@@ -77,6 +77,7 @@ export async function executeMotionRender(
   return {
     status: 'rendered',
     project: applyMotionRenderResultToMotionProject(projectWithRenderNode, renderResult, {
+      renderRequest: request,
       updatedAt: options.updatedAt,
     }),
     plan,

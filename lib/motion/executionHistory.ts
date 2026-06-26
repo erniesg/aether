@@ -7,6 +7,7 @@ import type {
   MotionGeneratedVideoClip,
   MotionImageToVideoResult,
   MotionRenderedAsset,
+  MotionRenderRequest,
   MotionRenderResult,
 } from '@/lib/providers/video/types';
 import type {
@@ -81,6 +82,33 @@ export function appendRenderExecutionHistory(
       ...result.provenance,
       ...result.outputs.flatMap((output) => output.provenance),
       ...result.outputs.map((output) => ({ kind: 'render' as const, ref: output.id })),
+    ]),
+  });
+}
+
+export function appendRenderPackageExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  request: MotionRenderRequest,
+  result: MotionRenderResult,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const receipts = renderPackageReceipts(result.providerId, request);
+  if (receipts.length === 0) return history ?? [];
+
+  return appendExecutionEntry(history, {
+    id: `execution-render-package-${slugifyId(result.providerId)}-${slugifyId(request.id)}-${savedAt}`,
+    gateId: 'render',
+    label: 'Render package verification',
+    providerId: result.providerId,
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      ...request.provenance,
+      ...result.provenance,
+      { kind: 'render', ref: request.id },
+      { kind: 'render', ref: `${request.id}:source-package` },
     ]),
   });
 }
@@ -382,6 +410,131 @@ function renderReceipt(providerId: string, output: MotionRenderedAsset): MotionE
     path: output.path,
     mimeType: output.mimeType,
   };
+}
+
+interface RenderPackageManifestCommand {
+  id?: unknown;
+  label?: unknown;
+  outputPath?: unknown;
+}
+
+interface RenderPackageManifestArtifactCheck {
+  outputId?: unknown;
+  kind?: unknown;
+  path?: unknown;
+  required?: unknown;
+}
+
+interface RenderPackageManifestExecution {
+  verificationCommands?: unknown;
+  artifactChecks?: unknown;
+}
+
+interface RenderPackageManifest {
+  execution?: RenderPackageManifestExecution;
+}
+
+function renderPackageReceipts(
+  providerId: string,
+  request: MotionRenderRequest
+): MotionExecutionReceipt[] {
+  const manifestFile = request.sourceFiles?.find((file) => file.kind === 'manifest');
+  if (!manifestFile) return [];
+
+  const manifest = parseRenderPackageManifest(manifestFile.contents);
+  if (!manifest?.execution) return [];
+
+  return [
+    {
+      id: `receipt-render-package-${slugifyId(request.id)}-source-manifest`,
+      kind: 'render',
+      label: 'Render source manifest',
+      ref: `${request.id}:source-manifest`,
+      providerId,
+      path: manifestFile.path,
+      mimeType: manifestFile.mimeType,
+    },
+    ...verificationCommandReceipts(
+      providerId,
+      request.id,
+      manifest.execution.verificationCommands
+    ),
+    ...artifactCheckReceipts(providerId, request.id, manifest.execution.artifactChecks),
+  ];
+}
+
+function parseRenderPackageManifest(contents: string): RenderPackageManifest | null {
+  try {
+    return JSON.parse(contents) as RenderPackageManifest;
+  } catch {
+    return null;
+  }
+}
+
+function verificationCommandReceipts(
+  providerId: string,
+  requestId: string,
+  value: unknown
+): MotionExecutionReceipt[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    const command = item as RenderPackageManifestCommand;
+    const commandId = stringValue(command.id);
+    const label = stringValue(command.label);
+    if (!commandId || !label) return [];
+
+    return [
+      {
+        id: `receipt-render-package-${slugifyId(requestId)}-${slugifyId(commandId)}`,
+        kind: 'render' as const,
+        label,
+        ref: `${requestId}:verification:${commandId}`,
+        providerId,
+        ...(typeof command.outputPath === 'string' ? { path: command.outputPath } : {}),
+      },
+    ];
+  });
+}
+
+function artifactCheckReceipts(
+  providerId: string,
+  requestId: string,
+  value: unknown
+): MotionExecutionReceipt[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    const check = item as RenderPackageManifestArtifactCheck;
+    const outputId = stringValue(check.outputId);
+    const kind = stringValue(check.kind);
+    const path = stringValue(check.path);
+    if (!outputId || !kind || !path || check.required !== true) return [];
+
+    return [
+      {
+        id: `receipt-render-package-${slugifyId(requestId)}-${slugifyId(outputId)}-artifact-check`,
+        kind: 'render' as const,
+        label: `${renderArtifactLabel(kind)} artifact check`,
+        ref: `${requestId}:artifact-check:${outputId}`,
+        providerId,
+        path,
+      },
+    ];
+  });
+}
+
+function renderArtifactLabel(kind: string): string {
+  if (kind === 'video') return 'MP4';
+  if (kind === 'poster') return 'Poster';
+  if (kind === 'subtitle') return 'Subtitles';
+  if (kind === 'transcript') return 'Transcript';
+  if (kind === 'manifest') return 'Manifest';
+  return readableLabel(kind);
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function setupDryRunReceipt(input: {

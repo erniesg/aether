@@ -153,6 +153,18 @@ describe('POST /api/motion/render', () => {
             posterAssetId: 'render-export-x-9x16-poster',
           },
         ],
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'execution-render-package-remotion-test-render-plan-motion-aether-launch-draft-primary-remotion-902',
+            gateId: 'render',
+            label: 'Render package verification',
+            receiptLabels: expect.arrayContaining([
+              'Render source manifest',
+              'Render one-frame layout check',
+              'MP4 artifact check',
+            ]),
+          }),
+        ]),
       },
       renderResult: {
         providerId: 'remotion-test',

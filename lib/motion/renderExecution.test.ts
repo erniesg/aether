@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRemotionRenderProvider, type MotionRenderRunnerResult } from '@/lib/providers/video/local-render';
+import {
+  createHyperFramesRenderProvider,
+  createRemotionRenderProvider,
+  type MotionRenderRunnerResult,
+} from '@/lib/providers/video/local-render';
 import type { MotionRenderRequest } from '@/lib/providers/video/types';
 import { executeMotionRender } from './renderExecution';
 import { buildRepoLaunchMotionProject } from './storyboard';
@@ -111,6 +115,43 @@ describe('executeMotionRender', () => {
     expect(renderNode?.outputRefs).toContain('render-export-x-9x16-video');
     expect(result.renderResult?.providerId).toBe('remotion-local');
     expect(result.request?.outputs).toHaveLength(5);
+    expect(result.project.executionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'execution-render-remotion-local-90',
+          gateId: 'render',
+          label: 'Render proof',
+          receiptLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+        }),
+        expect.objectContaining({
+          id: 'execution-render-package-remotion-local-render-plan-motion-aether-launch-draft-primary-remotion-90',
+          gateId: 'render',
+          label: 'Render package verification',
+          providerId: 'remotion-local',
+          receiptLabels: [
+            'Render source manifest',
+            'Render one-frame layout check',
+            'MP4 artifact check',
+            'Poster artifact check',
+            'Subtitles artifact check',
+            'Transcript artifact check',
+            'Manifest artifact check',
+          ],
+          receipts: expect.arrayContaining([
+            expect.objectContaining({
+              label: 'Render one-frame layout check',
+              ref: 'render-plan-motion-aether-launch-draft-primary-remotion:verification:verify-remotion-still',
+              path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.verification.png',
+            }),
+            expect.objectContaining({
+              label: 'MP4 artifact check',
+              ref: 'render-plan-motion-aether-launch-draft-primary-remotion:artifact-check:render-export-x-9x16-video',
+              path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+            }),
+          ]),
+        }),
+      ])
+    );
   });
 
   it('returns timeline blockers instead of calling a provider when render inputs are missing', async () => {
@@ -137,5 +178,49 @@ describe('executeMotionRender', () => {
     expect(result.request).toBeUndefined();
     expect(result.renderResult).toBeUndefined();
     expect(render).not.toHaveBeenCalled();
+  });
+
+  it('saves HyperFrames lint, validate, and snapshot package receipts', async () => {
+    const render = vi.fn(async (request: MotionRenderRequest): Promise<MotionRenderRunnerResult> => ({
+      outputs: request.outputs.map((output) => ({
+        outputId: output.id,
+        assetUrl: `asset://${output.path}`,
+      })),
+      provenance: [{ kind: 'provider', ref: 'hyperframes-cli' }],
+    }));
+    const provider = createHyperFramesRenderProvider({
+      runner: { available: () => true, render },
+    });
+
+    const result = await executeMotionRender(materializeMotionTimeline(baseProject()), {
+      engine: 'hyperframes',
+      provider,
+      requestedAt: 82,
+      updatedAt: 92,
+    });
+
+    expect(result.status).toBe('rendered');
+    expect(result.project.executionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'execution-render-package-hyperframes-local-render-plan-motion-aether-launch-draft-primary-hyperframes-92',
+          receiptLabels: expect.arrayContaining([
+            'Lint HyperFrames composition',
+            'Validate HyperFrames frames',
+            'Capture one-frame layout check',
+          ]),
+          receipts: expect.arrayContaining([
+            expect.objectContaining({
+              label: 'Validate HyperFrames frames',
+              ref: 'render-plan-motion-aether-launch-draft-primary-hyperframes:verification:verify-hyperframes-validate',
+            }),
+            expect.objectContaining({
+              label: 'Capture one-frame layout check',
+              path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.verification.png',
+            }),
+          ]),
+        }),
+      ])
+    );
   });
 });
