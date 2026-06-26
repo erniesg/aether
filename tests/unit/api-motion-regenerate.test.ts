@@ -68,6 +68,20 @@ describe('POST /api/motion/regenerate', () => {
       },
       previewPlan: {
         projectId: 'motion-aether-launch',
+        executionHistory: {
+          status: 'saved',
+          savedStepCount: 1,
+          receiptCount: 2,
+          latestReceiptLabels: ['Regeneration request', 'Capture plan'],
+          entries: [
+            {
+              id: 'execution-regeneration-app-frame-capture-950',
+              gateId: 'drafts',
+              label: 'Regenerate capture for App frame',
+              receiptLabels: ['Regeneration request', 'Capture plan'],
+            },
+          ],
+        },
         enginePreviews: [
           { engine: 'remotion', status: 'ready' },
           { engine: 'hyperframes', status: 'ready' },
@@ -92,6 +106,34 @@ describe('POST /api/motion/regenerate', () => {
             ]),
           },
         ]),
+        executionHistory: [
+          {
+            id: 'execution-regeneration-app-frame-capture-950',
+            gateId: 'drafts',
+            label: 'Regenerate capture for App frame',
+            savedAt: 950,
+            receiptCount: 2,
+            receiptLabels: ['Regeneration request', 'Capture plan'],
+            receipts: [
+              {
+                id: 'receipt-regeneration-regen-clip-beat-demo-text-capture-950-request',
+                kind: 'revision',
+                label: 'Regeneration request',
+                ref: 'regen-clip-beat-demo-text-capture-950',
+              },
+              {
+                id: 'receipt-regeneration-regen-clip-beat-demo-text-capture-950-capture-plan',
+                kind: 'revision',
+                label: 'Capture plan',
+                ref: 'regen-clip-beat-demo-text-capture-950:capture-plan',
+              },
+            ],
+            provenance: expect.arrayContaining([
+              { kind: 'revision', ref: 'regen-clip-beat-demo-text-capture-950' },
+              { kind: 'timeline', ref: 'clip-beat-demo-text' },
+            ]),
+          },
+        ],
       },
     });
     expect(json.regenerationRequest.inputRefs).toContain('clip-beat-demo-text');

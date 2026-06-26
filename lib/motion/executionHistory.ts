@@ -14,7 +14,9 @@ import type {
   MotionExecutionReceipt,
   MotionProvenanceRef,
 } from './project';
+import type { MotionComponentRegenerationRequest } from './reviewPlan';
 import type { MotionSyncPlan } from './syncPlan';
+import { getMotionComponent, type MotionRegenerateScope } from './componentRegistry';
 
 export interface MotionVisualSourceReceiptInput {
   providerId: string;
@@ -184,6 +186,42 @@ export function appendVisualSourceExecutionHistory(
   });
 }
 
+export function appendComponentRegenerationExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  request: MotionComponentRegenerationRequest,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const component = getMotionComponent(request.componentId);
+  const componentLabel = component?.label ?? readableLabel(request.componentId);
+  const planLabel = regenerationPlanReceiptLabel(request.scope);
+  const receipts = [
+    regenerationReceipt({
+      id: `receipt-regeneration-${request.id}-request`,
+      label: 'Regeneration request',
+      ref: request.id,
+    }),
+    regenerationReceipt({
+      id: `receipt-regeneration-${request.id}-${slugifyId(planLabel)}`,
+      label: planLabel,
+      ref: `${request.id}:${slugifyId(planLabel)}`,
+    }),
+  ];
+
+  return appendExecutionEntry(history, {
+    id: `execution-regeneration-${slugifyId(request.componentId)}-${slugifyId(request.scope)}-${savedAt}`,
+    gateId: 'drafts',
+    label: `Regenerate ${request.scope} for ${componentLabel}`,
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+    ]),
+  });
+}
+
 export function appendSyncExecutionHistory(
   history: MotionExecutionHistoryEntry[] | undefined,
   plan: MotionSyncPlan,
@@ -320,6 +358,19 @@ function imageToVideoReceipt(
   };
 }
 
+function regenerationReceipt(input: {
+  id: string;
+  label: string;
+  ref: string;
+}): MotionExecutionReceipt {
+  return {
+    id: input.id,
+    kind: 'revision',
+    label: input.label,
+    ref: input.ref,
+  };
+}
+
 function renderReceipt(providerId: string, output: MotionRenderedAsset): MotionExecutionReceipt {
   return {
     id: `receipt-render-${output.id}`,
@@ -371,6 +422,26 @@ function renderReceiptLabel(kind: MotionRenderedAsset['kind']): string {
   return 'Manifest';
 }
 
+function regenerationPlanReceiptLabel(scope: MotionRegenerateScope): string {
+  switch (scope) {
+    case 'capture':
+      return 'Capture plan';
+    case 'asset':
+    case 'proof':
+    case 'code':
+    case 'diagram':
+      return 'Visual source plan';
+    case 'caption':
+      return 'Voice and caption update';
+    case 'timing':
+    case 'effect':
+      return 'Timeline update';
+    case 'copy':
+    case 'cta':
+      return 'Script update';
+  }
+}
+
 function visualSourceRef(ref: string): MotionProvenanceRef {
   return { kind: 'visual-source', ref };
 }
@@ -396,4 +467,8 @@ function slugifyId(value: string): string {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') || 'provider'
   );
+}
+
+function readableLabel(value: string): string {
+  return value.replace(/-/g, ' ');
 }

@@ -3,6 +3,7 @@ import type { WorkflowEngine } from '@/lib/workflow/registry';
 import type { MotionRegenerateScope } from '@/lib/motion/componentRegistry';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
+import { appendComponentRegenerationExecutionHistory } from '@/lib/motion/executionHistory';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import {
   buildMotionReviewPlan,
@@ -62,7 +63,15 @@ export async function POST(request: Request): Promise<Response> {
       prompt,
       requestedAt,
     });
-    const updatedProject = stageMotionComponentRegeneration(project, regenerationRequest);
+    const stagedProject = stageMotionComponentRegeneration(project, regenerationRequest);
+    const updatedProject = {
+      ...stagedProject,
+      executionHistory: appendComponentRegenerationExecutionHistory(
+        stagedProject.executionHistory,
+        regenerationRequest,
+        requestedAt
+      ),
+    };
     const capturePlan = buildAgentMotionCapturePlan(updatedProject);
 
     return NextResponse.json({
