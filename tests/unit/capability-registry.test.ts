@@ -82,6 +82,7 @@ describe('typed capability registries', () => {
       'motion-export-pack',
       'motion-revise',
       'motion-source-edit',
+      'motion-agent-handoff',
       'motion-pin-capability',
     ] satisfies CapabilityTool[];
 
@@ -114,6 +115,7 @@ describe('typed capability registries', () => {
         'motion-revise',
         'motion-preview-source',
         'motion-source-edit',
+        'motion-agent-handoff',
         'motion-render',
         'motion-export-pack',
       ],
@@ -165,6 +167,7 @@ describe('typed capability registries', () => {
         'motion-revise',
         'motion-preview-source',
         'motion-source-edit',
+        'motion-agent-handoff',
         'motion-render',
         'motion-export-pack',
       ],

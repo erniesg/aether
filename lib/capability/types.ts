@@ -27,6 +27,7 @@ export type CapabilityTool =
   | 'motion-export-pack'
   | 'motion-revise'
   | 'motion-source-edit'
+  | 'motion-agent-handoff'
   | 'motion-pin-capability';
 
 /**

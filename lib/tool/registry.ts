@@ -204,6 +204,15 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  'motion-agent-handoff': {
+    kind: 'tool',
+    id: 'motion-agent-handoff',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Agent handoff runner',
+    outputKind: 'video',
+    status: 'draft',
+  },
   'motion-pin-capability': {
     kind: 'tool',
     id: 'motion-pin-capability',

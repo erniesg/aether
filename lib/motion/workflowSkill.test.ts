@@ -28,6 +28,7 @@ describe('motion workflow skill drafts', () => {
       ]),
       toolNames: [
         'motion_start',
+        'motion_agent_handoff',
         'motion_regenerate',
         'motion_visuals',
         'motion_voice',
@@ -191,6 +192,7 @@ describe('motion workflow skill drafts', () => {
       description: 'PR to video skill for editable, provenance-rich motion videos.',
       tools: [
         'motion_start',
+        'motion_agent_handoff',
         'motion_regenerate',
         'motion_visuals',
         'motion_voice',
@@ -207,6 +209,8 @@ describe('motion workflow skill drafts', () => {
       'npx skills add heygen-com/hyperframes'
     );
     expect(plan.skillDraft.manifest.instructions).toContain('## Input shape');
+    expect(plan.skillDraft.manifest.instructions).toContain('/api/motion/agent-handoff');
+    expect(plan.skillDraft.manifest.instructions).toContain('agentHandoff');
     expect(plan.skillDraft.manifest.instructions).toContain('## Agent Tasks');
     expect(plan.skillDraft.manifest.instructions).toContain('## Draft Variations');
     expect(plan.skillDraft.manifest.instructions).toContain('Daily skill launch');

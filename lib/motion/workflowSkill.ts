@@ -92,6 +92,7 @@ export interface MotionWorkflowLaunchKitReviewObject {
 
 const ROUTE_TOOL_NAMES: Record<string, string> = {
   '/api/motion/start': 'motion_start',
+  '/api/motion/agent-handoff': 'motion_agent_handoff',
   '/api/motion/regenerate': 'motion_regenerate',
   '/api/motion/capture': 'motion_capture',
   '/api/motion/visuals': 'motion_visuals',
@@ -109,7 +110,7 @@ export function buildMotionWorkflowSkillDraft(
   examples: MotionWorkflowExample[] = []
 ): MotionWorkflowSkillDraft {
   const recipe = getMotionWorkflowSkillRecipe(plan.workflowId);
-  const toolNames = toolNamesFor(plan.runPlan);
+  const toolNames = toolNamesFor(plan);
   const reviewPolicyLabels = reviewPolicyLabelsFor(plan);
   const verificationLabels = verificationLabelsFor(plan.skillContract);
   const sampleCopyLines = uniqueStrings(examples.flatMap((example) => example.sampleCopyLines));
@@ -313,12 +314,31 @@ function evidenceArtifactLabelsFor(kind: WorkflowSourceKind): string[] {
   return ['Source receipt'];
 }
 
-function toolNamesFor(runPlan: AgentMotionWorkflowRunPlan): string[] {
-  return uniqueStrings(
-    runPlan.steps.flatMap((step) =>
+function toolNamesFor(plan: MotionWorkflowSkillPlanInput): string[] {
+  const routeTools = uniqueStrings(
+    plan.runPlan.steps.flatMap((step) =>
       step.apiRoutes.map((route) => ROUTE_TOOL_NAMES[route] ?? routeToToolName(route))
     )
   );
+
+  if (plan.runPlan.status !== 'ready') {
+    return routeTools;
+  }
+
+  return insertAfter(routeTools, 'motion_start', ROUTE_TOOL_NAMES['/api/motion/agent-handoff']);
+}
+
+function insertAfter(values: string[], after: string, value: string): string[] {
+  if (values.includes(value)) {
+    return values;
+  }
+
+  const index = values.indexOf(after);
+  if (index === -1) {
+    return [...values, value];
+  }
+
+  return [...values.slice(0, index + 1), value, ...values.slice(index + 1)];
 }
 
 function routeToToolName(route: string): string {
@@ -446,6 +466,13 @@ function buildSkillInstructions({
       ? 'Apply successful artifacts through /api/motion/capture so screenshots, recordings, DOM snapshots, traces, cursor targets, and provenance rejoin the timeline.'
       : '',
     hasCaptureStep ? '' : '',
+    '## Agent Handoff',
+    '',
+    'After /api/motion/start returns a ready project, keep `agentHandoff` with the project.',
+    'For full-auto or selected saved gates, call /api/motion/agent-handoff with `{ agentHandoff, project, templateIds, input }`.',
+    'Use `input.imageToVideoProviderId`, `input.voiceProviderId`, `input.renderProviderId`, and `input.editedSourceFiles` to resolve placeholders before execution.',
+    'If the handoff response is blocked, show the missing placeholders or provider setup receipts as review blockers.',
+    '',
     recipe ? '## Agent Tasks' : '',
     ...(recipe?.agentTaskLabels.map((label) => `- ${label}.`) ?? []),
     recipe ? '' : '',
