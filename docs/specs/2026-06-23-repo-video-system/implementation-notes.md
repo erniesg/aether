@@ -125,6 +125,12 @@
   `captureRunner.kind = "playwright-local"`, the creator-facing capture buttons
   submit that runner with the selected capture request ids so local app launch
   and Playwright capture can run without a global default provider.
+- Capability setup now turns the guarded computer-use fallback into an
+  actionable timeline card when capture is unresolved and no capture provider
+  is available. The card carries creator approval, redaction manifest, approved
+  window scope, expected screenshot / recording / trace / redaction receipts,
+  and stop conditions without exposing request JSON in the creator-facing
+  shell.
 - The reusable motion primitive layer now includes cursor callouts,
   split-screen before/after comparisons, presenter bubbles, and contact-sheet
   render proof components. Reference grammar, design kits, and workflow skill

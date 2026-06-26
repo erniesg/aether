@@ -32,6 +32,11 @@ import {
   type MotionProductionPlan,
 } from './productionPlan';
 import {
+  buildAgentMotionCapturePlan,
+  type AgentMotionCaptureFallback,
+  type AgentMotionCapturePlan,
+} from './capturePlan';
+import {
   buildMotionRenderPlan,
   type MotionRenderPlanStatus,
 } from './renderPlan';
@@ -584,6 +589,7 @@ export function buildMotionPreviewPlan(
     fps,
     requestedAt: options.requestedAt,
   });
+  const capturePlan = buildAgentMotionCapturePlan(project);
   const exportPackSummary = buildExportPackSummary(exportPackPlan);
   const renderProofSummary = buildRenderProofSummary(
     exportPackPlan,
@@ -650,7 +656,7 @@ export function buildMotionPreviewPlan(
     referenceGrammar,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary,
-    capabilitySetup: buildCapabilitySetup(project, productionPlan, enginePreviews, {
+    capabilitySetup: buildCapabilitySetup(project, productionPlan, enginePreviews, capturePlan, {
       engines,
       providers: options.providerSetup,
     }),
@@ -729,16 +735,19 @@ function buildCapabilitySetup(
   project: MotionProject,
   productionPlan: MotionProductionPlan,
   enginePreviews: MotionPreviewEnginePlan[],
+  capturePlan: AgentMotionCapturePlan,
   options: {
     engines: WorkflowEngine[];
     providers?: MotionPreviewCapabilitySetupInventory;
   }
 ): MotionPreviewCapabilitySetup {
+  const captureProviderLabels = availableProviderLabels(options.providers?.capture);
   const items = [
     setupItemForStep(productionPlan, 'capture', {
       inventory: options.providers?.capture,
       defaultActionLabel: 'Connect browser capture',
     }),
+    ...computerUseSetupItems(productionPlan, capturePlan, captureProviderLabels),
     ...localAppSetupItems(project),
     setupItemForStep(productionPlan, 'visual-source', {
       inventory: options.providers?.visualSource,
@@ -775,6 +784,46 @@ function buildCapabilitySetup(
     blockedCount,
     nextActionLabel: nextItem?.actionLabel ?? null,
     items,
+  };
+}
+
+function computerUseSetupItems(
+  productionPlan: MotionProductionPlan,
+  capturePlan: AgentMotionCapturePlan,
+  captureProviderLabels: string[]
+): MotionPreviewCapabilitySetupItem[] {
+  const captureStep = productionPlan.steps.find((step) => step.id === 'capture');
+  if (!captureStep || captureStep.status === 'complete' || captureProviderLabels.length > 0) {
+    return [];
+  }
+
+  const fallback = capturePlan.fallbacks.find((item) => item.toolId === 'computer-use');
+  if (!fallback) return [];
+
+  return [computerUseSetupItem(fallback)];
+}
+
+function computerUseSetupItem(
+  fallback: AgentMotionCaptureFallback
+): MotionPreviewCapabilitySetupItem {
+  return {
+    id: 'computer-use',
+    label: 'Computer-use capture',
+    status: 'needs-runner',
+    actionLabel: 'Approve computer-use capture',
+    routeLabels: [fallback.outputContract.applyRoute],
+    toolLabels: [readableLabel(fallback.toolId)],
+    requirementLabels: uniqueStrings([
+      'creator approval',
+      'redaction manifest',
+      'approved app or browser window',
+      fallback.permissionGate.scope,
+      ...fallback.safeScope.redactionLabels.map((label) => `redact ${label}`),
+    ]),
+    providerLabels: [],
+    configuredProviderLabels: [],
+    runnerLabels: fallback.expectedArtifacts,
+    blockerLabels: fallback.safeScope.stopConditions.map((condition) => `stop on ${condition}`),
   };
 }
 

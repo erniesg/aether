@@ -152,8 +152,9 @@ capture, render, and provenance debugging.
   now expose the `timeline` lens inside the single synthesis shell. The lens can
   render a creator-facing video plan, story beats, draft variations, editable
   motion kit, component controls, scoped regeneration actions, engine readiness,
-  capability setup, compact agent actions, and timeline rows without exposing
-  raw provenance/debug ids or request bodies in the primary surface; `graph`
+  capability setup, computer-use approval/redaction setup, compact agent
+  actions, and timeline rows without exposing raw provenance/debug ids or
+  request bodies in the primary surface; `graph`
   remains reserved for advanced provenance/generation editing.
 - `components/rail/sections/MotionSection.tsx` now starts video projects from
   repo, PR, site URL, or local path sources with review/full-auto mode and
@@ -213,7 +214,9 @@ capture, render, and provenance debugging.
   submit a request-scoped `computer-use-local` receipt runner that requires
   creator approval plus an applied redaction manifest, preserves redaction
   receipts, and applies visual captures into timeline clips. It does not
-  register a default desktop-control provider.
+  register a default desktop-control provider. The timeline setup cards now
+  surface that computer-use path as an approval/redaction action when capture is
+  otherwise unresolved.
 - `app/api/motion/voice/route.ts` now exposes voiceover and caption-sync
   handoffs through an agent-native JSON boundary: callers send an editable
   project plus voice request or clip ids and receive provider-required

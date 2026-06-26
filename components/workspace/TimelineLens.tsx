@@ -1658,6 +1658,13 @@ function MotionCapabilitySetupCard({
 }
 
 function setupPermissionLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
+  if (item.id === 'computer-use') {
+    const labels = item.requirementLabels
+      .filter((label) => label === 'creator approval' || label === 'redaction manifest')
+      .slice(0, 2);
+    return labels.length > 0 ? `permission: ${labels.join(' + ')}` : null;
+  }
+
   const label =
     item.requirementLabels[0] ??
     item.blockerLabels[0] ??
@@ -1667,6 +1674,10 @@ function setupPermissionLabel(item: MotionPreviewCapabilitySetup['items'][number
 }
 
 function setupProofLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
+  if (item.id === 'computer-use' && item.runnerLabels.length > 0) {
+    return `proof: ${item.runnerLabels.join(' / ')}`;
+  }
+
   const labels =
     item.toolLabels.length > 0
       ? item.toolLabels

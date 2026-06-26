@@ -81,7 +81,9 @@ Aether now has the right backbone:
 2. **Runner setup as creator material.** The trusted local app, browser,
    desktop/computer-use, voice, image-to-video, and render runners need a
    creator-facing setup card with permission, expected receipt, and dry-run
-   proof before full-auto.
+   proof before full-auto. Generic runner/provider cards and the guarded
+   computer-use approval/redaction card are now in the timeline lens; deeper
+   dry-run proof remains follow-up.
 3. **Real preview runtime.** The timeline lens now has a source-backed preview
    shell with frame scrubbing, component focus, and explicit Remotion Player /
    HyperFrames iframe runtime targets. The preview-source route now returns the
@@ -189,8 +191,9 @@ Status: partially implemented. Capture plans and `/api/motion/capture` now
 return a structured computer-use fallback contract with required creator
 approval, allowed target scope, stop conditions, redaction labels, expected
 screenshot / recording / trace receipts, and the `/api/motion/capture` apply
-route. The timeline lens shows this guarded fallback inside the capture plan.
-The capture route also accepts a request-scoped `computer-use-local` receipt
+route. The timeline lens shows this guarded fallback inside the capture plan
+and in capability setup as an actionable approval/redaction card. The capture
+route also accepts a request-scoped `computer-use-local` receipt
 runner once creator approval and an applied redaction manifest are supplied,
 then normalizes screenshots, recordings, snapshots, and traces into capture
 artifacts and applies visual receipts back into `app-frame` clips with
@@ -203,8 +206,8 @@ Acceptance evidence:
   approval, missing redaction manifest, and approved receipt application.
 - Provider tests cover fail-closed behavior, permission/redaction checks, and
   normalized computer-use artifacts. Component tests cover the timeline lens
-  fallback summary; live desktop-control execution tests still need coverage
-  once a runner exists.
+  fallback summary plus the actionable approval/redaction setup card; live
+  desktop-control execution tests still need coverage once a runner exists.
 
 ## Review vs full-auto behavior
 

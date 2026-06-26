@@ -1924,6 +1924,52 @@ describe('TimelineLens', () => {
     expect(onSelectCapabilitySetup).toHaveBeenNthCalledWith(2, 'local-app');
   });
 
+  it('shows computer-use setup approval, redaction, and receipt proof requirements', async () => {
+    const onSelectCapabilitySetup = vi.fn();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          capabilitySetup: {
+            ...previewPlan.capabilitySetup,
+            missingCount: previewPlan.capabilitySetup.missingCount + 1,
+            items: [
+              ...previewPlan.capabilitySetup.items,
+              {
+                id: 'computer-use',
+                label: 'Computer-use capture',
+                status: 'needs-runner',
+                actionLabel: 'Approve computer-use capture',
+                routeLabels: ['/api/motion/capture'],
+                toolLabels: ['computer use'],
+                requirementLabels: [
+                  'creator approval',
+                  'redaction manifest',
+                  'approved app or browser window',
+                ],
+                providerLabels: [],
+                configuredProviderLabels: [],
+                runnerLabels: ['screenshot', 'recording', 'trace', 'redaction receipt'],
+                blockerLabels: ['stop on login, payment, personal data, or secret fields'],
+              },
+            ],
+          },
+        }}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onSelectCapabilitySetup={onSelectCapabilitySetup}
+      />
+    );
+
+    expect(screen.getByText('Computer-use capture')).toBeInTheDocument();
+    expect(screen.getByText('permission: creator approval + redaction manifest')).toBeInTheDocument();
+    expect(screen.getByText('proof: screenshot / recording / trace / redaction receipt')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /set up computer-use capture/i }));
+    expect(onSelectCapabilitySetup).toHaveBeenCalledWith('computer-use');
+  });
+
   it('shows saved full-auto receipt history without exposing raw refs', () => {
     render(
       <TimelineLens

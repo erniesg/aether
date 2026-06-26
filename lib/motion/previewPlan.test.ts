@@ -442,7 +442,7 @@ describe('buildMotionPreviewPlan', () => {
     expect(preview.capabilitySetup).toMatchObject({
       status: 'needs-setup',
       readyCount: 0,
-      missingCount: 5,
+      missingCount: 6,
       blockedCount: 1,
       nextActionLabel: 'Connect browser capture',
     });
@@ -525,6 +525,45 @@ describe('buildMotionPreviewPlan', () => {
       toolLabels: ['motion capture'],
       artifactLabels: ['captures', 'cursor targets', 'crop receipts'],
     });
+  });
+
+  it('adds computer-use capture setup requirements when desktop fallback is available', () => {
+    const preview = buildMotionPreviewPlan(project(), {
+      engines: ['remotion', 'hyperframes'],
+      requestedAt: 131,
+    });
+
+    expect(preview.capabilitySetup).toMatchObject({
+      status: 'needs-setup',
+      missingCount: 6,
+      nextActionLabel: 'Connect browser capture',
+    });
+    expect(preview.capabilitySetup.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'computer-use',
+          label: 'Computer-use capture',
+          status: 'needs-runner',
+          actionLabel: 'Approve computer-use capture',
+          routeLabels: ['/api/motion/capture'],
+          toolLabels: ['computer use'],
+          requirementLabels: expect.arrayContaining([
+            'creator approval',
+            'redaction manifest',
+            'approved app or browser window',
+          ]),
+          runnerLabels: expect.arrayContaining([
+            'screenshot',
+            'recording',
+            'trace',
+            'redaction receipt',
+          ]),
+          blockerLabels: expect.arrayContaining([
+            'stop on login, payment, personal data, or secret fields appear',
+          ]),
+        }),
+      ])
+    );
   });
 
   it('carries saved full-auto receipt history into the preview plan', () => {
