@@ -3554,6 +3554,9 @@ function MotionCapturePlanView({
       : capturePlan.target?.kind === 'local-app'
         ? captureTargetLabel(capturePlan.target.ref)
       : 'source needed';
+  const setupCommands = capturePlan.agentRunbook?.setupCommands ?? [];
+  const runbookInstructions = capturePlan.agentRunbook?.instructions ?? [];
+  const receiptLabels = capturePlan.agentRunbook?.reviewArtifactLabels ?? [];
 
   return (
     <div className="min-w-0">
@@ -3568,6 +3571,38 @@ function MotionCapturePlanView({
       <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
           <div className="mb-1 font-caption text-xs text-ink">{targetLabel}</div>
+          {setupCommands.length > 0 || receiptLabels.length > 0 ? (
+            <div className="mb-2 grid gap-2 lg:grid-cols-2">
+              {setupCommands.length > 0 ? (
+                <div className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+                  <div className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                    capture setup
+                  </div>
+                  <div className="mt-1 font-caption text-xs text-ink">
+                    {setupCommands[0].command}
+                  </div>
+                  <div className="mt-1 line-clamp-1 font-caption text-2xs text-ink-dim">
+                    {setupCommands[0].targetUrl}
+                  </div>
+                </div>
+              ) : null}
+              {receiptLabels.length > 0 ? (
+                <div className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+                  <div className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                    capture receipts
+                  </div>
+                  <div className="mt-1 line-clamp-2 font-caption text-xs text-ink">
+                    {receiptLabels.join(' / ')}
+                  </div>
+                  {runbookInstructions[0] ? (
+                    <div className="mt-1 line-clamp-1 font-caption text-2xs text-ink-dim">
+                      {runbookInstructions[0]}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {capturePlan.requests.length > 0 ? (
             <div className="flex gap-2 overflow-x-auto pb-1">
               {capturePlan.requests.map((request) => (

@@ -1647,13 +1647,24 @@ const capturePlan: AgentMotionCapturePlan = {
   projectId: 'motion-aether-launch',
   status: 'ready',
   preferredPath: 'screenshot-first',
-  target: { kind: 'url', ref: 'https://aether.local/demo' },
-  providerRequirements: ['browser-capture'],
+  target: { kind: 'local-app', ref: 'https://aether.local/demo' },
+  providerRequirements: ['browser-capture', 'app-launch'],
   agentRunbook: {
     primaryToolId: 'browser-capture',
     fallbackToolIds: ['computer-use'],
     applyRoute: '/api/motion/capture',
-    setupCommands: [],
+    setupCommands: [
+      {
+        command: 'npm run dev:local',
+        cwd: '/Users/erniesg/code/erniesg/aether',
+        targetUrl: 'https://aether.local/demo',
+        readiness: {
+          kind: 'http',
+          url: 'https://aether.local/demo',
+          timeoutMs: 60000,
+        },
+      },
+    ],
     instructions: [
       'Open each target in browser capture before using generated or stock visuals.',
       'Use computer-use capture when auth, native UI, simulator, or gesture state blocks browser capture.',
@@ -1666,13 +1677,30 @@ const capturePlan: AgentMotionCapturePlan = {
       label: 'Capture hero still',
       required: true,
       request: {
-        target: { kind: 'url', ref: 'https://aether.local/demo' },
+        target: { kind: 'local-app', ref: 'https://aether.local/demo' },
         mode: 'screenshot',
         aspectRatio: '9:16',
         viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+        appLaunch: {
+          command: 'npm run dev:local',
+          cwd: '/Users/erniesg/code/erniesg/aether',
+          targetUrl: 'https://aether.local/demo',
+          readiness: {
+            kind: 'http',
+            url: 'https://aether.local/demo',
+            timeoutMs: 60000,
+          },
+        },
         steps: [],
       },
       agentInstructions: [
+        {
+          id: 'launch-local-app',
+          toolId: 'app-launch',
+          label: 'Run local app',
+          detail: 'npm run dev:local',
+          cwd: '/Users/erniesg/code/erniesg/aether',
+        },
         {
           id: 'open-target',
           toolId: 'browser-capture',
@@ -1700,10 +1728,20 @@ const capturePlan: AgentMotionCapturePlan = {
       label: 'Capture DOM snapshot',
       required: true,
       request: {
-        target: { kind: 'url', ref: 'https://aether.local/demo' },
+        target: { kind: 'local-app', ref: 'https://aether.local/demo' },
         mode: 'dom-snapshot',
         aspectRatio: '9:16',
         viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+        appLaunch: {
+          command: 'npm run dev:local',
+          cwd: '/Users/erniesg/code/erniesg/aether',
+          targetUrl: 'https://aether.local/demo',
+          readiness: {
+            kind: 'http',
+            url: 'https://aether.local/demo',
+            timeoutMs: 60000,
+          },
+        },
         steps: [],
       },
       agentInstructions: [
@@ -1734,10 +1772,20 @@ const capturePlan: AgentMotionCapturePlan = {
       label: 'Record product flow',
       required: false,
       request: {
-        target: { kind: 'url', ref: 'https://aether.local/demo' },
+        target: { kind: 'local-app', ref: 'https://aether.local/demo' },
         mode: 'screen-recording',
         aspectRatio: '9:16',
         viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+        appLaunch: {
+          command: 'npm run dev:local',
+          cwd: '/Users/erniesg/code/erniesg/aether',
+          targetUrl: 'https://aether.local/demo',
+          readiness: {
+            kind: 'http',
+            url: 'https://aether.local/demo',
+            timeoutMs: 60000,
+          },
+        },
         steps: [],
       },
       agentInstructions: [
@@ -2068,6 +2116,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText('image to video')).toBeInTheDocument();
     expect(screen.getByText('captures')).toBeInTheDocument();
     expect(screen.getAllByText('aether.local').length).toBeGreaterThan(0);
+    expect(screen.getByText('capture setup')).toBeInTheDocument();
+    expect(screen.getByText('npm run dev:local')).toBeInTheDocument();
+    expect(screen.getByText('capture receipts')).toBeInTheDocument();
+    expect(screen.getByText('capture receipt / cursor targets / viewport receipt')).toBeInTheDocument();
     expect(screen.getByText('Capture hero still')).toBeInTheDocument();
     expect(screen.getAllByText(/screenshot/).length).toBeGreaterThan(0);
     expect(screen.getByText('Record product flow')).toBeInTheDocument();
