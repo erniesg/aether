@@ -214,7 +214,17 @@ describe('POST /api/motion/start', () => {
                 launchLocalApp: true,
                 headless: true,
               },
+              imageToVideoProviderId: '$imageToVideoProviderId',
+              voiceProviderId: '$voiceProviderId',
+              renderProviderId: '$renderProviderId',
+              renderEngine: 'remotion',
             }),
+            inputPlaceholders: [
+              '$motionProject',
+              '$imageToVideoProviderId',
+              '$voiceProviderId',
+              '$renderProviderId',
+            ],
             expectedReceipts: expect.arrayContaining([
               'captures',
               'voice clips',

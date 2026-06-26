@@ -114,8 +114,9 @@
   concrete JSON request templates with `project` placeholders for setup
   dry-runs, full-auto, capture, image-to-video, voice, sync, preview-source,
   source-edit, render, and export-pack gates. Local repo handoffs include
-  required capture request ids plus the request-scoped `playwright-local`
-  runner config.
+  required capture request ids, the request-scoped `playwright-local` runner
+  config, and full-auto provider placeholders for image-to-video, voice, and
+  render so agents can reuse the same provider choices after setup dry-runs.
 - The workspace timeline lens now receives those agent handoffs and renders a
   compact agent-actions strip inside the creator shell: next action, review or
   full-auto mode, API route labels, expected receipts, and local-runner

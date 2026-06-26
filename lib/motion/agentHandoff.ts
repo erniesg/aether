@@ -66,8 +66,17 @@ function buildTemplates(input: {
         requestedEngines: engines,
         ...(capture ? { captureRequestIds: capture.requestIds } : {}),
         ...(capture?.runner ? { captureRunner: capture.runner } : {}),
+        imageToVideoProviderId: '$imageToVideoProviderId',
+        voiceProviderId: '$voiceProviderId',
+        renderProviderId: '$renderProviderId',
+        renderEngine: preferredRenderEngine(engines),
       }),
-      inputPlaceholders: [PROJECT_PLACEHOLDER],
+      inputPlaceholders: [
+        PROJECT_PLACEHOLDER,
+        '$imageToVideoProviderId',
+        '$voiceProviderId',
+        '$renderProviderId',
+      ],
       expectedReceipts: uniqueStrings([
         ...(capture ? ['captures'] : []),
         'source asset picks',

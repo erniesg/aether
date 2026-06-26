@@ -179,7 +179,8 @@ capture, render, and provenance debugging.
   full-auto, capture, image-to-video, voice, sync, source edits, render proof,
   and export pack gates. The timeline lens renders those templates as
   creator-facing agent actions, including local-runner availability and
-  expected receipts, while
+  expected receipts. The main full-auto request template now also carries
+  provider placeholders for image-to-video, voice, and render, while
   hiding placeholder JSON bodies. GitHub repo URLs, local repo paths, and
   site/app URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
