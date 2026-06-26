@@ -46,6 +46,7 @@ import type {
   MotionPreviewTimelineRow,
   MotionPreviewVideoPlan,
   MotionPreviewVideoPlanScene,
+  MotionPreviewVisualGenerationEdge,
   MotionPreviewVisualGenerationSummary,
   MotionPreviewVisualSourcingSummary,
 } from '@/lib/motion/previewPlan';
@@ -3194,6 +3195,8 @@ function MotionGenerationNodeLens({
     onRenderMotion,
     onExportPack,
   });
+  const edges = buildGenerationNodeLensEdges(previewPlan);
+  const edgeNodeLabels = buildGenerationNodeLensLabelMap(previewPlan, nodes);
 
   return (
     <div className="min-w-0">
@@ -3210,6 +3213,34 @@ function MotionGenerationNodeLens({
           {nodes.length} nodes
         </Chip>
       </div>
+      {edges.length > 0 ? (
+        <div
+          aria-label="generation path"
+          className="mb-3 rounded-sm border border-border-soft bg-surface-canvas px-3 py-2"
+        >
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            generation path
+          </div>
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            {edges.map((edge) => (
+              <div
+                key={`${edge.from}-${edge.to}-${edge.label}`}
+                className="min-w-[180px] rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+              >
+                <div className="truncate font-caption text-xs text-ink">
+                  {edgeNodeLabels.get(edge.from) ?? readableLabel(edge.from)}
+                </div>
+                <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                  {edge.label}
+                </div>
+                <div className="mt-1 truncate font-caption text-2xs text-ink-dim">
+                  {edgeNodeLabels.get(edge.to) ?? readableLabel(edge.to)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
         {nodes.map((node) => (
           <article
@@ -3352,6 +3383,50 @@ function buildGenerationNodeLensCards(
       onAction: options.onExportPack,
     },
   ];
+}
+
+function buildGenerationNodeLensEdges(
+  previewPlan: MotionPreviewPlan
+): MotionPreviewVisualGenerationEdge[] {
+  const visualEdges = previewPlan.visualGenerationSummary.nodePlan.edges;
+  const visualNodeIds = new Set(
+    previewPlan.visualGenerationSummary.nodePlan.nodes.map((node) => node.id)
+  );
+  const visualExitNodeId = visualNodeIds.has('timeline-update')
+    ? 'timeline-update'
+    : visualNodeIds.has('review-generated-clips')
+      ? 'review-generated-clips'
+      : 'image-to-video';
+  return uniqueGenerationNodeLensEdges([
+    ...visualEdges,
+    { from: visualExitNodeId, to: 'sync', label: 'sets timing' },
+    { from: 'voice', to: 'sync', label: 'adds narration' },
+    { from: 'sync', to: 'render', label: 'renders proof' },
+    { from: 'render', to: 'export', label: 'packages' },
+  ]);
+}
+
+function uniqueGenerationNodeLensEdges(
+  edges: MotionPreviewVisualGenerationEdge[]
+): MotionPreviewVisualGenerationEdge[] {
+  const seen = new Set<string>();
+  return edges.filter((edge) => {
+    const key = `${edge.from}:${edge.to}:${edge.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildGenerationNodeLensLabelMap(
+  previewPlan: MotionPreviewPlan,
+  nodes: MotionGenerationNodeLensCard[]
+): Map<string, string> {
+  const labels = new Map(nodes.map((node) => [node.id, node.label]));
+  for (const node of previewPlan.visualGenerationSummary.nodePlan.nodes) {
+    labels.set(node.id, node.label);
+  }
+  return labels;
 }
 
 function productionReceiptLabels(previewPlan: MotionPreviewPlan, gateId: string): string[] {
