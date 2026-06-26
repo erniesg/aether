@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CaptureResult } from '@/lib/providers/capture/types';
 import { applyCaptureResultToMotionProject } from './captureApply';
+import { appendSetupDryRunExecutionHistory } from './executionHistory';
 import type { MotionProject } from './project';
+import { buildMotionPreviewPlan } from './previewPlan';
 import { runSavedMotionFullAuto } from './fullAutoExecution';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
@@ -178,6 +180,66 @@ describe('runSavedMotionFullAuto', () => {
       status: 'paused',
       run: {
         reason: 'handler-required',
+        stepId: 'capture',
+        advancedStepIds: [],
+      },
+      productionPlan: {
+        nextStepId: 'capture',
+      },
+    });
+  });
+
+  it('moves the next capability setup card after setup dry-run receipts are saved', async () => {
+    const baseProject = project();
+    const before = buildMotionPreviewPlan(baseProject, {
+      engines: ['hyperframes'],
+      requestedAt: 603,
+    });
+    expect(before.capabilitySetup.nextActionLabel).toBe('Connect browser capture');
+
+    const projectWithSetupReceipts: MotionProject = {
+      ...baseProject,
+      executionHistory: appendSetupDryRunExecutionHistory(
+        baseProject.executionHistory,
+        {
+          setupId: 'computer-use',
+          gateId: 'capture',
+          label: 'Computer-use capture',
+          receiptLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
+          provenance: [{ kind: 'manual', ref: 'setup:computer-use' }],
+        },
+        604
+      ),
+    };
+    const after = buildMotionPreviewPlan(projectWithSetupReceipts, {
+      engines: ['hyperframes'],
+      requestedAt: 605,
+    });
+
+    expect(after.capabilitySetup.nextActionLabel).toBe('Connect visual sources');
+    expect(after.capabilitySetup.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture',
+          status: 'configured',
+          configuredProviderLabels: ['computer use dry run'],
+        }),
+        expect.objectContaining({
+          id: 'computer-use',
+          status: 'configured',
+          dryRunPendingLabels: [],
+        }),
+      ])
+    );
+
+    const result = await runSavedMotionFullAuto(projectWithSetupReceipts, {
+      engines: ['hyperframes'],
+      requestedAt: 606,
+    });
+    expect(result).toMatchObject({
+      status: 'paused',
+      run: {
+        reason: 'provider-required',
         stepId: 'capture',
         advancedStepIds: [],
       },

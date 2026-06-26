@@ -213,6 +213,7 @@ export interface MotionExport {
 }
 
 export type MotionExecutionGateId =
+  | 'setup'
   | 'plan'
   | 'drafts'
   | 'capture'
@@ -224,6 +225,7 @@ export type MotionExecutionGateId =
   | 'export';
 
 export type MotionExecutionReceiptKind =
+  | 'setup'
   | 'capture'
   | 'visual-source'
   | 'image-to-video'

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { appendSetupDryRunExecutionHistory } from './executionHistory';
 import { buildMotionPreviewPlan } from './previewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
@@ -571,6 +572,66 @@ describe('buildMotionPreviewPlan', () => {
         }),
       ])
     );
+  });
+
+  it('uses saved setup dry-run receipts to advance capability setup without completing production gates', () => {
+    const baseProject = { ...project(), workflowMode: 'full-auto' as const };
+    const preview = buildMotionPreviewPlan(
+      {
+        ...baseProject,
+        executionHistory: appendSetupDryRunExecutionHistory(
+          baseProject.executionHistory,
+          {
+            setupId: 'computer-use',
+            gateId: 'capture',
+            label: 'Computer-use capture',
+            receiptLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
+            provenance: [{ kind: 'manual', ref: 'setup:computer-use' }],
+          },
+          132
+        ),
+      },
+      {
+        engines: ['remotion', 'hyperframes'],
+        requestedAt: 133,
+      }
+    );
+
+    expect(preview.executionHistory).toMatchObject({
+      status: 'saved',
+      savedStepCount: 1,
+      receiptCount: 3,
+      latestReceiptLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
+    });
+    expect(preview.capabilitySetup.nextActionLabel).toBe('Connect visual sources');
+    expect(preview.capabilitySetup.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture',
+          status: 'configured',
+          configuredProviderLabels: ['computer use dry run'],
+          dryRunCompletedLabels: expect.arrayContaining([
+            'approval receipt',
+            'redaction receipt',
+            'safe-scope receipt',
+          ]),
+        }),
+        expect.objectContaining({
+          id: 'computer-use',
+          status: 'configured',
+          dryRunPendingLabels: [],
+          dryRunCompletedLabels: expect.arrayContaining([
+            'approval receipt',
+            'redaction receipt',
+            'safe-scope receipt',
+          ]),
+        }),
+      ])
+    );
+    expect(preview.productionPlan.steps.find((step) => step.id === 'capture')).toMatchObject({
+      status: 'ready',
+      verificationReceipts: [],
+    });
   });
 
   it('carries saved full-auto receipt history into the preview plan', () => {

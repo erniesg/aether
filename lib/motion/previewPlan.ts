@@ -484,6 +484,8 @@ export interface MotionPreviewCapabilitySetupItem {
   configuredProviderLabels: string[];
   runnerLabels: string[];
   dryRunLabels?: string[];
+  dryRunCompletedLabels?: string[];
+  dryRunPendingLabels?: string[];
   blockerLabels: string[];
 }
 
@@ -743,30 +745,36 @@ function buildCapabilitySetup(
   }
 ): MotionPreviewCapabilitySetup {
   const captureProviderLabels = availableProviderLabels(options.providers?.capture);
+  const setupProofs = setupDryRunProofs(project.executionHistory);
   const items = [
     setupItemForStep(productionPlan, 'capture', {
       inventory: options.providers?.capture,
       defaultActionLabel: 'Connect browser capture',
+      setupProofs,
     }),
-    ...computerUseSetupItems(productionPlan, capturePlan, captureProviderLabels),
-    ...localAppSetupItems(project),
+    ...computerUseSetupItems(productionPlan, capturePlan, captureProviderLabels, setupProofs),
+    ...localAppSetupItems(project, setupProofs),
     setupItemForStep(productionPlan, 'visual-source', {
       inventory: options.providers?.visualSource,
       defaultActionLabel: 'Connect visual sources',
+      setupProofs,
     }),
     setupItemForStep(productionPlan, 'visual-generation', {
       inventory: options.providers?.imageToVideo,
       defaultActionLabel: 'Connect image-to-video',
+      setupProofs,
     }),
     setupItemForStep(productionPlan, 'voice', {
       inventory: options.providers?.voice,
       defaultActionLabel: 'Connect voice synthesis',
+      setupProofs,
     }),
     setupItemForStep(productionPlan, 'sync', {
       defaultActionLabel: 'Review sync markers',
       preferBlocked: true,
+      setupProofs,
     }),
-    renderSetupItem(productionPlan, enginePreviews, options),
+    renderSetupItem(productionPlan, enginePreviews, options, setupProofs),
   ].filter((item): item is MotionPreviewCapabilitySetupItem => Boolean(item));
   const readyCount = items.filter((item) => item.status === 'configured').length;
   const missingCount = items.filter(
@@ -791,27 +799,38 @@ function buildCapabilitySetup(
 function computerUseSetupItems(
   productionPlan: MotionProductionPlan,
   capturePlan: AgentMotionCapturePlan,
-  captureProviderLabels: string[]
+  captureProviderLabels: string[],
+  setupProofs: MotionSetupDryRunProofMap
 ): MotionPreviewCapabilitySetupItem[] {
   const captureStep = productionPlan.steps.find((step) => step.id === 'capture');
-  if (!captureStep || captureStep.status === 'complete' || captureProviderLabels.length > 0) {
+  const dryRunStatus = dryRunStatusForSetup(
+    'computer-use',
+    computerUseDryRunLabels(),
+    setupProofs
+  );
+  if (
+    !captureStep ||
+    captureStep.status === 'complete' ||
+    (captureProviderLabels.length > 0 && !dryRunStatus.configured)
+  ) {
     return [];
   }
 
   const fallback = capturePlan.fallbacks.find((item) => item.toolId === 'computer-use');
   if (!fallback) return [];
 
-  return [computerUseSetupItem(fallback)];
+  return [computerUseSetupItem(fallback, dryRunStatus)];
 }
 
 function computerUseSetupItem(
-  fallback: AgentMotionCaptureFallback
+  fallback: AgentMotionCaptureFallback,
+  dryRunStatus: MotionSetupDryRunStatus
 ): MotionPreviewCapabilitySetupItem {
   return {
     id: 'computer-use',
     label: 'Computer-use capture',
-    status: 'needs-runner',
-    actionLabel: 'Approve computer-use capture',
+    status: dryRunStatus.configured ? 'configured' : 'needs-runner',
+    actionLabel: dryRunStatus.configured ? 'Computer-use ready' : 'Approve computer-use capture',
     routeLabels: [fallback.outputContract.applyRoute],
     toolLabels: [readableLabel(fallback.toolId)],
     requirementLabels: uniqueStrings([
@@ -824,7 +843,9 @@ function computerUseSetupItem(
     providerLabels: [],
     configuredProviderLabels: [],
     runnerLabels: fallback.expectedArtifacts,
-    dryRunLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
+    dryRunLabels: computerUseDryRunLabels(),
+    dryRunCompletedLabels: dryRunStatus.completedLabels,
+    dryRunPendingLabels: dryRunStatus.pendingLabels,
     blockerLabels: fallback.safeScope.stopConditions.map((condition) => `stop on ${condition}`),
   };
 }
@@ -836,15 +857,18 @@ function setupItemForStep(
     inventory?: MotionPreviewCapabilityProvider[];
     defaultActionLabel: string;
     preferBlocked?: boolean;
+    setupProofs: MotionSetupDryRunProofMap;
   }
 ): MotionPreviewCapabilitySetupItem | null {
   const step = productionPlan.steps.find((candidate) => candidate.id === stepId);
   if (!step) return null;
 
   const providerLabels = availableProviderLabels(options.inventory);
+  const dryRunLabels = dryRunLabelsForStep(step.id);
+  const dryRunStatus = dryRunStatusForStep(step.id, dryRunLabels, options.setupProofs);
   const needsProvider = step.providerRequirementLabels.length > 0 && providerLabels.length === 0;
   const blocked = step.blockerLabels.length > 0 && (options.preferBlocked || !needsProvider);
-  const configured = step.status === 'complete' || providerLabels.length > 0;
+  const configured = step.status === 'complete' || providerLabels.length > 0 || dryRunStatus.configured;
   const status: MotionPreviewCapabilitySetupItemStatus = blocked
     ? 'blocked'
     : configured
@@ -864,9 +888,16 @@ function setupItemForStep(
     toolLabels: step.toolIds.map(readableLabel),
     requirementLabels: step.providerRequirementLabels,
     providerLabels,
-    configuredProviderLabels: providerLabels,
+    configuredProviderLabels:
+      providerLabels.length > 0
+        ? providerLabels
+        : dryRunStatus.providerLabel
+          ? [dryRunStatus.providerLabel]
+          : [],
     runnerLabels: [],
-    dryRunLabels: dryRunLabelsForStep(step.id),
+    dryRunLabels,
+    dryRunCompletedLabels: dryRunStatus.completedLabels,
+    dryRunPendingLabels: dryRunStatus.pendingLabels,
     blockerLabels: step.blockerLabels,
   };
 }
@@ -877,7 +908,8 @@ function renderSetupItem(
   options: {
     engines: WorkflowEngine[];
     providers?: MotionPreviewCapabilitySetupInventory;
-  }
+  },
+  setupProofs: MotionSetupDryRunProofMap
 ): MotionPreviewCapabilitySetupItem | null {
   const step = productionPlan.steps.find((candidate) => candidate.id === 'render');
   if (!step) return null;
@@ -901,8 +933,10 @@ function renderSetupItem(
     )
   );
   const requirementLabels = renderEngines.map((engine) => `${engine} render runner`);
+  const dryRunLabels = ['source lint', 'contact sheet', 'mp4 probe'];
+  const dryRunStatus = dryRunStatusForSetup(step.id, dryRunLabels, setupProofs);
   const status: MotionPreviewCapabilitySetupItemStatus =
-    step.status === 'complete' || providerLabels.length > 0
+    step.status === 'complete' || providerLabels.length > 0 || dryRunStatus.configured
       ? 'configured'
       : 'needs-runner';
 
@@ -920,14 +954,24 @@ function renderSetupItem(
     toolLabels: step.toolIds.map(readableLabel),
     requirementLabels,
     providerLabels,
-    configuredProviderLabels: providerLabels,
+    configuredProviderLabels:
+      providerLabels.length > 0
+        ? providerLabels
+        : dryRunStatus.providerLabel
+          ? [dryRunStatus.providerLabel]
+          : [],
     runnerLabels: providerLabels,
-    dryRunLabels: ['source lint', 'contact sheet', 'mp4 probe'],
+    dryRunLabels,
+    dryRunCompletedLabels: dryRunStatus.completedLabels,
+    dryRunPendingLabels: dryRunStatus.pendingLabels,
     blockerLabels: step.blockerLabels,
   };
 }
 
-function localAppSetupItems(project: MotionProject): MotionPreviewCapabilitySetupItem[] {
+function localAppSetupItems(
+  project: MotionProject,
+  setupProofs: MotionSetupDryRunProofMap
+): MotionPreviewCapabilitySetupItem[] {
   const labels = uniqueStrings(
     (project.sourceProfile?.captureCandidates ?? []).flatMap((candidate) => {
       if (candidate.targetKind !== 'local-app' || !candidate.setup || !candidate.targetRef) {
@@ -939,19 +983,24 @@ function localAppSetupItems(project: MotionProject): MotionPreviewCapabilitySetu
 
   if (labels.length === 0) return [];
 
+  const dryRunLabels = ['HTTP readiness receipt', 'process cleanup receipt'];
+  const dryRunStatus = dryRunStatusForSetup('local-app', dryRunLabels, setupProofs);
+
   return [
     {
       id: 'local-app',
       label: 'Local app runner',
-      status: 'needs-runner',
-      actionLabel: 'Trust local app launch',
+      status: dryRunStatus.configured ? 'configured' : 'needs-runner',
+      actionLabel: dryRunStatus.configured ? 'Local app runner ready' : 'Trust local app launch',
       routeLabels: ['/api/motion/capture'],
       toolLabels: ['app launch', 'browser capture'],
       requirementLabels: ['trusted local app launch'],
       providerLabels: [],
-      configuredProviderLabels: [],
+      configuredProviderLabels: dryRunStatus.providerLabel ? [dryRunStatus.providerLabel] : [],
       runnerLabels: labels,
-      dryRunLabels: ['HTTP readiness receipt', 'process cleanup receipt'],
+      dryRunLabels,
+      dryRunCompletedLabels: dryRunStatus.completedLabels,
+      dryRunPendingLabels: dryRunStatus.pendingLabels,
       blockerLabels: [],
     },
   ];
@@ -976,6 +1025,79 @@ function dryRunLabelsForStep(
     return ['beat markers', 'caption links', 'sound cues'];
   }
   return [];
+}
+
+type MotionSetupDryRunProofMap = Map<string, Set<string>>;
+
+interface MotionSetupDryRunStatus {
+  configured: boolean;
+  completedLabels: string[];
+  pendingLabels: string[];
+  providerLabel?: string;
+}
+
+function setupDryRunProofs(
+  history: MotionExecutionHistoryEntry[] | undefined
+): MotionSetupDryRunProofMap {
+  const proofs: MotionSetupDryRunProofMap = new Map();
+
+  for (const receipt of (history ?? []).flatMap((entry) => entry.receipts)) {
+    if (receipt.kind !== 'setup') continue;
+    const setupId = setupIdFromReceipt(receipt);
+    if (!setupId) continue;
+
+    const labels = proofs.get(setupId) ?? new Set<string>();
+    labels.add(receipt.label);
+    proofs.set(setupId, labels);
+  }
+
+  return proofs;
+}
+
+function setupIdFromReceipt(receipt: MotionExecutionReceipt): string | null {
+  const [setupId] = receipt.ref.split(':');
+  return setupId || null;
+}
+
+function dryRunStatusForStep(
+  stepId: MotionProductionPlan['steps'][number]['id'],
+  labels: string[],
+  setupProofs: MotionSetupDryRunProofMap
+): MotionSetupDryRunStatus {
+  if (stepId === 'capture') {
+    const computerUseStatus = dryRunStatusForSetup(
+      'computer-use',
+      computerUseDryRunLabels(),
+      setupProofs,
+      'computer use dry run'
+    );
+    if (computerUseStatus.configured) return computerUseStatus;
+  }
+
+  return dryRunStatusForSetup(stepId, labels, setupProofs);
+}
+
+function dryRunStatusForSetup(
+  setupId: string,
+  labels: string[],
+  setupProofs: MotionSetupDryRunProofMap,
+  providerLabel = `${readableLabel(setupId)} dry run`
+): MotionSetupDryRunStatus {
+  const proofLabels = setupProofs.get(setupId) ?? new Set<string>();
+  const completedLabels = labels.filter((label) => proofLabels.has(label));
+  const pendingLabels = labels.filter((label) => !proofLabels.has(label));
+  const configured = labels.length > 0 && pendingLabels.length === 0;
+
+  return {
+    configured,
+    completedLabels,
+    pendingLabels,
+    ...(configured ? { providerLabel } : {}),
+  };
+}
+
+function computerUseDryRunLabels(): string[] {
+  return ['approval receipt', 'redaction receipt', 'safe-scope receipt'];
 }
 
 function availableProviderLabels(

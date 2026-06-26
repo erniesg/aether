@@ -155,8 +155,10 @@ capture, render, and provenance debugging.
   capability setup, computer-use approval/redaction setup, compact agent
   actions, and timeline rows without exposing raw provenance/debug ids or
   request bodies in the primary surface. Setup cards now include dry-run proof
-  labels for the receipts needed before full-auto continues; `graph`
-  remains reserved for advanced provenance/generation editing.
+  labels for the receipts needed before full-auto continues, and saved setup
+  dry-run receipts advance capability readiness without pretending the final
+  capture or render gate has completed; `graph` remains reserved for advanced
+  provenance/generation editing.
 - `components/rail/sections/MotionSection.tsx` now starts video projects from
   repo, PR, site URL, or local path sources with review/full-auto mode and
   target presets for X vertical, LinkedIn feed, website demo, or a multi-format
@@ -417,7 +419,10 @@ capture, render, and provenance debugging.
   runners are normalized into creator-facing `configured`, `needs provider`,
   `needs runner`, or `blocked` rows. The full-auto route passes configured
   provider inventory into that preview plan so agents and creators see the same
-  next setup action before trying to advance saved gates.
+  next setup action before trying to advance saved gates. Setup dry-run
+  receipts are now stored in execution history and can move the next capability
+  setup card, while production gates still require real capture, voice,
+  generation, sync, or render artifacts.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start

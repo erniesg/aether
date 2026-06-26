@@ -83,8 +83,9 @@ Aether now has the right backbone:
    creator-facing setup card with permission, expected receipt, and dry-run
    proof before full-auto. Generic runner/provider cards and the guarded
    computer-use approval/redaction card are now in the timeline lens, and setup
-   cards carry dry-run proof labels. Executing those dry-runs and saving their
-   proof receipts remains follow-up.
+   cards carry dry-run proof labels. Setup dry-run receipts can now be saved in
+   execution history and move the next capability setup action; wiring live
+   provider-specific dry-run runners for every card remains follow-up.
 3. **Real preview runtime.** The timeline lens now has a source-backed preview
    shell with frame scrubbing, component focus, and explicit Remotion Player /
    HyperFrames iframe runtime targets. The preview-source route now returns the
@@ -133,7 +134,8 @@ Acceptance evidence:
 
 - Timeline tests cover setup cards without exposing raw provider ids or request
   JSON.
-- Full-auto tests prove the next actionable card changes after each receipt.
+- Full-auto tests prove the next actionable card changes after saved setup
+  dry-run receipts.
 
 ### Slice C: Playable preview and source-backed edits
 

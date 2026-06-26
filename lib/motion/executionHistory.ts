@@ -30,6 +30,15 @@ export interface MotionVisualSourceSelectedAsset {
   provenance: MotionProvenanceRef[];
 }
 
+export interface MotionSetupDryRunReceiptInput {
+  setupId: string;
+  gateId: Exclude<MotionExecutionHistoryEntry['gateId'], 'setup'>;
+  label: string;
+  receiptLabels: string[];
+  providerId?: string;
+  provenance: MotionProvenanceRef[];
+}
+
 export function appendCaptureExecutionHistory(
   history: MotionExecutionHistoryEntry[] | undefined,
   result: CaptureResult,
@@ -115,6 +124,38 @@ export function appendVoiceExecutionHistory(
       ...result.provenance,
       ...result.artifacts.flatMap((artifact) => artifact.provenance),
       ...result.artifacts.map((artifact) => ({ kind: 'voice' as const, ref: artifact.id })),
+    ]),
+  });
+}
+
+export function appendSetupDryRunExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  input: MotionSetupDryRunReceiptInput,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const setupId = slugifyId(input.setupId);
+  const receipts = uniqueStrings(input.receiptLabels).map((label) =>
+    setupDryRunReceipt({
+      setupId,
+      gateId: input.gateId,
+      label,
+      providerId: input.providerId,
+    })
+  );
+
+  return appendExecutionEntry(history, {
+    id: `execution-setup-${setupId}-${savedAt}`,
+    gateId: 'setup',
+    label: input.label,
+    ...(input.providerId ? { providerId: input.providerId } : {}),
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      ...input.provenance,
+      { kind: 'manual', ref: `setup:${setupId}` },
+      { kind: 'manual', ref: `setup-gate:${input.gateId}` },
     ]),
   });
 }
@@ -292,6 +333,23 @@ function renderReceipt(providerId: string, output: MotionRenderedAsset): MotionE
   };
 }
 
+function setupDryRunReceipt(input: {
+  setupId: string;
+  gateId: Exclude<MotionExecutionHistoryEntry['gateId'], 'setup'>;
+  label: string;
+  providerId?: string;
+}): MotionExecutionReceipt {
+  const receiptId = slugifyId(input.label);
+
+  return {
+    id: `receipt-setup-${input.setupId}-${receiptId}`,
+    kind: 'setup',
+    label: input.label,
+    ref: `${input.setupId}:${input.gateId}:${receiptId}`,
+    ...(input.providerId ? { providerId: input.providerId } : {}),
+  };
+}
+
 function captureReceiptLabel(artifact: CaptureArtifact): string {
   if (artifact.kind === 'recording') return 'Recording';
   if (artifact.kind === 'snapshot') return 'DOM snapshot';
@@ -325,6 +383,10 @@ function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
     seen.add(key);
     return true;
   });
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 function slugifyId(value: string): string {

@@ -302,6 +302,11 @@
   rows, while `/api/motion/full-auto` passes configured provider inventory into
   that contract so full-auto can pause on an actionable setup step instead of a
   generic missing-provider state.
+- Setup dry-run proof is now persisted as `setup` execution-history receipts.
+  Preview capability setup consumes those receipts to mark the matching runner
+  or provider card configured and move the next setup action; computer-use
+  approval/redaction/safe-scope proof also satisfies the capture fallback card
+  without completing the production capture gate.
 - Production plans now surface completed capture, render, and export
   verification receipts as first-class step metadata. Full-auto capture
   results can create completed capture graph nodes, render receipts appear as
