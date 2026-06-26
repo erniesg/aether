@@ -11,10 +11,12 @@ import type {
   TimelineTrack,
 } from './project';
 import {
+  getMotionEffectPreset,
   MOTION_EFFECT_PRESETS,
   motionEffectPresetOrDefault,
 } from './effectPresets';
 import { getMotionComponent } from './componentRegistry';
+import { buildMotionSyncPlan, type MotionSyncEffectCue } from './syncPlan';
 
 export interface BuildMotionRenderSourceBundleOptions {
   remotionEntryPoint?: string;
@@ -44,14 +46,32 @@ export interface MotionRenderEditContractComponent {
   provenance: MotionProvenanceRef[];
 }
 
+export interface MotionRenderEditContractSyncEffectCue {
+  id: string;
+  kind: MotionSyncEffectCue['kind'];
+  label: string;
+  startSeconds: number;
+  durationSeconds: number;
+  effectPresetId: MotionSyncEffectCue['effectPresetId'];
+  effectPresetLabel: string;
+  targetClipId: string;
+  targetBeatId: string | null;
+  soundCueId: string | null;
+  editableFields: string[];
+  sourceFiles: string[];
+  provenance: MotionProvenanceRef[];
+}
+
 export interface MotionRenderEditContract {
   artifactPath: string;
   timelinePath: string;
   scriptPath: string;
   storyboardPath: string;
   editableComponentCount: number;
+  syncEffectCueCount: number;
   regenerationScopes: string[];
   editableComponents: MotionRenderEditContractComponent[];
+  syncEffectCues: MotionRenderEditContractSyncEffectCue[];
 }
 
 interface SourceManifestCommand {
@@ -277,7 +297,7 @@ function storyboardMarkdown(project: MotionProject, request: MotionRenderRequest
 
 function editMarkdown(project: MotionProject, request: MotionRenderRequest): string {
   const app = project.brief.appProfile;
-  const editContract = buildEditContract(request);
+  const editContract = buildEditContract(project, request);
   const lines = [
     `# ${app.name} Edit Contract`,
     '',
@@ -314,6 +334,32 @@ function editMarkdown(project: MotionProject, request: MotionRenderRequest): str
     );
   }
 
+  lines.push(
+    '## Sync Effect Cues',
+    '',
+    'Edit syncEffectCues in the timeline JSON to retime animation accents, switch effect presets, or regenerate audio-linked transitions.',
+    'Cue edits are applied to the target clip props so Remotion, HyperFrames, and agents read the same source-backed override.',
+    ''
+  );
+
+  for (const cue of editContract.syncEffectCues) {
+    lines.push(
+      `### ${cue.id}`,
+      '',
+      `Kind: ${cue.kind}`,
+      `Label: ${cue.label}`,
+      `Target clip: ${cue.targetClipId}`,
+      `Target beat: ${cue.targetBeatId ?? 'none'}`,
+      `Effect: ${cue.effectPresetId}`,
+      `Start: ${formatSeconds(cue.startSeconds)}s`,
+      `Duration: ${formatSeconds(cue.durationSeconds)}s`,
+      `Sound cue: ${cue.soundCueId ?? 'none'}`,
+      `Editable fields: ${cue.editableFields.join(', ')}`,
+      `Files: ${cue.sourceFiles.join(', ')}`,
+      ''
+    );
+  }
+
   return markdown(lines);
 }
 
@@ -339,6 +385,7 @@ function timelineArtifactJson(project: MotionProject, request: MotionRenderReque
       height: output.height,
       mimeType: output.mimeType,
     })),
+    syncEffectCues: buildSourceSyncEffectCues(project, request),
     componentIds: componentIdsForTracks(request.tracks),
     effectPresets: MOTION_EFFECT_PRESETS.map((preset) => ({
       id: preset.id,
@@ -350,23 +397,32 @@ function timelineArtifactJson(project: MotionProject, request: MotionRenderReque
 }
 
 export function buildMotionRenderEditContract(
+  project: MotionProject,
   request: MotionRenderRequest
 ): MotionRenderEditContract {
-  return buildEditContract(request);
+  return buildEditContract(project, request);
 }
 
-function buildEditContract(request: MotionRenderRequest): MotionRenderEditContract {
+function buildEditContract(
+  project: MotionProject,
+  request: MotionRenderRequest
+): MotionRenderEditContract {
   const editableComponents = editableComponentSlots(request);
+  const syncEffectCues = buildSourceSyncEffectCues(project, request);
   return {
     artifactPath: editArtifactPath(),
     timelinePath: timelineArtifactPath(request),
     scriptPath: 'SCRIPT.md',
     storyboardPath: 'STORYBOARD.md',
     editableComponentCount: uniqueStrings(editableComponents.map((component) => component.componentId)).length,
+    syncEffectCueCount: syncEffectCues.length,
     regenerationScopes: uniqueStrings(
-      editableComponents.flatMap((component) => component.regenerateScopes)
+      editableComponents
+        .flatMap((component) => component.regenerateScopes)
+        .concat(syncEffectCues.length > 0 ? ['effect', 'timing'] : [])
     ),
     editableComponents,
+    syncEffectCues,
   };
 }
 
@@ -401,6 +457,57 @@ function sourceFilesForComponent(componentId: string, request: MotionRenderReque
   }
 
   return [timelineArtifactPath(request), 'STORYBOARD.md'];
+}
+
+function buildSourceSyncEffectCues(
+  project: MotionProject,
+  request: MotionRenderRequest
+): MotionRenderEditContractSyncEffectCue[] {
+  const syncProject = projectForRenderRequest(project, request);
+  const syncPlan = buildMotionSyncPlan(syncProject, {
+    draftId: request.draftId,
+    fps: request.fps,
+    requestedAt: project.updatedAt,
+  });
+  const timelinePath = timelineArtifactPath(request);
+
+  return syncPlan.effectCues.map((cue) => ({
+    id: cue.id,
+    kind: cue.kind,
+    label: cue.label,
+    startSeconds: cue.startSeconds,
+    durationSeconds: cue.durationSeconds,
+    effectPresetId: cue.effectPresetId,
+    effectPresetLabel:
+      getMotionEffectPreset(cue.effectPresetId)?.label ?? cue.effectPresetId.replace(/-/g, ' '),
+    targetClipId: cue.targetClipId,
+    targetBeatId: cue.targetBeatId,
+    soundCueId: cue.soundCueId,
+    editableFields: [
+      'label',
+      'startSeconds',
+      'durationSeconds',
+      'effectPresetId',
+      'targetClipId',
+      'soundCueId',
+    ],
+    sourceFiles: [timelinePath],
+    provenance: cue.provenance,
+  }));
+}
+
+function projectForRenderRequest(
+  project: MotionProject,
+  request: MotionRenderRequest
+): MotionProject {
+  return {
+    ...project,
+    currentDraftId: request.draftId,
+    tracks: request.tracks,
+    drafts: project.drafts.map((draft) =>
+      draft.id === request.draftId ? { ...draft, tracks: request.tracks } : draft
+    ),
+  };
 }
 
 function storyForRequest(project: MotionProject, request: MotionRenderRequest): StoryBeat[] {
@@ -444,6 +551,7 @@ function remotionEntrySource(project: MotionProject, request: MotionRenderReques
   const dimensions = renderDimensions(request);
   const tracks = stableJson(request.tracks);
   const brand = stableJson(project.brief.brandMotion);
+  const syncEffectCues = stableJson(buildSourceSyncEffectCues(project, request));
   const title = jsonString(project.title);
   const compositionId = jsonString(request.compositionId);
 
@@ -489,13 +597,31 @@ type MotionEffectPresetData = {
   };
 };
 
+type MotionSyncEffectCueData = {
+  id: string;
+  kind: string;
+  label: string;
+  startSeconds: number;
+  durationSeconds: number;
+  effectPresetId: string;
+  effectPresetLabel: string;
+  targetClipId: string;
+  targetBeatId: string | null;
+  soundCueId: string | null;
+  editableFields: string[];
+  sourceFiles: string[];
+  provenance: Array<Record<string, string>>;
+};
+
 type MotionCompositionProps = {
   tracks?: MotionTrackData[];
   brand?: MotionBrandData;
+  syncEffectCues?: MotionSyncEffectCueData[];
 };
 
 const defaultTracks: MotionTrackData[] = ${tracks};
 const defaultBrand: MotionBrandData = ${brand};
+const defaultSyncEffectCues: MotionSyncEffectCueData[] = ${syncEffectCues};
 const compositionTitle = ${title};
 const effectTokens = ${stableJson(RENDER_EFFECT_TOKENS)};
 const effectPresets: MotionEffectPresetData[] = ${stableJson(MOTION_EFFECT_PRESETS)};
@@ -550,6 +676,16 @@ function clipEffectPreset(clip: MotionClipData): MotionEffectPresetData {
     return effectPresets.find((preset) => preset.id === value) ?? effectPresets[0]!;
   }
   return effectPresets[0]!;
+}
+
+function syncEffectCueLabelsForClip(
+  clip: MotionClipData,
+  syncEffectCues: MotionSyncEffectCueData[]
+): string {
+  return syncEffectCues
+    .filter((cue) => cue.targetClipId === clip.id)
+    .map((cue) => \`\${cue.kind}:\${cue.effectPresetId}@\${cue.startSeconds}s\`)
+    .join(", ");
 }
 
 type MotionComponentRenderProps = {
@@ -1276,10 +1412,12 @@ function MotionClip({
   clip,
   trackKind,
   brand,
+  syncEffectCues,
 }: {
   clip: MotionClipData;
   trackKind: string;
   brand: MotionBrandData;
+  syncEffectCues: MotionSyncEffectCueData[];
 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -1288,6 +1426,7 @@ function MotionClip({
   const mimeType = clipMimeType(clip);
   const componentId = componentIdFor(clip, trackKind);
   const effect = clipEffectPreset(clip);
+  const syncEffectCueLabels = syncEffectCueLabelsForClip(clip, syncEffectCues);
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
   const opacity = interpolate(
     frame,
@@ -1316,6 +1455,7 @@ function MotionClip({
   return (
     <AbsoluteFill
       data-component-id={componentId}
+      data-sync-effect-cues={syncEffectCueLabels || undefined}
       style={{
         justifyContent: trackKind === "caption" ? "flex-end" : "center",
         alignItems: "center",
@@ -1344,7 +1484,11 @@ function MotionClip({
   );
 }
 
-function MotionComposition({ tracks = defaultTracks, brand = defaultBrand }: MotionCompositionProps) {
+function MotionComposition({
+  tracks = defaultTracks,
+  brand = defaultBrand,
+  syncEffectCues = defaultSyncEffectCues,
+}: MotionCompositionProps) {
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
 
   return (
@@ -1357,7 +1501,12 @@ function MotionComposition({ tracks = defaultTracks, brand = defaultBrand }: Mot
             durationInFrames={clip.durationFrames}
             premountFor={30}
           >
-            <MotionClip clip={clip} trackKind={track.kind} brand={brand} />
+            <MotionClip
+              clip={clip}
+              trackKind={track.kind}
+              brand={brand}
+              syncEffectCues={syncEffectCues}
+            />
           </Sequence>
         ))
       )}
@@ -1373,7 +1522,11 @@ export const RemotionRoot = () => (
     fps={${request.fps}}
     width={${dimensions.width}}
     height={${dimensions.height}}
-    defaultProps={{ tracks: defaultTracks, brand: defaultBrand } satisfies MotionCompositionProps}
+    defaultProps={{
+      tracks: defaultTracks,
+      brand: defaultBrand,
+      syncEffectCues: defaultSyncEffectCues,
+    } satisfies MotionCompositionProps}
   />
 );
 
@@ -1385,8 +1538,11 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
   const dimensions = renderDimensions(request);
   const palette = normalizedPalette(project);
   const fontFamily = project.brief.brandMotion.fontFamilies[0] ?? 'IBM Plex Mono';
+  const syncEffectCues = buildSourceSyncEffectCues(project, request);
   const clips = request.tracks.flatMap((track, trackIndex) =>
-    track.clips.map((clip) => hyperframesClipHtml(clip, track, trackIndex, request.fps))
+    track.clips.map((clip) =>
+      hyperframesClipHtml(clip, track, trackIndex, request.fps, syncEffectCues)
+    )
   );
 
   return `<!doctype html>
@@ -1782,7 +1938,8 @@ function hyperframesClipHtml(
   clip: TimelineClip,
   track: TimelineTrack,
   trackIndex: number,
-  fps: number
+  fps: number,
+  syncEffectCues: MotionRenderEditContractSyncEffectCue[]
 ): string {
   const start = formatSeconds(clip.startFrame / fps);
   const duration = formatSeconds(clip.durationFrames / fps);
@@ -1794,9 +1951,10 @@ function hyperframesClipHtml(
   const componentId = componentIdForClip(clip, track.kind);
   const effectPreset = motionEffectPresetOrDefault(clip.props.effectPreset);
   const componentClass = `motion-component--${componentId}`;
+  const syncEffectCueLabels = syncEffectCueLabelsForClipId(clip.id, syncEffectCues);
   const attrs = `id="${escapeHtml(clip.id)}" class="motion-clip motion-component ${escapeHtml(componentClass)}" data-component-id="${escapeHtml(componentId)}" data-kind="${escapeHtml(
     track.kind
-  )}" data-effect="${escapeHtml(effectPreset.id)}" data-start="${start}" data-duration="${duration}" data-track-index="${trackIndex}"`;
+  )}" data-effect="${escapeHtml(effectPreset.id)}"${syncEffectCueLabels ? ` data-sync-effect-cues="${escapeHtml(syncEffectCueLabels)}"` : ''} data-start="${start}" data-duration="${duration}" data-track-index="${trackIndex}"`;
 
   if (track.kind === 'voice' && mediaUrl) {
     return `        <audio ${attrs} src="${escapeHtml(mediaUrl)}" data-volume="1" crossorigin="anonymous"></audio>`;
@@ -1805,6 +1963,16 @@ function hyperframesClipHtml(
   if (track.kind === 'voice') return '';
 
   return `        <div ${attrs}>${hyperframesComponentBody(componentId, text, mediaUrl, mimeType, effectPreset.label, clip.props, command, context)}</div>`;
+}
+
+function syncEffectCueLabelsForClipId(
+  clipId: string,
+  syncEffectCues: MotionRenderEditContractSyncEffectCue[]
+): string {
+  return syncEffectCues
+    .filter((cue) => cue.targetClipId === clipId)
+    .map((cue) => `${cue.kind}:${cue.effectPresetId}@${formatSeconds(cue.startSeconds)}s`)
+    .join(', ');
 }
 
 function hyperframesComponentBody(
@@ -1969,7 +2137,7 @@ function sourceManifestJson(
     path: file.path,
     mimeType: file.mimeType,
   }));
-  const editContract = buildEditContract(request);
+  const editContract = buildEditContract(project, request);
 
   return stableJson({
     requestId: request.id,
@@ -1990,6 +2158,7 @@ function sourceManifestJson(
       summary: preset.summary,
     })),
     editContract,
+    syncEffectCues: editContract.syncEffectCues,
     editSurfaces: sourceManifestEditSurfaces(request),
     execution: sourceManifestExecution(request, entryPoint),
     proofArtifacts: sourceManifestProofArtifacts(request),
@@ -2028,8 +2197,8 @@ function sourceManifestEditSurfaces(request: MotionRenderRequest): Array<{
     {
       path: timelineArtifactPath(request),
       label: 'Timeline JSON',
-      purpose: 'Edit frame timing, component props, assets, and linked variants.',
-      editSurfaceLabels: ['timing', 'props', 'assets', 'variants'],
+      purpose: 'Edit frame timing, component props, assets, sync effect cues, and linked variants.',
+      editSurfaceLabels: ['timing', 'props', 'assets', 'sync effects', 'variants'],
     },
   ];
 }

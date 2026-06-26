@@ -2,9 +2,10 @@ import {
   applyMotionTimelineRevision,
   type MotionTimelineRevisionOperation,
 } from './revise';
-import { motionEffectPresetOrDefault } from './effectPresets';
+import { getMotionEffectPreset, motionEffectPresetOrDefault } from './effectPresets';
 import { DEFAULT_MOTION_FPS, motionFrames } from './project';
 import type { MotionProject, StoryBeat, TimelineClip, TimelineTrack } from './project';
+import type { MotionSyncEffectCueKind } from './syncPlan';
 
 export type MotionSourceBundleEditStatus = 'applied' | 'blocked' | 'noop';
 
@@ -60,6 +61,18 @@ interface TimelineEditPlan {
   operations: MotionTimelineRevisionOperation[];
   appliedEdits: MotionSourceBundleAppliedEdit[];
   blockers: MotionSourceBundleEditBlocker[];
+}
+
+interface SourceSyncEffectCueOverride {
+  id: string;
+  kind: MotionSyncEffectCueKind;
+  label: string;
+  startSeconds: number;
+  durationSeconds: number;
+  effectPresetId: string;
+  targetClipId: string;
+  targetBeatId: string | null;
+  soundCueId: string | null;
 }
 
 export function applyMotionSourceBundleEdits(
@@ -253,11 +266,18 @@ function timelineJsonEdits(
     };
   }
 
-  return timelineEditsForTracks(project, {
+  const trackPlan = timelineEditsForTracks(project, {
     path: file.path,
     draftId,
     tracks: artifact.tracks,
   });
+  const syncCuePlan = timelineSyncEffectCueEdits(project, {
+    path: file.path,
+    draftId,
+    effectCues: artifact.syncEffectCues,
+  });
+
+  return mergeTimelineEditPlans([trackPlan, syncCuePlan]);
 }
 
 function scriptMarkdownEdits(
@@ -456,7 +476,7 @@ function editMarkdownEdits(
   const blockers: MotionSourceBundleEditBlocker[] = [];
 
   markdownSections(contents).forEach((section) => {
-    if (section.heading === 'Editable Components') return;
+    if (section.heading === 'Editable Components' || section.heading === 'Sync Effect Cues') return;
 
     const location = clipLocation(project, section.heading);
     if (!location) {
@@ -576,6 +596,85 @@ function timelineEditsForTracks(
       operations.push(...planned.operations);
       appliedEdits.push(...planned.appliedEdits);
       blockers.push(...planned.blockers);
+    });
+  });
+
+  return { operations, appliedEdits, blockers };
+}
+
+function timelineSyncEffectCueEdits(
+  project: MotionProject,
+  input: { path: string; draftId: string; effectCues: unknown }
+): TimelineEditPlan {
+  if (input.effectCues === undefined) {
+    return emptyTimelineEditPlan();
+  }
+
+  if (!Array.isArray(input.effectCues)) {
+    return {
+      operations: [],
+      appliedEdits: [],
+      blockers: [
+        {
+          id: 'source-edit-sync-effect-cues-invalid',
+          path: input.path,
+          message: 'Timeline syncEffectCues must be an array when provided.',
+        },
+      ],
+    };
+  }
+
+  const operations: MotionTimelineRevisionOperation[] = [];
+  const appliedEdits: MotionSourceBundleAppliedEdit[] = [];
+  const blockers: MotionSourceBundleEditBlocker[] = [];
+
+  input.effectCues.forEach((candidateCue, cueIndex) => {
+    const parsed = parseSourceSyncEffectCue(input.path, candidateCue, cueIndex);
+    if (!parsed.ok) {
+      blockers.push(parsed.blocker);
+      return;
+    }
+
+    const cue = parsed.cue;
+    const location = clipLocationForDraft(project, input.draftId, cue.targetClipId);
+    if (!location) {
+      blockers.push({
+        id: 'source-edit-sync-effect-target-not-found',
+        path: input.path,
+        message: `Sync effect cue ${cue.id} targets a missing clip: ${cue.targetClipId}`,
+      });
+      return;
+    }
+
+    const currentOverrides = syncEffectCueOverrides(location.clip.props.syncEffectCueOverrides);
+    const nextOverrides = upsertSyncEffectCueOverride(currentOverrides, cue);
+    const props: Record<string, unknown> = {};
+    const changedFields: string[] = [];
+
+    if (canonicalJson(location.clip.props.effectPreset) !== canonicalJson(cue.effectPresetId)) {
+      props.effectPreset = cue.effectPresetId;
+      changedFields.push('props.effectPreset');
+    }
+
+    if (canonicalJson(currentOverrides) !== canonicalJson(nextOverrides)) {
+      props.syncEffectCueOverrides = nextOverrides;
+      changedFields.push('props.syncEffectCueOverrides');
+    }
+
+    if (changedFields.length === 0) return;
+
+    operations.push({
+      kind: 'update-clip-props',
+      clipId: cue.targetClipId,
+      props,
+    });
+    appliedEdits.push({
+      kind: 'timeline-clip',
+      path: input.path,
+      draftId: input.draftId,
+      trackId: location.track.id,
+      clipId: cue.targetClipId,
+      changedFields,
     });
   });
 
@@ -703,6 +802,138 @@ function timelineEditForClip(input: {
     ],
     blockers,
   };
+}
+
+function parseSourceSyncEffectCue(
+  path: string,
+  candidateCue: unknown,
+  cueIndex: number
+):
+  | { ok: true; cue: SourceSyncEffectCueOverride }
+  | { ok: false; blocker: MotionSourceBundleEditBlocker } {
+  if (!isObject(candidateCue)) {
+    return {
+      ok: false,
+      blocker: {
+        id: 'source-edit-sync-effect-cue-invalid',
+        path,
+        message: `Timeline syncEffectCues[${cueIndex}] must be an object.`,
+      },
+    };
+  }
+
+  const id = stringValue(candidateCue.id);
+  const kind = syncEffectCueKind(candidateCue.kind);
+  const label = stringValue(candidateCue.label);
+  const startSeconds = numericValue(candidateCue.startSeconds);
+  const durationSeconds = numericValue(candidateCue.durationSeconds);
+  const effectPresetId = stringValue(candidateCue.effectPresetId);
+  const targetClipId = stringValue(candidateCue.targetClipId);
+  const targetBeatId = nullableStringValue(candidateCue.targetBeatId);
+  const soundCueId = nullableStringValue(candidateCue.soundCueId);
+
+  if (
+    !id ||
+    !kind ||
+    !label ||
+    startSeconds === undefined ||
+    durationSeconds === undefined ||
+    !effectPresetId ||
+    !targetClipId
+  ) {
+    return {
+      ok: false,
+      blocker: {
+        id: 'source-edit-sync-effect-cue-invalid',
+        path,
+        message:
+          `Timeline syncEffectCues[${cueIndex}] must include id, kind, label, startSeconds, durationSeconds, effectPresetId, and targetClipId.`,
+      },
+    };
+  }
+
+  if (startSeconds < 0 || durationSeconds <= 0) {
+    return {
+      ok: false,
+      blocker: {
+        id: 'source-edit-sync-effect-cue-invalid',
+        path,
+        message: `Timeline syncEffectCues[${cueIndex}] must use non-negative startSeconds and positive durationSeconds.`,
+      },
+    };
+  }
+
+  if (!getMotionEffectPreset(effectPresetId)) {
+    return {
+      ok: false,
+      blocker: {
+        id: 'source-edit-sync-effect-preset-not-found',
+        path,
+        message: `Sync effect cue ${id} uses an unknown effect preset: ${effectPresetId}`,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    cue: {
+      id,
+      kind,
+      label,
+      startSeconds,
+      durationSeconds,
+      effectPresetId,
+      targetClipId,
+      targetBeatId,
+      soundCueId,
+    },
+  };
+}
+
+function syncEffectCueKind(value: unknown): MotionSyncEffectCueKind | null {
+  return value === 'caption-emphasis' || value === 'transition' || value === 'cta'
+    ? value
+    : null;
+}
+
+function nullableStringValue(value: unknown): string | null {
+  return value === null || value === undefined ? null : stringValue(value) ?? null;
+}
+
+function syncEffectCueOverrides(value: unknown): SourceSyncEffectCueOverride[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((candidate): SourceSyncEffectCueOverride[] => {
+    if (!isObject(candidate)) return [];
+    const parsed = parseSourceSyncEffectCue(
+      'syncEffectCueOverrides',
+      candidate,
+      0
+    );
+    return parsed.ok ? [parsed.cue] : [];
+  });
+}
+
+function upsertSyncEffectCueOverride(
+  currentOverrides: SourceSyncEffectCueOverride[],
+  cue: SourceSyncEffectCueOverride
+): SourceSyncEffectCueOverride[] {
+  return [
+    ...currentOverrides.filter((override) => override.id !== cue.id),
+    cue,
+  ].sort((a, b) => a.startSeconds - b.startSeconds || a.id.localeCompare(b.id));
+}
+
+function mergeTimelineEditPlans(plans: TimelineEditPlan[]): TimelineEditPlan {
+  return {
+    operations: plans.flatMap((plan) => plan.operations),
+    appliedEdits: mergeAppliedEdits(plans.flatMap((plan) => plan.appliedEdits)),
+    blockers: plans.flatMap((plan) => plan.blockers),
+  };
+}
+
+function emptyTimelineEditPlan(): TimelineEditPlan {
+  return { operations: [], appliedEdits: [], blockers: [] };
 }
 
 function tracksForDraft(project: MotionProject, draftId: string): TimelineTrack[] | null {
@@ -990,8 +1221,16 @@ function clipLocation(
   project: MotionProject,
   clipId: string
 ): { track: TimelineTrack; clip: TimelineClip } | null {
+  return clipLocationForDraft(project, project.currentDraftId, clipId);
+}
+
+function clipLocationForDraft(
+  project: MotionProject,
+  draftId: string,
+  clipId: string
+): { track: TimelineTrack; clip: TimelineClip } | null {
   const tracks =
-    tracksForDraft(project, project.currentDraftId) ??
+    tracksForDraft(project, draftId) ??
     project.tracks ??
     project.drafts.flatMap((draft) => draft.tracks);
 

@@ -2253,7 +2253,7 @@ function buildEditSourceSummary(
 
     const request = renderRequestFromPlan(project, renderPlan, engine);
     const sourceBundle = buildMotionRenderSourceBundle(project, request);
-    const editContract = buildMotionRenderEditContract(request);
+    const editContract = buildMotionRenderEditContract(project, request);
 
     return {
       status: 'ready',

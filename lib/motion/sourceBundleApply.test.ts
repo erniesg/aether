@@ -167,6 +167,66 @@ describe('applyMotionSourceBundleEdits', () => {
     expect(originalDemoClip?.props.caption).toBeUndefined();
   });
 
+  it('round-trips edited sync effect cues into target clip overrides', () => {
+    const original = project();
+    const timelineFile = editableTimelineFile(original);
+    const timeline = JSON.parse(timelineFile.contents);
+    const cue = timeline.syncEffectCues.find(
+      (candidate: { id?: string }) =>
+        candidate.id === 'effect-clip-transition-beat-proof-to-beat-demo'
+    );
+    if (!cue) throw new Error('expected sync effect cue');
+
+    cue.label = 'Edited transition hit';
+    cue.startSeconds = 11.75;
+    cue.durationSeconds = 0.5;
+    cue.effectPresetId = 'proof-pulse';
+
+    const result = applyMotionSourceBundleEdits(original, {
+      id: 'source-edit-sync-effect-cue-demo',
+      requestedAt: 202,
+      files: [
+        {
+          path: timelineFile.path,
+          contents: JSON.stringify(timeline, null, 2),
+        },
+      ],
+    });
+
+    expect(result.status).toBe('applied');
+    expect(result.blockers).toEqual([]);
+    expect(result.appliedEdits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          path: 'timeline/draft-primary.json',
+          clipId: 'clip-transition-beat-proof-to-beat-demo',
+          changedFields: expect.arrayContaining([
+            'props.effectPreset',
+            'props.syncEffectCueOverrides',
+          ]),
+        }),
+      ])
+    );
+
+    const targetClip = result.project.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-transition-beat-proof-to-beat-demo');
+    expect(targetClip?.props).toMatchObject({
+      effectPreset: 'proof-pulse',
+      syncEffectCueOverrides: [
+        expect.objectContaining({
+          id: 'effect-clip-transition-beat-proof-to-beat-demo',
+          label: 'Edited transition hit',
+          startSeconds: 11.75,
+          durationSeconds: 0.5,
+          effectPresetId: 'proof-pulse',
+          targetClipId: 'clip-transition-beat-proof-to-beat-demo',
+        }),
+      ],
+    });
+  });
+
   it('blocks unsafe timeline source edits before mutating the project', () => {
     const original = project();
     const timelineFile = editableTimelineFile(original);

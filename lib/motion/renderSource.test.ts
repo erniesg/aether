@@ -123,8 +123,11 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('<Sequence');
     expect(entry).toContain('const effectTokens = ');
     expect(entry).toContain('const effectPresets: MotionEffectPresetData[] = ');
+    expect(entry).toContain('const defaultSyncEffectCues: MotionSyncEffectCueData[] = ');
+    expect(entry).toContain('data-sync-effect-cues={syncEffectCueLabels || undefined}');
     expect(entry).toContain('"effectPreset": "proof-pulse"');
     expect(entry).toContain('function clipEffectPreset');
+    expect(entry).toContain('function syncEffectCueLabelsForClip');
     expect(entry).toContain('effect.label || brand.motionStyle');
     expect(entry).toContain('function HookCard');
     expect(entry).toContain('function AppFrame');
@@ -176,6 +179,7 @@ describe('buildMotionRenderSourceBundle', () => {
       timelinePath: 'timeline/draft-primary.json',
       scriptPath: 'SCRIPT.md',
       editableComponentCount: 8,
+      syncEffectCueCount: 9,
       regenerationScopes: expect.arrayContaining(['capture', 'timing', 'caption', 'effect']),
     });
     expect(manifest.editContract.editableComponents).toEqual(
@@ -190,6 +194,25 @@ describe('buildMotionRenderSourceBundle', () => {
         }),
       ])
     );
+    expect(manifest.editContract.syncEffectCues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'effect-clip-transition-beat-hook-to-beat-problem',
+          kind: 'transition',
+          effectPresetId: 'product-glide',
+          effectPresetLabel: 'product glide',
+          targetClipId: 'clip-transition-beat-hook-to-beat-problem',
+          editableFields: expect.arrayContaining([
+            'startSeconds',
+            'durationSeconds',
+            'effectPresetId',
+            'targetClipId',
+          ]),
+          sourceFiles: ['timeline/draft-primary.json'],
+        }),
+      ])
+    );
+    expect(manifest.syncEffectCues).toEqual(manifest.editContract.syncEffectCues);
     expect(manifest.editSurfaces).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -198,7 +221,7 @@ describe('buildMotionRenderSourceBundle', () => {
         }),
         expect.objectContaining({
           path: 'timeline/draft-primary.json',
-          editSurfaceLabels: ['timing', 'props', 'assets', 'variants'],
+          editSurfaceLabels: ['timing', 'props', 'assets', 'sync effects', 'variants'],
         }),
       ])
     );
@@ -286,6 +309,9 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(edit).toContain('Regenerate: capture, timing, caption');
     expect(edit).toContain('Files: timeline/draft-primary.json, STORYBOARD.md');
     expect(edit).toContain('Use SCRIPT.md for narration copy changes.');
+    expect(edit).toContain('## Sync Effect Cues');
+    expect(edit).toContain('### effect-clip-transition-beat-hook-to-beat-problem');
+    expect(edit).toContain('Editable fields: label, startSeconds, durationSeconds, effectPresetId, targetClipId, soundCueId');
     const timeline = JSON.parse(
       bundle.files.find((file) => file.kind === 'timeline')?.contents ?? '{}'
     );
@@ -299,6 +325,15 @@ describe('buildMotionRenderSourceBundle', () => {
       startFrame: 0,
       durationFrames: 90,
     });
+    expect(timeline.syncEffectCues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'effect-clip-transition-beat-hook-to-beat-problem',
+          targetClipId: 'clip-transition-beat-hook-to-beat-problem',
+          effectPresetId: 'product-glide',
+        }),
+      ])
+    );
     expect(bundle.provenance).toContainEqual({ kind: 'render', ref: request.id });
   });
 
@@ -328,6 +363,7 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('data-width="1080"');
     expect(entry).toContain('data-height="1920"');
     expect(entry).toContain('data-track-index="0"');
+    expect(entry).toContain('data-sync-effect-cues="transition:product-glide@2.633s"');
     expect(entry).toContain('data-component-id="hook-card"');
     expect(entry).toContain('data-effect="proof-pulse"');
     expect(entry).toContain('class="motion-clip motion-component motion-component--hook-card"');
