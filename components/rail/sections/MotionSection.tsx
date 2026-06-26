@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Video } from 'lucide-react';
+import { Loader2, Play, Video } from 'lucide-react';
 import { useState } from 'react';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
 import { motionStartSummary, setMotionStartResult } from '@/lib/motion/start-store';
@@ -33,6 +33,7 @@ export interface MotionStartClientRequest {
 export interface MotionSectionProps {
   workspaceId?: string;
   startMotion?: (request: MotionStartClientRequest) => Promise<AgentMotionStartResult>;
+  runAgentHandoff?: (result: AgentMotionStartResult) => Promise<void>;
 }
 
 const INTENTS: MotionWorkflowIntent[] = [
@@ -99,6 +100,27 @@ async function defaultStartMotion(
   return json;
 }
 
+async function defaultRunAgentHandoff(result: AgentMotionStartResult): Promise<void> {
+  if (!result.agentHandoff || !result.project) return;
+
+  const res = await fetch('/api/motion/agent-handoff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      handoff: result.agentHandoff,
+      project: result.project,
+      templateIds: result.agentHandoff.nextTemplateId
+        ? [result.agentHandoff.nextTemplateId]
+        : undefined,
+      input: {},
+    }),
+  });
+  const json = (await res.json()) as { ok?: boolean; error?: string };
+  if (!res.ok || json.ok === false) {
+    throw new Error(json.error ?? `motion handoff failed: ${res.status}`);
+  }
+}
+
 export function motionSectionSummary(result: AgentMotionStartResult | undefined): string {
   return motionStartSummary(result);
 }
@@ -106,12 +128,14 @@ export function motionSectionSummary(result: AgentMotionStartResult | undefined)
 export function MotionSection({
   workspaceId,
   startMotion = defaultStartMotion,
+  runAgentHandoff = defaultRunAgentHandoff,
 }: MotionSectionProps) {
   const [source, setSource] = useState('');
   const [intent, setIntent] = useState<MotionWorkflowIntent>('launch');
   const [mode, setMode] = useState<MotionWorkflowMode>('review');
   const [targetPresetId, setTargetPresetId] = useState<string>(TARGET_PRESETS[0].id);
   const [status, setStatus] = useState<MotionStartStatus>({ kind: 'idle' });
+  const [handoffStatus, setHandoffStatus] = useState<MotionStartStatus>({ kind: 'idle' });
   const sourceRef = source.trim();
   const canStart = sourceRef.length > 0 && status.kind !== 'running';
   const selectedTargetPreset =
@@ -133,8 +157,23 @@ export function MotionSection({
       });
       setMotionStartResult(workspaceId, result);
       setStatus({ kind: 'done', result });
+      setHandoffStatus({ kind: 'idle' });
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
+  const continueFullAuto = async (result: AgentMotionStartResult) => {
+    if (handoffStatus.kind === 'running') return;
+    setHandoffStatus({ kind: 'running' });
+    try {
+      await runAgentHandoff(result);
+      setHandoffStatus({ kind: 'done', result });
+    } catch (error) {
+      setHandoffStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 
@@ -229,13 +268,20 @@ export function MotionSection({
       </button>
 
       {status.kind === 'done' ? (
-        <div
-          role="status"
-          data-testid="motion-status"
-          className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1 font-caption text-xs text-ink-dim"
-        >
-          {motionStartSummary(status.result)}
-        </div>
+        <>
+          <div
+            role="status"
+            data-testid="motion-status"
+            className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1 font-caption text-xs text-ink-dim"
+          >
+            {motionStartSummary(status.result)}
+          </div>
+          <MotionReviewQueue
+            result={status.result}
+            handoffStatus={handoffStatus}
+            onContinueFullAuto={() => void continueFullAuto(status.result)}
+          />
+        </>
       ) : status.kind === 'error' ? (
         <div
           role="alert"
@@ -245,6 +291,114 @@ export function MotionSection({
           {status.message}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MotionReviewQueue({
+  result,
+  handoffStatus,
+  onContinueFullAuto,
+}: {
+  result: AgentMotionStartResult;
+  handoffStatus: MotionStartStatus;
+  onContinueFullAuto: () => void;
+}) {
+  const previewPlan = result.previewPlan;
+  if (!previewPlan) return null;
+
+  const nextTemplate = result.agentHandoff
+    ? result.agentHandoff.templates.find(
+        (template) => template.id === result.agentHandoff?.nextTemplateId
+      ) ??
+      result.agentHandoff.templates[0] ??
+      null
+    : null;
+  const canContinue =
+    result.agentHandoff?.mode === 'full-auto' &&
+    nextTemplate?.route === '/api/motion/full-auto';
+
+  return (
+    <section
+      role="region"
+      aria-label="motion review queue"
+      className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate font-caption text-xs text-ink">{previewPlan.title}</div>
+          <div className="mt-1 flex flex-wrap gap-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
+            <span>{previewPlan.videoPlan.sceneCount} scenes</span>
+            <span>{previewPlan.videoPlan.totalSeconds}s</span>
+            <span>{previewPlan.workflowMode === 'full-auto' ? 'full auto' : 'review'}</span>
+          </div>
+        </div>
+        {nextTemplate ? (
+          <span className="shrink-0 rounded-sm border border-border-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+            next
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-2 grid gap-2">
+        <MotionReviewQueueList
+          label="drafts"
+          items={previewPlan.draftOptions.slice(0, 3).map((draft) => draft.label)}
+        />
+        <MotionReviewQueueList
+          label="regenerate"
+          items={previewPlan.regenerationActions.slice(0, 2).map((action) => action.label)}
+        />
+        {nextTemplate ? (
+          <MotionReviewQueueList label="next action" items={[nextTemplate.label]} />
+        ) : null}
+      </div>
+
+      {canContinue ? (
+        <button
+          type="button"
+          onClick={onContinueFullAuto}
+          disabled={handoffStatus.kind === 'running'}
+          className={cn(
+            'mt-2 inline-flex h-8 w-full items-center justify-center gap-1 rounded-sm border px-2 font-mono text-2xs uppercase tracking-wide',
+            'border-border-soft bg-surface-panel text-ink transition-colors',
+            'hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+        >
+          {handoffStatus.kind === 'running' ? (
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+          ) : (
+            <Play className="h-3 w-3" aria-hidden="true" />
+          )}
+          {handoffStatus.kind === 'running' ? 'continuing' : 'continue full auto'}
+        </button>
+      ) : null}
+
+      {handoffStatus.kind === 'error' ? (
+        <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim">
+          {handoffStatus.message}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function MotionReviewQueueList({ label, items }: { label: string; items: string[] }) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="min-w-0">
+      <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">{label}</div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="max-w-full truncate rounded-sm border border-border-soft bg-surface-panel px-1.5 py-0.5 font-caption text-2xs text-ink-dim"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
