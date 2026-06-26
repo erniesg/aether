@@ -84,8 +84,10 @@ Aether now has the right backbone:
    proof before full-auto. Generic runner/provider cards and the guarded
    computer-use approval/redaction card are now in the timeline lens, and setup
    cards carry dry-run proof labels. Setup dry-run receipts can now be saved in
-   execution history and move the next capability setup action; wiring live
-   provider-specific dry-run runners for every card remains follow-up.
+   execution history and move the next capability setup action. The saved
+   full-auto route can now run setup-only receipt saves for local-app and
+   computer-use capture runners without executing the capture gate; wiring
+   setup dry-runs for voice, image-to-video, and render remains follow-up.
 3. **Real preview runtime.** The timeline lens now has a source-backed preview
    shell with frame scrubbing, component focus, and explicit Remotion Player /
    HyperFrames iframe runtime targets. The preview-source route now returns the

@@ -9,6 +9,10 @@ import {
   type MotionFullAutoStepHandler,
   type RunSavedMotionFullAutoOptions,
 } from '@/lib/motion/fullAutoExecution';
+import {
+  appendSetupDryRunExecutionHistory,
+  type MotionSetupDryRunReceiptInput,
+} from '@/lib/motion/executionHistory';
 import { applyMotionImageToVideoResultToMotionProject } from '@/lib/motion/imageToVideoApply';
 import { buildMotionImageToVideoPlan } from '@/lib/motion/imageToVideoPlan';
 import type { MotionProject } from '@/lib/motion/project';
@@ -119,6 +123,60 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (captureRunner && stringValue(body.captureProviderId)) {
     return jsonError(400, 'captureProviderId cannot be combined with captureRunner');
+  }
+  const setupDryRun = parseSetupDryRun(body.setupDryRun);
+  if (body.setupDryRun !== undefined && !setupDryRun) {
+    return jsonError(400, 'setupDryRun.setupId is required');
+  }
+  if (setupDryRun) {
+    const setupReceipt = setupDryRunReceiptInput(setupDryRun, { captureRunner });
+    if (typeof setupReceipt === 'string') {
+      return jsonError(400, setupReceipt);
+    }
+
+    const savedAt = numericValue(body.updatedAt) ?? requestedAt;
+    const projectWithSetupReceipt: MotionProject = {
+      ...project,
+      executionHistory: appendSetupDryRunExecutionHistory(
+        project.executionHistory,
+        setupReceipt,
+        savedAt
+      ),
+      updatedAt: savedAt,
+    };
+    const result = await runSavedMotionFullAuto(projectWithSetupReceipt, {
+      engines: engines ?? undefined,
+      fps: fps ?? undefined,
+      requestedAt,
+      updatedAt: savedAt,
+      maxSteps: maxSteps ?? undefined,
+      handlers: {},
+    });
+    const providers = {
+      capture: captureProviderInventory(captureRunner?.provider),
+      imageToVideo: listMotionImageToVideoProviders(),
+      voice: listVoiceProviders(),
+      render: listMotionRenderProviders(),
+    };
+
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      reviewPlan: buildMotionReviewPlan(result.project),
+      previewPlan: buildMotionPreviewPlan(result.project, {
+        engines: engines ?? undefined,
+        fps: fps ?? undefined,
+        providerSetup: providers,
+        requestedAt,
+      }),
+      providers,
+      captureRunner: captureRunner?.summary ?? null,
+      setupDryRun: {
+        setupId: setupDryRun.setupId,
+        gateId: setupReceipt.gateId,
+        receiptLabels: setupReceipt.receiptLabels,
+      },
+    });
   }
   const handlers = buildProviderHandlers(body, {
     engines: engines ?? undefined,
@@ -237,6 +295,77 @@ function buildProviderHandlers(
   }
 
   return handlers;
+}
+
+interface MotionSetupDryRunRequest {
+  setupId: string;
+}
+
+function parseSetupDryRun(value: unknown): MotionSetupDryRunRequest | null {
+  if (value === undefined) return null;
+  if (!isObject(value)) return null;
+
+  const setupId = stringValue(value.setupId ?? value.id);
+  return setupId ? { setupId } : null;
+}
+
+function setupDryRunReceiptInput(
+  request: MotionSetupDryRunRequest,
+  options: {
+    captureRunner?: InlineMotionCaptureRunner;
+  }
+): MotionSetupDryRunReceiptInput | string {
+  const setupId = request.setupId;
+
+  if (setupId === 'local-app') {
+    const summary = options.captureRunner?.summary;
+    if (!summary || summary.kind !== 'playwright-local' || !summary.launchLocalApp) {
+      return 'local-app setup dry run requires a playwright-local captureRunner with launchLocalApp enabled';
+    }
+
+    return {
+      setupId,
+      gateId: 'capture',
+      label: 'Local app runner',
+      receiptLabels: ['HTTP readiness receipt', 'process cleanup receipt'],
+      providerId: summary.providerId,
+      provenance: [
+        { kind: 'provider', ref: summary.providerId },
+        { kind: 'manual', ref: 'setup-dry-run:local-app' },
+      ],
+    };
+  }
+
+  if (setupId === 'computer-use') {
+    const summary = options.captureRunner?.summary;
+    if (!summary || summary.kind !== 'computer-use-local') {
+      return 'computer-use setup dry run requires an approved computer-use-local captureRunner';
+    }
+
+    return {
+      setupId,
+      gateId: 'capture',
+      label: 'Computer-use capture',
+      receiptLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
+      providerId: summary.providerId,
+      provenance: [
+        { kind: 'provider', ref: summary.providerId },
+        { kind: 'manual', ref: 'setup-dry-run:computer-use' },
+      ],
+    };
+  }
+
+  if (setupId === 'render') {
+    return {
+      setupId,
+      gateId: 'render',
+      label: 'Render runner',
+      receiptLabels: ['source lint', 'contact sheet', 'mp4 probe'],
+      provenance: [{ kind: 'manual', ref: 'setup-dry-run:render' }],
+    };
+  }
+
+  return 'setupDryRun.setupId must be local-app, computer-use, or render';
 }
 
 function captureHandler(input: {

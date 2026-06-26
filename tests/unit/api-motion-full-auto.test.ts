@@ -553,6 +553,80 @@ describe('POST /api/motion/full-auto', () => {
     });
   });
 
+  it('saves local-app setup dry-run receipts without running the capture gate', async () => {
+    const captureCallCount = captureRunnerMock.captureCalls.length;
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: localAppProject(),
+          setupDryRun: {
+            setupId: 'local-app',
+          },
+          captureRunner: {
+            kind: 'playwright-local',
+            outputDir: 'outputs/motion-captures/tong-full-auto',
+            launchLocalApp: true,
+            headless: true,
+            timeoutMs: 12000,
+          },
+          requestedAt: 762,
+          updatedAt: 763,
+          requestedEngines: ['hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'paused',
+      setupDryRun: {
+        setupId: 'local-app',
+        receiptLabels: ['HTTP readiness receipt', 'process cleanup receipt'],
+      },
+      run: {
+        reason: 'provider-required',
+        stepId: 'capture',
+        advancedStepIds: [],
+        receiptCount: 1,
+      },
+      project: {
+        id: 'motion-tong-launch',
+        updatedAt: 763,
+        executionHistory: [
+          expect.objectContaining({
+            id: 'execution-setup-local-app-763',
+            gateId: 'setup',
+            label: 'Local app runner',
+            receiptCount: 2,
+            receiptLabels: ['HTTP readiness receipt', 'process cleanup receipt'],
+          }),
+        ],
+      },
+      productionPlan: {
+        nextStepId: 'capture',
+      },
+      previewPlan: {
+        capabilitySetup: {
+          nextActionLabel: 'Connect visual sources',
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'local-app',
+              status: 'configured',
+              dryRunPendingLabels: [],
+              dryRunCompletedLabels: ['HTTP readiness receipt', 'process cleanup receipt'],
+            }),
+          ]),
+        },
+      },
+    });
+    expect(captureRunnerMock.captureCalls).toHaveLength(captureCallCount);
+  });
+
   it('executes image-to-video providers for selected visual sources before pausing at voice', async () => {
     const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
     unregister.push(
