@@ -63,8 +63,12 @@ import {
   type MotionSyncPlanStatus,
   type MotionVoiceSyncStatus,
 } from './syncPlan';
-import { getMotionComponent } from './componentRegistry';
+import {
+  getMotionComponent,
+  type MotionRegenerateScope,
+} from './componentRegistry';
 import { getMotionEffectPreset } from './effectPresets';
+import type { ToolRegistryId } from '@/lib/tool/registry';
 import {
   DEFAULT_MOTION_FPS,
   motionSeconds,
@@ -170,7 +174,16 @@ export interface MotionPreviewEditableComponent {
   componentId: string;
   componentLabel: string;
   editControlIds: string[];
-  regenerateScopes: string[];
+  regenerateScopes: MotionRegenerateScope[];
+}
+
+export interface MotionPreviewRegenerationRequestTemplate {
+  project: '$motionProject';
+  clipId: string;
+  scope: MotionRegenerateScope;
+  prompt: string;
+  requestedEngines: '$selectedEngines';
+  requestedAt: '$now';
 }
 
 export interface MotionPreviewRegenerationAction {
@@ -178,8 +191,13 @@ export interface MotionPreviewRegenerationAction {
   clipId: string;
   componentId: string;
   componentLabel: string;
-  scope: string;
+  scope: MotionRegenerateScope;
   label: string;
+  route: '/api/motion/regenerate';
+  method: 'POST';
+  toolId: ToolRegistryId;
+  requestTemplate: MotionPreviewRegenerationRequestTemplate;
+  expectedReceiptLabels: string[];
 }
 
 export interface MotionPreviewEditSourceComponent {
@@ -1963,15 +1981,70 @@ function buildRegenerationActions(
   editableComponents: MotionPreviewEditableComponent[]
 ): MotionPreviewRegenerationAction[] {
   return editableComponents.flatMap((component) =>
-    component.regenerateScopes.map((scope) => ({
-      id: `regen-option-${component.clipId}-${scope}`,
-      clipId: component.clipId,
-      componentId: component.componentId,
-      componentLabel: component.componentLabel,
-      scope,
-      label: `Regenerate ${scope} for ${component.componentLabel}`,
-    }))
+    component.regenerateScopes.map((scope) => {
+      const label = `Regenerate ${scope} for ${component.componentLabel}`;
+      return {
+        id: `regen-option-${component.clipId}-${scope}`,
+        clipId: component.clipId,
+        componentId: component.componentId,
+        componentLabel: component.componentLabel,
+        scope,
+        label,
+        route: '/api/motion/regenerate',
+        method: 'POST',
+        toolId: regenerationToolIdForScope(scope),
+        requestTemplate: {
+          project: '$motionProject',
+          clipId: component.clipId,
+          scope,
+          prompt: label,
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        expectedReceiptLabels: regenerationReceiptLabelsForScope(scope),
+      };
+    })
   );
+}
+
+function regenerationToolIdForScope(scope: MotionRegenerateScope): ToolRegistryId {
+  switch (scope) {
+    case 'capture':
+      return 'motion-capture';
+    case 'asset':
+    case 'proof':
+    case 'code':
+    case 'diagram':
+      return 'motion-visuals';
+    case 'caption':
+      return 'motion-voice';
+    case 'timing':
+    case 'effect':
+      return 'motion-revise';
+    case 'copy':
+    case 'cta':
+      return 'motion-storyboard';
+  }
+}
+
+function regenerationReceiptLabelsForScope(scope: MotionRegenerateScope): string[] {
+  switch (scope) {
+    case 'capture':
+      return ['regeneration request', 'capture plan', 'updated preview plan'];
+    case 'asset':
+    case 'proof':
+    case 'code':
+    case 'diagram':
+      return ['regeneration request', 'visual source plan', 'updated preview plan'];
+    case 'caption':
+      return ['regeneration request', 'voice and caption update', 'updated preview plan'];
+    case 'timing':
+    case 'effect':
+      return ['regeneration request', 'timeline update', 'updated preview plan'];
+    case 'copy':
+    case 'cta':
+      return ['regeneration request', 'script update', 'updated preview plan'];
+  }
 }
 
 function selectTracks(project: MotionProject, draftId: string): TimelineTrack[] {

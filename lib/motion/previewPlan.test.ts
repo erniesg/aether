@@ -274,13 +274,45 @@ describe('buildMotionPreviewPlan', () => {
       editControlIds: ['assetId', 'caption', 'zoom'],
       regenerateScopes: ['capture', 'timing', 'caption'],
     });
-    expect(preview.regenerationActions).toContainEqual({
-      id: 'regen-option-clip-beat-demo-text-capture',
-      clipId: 'clip-beat-demo-text',
-      componentId: 'app-frame',
-      componentLabel: 'App frame',
-      scope: 'capture',
-      label: 'Regenerate capture for App frame',
+    expect(preview.regenerationActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'regen-option-clip-beat-demo-text-capture',
+          clipId: 'clip-beat-demo-text',
+          componentId: 'app-frame',
+          componentLabel: 'App frame',
+          scope: 'capture',
+          label: 'Regenerate capture for App frame',
+          route: '/api/motion/regenerate',
+          method: 'POST',
+          toolId: 'motion-capture',
+          requestTemplate: {
+            project: '$motionProject',
+            clipId: 'clip-beat-demo-text',
+            scope: 'capture',
+            prompt: 'Regenerate capture for App frame',
+            requestedEngines: '$selectedEngines',
+            requestedAt: '$now',
+          },
+          expectedReceiptLabels: [
+            'regeneration request',
+            'capture plan',
+            'updated preview plan',
+          ],
+        }),
+      ])
+    );
+    expect(
+      preview.regenerationActions.find(
+        (action) => action.clipId === 'clip-beat-hook-text' && action.scope === 'effect'
+      )
+    ).toMatchObject({
+      toolId: 'motion-revise',
+      expectedReceiptLabels: [
+        'regeneration request',
+        'timeline update',
+        'updated preview plan',
+      ],
     });
     expect(preview.syncSummary).toMatchObject({
       status: 'needs-voice',

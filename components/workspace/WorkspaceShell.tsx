@@ -434,14 +434,14 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       setMotionTimelineActionStatus(`planning ${action.scope}`);
       try {
-        const res = await fetch('/api/motion/regenerate', {
-          method: 'POST',
+        const res = await fetch(action.route, {
+          method: action.method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             project: motionStart.project,
-            clipId: action.clipId,
-            scope: action.scope,
-            prompt: action.label,
+            clipId: action.requestTemplate.clipId,
+            scope: action.requestTemplate.scope,
+            prompt: action.requestTemplate.prompt,
             requestedEngines: motionStart.workflow.plan.engines,
             requestedAt: Date.now(),
           }),
