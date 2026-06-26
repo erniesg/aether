@@ -2335,6 +2335,44 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('/api/motion/regenerate')).not.toBeInTheDocument();
   });
 
+  it('marks regeneration actions that have already been staged for review', () => {
+    const stagedPreviewPlan: MotionPreviewPlan = {
+      ...previewPlan,
+      executionHistory: {
+        ...previewPlan.executionHistory,
+        status: 'saved',
+        savedStepCount: 1,
+        receiptCount: 2,
+        latestReceiptLabels: ['Regeneration request', 'Capture plan'],
+        entries: [
+          {
+            id: 'execution-regeneration-app-frame-capture-950',
+            gateId: 'drafts',
+            label: 'Regenerate capture for App frame',
+            providerLabel: null,
+            savedAt: 950,
+            receiptCount: 2,
+            receiptLabels: ['Regeneration request', 'Capture plan'],
+          },
+        ],
+      },
+    };
+
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={stagedPreviewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onRegenerateComponent={() => {}}
+      />
+    );
+
+    const action = screen.getByRole('button', { name: /regenerate capture for app frame/i });
+    expect(within(action).getByText('staged')).toBeInTheDocument();
+    expect(within(action).getByText('saved: Regeneration request / Capture plan')).toBeInTheDocument();
+  });
+
   it('lets creators request voice generation from the preview plan', async () => {
     const onGenerateVoice = vi.fn<() => void>();
     render(

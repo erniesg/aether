@@ -29,6 +29,7 @@ import type {
   MotionPreviewAgentRunbook,
   MotionPreviewCapabilitySetup,
   MotionPreviewExecutionHistory,
+  MotionPreviewExecutionHistoryEntry,
   MotionPreviewExportPackSummary,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
@@ -601,6 +602,7 @@ function MotionPreviewPlanView({
             <RegenerateActionButton
               key={action.id}
               action={action}
+              executionEntry={findRegenerationExecutionEntry(action, previewPlan.executionHistory)}
               onRegenerateComponent={onRegenerateComponent}
             />
           ))}
@@ -3425,9 +3427,11 @@ function PreviewTimelineClipButton({
 
 function RegenerateActionButton({
   action,
+  executionEntry,
   onRegenerateComponent,
 }: {
   action: MotionPreviewRegenerationAction;
+  executionEntry?: MotionPreviewExecutionHistoryEntry | null;
   onRegenerateComponent?: (actionId: string) => void;
 }) {
   const capabilityLabel = readableActionToolLabel(action.toolId);
@@ -3435,14 +3439,27 @@ function RegenerateActionButton({
     .filter((label) => label !== 'regeneration request')
     .slice(0, 2)
     .join(' / ');
+  const savedReceiptLabel = executionEntry?.receiptLabels.slice(0, 2).join(' / ') ?? '';
 
   return (
     <button
       type="button"
       onClick={() => onRegenerateComponent?.(action.id)}
-      className="min-w-[210px] rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+      className={cn(
+        'min-w-[210px] rounded-sm border px-3 py-2 text-left transition-colors duration-fast ease-quick hover:text-ink',
+        executionEntry
+          ? 'border-accent/60 bg-accent/10'
+          : 'border-border-soft bg-surface-panel hover:border-border'
+      )}
     >
-      <span className="block font-caption text-xs text-ink-dim">{action.label}</span>
+      <span className="flex items-start justify-between gap-3">
+        <span className="min-w-0 font-caption text-xs text-ink-dim">{action.label}</span>
+        {executionEntry ? (
+          <span className="shrink-0 rounded-sm border border-accent/30 bg-surface-panel/70 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-accent">
+            staged
+          </span>
+        ) : null}
+      </span>
       <span className="mt-1 block font-mono text-[10px] uppercase tracking-wide text-ink-faint">
         {capabilityLabel}
       </span>
@@ -3451,12 +3468,28 @@ function RegenerateActionButton({
           receipts: {receiptLabel}
         </span>
       ) : null}
+      {savedReceiptLabel ? (
+        <span className="mt-1 block font-caption text-2xs text-ink-dim">
+          saved: {savedReceiptLabel}
+        </span>
+      ) : null}
     </button>
   );
 }
 
 function readableActionToolLabel(toolId: MotionPreviewRegenerationAction['toolId']): string {
   return toolId.replace(/-/g, ' ');
+}
+
+function findRegenerationExecutionEntry(
+  action: MotionPreviewRegenerationAction,
+  executionHistory: MotionPreviewExecutionHistory
+): MotionPreviewExecutionHistoryEntry | null {
+  return (
+    executionHistory.entries.find(
+      (entry) => entry.gateId === 'drafts' && entry.label === action.label
+    ) ?? null
+  );
 }
 
 function TimelineTrackRow({
