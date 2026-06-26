@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { CaptureResult } from '@/lib/providers/capture/types';
+import { applyCaptureResultToMotionProject } from './captureApply';
 import { appendSetupDryRunExecutionHistory } from './executionHistory';
 import { buildMotionPreviewPlan } from './previewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
@@ -137,6 +139,30 @@ function reviewRunPlan(): AgentMotionWorkflowRunPlan {
     ],
   };
 }
+
+const screenshotCaptureResult: CaptureResult = {
+  providerId: 'browser-capture',
+  artifacts: [
+    {
+      id: 'capture-aether-homepage',
+      kind: 'screenshot',
+      assetUrl: 'asset://capture/home.png',
+      width: 1080,
+      height: 1920,
+      mimeType: 'image/png',
+      viewport: { width: 1080, height: 1920, deviceScaleFactor: 2 },
+      cursorTargets: [],
+      provenance: [
+        { kind: 'provider', ref: 'browser-capture' },
+        { kind: 'site', ref: 'https://aether.example' },
+      ],
+    },
+  ],
+  provenance: [
+    { kind: 'provider', ref: 'browser-capture' },
+    { kind: 'site', ref: 'https://aether.example' },
+  ],
+};
 
 describe('buildMotionPreviewPlan', () => {
   it('shows storyboard, draft variations, editable timeline rows, and regenerate actions', () => {
@@ -820,6 +846,35 @@ describe('buildMotionPreviewPlan', () => {
         }),
       ])
     );
+  });
+
+  it('surfaces captured material as the source for image-to-video review', () => {
+    const capturedProject = applyCaptureResultToMotionProject(project(), screenshotCaptureResult, {
+      updatedAt: 140,
+    });
+
+    const preview = buildMotionPreviewPlan(capturedProject, {
+      engines: ['remotion', 'hyperframes'],
+      requestedAt: 141,
+    });
+
+    expect(preview.visualGenerationSummary).toMatchObject({
+      status: 'ready',
+      requestCount: 1,
+      requests: [
+        {
+          requestId: 'image-to-video-clip-beat-demo-text',
+          clipId: 'clip-beat-demo-text',
+          componentLabel: 'App frame',
+          sourceAssetId: 'capture-aether-homepage',
+          sourceLabel: 'screenshot via browser capture',
+          sourceAssetUrl: 'asset://capture/home.png',
+          sourceKind: 'screenshot',
+          sourceMimeType: 'image/png',
+          outputLabel: '9:16 1080x1920',
+        },
+      ],
+    });
   });
 
   it('summarizes Remotion and HyperFrames source readiness without exposing source code', () => {

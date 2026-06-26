@@ -7,7 +7,10 @@ import {
   type TimelineClip,
   type TimelineTrack,
 } from './project';
-import type { MotionImageToVideoRequest } from '@/lib/providers/video/types';
+import type {
+  MotionImageToVideoRequest,
+  MotionImageToVideoSource,
+} from '@/lib/providers/video/types';
 
 export type MotionImageToVideoPlanStatus = 'ready' | 'needs-timeline' | 'needs-visual-source';
 export type MotionImageToVideoActionId = 'generate-video-clips' | 'review-generated-clips';
@@ -163,6 +166,7 @@ function requestForClip(input: {
   dimensions: { width: number; height: number };
 }): MotionImageToVideoRequest {
   const sourceAssetId = input.clip.assetId!;
+  const source = sourceForClip(input.clip, sourceAssetId);
   const provenance = uniqueProvenance([
     { kind: 'timeline', ref: input.clip.id },
     ...input.clip.provenance,
@@ -184,6 +188,7 @@ function requestForClip(input: {
     draftId: input.draftId,
     clipId: input.clip.id,
     sourceAssetId,
+    source,
     prompt: promptForClip(input.project, input.clip),
     aspectRatio: input.aspectRatio,
     fps: input.fps,
@@ -193,6 +198,25 @@ function requestForClip(input: {
     output,
     provenance,
   };
+}
+
+function sourceForClip(clip: TimelineClip, sourceAssetId: string): MotionImageToVideoSource {
+  return cleanSource({
+    assetId: sourceAssetId,
+    assetUrl: stringProp(clip.props.assetUrl),
+    kind: stringProp(clip.props.captureArtifactKind),
+    mimeType: stringProp(clip.props.mimeType),
+    providerId: stringProp(clip.props.captureProviderId),
+    width: numberProp(clip.props.width),
+    height: numberProp(clip.props.height),
+    durationMs: numberProp(clip.props.durationMs),
+  });
+}
+
+function cleanSource(source: MotionImageToVideoSource): MotionImageToVideoSource {
+  return Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== undefined)
+  ) as MotionImageToVideoSource;
 }
 
 function promptForClip(project: MotionProject, clip: TimelineClip): string {
@@ -211,6 +235,10 @@ function promptForClip(project: MotionProject, clip: TimelineClip): string {
 
 function stringProp(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function numberProp(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function dimensionsForAspectRatio(aspectRatio: MotionAspectRatio): {

@@ -133,6 +133,13 @@ describe('POST /api/motion/image-to-video', () => {
           id: 'image-to-video-clip-beat-demo-text',
           clipId: 'clip-beat-demo-text',
           sourceAssetId: 'capture-screenshot-aether-localhost',
+          source: {
+            assetId: 'capture-screenshot-aether-localhost',
+            assetUrl: 'asset://capture/aether-home.png',
+            kind: 'screenshot',
+            mimeType: 'image/png',
+            providerId: 'browser-capture',
+          },
           output: {
             id: 'generated-clip-beat-demo-text-image-to-video',
             mimeType: 'video/mp4',
@@ -195,6 +202,17 @@ describe('POST /api/motion/image-to-video', () => {
       ],
     });
     expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: expect.objectContaining({
+          assetId: 'capture-screenshot-aether-localhost',
+          assetUrl: 'asset://capture/aether-home.png',
+          kind: 'screenshot',
+          mimeType: 'image/png',
+          providerId: 'browser-capture',
+        }),
+      })
+    );
 
     const generatedClip = json.project.tracks
       .flatMap((track: { clips: Array<{ id: string; props: Record<string, unknown> }> }) => track.clips)

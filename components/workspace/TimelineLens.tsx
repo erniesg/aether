@@ -2849,6 +2849,9 @@ function MotionVisualGenerationStrip({
               <p className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
                 {request.prompt}
               </p>
+              <div className="mt-2 truncate font-caption text-2xs text-ink-faint">
+                {request.sourceLabel}
+              </div>
               <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
                 {request.outputLabel}
               </div>

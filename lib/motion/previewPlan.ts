@@ -358,6 +358,11 @@ export interface MotionPreviewVisualGenerationRequest {
   componentLabel: string;
   durationSeconds: number;
   prompt: string;
+  sourceAssetId: string;
+  sourceLabel: string;
+  sourceAssetUrl: string | null;
+  sourceKind: string | null;
+  sourceMimeType: string | null;
   outputLabel: string;
 }
 
@@ -1503,6 +1508,11 @@ function buildVisualGenerationSummary(
       componentLabel,
       durationSeconds: roundSecondValue(motionSeconds(request.durationFrames, request.fps)),
       prompt: request.prompt,
+      sourceAssetId: request.sourceAssetId,
+      sourceLabel: sourceLabelForImageToVideoRequest(request),
+      sourceAssetUrl: request.source.assetUrl ?? null,
+      sourceKind: request.source.kind ?? null,
+      sourceMimeType: request.source.mimeType ?? null,
       outputLabel: `${request.aspectRatio} ${request.width}x${request.height}`,
     };
   });
@@ -1521,6 +1531,14 @@ function buildVisualGenerationSummary(
     blockerLabels: imageToVideoPlan.blockers.map((blocker) => blocker.label),
     nextActionLabels: imageToVideoPlan.nextActions.map((action) => action.label),
   };
+}
+
+function sourceLabelForImageToVideoRequest(
+  request: ReturnType<typeof buildMotionImageToVideoPlan>['requests'][number]
+): string {
+  const kind = request.source.kind ? readableLabel(request.source.kind) : 'source material';
+  const provider = request.source.providerId ? readableLabel(request.source.providerId) : null;
+  return provider ? `${kind} via ${provider}` : kind;
 }
 
 function buildVisualGenerationNodePlan(

@@ -886,6 +886,11 @@ const previewPlan: MotionPreviewPlan = {
         componentLabel: 'App frame',
         durationSeconds: 6,
         prompt: 'Animate the captured aether canvas as a short product insert.',
+        sourceAssetId: 'capture-screenshot-aether-localhost',
+        sourceLabel: 'Screenshot via browser capture',
+        sourceAssetUrl: 'asset://capture/aether-home.png',
+        sourceKind: 'screenshot',
+        sourceMimeType: 'image/png',
         outputLabel: '9:16 1080x1920',
       },
     ],
@@ -1709,6 +1714,7 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('visual generation').length).toBeGreaterThan(0);
     expect(screen.getByText('1 clip request')).toBeInTheDocument();
     expect(screen.getByText('Animate the captured aether canvas as a short product insert.')).toBeInTheDocument();
+    expect(screen.getByText('Screenshot via browser capture')).toBeInTheDocument();
     expect(screen.getAllByText('9:16 1080x1920').length).toBeGreaterThan(0);
     expect(screen.getByText('graph')).toBeInTheDocument();
     expect(screen.getByText('script')).toBeInTheDocument();

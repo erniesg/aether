@@ -122,12 +122,24 @@ export interface MotionImageToVideoOutput {
   provenance: MotionProvenanceRef[];
 }
 
+export interface MotionImageToVideoSource {
+  assetId: string;
+  assetUrl?: string;
+  kind?: string;
+  mimeType?: string;
+  providerId?: string;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+}
+
 export interface MotionImageToVideoRequest {
   id: string;
   projectId: string;
   draftId: string;
   clipId: string;
   sourceAssetId: string;
+  source: MotionImageToVideoSource;
   prompt: string;
   aspectRatio: MotionAspectRatio;
   fps: number;
