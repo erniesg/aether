@@ -307,11 +307,12 @@
   or provider card configured and move the next setup action; computer-use
   approval/redaction/safe-scope proof also satisfies the capture fallback card
   without completing the production capture gate.
-- `/api/motion/full-auto` now accepts a setup-only dry-run request for local app
-  and computer-use capture runners. It validates the request-scoped runner,
-  saves the dry-run receipts, refreshes review/preview plans, and deliberately
-  skips production gate handlers so setup proof cannot accidentally become a
-  capture artifact.
+- `/api/motion/full-auto` now accepts setup-only dry-run requests for local app,
+  computer-use, visual sourcing, image-to-video, voice, and render readiness.
+  It validates request-scoped runners or provider registry entries, saves the
+  dry-run receipts, refreshes review/preview plans, and deliberately skips
+  production gate handlers so setup proof cannot accidentally become a capture,
+  generated clip, voice, or render artifact.
 - Production plans now surface completed capture, render, and export
   verification receipts as first-class step metadata. Full-auto capture
   results can create completed capture graph nodes, render receipts appear as

@@ -422,9 +422,10 @@ capture, render, and provenance debugging.
   next setup action before trying to advance saved gates. Setup dry-run
   receipts are now stored in execution history and can move the next capability
   setup card; `/api/motion/full-auto` can save setup-only dry-run receipts for
-  local app and computer-use capture runners without executing the capture gate,
-  while production gates still require real capture, voice, generation, sync,
-  or render artifacts.
+  local app, computer-use, visual sourcing, image-to-video, voice, and render
+  readiness without executing the expensive provider gate, while production
+  gates still require real capture, voice, generation, sync, or render
+  artifacts.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start

@@ -129,7 +129,11 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(400, 'setupDryRun.setupId is required');
   }
   if (setupDryRun) {
-    const setupReceipt = setupDryRunReceiptInput(setupDryRun, { captureRunner });
+    const setupReceipt = setupDryRunReceiptInput(setupDryRun, {
+      body,
+      captureRunner,
+      renderEngine: renderEngine ?? preferredRenderEngine(engines ?? []),
+    });
     if (typeof setupReceipt === 'string') {
       return jsonError(400, setupReceipt);
     }
@@ -312,7 +316,9 @@ function parseSetupDryRun(value: unknown): MotionSetupDryRunRequest | null {
 function setupDryRunReceiptInput(
   request: MotionSetupDryRunRequest,
   options: {
+    body: MotionFullAutoRequestBody;
     captureRunner?: InlineMotionCaptureRunner;
+    renderEngine: MotionRenderEngine;
   }
 ): MotionSetupDryRunReceiptInput | string {
   const setupId = request.setupId;
@@ -355,17 +361,83 @@ function setupDryRunReceiptInput(
     };
   }
 
+  if (setupId === 'visual-source') {
+    return {
+      setupId,
+      gateId: 'visual-source',
+      label: 'Visual sourcing',
+      receiptLabels: ['source asset receipt', 'prompt receipt'],
+      providerId: 'asset-selection',
+      provenance: [
+        { kind: 'provider', ref: 'asset-selection' },
+        { kind: 'manual', ref: 'setup-dry-run:visual-source' },
+      ],
+    };
+  }
+
+  if (setupId === 'visual-generation') {
+    const provider = safeResolveImageToVideoProvider(
+      stringValue(options.body.imageToVideoProviderId)
+    );
+    if (!provider) {
+      return 'visual-generation setup dry run requires an available image-to-video provider';
+    }
+
+    return {
+      setupId,
+      gateId: 'visual-generation',
+      label: 'Image-to-video',
+      receiptLabels: ['generated clip receipt', 'timeline update receipt'],
+      providerId: provider.id,
+      provenance: [
+        { kind: 'provider', ref: provider.id },
+        { kind: 'manual', ref: 'setup-dry-run:visual-generation' },
+      ],
+    };
+  }
+
+  if (setupId === 'voice') {
+    const provider = safeResolveVoiceProvider(stringValue(options.body.voiceProviderId));
+    if (!provider) {
+      return 'voice setup dry run requires an available voice provider';
+    }
+
+    return {
+      setupId,
+      gateId: 'voice',
+      label: 'Voice and captions',
+      receiptLabels: ['audio receipt', 'word timing receipt', 'transcript receipt'],
+      providerId: provider.id,
+      provenance: [
+        { kind: 'provider', ref: provider.id },
+        { kind: 'manual', ref: 'setup-dry-run:voice' },
+      ],
+    };
+  }
+
   if (setupId === 'render') {
+    const provider = safeResolveRenderProvider({
+      engine: options.renderEngine,
+      providerId: stringValue(options.body.renderProviderId),
+    });
+    if (!provider) {
+      return 'render setup dry run requires an available Remotion or HyperFrames renderer';
+    }
+
     return {
       setupId,
       gateId: 'render',
       label: 'Render runner',
       receiptLabels: ['source lint', 'contact sheet', 'mp4 probe'],
-      provenance: [{ kind: 'manual', ref: 'setup-dry-run:render' }],
+      providerId: provider.id,
+      provenance: [
+        { kind: 'provider', ref: provider.id },
+        { kind: 'manual', ref: 'setup-dry-run:render' },
+      ],
     };
   }
 
-  return 'setupDryRun.setupId must be local-app, computer-use, or render';
+  return 'setupDryRun.setupId must be local-app, computer-use, visual-source, visual-generation, voice, or render';
 }
 
 function captureHandler(input: {

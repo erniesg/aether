@@ -627,6 +627,107 @@ describe('POST /api/motion/full-auto', () => {
     expect(captureRunnerMock.captureCalls).toHaveLength(captureCallCount);
   });
 
+  it('saves provider setup dry-run receipts without invoking generation, voice, or render', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    const synthesize = vi.fn(async (request: VoiceSynthesisRequest) => voiceResultFor(request));
+    const render = vi.fn(async (request: MotionRenderRequest) => renderResultFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+    unregister.push(registerVoiceProvider('voice-test', () => voiceProvider(synthesize)));
+    unregister.push(registerMotionRenderProvider('remotion-test', () => renderProvider(render)));
+
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const baseProject = projectWithSelectedVisualSource();
+    const cases = [
+      {
+        setupId: 'visual-source',
+        body: {},
+        expectedGateId: 'visual-source',
+        expectedLabel: 'Visual sourcing',
+        expectedReceipts: ['source asset receipt', 'prompt receipt'],
+      },
+      {
+        setupId: 'visual-generation',
+        body: { imageToVideoProviderId: 'image-video-test' },
+        expectedGateId: 'visual-generation',
+        expectedLabel: 'Image-to-video',
+        expectedReceipts: ['generated clip receipt', 'timeline update receipt'],
+      },
+      {
+        setupId: 'voice',
+        body: { voiceProviderId: 'voice-test' },
+        expectedGateId: 'voice',
+        expectedLabel: 'Voice and captions',
+        expectedReceipts: ['audio receipt', 'word timing receipt', 'transcript receipt'],
+      },
+      {
+        setupId: 'render',
+        body: { renderProviderId: 'remotion-test', renderEngine: 'remotion' },
+        expectedGateId: 'render',
+        expectedLabel: 'Render runner',
+        expectedReceipts: ['source lint', 'contact sheet', 'mp4 probe'],
+      },
+    ] as const;
+
+    for (const [index, testCase] of cases.entries()) {
+      const res = await POST(
+        new Request('http://localhost/api/motion/full-auto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: baseProject,
+            setupDryRun: {
+              setupId: testCase.setupId,
+            },
+            requestedAt: 772 + index,
+            updatedAt: 782 + index,
+            requestedEngines: ['remotion'],
+            ...testCase.body,
+          }),
+        })
+      );
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json).toMatchObject({
+        ok: true,
+        status: 'paused',
+        setupDryRun: {
+          setupId: testCase.setupId,
+          gateId: testCase.expectedGateId,
+          receiptLabels: testCase.expectedReceipts,
+        },
+        project: {
+          executionHistory: expect.arrayContaining([
+            expect.objectContaining({
+              gateId: 'setup',
+              label: testCase.expectedLabel,
+              receiptLabels: testCase.expectedReceipts,
+            }),
+          ]),
+        },
+        previewPlan: {
+          capabilitySetup: {
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                id: testCase.setupId,
+                dryRunPendingLabels: [],
+                dryRunCompletedLabels: testCase.expectedReceipts,
+              }),
+            ]),
+          },
+        },
+      });
+    }
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(synthesize).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+  });
+
   it('executes image-to-video providers for selected visual sources before pausing at voice', async () => {
     const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
     unregister.push(
