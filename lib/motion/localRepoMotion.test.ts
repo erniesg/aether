@@ -73,6 +73,41 @@ async function makePnpmViteRepo(): Promise<string> {
   return dir;
 }
 
+async function makeCloudflareLocalRepo(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'aether-local-motion-cloudflare-'));
+  tempDirs.push(dir);
+  await mkdir(join(dir, 'app', 'search'), { recursive: true });
+  await writeFile(
+    join(dir, 'package.json'),
+    JSON.stringify({
+      name: 'paillette-cf',
+      description: 'Cloudflare-backed art search app.',
+      dependencies: {
+        '@cloudflare/workers-types': '^4.0.0',
+        react: '^19.0.0',
+        wrangler: '^4.0.0',
+      },
+      devDependencies: {
+        typescript: '^5.0.0',
+      },
+      scripts: {
+        build: 'tsc',
+        'dev:local': 'wrangler pages dev --port 8789',
+      },
+    })
+  );
+  await writeFile(
+    join(dir, 'README.md'),
+    'Paillette CF is a Cloudflare Workers and TypeScript art search app.'
+  );
+  await writeFile(join(dir, 'app', 'page.tsx'), 'export default function Page() {}');
+  await writeFile(
+    join(dir, 'app', 'search', 'page.tsx'),
+    'export default function SearchPage() {}'
+  );
+  return dir;
+}
+
 describe('buildLocalRepoMotionProjectFromPath', () => {
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
@@ -193,6 +228,53 @@ describe('buildLocalRepoMotionProjectFromPath', () => {
           id: 'record-local-flow',
           targetRef: 'http://localhost:4310/',
           setup: 'pnpm dev',
+        }),
+      ])
+    );
+  });
+
+  it('uses nonstandard local app scripts for capture launch commands', async () => {
+    const repoPath = await makeCloudflareLocalRepo();
+
+    const project = await buildLocalRepoMotionProjectFromPath({
+      id: 'motion-paillette-cf-launch',
+      workspaceId: 'demo-ws',
+      repoPath,
+      projectKind: 'launch',
+      workflowMode: 'review',
+      audience: 'curators',
+      tone: 'proof-led',
+      platformTargets: [{ platform: 'linkedin', aspectRatio: '4:5', seconds: 45 }],
+      materializeTimeline: true,
+      createdAt: 520,
+    });
+
+    expect(project.sourceProfile?.signals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'signal-app-launch',
+          value: 'npm run dev:local -> http://localhost:8789',
+        }),
+      ])
+    );
+    expect(project.sourceProfile?.captureCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture-local-app-still',
+          targetRef: 'http://localhost:8789/',
+          setup: 'npm run dev:local',
+          setupCwd: repoPath,
+        }),
+        expect.objectContaining({
+          id: 'capture-local-app-still-search',
+          targetRef: 'http://localhost:8789/search',
+          setup: 'npm run dev:local',
+          setupCwd: repoPath,
+        }),
+        expect.objectContaining({
+          id: 'record-local-flow',
+          targetRef: 'http://localhost:8789/',
+          setup: 'npm run dev:local',
         }),
       ])
     );

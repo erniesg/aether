@@ -169,4 +169,62 @@ describe('buildRepoMotionSourceProfile', () => {
       ])
     );
   });
+
+  it('recognizes nonstandard local app scripts for repo capture', () => {
+    const profile = buildRepoMotionSourceProfile({
+      kind: 'local-repo',
+      sourceRef: '/Users/erniesg/code/erniesg/paillette',
+      projectKind: 'launch',
+      appProfile: {
+        name: 'paillette',
+        repoUrl: '/Users/erniesg/code/erniesg/paillette',
+        summary: 'Open-access art search.',
+        stack: ['TypeScript', 'Cloudflare Workers'],
+      },
+      facts: {
+        name: 'paillette',
+        description: 'Open-access art search.',
+        claims: [],
+        releases: [],
+        languages: ['TypeScript'],
+        readmeHighlights: ['Cloudflare Workers'],
+        enrichment: 'none',
+        dependencyNames: ['react', 'typescript'],
+        packageManager: 'npm',
+        packageScripts: ['build', 'dev:local', 'test'],
+        packageScriptCommands: {
+          build: 'tsc',
+          'dev:local': 'wrangler pages dev --port 8789',
+          test: 'vitest run',
+        },
+        appRoutes: ['/', '/search'],
+        sourceFileCount: 8,
+      },
+      claims: [],
+    });
+
+    expect(profile.signals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'signal-app-launch',
+          value: 'npm run dev:local -> http://localhost:8789',
+        }),
+      ])
+    );
+    expect(profile.captureCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture-local-app-still',
+          targetRef: 'http://localhost:8789/',
+          setup: 'npm run dev:local',
+          setupCwd: '/Users/erniesg/code/erniesg/paillette',
+        }),
+        expect.objectContaining({
+          id: 'capture-local-app-still-search',
+          targetRef: 'http://localhost:8789/search',
+          setup: 'npm run dev:local',
+        }),
+      ])
+    );
+  });
 });

@@ -49,6 +49,8 @@ function buildSignals(
   const packageScripts = input.facts.packageScripts ?? [];
   const appRoutes = input.facts.appRoutes ?? [];
   const packageManager = input.facts.packageManager;
+  const runnableScript = runnableScriptCommand(input.facts);
+  const previewBaseUrl = localPreviewBaseUrl(input.facts);
 
   if (stack.length > 0) {
     signals.push({
@@ -82,6 +84,15 @@ function buildSignals(
       id: 'signal-package-manager',
       label: 'Package manager',
       value: packageManager,
+      provenance: [{ kind: 'repo', ref: packageJsonRef(input.sourceRef) }],
+    });
+  }
+
+  if (input.kind === 'local-repo' && runnableScript && previewBaseUrl) {
+    signals.push({
+      id: 'signal-app-launch',
+      label: 'App launch',
+      value: `${packageScriptRunner(packageManager ?? 'npm', runnableScript.name)} -> ${previewBaseUrl}`,
       provenance: [{ kind: 'repo', ref: packageJsonRef(input.sourceRef) }],
     });
   }
@@ -257,15 +268,31 @@ function sourceProfileSummary(
   return `${sourceLabel} facts are ready; add a product visual source for demo scenes`;
 }
 
+const RUNNABLE_SCRIPT_ORDER = [
+  'dev',
+  'dev:local',
+  'dev:frontend',
+  'dev:web',
+  'web:dev',
+  'app:dev',
+  'pages:dev',
+  'wrangler:dev',
+  'start',
+  'preview',
+  'serve',
+];
+
+const RUNNABLE_SCRIPT_NAMES = new Set(RUNNABLE_SCRIPT_ORDER);
+
 function localPreviewBaseUrl(facts: ProjectFacts): string | null {
   const dependencies = new Set(
     (facts.dependencyNames ?? []).map((dependency) => dependency.toLowerCase())
   );
-  const scripts = new Set(facts.packageScripts ?? []);
-  const command = runnableScriptCommand(facts)?.command ?? '';
+  const runnable = runnableScriptCommand(facts);
+  if (!runnable) return null;
+  const command = runnable.command;
   const port = portFromScript(command);
 
-  if (!scripts.has('dev') && !scripts.has('start')) return null;
   if (port) return `http://localhost:${port}`;
   if (dependencies.has('vite')) return 'http://localhost:5173';
   if (dependencies.has('next')) return 'http://localhost:3000';
@@ -284,9 +311,48 @@ function setupCommand(facts: ProjectFacts): string | undefined {
 function runnableScriptCommand(facts: ProjectFacts): { name: string; command: string } | null {
   const commands = facts.packageScriptCommands ?? {};
   const scripts = new Set(facts.packageScripts ?? Object.keys(commands));
-  const scriptName = scripts.has('dev') ? 'dev' : scripts.has('start') ? 'start' : null;
-  if (!scriptName) return null;
-  return { name: scriptName, command: commands[scriptName] ?? '' };
+  const scriptNames = Object.keys(commands).length > 0 ? Object.keys(commands) : Array.from(scripts);
+  const preferredScript = preferredRunnableScriptName(scriptNames, commands);
+  if (!preferredScript) return null;
+  return { name: preferredScript, command: commands[preferredScript] ?? '' };
+}
+
+function preferredRunnableScriptName(
+  scriptNames: string[],
+  commands: Record<string, string>
+): string | null {
+  const ranked = scriptNames
+    .filter((name) => isRunnableScriptName(name, commands[name] ?? ''))
+    .sort(
+      (left, right) =>
+        scriptRank(left, commands[left] ?? '') - scriptRank(right, commands[right] ?? '')
+    );
+
+  return ranked[0] ?? null;
+}
+
+function isRunnableScriptName(name: string, command: string): boolean {
+  if (RUNNABLE_SCRIPT_NAMES.has(name)) return true;
+  if (/^(?:dev|start|preview|serve)(?::|-|$)/.test(name)) return true;
+  return commandLooksLikeAppServer(command);
+}
+
+function commandLooksLikeAppServer(command: string): boolean {
+  return /\b(next\s+(?:dev|start)|vite(?:\s|$)|astro\s+(?:dev|preview)|wrangler\s+(?:dev|pages\s+dev)|remix\s+dev|svelte-kit\s+dev|nuxt\s+dev|expo\s+start)\b/i.test(
+    command
+  );
+}
+
+function scriptRank(name: string, command: string): number {
+  const exactRank = RUNNABLE_SCRIPT_ORDER.indexOf(name);
+  if (exactRank !== -1) return exactRank;
+  if (name.startsWith('dev')) return 20;
+  if (name.includes('dev')) return 30;
+  if (commandLooksLikeAppServer(command)) return 40;
+  if (name === 'start' || name.startsWith('start')) return 50;
+  if (name === 'preview' || name.startsWith('preview')) return 60;
+  if (name === 'serve' || name.startsWith('serve')) return 70;
+  return 100;
 }
 
 function packageScriptRunner(packageManager: string, scriptName: string): string {
