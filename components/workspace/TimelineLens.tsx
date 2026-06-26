@@ -28,6 +28,7 @@ import type {
   MotionPreviewEditSource,
   MotionPreviewAgentRunbook,
   MotionPreviewCapabilitySetup,
+  MotionPreviewDraftOption,
   MotionPreviewExecutionHistory,
   MotionPreviewExecutionHistoryEntry,
   MotionPreviewExportPackSummary,
@@ -307,23 +308,11 @@ function MotionPreviewPlanView({
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {previewPlan.draftOptions.map((draft) => (
-              <button
+              <MotionDraftOptionCard
                 key={draft.draftId}
-                type="button"
-                aria-pressed={draft.isCurrent}
-                onClick={() => onSelectDraft?.(draft.draftId)}
-                className={cn(
-                  'flex min-w-[170px] flex-col rounded-sm border px-3 py-2 text-left transition-colors duration-fast ease-quick',
-                  draft.isCurrent
-                    ? 'border-accent bg-accent/10 text-ink'
-                    : 'border-border-soft bg-surface-panel text-ink-dim hover:border-border hover:text-ink'
-                )}
-              >
-                <span className="truncate font-caption text-xs">{draft.label}</span>
-                <span className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
-                  {draft.angle}
-                </span>
-              </button>
+                draft={draft}
+                onSelectDraft={onSelectDraft}
+              />
             ))}
           </div>
         </div>
@@ -627,6 +616,56 @@ function MotionPreviewPlanView({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function MotionDraftOptionCard({
+  draft,
+  onSelectDraft,
+}: {
+  draft: MotionPreviewDraftOption;
+  onSelectDraft?: (draftId: string) => void;
+}) {
+  const roleLabel = draft.roles.map(readableLabel).join(' / ');
+  const canChoose = Boolean(onSelectDraft) && !draft.isCurrent;
+
+  return (
+    <button
+      type="button"
+      aria-pressed={draft.isCurrent}
+      disabled={!canChoose}
+      onClick={() => onSelectDraft?.(draft.draftId)}
+      className={cn(
+        'flex min-w-[210px] max-w-[240px] flex-col rounded-sm border px-3 py-2 text-left transition-colors duration-fast ease-quick',
+        draft.isCurrent
+          ? 'border-accent bg-accent/10 text-ink'
+          : 'border-border-soft bg-surface-panel text-ink-dim hover:border-border hover:text-ink',
+        !canChoose && !draft.isCurrent ? 'cursor-default opacity-70' : ''
+      )}
+    >
+      <span className="flex min-w-0 items-start justify-between gap-2">
+        <span className="min-w-0 truncate font-caption text-xs">{draft.label}</span>
+        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+          {draft.isCurrent ? 'current' : draft.status.replace(/-/g, ' ')}
+        </span>
+      </span>
+      <span className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+        {draft.angle}
+      </span>
+      <span className="mt-2 flex flex-wrap gap-1">
+        <Chip tone="neutral" size="sm">
+          {formatPreviewDuration(draft.durationSeconds)}
+        </Chip>
+        {roleLabel ? (
+          <Chip tone="neutral" size="sm">
+            {roleLabel}
+          </Chip>
+        ) : null}
+      </span>
+      <span className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+        {draft.isCurrent ? 'editing this cut' : 'choose draft'}
+      </span>
+    </button>
   );
 }
 

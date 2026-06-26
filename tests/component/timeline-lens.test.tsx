@@ -1765,6 +1765,8 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
     expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
     expect(screen.getByText('Demo-first cut')).toBeInTheDocument();
+    expect(screen.getByText('editing this cut')).toBeInTheDocument();
+    expect(screen.getByText('choose draft')).toBeInTheDocument();
     expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);
     expect(screen.getAllByText('video plan').length).toBeGreaterThan(0);
     expect(screen.getByText('2 scenes / 30s')).toBeInTheDocument();
@@ -2559,7 +2561,17 @@ describe('TimelineLens', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: /demo-first cut/i }));
+    const primaryDraft = screen.getByRole('button', { name: /primary launch cut/i });
+    const demoDraft = screen.getByRole('button', { name: /demo-first cut/i });
+    expect(primaryDraft).toBeDisabled();
+    expect(primaryDraft).toHaveTextContent('current');
+    expect(within(primaryDraft).getByText('hook / demo')).toBeInTheDocument();
+    expect(demoDraft).toBeEnabled();
+    expect(demoDraft).toHaveTextContent('ready');
+    expect(within(demoDraft).getByText('30s')).toBeInTheDocument();
+    expect(within(demoDraft).getByText('demo / hook')).toBeInTheDocument();
+
+    await userEvent.click(demoDraft);
     expect(onSelectDraft).toHaveBeenCalledWith('draft-demo');
 
     await userEvent.click(screen.getByRole('button', { name: /regenerate capture for app frame/i }));
