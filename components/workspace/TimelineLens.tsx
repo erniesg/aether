@@ -3430,15 +3430,33 @@ function RegenerateActionButton({
   action: MotionPreviewRegenerationAction;
   onRegenerateComponent?: (actionId: string) => void;
 }) {
+  const capabilityLabel = readableActionToolLabel(action.toolId);
+  const receiptLabel = action.expectedReceiptLabels
+    .filter((label) => label !== 'regeneration request')
+    .slice(0, 2)
+    .join(' / ');
+
   return (
     <button
       type="button"
       onClick={() => onRegenerateComponent?.(action.id)}
-      className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+      className="min-w-[210px] rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
     >
-      {action.label}
+      <span className="block font-caption text-xs text-ink-dim">{action.label}</span>
+      <span className="mt-1 block font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+        {capabilityLabel}
+      </span>
+      {receiptLabel ? (
+        <span className="mt-1 block font-caption text-2xs text-ink-faint">
+          receipts: {receiptLabel}
+        </span>
+      ) : null}
     </button>
   );
+}
+
+function readableActionToolLabel(toolId: MotionPreviewRegenerationAction['toolId']): string {
+  return toolId.replace(/-/g, ' ');
 }
 
 function TimelineTrackRow({

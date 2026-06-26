@@ -2318,6 +2318,23 @@ describe('TimelineLens', () => {
     expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');
   });
 
+  it('shows the capability and expected receipts for regeneration actions', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onRegenerateComponent={() => {}}
+      />
+    );
+
+    const action = screen.getByRole('button', { name: /regenerate capture for app frame/i });
+    expect(within(action).getByText('motion capture')).toBeInTheDocument();
+    expect(within(action).getByText('receipts: capture plan / updated preview plan')).toBeInTheDocument();
+    expect(screen.queryByText('/api/motion/regenerate')).not.toBeInTheDocument();
+  });
+
   it('lets creators request voice generation from the preview plan', async () => {
     const onGenerateVoice = vi.fn<() => void>();
     render(
