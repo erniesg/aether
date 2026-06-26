@@ -3166,9 +3166,14 @@ function MotionCapturePlanView({
   const recordingRequest = capturePlan.requests.find(
     (request) => request.request.mode === 'screen-recording'
   );
+  const computerUseFallback = capturePlan.fallbacks.find(
+    (fallback) => fallback.toolId === 'computer-use'
+  );
   const targetLabel =
     capturePlan.target?.kind === 'url'
       ? captureTargetLabel(capturePlan.target.ref)
+      : capturePlan.target?.kind === 'local-app'
+        ? captureTargetLabel(capturePlan.target.ref)
       : 'source needed';
 
   return (
@@ -3206,6 +3211,27 @@ function MotionCapturePlanView({
               {capturePlan.fallbacks[0]?.label ?? 'Add a site or app URL before capture'}
             </div>
           )}
+          {computerUseFallback ? (
+            <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-caption text-xs text-ink">computer control fallback</div>
+                <Chip tone="warn" size="sm">
+                  approval required
+                </Chip>
+              </div>
+              <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+                {computerUseFallback.permissionGate.label}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                <Chip tone="neutral" size="sm">
+                  {computerUseFallback.outputContract.artifactKinds.join(' / ')}
+                </Chip>
+                <Chip tone="neutral" size="sm">
+                  {computerUseFallback.safeScope.redactionLabels.slice(0, 3).join(' / ')}
+                </Chip>
+              </div>
+            </div>
+          ) : null}
         </div>
         {onCaptureMotion ? (
           <div className="flex flex-wrap content-start gap-1.5">

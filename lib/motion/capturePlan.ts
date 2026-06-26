@@ -65,6 +65,24 @@ export interface AgentMotionCaptureFallback {
   id: string;
   label: string;
   reason: string;
+  toolId: AgentMotionCaptureToolId;
+  permissionGate: AgentMotionCapturePermissionGate;
+  safeScope: AgentMotionComputerUseSafeScope;
+  outputContract: AgentMotionCaptureOutputContract;
+  expectedArtifacts: string[];
+  agentInstructions: AgentMotionCaptureInstruction[];
+}
+
+export interface AgentMotionCapturePermissionGate {
+  required: true;
+  label: string;
+  scope: string;
+}
+
+export interface AgentMotionComputerUseSafeScope {
+  allowedTargets: CaptureTarget['kind'][];
+  stopConditions: string[];
+  redactionLabels: string[];
 }
 
 export interface AgentMotionCaptureAction {
@@ -471,6 +489,41 @@ function computerUseFallbacks(): AgentMotionCaptureFallback[] {
       id: 'computer-use-capture',
       label: 'Use computer control when browser capture cannot reach the app state',
       reason: 'Needed for authenticated, native, simulator, or gesture-heavy flows.',
+      toolId: 'computer-use',
+      permissionGate: {
+        required: true,
+        label: 'Creator approval required before desktop control',
+        scope: 'current app or browser window only',
+      },
+      safeScope: {
+        allowedTargets: ['url', 'local-app', 'desktop-app'],
+        stopConditions: [
+          'login, payment, personal data, or secret fields appear',
+          'capture leaves the approved app or browser window',
+        ],
+        redactionLabels: ['tokens', 'emails', 'personal data', 'private workspace names'],
+      },
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['screenshot', 'recording', 'trace'],
+        receiptFields: ['assetUrl', 'viewport', 'cursorTargets', 'provenance', 'redactions'],
+      },
+      expectedArtifacts: ['screenshot', 'recording', 'trace', 'redaction receipt'],
+      agentInstructions: [
+        {
+          id: 'request-creator-approval',
+          toolId: 'computer-use',
+          label: 'Request creator approval',
+          detail: 'Pause before controlling the desktop, browser, simulator, or authenticated app.',
+        },
+        {
+          id: 'capture-approved-window',
+          toolId: 'computer-use',
+          label: 'Capture approved window',
+          detail: 'Record only the approved app state and stop on secrets, login, or payment screens.',
+          expectedArtifactKinds: ['screenshot', 'recording', 'trace'],
+        },
+      ],
     },
   ];
 }

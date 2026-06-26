@@ -207,8 +207,10 @@ capture, render, and provenance debugging.
   can now opt into a request-scoped `playwright-local` runner that writes
   capture receipts inside the aether workspace, optionally launches the local
   app through the trusted readiness poller, and appears in the preview/provider
-  inventory for that request. The route still preserves computer-use fallback
-  guidance and does not register a default provider.
+  inventory for that request. The route returns a guarded computer-use fallback
+  contract with approval, safe scope, redaction labels, expected screenshot /
+  recording / trace receipts, and the capture apply route; it does not register
+  a default desktop-control provider.
 - `app/api/motion/voice/route.ts` now exposes voiceover and caption-sync
   handoffs through an agent-native JSON boundary: callers send an editable
   project plus voice request or clip ids and receive provider-required

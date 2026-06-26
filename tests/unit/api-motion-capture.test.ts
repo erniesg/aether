@@ -176,6 +176,16 @@ describe('POST /api/motion/capture', () => {
         fallbacks: [
           {
             id: 'computer-use-capture',
+            toolId: 'computer-use',
+            permissionGate: {
+              required: true,
+              label: 'Creator approval required before desktop control',
+            },
+            outputContract: {
+              applyRoute: '/api/motion/capture',
+              artifactKinds: ['screenshot', 'recording', 'trace'],
+            },
+            expectedArtifacts: ['screenshot', 'recording', 'trace', 'redaction receipt'],
           },
         ],
       },

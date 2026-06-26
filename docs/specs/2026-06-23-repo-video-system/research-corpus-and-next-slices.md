@@ -185,12 +185,20 @@ desktop/browser actions as a safe capture source. It must require explicit
 permission, redact secrets, save screenshots/video/trace receipts, and stop on
 unknown external actions.
 
+Status: partially implemented. Capture plans and `/api/motion/capture` now
+return a structured computer-use fallback contract with required creator
+approval, allowed target scope, stop conditions, redaction labels, expected
+screenshot / recording / trace receipts, and the `/api/motion/capture` apply
+route. The timeline lens shows this guarded fallback inside the capture plan.
+The actual desktop-control runner and receipt application remain follow-up
+work.
+
 Acceptance evidence:
 
-- Route tests cover permission missing, redaction manifest required, and
-  receipt application.
-- The timeline lens shows captured artifacts, not raw traces, unless
-  `?debug=1`.
+- Capture-plan and route tests cover the guarded fallback contract.
+- Component tests cover the timeline lens fallback summary. Desktop-control
+  execution tests still need permission-missing, redaction-manifest, and
+  receipt-application coverage once a runner exists.
 
 ## Review vs full-auto behavior
 

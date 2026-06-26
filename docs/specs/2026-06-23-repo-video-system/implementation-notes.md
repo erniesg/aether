@@ -151,13 +151,15 @@
 - Agent-native `/api/motion/capture` route that accepts an editable motion
   project plus selected capture request ids, returns provider-required
   screenshot/DOM/trace/recording handoffs when no capture runner is configured,
-  preserves computer-use fallback guidance, returns deduped local-app launch
-  handoffs for runnable repo captures, and applies completed capture receipts
-  back into demo beats and `app-frame` timeline clips when an opt-in provider is
-  available. A request-scoped `captureRunner.kind = "playwright-local"` option
-  now instantiates the local Playwright provider explicitly, writes artifacts
-  under the aether workspace, can opt into trusted local app launch, and returns
-  that runner in the provider inventory without making it a global default.
+  returns a guarded computer-use fallback contract with approval, safe scope,
+  redaction, expected receipts, and apply-route metadata, returns deduped
+  local-app launch handoffs for runnable repo captures, and applies completed
+  capture receipts back into demo beats and `app-frame` timeline clips when an
+  opt-in provider is available. A request-scoped `captureRunner.kind =
+  "playwright-local"` option now instantiates the local Playwright provider
+  explicitly, writes artifacts under the aether workspace, can opt into trusted
+  local app launch, and returns that runner in the provider inventory without
+  making it a global default.
 - Agent-native `/api/motion/voice` route that accepts an editable motion
   project plus selected voice request or clip ids, returns provider-required
   narration/word-timing/transcript handoffs when no voice provider is

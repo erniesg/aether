@@ -1408,6 +1408,41 @@ const capturePlan: AgentMotionCapturePlan = {
       id: 'computer-use-capture',
       label: 'Use computer control when browser capture cannot reach the app state',
       reason: 'Needed for authenticated, native, simulator, or gesture-heavy flows.',
+      toolId: 'computer-use',
+      permissionGate: {
+        required: true,
+        label: 'Creator approval required before desktop control',
+        scope: 'current app or browser window only',
+      },
+      safeScope: {
+        allowedTargets: ['url', 'local-app', 'desktop-app'],
+        stopConditions: [
+          'login, payment, personal data, or secret fields appear',
+          'capture leaves the approved app or browser window',
+        ],
+        redactionLabels: ['tokens', 'emails', 'personal data', 'private workspace names'],
+      },
+      outputContract: {
+        applyRoute: '/api/motion/capture',
+        artifactKinds: ['screenshot', 'recording', 'trace'],
+        receiptFields: ['assetUrl', 'viewport', 'cursorTargets', 'provenance', 'redactions'],
+      },
+      expectedArtifacts: ['screenshot', 'recording', 'trace', 'redaction receipt'],
+      agentInstructions: [
+        {
+          id: 'request-creator-approval',
+          toolId: 'computer-use',
+          label: 'Request creator approval',
+          detail: 'Pause before controlling the desktop, browser, simulator, or authenticated app.',
+        },
+        {
+          id: 'capture-approved-window',
+          toolId: 'computer-use',
+          label: 'Capture approved window',
+          detail: 'Record only the approved app state and stop on secrets, login, or payment screens.',
+          expectedArtifactKinds: ['screenshot', 'recording', 'trace'],
+        },
+      ],
     },
   ],
   nextActions: [
@@ -2110,6 +2145,23 @@ describe('TimelineLens', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /record flow/i }));
     expect(onCaptureMotion).toHaveBeenCalledWith(['capture-screen-recording']);
+  });
+
+  it('shows the guarded computer-use fallback inside the capture plan', () => {
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        capturePlan={capturePlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByText('computer control fallback')).toBeInTheDocument();
+    expect(screen.getByText('Creator approval required before desktop control')).toBeInTheDocument();
+    expect(screen.getByText('screenshot / recording / trace')).toBeInTheDocument();
+    expect(screen.getByText(/tokens \/ emails \/ personal data/)).toBeInTheDocument();
   });
 
   it('passes the local runner handoff when creators request app captures', async () => {
