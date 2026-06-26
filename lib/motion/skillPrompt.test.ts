@@ -167,7 +167,7 @@ describe('buildMotionSkillAuthoringPrompt', () => {
     expect(prompt).toContain('can create an editable PR video without a separate provider');
     expect(prompt).toContain('auto-advance after saving artifacts');
     expect(prompt).toContain(
-      '5. Timeline sync - routes: /api/motion/sync + /api/motion/revise + /api/motion/source-edit'
+      '5. Timeline sync - routes: /api/motion/sync + /api/motion/revise + /api/motion/preview-source + /api/motion/source-edit'
     );
     expect(prompt).toContain('"nextAction": "continue-through-saved-gates"');
   });

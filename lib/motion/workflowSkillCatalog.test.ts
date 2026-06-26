@@ -39,16 +39,18 @@ describe('motion workflow skill catalog', () => {
         draftVariations: expect.any(Array),
         componentSlots: expect.any(Array),
         reviewSurfaces: expect.any(Array),
+        skillPacks: expect.any(Array),
       });
       expect(recipe?.triggerPhrases.length).toBeGreaterThan(0);
       expect(recipe?.agentTaskLabels.length).toBeGreaterThan(0);
       expect(recipe?.draftVariations.length).toBeGreaterThan(0);
       expect(recipe?.componentSlots.length).toBeGreaterThan(0);
       expect(recipe?.reviewSurfaces.length).toBeGreaterThan(0);
+      expect(recipe?.skillPacks.length).toBeGreaterThan(0);
     }
   });
 
-  it('keeps component slots valid and creator-facing', () => {
+  it('keeps component slots and skill packs valid and creator-facing', () => {
     const bannedCopy = /operator|dashboard|control plane|run inspector/i;
 
     for (const recipe of listMotionWorkflowSkillRecipes()) {
@@ -72,6 +74,12 @@ describe('motion workflow skill catalog', () => {
           ...pattern.verificationLabels,
         ]),
         ...recipe.reviewSurfaces.flatMap((surface) => [surface.label, surface.purpose]),
+        ...recipe.skillPacks.flatMap((pack) => [
+          pack.label,
+          pack.purpose,
+          pack.installCommand,
+          ...pack.verificationLabels,
+        ]),
       ].join(' ');
 
       expect(searchableCopy).not.toMatch(bannedCopy);
@@ -89,6 +97,11 @@ describe('motion workflow skill catalog', () => {
         for (const lane of pattern.generationLanes) {
           expect(VALID_GENERATION_LANES.has(lane)).toBe(true);
         }
+      }
+      for (const pack of recipe.skillPacks) {
+        expect(pack.installCommand).toMatch(/^npx skills add /);
+        expect(pack.sourceUrl).toMatch(/^https:\/\/github\.com\//);
+        expect(pack.verificationLabels.length).toBeGreaterThan(0);
       }
     }
 

@@ -47,6 +47,23 @@ export interface MotionWorkflowSkillReviewSurface {
   purpose: string;
 }
 
+export type MotionWorkflowSkillPackId =
+  | 'hyperframes-workflow-skills'
+  | 'iart-motion-design-skills'
+  | 'iart-tiktok-video-skills'
+  | 'iart-web-animation-skills'
+  | 'iart-kinetic-typography-skills'
+  | 'iart-data-animation-skills';
+
+export interface MotionWorkflowSkillPackRequirement {
+  id: MotionWorkflowSkillPackId;
+  label: string;
+  sourceUrl: string;
+  installCommand: string;
+  purpose: string;
+  verificationLabels: string[];
+}
+
 export interface MotionWorkflowSkillRecipe {
   workflowId: WorkflowRegistryId;
   slug: string;
@@ -58,6 +75,7 @@ export interface MotionWorkflowSkillRecipe {
   componentSlots: MotionWorkflowSkillComponentSlot[];
   referencePatterns: MotionReferencePattern[];
   reviewSurfaces: MotionWorkflowSkillReviewSurface[];
+  skillPacks: MotionWorkflowSkillPackRequirement[];
   fullAutoPolicy: string;
   reviewPolicy: string;
 }
@@ -72,6 +90,7 @@ interface RecipeDefinition {
   componentSlots: ComponentSlotDefinition[];
   referencePatternIds: MotionReferencePatternId[];
   reviewSurfaces: MotionWorkflowSkillReviewSurface[];
+  skillPackIds?: MotionWorkflowSkillPackId[];
   fullAutoPolicy: string;
   reviewPolicy: string;
 }
@@ -81,6 +100,63 @@ interface ComponentSlotDefinition {
   role: string;
   reason: string;
 }
+
+const SKILL_PACKS = {
+  'hyperframes-workflow-skills': {
+    id: 'hyperframes-workflow-skills',
+    label: 'HyperFrames workflow skills',
+    sourceUrl: 'https://github.com/heygen-com/hyperframes/tree/main/skills',
+    installCommand: 'npx skills add heygen-com/hyperframes',
+    purpose:
+      'Reusable HyperFrames workflows for PR, product launch, website, captions, media, and Remotion ports.',
+    verificationLabels: ['HyperFrames lint', 'render proof', 'source manifest'],
+  },
+  'iart-motion-design-skills': {
+    id: 'iart-motion-design-skills',
+    label: 'iart motion-design skills',
+    sourceUrl: 'https://github.com/iart-ai/motion-design-skills',
+    installCommand: 'npx skills add iart-ai/motion-design-skills',
+    purpose:
+      'Motion design packs for reusable components, pacing, easing, brand systems, and generated graphic scenes.',
+    verificationLabels: ['seek-shot.sh', 'contact-sheet.sh', 'probe-mp4.sh'],
+  },
+  'iart-tiktok-video-skills': {
+    id: 'iart-tiktok-video-skills',
+    label: 'iart short-form video skills',
+    sourceUrl: 'https://github.com/iart-ai/tiktok-video-skills',
+    installCommand: 'npx skills add iart-ai/tiktok-video-skills',
+    purpose:
+      'Short-form vertical video packs for first-frame hooks, captions, safe crops, and fast cuts.',
+    verificationLabels: ['safe crop proof', 'caption readability', 'mp4 probe'],
+  },
+  'iart-web-animation-skills': {
+    id: 'iart-web-animation-skills',
+    label: 'iart web animation skills',
+    sourceUrl: 'https://github.com/iart-ai/web-animation-skills',
+    installCommand: 'npx skills add iart-ai/web-animation-skills',
+    purpose:
+      'Web animation packs for HTML, SVG, GSAP, Lottie, Three.js, shaders, and accessible motion.',
+    verificationLabels: ['frame screenshot', 'contact sheet', 'motion accessibility check'],
+  },
+  'iart-kinetic-typography-skills': {
+    id: 'iart-kinetic-typography-skills',
+    label: 'iart kinetic typography skills',
+    sourceUrl: 'https://github.com/iart-ai/kinetic-typography-skills',
+    installCommand: 'npx skills add iart-ai/kinetic-typography-skills',
+    purpose:
+      'Text animation packs for caption-led social, title sequences, and voice-synced typography.',
+    verificationLabels: ['caption readability', 'word timing proof', 'frame screenshot'],
+  },
+  'iart-data-animation-skills': {
+    id: 'iart-data-animation-skills',
+    label: 'iart data animation skills',
+    sourceUrl: 'https://github.com/iart-ai/data-animation-skills',
+    installCommand: 'npx skills add iart-ai/data-animation-skills',
+    purpose:
+      'Data-driven animation packs for charts, proof cards, metrics, and explainer scenes.',
+    verificationLabels: ['number accuracy', 'frame screenshot', 'contact sheet'],
+  },
+} as const satisfies Record<MotionWorkflowSkillPackId, MotionWorkflowSkillPackRequirement>;
 
 const RECIPE_DEFINITIONS = {
   'repo-launch-video': {
@@ -218,6 +294,7 @@ const RECIPE_DEFINITIONS = {
         purpose: 'Review contact sheet, poster, subtitles, and mp4 probe before export.',
       },
     ],
+    skillPackIds: ['hyperframes-workflow-skills', 'iart-motion-design-skills'],
     fullAutoPolicy:
       'Auto-advance through saved gates only after each artifact is written with typed provenance.',
     reviewPolicy:
@@ -350,6 +427,11 @@ const RECIPE_DEFINITIONS = {
         purpose: 'Confirm vertical, square, and feed exports from one edit.',
       },
     ],
+    skillPackIds: [
+      'hyperframes-workflow-skills',
+      'iart-tiktok-video-skills',
+      'iart-motion-design-skills',
+    ],
     fullAutoPolicy: 'Auto-advance only after the feature capture and caption timing are saved.',
     reviewPolicy: 'Review feature angle, capture, captions, and first render before export.',
   },
@@ -454,6 +536,7 @@ const RECIPE_DEFINITIONS = {
         purpose: 'Check readability and crop before export.',
       },
     ],
+    skillPackIds: ['hyperframes-workflow-skills', 'iart-web-animation-skills'],
     fullAutoPolicy: 'Auto-advance only after capture receipts and crop targets are saved.',
     reviewPolicy: 'Review capture plan, tour order, readability, and render proof.',
   },
@@ -578,6 +661,7 @@ const RECIPE_DEFINITIONS = {
         purpose: 'Confirm code readability, subtitles, and proof artifacts.',
       },
     ],
+    skillPackIds: ['hyperframes-workflow-skills', 'iart-data-animation-skills'],
     fullAutoPolicy:
       'Auto-advance only when code-change evidence is present and every PR claim has a receipt.',
     reviewPolicy:
@@ -664,6 +748,10 @@ const RECIPE_DEFINITIONS = {
         label: 'Export pack',
         purpose: 'Confirm video, subtitles, transcript, and poster.',
       },
+    ],
+    skillPackIds: [
+      'hyperframes-workflow-skills',
+      'iart-kinetic-typography-skills',
     ],
     fullAutoPolicy: 'Auto-advance only after captions and transcript sidecars are saved.',
     reviewPolicy: 'Review caption groups, emphasis, safe areas, and render proof.',
@@ -756,6 +844,7 @@ const RECIPE_DEFINITIONS = {
         purpose: 'Review contact sheet, motion pacing, and output proof.',
       },
     ],
+    skillPackIds: ['iart-motion-design-skills', 'iart-data-animation-skills'],
     fullAutoPolicy: 'Auto-advance only after component recipes and proof frames are saved.',
     reviewPolicy: 'Review visual direction, reusable components, and render proof.',
   },
@@ -830,6 +919,7 @@ const RECIPE_DEFINITIONS = {
         purpose: 'Confirm files, manifests, and portability receipts.',
       },
     ],
+    skillPackIds: ['hyperframes-workflow-skills', 'iart-web-animation-skills'],
     fullAutoPolicy: 'Auto-advance only after source and target render proofs are saved or blocked.',
     reviewPolicy: 'Review component mapping, timing fidelity, and render proof.',
   },
@@ -882,6 +972,10 @@ function cloneRecipe(
     }),
     referencePatterns: selectMotionReferencePatterns(definition.referencePatternIds),
     reviewSurfaces: definition.reviewSurfaces.map((surface) => ({ ...surface })),
+    skillPacks: (definition.skillPackIds ?? []).map((id) => ({
+      ...SKILL_PACKS[id],
+      verificationLabels: [...SKILL_PACKS[id].verificationLabels],
+    })),
     fullAutoPolicy: definition.fullAutoPolicy,
     reviewPolicy: definition.reviewPolicy,
   };

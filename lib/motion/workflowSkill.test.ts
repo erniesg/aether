@@ -72,6 +72,17 @@ describe('motion workflow skill drafts', () => {
         'Voice and caption sync',
         'Multi-format export pack',
       ],
+      skillPackLabels: ['HyperFrames workflow skills', 'iart data animation skills'],
+      skillPackRequirements: [
+        expect.objectContaining({
+          id: 'hyperframes-workflow-skills',
+          installCommand: 'npx skills add heygen-com/hyperframes',
+        }),
+        expect.objectContaining({
+          id: 'iart-data-animation-skills',
+          installCommand: 'npx skills add iart-ai/data-animation-skills',
+        }),
+      ],
       regenerationLabels: expect.arrayContaining([
         'code proof',
         'Code diff card: code',
@@ -215,6 +226,11 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('## Draft Variations');
     expect(plan.skillDraft.manifest.instructions).toContain('Daily skill launch');
     expect(plan.skillDraft.manifest.instructions).toContain('## Launch Kit');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');
+    expect(plan.skillDraft.manifest.instructions).toContain('HyperFrames workflow skills');
+    expect(plan.skillDraft.manifest.instructions).toContain('npx skills add heygen-com/hyperframes');
+    expect(plan.skillDraft.manifest.instructions).toContain('iart data animation skills');
+    expect(plan.skillDraft.manifest.instructions).toContain('npx skills add iart-ai/data-animation-skills');
     expect(plan.skillDraft.manifest.instructions).toContain('## Launch Kit Review Objects');
     expect(plan.skillDraft.manifest.instructions).toContain('Aether PR #456');
     expect(plan.skillDraft.manifest.instructions).toContain('Regenerate Code diff card');
@@ -278,15 +294,36 @@ describe('motion workflow skill drafts', () => {
       'Agent process trace',
       'Skill drop announcement',
       'Terminal command proof',
+      'Computer-use capture loop',
       'Image-to-video insert',
+      'Prompt-to-artifact demo',
       'Voice and caption sync',
       'Multi-format export pack',
       'Branded template system',
       'Localized voice caption variants',
+      'Reviewable draft board',
+    ]);
+    expect(plan.skillDraft.skillPackLabels).toEqual([
+      'HyperFrames workflow skills',
+      'iart motion-design skills',
+    ]);
+    expect(plan.skillDraft.skillPackRequirements).toEqual([
+      expect.objectContaining({
+        id: 'hyperframes-workflow-skills',
+        installCommand: 'npx skills add heygen-com/hyperframes',
+      }),
+      expect.objectContaining({
+        id: 'iart-motion-design-skills',
+        installCommand: 'npx skills add iart-ai/motion-design-skills',
+        verificationLabels: ['seek-shot.sh', 'contact-sheet.sh', 'probe-mp4.sh'],
+      }),
     ]);
     expect(plan.skillDraft.toolNames).toContain('motion_capture');
     expect(plan.skillDraft.manifest.instructions).toContain('Review video plan before continuing');
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');
+    expect(plan.skillDraft.manifest.instructions).toContain('npx skills add iart-ai/motion-design-skills');
+    expect(plan.skillDraft.manifest.instructions).toContain('contact-sheet.sh');
     expect(plan.skillDraft.manifest.instructions).toContain('## Review Surfaces');
     expect(plan.skillDraft.manifest.instructions).toContain('## Research Signals');
     expect(plan.skillDraft.manifest.instructions).toContain(

@@ -1482,6 +1482,25 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
   draftVariationLabels: ['Proof-first launch', 'Demo-first launch', 'Founder-note launch'],
   componentSlotLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
   referencePatternLabels: ['Launch hook title', 'Real product capture', 'Proof receipt card'],
+  skillPackLabels: ['HyperFrames workflow skills', 'iart motion-design skills'],
+  skillPackRequirements: [
+    {
+      id: 'hyperframes-workflow-skills',
+      label: 'HyperFrames workflow skills',
+      sourceUrl: 'https://github.com/heygen-com/hyperframes/tree/main/skills',
+      installCommand: 'npx skills add heygen-com/hyperframes',
+      purpose: 'Reusable HyperFrames workflows for product launch videos.',
+      verificationLabels: ['HyperFrames lint', 'render proof', 'source manifest'],
+    },
+    {
+      id: 'iart-motion-design-skills',
+      label: 'iart motion-design skills',
+      sourceUrl: 'https://github.com/iart-ai/motion-design-skills',
+      installCommand: 'npx skills add iart-ai/motion-design-skills',
+      purpose: 'Motion design packs for reusable effects and proof checks.',
+      verificationLabels: ['seek-shot.sh', 'contact-sheet.sh', 'probe-mp4.sh'],
+    },
+  ],
   researchSignalLabels: ['Clueso: script, voiceover, captions, templates, editor handoff'],
   regenerationLabels: ['story beat', 'component', 'capture', 'voice line', 'timing', 'effect'],
   toolNames: ['motion_start', 'motion_capture', 'motion_render', 'motion_export_pack'],
@@ -1836,6 +1855,12 @@ describe('TimelineLens', () => {
     expect(screen.getByText('3 variations')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video skill for editable, provenance-rich motion videos.')).toBeInTheDocument();
     expect(screen.getByText(/Create a repo launch video from repo/)).toBeInTheDocument();
+    expect(screen.getAllByText('skill pack').length).toBeGreaterThan(0);
+    expect(screen.getByText('HyperFrames workflow skills')).toBeInTheDocument();
+    expect(screen.getByText('npx skills add heygen-com/hyperframes')).toBeInTheDocument();
+    expect(screen.getByText('iart motion-design skills')).toBeInTheDocument();
+    expect(screen.getByText('npx skills add iart-ai/motion-design-skills')).toBeInTheDocument();
+    expect(screen.getByText('seek-shot.sh')).toBeInTheDocument();
     expect(screen.getByText('launch kit')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video launch kit')).toBeInTheDocument();
     expect(screen.getByText('source evidence')).toBeInTheDocument();

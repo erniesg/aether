@@ -2071,6 +2071,33 @@ function MotionWorkflowSkillStrip({
           </div>
         </div>
       </div>
+      {draft.skillPackRequirements.length > 0 ? (
+        <div className="mt-2 grid gap-2 lg:grid-cols-2">
+          {draft.skillPackRequirements.slice(0, 2).map((pack) => (
+            <div
+              key={pack.id}
+              className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                skill pack
+              </div>
+              <div className="mt-1 truncate font-caption text-xs text-ink">
+                {pack.label}
+              </div>
+              <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+                {pack.installCommand}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {pack.verificationLabels.slice(0, 3).map((label) => (
+                  <Chip key={label} tone="neutral" size="sm">
+                    {label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {draft.launchKit.reviewObjects.length > 0 ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           {selectLaunchKitReviewObjects(draft.launchKit.reviewObjects).map((object) => (

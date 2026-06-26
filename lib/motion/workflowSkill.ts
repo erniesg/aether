@@ -19,6 +19,7 @@ import {
   getMotionWorkflowSkillRecipe,
   type MotionWorkflowSkillComponentSlot,
   type MotionWorkflowSkillDraftVariation,
+  type MotionWorkflowSkillPackRequirement,
   type MotionWorkflowSkillRecipe,
 } from './workflowSkillCatalog';
 
@@ -49,6 +50,8 @@ export interface MotionWorkflowSkillDraft {
   draftVariationLabels: string[];
   componentSlotLabels: string[];
   referencePatternLabels: string[];
+  skillPackLabels: string[];
+  skillPackRequirements: MotionWorkflowSkillPackRequirement[];
   researchSignalLabels: string[];
   regenerationLabels: string[];
   toolNames: string[];
@@ -160,6 +163,8 @@ export function buildMotionWorkflowSkillDraft(
     draftVariationLabels: recipe?.draftVariations.map((variation) => variation.label) ?? [],
     componentSlotLabels: recipe?.componentSlots.map((slot) => slot.label) ?? [],
     referencePatternLabels: recipe?.referencePatterns.map((pattern) => pattern.label) ?? [],
+    skillPackLabels: recipe?.skillPacks.map((pack) => pack.label) ?? [],
+    skillPackRequirements: recipe?.skillPacks ?? [],
     researchSignalLabels,
     regenerationLabels,
     toolNames,
@@ -490,6 +495,9 @@ function buildSkillInstructions({
     `Launch components: ${formatList(launchKit.componentSlotLabels)}.`,
     `Review artifacts: ${formatList(launchKit.reviewArtifactLabels)}.`,
     '',
+    recipe && recipe.skillPacks.length > 0 ? '## Skill Packs' : '',
+    ...(recipe?.skillPacks.map(formatSkillPackRequirement) ?? []),
+    recipe && recipe.skillPacks.length > 0 ? '' : '',
     '## Launch Kit Review Objects',
     '',
     ...launchKit.reviewObjects.map(formatLaunchKitReviewObject),
@@ -607,6 +615,15 @@ function formatLaunchKitReviewObject(object: MotionWorkflowLaunchKitReviewObject
   return `- ${object.label} (${object.kind}): ${object.description}${
     details.length > 0 ? ` ${details.join('; ')}.` : ''
   }`;
+}
+
+function formatSkillPackRequirement(pack: MotionWorkflowSkillPackRequirement): string {
+  return [
+    `- ${pack.label}: ${pack.purpose}`,
+    `  Install: ${pack.installCommand}.`,
+    `  Source: ${pack.sourceUrl}.`,
+    `  Verify: ${pack.verificationLabels.join(', ')}.`,
+  ].join('\n');
 }
 
 function researchSignalLabelsFor(recipe: MotionWorkflowSkillRecipe): string[] {

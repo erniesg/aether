@@ -195,6 +195,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
       'motion-revise',
       'motion-preview-source',
       'motion-source-edit',
+      'motion-agent-handoff',
       'motion-render',
       'motion-export-pack',
     ]);
@@ -292,6 +293,7 @@ describe('buildAgentMotionWorkflowPlan', () => {
         name: 'pr-to-video',
         tools: [
           'motion_start',
+          'motion_agent_handoff',
           'motion_regenerate',
           'motion_visuals',
           'motion_voice',
