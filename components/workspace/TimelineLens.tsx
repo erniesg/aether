@@ -1440,6 +1440,12 @@ function MotionRenderProofStrip({
     summary.actionLabels.slice(0, 2).join(' / ') ||
     summary.blockerLabels[0] ||
     'ready for review';
+  const packageVerification = summary.packageVerification;
+  const packageVerificationLabel =
+    packageVerification.verificationLabels.slice(0, 2).join(' / ') || 'verification pending';
+  const packageArtifactCheckLabel =
+    packageVerification.artifactCheckLabels.slice(0, 3).join(' / ') ||
+    'artifact checks pending';
 
   return (
     <div className="min-w-0">
@@ -1474,6 +1480,34 @@ function MotionRenderProofStrip({
               </Chip>
             ) : null}
           </div>
+          {packageVerification.status === 'saved' ? (
+            <div className="mb-2 rounded-sm border border-border-soft/80 bg-surface-canvas px-2 py-2">
+              <div className="mb-1 flex flex-wrap items-center gap-1">
+                <Chip tone="ok" size="sm">
+                  source package
+                </Chip>
+                <Chip tone="neutral" size="sm">
+                  {packageVerification.receiptCount} checks
+                </Chip>
+                {packageVerification.providerLabel ? (
+                  <Chip tone="neutral" size="sm">
+                    {packageVerification.providerLabel}
+                  </Chip>
+                ) : null}
+              </div>
+              <div className="truncate font-caption text-2xs text-ink-faint">
+                verify: {packageVerificationLabel}
+              </div>
+              <div className="truncate font-caption text-2xs text-ink-faint">
+                artifact checks: {packageArtifactCheckLabel}
+              </div>
+              {packageVerification.manifestPath ? (
+                <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+                  {packageVerification.manifestPath}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid gap-1.5">
             {visibleArtifacts.map((artifact) => (
               <div

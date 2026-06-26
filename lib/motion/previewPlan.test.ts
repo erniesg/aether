@@ -750,6 +750,54 @@ describe('buildMotionPreviewPlan', () => {
             ],
             provenance: [{ kind: 'provider', ref: 'hyperframes-local' }],
           },
+          {
+            id: 'execution-render-package-hyperframes-local-render-plan-motion-aether-launch-draft-primary-hyperframes-481',
+            gateId: 'render',
+            label: 'Render package verification',
+            providerId: 'hyperframes-local',
+            savedAt: 481,
+            receiptCount: 4,
+            receiptLabels: [
+              'Render source manifest',
+              'Lint HyperFrames composition',
+              'Validate HyperFrames frames',
+              'MP4 artifact check',
+            ],
+            receipts: [
+              {
+                id: 'receipt-render-package-source-manifest',
+                kind: 'render',
+                label: 'Render source manifest',
+                ref: 'render-plan-motion-aether-launch-draft-primary-hyperframes:source-manifest',
+                providerId: 'hyperframes-local',
+                path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.source-manifest.json',
+                mimeType: 'application/json',
+              },
+              {
+                id: 'receipt-render-package-lint',
+                kind: 'render',
+                label: 'Lint HyperFrames composition',
+                ref: 'render-plan-motion-aether-launch-draft-primary-hyperframes:verification:verify-hyperframes-lint',
+                providerId: 'hyperframes-local',
+              },
+              {
+                id: 'receipt-render-package-validate',
+                kind: 'render',
+                label: 'Validate HyperFrames frames',
+                ref: 'render-plan-motion-aether-launch-draft-primary-hyperframes:verification:verify-hyperframes-validate',
+                providerId: 'hyperframes-local',
+              },
+              {
+                id: 'receipt-render-package-mp4-check',
+                kind: 'render',
+                label: 'MP4 artifact check',
+                ref: 'render-plan-motion-aether-launch-draft-primary-hyperframes:artifact-check:render-export-x-9x16-video',
+                providerId: 'hyperframes-local',
+                path: 'renders/x/video.mp4',
+              },
+            ],
+            provenance: [{ kind: 'provider', ref: 'hyperframes-local' }],
+          },
         ],
       },
       {
@@ -760,9 +808,14 @@ describe('buildMotionPreviewPlan', () => {
 
     expect(preview.executionHistory).toMatchObject({
       status: 'saved',
-      savedStepCount: 2,
-      receiptCount: 3,
-      latestReceiptLabels: ['MP4', 'Manifest'],
+      savedStepCount: 3,
+      receiptCount: 7,
+      latestReceiptLabels: [
+        'Render source manifest',
+        'Lint HyperFrames composition',
+        'Validate HyperFrames frames',
+        'MP4 artifact check',
+      ],
       entries: [
         {
           gateId: 'capture',
@@ -777,6 +830,18 @@ describe('buildMotionPreviewPlan', () => {
           providerLabel: 'hyperframes local',
           savedAt: 480,
           receiptLabels: ['MP4', 'Manifest'],
+        },
+        {
+          gateId: 'render',
+          label: 'Render package verification',
+          providerLabel: 'hyperframes local',
+          savedAt: 481,
+          receiptLabels: [
+            'Render source manifest',
+            'Lint HyperFrames composition',
+            'Validate HyperFrames frames',
+            'MP4 artifact check',
+          ],
         },
       ],
     });
@@ -796,6 +861,21 @@ describe('buildMotionPreviewPlan', () => {
         'Tweak source and rerender',
       ],
       blockerLabels: ['Render every export target before packaging'],
+      packageVerification: {
+        status: 'saved',
+        receiptCount: 4,
+        providerLabel: 'hyperframes local',
+        manifestPath:
+          'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.source-manifest.json',
+        receiptLabels: [
+          'Render source manifest',
+          'Lint HyperFrames composition',
+          'Validate HyperFrames frames',
+          'MP4 artifact check',
+        ],
+        verificationLabels: ['Lint HyperFrames composition', 'Validate HyperFrames frames'],
+        artifactCheckLabels: ['MP4 artifact check'],
+      },
     });
     expect(preview.renderProofSummary.proofArtifacts).toEqual(
       expect.arrayContaining([

@@ -74,6 +74,15 @@ describe('buildMotionCanvasMaterialPlan', () => {
         blockerLabels: ['Render every export target before packaging'],
         proofArtifacts: [],
         canvasDropTargets: [],
+        packageVerification: {
+          status: 'missing',
+          receiptCount: 0,
+          providerLabel: null,
+          manifestPath: null,
+          receiptLabels: [],
+          verificationLabels: [],
+          artifactCheckLabels: [],
+        },
       },
       exportPackSummary: {
         status: 'needs-render',

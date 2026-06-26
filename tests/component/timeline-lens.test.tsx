@@ -794,6 +794,15 @@ const previewPlan: MotionPreviewPlan = {
       },
     ],
     canvasDropTargets: [],
+    packageVerification: {
+      status: 'missing',
+      receiptCount: 0,
+      providerLabel: null,
+      manifestPath: null,
+      receiptLabels: [],
+      verificationLabels: [],
+      artifactCheckLabels: [],
+    },
   },
   canvasMaterialPlan: {
     id: 'canvas-material-motion-aether-launch-draft-primary',
@@ -2107,9 +2116,13 @@ describe('TimelineLens', () => {
           productionPlan: { ...productionPlan, mode: 'full-auto' },
           executionHistory: {
             status: 'saved',
-            savedStepCount: 2,
-            receiptCount: 3,
-            latestReceiptLabels: ['Screenshot', 'MP4'],
+            savedStepCount: 3,
+            receiptCount: 6,
+            latestReceiptLabels: [
+              'Render source manifest',
+              'Validate HyperFrames frames',
+              'MP4 artifact check',
+            ],
             entries: [
               {
                 id: 'execution-capture-browser-capture-452',
@@ -2128,6 +2141,19 @@ describe('TimelineLens', () => {
                 savedAt: 480,
                 receiptCount: 2,
                 receiptLabels: ['Screenshot', 'MP4'],
+              },
+              {
+                id: 'execution-render-package-hyperframes-local-481',
+                gateId: 'render',
+                label: 'Render package verification',
+                providerLabel: 'hyperframes local',
+                savedAt: 481,
+                receiptCount: 3,
+                receiptLabels: [
+                  'Render source manifest',
+                  'Validate HyperFrames frames',
+                  'MP4 artifact check',
+                ],
               },
             ],
           },
@@ -2197,6 +2223,19 @@ describe('TimelineLens', () => {
                 motionProjectId: 'motion-aether-launch',
               },
             ],
+            packageVerification: {
+              status: 'saved',
+              receiptCount: 3,
+              providerLabel: 'hyperframes local',
+              manifestPath: 'renders/x/render-package.source-manifest.json',
+              receiptLabels: [
+                'Render source manifest',
+                'Validate HyperFrames frames',
+                'MP4 artifact check',
+              ],
+              verificationLabels: ['Validate HyperFrames frames'],
+              artifactCheckLabels: ['MP4 artifact check'],
+            },
           },
         }}
         selectedClipId={null}
@@ -2205,11 +2244,16 @@ describe('TimelineLens', () => {
     );
 
     expect(screen.getByText('saved receipts')).toBeInTheDocument();
-    expect(screen.getByText('3 receipts')).toBeInTheDocument();
-    expect(screen.getByText('Screenshot / MP4')).toBeInTheDocument();
+    expect(screen.getByText('6 receipts')).toBeInTheDocument();
+    expect(screen.getByText('Render source manifest / Validate HyperFrames frames')).toBeInTheDocument();
     expect(screen.getByText('hyperframes output review')).toBeInTheDocument();
     expect(screen.getByText('2 artifacts')).toBeInTheDocument();
-    expect(screen.getByText('hyperframes local')).toBeInTheDocument();
+    expect(screen.getAllByText('hyperframes local').length).toBeGreaterThan(0);
+    expect(screen.getByText('source package')).toBeInTheDocument();
+    expect(screen.getByText('3 checks')).toBeInTheDocument();
+    expect(screen.getByText('verify: Validate HyperFrames frames')).toBeInTheDocument();
+    expect(screen.getByText('artifact checks: MP4 artifact check')).toBeInTheDocument();
+    expect(screen.getByText('renders/x/render-package.source-manifest.json')).toBeInTheDocument();
     expect(screen.getByText('Review partial proof / Render remaining outputs')).toBeInTheDocument();
     expect(screen.getByText('renders/x/video.mp4')).toBeInTheDocument();
     expect(screen.getByText('renders/x/manifest.json')).toBeInTheDocument();

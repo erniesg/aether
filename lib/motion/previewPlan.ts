@@ -376,6 +376,16 @@ export interface MotionPreviewRenderProofCanvasDropTarget {
   motionProjectId: string;
 }
 
+export interface MotionPreviewRenderPackageVerification {
+  status: 'missing' | 'saved';
+  receiptCount: number;
+  providerLabel: string | null;
+  manifestPath: string | null;
+  receiptLabels: string[];
+  verificationLabels: string[];
+  artifactCheckLabels: string[];
+}
+
 export interface MotionPreviewRenderProofSummary {
   status: MotionPreviewRenderProofStatus;
   engineLabel: string | null;
@@ -390,6 +400,7 @@ export interface MotionPreviewRenderProofSummary {
   blockerLabels: string[];
   proofArtifacts: MotionPreviewRenderProofArtifact[];
   canvasDropTargets: MotionPreviewRenderProofCanvasDropTarget[];
+  packageVerification: MotionPreviewRenderPackageVerification;
 }
 
 export interface MotionPreviewVisualGenerationRequest {
@@ -1318,6 +1329,7 @@ function buildRenderProofSummary(
 ): MotionPreviewRenderProofSummary {
   const renderEntries = (history ?? []).filter((entry) => entry.gateId === 'render');
   const latestRenderEntry = renderEntries[renderEntries.length - 1] ?? null;
+  const packageVerification = buildRenderPackageVerification(renderEntries);
   const renderReceipts = renderEntries.flatMap((entry) =>
     entry.receipts.filter((receipt) => receipt.kind === 'render')
   );
@@ -1349,7 +1361,40 @@ function buildRenderProofSummary(
       exportPackPlan.projectId,
       proofArtifacts
     ),
+    packageVerification,
   };
+}
+
+function buildRenderPackageVerification(
+  renderEntries: MotionExecutionHistoryEntry[]
+): MotionPreviewRenderPackageVerification {
+  const packageEntries = renderEntries.filter(isRenderPackageEntry);
+  const latestPackageEntry = packageEntries[packageEntries.length - 1] ?? null;
+  const receipts = packageEntries.flatMap((entry) => entry.receipts);
+  const verificationReceipts = receipts.filter((receipt) =>
+    receipt.ref.includes(':verification:')
+  );
+  const artifactCheckReceipts = receipts.filter((receipt) =>
+    receipt.ref.includes(':artifact-check:')
+  );
+  const manifestReceipt =
+    [...receipts].reverse().find((receipt) => receipt.ref.endsWith(':source-manifest')) ?? null;
+
+  return {
+    status: receipts.length > 0 ? 'saved' : 'missing',
+    receiptCount: receipts.length,
+    providerLabel: latestPackageEntry?.providerId
+      ? readableLabel(latestPackageEntry.providerId)
+      : null,
+    manifestPath: manifestReceipt?.path ?? null,
+    receiptLabels: uniqueStrings(receipts.map((receipt) => receipt.label)),
+    verificationLabels: uniqueStrings(verificationReceipts.map((receipt) => receipt.label)),
+    artifactCheckLabels: uniqueStrings(artifactCheckReceipts.map((receipt) => receipt.label)),
+  };
+}
+
+function isRenderPackageEntry(entry: MotionExecutionHistoryEntry): boolean {
+  return entry.label === 'Render package verification' || entry.id.startsWith('execution-render-package-');
 }
 
 function renderProofArtifactsForItem(
