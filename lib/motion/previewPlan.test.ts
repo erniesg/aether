@@ -958,6 +958,41 @@ describe('buildMotionPreviewPlan', () => {
       },
     ]);
     expect(preview.enginePreviews[0].sourceFiles[0]).not.toHaveProperty('contents');
+    expect(preview.enginePreviews[0].renderPackage).toMatchObject({
+      manifestPath:
+        'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
+      sourceHostRequirement:
+        'Serve remotion/index.tsx and the timeline JSON to Remotion Studio or a Remotion Player mount.',
+      previewCommand: {
+        id: 'preview-remotion-studio',
+        label: 'Open Remotion Studio',
+        display: 'npx remotion studio',
+      },
+      renderCommandLabels: [
+        'Render x 9:16 video',
+        'Render x 9:16 poster',
+      ],
+      verificationLabels: ['Render one-frame layout check'],
+      proofArtifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+      proofArtifactPaths: expect.arrayContaining([
+        'renders/motion-aether-launch/export-x-9x16/video.mp4',
+        'renders/motion-aether-launch/export-x-9x16/manifest.json',
+      ]),
+    });
+    expect(preview.enginePreviews[0].renderPackage?.renderCommands[0]).toMatchObject({
+      outputId: 'render-export-x-9x16-video',
+      outputPath: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+    });
+    expect(preview.enginePreviews[0].renderPackage?.artifactChecks).toEqual(
+      expect.arrayContaining([
+        {
+          outputId: 'render-export-x-9x16-video',
+          kind: 'video',
+          path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+          required: true,
+        },
+      ])
+    );
     expect(preview.editSource).toMatchObject({
       status: 'ready',
       engine: 'remotion',
@@ -1022,10 +1057,22 @@ describe('buildMotionPreviewPlan', () => {
       engine: 'hyperframes',
       status: 'ready',
       entryPoint: 'index.html',
+      renderPackage: {
+        previewCommand: {
+          id: 'preview-hyperframes',
+          label: 'Open HyperFrames preview',
+        },
+        verificationLabels: [
+          'Lint HyperFrames composition',
+          'Validate HyperFrames frames',
+          'Capture one-frame layout check',
+        ],
+      },
     });
     expect(preview.enginePreviews[2]).toMatchObject({
       engine: 'provider',
       status: 'provider-required',
+      renderPackage: null,
       blockers: [
         {
           id: 'provider-adapter-required',

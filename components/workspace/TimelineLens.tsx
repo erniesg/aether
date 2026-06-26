@@ -2488,19 +2488,46 @@ function WorkflowExampleCard({ example }: { example: MotionWorkflowExample }) {
 }
 
 function EnginePreviewRow({ engine }: { engine: MotionPreviewEnginePlan }) {
+  const renderPackage = engine.renderPackage;
+  const verificationLabel = renderPackage
+    ? renderPackage.verificationLabels.slice(0, 2).join(' / ') || 'verification pending'
+    : null;
+  const proofLabel = renderPackage
+    ? renderPackage.proofArtifactLabels.slice(0, 3).join(' / ') || 'proof artifacts pending'
+    : null;
+
   return (
-    <div className="flex items-center justify-between gap-2 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
-      <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
-        {engine.engine}
-      </span>
-      <span
-        className={cn(
-          'font-mono text-2xs uppercase tracking-wide',
-          engine.status === 'ready' ? 'text-signal-ok' : 'text-ink-faint'
-        )}
-      >
-        {engine.status}
-      </span>
+    <div className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          {engine.engine}
+        </span>
+        <span
+          className={cn(
+            'font-mono text-2xs uppercase tracking-wide',
+            engine.status === 'ready' ? 'text-signal-ok' : 'text-ink-faint'
+          )}
+        >
+          {engine.status}
+        </span>
+      </div>
+      {renderPackage ? (
+        <div className="mt-2 space-y-1 border-t border-border-soft/80 pt-2 font-caption text-2xs text-ink-faint">
+          <div className="flex flex-wrap items-center gap-1">
+            <Chip tone="neutral" size="sm">
+              render package
+            </Chip>
+            <span className="truncate">
+              {renderPackage.previewCommand?.label ?? 'preview pending'}
+            </span>
+          </div>
+          <div className="truncate">verify: {verificationLabel}</div>
+          <div className="truncate">proof: {proofLabel}</div>
+          <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+            {renderPackage.manifestPath}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

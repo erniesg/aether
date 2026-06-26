@@ -115,6 +115,45 @@ export interface MotionPreviewRuntimeTarget {
   editLinkLabels: string[];
 }
 
+export interface MotionPreviewRenderPackageCommand {
+  id: string;
+  label: string;
+  display: string;
+  outputId?: string;
+  outputPath?: string;
+}
+
+export interface MotionPreviewRenderPackageArtifactCheck {
+  outputId: string;
+  kind: string;
+  path: string;
+  required: boolean;
+}
+
+export interface MotionPreviewRenderPackageProofArtifact {
+  outputId: string;
+  kind: string;
+  label: string;
+  path: string;
+  mimeType: string;
+  width: number;
+  height: number;
+}
+
+export interface MotionPreviewRenderPackage {
+  manifestPath: string;
+  sourceHostRequirement: string;
+  previewCommand: MotionPreviewRenderPackageCommand | null;
+  renderCommands: MotionPreviewRenderPackageCommand[];
+  verificationCommands: MotionPreviewRenderPackageCommand[];
+  artifactChecks: MotionPreviewRenderPackageArtifactCheck[];
+  proofArtifacts: MotionPreviewRenderPackageProofArtifact[];
+  renderCommandLabels: string[];
+  verificationLabels: string[];
+  proofArtifactLabels: string[];
+  proofArtifactPaths: string[];
+}
+
 export interface MotionPreviewEnginePlan {
   engine: WorkflowEngine;
   status: MotionPreviewEngineStatus;
@@ -126,6 +165,7 @@ export interface MotionPreviewEnginePlan {
   sourceFiles: MotionPreviewSourceFile[];
   blockers: MotionPreviewBlocker[];
   runtimePreview: MotionPreviewRuntimeTarget | null;
+  renderPackage?: MotionPreviewRenderPackage | null;
 }
 
 export interface MotionPreviewStoryBeat {
@@ -1709,6 +1749,7 @@ function buildEnginePreview(
         sourceHostRequirement: 'Configure a video provider preview before mounting generated media.',
         editLinkLabels: [],
       },
+      renderPackage: null,
     };
   }
 
@@ -1736,6 +1777,7 @@ function buildEnginePreview(
         sourceHostRequirement: 'Resolve timeline blockers before source-backed preview can mount.',
         editLinkLabels: [],
       },
+      renderPackage: null,
     };
   }
 
@@ -1759,7 +1801,172 @@ function buildEnginePreview(
     })),
     blockers: [],
     runtimePreview: buildRuntimePreviewTarget(engine, sourceBundle.files),
+    renderPackage: buildRenderPackageSummary(sourceBundle.files),
   };
+}
+
+interface RenderPackageManifestCommand {
+  id?: unknown;
+  label?: unknown;
+  display?: unknown;
+  outputId?: unknown;
+  outputPath?: unknown;
+}
+
+interface RenderPackageManifestArtifactCheck {
+  outputId?: unknown;
+  kind?: unknown;
+  path?: unknown;
+  required?: unknown;
+}
+
+interface RenderPackageManifestProofArtifact {
+  outputId?: unknown;
+  kind?: unknown;
+  label?: unknown;
+  path?: unknown;
+  mimeType?: unknown;
+  width?: unknown;
+  height?: unknown;
+}
+
+interface RenderPackageManifestExecution {
+  sourceHostRequirement?: unknown;
+  previewCommand?: unknown;
+  renderCommands?: unknown;
+  verificationCommands?: unknown;
+  artifactChecks?: unknown;
+}
+
+interface RenderPackageManifest {
+  execution?: RenderPackageManifestExecution;
+  proofArtifacts?: unknown;
+}
+
+function buildRenderPackageSummary(
+  sourceFiles: NonNullable<MotionRenderRequest['sourceFiles']>
+): MotionPreviewRenderPackage | null {
+  const manifestFile = sourceFiles.find((file) => file.kind === 'manifest');
+  if (!manifestFile) return null;
+
+  const manifest = parseRenderPackageManifest(manifestFile.contents);
+  if (!manifest?.execution) return null;
+
+  const previewCommand = commandSummary(manifest.execution.previewCommand);
+  const renderCommands = commandSummaries(manifest.execution.renderCommands);
+  const verificationCommands = commandSummaries(manifest.execution.verificationCommands);
+  const artifactChecks = artifactCheckSummaries(manifest.execution.artifactChecks);
+  const proofArtifacts = proofArtifactSummaries(manifest.proofArtifacts);
+
+  return {
+    manifestPath: manifestFile.path,
+    sourceHostRequirement:
+      stringValue(manifest.execution.sourceHostRequirement) ?? 'Source host required.',
+    previewCommand,
+    renderCommands,
+    verificationCommands,
+    artifactChecks,
+    proofArtifacts,
+    renderCommandLabels: renderCommands.map((command) => command.label),
+    verificationLabels: verificationCommands.map((command) => command.label),
+    proofArtifactLabels: uniqueStrings(proofArtifacts.map((artifact) => artifact.label)),
+    proofArtifactPaths: proofArtifacts.map((artifact) => artifact.path),
+  };
+}
+
+function parseRenderPackageManifest(contents: string): RenderPackageManifest | null {
+  try {
+    return JSON.parse(contents) as RenderPackageManifest;
+  } catch {
+    return null;
+  }
+}
+
+function commandSummaries(value: unknown): MotionPreviewRenderPackageCommand[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const summary = commandSummary(item);
+    return summary ? [summary] : [];
+  });
+}
+
+function commandSummary(value: unknown): MotionPreviewRenderPackageCommand | null {
+  const command = value as RenderPackageManifestCommand | null;
+  const id = stringValue(command?.id);
+  const label = stringValue(command?.label);
+  const display = stringValue(command?.display);
+  if (!id || !label || !display) return null;
+
+  return {
+    id,
+    label,
+    display,
+    ...(typeof command?.outputId === 'string' ? { outputId: command.outputId } : {}),
+    ...(typeof command?.outputPath === 'string' ? { outputPath: command.outputPath } : {}),
+  };
+}
+
+function artifactCheckSummaries(
+  value: unknown
+): MotionPreviewRenderPackageArtifactCheck[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    const check = item as RenderPackageManifestArtifactCheck;
+    const outputId = stringValue(check.outputId);
+    const kind = stringValue(check.kind);
+    const path = stringValue(check.path);
+    if (!outputId || !kind || !path) return [];
+
+    return [
+      {
+        outputId,
+        kind,
+        path,
+        required: check.required === true,
+      },
+    ];
+  });
+}
+
+function proofArtifactSummaries(
+  value: unknown
+): MotionPreviewRenderPackageProofArtifact[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    const artifact = item as RenderPackageManifestProofArtifact;
+    const outputId = stringValue(artifact.outputId);
+    const kind = stringValue(artifact.kind);
+    const label = stringValue(artifact.label);
+    const path = stringValue(artifact.path);
+    const mimeType = stringValue(artifact.mimeType);
+    const width = numberValue(artifact.width);
+    const height = numberValue(artifact.height);
+    if (!outputId || !kind || !label || !path || !mimeType || width === null || height === null) {
+      return [];
+    }
+
+    return [
+      {
+        outputId,
+        kind,
+        label,
+        path,
+        mimeType,
+        width,
+        height,
+      },
+    ];
+  });
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function buildRuntimePreviewTarget(

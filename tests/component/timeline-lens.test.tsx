@@ -501,6 +501,82 @@ const previewPlan: MotionPreviewPlan = {
         sourceHostRequirement: 'Serve remotion/index.tsx and timeline/draft-primary.json to the preview runtime.',
         editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
       },
+      renderPackage: {
+        manifestPath:
+          'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
+        sourceHostRequirement:
+          'Serve remotion/index.tsx and the timeline JSON to Remotion Studio or a Remotion Player mount.',
+        previewCommand: {
+          id: 'preview-remotion-studio',
+          label: 'Open Remotion Studio',
+          display: 'npx remotion studio',
+        },
+        renderCommands: [
+          {
+            id: 'render-render-export-x-9x16-video',
+            label: 'Render x 9:16 video',
+            display:
+              'npx remotion render remotion/index.tsx motion-aether-launch-draft-primary renders/motion-aether-launch/export-x-9x16/video.mp4',
+            outputId: 'render-export-x-9x16-video',
+            outputPath: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+          },
+        ],
+        verificationCommands: [
+          {
+            id: 'verify-remotion-still',
+            label: 'Render one-frame layout check',
+            display:
+              'npx remotion still remotion/index.tsx motion-aether-launch-draft-primary renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.verification.png',
+            outputPath:
+              'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.verification.png',
+          },
+        ],
+        artifactChecks: [
+          {
+            outputId: 'render-export-x-9x16-video',
+            kind: 'video',
+            path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+            required: true,
+          },
+        ],
+        proofArtifacts: [
+          {
+            outputId: 'render-export-x-9x16-video',
+            kind: 'video',
+            label: 'MP4',
+            path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+            mimeType: 'video/mp4',
+            width: 1080,
+            height: 1920,
+          },
+          {
+            outputId: 'render-export-x-9x16-poster',
+            kind: 'poster',
+            label: 'Poster',
+            path: 'renders/motion-aether-launch/export-x-9x16/poster.png',
+            mimeType: 'image/png',
+            width: 1080,
+            height: 1920,
+          },
+          {
+            outputId: 'render-export-x-9x16-manifest',
+            kind: 'manifest',
+            label: 'Manifest',
+            path: 'renders/motion-aether-launch/export-x-9x16/manifest.json',
+            mimeType: 'application/json',
+            width: 1080,
+            height: 1920,
+          },
+        ],
+        renderCommandLabels: ['Render x 9:16 video'],
+        verificationLabels: ['Render one-frame layout check'],
+        proofArtifactLabels: ['MP4', 'Poster', 'Manifest'],
+        proofArtifactPaths: [
+          'renders/motion-aether-launch/export-x-9x16/video.mp4',
+          'renders/motion-aether-launch/export-x-9x16/poster.png',
+          'renders/motion-aether-launch/export-x-9x16/manifest.json',
+        ],
+      },
     },
     {
       engine: 'provider',
@@ -1687,6 +1763,15 @@ describe('TimelineLens', () => {
     expect(screen.getByRole('button', { name: /regenerate capture for app frame/i })).toBeInTheDocument();
     expect(screen.getByText('remotion')).toBeInTheDocument();
     expect(screen.getAllByText('ready').length).toBeGreaterThan(0);
+    expect(screen.getByText('render package')).toBeInTheDocument();
+    expect(screen.getByText('Open Remotion Studio')).toBeInTheDocument();
+    expect(screen.getByText('verify: Render one-frame layout check')).toBeInTheDocument();
+    expect(screen.getByText('proof: MP4 / Poster / Manifest')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json'
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText('provider-required')).toBeInTheDocument();
     expect(screen.getByText('sync')).toBeInTheDocument();
     expect(screen.getAllByText('needs voice').length).toBeGreaterThan(0);
