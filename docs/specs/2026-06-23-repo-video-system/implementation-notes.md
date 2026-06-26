@@ -122,7 +122,9 @@
   placeholders reported as explicit blockers. A reusable handoff runner can
   execute a chosen template sequence through an injected route dispatcher,
   carry the updated project forward after each response, and return
-  per-template receipt metadata for review/full-auto continuity.
+  per-template receipt metadata for review/full-auto continuity. The
+  `/api/motion/agent-handoff` route now exposes that runner as an agent-native
+  JSON boundary over the whitelisted motion routes.
 - The workspace timeline lens now receives those agent handoffs and renders a
   compact agent-actions strip inside the creator shell: next action, review or
   full-auto mode, API route labels, expected receipts, and local-runner
@@ -327,7 +329,10 @@
   routes, so missing provider selections remain visible review/full-auto
   blockers. The handoff runner now proves the same setup templates and
   full-auto template can be sequenced from a local repo start into capture,
-  source selection, image-to-video, voice, sync, render, and export receipts.
+  source selection, image-to-video, voice, sync, render, and export receipts;
+  `/api/motion/agent-handoff` accepts the start handoff, project, template ids,
+  and provider selections so external agents can run that sequence without
+  bespoke placeholder replacement.
 - Production plans now surface completed capture, render, and export
   verification receipts as first-class step metadata. Full-auto capture
   results can create completed capture graph nodes, render receipts appear as

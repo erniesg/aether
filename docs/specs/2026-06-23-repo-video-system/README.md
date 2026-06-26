@@ -186,9 +186,10 @@ capture, render, and provenance debugging.
   edited source files; unresolved placeholders are reported instead of being
   silently left for ad hoc replacement. The handoff runner can now execute a
   chosen template sequence, carry the updated project between responses, and
-  return per-template receipts for setup dry-runs and full-auto gates. GitHub
-  repo URLs, local repo paths, and site/app URL sources can now create editable
-  project starts; PR sources can
+  return per-template receipts for setup dry-runs and full-auto gates; agents
+  can call `/api/motion/agent-handoff` to run that sequence through the
+  whitelisted motion routes. GitHub repo URLs, local repo paths, and site/app
+  URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
   configured. Real screen capture and recording remain provider execution work.
 - `lib/motion/productionPlan.ts` now derives a concrete production queue from an
