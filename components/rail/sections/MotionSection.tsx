@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2, Play, Video } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
 import {
   applyMotionAgentHandoffResult,
@@ -39,6 +39,17 @@ interface MotionSourceDraft {
   payload: Partial<MotionStartClientRequest>;
   entries: MotionSourceDraftEntry[];
   summary: string;
+}
+
+interface MotionRecentSourceDraft {
+  id: string;
+  source: string;
+  intent: MotionWorkflowIntent;
+  mode: MotionWorkflowMode;
+  targetPresetId: string;
+  label: string;
+  summary: string;
+  updatedAt: number;
 }
 
 export interface MotionStartClientRequest {
@@ -110,6 +121,9 @@ const TARGET_PRESETS = [
   targets: MotionPlatformTarget[];
 }>;
 
+const RECENT_SOURCE_STORAGE_KEY = 'aether.motion.recentSources.v1';
+const RECENT_SOURCE_LIMIT = 6;
+
 async function defaultStartMotion(
   request: MotionStartClientRequest
 ): Promise<AgentMotionStartResult> {
@@ -149,11 +163,16 @@ export function MotionSection({
   const [targetPresetId, setTargetPresetId] = useState<string>(TARGET_PRESETS[0].id);
   const [status, setStatus] = useState<MotionStartStatus>({ kind: 'idle' });
   const [handoffStatus, setHandoffStatus] = useState<MotionHandoffStatus>({ kind: 'idle' });
+  const [recentSources, setRecentSources] = useState<MotionRecentSourceDraft[]>([]);
   const sourceRef = source.trim();
   const sourceDraft = sourceRef ? buildMotionSourceDraft(sourceRef, intent) : null;
   const canStart = Boolean(sourceDraft) && status.kind !== 'running';
   const selectedTargetPreset =
     TARGET_PRESETS.find((preset) => preset.id === targetPresetId) ?? TARGET_PRESETS[0];
+
+  useEffect(() => {
+    setRecentSources(loadRecentMotionSources(workspaceId));
+  }, [workspaceId]);
 
   const runStart = async () => {
     if (!canStart) return;
@@ -170,11 +189,31 @@ export function MotionSection({
         requestedEngines: ['remotion', 'hyperframes', 'provider'],
       });
       setMotionStartResult(workspaceId, result);
+      setRecentSources(
+        saveRecentMotionSource(workspaceId, {
+          source: sourceRef,
+          intent,
+          mode,
+          targetPresetId,
+          label: result.project?.brief.appProfile.name ?? sourceDraft?.summary ?? sourceRef,
+          summary: motionStartSummary(result),
+          updatedAt: Date.now(),
+        })
+      );
       setStatus({ kind: 'done', result });
       setHandoffStatus({ kind: 'idle' });
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
     }
+  };
+
+  const applyRecentSource = (recentSource: MotionRecentSourceDraft) => {
+    setSource(recentSource.source);
+    setIntent(recentSource.intent);
+    setMode(recentSource.mode);
+    setTargetPresetId(recentSource.targetPresetId);
+    setStatus({ kind: 'idle' });
+    setHandoffStatus({ kind: 'idle' });
   };
 
   const continueFullAuto = async (result: AgentMotionStartResult) => {
@@ -210,6 +249,9 @@ export function MotionSection({
           className="min-h-16 resize-y rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
         />
         {sourceDraft ? <MotionSourceDraftPreview draft={sourceDraft} /> : null}
+        {recentSources.length > 0 ? (
+          <MotionRecentSources sources={recentSources} onSelect={applyRecentSource} />
+        ) : null}
       </section>
 
       <section className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
@@ -309,6 +351,41 @@ export function MotionSection({
           {status.message}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MotionRecentSources({
+  sources,
+  onSelect,
+}: {
+  sources: MotionRecentSourceDraft[];
+  onSelect: (source: MotionRecentSourceDraft) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="recent video sources"
+      className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+    >
+      <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+        recent
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {sources.map((source) => (
+          <button
+            key={source.id}
+            type="button"
+            onClick={() => onSelect(source)}
+            className="inline-flex max-w-full items-center gap-1 rounded-sm border border-border-soft bg-surface-panel px-1.5 py-0.5 text-left font-caption text-2xs text-ink-dim transition-colors hover:border-accent hover:text-ink"
+          >
+            <span className="shrink-0 font-mono uppercase tracking-wide text-ink-faint">
+              {source.label}
+            </span>
+            <span className="truncate">{source.summary}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -474,6 +551,7 @@ function MotionReviewQueueList({ label, items }: { label: string; items: string[
 }
 
 type MotionSourceEntry = NonNullable<MotionStartClientRequest['sourceRefs']>[number];
+type NewRecentMotionSourceDraft = Omit<MotionRecentSourceDraft, 'id'>;
 
 const SOURCE_PREFIXES = {
   repo: { kind: 'repo', label: 'Repo' },
@@ -505,6 +583,95 @@ function sourcePayload(
     return { sourceRefs: [{ kind: 'pr', ref: source, label: 'Pull request' }] };
   }
   return { repoPath: source };
+}
+
+function loadRecentMotionSources(workspaceId?: string): MotionRecentSourceDraft[] {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(recentSourceStorageKey(workspaceId));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isRecentMotionSourceDraft).slice(0, RECENT_SOURCE_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentMotionSource(
+  workspaceId: string | undefined,
+  draft: NewRecentMotionSourceDraft
+): MotionRecentSourceDraft[] {
+  const source = draft.source.trim();
+  if (!source) return loadRecentMotionSources(workspaceId);
+
+  const recent: MotionRecentSourceDraft = {
+    ...draft,
+    id: recentSourceId(draft),
+    source,
+    label: compactRecentSourceText(draft.label, 'source'),
+    summary: compactRecentSourceText(draft.summary, 'video'),
+  };
+  const current = loadRecentMotionSources(workspaceId);
+  const next = [
+    recent,
+    ...current.filter((item) => item.id !== recent.id),
+  ].slice(0, RECENT_SOURCE_LIMIT);
+
+  try {
+    window.localStorage.setItem(recentSourceStorageKey(workspaceId), JSON.stringify(next));
+  } catch {
+    // The current rail state still updates even when storage is unavailable.
+  }
+
+  return next;
+}
+
+function recentSourceStorageKey(workspaceId?: string): string {
+  const key = workspaceId?.trim();
+  return key ? `${RECENT_SOURCE_STORAGE_KEY}:${key}` : RECENT_SOURCE_STORAGE_KEY;
+}
+
+function recentSourceId(
+  draft: Pick<MotionRecentSourceDraft, 'source' | 'intent' | 'mode' | 'targetPresetId'>
+): string {
+  return [
+    draft.intent,
+    draft.mode,
+    draft.targetPresetId,
+    hashRecentSource(draft.source.trim()),
+  ].join(':');
+}
+
+function hashRecentSource(source: string): string {
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function compactRecentSourceText(value: string, fallback: string): string {
+  const compact = value.trim().replace(/\s+/g, ' ');
+  return compact ? compact.slice(0, 80) : fallback;
+}
+
+function isRecentMotionSourceDraft(value: unknown): value is MotionRecentSourceDraft {
+  if (!value || typeof value !== 'object') return false;
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.id === 'string' &&
+    typeof record.source === 'string' &&
+    INTENTS.includes(record.intent as MotionWorkflowIntent) &&
+    (record.mode === 'review' || record.mode === 'full-auto') &&
+    typeof record.targetPresetId === 'string' &&
+    TARGET_PRESETS.some((preset) => preset.id === record.targetPresetId) &&
+    typeof record.label === 'string' &&
+    typeof record.summary === 'string' &&
+    typeof record.updatedAt === 'number'
+  );
 }
 
 function buildMotionSourceDraft(

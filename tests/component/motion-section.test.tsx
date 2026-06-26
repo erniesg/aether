@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -12,9 +12,14 @@ import {
   resetMotionStartResultsForTests,
 } from '@/lib/motion/start-store';
 
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
 afterEach(() => {
   cleanup();
   resetMotionStartResultsForTests();
+  window.localStorage.clear();
 });
 
 function readyResult(appName = 'aether'): AgentMotionStartResult {
@@ -162,6 +167,38 @@ describe('MotionSection', () => {
         },
       },
     });
+  });
+
+  it('keeps recent repo source drafts reusable in the video rail', async () => {
+    const startMotion = vi.fn(async () => readyResult('aether'));
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      'https://github.com/erniesg/aether'
+    );
+    await userEvent.selectOptions(screen.getByLabelText(/motion target/i), 'launch-pack');
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    const recentSources = await screen.findByRole('group', {
+      name: /recent video sources/i,
+    });
+    expect(recentSources).toHaveTextContent('aether');
+    expect(recentSources).toHaveTextContent('aether video');
+
+    cleanup();
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+
+    const restoredSources = await screen.findByRole('group', {
+      name: /recent video sources/i,
+    });
+    await userEvent.click(within(restoredSources).getByRole('button', { name: /aether/i }));
+
+    expect(screen.getByRole('textbox', { name: /motion source/i })).toHaveValue(
+      'https://github.com/erniesg/aether'
+    );
+    expect(screen.getByLabelText(/motion target/i)).toHaveValue('launch-pack');
+    expect(screen.getByRole('group', { name: /motion source draft/i })).toHaveTextContent('Repo');
   });
 
   it('can start a multi-format launch pack from one source', async () => {
