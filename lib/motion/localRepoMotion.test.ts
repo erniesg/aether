@@ -42,6 +42,37 @@ async function makeRepo(): Promise<string> {
   return dir;
 }
 
+async function makePnpmViteRepo(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'aether-local-motion-vite-'));
+  tempDirs.push(dir);
+  await mkdir(join(dir, 'src'), { recursive: true });
+  await writeFile(join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
+  await writeFile(
+    join(dir, 'package.json'),
+    JSON.stringify({
+      name: 'tong-vite',
+      description: 'Route-first language practice app.',
+      dependencies: {
+        '@vitejs/plugin-react': '^5.0.0',
+        vite: '^7.0.0',
+        react: '^19.0.0',
+      },
+      devDependencies: {
+        typescript: '^5.0.0',
+      },
+      scripts: {
+        dev: 'vite --host 0.0.0.0 --port 4310',
+      },
+    })
+  );
+  await writeFile(
+    join(dir, 'README.md'),
+    'Tong Vite is a React and TypeScript route-first language practice app.'
+  );
+  await writeFile(join(dir, 'src', 'main.tsx'), 'export const app = true;');
+  return dir;
+}
+
 describe('buildLocalRepoMotionProjectFromPath', () => {
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
@@ -126,5 +157,44 @@ describe('buildLocalRepoMotionProjectFromPath', () => {
       'sync',
     ]);
     expect(project.graphNodes[0].inputRefs).toEqual([repoPath]);
+  });
+
+  it('carries package-manager launch details into local capture candidates', async () => {
+    const repoPath = await makePnpmViteRepo();
+
+    const project = await buildLocalRepoMotionProjectFromPath({
+      id: 'motion-tong-vite-launch',
+      workspaceId: 'demo-ws',
+      repoPath,
+      projectKind: 'launch',
+      workflowMode: 'full-auto',
+      audience: 'language learners',
+      tone: 'fast',
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      materializeTimeline: true,
+      createdAt: 510,
+    });
+
+    expect(project.sourceProfile?.signals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'signal-package-manager', value: 'pnpm' }),
+      ])
+    );
+    expect(project.sourceProfile?.captureCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture-local-app-still',
+          targetKind: 'local-app',
+          targetRef: 'http://localhost:4310/',
+          setup: 'pnpm dev',
+          setupCwd: repoPath,
+        }),
+        expect.objectContaining({
+          id: 'record-local-flow',
+          targetRef: 'http://localhost:4310/',
+          setup: 'pnpm dev',
+        }),
+      ])
+    );
   });
 });

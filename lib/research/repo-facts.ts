@@ -20,7 +20,9 @@ export interface ProjectFacts {
   enrichment: ProjectFactsEnrichment;
   homepageUrl?: string;
   dependencyNames?: string[];
+  packageManager?: string;
   packageScripts?: string[];
+  packageScriptCommands?: Record<string, string>;
   appRoutes?: string[];
   sourceFileCount?: number;
 }

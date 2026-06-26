@@ -48,6 +48,7 @@ function buildSignals(
   const stack = uniqueStrings([...input.appProfile.stack, ...input.facts.readmeHighlights]);
   const packageScripts = input.facts.packageScripts ?? [];
   const appRoutes = input.facts.appRoutes ?? [];
+  const packageManager = input.facts.packageManager;
 
   if (stack.length > 0) {
     signals.push({
@@ -72,6 +73,15 @@ function buildSignals(
       id: 'signal-scripts',
       label: 'Scripts',
       value: packageScripts.slice(0, 5).join(', '),
+      provenance: [{ kind: 'repo', ref: packageJsonRef(input.sourceRef) }],
+    });
+  }
+
+  if (input.kind === 'local-repo' && packageManager) {
+    signals.push({
+      id: 'signal-package-manager',
+      label: 'Package manager',
+      value: packageManager,
       provenance: [{ kind: 'repo', ref: packageJsonRef(input.sourceRef) }],
     });
   }
@@ -252,18 +262,47 @@ function localPreviewBaseUrl(facts: ProjectFacts): string | null {
     (facts.dependencyNames ?? []).map((dependency) => dependency.toLowerCase())
   );
   const scripts = new Set(facts.packageScripts ?? []);
+  const command = runnableScriptCommand(facts)?.command ?? '';
+  const port = portFromScript(command);
 
   if (!scripts.has('dev') && !scripts.has('start')) return null;
+  if (port) return `http://localhost:${port}`;
   if (dependencies.has('vite')) return 'http://localhost:5173';
   if (dependencies.has('next')) return 'http://localhost:3000';
+  if (/\bwrangler\b/.test(command)) return 'http://localhost:8787';
+  if (/\bastro\b/.test(command)) return 'http://localhost:4321';
   return 'http://localhost:3000';
 }
 
 function setupCommand(facts: ProjectFacts): string | undefined {
-  const scripts = new Set(facts.packageScripts ?? []);
-  if (scripts.has('dev')) return 'npm run dev';
-  if (scripts.has('start')) return 'npm start';
-  return undefined;
+  const runnable = runnableScriptCommand(facts);
+  if (!runnable) return undefined;
+
+  return packageScriptRunner(facts.packageManager ?? 'npm', runnable.name);
+}
+
+function runnableScriptCommand(facts: ProjectFacts): { name: string; command: string } | null {
+  const commands = facts.packageScriptCommands ?? {};
+  const scripts = new Set(facts.packageScripts ?? Object.keys(commands));
+  const scriptName = scripts.has('dev') ? 'dev' : scripts.has('start') ? 'start' : null;
+  if (!scriptName) return null;
+  return { name: scriptName, command: commands[scriptName] ?? '' };
+}
+
+function packageScriptRunner(packageManager: string, scriptName: string): string {
+  if (packageManager === 'npm') return scriptName === 'start' ? 'npm start' : `npm run ${scriptName}`;
+  if (packageManager === 'pnpm') return `pnpm ${scriptName}`;
+  if (packageManager === 'yarn') return `yarn ${scriptName}`;
+  if (packageManager === 'bun') return `bun run ${scriptName}`;
+  return `${packageManager} run ${scriptName}`;
+}
+
+function portFromScript(command: string): string | null {
+  const portFlag = command.match(/(?:^|\s)(?:--port|-p)(?:=|\s+)(\d{2,5})(?:\s|$)/);
+  if (portFlag) return portFlag[1];
+
+  const portEnv = command.match(/(?:^|\s)(?:PORT|VITE_PORT|NEXT_PUBLIC_PORT)=(\d{2,5})(?:\s|$)/);
+  return portEnv?.[1] ?? null;
 }
 
 function joinUrlPath(baseUrl: string, route: string): string {

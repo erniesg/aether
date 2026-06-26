@@ -31,6 +31,7 @@ interface PackageJsonSummary {
   dependencies: string[];
   dependencySpecs: string[];
   scripts: string[];
+  scriptCommands: Record<string, string>;
 }
 
 interface WalkResult {
@@ -138,6 +139,7 @@ export async function fetchLocalRepoFacts(
     readReadme(repoPath),
     walkRepo(repoPath, opts.maxFiles ?? 5000),
   ]);
+  const packageManager = await detectPackageManager(repoPath);
   const name = pkg.name ?? basename(repoPath);
   const description = pkg.description ?? firstReadmeParagraph(readme) ?? `${name} repository`;
   const languages = Array.from(walk.languageCounts.entries())
@@ -160,6 +162,7 @@ export async function fetchLocalRepoFacts(
       languages,
       sourceFileCount: walk.sourceFileCount,
       packageSummary: pkg,
+      packageManager,
       readmeHighlights,
     }),
     releases: [],
@@ -167,7 +170,9 @@ export async function fetchLocalRepoFacts(
     readmeHighlights,
     enrichment: 'none',
     dependencyNames: pkg.dependencies,
+    packageManager,
     packageScripts: pkg.scripts,
+    packageScriptCommands: pkg.scriptCommands,
     appRoutes: walk.appRoutes,
     sourceFileCount: walk.sourceFileCount,
   };
@@ -188,6 +193,12 @@ async function readPackageSummary(repoPath: string): Promise<PackageJsonSummary>
       )
       .sort();
     const scripts = Object.keys(asRecord(record.scripts)).sort();
+    const scriptCommands = Object.fromEntries(
+      Object.entries(asRecord(record.scripts))
+        .filter(([, command]) => typeof command === 'string' && command.trim().length > 0)
+        .map(([name, command]) => [name, String(command).trim()])
+        .sort(([left], [right]) => left.localeCompare(right))
+    );
 
     return {
       name: stringValue(record.name),
@@ -195,14 +206,38 @@ async function readPackageSummary(repoPath: string): Promise<PackageJsonSummary>
       dependencies,
       dependencySpecs,
       scripts,
+      scriptCommands,
     };
   } catch {
     return {
       dependencies: [],
       dependencySpecs: [],
       scripts: [],
+      scriptCommands: {},
     };
   }
+}
+
+async function detectPackageManager(repoPath: string): Promise<string> {
+  const lockfiles: Array<[string, string]> = [
+    ['pnpm-lock.yaml', 'pnpm'],
+    ['bun.lockb', 'bun'],
+    ['bun.lock', 'bun'],
+    ['yarn.lock', 'yarn'],
+    ['package-lock.json', 'npm'],
+    ['npm-shrinkwrap.json', 'npm'],
+  ];
+
+  for (const [filename, packageManager] of lockfiles) {
+    try {
+      const entry = await stat(join(repoPath, filename));
+      if (entry.isFile()) return packageManager;
+    } catch {
+      // Try the next lockfile.
+    }
+  }
+
+  return 'npm';
 }
 
 async function readReadme(repoPath: string): Promise<string> {
@@ -292,6 +327,7 @@ function buildLocalRepoClaims(input: {
   languages: string[];
   sourceFileCount: number;
   packageSummary: PackageJsonSummary;
+  packageManager: string;
   readmeHighlights: string[];
 }): EvidenceClaim[] {
   const claims: EvidenceClaim[] = [];
@@ -315,6 +351,13 @@ function buildLocalRepoClaims(input: {
   if (input.packageSummary.scripts.length > 0) {
     claims.push({
       text: `${input.name} package defines ${input.packageSummary.scripts.slice(0, 5).join(', ')} scripts.`,
+      source: packageSource,
+    });
+  }
+
+  if (input.packageSummary.scripts.length > 0) {
+    claims.push({
+      text: `${input.name} local repo uses ${input.packageManager} with ${input.packageSummary.scripts.slice(0, 5).join(', ')} scripts.`,
       source: packageSource,
     });
   }

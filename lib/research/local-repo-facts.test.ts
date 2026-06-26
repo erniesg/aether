@@ -87,4 +87,51 @@ describe('local repo facts', () => {
       ])
     );
   });
+
+  it('detects package manager and runnable dev command details from local repo files', async () => {
+    const repoPath = await makeRepo('vite-app');
+    await mkdir(join(repoPath, 'src'), { recursive: true });
+    await writeFile(join(repoPath, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
+    await writeFile(
+      join(repoPath, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'vite-app',
+          description: 'Vite product surface.',
+          dependencies: {
+            '@vitejs/plugin-react': '^5.0.0',
+            vite: '^7.0.0',
+            react: '^19.0.0',
+          },
+          scripts: {
+            dev: 'vite --host 0.0.0.0 --port 4310',
+            preview: 'vite preview --port=4311',
+          },
+        },
+        null,
+        2
+      )
+    );
+    await writeFile(join(repoPath, 'src', 'main.tsx'), 'export const app = true;');
+
+    const facts = await fetchLocalRepoFacts(repoPath);
+
+    expect(facts).toMatchObject({
+      name: 'vite-app',
+      packageManager: 'pnpm',
+      packageScripts: ['dev', 'preview'],
+      packageScriptCommands: {
+        dev: 'vite --host 0.0.0.0 --port 4310',
+        preview: 'vite preview --port=4311',
+      },
+    });
+    expect(facts.claims).toEqual(
+      expect.arrayContaining([
+        {
+          text: 'vite-app local repo uses pnpm with dev, preview scripts.',
+          source: { kind: 'repo', ref: join(repoPath, 'package.json') },
+        },
+      ])
+    );
+  });
 });
