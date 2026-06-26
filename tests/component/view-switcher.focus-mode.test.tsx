@@ -575,7 +575,7 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(draftCall).toBeUndefined();
   });
 
-  it('timeline full-auto action calls the saved-gates route and refreshes status', async () => {
+  it('timeline full-auto action runs the saved-gates agent handoff and refreshes status', async () => {
     const start = storedFullAutoMotionStart();
     const returnedProject = {
       ...start.project!,
@@ -602,16 +602,34 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
       new Response(
         JSON.stringify({
           ok: true,
-          status: 'paused',
-          project: returnedProject,
-          reviewPlan: start.reviewPlan,
-          previewPlan: returnedPreview,
-          run: {
+          status: 'complete',
+          projectId: returnedProject.id,
+          finalProject: returnedProject,
+          finalResponse: {
+            ok: true,
             status: 'paused',
-            reason: 'provider-required',
-            stepLabel: 'Voice and captions',
-            advancedStepIds: ['capture'],
+            project: returnedProject,
+            reviewPlan: start.reviewPlan,
+            previewPlan: returnedPreview,
+            run: {
+              status: 'paused',
+              reason: 'provider-required',
+              stepLabel: 'Voice and captions',
+              advancedStepIds: ['capture'],
+            },
           },
+          steps: [
+            {
+              templateId: 'full-auto-run',
+              label: 'Run saved gates',
+              route: '/api/motion/full-auto',
+              method: 'POST',
+              missingPlaceholders: [],
+              status: 'complete',
+              responseStatus: 200,
+              responseJson: {},
+            },
+          ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
@@ -628,18 +646,65 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
       );
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/motion/full-auto',
+      '/api/motion/agent-handoff',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
     );
-    const fullAutoCall = fetchMock.mock.calls.find(
-      (call) => call[0] === '/api/motion/full-auto'
+    const handoffCall = fetchMock.mock.calls.find(
+      (call) => call[0] === '/api/motion/agent-handoff'
     );
-    const body = JSON.parse(String(fullAutoCall?.[1]?.body));
+    const body = JSON.parse(String(handoffCall?.[1]?.body));
     expect(body.project.id).toBe('motion-aether-launch');
-    expect(body.requestedEngines).toEqual(['remotion', 'hyperframes', 'provider']);
+    expect(body.handoff.nextTemplateId).toBe('full-auto-run');
+    expect(body.templateIds).toEqual(['full-auto-run']);
+  });
+
+  it('timeline full-auto handoff shows missing provider placeholders in the shell', async () => {
+    const start = storedFullAutoMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'blocked',
+          projectId: start.project!.id,
+          finalProject: start.project,
+          finalResponse: null,
+          steps: [
+            {
+              templateId: 'full-auto-run',
+              label: 'Run saved gates',
+              route: '/api/motion/full-auto',
+              method: 'POST',
+              missingPlaceholders: ['$voiceProviderId', '$renderProviderId'],
+              status: 'skipped',
+              responseStatus: null,
+              responseJson: null,
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /run full auto/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'full auto blocked: missing $voiceProviderId, $renderProviderId'
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/agent-handoff',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
   });
 
   it('timeline setup cards select a missing runner inside the same shell', async () => {

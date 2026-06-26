@@ -23,7 +23,6 @@ import { SettingsPopover } from '@/components/workspace/SettingsPopover';
 import {
   TimelineLens,
   type TimelineCaptureActionOptions,
-  type TimelineCaptureRunnerInput,
 } from '@/components/workspace/TimelineLens';
 import {
   useWorkspaceProviderPrefs,
@@ -49,10 +48,7 @@ import {
   AETHER_IMAGE_LANDED_EVENT,
   type AetherImageLandedDetail,
 } from '@/components/canvas/text-overlay-bridge';
-import {
-  readGenerateStream,
-  type GenerateStreamEvent,
-} from '@/lib/generate/stream';
+import { readGenerateStream } from '@/lib/generate/stream';
 import type { AspectRatio } from '@/lib/providers/image/types';
 import type { SpatialFormat, SpatialQuality } from '@/lib/providers/spatial/types';
 import {
@@ -88,7 +84,12 @@ import {
   type MotionWorkflowExample,
 } from '@/lib/motion/workflowExamples';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
-import { buildMotionAgentExecutionHandoff } from '@/lib/motion/agentHandoff';
+import {
+  applyMotionAgentHandoffResult,
+  motionAgentHandoffInputFromPrefs,
+  motionAgentHandoffStatusLabel,
+  runMotionAgentHandoffFromStart,
+} from '@/lib/motion/agentHandoffClient';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import {
   buildMotionPreviewPlan,
@@ -367,40 +368,6 @@ function resolveTargetFrame(
   };
 }
 
-function stringArrayField(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-}
-
-function isTimelineCaptureRunnerInput(value: unknown): value is TimelineCaptureRunnerInput {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const runner = value as Record<string, unknown>;
-
-  return (
-    runner.kind === 'playwright-local' &&
-    (runner.outputDir === undefined || typeof runner.outputDir === 'string') &&
-    (runner.launchLocalApp === undefined || typeof runner.launchLocalApp === 'boolean') &&
-    (runner.headless === undefined || typeof runner.headless === 'boolean') &&
-    (runner.timeoutMs === undefined || typeof runner.timeoutMs === 'number')
-  );
-}
-
-function formatFullAutoRunStatus(
-  status?: string,
-  run?: {
-    status?: string;
-    reason?: string;
-    stepLabel?: string | null;
-  }
-): string {
-  if (status === 'complete' || run?.status === 'complete') return 'full auto complete';
-  if (run?.stepLabel) return `full auto paused at ${run.stepLabel}`;
-  if (run?.reason === 'provider-required') return 'full auto needs provider';
-  if (run?.reason === 'blocked') return 'full auto blocked';
-  if (run?.reason === 'max-steps') return 'full auto paused at step limit';
-  return 'full auto paused';
-}
-
 function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const composerRef = useRef<ComposerHandle | null>(null);
   const { editor } = useEditorRef();
@@ -429,7 +396,6 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     const cid = new URLSearchParams(window.location.search).get('campaign');
     if (cid && cid.length > 0) setInFlightCampaignId(cid);
     // Run once on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Live lap subscription — Convex reactive or poll fallback.
   // researchBundle + schedulePlan now ride on the campaign row (persisted),
@@ -850,70 +816,16 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
     setMotionTimelineActionStatus('running full auto');
     try {
-      const requestedAt = Date.now();
-      const template = motionStart.agentHandoff?.templates.find(
-        (candidate) => candidate.id === 'full-auto-run' || candidate.route === '/api/motion/full-auto'
-      );
-      const templateBody = template?.body ?? {};
-      const captureRequestIds = stringArrayField(templateBody.captureRequestIds);
-      const captureRunner = isTimelineCaptureRunnerInput(templateBody.captureRunner)
-        ? templateBody.captureRunner
-        : undefined;
-      const res = await fetch('/api/motion/full-auto', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: motionStart.project,
-          requestedEngines: motionStart.workflow.plan.engines,
-          requestedAt,
-          updatedAt: requestedAt,
-          ...(captureRequestIds.length > 0 ? { captureRequestIds } : {}),
-          ...(captureRunner ? { captureRunner } : {}),
-        }),
+      const handoffResult = await runMotionAgentHandoffFromStart(motionStart, {
+        templateIds: ['full-auto-run'],
+        input: motionAgentHandoffInputFromPrefs(providerPrefs),
       });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        status?: string;
-        project?: typeof motionStart.project;
-        reviewPlan?: typeof motionStart.reviewPlan;
-        previewPlan?: typeof motionStart.previewPlan;
-        run?: {
-          status?: string;
-          reason?: string;
-          stepLabel?: string | null;
-        };
-      };
-      if (!res.ok || json.ok === false) {
-        throw new Error(json.error ?? `full auto failed: ${res.status}`);
-      }
-
-      const project = json.project ?? motionStart.project;
-      const capturePlan = buildAgentMotionCapturePlan(project);
-      const normalizedCapturePlan = capturePlan.status === 'not-needed' ? null : capturePlan;
-      setMotionStartResult(wsId, {
-        ...motionStart,
-        project,
-        reviewPlan: json.reviewPlan ?? buildMotionReviewPlan(project),
-        previewPlan:
-          json.previewPlan ??
-          buildMotionPreviewPlan(project, {
-            engines: motionStart.workflow.plan.engines,
-            workflowRunPlan: motionStart.workflow.plan.runPlan,
-            requestedAt,
-          }),
-        capturePlan: normalizedCapturePlan,
-        agentHandoff: buildMotionAgentExecutionHandoff({
-          workflow: motionStart.workflow,
-          project,
-          capturePlan: normalizedCapturePlan,
-        }),
-      });
-      setMotionTimelineActionStatus(formatFullAutoRunStatus(json.status, json.run));
+      setMotionStartResult(wsId, applyMotionAgentHandoffResult(motionStart, handoffResult));
+      setMotionTimelineActionStatus(motionAgentHandoffStatusLabel(handoffResult));
     } catch (error) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
-  }, [motionStart, wsId]);
+  }, [motionStart, providerPrefs, wsId]);
   const handleTimelineRender = useCallback(
     async (engine: MotionRenderEngine) => {
       if (!motionStart?.project) return;
@@ -1784,7 +1696,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         }
       }
     },
-    [editor]
+    [editor, wsId]
   );
 
   const runSpatialOnCanvas = useCallback(

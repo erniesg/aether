@@ -3,11 +3,19 @@
 import { Loader2, Play, Video } from 'lucide-react';
 import { useState } from 'react';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
+import {
+  applyMotionAgentHandoffResult,
+  motionAgentHandoffMissingPlaceholders,
+  runMotionAgentHandoffFromStart,
+  type MotionAgentHandoffClientResult,
+} from '@/lib/motion/agentHandoffClient';
 import { motionStartSummary, setMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionWorkflowIntent } from '@/lib/motion/workflowRouter';
 import type { MotionPlatformTarget, MotionWorkflowMode } from '@/lib/motion/project';
 import type { WorkflowSourceKind } from '@/lib/workflow/registry';
 import { cn } from '@/lib/utils/cn';
+
+export type { MotionAgentHandoffClientResult } from '@/lib/motion/agentHandoffClient';
 
 type MotionStartStatus =
   | { kind: 'idle' }
@@ -20,27 +28,6 @@ type MotionHandoffStatus =
   | { kind: 'running' }
   | { kind: 'done'; result: MotionAgentHandoffClientResult }
   | { kind: 'error'; message: string };
-
-export interface MotionAgentHandoffClientStep {
-  templateId: string;
-  label: string;
-  route: string;
-  method: 'POST';
-  missingPlaceholders: string[];
-  status: 'skipped' | 'complete' | 'failed';
-  responseStatus: number | null;
-  responseJson: Record<string, unknown> | null;
-}
-
-export interface MotionAgentHandoffClientResult {
-  ok?: boolean;
-  error?: string;
-  status: 'complete' | 'blocked' | 'failed';
-  projectId?: string;
-  finalProject?: unknown;
-  finalResponse?: Record<string, unknown> | null;
-  steps?: MotionAgentHandoffClientStep[];
-}
 
 export interface MotionStartClientRequest {
   workspaceId?: string;
@@ -132,27 +119,7 @@ async function defaultStartMotion(
 async function defaultRunAgentHandoff(
   result: AgentMotionStartResult
 ): Promise<MotionAgentHandoffClientResult> {
-  if (!result.agentHandoff || !result.project) {
-    throw new Error('agent handoff requires a ready project');
-  }
-
-  const res = await fetch('/api/motion/agent-handoff', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      handoff: result.agentHandoff,
-      project: result.project,
-      templateIds: result.agentHandoff.nextTemplateId
-        ? [result.agentHandoff.nextTemplateId]
-        : undefined,
-      input: {},
-    }),
-  });
-  const json = (await res.json()) as MotionAgentHandoffClientResult;
-  if (!res.ok || json.ok === false) {
-    throw new Error(json.error ?? `motion handoff failed: ${res.status}`);
-  }
-  return json;
+  return runMotionAgentHandoffFromStart(result);
 }
 
 export function motionSectionSummary(result: AgentMotionStartResult | undefined): string {
@@ -202,7 +169,7 @@ export function MotionSection({
     setHandoffStatus({ kind: 'running' });
     try {
       const handoffResult = await runAgentHandoff(result);
-      const updatedResult = applyMotionHandoffResult(result, handoffResult);
+      const updatedResult = applyMotionAgentHandoffResult(result, handoffResult);
       setMotionStartResult(workspaceId, updatedResult);
       setStatus({ kind: 'done', result: updatedResult });
       setHandoffStatus({ kind: 'done', result: handoffResult });
@@ -434,58 +401,15 @@ function MotionReviewQueue({
   );
 }
 
-function applyMotionHandoffResult(
-  current: AgentMotionStartResult,
-  handoffResult: MotionAgentHandoffClientResult
-): AgentMotionStartResult {
-  const finalResponse = handoffResult.finalResponse ?? {};
-  const finalProject = isRecord(handoffResult.finalProject)
-    ? (handoffResult.finalProject as unknown as AgentMotionStartResult['project'])
-    : current.project;
-
-  return {
-    ...current,
-    project: finalProject ?? current.project,
-    reviewPlan: recordField(finalResponse, 'reviewPlan', current.reviewPlan),
-    previewPlan: recordField(finalResponse, 'previewPlan', current.previewPlan),
-    preparedPreviewSource: recordField(
-      finalResponse,
-      'preparedPreviewSource',
-      current.preparedPreviewSource ?? null
-    ),
-    capturePlan: recordField(finalResponse, 'capturePlan', current.capturePlan),
-    agentHandoff: recordField(finalResponse, 'agentHandoff', current.agentHandoff),
-  };
-}
-
 function handoffStatusLabel(status: MotionHandoffStatus): string | null {
   if (status.kind !== 'done') return null;
   if (status.result.status === 'complete') return 'full auto complete';
   if (status.result.status === 'failed') return 'full auto failed';
 
-  const missingPlaceholders = uniqueStrings(
-    status.result.steps?.flatMap((step) => step.missingPlaceholders) ?? []
-  );
+  const missingPlaceholders = motionAgentHandoffMissingPlaceholders(status.result);
   return missingPlaceholders.length > 0
     ? `missing ${missingPlaceholders.join(', ')}`
     : 'full auto blocked';
-}
-
-function recordField<T>(
-  source: Record<string, unknown>,
-  key: string,
-  fallback: T
-): T {
-  const value = source[key];
-  return isRecord(value) ? (value as T) : fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function uniqueStrings(values: string[]): string[] {
-  return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
 }
 
 function MotionReviewQueueList({ label, items }: { label: string; items: string[] }) {
