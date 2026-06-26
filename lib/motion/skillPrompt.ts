@@ -26,6 +26,7 @@ export function buildMotionSkillAuthoringPrompt(result: AgentMotionStartResult):
   const verificationArtifacts = contract?.verificationArtifacts ?? [];
   const sourceInputContract = buildSourceInputContract(workflow.workflowId);
   const outputContract = buildOutputContract(workflow.mode);
+  const timelineContract = workflow.skillDraft.timelineContract;
   const runPlanLines = workflow.runPlan.steps.map(
     (step, index) =>
       `${index + 1}. ${step.label} - routes: ${step.apiRoutes.join(' + ')}; tools: ${
@@ -70,6 +71,16 @@ export function buildMotionSkillAuthoringPrompt(result: AgentMotionStartResult):
     '',
     'Execution run plan the SKILL.md must preserve:',
     ...runPlanLines,
+    '',
+    'Timeline contract the SKILL.md must preserve:',
+    `- Primitive: ${timelineContract.primitive}`,
+    `- Lanes: ${timelineContract.laneLabels.join(', ') || 'workflow lanes'}`,
+    `- Editable objects: ${timelineContract.editableObjectLabels.join(', ') || 'timeline objects'}`,
+    `- Sync cues: ${timelineContract.syncCueLabels.join(', ')}`,
+    `- Node outputs: ${timelineContract.nodeOutputLabels.join(', ') || 'saved artifacts'}`,
+    `- Source edit routes: ${timelineContract.sourceEditRouteLabels.join(', ') || 'none'}`,
+    `- Review mode: ${timelineContract.reviewModeInstruction}`,
+    `- Full auto: ${timelineContract.fullAutoInstruction}`,
     '',
     'Runtime input contract the SKILL.md must document:',
     sourceInputContract,

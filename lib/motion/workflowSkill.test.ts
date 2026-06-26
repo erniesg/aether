@@ -88,6 +88,30 @@ describe('motion workflow skill drafts', () => {
         'Code diff card: code',
         'Mechanism diagram: diagram',
       ]),
+      timelineContract: {
+        kind: 'motion-workflow-timeline-contract',
+        primitive: 'timeline-and-node-graph',
+        laneLabels: ['code change', 'visual search', 'voice', 'sync', 'render', 'export'],
+        editableObjectLabels: expect.arrayContaining([
+          'Code diff card',
+          'voice lines',
+          'caption clips',
+          'effect presets',
+          'render source files',
+        ]),
+        syncCueLabels: [
+          'beat markers',
+          'caption links',
+          'voice clips',
+          'word timings',
+          'transition cues',
+          'audio cues',
+          'effect cues',
+        ],
+        nodeOutputLabels: expect.arrayContaining(['code change', 'effect markers']),
+        sourceEditRouteLabels: ['/api/motion/preview-source', '/api/motion/source-edit'],
+        reviewGateLabels: [],
+      },
       launchKit: {
         kind: 'motion-workflow-launch-kit',
         label: 'PR to video launch kit',
@@ -153,6 +177,19 @@ describe('motion workflow skill drafts', () => {
             label: 'Regenerate Code diff card',
             componentId: 'code-diff-card',
             regenerationScopes: ['code', 'proof', 'timing'],
+          }),
+          expect.objectContaining({
+            id: 'timeline-contract',
+            kind: 'timeline-contract',
+            label: 'Timeline sync and source edits',
+            artifactLabels: [
+              'Beat markers',
+              'Caption links',
+              'Transition cues',
+              'Audio cues',
+              'Effect cues',
+              'Edited source files',
+            ],
           }),
           expect.objectContaining({
             id: 'teaser-x-9-16-30s',
@@ -226,6 +263,14 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('## Draft Variations');
     expect(plan.skillDraft.manifest.instructions).toContain('Daily skill launch');
     expect(plan.skillDraft.manifest.instructions).toContain('## Launch Kit');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Timeline Contract');
+    expect(plan.skillDraft.manifest.instructions).toContain('timeline-and-node-graph');
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Sync cues: beat markers, caption links, voice clips, word timings, transition cues, audio cues, effect cues'
+    );
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Source edit routes: /api/motion/preview-source, /api/motion/source-edit'
+    );
     expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');
     expect(plan.skillDraft.manifest.instructions).toContain('HyperFrames workflow skills');
     expect(plan.skillDraft.manifest.instructions).toContain('npx skills add heygen-com/hyperframes');
@@ -234,6 +279,7 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('## Launch Kit Review Objects');
     expect(plan.skillDraft.manifest.instructions).toContain('Aether PR #456');
     expect(plan.skillDraft.manifest.instructions).toContain('Regenerate Code diff card');
+    expect(plan.skillDraft.manifest.instructions).toContain('Timeline sync and source edits');
     expect(plan.skillDraft.manifest.instructions).toContain('x 9:16 30s export pack');
     expect(plan.skillDraft.manifest.instructions).toContain('x 9:16 30s');
     expect(plan.skillDraft.manifest.instructions).toContain('Today is pr-to-video.');
@@ -245,6 +291,7 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('Verify: diff is readable');
     expect(plan.skillDraft.manifest.instructions).toContain('/api/motion/render');
     expect(plan.skillDraft.manifest.instructions).toContain('## Output format');
+    expect(plan.skillDraft.manifest.instructions).toContain('"timelineContract"');
     expect(plan.skillDraft.manifest.instructions).toContain('provenance manifest');
     expect(plan.skillDraft.manifest.instructions).toContain(
       'npx skills add heygen-com/hyperframes'
@@ -319,8 +366,45 @@ describe('motion workflow skill drafts', () => {
       }),
     ]);
     expect(plan.skillDraft.toolNames).toContain('motion_capture');
+    expect(plan.skillDraft.timelineContract).toMatchObject({
+      primitive: 'timeline-and-node-graph',
+      laneLabels: [
+        'repo facts',
+        'capture',
+        'visual search',
+        'image to video',
+        'voice',
+        'sync',
+        'render',
+        'export',
+      ],
+      editableObjectLabels: expect.arrayContaining([
+        'app captures',
+        'cursor paths',
+        'image-to-video inserts',
+        'voice lines',
+        'caption clips',
+        'effect presets',
+        'render source files',
+      ]),
+      syncCueLabels: expect.arrayContaining(['audio cues', 'effect cues']),
+      sourceEditRouteLabels: ['/api/motion/preview-source', '/api/motion/source-edit'],
+      reviewGateLabels: [
+        'Video plan',
+        'Draft variations',
+        'Product capture',
+        'Visual sources',
+        'Voice and captions',
+        'Timeline sync',
+        'Render proof',
+        'Export pack',
+      ],
+    });
     expect(plan.skillDraft.manifest.instructions).toContain('Review video plan before continuing');
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
+    expect(plan.skillDraft.manifest.instructions).toContain('Editable objects: story beats, draft variations');
+    expect(plan.skillDraft.manifest.instructions).toContain('app captures');
+    expect(plan.skillDraft.manifest.instructions).toContain('effect cues');
     expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');
     expect(plan.skillDraft.manifest.instructions).toContain('npx skills add iart-ai/motion-design-skills');
     expect(plan.skillDraft.manifest.instructions).toContain('contact-sheet.sh');

@@ -57,7 +57,21 @@ export interface MotionWorkflowSkillDraft {
   toolNames: string[];
   verificationLabels: string[];
   sampleCopyLines: string[];
+  timelineContract: MotionWorkflowTimelineContract;
   launchKit: MotionWorkflowLaunchKit;
+}
+
+export interface MotionWorkflowTimelineContract {
+  kind: 'motion-workflow-timeline-contract';
+  primitive: 'timeline-and-node-graph';
+  laneLabels: string[];
+  editableObjectLabels: string[];
+  syncCueLabels: string[];
+  nodeOutputLabels: string[];
+  sourceEditRouteLabels: string[];
+  reviewGateLabels: string[];
+  reviewModeInstruction: string;
+  fullAutoInstruction: string;
 }
 
 export interface MotionWorkflowLaunchKit {
@@ -77,6 +91,7 @@ export type MotionWorkflowLaunchKitReviewObjectKind =
   | 'source-evidence'
   | 'draft-variation'
   | 'component-regeneration'
+  | 'timeline-contract'
   | 'teaser-target'
   | 'export-pack';
 
@@ -131,6 +146,7 @@ export function buildMotionWorkflowSkillDraft(
     recipe,
     sampleCopyLines,
   });
+  const timelineContract = buildTimelineContract(plan, recipe);
   const manifest: SkillManifest = {
     name: safeSkillName(plan.workflowId),
     version: 1,
@@ -146,6 +162,7 @@ export function buildMotionWorkflowSkillDraft(
       regenerationLabels,
       verificationLabels,
       sampleCopyLines,
+      timelineContract,
       launchKit,
     }),
   };
@@ -170,8 +187,81 @@ export function buildMotionWorkflowSkillDraft(
     toolNames,
     verificationLabels,
     sampleCopyLines,
+    timelineContract,
     launchKit,
   };
+}
+
+function buildTimelineContract(
+  plan: MotionWorkflowSkillPlanInput,
+  recipe: MotionWorkflowSkillRecipe | null
+): MotionWorkflowTimelineContract {
+  const routeLabels = uniqueStrings(
+    plan.runPlan.steps.flatMap((step) =>
+      step.apiRoutes.filter((route) =>
+        ['/api/motion/preview-source', '/api/motion/source-edit'].includes(route)
+      )
+    )
+  );
+
+  return {
+    kind: 'motion-workflow-timeline-contract',
+    primitive: 'timeline-and-node-graph',
+    laneLabels: recipe
+      ? recipe.generationLanes.map(readableLabel)
+      : plan.runPlan.steps.map((step) => step.label),
+    editableObjectLabels: editableTimelineObjectsFor(plan, recipe),
+    syncCueLabels: [
+      'beat markers',
+      'caption links',
+      'voice clips',
+      'word timings',
+      'transition cues',
+      'audio cues',
+      'effect cues',
+    ],
+    nodeOutputLabels: nodeOutputLabelsFor(plan, recipe),
+    sourceEditRouteLabels: routeLabels,
+    reviewGateLabels: plan.runPlan.steps
+      .filter((step) => step.reviewRequired)
+      .map((step) => step.label),
+    reviewModeInstruction:
+      'Show the timeline, draft variations, source bundle, sync cues, and render proof before export.',
+    fullAutoInstruction:
+      'Auto-advance only after timeline, sync cues, source edits, render proof, and provenance receipts are saved.',
+  };
+}
+
+function editableTimelineObjectsFor(
+  plan: MotionWorkflowSkillPlanInput,
+  recipe: MotionWorkflowSkillRecipe | null
+): string[] {
+  const gateIds = new Set(plan.runPlan.steps.map((step) => step.gateId));
+
+  return uniqueStrings([
+    'story beats',
+    'draft variations',
+    ...(recipe?.componentSlots.map((slot) => slot.label) ?? ['component slots']),
+    ...(gateIds.has('capture') ? ['app captures', 'cursor paths', 'crop targets'] : []),
+    ...(gateIds.has('visuals') ? ['visual source picks', 'image-to-video inserts'] : []),
+    ...(gateIds.has('voice') ? ['voice lines', 'caption clips'] : []),
+    'timeline tracks',
+    'effect presets',
+    'render source files',
+    'export pack targets',
+  ]);
+}
+
+function nodeOutputLabelsFor(
+  plan: MotionWorkflowSkillPlanInput,
+  recipe: MotionWorkflowSkillRecipe | null
+): string[] {
+  const laneLabels = recipe?.generationLanes.map(readableLabel) ?? [];
+
+  return uniqueStrings([
+    ...laneLabels,
+    ...plan.runPlan.steps.flatMap((step) => step.expectedArtifacts),
+  ]);
 }
 
 function buildLaunchKit({
@@ -224,9 +314,35 @@ function buildLaunchKitReviewObjects({
     ...plan.acceptedSources.map((source, index) => sourceEvidenceReviewObject(source, index)),
     ...(recipe?.draftVariations.map(draftVariationReviewObject) ?? []),
     ...(recipe?.componentSlots.map(componentRegenerationReviewObject) ?? []),
+    timelineContractReviewObject(plan),
     ...platformTargets.map(teaserTargetReviewObject),
     ...platformTargets.map(exportPackReviewObject),
   ]);
+}
+
+function timelineContractReviewObject(
+  plan: MotionWorkflowSkillPlanInput
+): MotionWorkflowLaunchKitReviewObject {
+  const hasSourceEdit = plan.runPlan.steps.some((step) =>
+    step.apiRoutes.includes('/api/motion/source-edit')
+  );
+
+  return {
+    id: 'timeline-contract',
+    kind: 'timeline-contract',
+    label: 'Timeline sync and source edits',
+    description: hasSourceEdit
+      ? 'Review sync cues, generated source bundles, and source edits before render.'
+      : 'Review sync cues and timeline timing before render.',
+    artifactLabels: [
+      'Beat markers',
+      'Caption links',
+      'Transition cues',
+      'Audio cues',
+      'Effect cues',
+      ...(hasSourceEdit ? ['Edited source files'] : []),
+    ],
+  };
 }
 
 function sourceEvidenceReviewObject(
@@ -402,6 +518,7 @@ function buildSkillInstructions({
   regenerationLabels,
   verificationLabels,
   sampleCopyLines,
+  timelineContract,
   launchKit,
 }: {
   plan: MotionWorkflowSkillPlanInput;
@@ -412,6 +529,7 @@ function buildSkillInstructions({
   regenerationLabels: string[];
   verificationLabels: string[];
   sampleCopyLines: string[];
+  timelineContract: MotionWorkflowTimelineContract;
   launchKit: MotionWorkflowLaunchKit;
 }): string {
   const hasCaptureStep = plan.runPlan.steps.some((step) =>
@@ -495,6 +613,18 @@ function buildSkillInstructions({
     `Launch components: ${formatList(launchKit.componentSlotLabels)}.`,
     `Review artifacts: ${formatList(launchKit.reviewArtifactLabels)}.`,
     '',
+    '## Timeline Contract',
+    '',
+    `Primitive: ${timelineContract.primitive}.`,
+    `Lanes: ${formatList(timelineContract.laneLabels)}.`,
+    `Editable objects: ${formatList(timelineContract.editableObjectLabels)}.`,
+    `Sync cues: ${formatList(timelineContract.syncCueLabels)}.`,
+    `Node outputs: ${formatList(timelineContract.nodeOutputLabels)}.`,
+    `Source edit routes: ${formatList(timelineContract.sourceEditRouteLabels)}.`,
+    `Review gates: ${formatList(timelineContract.reviewGateLabels)}.`,
+    `Review mode: ${timelineContract.reviewModeInstruction}`,
+    `Full auto: ${timelineContract.fullAutoInstruction}`,
+    '',
     recipe && recipe.skillPacks.length > 0 ? '## Skill Packs' : '',
     ...(recipe?.skillPacks.map(formatSkillPackRequirement) ?? []),
     recipe && recipe.skillPacks.length > 0 ? '' : '',
@@ -551,6 +681,11 @@ function buildSkillInstructions({
           mode: 'review | full-auto',
           status: 'ready | needs-source | needs-evidence | blocked',
           workflowId: plan.workflowId,
+          timelineContract: {
+            primitive: timelineContract.primitive,
+            syncCues: timelineContract.syncCueLabels,
+            editableObjects: timelineContract.editableObjectLabels,
+          },
           motionStartRequest: {
             workspaceId: 'workspace',
             sourceRefs: [],

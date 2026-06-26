@@ -140,6 +140,12 @@ describe('buildMotionSkillAuthoringPrompt', () => {
     expect(prompt).toContain(
       '3. Product capture - routes: /api/motion/capture; tools: motion-capture'
     );
+    expect(prompt).toContain('Timeline contract the SKILL.md must preserve:');
+    expect(prompt).toContain('Primitive: timeline-and-node-graph');
+    expect(prompt).toContain('Editable objects: story beats, draft variations');
+    expect(prompt).toContain('app captures');
+    expect(prompt).toContain('Sync cues: beat markers, caption links, voice clips, word timings, transition cues, audio cues, effect cues');
+    expect(prompt).toContain('Source edit routes: /api/motion/preview-source, /api/motion/source-edit');
     expect(prompt).toContain('pause for creator review');
     expect(prompt).toContain('gather/find/generate visuals');
     expect(prompt).toContain('review vs full-auto behavior');
@@ -169,6 +175,8 @@ describe('buildMotionSkillAuthoringPrompt', () => {
     expect(prompt).toContain(
       '5. Timeline sync - routes: /api/motion/sync + /api/motion/revise + /api/motion/preview-source + /api/motion/source-edit'
     );
+    expect(prompt).toContain('Lanes: code change, visual search, voice, sync, render, export');
+    expect(prompt).toContain('Full auto: Auto-advance only after timeline, sync cues, source edits, render proof, and provenance receipts are saved.');
     expect(prompt).toContain('"nextAction": "continue-through-saved-gates"');
   });
 });
