@@ -25,6 +25,24 @@ export interface MotionAgentExecutionHandoff {
   templates: MotionAgentRequestTemplate[];
 }
 
+export interface MaterializeMotionAgentRequestTemplateInput {
+  project: MotionProject;
+  imageToVideoProviderId?: string;
+  voiceProviderId?: string;
+  renderProviderId?: string;
+  editedSourceFiles?: unknown;
+}
+
+export interface MaterializedMotionAgentRequestTemplate {
+  templateId: string;
+  label: string;
+  method: 'POST';
+  route: string;
+  toolId: ToolRegistryId;
+  body: Record<string, unknown>;
+  missingPlaceholders: string[];
+}
+
 const PROJECT_PLACEHOLDER = '$motionProject';
 
 export function buildMotionAgentExecutionHandoff(input: {
@@ -42,6 +60,30 @@ export function buildMotionAgentExecutionHandoff(input: {
     nextTemplateId: nextTemplateId(input.project.workflowMode, templates),
     sourceLabels: sourceLabels(input.project),
     templates,
+  };
+}
+
+export function materializeMotionAgentRequestTemplate(
+  template: MotionAgentRequestTemplate,
+  input: MaterializeMotionAgentRequestTemplateInput
+): MaterializedMotionAgentRequestTemplate {
+  const placeholders: Record<string, unknown> = {
+    [PROJECT_PLACEHOLDER]: input.project,
+    $imageToVideoProviderId: input.imageToVideoProviderId,
+    $voiceProviderId: input.voiceProviderId,
+    $renderProviderId: input.renderProviderId,
+    $editedSourceFiles: input.editedSourceFiles,
+  };
+  const missing = new Set<string>();
+
+  return {
+    templateId: template.id,
+    label: template.label,
+    method: template.method,
+    route: template.route,
+    toolId: template.toolId,
+    body: materializeBody(template.body, placeholders, missing),
+    missingPlaceholders: Array.from(missing),
   };
 }
 
@@ -353,6 +395,45 @@ function preferredRenderEngine(engines: WorkflowEngine[]): 'remotion' | 'hyperfr
 
 function cleanBody(body: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined));
+}
+
+function materializeBody(
+  body: Record<string, unknown>,
+  placeholders: Record<string, unknown>,
+  missing: Set<string>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(body).map(([key, value]) => [key, materializeValue(value, placeholders, missing)])
+  );
+}
+
+function materializeValue(
+  value: unknown,
+  placeholders: Record<string, unknown>,
+  missing: Set<string>
+): unknown {
+  if (typeof value === 'string' && value.startsWith('$')) {
+    if (Object.prototype.hasOwnProperty.call(placeholders, value)) {
+      const replacement = placeholders[value];
+      if (replacement !== undefined) return replacement;
+    }
+    missing.add(value);
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => materializeValue(item, placeholders, missing));
+  }
+
+  if (isPlainRecord(value)) {
+    return materializeBody(value, placeholders, missing);
+  }
+
+  return value;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 function uniqueStrings(values: string[]): string[] {

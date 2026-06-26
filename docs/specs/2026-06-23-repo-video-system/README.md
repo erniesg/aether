@@ -181,7 +181,10 @@ capture, render, and provenance debugging.
   creator-facing agent actions, including local-runner availability and
   expected receipts. The main full-auto request template now also carries
   provider placeholders for image-to-video, voice, and render, while
-  hiding placeholder JSON bodies. GitHub repo URLs, local repo paths, and
+  hiding placeholder JSON bodies. Agents can materialize those templates into
+  executable request bodies from the current project, selected providers, and
+  edited source files; unresolved placeholders are reported instead of being
+  silently left for ad hoc replacement. GitHub repo URLs, local repo paths, and
   site/app URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
   configured. Real screen capture and recording remain provider execution work.

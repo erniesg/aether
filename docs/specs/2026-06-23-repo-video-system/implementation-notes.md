@@ -117,6 +117,9 @@
   required capture request ids, the request-scoped `playwright-local` runner
   config, and full-auto provider placeholders for image-to-video, voice, and
   render so agents can reuse the same provider choices after setup dry-runs.
+  Handoff templates can now be materialized into executable request bodies from
+  the project, provider choices, and edited source files, with unresolved
+  placeholders reported as explicit blockers.
 - The workspace timeline lens now receives those agent handoffs and renders a
   compact agent-actions strip inside the creator shell: next action, review or
   full-auto mode, API route labels, expected receipts, and local-runner
@@ -316,7 +319,10 @@
   production gate handlers so setup proof cannot accidentally become a capture,
   generated clip, voice, or render artifact. Start handoffs now include the
   matching setup request templates, including provider id placeholders for
-  image-to-video, voice, and render readiness checks.
+  image-to-video, voice, and render readiness checks. The handoff materializer
+  resolves those placeholders before an agent calls the setup or full-auto
+  routes, so missing provider selections remain visible review/full-auto
+  blockers.
 - Production plans now surface completed capture, render, and export
   verification receipts as first-class step metadata. Full-auto capture
   results can create completed capture graph nodes, render receipts appear as
