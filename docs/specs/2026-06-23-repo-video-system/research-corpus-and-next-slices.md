@@ -82,8 +82,9 @@ Aether now has the right backbone:
    desktop/computer-use, voice, image-to-video, and render runners need a
    creator-facing setup card with permission, expected receipt, and dry-run
    proof before full-auto. Generic runner/provider cards and the guarded
-   computer-use approval/redaction card are now in the timeline lens; deeper
-   dry-run proof remains follow-up.
+   computer-use approval/redaction card are now in the timeline lens, and setup
+   cards carry dry-run proof labels. Executing those dry-runs and saving their
+   proof receipts remains follow-up.
 3. **Real preview runtime.** The timeline lens now has a source-backed preview
    shell with frame scrubbing, component focus, and explicit Remotion Player /
    HyperFrames iframe runtime targets. The preview-source route now returns the
@@ -206,8 +207,9 @@ Acceptance evidence:
   approval, missing redaction manifest, and approved receipt application.
 - Provider tests cover fail-closed behavior, permission/redaction checks, and
   normalized computer-use artifacts. Component tests cover the timeline lens
-  fallback summary plus the actionable approval/redaction setup card; live
-  desktop-control execution tests still need coverage once a runner exists.
+  fallback summary plus the actionable approval/redaction setup card with
+  dry-run proof labels; live desktop-control execution tests still need
+  coverage once a runner exists.
 
 ## Review vs full-auto behavior
 

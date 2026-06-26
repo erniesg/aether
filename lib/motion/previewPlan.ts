@@ -483,6 +483,7 @@ export interface MotionPreviewCapabilitySetupItem {
   providerLabels: string[];
   configuredProviderLabels: string[];
   runnerLabels: string[];
+  dryRunLabels?: string[];
   blockerLabels: string[];
 }
 
@@ -823,6 +824,7 @@ function computerUseSetupItem(
     providerLabels: [],
     configuredProviderLabels: [],
     runnerLabels: fallback.expectedArtifacts,
+    dryRunLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
     blockerLabels: fallback.safeScope.stopConditions.map((condition) => `stop on ${condition}`),
   };
 }
@@ -864,6 +866,7 @@ function setupItemForStep(
     providerLabels,
     configuredProviderLabels: providerLabels,
     runnerLabels: [],
+    dryRunLabels: dryRunLabelsForStep(step.id),
     blockerLabels: step.blockerLabels,
   };
 }
@@ -919,6 +922,7 @@ function renderSetupItem(
     providerLabels,
     configuredProviderLabels: providerLabels,
     runnerLabels: providerLabels,
+    dryRunLabels: ['source lint', 'contact sheet', 'mp4 probe'],
     blockerLabels: step.blockerLabels,
   };
 }
@@ -947,9 +951,31 @@ function localAppSetupItems(project: MotionProject): MotionPreviewCapabilitySetu
       providerLabels: [],
       configuredProviderLabels: [],
       runnerLabels: labels,
+      dryRunLabels: ['HTTP readiness receipt', 'process cleanup receipt'],
       blockerLabels: [],
     },
   ];
+}
+
+function dryRunLabelsForStep(
+  stepId: MotionProductionPlan['steps'][number]['id']
+): string[] {
+  if (stepId === 'capture') {
+    return ['screenshot receipt', 'viewport receipt', 'cursor target receipt'];
+  }
+  if (stepId === 'visual-source') {
+    return ['source asset receipt', 'prompt receipt'];
+  }
+  if (stepId === 'visual-generation') {
+    return ['generated clip receipt', 'timeline update receipt'];
+  }
+  if (stepId === 'voice') {
+    return ['audio receipt', 'word timing receipt', 'transcript receipt'];
+  }
+  if (stepId === 'sync') {
+    return ['beat markers', 'caption links', 'sound cues'];
+  }
+  return [];
 }
 
 function availableProviderLabels(

@@ -1951,6 +1951,7 @@ describe('TimelineLens', () => {
                 providerLabels: [],
                 configuredProviderLabels: [],
                 runnerLabels: ['screenshot', 'recording', 'trace', 'redaction receipt'],
+                dryRunLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
                 blockerLabels: ['stop on login, payment, personal data, or secret fields'],
               },
             ],
@@ -1965,6 +1966,7 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Computer-use capture')).toBeInTheDocument();
     expect(screen.getByText('permission: creator approval + redaction manifest')).toBeInTheDocument();
     expect(screen.getByText('proof: screenshot / recording / trace / redaction receipt')).toBeInTheDocument();
+    expect(screen.getByText('dry run: approval receipt / redaction receipt / safe-scope receipt')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /set up computer-use capture/i }));
     expect(onSelectCapabilitySetup).toHaveBeenCalledWith('computer-use');

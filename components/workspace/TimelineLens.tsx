@@ -1624,6 +1624,7 @@ function MotionCapabilitySetupCard({
 }) {
   const permissionLabel = setupPermissionLabel(item);
   const proofLabel = setupProofLabel(item);
+  const dryRunLabel = setupDryRunLabel(item);
 
   return (
     <article className="min-w-0 rounded-sm border border-border-soft bg-surface-canvas px-3 py-2">
@@ -1641,6 +1642,7 @@ function MotionCapabilitySetupCard({
       <div className="mt-2 grid gap-1 font-caption text-2xs text-ink-faint">
         {permissionLabel ? <div>{permissionLabel}</div> : null}
         {proofLabel ? <div>{proofLabel}</div> : null}
+        {dryRunLabel ? <div>{dryRunLabel}</div> : null}
         {item.runnerLabels.length > 0 ? (
           <div className="truncate">{item.runnerLabels.slice(0, 2).join(' / ')}</div>
         ) : null}
@@ -1685,6 +1687,11 @@ function setupProofLabel(item: MotionPreviewCapabilitySetup['items'][number]): s
         ? item.providerLabels
         : item.routeLabels;
   return labels.length > 0 ? `proof: ${labels.slice(0, 2).join(' / ')}` : null;
+}
+
+function setupDryRunLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
+  const labels = item.dryRunLabels ?? [];
+  return labels.length > 0 ? `dry run: ${labels.slice(0, 4).join(' / ')}` : null;
 }
 
 function MotionCapabilitySetupRow({

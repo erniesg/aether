@@ -455,6 +455,7 @@ describe('buildMotionPreviewPlan', () => {
           actionLabel: 'Connect browser capture',
           routeLabels: ['/api/motion/capture'],
           requirementLabels: expect.arrayContaining(['browser capture']),
+          dryRunLabels: expect.arrayContaining(['screenshot receipt', 'viewport receipt']),
           providerLabels: [],
         }),
         expect.objectContaining({
@@ -496,6 +497,7 @@ describe('buildMotionPreviewPlan', () => {
             'remotion render runner',
             'hyperframes render runner',
           ]),
+          dryRunLabels: expect.arrayContaining(['source lint', 'contact sheet', 'mp4 probe']),
         }),
       ])
     );
@@ -557,6 +559,11 @@ describe('buildMotionPreviewPlan', () => {
             'recording',
             'trace',
             'redaction receipt',
+          ]),
+          dryRunLabels: expect.arrayContaining([
+            'approval receipt',
+            'redaction receipt',
+            'safe-scope receipt',
           ]),
           blockerLabels: expect.arrayContaining([
             'stop on login, payment, personal data, or secret fields appear',

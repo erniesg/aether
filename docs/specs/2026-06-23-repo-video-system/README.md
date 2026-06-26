@@ -154,7 +154,8 @@ capture, render, and provenance debugging.
   motion kit, component controls, scoped regeneration actions, engine readiness,
   capability setup, computer-use approval/redaction setup, compact agent
   actions, and timeline rows without exposing raw provenance/debug ids or
-  request bodies in the primary surface; `graph`
+  request bodies in the primary surface. Setup cards now include dry-run proof
+  labels for the receipts needed before full-auto continues; `graph`
   remains reserved for advanced provenance/generation editing.
 - `components/rail/sections/MotionSection.tsx` now starts video projects from
   repo, PR, site URL, or local path sources with review/full-auto mode and
@@ -216,7 +217,8 @@ capture, render, and provenance debugging.
   receipts, and applies visual captures into timeline clips. It does not
   register a default desktop-control provider. The timeline setup cards now
   surface that computer-use path as an approval/redaction action when capture is
-  otherwise unresolved.
+  otherwise unresolved, with explicit dry-run proof labels for approval,
+  redaction, safe scope, and capture receipts.
 - `app/api/motion/voice/route.ts` now exposes voiceover and caption-sync
   handoffs through an agent-native JSON boundary: callers send an editable
   project plus voice request or clip ids and receive provider-required

@@ -130,7 +130,9 @@
   is available. The card carries creator approval, redaction manifest, approved
   window scope, expected screenshot / recording / trace / redaction receipts,
   and stop conditions without exposing request JSON in the creator-facing
-  shell.
+  shell. Setup cards now also carry dry-run proof labels for capture, local app
+  launch, computer-use, visual sourcing/generation, voice, sync, and render, so
+  review/full-auto setup can ask for concrete receipts before advancing.
 - The reusable motion primitive layer now includes cursor callouts,
   split-screen before/after comparisons, presenter bubbles, and contact-sheet
   render proof components. Reference grammar, design kits, and workflow skill
