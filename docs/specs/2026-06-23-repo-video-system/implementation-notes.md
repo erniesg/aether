@@ -119,7 +119,10 @@
   render so agents can reuse the same provider choices after setup dry-runs.
   Handoff templates can now be materialized into executable request bodies from
   the project, provider choices, and edited source files, with unresolved
-  placeholders reported as explicit blockers.
+  placeholders reported as explicit blockers. A reusable handoff runner can
+  execute a chosen template sequence through an injected route dispatcher,
+  carry the updated project forward after each response, and return
+  per-template receipt metadata for review/full-auto continuity.
 - The workspace timeline lens now receives those agent handoffs and renders a
   compact agent-actions strip inside the creator shell: next action, review or
   full-auto mode, API route labels, expected receipts, and local-runner
@@ -322,7 +325,9 @@
   image-to-video, voice, and render readiness checks. The handoff materializer
   resolves those placeholders before an agent calls the setup or full-auto
   routes, so missing provider selections remain visible review/full-auto
-  blockers.
+  blockers. The handoff runner now proves the same setup templates and
+  full-auto template can be sequenced from a local repo start into capture,
+  source selection, image-to-video, voice, sync, render, and export receipts.
 - Production plans now surface completed capture, render, and export
   verification receipts as first-class step metadata. Full-auto capture
   results can create completed capture graph nodes, render receipts appear as
