@@ -54,6 +54,17 @@ export interface MotionRenderEditContract {
   editableComponents: MotionRenderEditContractComponent[];
 }
 
+interface SourceManifestCommand {
+  id: string;
+  label: string;
+  command: string;
+  args: string[];
+  cwd: string;
+  display: string;
+  outputId?: string;
+  outputPath?: string;
+}
+
 interface RenderDimensions {
   width: number;
   height: number;
@@ -1958,6 +1969,7 @@ function sourceManifestJson(
     path: file.path,
     mimeType: file.mimeType,
   }));
+  const editContract = buildEditContract(request);
 
   return stableJson({
     requestId: request.id,
@@ -1977,12 +1989,364 @@ function sourceManifestJson(
       label: preset.label,
       summary: preset.summary,
     })),
-    editContract: buildEditContract(request),
+    editContract,
+    editSurfaces: sourceManifestEditSurfaces(request),
+    execution: sourceManifestExecution(request, entryPoint),
+    proofArtifacts: sourceManifestProofArtifacts(request),
     outputIds: request.outputs.map((output) => output.id),
     sourceFiles: sourceFileSummaries,
     files: sourceFileSummaries,
     provenance,
   });
+}
+
+function sourceManifestEditSurfaces(request: MotionRenderRequest): Array<{
+  path: string;
+  label: string;
+  purpose: string;
+  editSurfaceLabels: string[];
+}> {
+  return [
+    {
+      path: editArtifactPath(),
+      label: 'Edit contract',
+      purpose: 'Review component controls, source files, and regeneration scopes.',
+      editSurfaceLabels: ['component', 'effect', 'regeneration'],
+    },
+    {
+      path: 'SCRIPT.md',
+      label: 'Script',
+      purpose: 'Edit narration copy and voice lines.',
+      editSurfaceLabels: ['script', 'voice'],
+    },
+    {
+      path: 'STORYBOARD.md',
+      label: 'Storyboard',
+      purpose: 'Edit scenes, component choices, timing, and motion effects.',
+      editSurfaceLabels: ['scene', 'component', 'timing', 'effect'],
+    },
+    {
+      path: timelineArtifactPath(request),
+      label: 'Timeline JSON',
+      purpose: 'Edit frame timing, component props, assets, and linked variants.',
+      editSurfaceLabels: ['timing', 'props', 'assets', 'variants'],
+    },
+  ];
+}
+
+function sourceManifestExecution(
+  request: MotionRenderRequest,
+  entryPoint: string
+): {
+  mode: string;
+  engine: MotionRenderEngine;
+  entryPoint: string;
+  compositionId: string;
+  propsPath: string;
+  sourceHostRequirement: string;
+  previewCommand: SourceManifestCommand;
+  renderCommands: SourceManifestCommand[];
+  verificationCommands: SourceManifestCommand[];
+  artifactChecks: Array<{ outputId: string; kind: string; path: string; required: boolean }>;
+} {
+  const propsPath = renderPropsPath(request);
+  return {
+    mode: 'agent-render-package',
+    engine: request.engine,
+    entryPoint,
+    compositionId: request.compositionId,
+    propsPath,
+    sourceHostRequirement: sourceHostRequirement(request.engine, entryPoint),
+    previewCommand: sourceManifestPreviewCommand(request, entryPoint),
+    renderCommands: sourceManifestRenderCommands(request, entryPoint, propsPath),
+    verificationCommands: sourceManifestVerificationCommands(request, entryPoint, propsPath),
+    artifactChecks: request.outputs.map((output) => ({
+      outputId: output.id,
+      kind: output.kind,
+      path: output.path,
+      required: true,
+    })),
+  };
+}
+
+function sourceHostRequirement(engine: MotionRenderEngine, entryPoint: string): string {
+  if (engine === 'remotion') {
+    return `Serve ${entryPoint} and the timeline JSON to Remotion Studio or a Remotion Player mount.`;
+  }
+
+  return `Serve ${entryPoint} from the generated HyperFrames project root.`;
+}
+
+function sourceManifestPreviewCommand(
+  request: MotionRenderRequest,
+  entryPoint: string
+): SourceManifestCommand {
+  if (request.engine === 'remotion') {
+    return commandSpec({
+      id: 'preview-remotion-studio',
+      label: 'Open Remotion Studio',
+      command: 'npx',
+      args: ['remotion', 'studio'],
+    });
+  }
+
+  return commandSpec({
+    id: 'preview-hyperframes',
+    label: 'Open HyperFrames preview',
+    command: 'npx',
+    args: ['hyperframes', 'preview'],
+    outputPath: entryPoint,
+  });
+}
+
+function sourceManifestRenderCommands(
+  request: MotionRenderRequest,
+  entryPoint: string,
+  propsPath: string
+): SourceManifestCommand[] {
+  return request.outputs.flatMap((output) => {
+    if (request.engine === 'remotion') {
+      if (output.kind === 'video') {
+        return [
+          commandSpec({
+            id: `render-${output.id}`,
+            label: `Render ${output.platform} ${output.aspectRatio} video`,
+            command: 'npx',
+            args: [
+              'remotion',
+              'render',
+              entryPoint,
+              request.compositionId,
+              output.path,
+              '--fps',
+              String(request.fps),
+              '--duration',
+              String(request.durationFrames),
+              '--width',
+              String(output.width),
+              '--height',
+              String(output.height),
+              '--props',
+              propsPath,
+            ],
+            outputId: output.id,
+            outputPath: output.path,
+          }),
+        ];
+      }
+
+      if (output.kind === 'poster') {
+        return [
+          commandSpec({
+            id: `render-${output.id}`,
+            label: `Render ${output.platform} ${output.aspectRatio} poster`,
+            command: 'npx',
+            args: [
+              'remotion',
+              'still',
+              entryPoint,
+              request.compositionId,
+              output.path,
+              '--frame',
+              '0',
+              '--width',
+              String(output.width),
+              '--height',
+              String(output.height),
+              '--props',
+              propsPath,
+            ],
+            outputId: output.id,
+            outputPath: output.path,
+          }),
+        ];
+      }
+
+      return [];
+    }
+
+    if (output.kind === 'video') {
+      return [
+        commandSpec({
+          id: `render-${output.id}`,
+          label: `Render ${output.platform} ${output.aspectRatio} video`,
+          command: 'npx',
+          args: [
+            'hyperframes',
+            'render',
+            '--output',
+            output.path,
+            '--fps',
+            String(request.fps),
+            '--quality',
+            'standard',
+          ],
+          outputId: output.id,
+          outputPath: output.path,
+        }),
+      ];
+    }
+
+    if (output.kind === 'poster') {
+      return [
+        commandSpec({
+          id: `render-${output.id}`,
+          label: `Render ${output.platform} ${output.aspectRatio} poster`,
+          command: 'npx',
+          args: ['hyperframes', 'snapshot', '.', '--at', '0', '--output', output.path],
+          outputId: output.id,
+          outputPath: output.path,
+        }),
+      ];
+    }
+
+    return [];
+  });
+}
+
+function sourceManifestVerificationCommands(
+  request: MotionRenderRequest,
+  entryPoint: string,
+  propsPath: string
+): SourceManifestCommand[] {
+  const dimensions = renderDimensions(request);
+  if (request.engine === 'remotion') {
+    return [
+      commandSpec({
+        id: 'verify-remotion-still',
+        label: 'Render one-frame layout check',
+        command: 'npx',
+        args: [
+          'remotion',
+          'still',
+          entryPoint,
+          request.compositionId,
+          verificationStillPath(request),
+          '--scale',
+          '0.25',
+          '--frame',
+          String(Math.min(request.fps, Math.max(0, request.durationFrames - 1))),
+          '--width',
+          String(dimensions.width),
+          '--height',
+          String(dimensions.height),
+          '--props',
+          propsPath,
+        ],
+        outputPath: verificationStillPath(request),
+      }),
+    ];
+  }
+
+  return [
+    commandSpec({
+      id: 'verify-hyperframes-lint',
+      label: 'Lint HyperFrames composition',
+      command: 'npx',
+      args: ['hyperframes', 'lint'],
+    }),
+    commandSpec({
+      id: 'verify-hyperframes-validate',
+      label: 'Validate HyperFrames frames',
+      command: 'npx',
+      args: ['hyperframes', 'validate'],
+    }),
+    commandSpec({
+      id: 'verify-hyperframes-snapshot',
+      label: 'Capture one-frame layout check',
+      command: 'npx',
+      args: [
+        'hyperframes',
+        'snapshot',
+        '.',
+        '--at',
+        '0',
+        '--output',
+        verificationStillPath(request),
+      ],
+      outputPath: verificationStillPath(request),
+    }),
+  ];
+}
+
+function sourceManifestProofArtifacts(request: MotionRenderRequest): Array<{
+  outputId: string;
+  exportId: string;
+  kind: string;
+  label: string;
+  platform: string;
+  aspectRatio: string;
+  width: number;
+  height: number;
+  mimeType: string;
+  path: string;
+  provenance: MotionProvenanceRef[];
+}> {
+  return request.outputs.map((output) => ({
+    outputId: output.id,
+    exportId: output.exportId,
+    kind: output.kind,
+    label: renderOutputKindLabel(output.kind),
+    platform: output.platform,
+    aspectRatio: output.aspectRatio,
+    width: output.width,
+    height: output.height,
+    mimeType: output.mimeType,
+    path: output.path,
+    provenance: output.provenance,
+  }));
+}
+
+function commandSpec({
+  id,
+  label,
+  command,
+  args,
+  outputId,
+  outputPath,
+}: {
+  id: string;
+  label: string;
+  command: string;
+  args: string[];
+  outputId?: string;
+  outputPath?: string;
+}): SourceManifestCommand {
+  return {
+    id,
+    label,
+    command,
+    args,
+    cwd: '.',
+    display: commandLine(command, args),
+    ...(outputId ? { outputId } : {}),
+    ...(outputPath ? { outputPath } : {}),
+  };
+}
+
+function commandLine(command: string, args: string[]): string {
+  return [command, ...args].map(shellArg).join(' ');
+}
+
+function shellArg(value: string): string {
+  return /^[A-Za-z0-9_./:=@-]+$/.test(value) ? value : JSON.stringify(value);
+}
+
+function renderPropsPath(request: MotionRenderRequest): string {
+  return `renders/${request.projectId}/${request.id}.props.json`;
+}
+
+function verificationStillPath(request: MotionRenderRequest): string {
+  return `renders/${request.projectId}/${request.id}.verification.png`;
+}
+
+function renderOutputKindLabel(kind: string): string {
+  if (kind === 'video') return 'MP4';
+  if (kind === 'poster') return 'Poster';
+  if (kind === 'subtitle') return 'Subtitles';
+  if (kind === 'transcript') return 'Transcript';
+  if (kind === 'manifest') return 'Manifest';
+  return kind;
 }
 
 function renderDimensions(request: MotionRenderRequest): RenderDimensions {

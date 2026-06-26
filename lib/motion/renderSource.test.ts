@@ -190,6 +190,82 @@ describe('buildMotionRenderSourceBundle', () => {
         }),
       ])
     );
+    expect(manifest.editSurfaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'EDIT.md',
+          editSurfaceLabels: ['component', 'effect', 'regeneration'],
+        }),
+        expect.objectContaining({
+          path: 'timeline/draft-primary.json',
+          editSurfaceLabels: ['timing', 'props', 'assets', 'variants'],
+        }),
+      ])
+    );
+    expect(manifest.execution).toMatchObject({
+      mode: 'agent-render-package',
+      engine: 'remotion',
+      entryPoint: 'remotion/index.tsx',
+      compositionId: 'motion-aether-launch-draft-primary',
+      propsPath:
+        'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.props.json',
+      previewCommand: {
+        id: 'preview-remotion-studio',
+        command: 'npx',
+        args: ['remotion', 'studio'],
+        display: 'npx remotion studio',
+      },
+      renderCommands: [
+        expect.objectContaining({
+          id: 'render-render-export-x-9x16-video',
+          outputId: 'render-export-x-9x16-video',
+          outputPath: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+          display: expect.stringContaining('remotion render remotion/index.tsx'),
+        }),
+        expect.objectContaining({
+          id: 'render-render-export-x-9x16-poster',
+          outputId: 'render-export-x-9x16-poster',
+          outputPath: 'renders/motion-aether-launch/export-x-9x16/poster.png',
+          display: expect.stringContaining('remotion still remotion/index.tsx'),
+        }),
+      ],
+      verificationCommands: [
+        expect.objectContaining({
+          id: 'verify-remotion-still',
+          outputPath:
+            'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.verification.png',
+          display: expect.stringContaining('--scale 0.25 --frame 30'),
+        }),
+      ],
+      artifactChecks: expect.arrayContaining([
+        {
+          outputId: 'render-export-x-9x16-video',
+          kind: 'video',
+          path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+          required: true,
+        },
+      ]),
+    });
+    expect(manifest.proofArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          outputId: 'render-export-x-9x16-video',
+          kind: 'video',
+          label: 'MP4',
+          platform: 'x',
+          aspectRatio: '9:16',
+          width: 1080,
+          height: 1920,
+          path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+        }),
+        expect.objectContaining({
+          outputId: 'render-export-x-9x16-transcript',
+          kind: 'transcript',
+          label: 'Transcript',
+          path: 'renders/motion-aether-launch/export-x-9x16/transcript.txt',
+        }),
+      ])
+    );
     const design = bundle.files.find((file) => file.kind === 'design')?.contents ?? '';
     expect(design).toContain('# aether Motion Design');
     expect(design).toContain('Palette');
@@ -266,6 +342,46 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(entry).toContain('tl.from(\'.motion-clip[data-effect="proof-pulse"]\'');
     expect(entry).toContain('tl.from(".caption-line__text"');
     expect(entry).toContain('Captured aether canvas');
+
+    const manifest = JSON.parse(
+      bundle.files.find((file) => file.kind === 'manifest')?.contents ?? '{}'
+    );
+    expect(manifest.execution).toMatchObject({
+      mode: 'agent-render-package',
+      engine: 'hyperframes',
+      entryPoint: 'index.html',
+      previewCommand: {
+        id: 'preview-hyperframes',
+        command: 'npx',
+        args: ['hyperframes', 'preview'],
+        outputPath: 'index.html',
+      },
+      renderCommands: [
+        expect.objectContaining({
+          id: 'render-render-export-x-9x16-video',
+          display: expect.stringContaining('hyperframes render --output'),
+        }),
+        expect.objectContaining({
+          id: 'render-render-export-x-9x16-poster',
+          display: expect.stringContaining('hyperframes snapshot . --at 0'),
+        }),
+      ],
+      verificationCommands: [
+        expect.objectContaining({
+          id: 'verify-hyperframes-lint',
+          display: 'npx hyperframes lint',
+        }),
+        expect.objectContaining({
+          id: 'verify-hyperframes-validate',
+          display: 'npx hyperframes validate',
+        }),
+        expect.objectContaining({
+          id: 'verify-hyperframes-snapshot',
+          outputPath:
+            'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.verification.png',
+        }),
+      ],
+    });
   });
 
   it('renders command cards for skill-drop and developer launch clips', () => {
