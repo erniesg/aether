@@ -42,7 +42,9 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Screen zoom callout',
         'Proof receipt card',
         'Agent process trace',
+        'Computer-use capture loop',
         'Image-to-video insert',
+        'Prompt-to-artifact demo',
         'Voice and caption sync',
         'Multi-format export pack',
         'Branded template system',
@@ -59,10 +61,10 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Proof card',
         'Evidence card',
         'Agent trace',
+        'Contact sheet proof',
         'Voice line',
         'Caption line',
         'Presenter bubble',
-        'Contact sheet proof',
       ],
       editSurfaceLabels: expect.arrayContaining([
         'capture',
@@ -90,6 +92,8 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Screen Studio: cursor zooms and editable zoom timeline',
         'Arcade: actual-product and brand-aware demo assets',
         'Typeframes: storyboard, script, and edit-first AI video workflow',
+        'Claude Artifacts: dedicated preview surface with immediate iteration and sharing',
+        'Claude computer use: screen perception, cursor movement, clicking, typing, and tool loops',
       ]),
     });
     expect(plan.cues[1]).toMatchObject({
@@ -103,6 +107,16 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Screen Studio: cursor zooms and editable zoom timeline',
       ]),
       editSurfaceLabels: expect.arrayContaining(['cursor path', 'zoom keyframes']),
+    });
+    expect(plan.cues.find((cue) => cue.patternId === 'computer-use-capture-loop')).toMatchObject({
+      componentLabels: ['App frame', 'Cursor callout', 'Agent trace', 'Contact sheet proof'],
+      editSurfaceLabels: expect.arrayContaining(['screenshot', 'recording', 'cursor path']),
+      verificationLabels: expect.arrayContaining(['screenshot receipt', 'recording receipt']),
+    });
+    expect(plan.cues.find((cue) => cue.patternId === 'prompt-to-artifact-demo')).toMatchObject({
+      componentLabels: ['Agent trace', 'App frame', 'Proof card', 'CTA card'],
+      editSurfaceLabels: expect.arrayContaining(['prompt', 'artifact preview']),
+      verificationLabels: expect.arrayContaining(['prompt visible', 'artifact preview visible']),
     });
     expect(plan.cues.find((cue) => cue.patternId === 'reviewable-draft-board')).toMatchObject({
       componentLabels: ['Proof card', 'App frame', 'Agent trace', 'Contact sheet proof'],

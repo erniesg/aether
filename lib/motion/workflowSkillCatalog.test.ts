@@ -118,6 +118,8 @@ describe('motion workflow skill catalog', () => {
       'agent-process-trace',
       'skill-drop-announcement',
       'terminal-command-proof',
+      'prompt-to-artifact-demo',
+      'computer-use-capture-loop',
       'image-to-video-insert',
       'voice-caption-sync',
       'multi-format-pack',
@@ -137,6 +139,16 @@ describe('motion workflow skill catalog', () => {
           id: 'screen-zoom-callout',
           componentIds: ['app-frame', 'cursor-callout', 'soft-wipe'],
           verificationLabels: expect.arrayContaining(['cursor target visible']),
+        }),
+        expect.objectContaining({
+          id: 'prompt-to-artifact-demo',
+          componentIds: ['agent-trace', 'app-frame', 'proof-card', 'cta-card'],
+          editSurfaces: expect.arrayContaining(['prompt', 'artifact preview']),
+        }),
+        expect.objectContaining({
+          id: 'computer-use-capture-loop',
+          componentIds: ['app-frame', 'cursor-callout', 'agent-trace', 'contact-sheet-proof'],
+          verificationLabels: expect.arrayContaining(['screenshot receipt']),
         }),
         expect.objectContaining({
           id: 'before-after-feature',

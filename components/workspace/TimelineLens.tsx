@@ -2311,7 +2311,7 @@ function MotionReferenceGrammarStrip({
       <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
           <div className="font-caption text-xs text-ink">
-            {grammar.cueLabels.slice(0, 3).join(' / ')}
+            {grammar.cueLabels.slice(0, 6).join(' / ')}
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
             {grammar.componentLabels.slice(0, 6).map((label) => (

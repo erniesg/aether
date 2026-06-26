@@ -12,6 +12,8 @@ export type MotionReferencePatternId =
   | 'agent-process-trace'
   | 'skill-drop-announcement'
   | 'terminal-command-proof'
+  | 'prompt-to-artifact-demo'
+  | 'computer-use-capture-loop'
   | 'image-to-video-insert'
   | 'voice-caption-sync'
   | 'multi-format-pack'
@@ -88,6 +90,18 @@ const RESEARCH_SOURCES = {
     label: 'Typeframes',
     url: 'https://www.typeframes.com/',
     observedPattern: 'storyboard, script, and edit-first AI video workflow',
+  },
+  'claude-artifacts': {
+    id: 'claude-artifacts',
+    label: 'Claude Artifacts',
+    url: 'https://claude.com/blog/artifacts',
+    observedPattern: 'dedicated preview surface with immediate iteration and sharing',
+  },
+  'claude-computer-use': {
+    id: 'claude-computer-use',
+    label: 'Claude computer use',
+    url: 'https://www.anthropic.com/news/3-5-models-and-computer-use',
+    observedPattern: 'screen perception, cursor movement, clicking, typing, and tool loops',
   },
 } satisfies Record<string, MotionReferenceResearchSource>;
 
@@ -224,6 +238,49 @@ const REFERENCE_PATTERNS = {
     generationLanes: ['repo-facts', 'code-change', 'render'],
     editSurfaces: ['command', 'copy', 'proof', 'timing'],
     verificationLabels: ['command copied from source', 'package name readable', 'tool receipt present'],
+  },
+  'prompt-to-artifact-demo': {
+    id: 'prompt-to-artifact-demo',
+    label: 'Prompt-to-artifact demo',
+    category: 'story',
+    purpose:
+      'Show the prompt, generated artifact, live preview, and edit loop as one inspectable product story.',
+    sourceSignals: ['prompt', 'generated artifact', 'preview surface', 'edit request'],
+    componentIds: ['agent-trace', 'app-frame', 'proof-card', 'cta-card'],
+    generationLanes: ['repo-facts', 'visual-search', 'sync', 'render'],
+    editSurfaces: ['prompt', 'artifact preview', 'copy', 'timing', 'effect'],
+    verificationLabels: [
+      'prompt visible',
+      'artifact preview visible',
+      'iteration step shown',
+      'share or export action clear',
+    ],
+    researchSources: [
+      RESEARCH_SOURCES['claude-artifacts'],
+      RESEARCH_SOURCES.typeframes,
+    ],
+  },
+  'computer-use-capture-loop': {
+    id: 'computer-use-capture-loop',
+    label: 'Computer-use capture loop',
+    category: 'capture',
+    purpose:
+      'Use screenshots, cursor actions, typed commands, and app recordings as video source material.',
+    sourceSignals: ['screenshot', 'cursor action', 'typed input', 'browser capture', 'recorded flow'],
+    componentIds: ['app-frame', 'cursor-callout', 'agent-trace', 'contact-sheet-proof'],
+    generationLanes: ['capture', 'visual-search', 'sync', 'render'],
+    editSurfaces: ['screenshot', 'cursor path', 'recording', 'timing', 'proof'],
+    verificationLabels: [
+      'screenshot receipt',
+      'recording receipt',
+      'cursor target readable',
+      'agent action trace visible',
+    ],
+    researchSources: [
+      RESEARCH_SOURCES['claude-computer-use'],
+      RESEARCH_SOURCES['screen-studio'],
+      RESEARCH_SOURCES['iart-motion-skills'],
+    ],
   },
   'image-to-video-insert': {
     id: 'image-to-video-insert',

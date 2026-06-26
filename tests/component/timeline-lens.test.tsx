@@ -374,6 +374,8 @@ const previewPlan: MotionPreviewPlan = {
       'Real product capture',
       'Proof receipt card',
       'Agent process trace',
+      'Computer-use capture loop',
+      'Prompt-to-artifact demo',
       'Image-to-video insert',
       'Voice and caption sync',
       'Multi-format export pack',
@@ -414,6 +416,48 @@ const previewPlan: MotionPreviewPlan = {
           },
         ],
       },
+      {
+        patternId: 'computer-use-capture-loop',
+        label: 'Computer-use capture loop',
+        purpose: 'Use screenshots, cursor actions, typed commands, and app recordings as video source material.',
+        sourceSignals: ['screenshot', 'cursor action', 'typed input', 'browser capture', 'recorded flow'],
+        componentLabels: ['App frame', 'Cursor callout', 'Agent trace', 'Contact sheet proof'],
+        generationLaneLabels: ['capture', 'visual search', 'sync', 'render'],
+        editSurfaceLabels: ['screenshot', 'cursor path', 'recording', 'timing', 'proof'],
+        verificationLabels: ['screenshot receipt', 'recording receipt', 'cursor target readable'],
+        researchSourceLabels: [
+          'Claude computer use: screen perception, cursor movement, clicking, typing, and tool loops',
+        ],
+        researchSources: [
+          {
+            id: 'claude-computer-use',
+            label: 'Claude computer use',
+            url: 'https://www.anthropic.com/news/3-5-models-and-computer-use',
+            observedPattern: 'screen perception, cursor movement, clicking, typing, and tool loops',
+          },
+        ],
+      },
+      {
+        patternId: 'prompt-to-artifact-demo',
+        label: 'Prompt-to-artifact demo',
+        purpose: 'Show the prompt, generated artifact, live preview, and edit loop as one inspectable product story.',
+        sourceSignals: ['prompt', 'generated artifact', 'preview surface', 'edit request'],
+        componentLabels: ['Agent trace', 'App frame', 'Proof card', 'CTA card'],
+        generationLaneLabels: ['repo facts', 'visual search', 'sync', 'render'],
+        editSurfaceLabels: ['prompt', 'artifact preview', 'copy', 'timing', 'effect'],
+        verificationLabels: ['prompt visible', 'artifact preview visible', 'iteration step shown'],
+        researchSourceLabels: [
+          'Claude Artifacts: dedicated preview surface with immediate iteration and sharing',
+        ],
+        researchSources: [
+          {
+            id: 'claude-artifacts',
+            label: 'Claude Artifacts',
+            url: 'https://claude.com/blog/artifacts',
+            observedPattern: 'dedicated preview surface with immediate iteration and sharing',
+          },
+        ],
+      },
     ],
     componentLabels: [
       'Hook card',
@@ -423,18 +467,24 @@ const previewPlan: MotionPreviewPlan = {
       'Proof card',
       'Evidence card',
       'Agent trace',
+      'Contact sheet proof',
       'Voice line',
       'Caption line',
+      'Cursor callout',
     ],
-    generationLaneLabels: ['repo facts', 'capture', 'sync', 'render', 'export'],
-    editSurfaceLabels: ['capture', 'component', 'copy', 'effect', 'timing', 'voice-line'],
+    generationLaneLabels: ['repo facts', 'capture', 'visual search', 'sync', 'render', 'export'],
+    editSurfaceLabels: ['capture', 'component', 'copy', 'effect', 'timing', 'voice-line', 'prompt', 'artifact preview'],
     verificationLabels: [
       'first-frame readable',
       'capture receipt',
       'captions align to voice',
+      'screenshot receipt',
+      'prompt visible',
     ],
     researchSourceLabels: [
       'Clueso: script, voiceover, captions, templates, editor handoff',
+      'Claude Artifacts: dedicated preview surface with immediate iteration and sharing',
+      'Claude computer use: screen perception, cursor movement, clicking, typing, and tool loops',
     ],
     researchSources: [
       {
@@ -442,6 +492,18 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Clueso',
         url: 'https://www.clueso.io/',
         observedPattern: 'script, voiceover, captions, templates, editor handoff',
+      },
+      {
+        id: 'claude-artifacts',
+        label: 'Claude Artifacts',
+        url: 'https://claude.com/blog/artifacts',
+        observedPattern: 'dedicated preview surface with immediate iteration and sharing',
+      },
+      {
+        id: 'claude-computer-use',
+        label: 'Claude computer use',
+        url: 'https://www.anthropic.com/news/3-5-models-and-computer-use',
+        observedPattern: 'screen perception, cursor movement, clicking, typing, and tool loops',
       },
     ],
     nextActionLabels: [
@@ -1852,7 +1914,9 @@ describe('TimelineLens', () => {
     expect(screen.getByText('video grammar')).toBeInTheDocument();
     expect(screen.getByText('repo launch / product demo / agent-native workflow')).toBeInTheDocument();
     expect(screen.getByText(/Launch hook title \/ Real product capture/)).toBeInTheDocument();
-    expect(screen.getByText('9 cues')).toBeInTheDocument();
+    expect(screen.getByText('11 cues')).toBeInTheDocument();
+    expect(screen.getByText(/Computer-use capture loop/)).toBeInTheDocument();
+    expect(screen.getByText(/Prompt-to-artifact demo/)).toBeInTheDocument();
     expect(screen.getByText('Review video grammar')).toBeInTheDocument();
     expect(screen.getByText('Reviewable draft board')).toBeInTheDocument();
     expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
