@@ -60,6 +60,7 @@ import {
 import {
   buildMotionSyncPlan,
   type MotionCaptionTimingSource,
+  type MotionSyncEffectCueKind,
   type MotionSyncPlanStatus,
   type MotionVoiceSyncStatus,
 } from './syncPlan';
@@ -67,7 +68,7 @@ import {
   getMotionComponent,
   type MotionRegenerateScope,
 } from './componentRegistry';
-import { getMotionEffectPreset } from './effectPresets';
+import { getMotionEffectPreset, type MotionEffectPresetId } from './effectPresets';
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import {
   DEFAULT_MOTION_FPS,
@@ -362,6 +363,7 @@ export interface MotionPreviewSyncSummary {
   captionCount: number;
   transitionCount: number;
   soundCueCount: number;
+  effectCueCount: number;
   requirementLabels: string[];
   blockerLabels: string[];
 }
@@ -379,6 +381,17 @@ export interface MotionPreviewSyncSoundCue {
   label: string;
   startSeconds: number;
   durationSeconds: number;
+}
+
+export interface MotionPreviewSyncEffectCue {
+  kind: MotionSyncEffectCueKind;
+  label: string;
+  startSeconds: number;
+  durationSeconds: number;
+  effectPresetId: MotionEffectPresetId;
+  effectPresetLabel: string;
+  targetLabel: string;
+  soundCueLabel: string | null;
 }
 
 export interface MotionPreviewExportPackSummary {
@@ -640,6 +653,7 @@ export interface MotionPreviewPlan {
   syncSummary: MotionPreviewSyncSummary;
   syncBeats: MotionPreviewSyncBeat[];
   syncSoundCues: MotionPreviewSyncSoundCue[];
+  syncEffectCues: MotionPreviewSyncEffectCue[];
   exportPackSummary: MotionPreviewExportPackSummary;
   renderProofSummary: MotionPreviewRenderProofSummary;
   canvasMaterialPlan: MotionCanvasMaterialPlan;
@@ -775,6 +789,7 @@ export function buildMotionPreviewPlan(
     syncSummary: buildSyncSummary(syncPlan),
     syncBeats: buildSyncBeats(syncPlan),
     syncSoundCues: buildSyncSoundCues(syncPlan),
+    syncEffectCues: buildSyncEffectCues(syncPlan),
     exportPackSummary,
     renderProofSummary,
     canvasMaterialPlan,
@@ -1392,6 +1407,28 @@ function buildSyncSoundCues(
   }));
 }
 
+function buildSyncEffectCues(
+  syncPlan: ReturnType<typeof buildMotionSyncPlan>
+): MotionPreviewSyncEffectCue[] {
+  const soundCueById = new Map(syncPlan.soundCues.map((cue) => [cue.id, cue]));
+
+  return syncPlan.effectCues.map((cue) => ({
+    kind: cue.kind,
+    label: cue.label,
+    startSeconds: cue.startSeconds,
+    durationSeconds: cue.durationSeconds,
+    effectPresetId: cue.effectPresetId,
+    effectPresetLabel:
+      getMotionEffectPreset(cue.effectPresetId)?.label ?? cue.effectPresetId.replace(/-/g, ' '),
+    targetLabel: syncTargetLabel(cue.targetBeatId ?? cue.targetClipId),
+    soundCueLabel: cue.soundCueId ? soundCueById.get(cue.soundCueId)?.label ?? null : null,
+  }));
+}
+
+function syncTargetLabel(value: string): string {
+  return value.replace(/^beat-/, '').replace(/^clip-/, '').replace(/-/g, ' ');
+}
+
 function buildSyncSummary(
   syncPlan: ReturnType<typeof buildMotionSyncPlan>
 ): MotionPreviewSyncSummary {
@@ -1401,6 +1438,7 @@ function buildSyncSummary(
     captionCount: syncPlan.captionLinks.length,
     transitionCount: syncPlan.transitionCues.length,
     soundCueCount: syncPlan.soundCues.length,
+    effectCueCount: syncPlan.effectCues.length,
     requirementLabels: syncPlan.providerRequirements.map(syncRequirementLabel),
     blockerLabels: syncPlan.blockers.map((blocker) => blocker.label),
   };

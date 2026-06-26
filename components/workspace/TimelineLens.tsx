@@ -40,6 +40,7 @@ import type {
   MotionPreviewRuntimeTarget,
   MotionPreviewSourceProfile,
   MotionPreviewSyncBeat,
+  MotionPreviewSyncEffectCue,
   MotionPreviewSyncSoundCue,
   MotionPreviewSyncSummary,
   MotionPreviewTimelineClip,
@@ -501,12 +502,15 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
-      {previewPlan.syncBeats.length > 0 || previewPlan.syncSoundCues.length > 0 ? (
+      {previewPlan.syncBeats.length > 0 ||
+      previewPlan.syncSoundCues.length > 0 ||
+      previewPlan.syncEffectCues.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionSyncPlanStrip
             status={previewPlan.syncSummary.status}
             beats={previewPlan.syncBeats}
             soundCues={previewPlan.syncSoundCues}
+            effectCues={previewPlan.syncEffectCues}
           />
         </section>
       ) : null}
@@ -2750,6 +2754,7 @@ function SyncSummaryRow({ summary }: { summary: MotionPreviewSyncSummary }) {
     formatCount(summary.beatCount, 'beat'),
     formatCount(summary.captionCount, 'caption'),
     formatCount(summary.transitionCount, 'transition'),
+    formatCount(summary.effectCueCount, 'effect'),
   ];
   const note =
     summary.blockerLabels[0] ??
@@ -2958,10 +2963,12 @@ function MotionSyncPlanStrip({
   status,
   beats,
   soundCues,
+  effectCues,
 }: {
   status: MotionPreviewSyncSummary['status'];
   beats: MotionPreviewSyncBeat[];
   soundCues: MotionPreviewSyncSoundCue[];
+  effectCues: MotionPreviewSyncEffectCue[];
 }) {
   return (
     <div className="min-w-0">
@@ -2973,7 +2980,7 @@ function MotionSyncPlanStrip({
           {status.replace(/-/g, ' ')}
         </span>
       </div>
-      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_220px_240px]">
         <div className="flex gap-2 overflow-x-auto pb-1">
           {beats.slice(0, 6).map((beat, index) => (
             <div
@@ -2991,6 +2998,11 @@ function MotionSyncPlanStrip({
           ))}
         </div>
         <div className="grid gap-1.5">
+          {soundCues.length > 0 ? (
+            <div className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+              audio cues
+            </div>
+          ) : null}
           {soundCues.slice(0, 3).map((cue, index) => (
             <div
               key={`${cue.kind}-${cue.startSeconds}-${index}`}
@@ -2999,6 +3011,28 @@ function MotionSyncPlanStrip({
               <div className="font-caption text-xs text-ink">{cue.label}</div>
               <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
                 {cue.kind} · {cue.startSeconds}s
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-1.5">
+          {effectCues.length > 0 ? (
+            <div className="font-mono text-2xs uppercase tracking-wide text-ink-faint">
+              sync effects
+            </div>
+          ) : null}
+          {effectCues.slice(0, 3).map((cue, index) => (
+            <div
+              key={`${cue.kind}-${cue.startSeconds}-${index}`}
+              className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="font-caption text-xs text-ink">{cue.label}</div>
+              <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
+                {cue.effectPresetLabel} · {cue.startSeconds}s
+              </div>
+              <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-dim">
+                {cue.targetLabel}
+                {cue.soundCueLabel ? ` · ${cue.soundCueLabel}` : ''}
               </div>
             </div>
           ))}

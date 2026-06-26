@@ -8,6 +8,7 @@ import {
   type TimelineClip,
   type TimelineTrack,
 } from './project';
+import type { MotionEffectPresetId } from './effectPresets';
 
 export type MotionSyncPlanStatus = 'ready' | 'needs-timeline' | 'needs-voice';
 export type MotionVoiceSyncStatus = 'planned' | 'ready';
@@ -75,6 +76,21 @@ export interface MotionSyncSoundCue {
   provenance: MotionProvenanceRef[];
 }
 
+export type MotionSyncEffectCueKind = 'caption-emphasis' | 'transition' | 'cta';
+
+export interface MotionSyncEffectCue {
+  id: string;
+  kind: MotionSyncEffectCueKind;
+  startSeconds: number;
+  durationSeconds: number;
+  label: string;
+  effectPresetId: MotionEffectPresetId;
+  targetClipId: string;
+  targetBeatId: string | null;
+  soundCueId: string | null;
+  provenance: MotionProvenanceRef[];
+}
+
 export interface MotionSyncPlan {
   id: string;
   projectId: string;
@@ -85,6 +101,7 @@ export interface MotionSyncPlan {
   captionLinks: MotionSyncCaptionLink[];
   transitionCues: MotionSyncTransitionCue[];
   soundCues: MotionSyncSoundCue[];
+  effectCues: MotionSyncEffectCue[];
   syncNode: MotionGraphNode | null;
   blockers: MotionSyncPlanBlocker[];
   requestedAt: number;
@@ -119,6 +136,7 @@ export function buildMotionSyncPlan(
       captionLinks: [],
       transitionCues: [],
       soundCues: [],
+      effectCues: [],
       syncNode: null,
       blockers: [
         {
@@ -135,6 +153,7 @@ export function buildMotionSyncPlan(
   const captionLinks = buildCaptionLinks(selection, fps);
   const transitionCues = buildTransitionCues(selection, fps);
   const soundCues = buildSoundCues(beatMarkers, transitionCues);
+  const effectCues = buildEffectCues(beatMarkers, transitionCues, soundCues);
   const allVoicesReady =
     beatMarkers.length > 0 && beatMarkers.every((marker) => marker.voiceStatus === 'ready');
   const status: MotionSyncPlanStatus = allVoicesReady ? 'ready' : 'needs-voice';
@@ -144,6 +163,8 @@ export function buildMotionSyncPlan(
     ...beatMarkers.flatMap((marker) => marker.provenance),
     ...captionLinks.flatMap((link) => link.provenance),
     ...transitionCues.flatMap((cue) => cue.provenance),
+    ...soundCues.flatMap((cue) => cue.provenance),
+    ...effectCues.flatMap((cue) => cue.provenance),
   ]);
 
   return {
@@ -156,6 +177,7 @@ export function buildMotionSyncPlan(
     captionLinks,
     transitionCues,
     soundCues,
+    effectCues,
     syncNode: {
       id: 'node-sync-plan',
       kind: 'sync',
@@ -165,6 +187,7 @@ export function buildMotionSyncPlan(
         ...captionLinks.map((link) => link.id),
         ...transitionCues.map((cue) => cue.id),
         ...soundCues.map((cue) => cue.id),
+        ...effectCues.map((cue) => cue.id),
       ],
       status: 'planned',
       provenance,
@@ -295,6 +318,91 @@ function buildSoundCues(
         ]
       : []),
   ];
+}
+
+function buildEffectCues(
+  beatMarkers: MotionSyncBeatMarker[],
+  transitionCues: MotionSyncTransitionCue[],
+  soundCues: MotionSyncSoundCue[]
+): MotionSyncEffectCue[] {
+  const soundCueIds = new Set(soundCues.map((cue) => cue.id));
+  const transitionEffectCues = transitionCues.map((cue) => {
+    const soundCueId = `sfx-${cue.clipId}`;
+
+    return {
+      id: `effect-${cue.clipId}`,
+      kind: 'transition' as const,
+      startSeconds: cue.startSeconds,
+      durationSeconds: cue.durationSeconds,
+      label: 'Soft transition wipe',
+      effectPresetId: 'product-glide' as const,
+      targetClipId: cue.clipId,
+      targetBeatId: cue.toBeatId,
+      soundCueId: soundCueIds.has(soundCueId) ? soundCueId : null,
+      provenance: cue.provenance,
+    };
+  });
+
+  const captionEffectCues = beatMarkers
+    .filter((marker) => captionEffectRole(marker.role))
+    .map((marker) => ({
+      id: `effect-${marker.beatId}-caption`,
+      kind: 'caption-emphasis' as const,
+      startSeconds: Number((marker.startSeconds + 0.15).toFixed(3)),
+      durationSeconds: Math.min(0.6, marker.durationSeconds),
+      label: captionEffectLabel(marker.role),
+      effectPresetId: effectPresetForRole(marker.role),
+      targetClipId: marker.captionClipId ?? marker.textClipId,
+      targetBeatId: marker.beatId,
+      soundCueId: null,
+      provenance: marker.provenance,
+    }));
+
+  const cta = beatMarkers.find((marker) => marker.role === 'cta');
+  const ctaSoundCueId = cta ? `sfx-${cta.beatId}-cta` : null;
+  const ctaEffectCues =
+    cta && ctaSoundCueId
+      ? [
+          {
+            id: `effect-${cta.beatId}-cta`,
+            kind: 'cta' as const,
+            startSeconds: Math.max(
+              0,
+              Number((cta.startSeconds + cta.durationSeconds - 0.45).toFixed(3))
+            ),
+            durationSeconds: 0.45,
+            label: 'CTA proof pulse',
+            effectPresetId: 'proof-pulse' as const,
+            targetClipId: cta.captionClipId ?? cta.textClipId,
+            targetBeatId: cta.beatId,
+            soundCueId: soundCueIds.has(ctaSoundCueId) ? ctaSoundCueId : null,
+            provenance: cta.provenance,
+          },
+        ]
+      : [];
+
+  return [...transitionEffectCues, ...captionEffectCues, ...ctaEffectCues];
+}
+
+function captionEffectRole(role: MotionBeatRole): boolean {
+  return (
+    role === 'hook' ||
+    role === 'proof' ||
+    role === 'evidence' ||
+    role === 'diff' ||
+    role === 'payoff'
+  );
+}
+
+function captionEffectLabel(role: MotionBeatRole): string {
+  if (role === 'hook') return 'Hook caption pop';
+  if (role === 'payoff') return 'Payoff caption pop';
+  return 'Proof pulse';
+}
+
+function effectPresetForRole(role: MotionBeatRole): MotionEffectPresetId {
+  if (role === 'hook' || role === 'payoff') return 'caption-pop';
+  return 'proof-pulse';
 }
 
 function storyBeatId(clip?: TimelineClip): string | null {

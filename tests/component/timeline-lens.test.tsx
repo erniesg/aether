@@ -832,6 +832,7 @@ const previewPlan: MotionPreviewPlan = {
     captionCount: 2,
     transitionCount: 1,
     soundCueCount: 3,
+    effectCueCount: 2,
     requirementLabels: ['voice', 'word timings'],
     blockerLabels: ['Generate voice and word timings before final sync'],
   },
@@ -857,6 +858,28 @@ const previewPlan: MotionPreviewPlan = {
       label: 'Soft transition accent',
       startSeconds: 2.633,
       durationSeconds: 0.367,
+    },
+  ],
+  syncEffectCues: [
+    {
+      kind: 'caption-emphasis',
+      label: 'Hook caption pop',
+      startSeconds: 0.15,
+      durationSeconds: 0.6,
+      effectPresetId: 'caption-pop',
+      effectPresetLabel: 'caption pop',
+      targetLabel: 'hook',
+      soundCueLabel: null,
+    },
+    {
+      kind: 'transition',
+      label: 'Soft transition wipe',
+      startSeconds: 2.633,
+      durationSeconds: 0.367,
+      effectPresetId: 'product-glide',
+      effectPresetLabel: 'product glide',
+      targetLabel: 'demo',
+      soundCueLabel: 'Soft transition accent',
     },
   ],
   exportPackSummary: {
@@ -1962,10 +1985,13 @@ describe('TimelineLens', () => {
     expect(screen.getByText('provider-required')).toBeInTheDocument();
     expect(screen.getByText('sync')).toBeInTheDocument();
     expect(screen.getAllByText('needs voice').length).toBeGreaterThan(0);
-    expect(screen.getByText('2 beats / 2 captions / 1 transition')).toBeInTheDocument();
+    expect(screen.getByText('2 beats / 2 captions / 1 transition / 2 effects')).toBeInTheDocument();
     expect(screen.getByText('sync plan')).toBeInTheDocument();
     expect(screen.getByText(/voice planned/)).toBeInTheDocument();
     expect(screen.getByText('Soft transition accent')).toBeInTheDocument();
+    expect(screen.getByText('sync effects')).toBeInTheDocument();
+    expect(screen.getByText('Hook caption pop')).toBeInTheDocument();
+    expect(screen.getAllByText(/caption pop/).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /sync timeline/i })).toBeInTheDocument();
     expect(screen.getAllByText('export pack').length).toBeGreaterThan(0);
     expect(screen.getAllByText('needs render').length).toBeGreaterThan(0);

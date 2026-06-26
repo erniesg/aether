@@ -139,6 +139,37 @@ describe('buildMotionSyncPlan', () => {
       startSeconds: 2.633,
       label: 'Soft transition accent',
     });
+    expect(plan.effectCues[0]).toMatchObject({
+      id: 'effect-clip-transition-beat-hook-to-beat-problem',
+      kind: 'transition',
+      startSeconds: 2.633,
+      label: 'Soft transition wipe',
+      effectPresetId: 'product-glide',
+      targetClipId: 'clip-transition-beat-hook-to-beat-problem',
+      targetBeatId: 'beat-problem',
+      soundCueId: 'sfx-clip-transition-beat-hook-to-beat-problem',
+    });
+    expect(plan.effectCues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'effect-beat-hook-caption',
+          kind: 'caption-emphasis',
+          label: 'Hook caption pop',
+          effectPresetId: 'caption-pop',
+          targetClipId: 'clip-beat-hook-caption',
+          targetBeatId: 'beat-hook',
+        }),
+        expect.objectContaining({
+          id: 'effect-beat-cta-cta',
+          kind: 'cta',
+          label: 'CTA proof pulse',
+          effectPresetId: 'proof-pulse',
+          targetClipId: 'clip-beat-cta-caption',
+          targetBeatId: 'beat-cta',
+          soundCueId: 'sfx-beat-cta-cta',
+        }),
+      ])
+    );
   });
 
   it('marks the sync plan ready when voice clips have audio and word timings', () => {
@@ -166,6 +197,7 @@ describe('buildMotionSyncPlan', () => {
       outputRefs: expect.arrayContaining([
         'sync-marker-beat-hook',
         'caption-link-clip-beat-hook-caption',
+        'effect-beat-hook-caption',
       ]),
     });
   });
@@ -201,6 +233,7 @@ describe('buildMotionSyncPlan', () => {
       captionLinks: [],
       transitionCues: [],
       soundCues: [],
+      effectCues: [],
       blockers: [
         {
           id: 'timeline-required',

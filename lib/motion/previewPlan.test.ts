@@ -391,6 +391,7 @@ describe('buildMotionPreviewPlan', () => {
       beatCount: 6,
       captionCount: 6,
       transitionCount: 5,
+      effectCueCount: 9,
       requirementLabels: ['voice', 'word timings'],
       blockerLabels: ['Generate voice and word timings before final sync'],
     });
@@ -406,6 +407,25 @@ describe('buildMotionPreviewPlan', () => {
       label: 'Soft transition accent',
       startSeconds: 2.633,
     });
+    expect(preview.syncEffectCues[0]).toMatchObject({
+      kind: 'transition',
+      label: 'Soft transition wipe',
+      startSeconds: 2.633,
+      effectPresetId: 'product-glide',
+      effectPresetLabel: 'product glide',
+      targetLabel: 'problem',
+      soundCueLabel: 'Soft transition accent',
+    });
+    expect(preview.syncEffectCues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'caption-emphasis',
+          label: 'Hook caption pop',
+          effectPresetId: 'caption-pop',
+          targetLabel: 'hook',
+        }),
+      ])
+    );
     expect(preview.exportPackSummary).toMatchObject({
       status: 'needs-render',
       readyCount: 0,
