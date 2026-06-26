@@ -309,6 +309,7 @@ const previewPlan: MotionPreviewPlan = {
       'Image-to-video insert',
       'Voice and caption sync',
       'Multi-format export pack',
+      'Reviewable draft board',
       'Reusable motion system',
     ],
     cues: [
@@ -1677,8 +1678,9 @@ describe('TimelineLens', () => {
     expect(screen.getByText('video grammar')).toBeInTheDocument();
     expect(screen.getByText('repo launch / product demo / agent-native workflow')).toBeInTheDocument();
     expect(screen.getByText(/Launch hook title \/ Real product capture/)).toBeInTheDocument();
-    expect(screen.getByText('8 cues')).toBeInTheDocument();
+    expect(screen.getByText('9 cues')).toBeInTheDocument();
     expect(screen.getByText('Review video grammar')).toBeInTheDocument();
+    expect(screen.getByText('Reviewable draft board')).toBeInTheDocument();
     expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
     expect(screen.getAllByText('1 source').length).toBeGreaterThan(0);
     expect(screen.getByText('assetId / caption / zoom')).toBeInTheDocument();

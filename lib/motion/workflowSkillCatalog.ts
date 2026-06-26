@@ -187,6 +187,7 @@ const RECIPE_DEFINITIONS = {
       'multi-format-pack',
       'branded-template-system',
       'localized-caption-variant',
+      'reviewable-draft-board',
     ],
     reviewSurfaces: [
       {
@@ -315,6 +316,7 @@ const RECIPE_DEFINITIONS = {
       'real-product-capture',
       'screen-zoom-callout',
       'caption-led-social',
+      'reviewable-draft-board',
       'multi-format-pack',
     ],
     reviewSurfaces: [
@@ -422,6 +424,7 @@ const RECIPE_DEFINITIONS = {
       'real-product-capture',
       'screen-zoom-callout',
       'caption-led-social',
+      'reviewable-draft-board',
       'multi-format-pack',
     ],
     reviewSurfaces: [

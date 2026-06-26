@@ -17,6 +17,7 @@ export type MotionReferencePatternId =
   | 'multi-format-pack'
   | 'branded-template-system'
   | 'localized-caption-variant'
+  | 'reviewable-draft-board'
   | 'reusable-motion-system';
 
 export type MotionReferencePatternCategory =
@@ -81,6 +82,12 @@ const RESEARCH_SOURCES = {
     label: 'Arcade',
     url: 'https://www.arcade.software/',
     observedPattern: 'actual-product and brand-aware demo assets',
+  },
+  typeframes: {
+    id: 'typeframes',
+    label: 'Typeframes',
+    url: 'https://www.typeframes.com/',
+    observedPattern: 'storyboard, script, and edit-first AI video workflow',
   },
 } satisfies Record<string, MotionReferenceResearchSource>;
 
@@ -287,6 +294,42 @@ const REFERENCE_PATTERNS = {
     editSurfaces: ['locale', 'voice-line', 'caption', 'translation', 'timing'],
     verificationLabels: ['locale pack manifest', 'captions align to voice', 'transcript sidecars'],
     researchSources: [RESEARCH_SOURCES.clueso, RESEARCH_SOURCES['iart-motion-skills']],
+  },
+  'reviewable-draft-board': {
+    id: 'reviewable-draft-board',
+    label: 'Reviewable draft board',
+    category: 'edit',
+    purpose:
+      'Show draft variations, shot choices, source receipts, and regenerate controls before full-auto execution.',
+    sourceSignals: ['draft variations', 'video plan', 'regeneration action', 'review gate'],
+    componentIds: ['proof-card', 'app-frame', 'agent-trace', 'contact-sheet-proof'],
+    generationLanes: [
+      'repo-facts',
+      'capture',
+      'visual-search',
+      'image-to-video',
+      'voice',
+      'sync',
+    ],
+    editSurfaces: [
+      'draft angle',
+      'scene order',
+      'source pick',
+      'regeneration scope',
+      'timing',
+      'voice-line',
+    ],
+    verificationLabels: [
+      'draft options visible',
+      'component regeneration scopes visible',
+      'full-auto gates reviewable',
+      'source receipts visible',
+    ],
+    researchSources: [
+      RESEARCH_SOURCES.typeframes,
+      RESEARCH_SOURCES['hyperframes-skills'],
+      RESEARCH_SOURCES['iart-motion-skills'],
+    ],
   },
   'reusable-motion-system': {
     id: 'reusable-motion-system',

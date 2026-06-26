@@ -91,6 +91,17 @@ describe('motion workflow skill catalog', () => {
         }
       }
     }
+
+    expect(
+      getMotionWorkflowSkillRecipe('repo-launch-video')?.referencePatterns.map(
+        (pattern) => pattern.id
+      )
+    ).toContain('reviewable-draft-board');
+    expect(
+      getMotionWorkflowSkillRecipe('feature-social-video')?.referencePatterns.map(
+        (pattern) => pattern.id
+      )
+    ).toContain('reviewable-draft-board');
   });
 
   it('lists reusable product-video reference patterns for agents and creators', () => {
@@ -112,6 +123,7 @@ describe('motion workflow skill catalog', () => {
       'multi-format-pack',
       'branded-template-system',
       'localized-caption-variant',
+      'reviewable-draft-board',
       'reusable-motion-system',
     ]);
     expect(patterns).toEqual(
@@ -162,6 +174,21 @@ describe('motion workflow skill catalog', () => {
           id: 'multi-format-pack',
           componentIds: ['contact-sheet-proof', 'cta-card', 'caption-line'],
           verificationLabels: expect.arrayContaining(['contact sheet proof']),
+        }),
+        expect.objectContaining({
+          id: 'reviewable-draft-board',
+          generationLanes: [
+            'repo-facts',
+            'capture',
+            'visual-search',
+            'image-to-video',
+            'voice',
+            'sync',
+          ],
+          verificationLabels: expect.arrayContaining([
+            'draft options visible',
+            'component regeneration scopes visible',
+          ]),
         }),
       ])
     );

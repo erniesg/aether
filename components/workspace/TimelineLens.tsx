@@ -2141,6 +2141,8 @@ function MotionReferenceGrammarStrip({
 }: {
   grammar: MotionPreviewPlan['referenceGrammar'];
 }) {
+  const reviewCueLabel = grammar.cueLabels.find((label) => /draft board/i.test(label));
+
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -2179,6 +2181,11 @@ function MotionReferenceGrammarStrip({
                 {label}
               </Chip>
             ))}
+            {reviewCueLabel ? (
+              <Chip tone="neutral" size="sm">
+                {reviewCueLabel}
+              </Chip>
+            ) : null}
           </div>
           {grammar.verificationLabels.length > 0 ? (
             <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">

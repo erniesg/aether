@@ -255,6 +255,7 @@ describe('buildMotionPreviewPlan', () => {
         'Multi-format export pack',
         'Branded template system',
         'Localized voice caption variants',
+        'Reviewable draft board',
         'Reusable motion system',
       ],
       componentLabels: expect.arrayContaining([

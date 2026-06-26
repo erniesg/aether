@@ -47,6 +47,7 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Multi-format export pack',
         'Branded template system',
         'Localized voice caption variants',
+        'Reviewable draft board',
         'Reusable motion system',
       ],
       componentLabels: [
@@ -88,6 +89,7 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Clueso: script, voiceover, captions, templates, editor handoff',
         'Screen Studio: cursor zooms and editable zoom timeline',
         'Arcade: actual-product and brand-aware demo assets',
+        'Typeframes: storyboard, script, and edit-first AI video workflow',
       ]),
     });
     expect(plan.cues[1]).toMatchObject({
@@ -101,6 +103,18 @@ describe('buildMotionReferenceGrammarPlan', () => {
         'Screen Studio: cursor zooms and editable zoom timeline',
       ]),
       editSurfaceLabels: expect.arrayContaining(['cursor path', 'zoom keyframes']),
+    });
+    expect(plan.cues.find((cue) => cue.patternId === 'reviewable-draft-board')).toMatchObject({
+      componentLabels: ['Proof card', 'App frame', 'Agent trace', 'Contact sheet proof'],
+      editSurfaceLabels: expect.arrayContaining([
+        'draft angle',
+        'scene order',
+        'regeneration scope',
+      ]),
+      verificationLabels: expect.arrayContaining([
+        'draft options visible',
+        'component regeneration scopes visible',
+      ]),
     });
     expect(plan.researchSources).toEqual(
       expect.arrayContaining([

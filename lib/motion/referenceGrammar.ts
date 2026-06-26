@@ -119,6 +119,7 @@ function selectReferencePatternIds(project: MotionProject): MotionReferencePatte
       'caption-led-social',
       'image-to-video-insert',
       'voice-caption-sync',
+      'reviewable-draft-board',
       'multi-format-pack'
     );
   } else if (project.brief.projectKind === 'demo' || project.sourceProfile?.kind === 'site') {
@@ -127,6 +128,7 @@ function selectReferencePatternIds(project: MotionProject): MotionReferencePatte
       'screen-zoom-callout',
       'agent-process-trace',
       'voice-caption-sync',
+      'reviewable-draft-board',
       'multi-format-pack'
     );
   } else {
@@ -141,6 +143,7 @@ function selectReferencePatternIds(project: MotionProject): MotionReferencePatte
       'multi-format-pack',
       'branded-template-system',
       'localized-caption-variant',
+      'reviewable-draft-board',
       'reusable-motion-system'
     );
   }
