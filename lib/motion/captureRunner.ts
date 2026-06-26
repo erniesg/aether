@@ -1,17 +1,38 @@
 import path from 'node:path';
 import type { MotionProject } from './project';
+import {
+  createComputerUseCaptureProvider,
+  type ComputerUseCaptureRunnerArtifact,
+} from '@/lib/providers/capture/computerUse';
 import { createLocalAppLauncher } from '@/lib/providers/capture/local-app-launch';
 import { createPlaywrightBrowserCaptureProvider } from '@/lib/providers/capture/playwright';
 import { listCaptureProviders } from '@/lib/providers/capture/registry';
-import type { CaptureProvider } from '@/lib/providers/capture/types';
+import type {
+  CaptureProvider,
+  CaptureRedaction,
+  CaptureRedactionAction,
+  CaptureRedactionManifest,
+} from '@/lib/providers/capture/types';
 
-export interface MotionCaptureRunnerSummary {
+export type MotionCaptureRunnerSummary =
+  | MotionPlaywrightCaptureRunnerSummary
+  | MotionComputerUseCaptureRunnerSummary;
+
+export interface MotionPlaywrightCaptureRunnerSummary {
   kind: 'playwright-local';
   providerId: string;
   outputDir: string;
   launchLocalApp: boolean;
   headless: boolean;
   timeoutMs?: number;
+}
+
+export interface MotionComputerUseCaptureRunnerSummary {
+  kind: 'computer-use-local';
+  providerId: string;
+  approved: true;
+  redactionLabels: string[];
+  receiptCount: number;
 }
 
 export interface InlineMotionCaptureRunner {
@@ -27,8 +48,11 @@ export function buildInlineMotionCaptureRunner(
   if (!isObject(value)) throw new Error('captureRunner must be a JSON object');
 
   const kind = stringValue(value.kind);
+  if (kind === 'computer-use-local') {
+    return buildComputerUseInlineRunner(value);
+  }
   if (kind !== 'playwright-local') {
-    throw new Error('captureRunner.kind must be playwright-local');
+    throw new Error('captureRunner.kind must be playwright-local or computer-use-local');
   }
 
   const timeoutMs = optionalPositiveNumber(value.timeoutMs, 'captureRunner.timeoutMs');
@@ -51,6 +75,40 @@ export function buildInlineMotionCaptureRunner(
       launchLocalApp,
       headless,
       ...(timeoutMs ? { timeoutMs } : {}),
+    },
+  };
+}
+
+function buildComputerUseInlineRunner(
+  value: Record<string, unknown>
+): InlineMotionCaptureRunner {
+  if (value.approved !== true) {
+    throw new Error('computer-use capture requires creator approval');
+  }
+
+  const redactionManifest = parseRedactionManifest(value.redactionManifest);
+  if (!redactionManifest?.applied) {
+    throw new Error('computer-use capture requires an applied redaction manifest');
+  }
+
+  const receipts = parseComputerUseReceipts(value.receipts);
+  const provider = createComputerUseCaptureProvider({
+    approved: true,
+    redactionManifest,
+    runner: {
+      available: () => true,
+      capture: async () => receipts,
+    },
+  });
+
+  return {
+    provider,
+    summary: {
+      kind: 'computer-use-local',
+      providerId: provider.id,
+      approved: true,
+      redactionLabels: redactionManifest.labels,
+      receiptCount: receipts.length,
     },
   };
 }
@@ -114,6 +172,88 @@ function optionalPositiveNumber(value: unknown, label: string): number | undefin
 
 function booleanValue(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function parseRedactionManifest(value: unknown): CaptureRedactionManifest | null {
+  if (!isObject(value)) return null;
+  const labels = parseStringArray(value.labels);
+  const applied = booleanValue(value.applied);
+  const receiptRef = stringValue(value.receiptRef);
+  if (!labels || labels.length === 0 || applied !== true) return null;
+
+  return {
+    labels,
+    applied: true,
+    ...(receiptRef ? { receiptRef } : {}),
+  };
+}
+
+function parseComputerUseReceipts(value: unknown): ComputerUseCaptureRunnerArtifact[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('computer-use capture requires at least one receipt');
+  }
+
+  return value.map((receipt, index) => {
+    if (!isObject(receipt)) throw new Error(`computer-use receipt ${index + 1} must be an object`);
+    const assetUrl = stringValue(receipt.assetUrl);
+    if (!assetUrl) throw new Error(`computer-use receipt ${index + 1} requires assetUrl`);
+    const width = optionalPositiveNumber(receipt.width, `computer-use receipt ${index + 1}.width`);
+    const height = optionalPositiveNumber(receipt.height, `computer-use receipt ${index + 1}.height`);
+    const durationMs = optionalPositiveNumber(
+      receipt.durationMs,
+      `computer-use receipt ${index + 1}.durationMs`
+    );
+    const mimeType = stringValue(receipt.mimeType);
+    const redactions = parseRedactions(receipt.redactions);
+
+    return {
+      assetUrl,
+      ...(width ? { width } : {}),
+      ...(height ? { height } : {}),
+      ...(durationMs ? { durationMs } : {}),
+      ...(mimeType ? { mimeType } : {}),
+      ...(redactions.length ? { redactions } : {}),
+    };
+  });
+}
+
+function parseRedactions(value: unknown): CaptureRedaction[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error('computer-use receipt redactions must be an array');
+
+  return value.map((redaction, index) => {
+    if (!isObject(redaction)) {
+      throw new Error(`computer-use redaction ${index + 1} must be an object`);
+    }
+    const label = stringValue(redaction.label);
+    const target = stringValue(redaction.target);
+    const action = redactionAction(redaction.action);
+    const applied = booleanValue(redaction.applied);
+    if (!label || !target || !action || applied !== true) {
+      throw new Error(`computer-use redaction ${index + 1} is incomplete`);
+    }
+
+    return {
+      label,
+      target,
+      action,
+      applied: true,
+    };
+  });
+}
+
+function redactionAction(value: unknown): CaptureRedactionAction | null {
+  if (value === 'mask' || value === 'blur' || value === 'omit') return value;
+  return null;
+}
+
+function parseStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const parsed = value.flatMap((item) => {
+    const next = stringValue(item);
+    return next ? [next] : [];
+  });
+  return parsed.length === value.length ? parsed : null;
 }
 
 function slugify(value: string): string {

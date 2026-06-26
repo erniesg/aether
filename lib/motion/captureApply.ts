@@ -136,6 +136,7 @@ function applyCaptureToClip(
       mimeType: artifact.mimeType,
       viewport: artifact.viewport,
       cursorTargets: artifact.cursorTargets,
+      ...(artifact.redactions?.length ? { redactions: artifact.redactions } : {}),
       ...(artifact.durationMs === undefined ? {} : { durationMs: artifact.durationMs }),
     },
     provenance: uniqueProvenance([

@@ -4,6 +4,7 @@ export type CaptureTargetKind = 'url' | 'local-app' | 'desktop-app' | 'figma' | 
 export type CaptureMode = 'screenshot' | 'screen-recording' | 'dom-snapshot' | 'interaction-trace';
 export type CaptureStepAction = 'goto' | 'click' | 'type' | 'wait' | 'scroll' | 'record' | 'manual';
 export type CaptureArtifactKind = 'screenshot' | 'recording' | 'snapshot' | 'trace';
+export type CaptureRedactionAction = 'mask' | 'blur' | 'omit';
 
 export interface CaptureTarget {
   kind: CaptureTargetKind;
@@ -58,6 +59,19 @@ export interface CaptureCursorTarget extends CapturePoint {
   stepId: string;
 }
 
+export interface CaptureRedaction {
+  label: string;
+  target: string;
+  action: CaptureRedactionAction;
+  applied: boolean;
+}
+
+export interface CaptureRedactionManifest {
+  labels: string[];
+  applied: boolean;
+  receiptRef?: string;
+}
+
 export interface CaptureArtifact {
   id: string;
   kind: CaptureArtifactKind;
@@ -68,6 +82,7 @@ export interface CaptureArtifact {
   mimeType: string;
   viewport: CaptureViewport;
   cursorTargets: CaptureCursorTarget[];
+  redactions?: CaptureRedaction[];
   provenance: MotionProvenanceRef[];
 }
 

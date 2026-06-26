@@ -351,6 +351,154 @@ describe('POST /api/motion/capture', () => {
     });
   });
 
+  it('rejects computer-use capture without approval or redaction manifest', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const missingApproval = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['capture-home-still'],
+          captureRunner: {
+            kind: 'computer-use-local',
+            redactionManifest: {
+              labels: ['tokens'],
+              applied: true,
+              receiptRef: 'redactions.json',
+            },
+            receipts: [{ assetUrl: 'asset://capture/desktop.png' }],
+          },
+        }),
+      })
+    );
+
+    expect(missingApproval.status).toBe(400);
+    expect(await missingApproval.json()).toMatchObject({
+      ok: false,
+      error: 'computer-use capture requires creator approval',
+    });
+
+    const missingRedactions = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['capture-home-still'],
+          captureRunner: {
+            kind: 'computer-use-local',
+            approved: true,
+            receipts: [{ assetUrl: 'asset://capture/desktop.png' }],
+          },
+        }),
+      })
+    );
+
+    expect(missingRedactions.status).toBe(400);
+    expect(await missingRedactions.json()).toMatchObject({
+      ok: false,
+      error: 'computer-use capture requires an applied redaction manifest',
+    });
+  });
+
+  it('applies approved computer-use receipts through the capture route', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['capture-home-still'],
+          requestedAt: 905,
+          updatedAt: 906,
+          captureRunner: {
+            kind: 'computer-use-local',
+            approved: true,
+            redactionManifest: {
+              labels: ['tokens', 'emails'],
+              applied: true,
+              receiptRef: 'outputs/motion-captures/redactions.json',
+            },
+            receipts: [
+              {
+                assetUrl: 'asset://capture/paillette-desktop.png',
+                width: 1080,
+                height: 1920,
+                mimeType: 'image/png',
+                redactions: [
+                  {
+                    label: 'tokens',
+                    target: 'browser toolbar',
+                    action: 'mask',
+                    applied: true,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'captured',
+      captureRunner: {
+        kind: 'computer-use-local',
+        providerId: 'computer-use-capture',
+        approved: true,
+        redactionLabels: ['tokens', 'emails'],
+      },
+      captureResult: {
+        providerId: 'computer-use-capture',
+        artifacts: [
+          {
+            id: 'capture-computer-use-screenshot-https-paillette-app-search',
+            assetUrl: 'asset://capture/paillette-desktop.png',
+            redactions: [
+              {
+                label: 'tokens',
+                target: 'browser toolbar',
+                action: 'mask',
+                applied: true,
+              },
+            ],
+          },
+        ],
+      },
+      providers: [
+        {
+          id: 'computer-use-capture',
+          displayName: 'Computer-use capture',
+          available: true,
+        },
+      ],
+    });
+
+    const appFrameClip = json.project.tracks
+      .flatMap((track: { clips: Array<{ componentId?: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { componentId?: string }) => clip.componentId === 'app-frame');
+    expect(appFrameClip).toMatchObject({
+      assetId: 'capture-computer-use-screenshot-https-paillette-app-search',
+      props: {
+        assetUrl: 'asset://capture/paillette-desktop.png',
+        captureProviderId: 'computer-use-capture',
+        redactions: [
+          {
+            label: 'tokens',
+            target: 'browser toolbar',
+            action: 'mask',
+            applied: true,
+          },
+        ],
+      },
+    });
+  });
+
   it('returns source blockers before resolving capture providers', async () => {
     const capture = vi.fn(async (): Promise<CaptureResult> => ({
       providerId: 'browser-test',

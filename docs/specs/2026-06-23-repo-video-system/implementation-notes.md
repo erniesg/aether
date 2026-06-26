@@ -159,7 +159,12 @@
   "playwright-local"` option now instantiates the local Playwright provider
   explicitly, writes artifacts under the aether workspace, can opt into trusted
   local app launch, and returns that runner in the provider inventory without
-  making it a global default.
+  making it a global default. A request-scoped `captureRunner.kind =
+  "computer-use-local"` option now requires explicit creator approval and an
+  applied redaction manifest, normalizes supplied desktop/browser receipts into
+  typed screenshot, recording, snapshot, or trace artifacts, preserves
+  redaction provenance, and applies visual receipts into the editable timeline
+  without registering a default desktop-control provider.
 - Agent-native `/api/motion/voice` route that accepts an editable motion
   project plus selected voice request or clip ids, returns provider-required
   narration/word-timing/transcript handoffs when no voice provider is

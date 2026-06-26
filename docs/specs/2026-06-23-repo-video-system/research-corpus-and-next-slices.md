@@ -190,15 +190,21 @@ return a structured computer-use fallback contract with required creator
 approval, allowed target scope, stop conditions, redaction labels, expected
 screenshot / recording / trace receipts, and the `/api/motion/capture` apply
 route. The timeline lens shows this guarded fallback inside the capture plan.
-The actual desktop-control runner and receipt application remain follow-up
+The capture route also accepts a request-scoped `computer-use-local` receipt
+runner once creator approval and an applied redaction manifest are supplied,
+then normalizes screenshots, recordings, snapshots, and traces into capture
+artifacts and applies visual receipts back into `app-frame` clips with
+redaction provenance. The actual live desktop-control runner remains follow-up
 work.
 
 Acceptance evidence:
 
-- Capture-plan and route tests cover the guarded fallback contract.
-- Component tests cover the timeline lens fallback summary. Desktop-control
-  execution tests still need permission-missing, redaction-manifest, and
-  receipt-application coverage once a runner exists.
+- Capture-plan and route tests cover the guarded fallback contract, missing
+  approval, missing redaction manifest, and approved receipt application.
+- Provider tests cover fail-closed behavior, permission/redaction checks, and
+  normalized computer-use artifacts. Component tests cover the timeline lens
+  fallback summary; live desktop-control execution tests still need coverage
+  once a runner exists.
 
 ## Review vs full-auto behavior
 

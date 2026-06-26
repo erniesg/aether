@@ -209,8 +209,11 @@ capture, render, and provenance debugging.
   app through the trusted readiness poller, and appears in the preview/provider
   inventory for that request. The route returns a guarded computer-use fallback
   contract with approval, safe scope, redaction labels, expected screenshot /
-  recording / trace receipts, and the capture apply route; it does not register
-  a default desktop-control provider.
+  recording / trace receipts, and the capture apply route; callers can also
+  submit a request-scoped `computer-use-local` receipt runner that requires
+  creator approval plus an applied redaction manifest, preserves redaction
+  receipts, and applies visual captures into timeline clips. It does not
+  register a default desktop-control provider.
 - `app/api/motion/voice/route.ts` now exposes voiceover and caption-sync
   handoffs through an agent-native JSON boundary: callers send an editable
   project plus voice request or clip ids and receive provider-required
