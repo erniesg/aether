@@ -333,7 +333,11 @@ function MotionPreviewPlanView({
           </div>
           <div className="grid gap-1.5">
             {previewPlan.enginePreviews.map((engine) => (
-              <EnginePreviewRow key={engine.engine} engine={engine} />
+              <EnginePreviewRow
+                key={engine.engine}
+                engine={engine}
+                onRenderMotion={onRenderMotion}
+              />
             ))}
           </div>
         </div>
@@ -2521,7 +2525,13 @@ function WorkflowExampleCard({ example }: { example: MotionWorkflowExample }) {
   );
 }
 
-function EnginePreviewRow({ engine }: { engine: MotionPreviewEnginePlan }) {
+function EnginePreviewRow({
+  engine,
+  onRenderMotion,
+}: {
+  engine: MotionPreviewEnginePlan;
+  onRenderMotion?: (engine: MotionRenderEngine) => void;
+}) {
   const renderPackage = engine.renderPackage;
   const verificationLabel = renderPackage
     ? renderPackage.verificationLabels.slice(0, 2).join(' / ') || 'verification pending'
@@ -2560,6 +2570,15 @@ function EnginePreviewRow({ engine }: { engine: MotionPreviewEnginePlan }) {
           <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
             {renderPackage.manifestPath}
           </div>
+          {onRenderMotion ? (
+            <button
+              type="button"
+              onClick={() => onRenderMotion(renderPackage.action.engine)}
+              className="mt-1 rounded-sm border border-border-soft bg-surface-canvas px-2 py-1 font-caption text-2xs text-ink-dim transition-colors duration-fast ease-quick hover:border-border hover:text-ink"
+            >
+              {renderPackage.action.label}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

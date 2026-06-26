@@ -576,6 +576,25 @@ const previewPlan: MotionPreviewPlan = {
           'renders/motion-aether-launch/export-x-9x16/poster.png',
           'renders/motion-aether-launch/export-x-9x16/manifest.json',
         ],
+        action: {
+          id: 'verify-render-package-remotion',
+          label: 'Verify Remotion package',
+          route: '/api/motion/render',
+          method: 'POST',
+          toolId: 'motion-render',
+          engine: 'remotion',
+          requestTemplate: {
+            project: '$motionProject',
+            engine: 'remotion',
+            providerId: '$selectedRenderProvider',
+            requestedAt: '$now',
+          },
+          expectedReceiptLabels: [
+            'render source manifest',
+            'Render one-frame layout check',
+            'check video',
+          ],
+        },
       },
     },
     {
@@ -2555,6 +2574,22 @@ describe('TimelineLens', () => {
     );
 
     await userEvent.click(screen.getByRole('button', { name: /render remotion/i }));
+    expect(onRenderMotion).toHaveBeenCalledWith('remotion');
+  });
+
+  it('lets creators verify the render source package from the engine plan', async () => {
+    const onRenderMotion = vi.fn<(engine: 'remotion' | 'hyperframes') => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onRenderMotion={onRenderMotion}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /verify remotion package/i }));
     expect(onRenderMotion).toHaveBeenCalledWith('remotion');
   });
 

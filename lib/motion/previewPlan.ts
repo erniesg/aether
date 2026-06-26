@@ -140,6 +140,24 @@ export interface MotionPreviewRenderPackageProofArtifact {
   height: number;
 }
 
+export interface MotionPreviewRenderPackageActionRequestTemplate {
+  project: '$motionProject';
+  engine: MotionRenderEngine;
+  providerId: '$selectedRenderProvider';
+  requestedAt: '$now';
+}
+
+export interface MotionPreviewRenderPackageAction {
+  id: string;
+  label: string;
+  route: '/api/motion/render';
+  method: 'POST';
+  toolId: 'motion-render';
+  engine: MotionRenderEngine;
+  requestTemplate: MotionPreviewRenderPackageActionRequestTemplate;
+  expectedReceiptLabels: string[];
+}
+
 export interface MotionPreviewRenderPackage {
   manifestPath: string;
   sourceHostRequirement: string;
@@ -152,6 +170,7 @@ export interface MotionPreviewRenderPackage {
   verificationLabels: string[];
   proofArtifactLabels: string[];
   proofArtifactPaths: string[];
+  action: MotionPreviewRenderPackageAction;
 }
 
 export interface MotionPreviewEnginePlan {
@@ -1846,7 +1865,7 @@ function buildEnginePreview(
     })),
     blockers: [],
     runtimePreview: buildRuntimePreviewTarget(engine, sourceBundle.files),
-    renderPackage: buildRenderPackageSummary(sourceBundle.files),
+    renderPackage: buildRenderPackageSummary(sourceBundle.files, engine),
   };
 }
 
@@ -1889,7 +1908,8 @@ interface RenderPackageManifest {
 }
 
 function buildRenderPackageSummary(
-  sourceFiles: NonNullable<MotionRenderRequest['sourceFiles']>
+  sourceFiles: NonNullable<MotionRenderRequest['sourceFiles']>,
+  engine: MotionRenderEngine
 ): MotionPreviewRenderPackage | null {
   const manifestFile = sourceFiles.find((file) => file.kind === 'manifest');
   if (!manifestFile) return null;
@@ -1916,7 +1936,38 @@ function buildRenderPackageSummary(
     verificationLabels: verificationCommands.map((command) => command.label),
     proofArtifactLabels: uniqueStrings(proofArtifacts.map((artifact) => artifact.label)),
     proofArtifactPaths: proofArtifacts.map((artifact) => artifact.path),
+    action: renderPackageAction(engine, verificationCommands, artifactChecks),
   };
+}
+
+function renderPackageAction(
+  engine: MotionRenderEngine,
+  verificationCommands: MotionPreviewRenderPackageCommand[],
+  artifactChecks: MotionPreviewRenderPackageArtifactCheck[]
+): MotionPreviewRenderPackageAction {
+  return {
+    id: `verify-render-package-${engine}`,
+    label: `Verify ${renderEnginePackageLabel(engine)} package`,
+    route: '/api/motion/render',
+    method: 'POST',
+    toolId: 'motion-render',
+    engine,
+    requestTemplate: {
+      project: '$motionProject',
+      engine,
+      providerId: '$selectedRenderProvider',
+      requestedAt: '$now',
+    },
+    expectedReceiptLabels: uniqueStrings([
+      'render source manifest',
+      ...verificationCommands.map((command) => command.label),
+      ...artifactChecks.map((check) => `check ${readableLabel(check.kind)}`),
+    ]),
+  };
+}
+
+function renderEnginePackageLabel(engine: MotionRenderEngine): string {
+  return engine === 'hyperframes' ? 'HyperFrames' : 'Remotion';
 }
 
 function parseRenderPackageManifest(contents: string): RenderPackageManifest | null {

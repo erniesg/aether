@@ -1058,6 +1058,26 @@ describe('buildMotionPreviewPlan', () => {
         'renders/motion-aether-launch/export-x-9x16/video.mp4',
         'renders/motion-aether-launch/export-x-9x16/manifest.json',
       ]),
+      action: {
+        id: 'verify-render-package-remotion',
+        label: 'Verify Remotion package',
+        route: '/api/motion/render',
+        method: 'POST',
+        toolId: 'motion-render',
+        engine: 'remotion',
+        requestTemplate: {
+          project: '$motionProject',
+          engine: 'remotion',
+          providerId: '$selectedRenderProvider',
+          requestedAt: '$now',
+        },
+        expectedReceiptLabels: expect.arrayContaining([
+          'render source manifest',
+          'Render one-frame layout check',
+          'check video',
+          'check poster',
+        ]),
+      },
     });
     expect(preview.enginePreviews[0].renderPackage?.renderCommands[0]).toMatchObject({
       outputId: 'render-export-x-9x16-video',
@@ -1141,6 +1161,11 @@ describe('buildMotionPreviewPlan', () => {
         previewCommand: {
           id: 'preview-hyperframes',
           label: 'Open HyperFrames preview',
+        },
+        action: {
+          id: 'verify-render-package-hyperframes',
+          label: 'Verify HyperFrames package',
+          engine: 'hyperframes',
         },
         verificationLabels: [
           'Lint HyperFrames composition',
