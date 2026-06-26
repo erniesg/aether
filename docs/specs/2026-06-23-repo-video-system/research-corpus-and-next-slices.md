@@ -63,8 +63,9 @@ Aether now has the right backbone:
 - Start routes accept repo URL/path, PR, site URL, upload/reference/source-set
   shorthands and return review plans, preview plans, capture plans, handoff
   templates, and requested inputs.
-- Capture, image-to-video, voice, sync, render, source-edit, export-pack, and
-  full-auto routes are agent-native JSON boundaries over the same project.
+- Setup dry-run, capture, image-to-video, voice, sync, render, source-edit,
+  export-pack, and full-auto routes are agent-native JSON boundaries over the
+  same project.
 - The timeline lens shows creator-facing plans, drafts, timeline rows,
   production queue, saved receipts, edit source, image-to-video node chain,
   source-backed playable preview controls, component focus, setup cards,

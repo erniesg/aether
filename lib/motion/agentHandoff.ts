@@ -78,6 +78,7 @@ function buildTemplates(input: {
         'export pack',
       ]),
     });
+    templates.push(...setupDryRunTemplates({ engines, capture }));
   }
 
   if (capture) {
@@ -185,6 +186,95 @@ function buildTemplates(input: {
       },
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['export pack', 'canvas drop candidates', 'pack manifest'],
+    }
+  );
+
+  return templates;
+}
+
+function setupDryRunTemplates(input: {
+  engines: WorkflowEngine[];
+  capture: ReturnType<typeof captureTemplateParts>;
+}): MotionAgentRequestTemplate[] {
+  const baseBody = {
+    project: PROJECT_PLACEHOLDER,
+    requestedEngines: input.engines,
+  };
+  const templates: MotionAgentRequestTemplate[] = [];
+
+  if (input.capture?.runner?.launchLocalApp) {
+    templates.push({
+      id: 'setup-local-app',
+      label: 'Dry-run local app runner',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-capture',
+      body: cleanBody({
+        ...baseBody,
+        setupDryRun: { setupId: 'local-app' },
+        captureRunner: input.capture.runner,
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
+      expectedReceipts: ['HTTP readiness receipt', 'process cleanup receipt'],
+    });
+  }
+
+  templates.push(
+    {
+      id: 'setup-visual-source',
+      label: 'Dry-run visual source selection',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-visuals',
+      body: cleanBody({
+        ...baseBody,
+        setupDryRun: { setupId: 'visual-source' },
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
+      expectedReceipts: ['source asset receipt', 'prompt receipt'],
+    },
+    {
+      id: 'setup-visual-generation',
+      label: 'Dry-run image-to-video provider',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-visuals',
+      body: cleanBody({
+        ...baseBody,
+        setupDryRun: { setupId: 'visual-generation' },
+        imageToVideoProviderId: '$imageToVideoProviderId',
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER, '$imageToVideoProviderId'],
+      expectedReceipts: ['generated clip receipt', 'timeline update receipt'],
+    },
+    {
+      id: 'setup-voice',
+      label: 'Dry-run voice provider',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-voice',
+      body: cleanBody({
+        ...baseBody,
+        setupDryRun: { setupId: 'voice' },
+        voiceProviderId: '$voiceProviderId',
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER, '$voiceProviderId'],
+      expectedReceipts: ['audio receipt', 'word timing receipt', 'transcript receipt'],
+    },
+    {
+      id: 'setup-render',
+      label: 'Dry-run render runner',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-render',
+      body: cleanBody({
+        ...baseBody,
+        setupDryRun: { setupId: 'render' },
+        renderEngine: preferredRenderEngine(input.engines),
+        renderProviderId: '$renderProviderId',
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER, '$renderProviderId'],
+      expectedReceipts: ['source lint', 'contact sheet', 'mp4 probe'],
     }
   );
 

@@ -111,10 +111,11 @@
   materialized motion project, editable review/preview plans, and explicit
   source/evidence requests when more material is needed.
 - Agent execution handoffs now sit beside ready start results: they include
-  concrete JSON request templates with `project` placeholders for full-auto,
-  capture, image-to-video, voice, sync, preview-source, source-edit, render,
-  and export-pack gates. Local repo handoffs include required capture request
-  ids plus the request-scoped `playwright-local` runner config.
+  concrete JSON request templates with `project` placeholders for setup
+  dry-runs, full-auto, capture, image-to-video, voice, sync, preview-source,
+  source-edit, render, and export-pack gates. Local repo handoffs include
+  required capture request ids plus the request-scoped `playwright-local`
+  runner config.
 - The workspace timeline lens now receives those agent handoffs and renders a
   compact agent-actions strip inside the creator shell: next action, review or
   full-auto mode, API route labels, expected receipts, and local-runner
@@ -312,7 +313,9 @@
   It validates request-scoped runners or provider registry entries, saves the
   dry-run receipts, refreshes review/preview plans, and deliberately skips
   production gate handlers so setup proof cannot accidentally become a capture,
-  generated clip, voice, or render artifact.
+  generated clip, voice, or render artifact. Start handoffs now include the
+  matching setup request templates, including provider id placeholders for
+  image-to-video, voice, and render readiness checks.
 - Production plans now surface completed capture, render, and export
   verification receipts as first-class step metadata. Full-auto capture
   results can create completed capture graph nodes, render receipts appear as

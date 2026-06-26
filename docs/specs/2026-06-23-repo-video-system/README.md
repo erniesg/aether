@@ -175,10 +175,11 @@ capture, render, and provenance debugging.
   agent-readable workflow gates, executable run-plan steps, deterministic
   workflow-skill manifest drafts, and the start artifact an agent can hand to
   the creator for review or full-auto progression. Start results now also carry
-  an agent execution handoff with concrete request templates for full-auto,
-  capture, image-to-video, voice, sync, source edits, render proof, and export
-  pack gates. The timeline lens renders those templates as creator-facing agent
-  actions, including local-runner availability and expected receipts, while
+  an agent execution handoff with concrete request templates for setup dry-runs,
+  full-auto, capture, image-to-video, voice, sync, source edits, render proof,
+  and export pack gates. The timeline lens renders those templates as
+  creator-facing agent actions, including local-runner availability and
+  expected receipts, while
   hiding placeholder JSON bodies. GitHub repo URLs, local repo paths, and
   site/app URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
@@ -425,7 +426,8 @@ capture, render, and provenance debugging.
   local app, computer-use, visual sourcing, image-to-video, voice, and render
   readiness without executing the expensive provider gate, while production
   gates still require real capture, voice, generation, sync, or render
-  artifacts.
+  artifacts. Start handoffs now expose matching setup dry-run templates so an
+  agent can run readiness checks before choosing review or full-auto execution.
 - `app/api/motion/workflows/route.ts` now exposes those workflow skills through
   an agent-native discovery boundary. Agents can list video workflow skills,
   filter by source kind, engine, or run mode, and receive accepted start
