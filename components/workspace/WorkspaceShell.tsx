@@ -419,11 +419,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     [motionStart]
   );
   const motionPreviewPlan = motionStart?.previewPlan ?? null;
+  const motionPreviewPlanId = motionPreviewPlan?.id ?? null;
   const motionWorkflowSkillDraft = motionStart?.workflow.plan.skillDraft ?? null;
   const motionWorkflowExamples = useMemo<MotionWorkflowExample[]>(
     () => (motionStart?.examples.length ? motionStart.examples : listMotionWorkflowExamples()),
     [motionStart]
   );
+
+  useEffect(() => {
+    if (motionPreviewPlanId) setView('timeline');
+  }, [motionPreviewPlanId]);
+
   const handleTimelineRegenerate = useCallback(
     async (actionId: string) => {
       if (!motionStart?.project || !motionStart.previewPlan) return;

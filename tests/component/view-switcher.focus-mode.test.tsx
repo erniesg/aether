@@ -219,6 +219,21 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.queryByText('clip-hook')).not.toBeInTheDocument();
   });
 
+  it('opens the timeline lens automatically when a motion preview plan is ready', async () => {
+    setMotionStartResult('demo-ws', storedRegeneratableMotionStart());
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /^timeline/i })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      );
+    });
+    expect(screen.getByRole('region', { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getAllByText('aether launch video').length).toBeGreaterThan(0);
+    expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
+  });
+
   it('timeline regeneration button plans a scoped agent handoff and refreshes motion state', async () => {
     const start = storedRegeneratableMotionStart();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
