@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import {
   MotionSection,
+  type MotionAgentHandoffClientResult,
   type MotionStartClientRequest,
 } from '@/components/rail/sections/MotionSection';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
@@ -362,5 +363,131 @@ describe('MotionSection', () => {
     expect(
       within(reviewQueue).getByRole('button', { name: /continue full auto/i })
     ).toBeEnabled();
+  });
+
+  it('applies completed full-auto handoff results to the same workspace video state', async () => {
+    const startMotion = vi.fn(async () => reviewReadyResult('tong'));
+    const runAgentHandoff = vi.fn(async (): Promise<MotionAgentHandoffClientResult> => ({
+      status: 'complete',
+      projectId: 'motion-tong-launch',
+      finalProject: {
+        brief: {
+          appProfile: {
+            name: 'tong',
+          },
+        },
+      },
+      finalResponse: {
+        previewPlan: {
+          title: 'tong rendered launch cut',
+          workflowMode: 'full-auto',
+          videoPlan: {
+            status: 'ready-for-render',
+            sceneCount: 3,
+            totalSeconds: 30,
+            scenes: [],
+          },
+          draftOptions: [
+            {
+              draftId: 'draft-rendered',
+              label: 'Rendered launch cut',
+              angle: 'Full-auto proof pass with captures, voice, sync, and export.',
+              isCurrent: true,
+            },
+          ],
+          regenerationActions: [],
+        },
+      },
+      steps: [
+        {
+          templateId: 'full-auto-run',
+          label: 'Run saved gates',
+          route: '/api/motion/full-auto',
+          method: 'POST',
+          missingPlaceholders: [],
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: {},
+        },
+      ],
+    }));
+    render(
+      <MotionSection
+        workspaceId="demo-ws"
+        startMotion={startMotion}
+        runAgentHandoff={runAgentHandoff}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /full-auto/i }));
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      '/Users/erniesg/code/erniesg/tong'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    const reviewQueue = await screen.findByRole('region', {
+      name: /motion review queue/i,
+    });
+    await userEvent.click(within(reviewQueue).getByRole('button', { name: /continue full auto/i }));
+
+    await waitFor(() => {
+      expect(reviewQueue).toHaveTextContent('tong rendered launch cut');
+    });
+    expect(reviewQueue).toHaveTextContent('3 scenes');
+    expect(reviewQueue).toHaveTextContent('Rendered launch cut');
+    expect(getMotionStartResult('demo-ws')?.previewPlan).toMatchObject({
+      title: 'tong rendered launch cut',
+      workflowMode: 'full-auto',
+    });
+  });
+
+  it('keeps blocked full-auto handoffs visible as provider setup blockers', async () => {
+    const startMotion = vi.fn(async () => reviewReadyResult('tong'));
+    const runAgentHandoff = vi.fn(async (): Promise<MotionAgentHandoffClientResult> => ({
+      status: 'blocked',
+      projectId: 'motion-tong-launch',
+      finalProject: reviewReadyResult('tong').project,
+      finalResponse: null,
+      steps: [
+        {
+          templateId: 'full-auto-run',
+          label: 'Run saved gates',
+          route: '/api/motion/full-auto',
+          method: 'POST',
+          missingPlaceholders: ['$voiceProviderId', '$renderProviderId'],
+          status: 'skipped',
+          responseStatus: null,
+          responseJson: null,
+        },
+      ],
+    }));
+    render(
+      <MotionSection
+        workspaceId="demo-ws"
+        startMotion={startMotion}
+        runAgentHandoff={runAgentHandoff}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /full-auto/i }));
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      '/Users/erniesg/code/erniesg/tong'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    const reviewQueue = await screen.findByRole('region', {
+      name: /motion review queue/i,
+    });
+    await userEvent.click(within(reviewQueue).getByRole('button', { name: /continue full auto/i }));
+
+    await waitFor(() => {
+      expect(reviewQueue).toHaveTextContent('missing $voiceProviderId');
+    });
+    expect(reviewQueue).toHaveTextContent('$renderProviderId');
+    expect(getMotionStartResult('demo-ws')?.previewPlan).toMatchObject({
+      title: 'tong launch video',
+    });
   });
 });

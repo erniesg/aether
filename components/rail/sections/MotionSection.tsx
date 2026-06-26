@@ -15,6 +15,33 @@ type MotionStartStatus =
   | { kind: 'done'; result: AgentMotionStartResult }
   | { kind: 'error'; message: string };
 
+type MotionHandoffStatus =
+  | { kind: 'idle' }
+  | { kind: 'running' }
+  | { kind: 'done'; result: MotionAgentHandoffClientResult }
+  | { kind: 'error'; message: string };
+
+export interface MotionAgentHandoffClientStep {
+  templateId: string;
+  label: string;
+  route: string;
+  method: 'POST';
+  missingPlaceholders: string[];
+  status: 'skipped' | 'complete' | 'failed';
+  responseStatus: number | null;
+  responseJson: Record<string, unknown> | null;
+}
+
+export interface MotionAgentHandoffClientResult {
+  ok?: boolean;
+  error?: string;
+  status: 'complete' | 'blocked' | 'failed';
+  projectId?: string;
+  finalProject?: unknown;
+  finalResponse?: Record<string, unknown> | null;
+  steps?: MotionAgentHandoffClientStep[];
+}
+
 export interface MotionStartClientRequest {
   workspaceId?: string;
   sourceRefs?: Array<{ kind: WorkflowSourceKind; ref: string; label?: string }>;
@@ -33,7 +60,9 @@ export interface MotionStartClientRequest {
 export interface MotionSectionProps {
   workspaceId?: string;
   startMotion?: (request: MotionStartClientRequest) => Promise<AgentMotionStartResult>;
-  runAgentHandoff?: (result: AgentMotionStartResult) => Promise<void>;
+  runAgentHandoff?: (
+    result: AgentMotionStartResult
+  ) => Promise<MotionAgentHandoffClientResult>;
 }
 
 const INTENTS: MotionWorkflowIntent[] = [
@@ -100,8 +129,12 @@ async function defaultStartMotion(
   return json;
 }
 
-async function defaultRunAgentHandoff(result: AgentMotionStartResult): Promise<void> {
-  if (!result.agentHandoff || !result.project) return;
+async function defaultRunAgentHandoff(
+  result: AgentMotionStartResult
+): Promise<MotionAgentHandoffClientResult> {
+  if (!result.agentHandoff || !result.project) {
+    throw new Error('agent handoff requires a ready project');
+  }
 
   const res = await fetch('/api/motion/agent-handoff', {
     method: 'POST',
@@ -115,10 +148,11 @@ async function defaultRunAgentHandoff(result: AgentMotionStartResult): Promise<v
       input: {},
     }),
   });
-  const json = (await res.json()) as { ok?: boolean; error?: string };
+  const json = (await res.json()) as MotionAgentHandoffClientResult;
   if (!res.ok || json.ok === false) {
     throw new Error(json.error ?? `motion handoff failed: ${res.status}`);
   }
+  return json;
 }
 
 export function motionSectionSummary(result: AgentMotionStartResult | undefined): string {
@@ -135,7 +169,7 @@ export function MotionSection({
   const [mode, setMode] = useState<MotionWorkflowMode>('review');
   const [targetPresetId, setTargetPresetId] = useState<string>(TARGET_PRESETS[0].id);
   const [status, setStatus] = useState<MotionStartStatus>({ kind: 'idle' });
-  const [handoffStatus, setHandoffStatus] = useState<MotionStartStatus>({ kind: 'idle' });
+  const [handoffStatus, setHandoffStatus] = useState<MotionHandoffStatus>({ kind: 'idle' });
   const sourceRef = source.trim();
   const canStart = sourceRef.length > 0 && status.kind !== 'running';
   const selectedTargetPreset =
@@ -167,8 +201,11 @@ export function MotionSection({
     if (handoffStatus.kind === 'running') return;
     setHandoffStatus({ kind: 'running' });
     try {
-      await runAgentHandoff(result);
-      setHandoffStatus({ kind: 'done', result });
+      const handoffResult = await runAgentHandoff(result);
+      const updatedResult = applyMotionHandoffResult(result, handoffResult);
+      setMotionStartResult(workspaceId, updatedResult);
+      setStatus({ kind: 'done', result: updatedResult });
+      setHandoffStatus({ kind: 'done', result: handoffResult });
     } catch (error) {
       setHandoffStatus({
         kind: 'error',
@@ -301,7 +338,7 @@ function MotionReviewQueue({
   onContinueFullAuto,
 }: {
   result: AgentMotionStartResult;
-  handoffStatus: MotionStartStatus;
+  handoffStatus: MotionHandoffStatus;
   onContinueFullAuto: () => void;
 }) {
   const previewPlan = result.previewPlan;
@@ -317,6 +354,7 @@ function MotionReviewQueue({
   const canContinue =
     result.agentHandoff?.mode === 'full-auto' &&
     nextTemplate?.route === '/api/motion/full-auto';
+  const handoffReceiptLabel = handoffStatusLabel(handoffStatus);
 
   return (
     <section
@@ -358,7 +396,10 @@ function MotionReviewQueue({
         <button
           type="button"
           onClick={onContinueFullAuto}
-          disabled={handoffStatus.kind === 'running'}
+          disabled={
+            handoffStatus.kind === 'running' ||
+            (handoffStatus.kind === 'done' && handoffStatus.result.status === 'complete')
+          }
           className={cn(
             'mt-2 inline-flex h-8 w-full items-center justify-center gap-1 rounded-sm border px-2 font-mono text-2xs uppercase tracking-wide',
             'border-border-soft bg-surface-panel text-ink transition-colors',
@@ -370,8 +411,18 @@ function MotionReviewQueue({
           ) : (
             <Play className="h-3 w-3" aria-hidden="true" />
           )}
-          {handoffStatus.kind === 'running' ? 'continuing' : 'continue full auto'}
+          {handoffStatus.kind === 'running'
+            ? 'continuing'
+            : handoffStatus.kind === 'done' && handoffStatus.result.status === 'complete'
+              ? 'full auto complete'
+              : 'continue full auto'}
         </button>
+      ) : null}
+
+      {handoffReceiptLabel ? (
+        <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim">
+          {handoffReceiptLabel}
+        </div>
       ) : null}
 
       {handoffStatus.kind === 'error' ? (
@@ -381,6 +432,60 @@ function MotionReviewQueue({
       ) : null}
     </section>
   );
+}
+
+function applyMotionHandoffResult(
+  current: AgentMotionStartResult,
+  handoffResult: MotionAgentHandoffClientResult
+): AgentMotionStartResult {
+  const finalResponse = handoffResult.finalResponse ?? {};
+  const finalProject = isRecord(handoffResult.finalProject)
+    ? (handoffResult.finalProject as unknown as AgentMotionStartResult['project'])
+    : current.project;
+
+  return {
+    ...current,
+    project: finalProject ?? current.project,
+    reviewPlan: recordField(finalResponse, 'reviewPlan', current.reviewPlan),
+    previewPlan: recordField(finalResponse, 'previewPlan', current.previewPlan),
+    preparedPreviewSource: recordField(
+      finalResponse,
+      'preparedPreviewSource',
+      current.preparedPreviewSource ?? null
+    ),
+    capturePlan: recordField(finalResponse, 'capturePlan', current.capturePlan),
+    agentHandoff: recordField(finalResponse, 'agentHandoff', current.agentHandoff),
+  };
+}
+
+function handoffStatusLabel(status: MotionHandoffStatus): string | null {
+  if (status.kind !== 'done') return null;
+  if (status.result.status === 'complete') return 'full auto complete';
+  if (status.result.status === 'failed') return 'full auto failed';
+
+  const missingPlaceholders = uniqueStrings(
+    status.result.steps?.flatMap((step) => step.missingPlaceholders) ?? []
+  );
+  return missingPlaceholders.length > 0
+    ? `missing ${missingPlaceholders.join(', ')}`
+    : 'full auto blocked';
+}
+
+function recordField<T>(
+  source: Record<string, unknown>,
+  key: string,
+  fallback: T
+): T {
+  const value = source[key];
+  return isRecord(value) ? (value as T) : fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
 }
 
 function MotionReviewQueueList({ label, items }: { label: string; items: string[] }) {
