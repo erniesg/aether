@@ -135,6 +135,10 @@ describe('MotionSection', () => {
       screen.getByLabelText(/motion source/i),
       'https://github.com/erniesg/aether'
     );
+    const sourceDraft = screen.getByRole('group', { name: /motion source draft/i });
+    expect(sourceDraft).toHaveTextContent('Repo');
+    expect(sourceDraft).toHaveTextContent('https://github.com/erniesg/aether');
+
     await userEvent.click(screen.getByRole('button', { name: /start video/i }));
 
     await waitFor(() => {
@@ -219,6 +223,12 @@ describe('MotionSection', () => {
         'reference: https://x.com/heygen/status/123',
       ].join('\n')
     );
+    const sourceDraft = screen.getByRole('group', { name: /motion source draft/i });
+    expect(sourceDraft).toHaveTextContent('3 sources');
+    expect(sourceDraft).toHaveTextContent('/Users/erniesg/code/erniesg/tong');
+    expect(sourceDraft).toHaveTextContent('http://localhost:3000/tokyo');
+    expect(sourceDraft).toHaveTextContent('https://x.com/heygen/status/123');
+
     await userEvent.click(screen.getByRole('button', { name: /start video/i }));
 
     await waitFor(() => {

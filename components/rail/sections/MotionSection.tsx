@@ -29,6 +29,18 @@ type MotionHandoffStatus =
   | { kind: 'done'; result: MotionAgentHandoffClientResult }
   | { kind: 'error'; message: string };
 
+interface MotionSourceDraftEntry {
+  kind: WorkflowSourceKind;
+  label: string;
+  ref: string;
+}
+
+interface MotionSourceDraft {
+  payload: Partial<MotionStartClientRequest>;
+  entries: MotionSourceDraftEntry[];
+  summary: string;
+}
+
 export interface MotionStartClientRequest {
   workspaceId?: string;
   sourceRefs?: Array<{ kind: WorkflowSourceKind; ref: string; label?: string }>;
@@ -138,7 +150,8 @@ export function MotionSection({
   const [status, setStatus] = useState<MotionStartStatus>({ kind: 'idle' });
   const [handoffStatus, setHandoffStatus] = useState<MotionHandoffStatus>({ kind: 'idle' });
   const sourceRef = source.trim();
-  const canStart = sourceRef.length > 0 && status.kind !== 'running';
+  const sourceDraft = sourceRef ? buildMotionSourceDraft(sourceRef, intent) : null;
+  const canStart = Boolean(sourceDraft) && status.kind !== 'running';
   const selectedTargetPreset =
     TARGET_PRESETS.find((preset) => preset.id === targetPresetId) ?? TARGET_PRESETS[0];
 
@@ -148,7 +161,7 @@ export function MotionSection({
     try {
       const result = await startMotion({
         workspaceId,
-        ...sourcePayload(sourceRef, intent),
+        ...(sourceDraft?.payload ?? {}),
         intent,
         mode,
         audience: 'builders and creators',
@@ -196,6 +209,7 @@ export function MotionSection({
           rows={3}
           className="min-h-16 resize-y rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
         />
+        {sourceDraft ? <MotionSourceDraftPreview draft={sourceDraft} /> : null}
       </section>
 
       <section className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
@@ -295,6 +309,33 @@ export function MotionSection({
           {status.message}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MotionSourceDraftPreview({ draft }: { draft: MotionSourceDraft }) {
+  return (
+    <div
+      role="group"
+      aria-label="motion source draft"
+      className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+    >
+      <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+        {draft.summary}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {draft.entries.map((entry, index) => (
+          <span
+            key={`${entry.kind}-${entry.ref}-${index}`}
+            className="inline-flex max-w-full items-center gap-1 rounded-sm border border-border-soft bg-surface-panel px-1.5 py-0.5 font-caption text-2xs text-ink-dim"
+          >
+            <span className="shrink-0 font-mono uppercase tracking-wide text-ink-faint">
+              {entry.label}
+            </span>
+            <span className="truncate">{entry.ref}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -464,6 +505,52 @@ function sourcePayload(
     return { sourceRefs: [{ kind: 'pr', ref: source, label: 'Pull request' }] };
   }
   return { repoPath: source };
+}
+
+function buildMotionSourceDraft(
+  source: string,
+  intent: MotionWorkflowIntent
+): MotionSourceDraft | null {
+  const payload = sourcePayload(source, intent);
+  const entries = sourceDraftEntries(payload);
+  if (entries.length === 0) return null;
+
+  return {
+    payload,
+    entries,
+    summary: entries.length === 1 ? entries[0]?.label ?? 'Source' : `${entries.length} sources`,
+  };
+}
+
+function sourceDraftEntries(payload: Partial<MotionStartClientRequest>): MotionSourceDraftEntry[] {
+  if (payload.sourceRefs?.length) {
+    return payload.sourceRefs.map((entry) => ({
+      kind: entry.kind,
+      label: entry.label ?? sourceKindLabel(entry.kind),
+      ref: entry.ref,
+    }));
+  }
+
+  if (payload.repoPath) {
+    return [{ kind: 'repo', label: 'Local repo', ref: payload.repoPath }];
+  }
+  if (payload.repoUrl) {
+    return [{ kind: 'repo', label: 'Repo', ref: payload.repoUrl }];
+  }
+  if (payload.siteUrl) {
+    return [{ kind: 'site', label: 'Site', ref: payload.siteUrl }];
+  }
+  if (payload.prRef) {
+    return [{ kind: 'pr', label: 'Pull request', ref: payload.prRef }];
+  }
+
+  return [];
+}
+
+function sourceKindLabel(kind: WorkflowSourceKind): string {
+  if (kind === 'pr') return 'Pull request';
+  if (kind === 'hyperframes') return 'HyperFrames';
+  return kind.replace(/-/g, ' ');
 }
 
 function hasSourceSetSyntax(source: string): boolean {
