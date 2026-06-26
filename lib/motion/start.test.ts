@@ -355,7 +355,12 @@ describe('startAgentMotionWorkflow', () => {
           expect.objectContaining({
             stepId: 'step-timeline',
             label: 'Timeline sync',
-            routeLabels: ['/api/motion/sync', '/api/motion/revise', '/api/motion/source-edit'],
+            routeLabels: [
+              '/api/motion/sync',
+              '/api/motion/revise',
+              '/api/motion/preview-source',
+              '/api/motion/source-edit',
+            ],
           }),
           expect.objectContaining({
             stepId: 'step-render',

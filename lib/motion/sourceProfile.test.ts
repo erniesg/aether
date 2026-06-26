@@ -37,7 +37,7 @@ describe('buildRepoMotionSourceProfile', () => {
     expect(profile).toMatchObject({
       kind: 'local-repo',
       label: 'tong source material',
-      summary: 'local repo with 2 app routes and 3 capture candidates',
+      summary: 'local repo with 2 app routes and 5 capture candidates',
       signals: expect.arrayContaining([
         expect.objectContaining({ id: 'signal-stack', value: 'TypeScript, Next.js 15, React, Convex' }),
         expect.objectContaining({ id: 'signal-routes', value: '/, /tokyo' }),
@@ -55,6 +55,21 @@ describe('buildRepoMotionSourceProfile', () => {
           id: 'record-local-flow',
           mode: 'screen-recording',
           targetRef: 'http://localhost:3000/',
+        }),
+        expect.objectContaining({
+          id: 'capture-local-app-still-tokyo',
+          label: 'Capture local app route /tokyo',
+          mode: 'screenshot',
+          targetKind: 'local-app',
+          targetRef: 'http://localhost:3000/tokyo',
+          setup: 'npm run dev',
+          setupCwd: '/Users/erniesg/code/erniesg/tong',
+        }),
+        expect.objectContaining({
+          id: 'capture-local-dom-tokyo',
+          label: 'Read local app structure /tokyo',
+          mode: 'dom-snapshot',
+          targetRef: 'http://localhost:3000/tokyo',
         }),
       ]),
       storyboardHints: expect.arrayContaining([

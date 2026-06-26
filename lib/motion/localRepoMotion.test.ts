@@ -78,7 +78,7 @@ describe('buildLocalRepoMotionProjectFromPath', () => {
       sourceProfile: {
         kind: 'local-repo',
         label: 'paillette source material',
-        summary: 'local repo with 2 app routes and 3 capture candidates',
+        summary: 'local repo with 2 app routes and 5 capture candidates',
       },
     });
     expect(project.sourceProfile?.captureCandidates[0]).toMatchObject({
@@ -88,6 +88,22 @@ describe('buildLocalRepoMotionProjectFromPath', () => {
       targetRef: 'http://localhost:3000/',
       setup: 'npm run dev',
     });
+    expect(project.sourceProfile?.captureCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capture-local-app-still-gallery',
+          label: 'Capture local app route /gallery',
+          targetKind: 'local-app',
+          targetRef: 'http://localhost:3000/gallery',
+          setup: 'npm run dev',
+        }),
+        expect.objectContaining({
+          id: 'capture-local-dom-gallery',
+          label: 'Read local app structure /gallery',
+          targetRef: 'http://localhost:3000/gallery',
+        }),
+      ])
+    );
     expect(project.sourceProfile?.storyboardHints.map((hint) => hint.beatRole)).toEqual([
       'hook',
       'proof',

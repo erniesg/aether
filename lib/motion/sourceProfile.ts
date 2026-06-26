@@ -103,7 +103,8 @@ function buildCaptureCandidates(
 ): MotionSourceCaptureCandidate[] {
   const candidates: MotionSourceCaptureCandidate[] = [];
   const routes = input.facts.appRoutes ?? [];
-  const firstRoute = routes[0] ?? '/';
+  const localRoutes = (routes.length > 0 ? routes : ['/']).slice(0, 4);
+  const firstRoute = localRoutes[0] ?? '/';
   const homepageUrl = input.appProfile.siteUrl ?? input.facts.homepageUrl;
 
   if (homepageUrl) {
@@ -131,42 +132,45 @@ function buildCaptureCandidates(
 
   const localBaseUrl = localPreviewBaseUrl(input.facts);
   if (input.kind === 'local-repo' && localBaseUrl) {
-    const targetRef = joinUrlPath(localBaseUrl, firstRoute);
-    candidates.push(
-      {
-        id: 'capture-local-app-still',
-        label: `Capture local app route ${firstRoute}`,
-        mode: 'screenshot',
-        targetKind: 'local-app',
-        targetRef,
-        setup: setupCommand(input.facts),
-        setupCwd: input.sourceRef,
-        reason: 'Local repo exposes an app route suitable for a product still.',
-        provenance: [source],
-      },
-      {
-        id: 'capture-local-dom',
-        label: `Read local app structure ${firstRoute}`,
-        mode: 'dom-snapshot',
-        targetKind: 'local-app',
-        targetRef,
-        setup: setupCommand(input.facts),
-        setupCwd: input.sourceRef,
-        reason: 'DOM structure helps captions and component regeneration stay grounded.',
-        provenance: [source],
-      },
-      {
-        id: 'record-local-flow',
-        label: `Record local product flow ${firstRoute}`,
-        mode: 'screen-recording',
-        targetKind: 'local-app',
-        targetRef,
-        setup: setupCommand(input.facts),
-        setupCwd: input.sourceRef,
-        reason: 'Launch and feature videos need at least one real product insert.',
-        provenance: [source],
-      }
-    );
+    for (const route of localRoutes) {
+      const targetRef = joinUrlPath(localBaseUrl, route);
+      const suffix = routeIdSuffix(route);
+      candidates.push(
+        {
+          id: `capture-local-app-still${suffix}`,
+          label: `Capture local app route ${route}`,
+          mode: 'screenshot',
+          targetKind: 'local-app',
+          targetRef,
+          setup: setupCommand(input.facts),
+          setupCwd: input.sourceRef,
+          reason: 'Local repo exposes an app route suitable for a product still.',
+          provenance: [source],
+        },
+        {
+          id: `capture-local-dom${suffix}`,
+          label: `Read local app structure ${route}`,
+          mode: 'dom-snapshot',
+          targetKind: 'local-app',
+          targetRef,
+          setup: setupCommand(input.facts),
+          setupCwd: input.sourceRef,
+          reason: 'DOM structure helps captions and component regeneration stay grounded.',
+          provenance: [source],
+        }
+      );
+    }
+    candidates.push({
+      id: 'record-local-flow',
+      label: `Record local product flow ${firstRoute}`,
+      mode: 'screen-recording',
+      targetKind: 'local-app',
+      targetRef: joinUrlPath(localBaseUrl, firstRoute),
+      setup: setupCommand(input.facts),
+      setupCwd: input.sourceRef,
+      reason: 'Launch and feature videos need at least one real product insert.',
+      provenance: [source],
+    });
   }
 
   if (candidates.length === 0) {
@@ -265,6 +269,16 @@ function setupCommand(facts: ProjectFacts): string | undefined {
 function joinUrlPath(baseUrl: string, route: string): string {
   const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
   return `${baseUrl}${normalizedRoute === '/' ? '/' : normalizedRoute}`;
+}
+
+function routeIdSuffix(route: string): string {
+  if (route === '/') return '';
+  const suffix = route
+    .replace(/^\/+/, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return suffix ? `-${suffix}` : '';
 }
 
 function packageJsonRef(sourceRef: string): string {
