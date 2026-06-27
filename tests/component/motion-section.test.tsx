@@ -403,6 +403,8 @@ describe('MotionSection', () => {
     });
     expect(reviewQueue).toHaveTextContent('tong launch video');
     expect(reviewQueue).toHaveTextContent('2 scenes');
+    expect(reviewQueue).toHaveTextContent('hook: Turn the repo into a launch cut.');
+    expect(reviewQueue).toHaveTextContent('demo: Show the app flow and export pack.');
     expect(reviewQueue).toHaveTextContent('Proof-first launch');
     expect(reviewQueue).toHaveTextContent('Demo-first launch');
     expect(reviewQueue).toHaveTextContent('Regenerate capture for App frame');

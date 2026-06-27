@@ -465,6 +465,10 @@ function MotionReviewQueue({
 
       <div className="mt-2 grid gap-2">
         <MotionReviewQueueList
+          label="plan"
+          items={motionPlanSceneItems(previewPlan.videoPlan.scenes)}
+        />
+        <MotionReviewQueueList
           label="drafts"
           items={previewPlan.draftOptions.slice(0, 3).map((draft) => draft.label)}
         />
@@ -517,6 +521,15 @@ function MotionReviewQueue({
       ) : null}
     </section>
   );
+}
+
+function motionPlanSceneItems(
+  scenes: NonNullable<AgentMotionStartResult['previewPlan']>['videoPlan']['scenes']
+): string[] {
+  return scenes.slice(0, 3).map((scene) => {
+    const summary = scene.narration.trim() || scene.visualLabel.trim() || scene.editSummary.trim();
+    return summary ? `${scene.role}: ${summary}` : scene.role;
+  });
 }
 
 function handoffStatusLabel(status: MotionHandoffStatus): string | null {
