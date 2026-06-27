@@ -3,12 +3,17 @@ import type { WorkflowEngine } from '@/lib/workflow/registry';
 import type { MotionRegenerateScope } from '@/lib/motion/componentRegistry';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
-import { appendComponentRegenerationExecutionHistory } from '@/lib/motion/executionHistory';
+import {
+  appendComponentRegenerationExecutionHistory,
+  appendReferenceSignalRegenerationExecutionHistory,
+} from '@/lib/motion/executionHistory';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import {
   buildMotionReviewPlan,
   createMotionComponentRegenerationRequest,
+  createMotionReferenceSignalRegenerationRequest,
   stageMotionComponentRegeneration,
+  stageMotionReferenceSignalRegeneration,
 } from '@/lib/motion/reviewPlan';
 
 export const runtime = 'nodejs';
@@ -42,10 +47,24 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const clipId = stringValue(body.clipId);
+  const referenceSignalId = stringValue(body.referenceSignalId);
+  const sourceUrl = stringValue(body.sourceUrl);
+  const componentIds = stringArrayValue(body.componentIds);
   const scope = stringValue(body.scope);
   const prompt = stringValue(body.prompt);
-  if (!clipId || !scope || !prompt) {
+  if (!clipId && !referenceSignalId) {
     return jsonError(400, 'clipId, scope, and prompt are required');
+  }
+  if (!scope || !prompt) {
+    return jsonError(
+      400,
+      referenceSignalId
+        ? 'scope and prompt are required'
+        : 'clipId, scope, and prompt are required'
+    );
+  }
+  if (referenceSignalId && (!componentIds || componentIds.length === 0)) {
+    return jsonError(400, 'componentIds are required for reference regeneration');
   }
 
   const requestedEngines = parseRequestedEngines(body.requestedEngines);
@@ -57,6 +76,46 @@ export async function POST(request: Request): Promise<Response> {
   const project = body.project as unknown as MotionProject;
 
   try {
+    if (referenceSignalId) {
+      const regenerationRequest = createMotionReferenceSignalRegenerationRequest(project, {
+        referenceSignalId,
+        sourceUrl,
+        scope: scope as MotionRegenerateScope,
+        componentIds: componentIds ?? [],
+        prompt,
+        requestedAt,
+      });
+      const stagedProject = stageMotionReferenceSignalRegeneration(
+        project,
+        regenerationRequest
+      );
+      const updatedProject = {
+        ...stagedProject,
+        executionHistory: appendReferenceSignalRegenerationExecutionHistory(
+          stagedProject.executionHistory,
+          regenerationRequest,
+          requestedAt
+        ),
+      };
+      const capturePlan = buildAgentMotionCapturePlan(updatedProject);
+
+      return NextResponse.json({
+        ok: true,
+        regenerationRequest,
+        project: updatedProject,
+        reviewPlan: buildMotionReviewPlan(updatedProject),
+        previewPlan: buildMotionPreviewPlan(updatedProject, {
+          engines: requestedEngines ?? undefined,
+          requestedAt,
+        }),
+        capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+      });
+    }
+
+    if (!clipId) {
+      return jsonError(400, 'clipId, scope, and prompt are required');
+    }
+
     const regenerationRequest = createMotionComponentRegenerationRequest(project, {
       clipId,
       scope: scope as MotionRegenerateScope,
@@ -103,6 +162,14 @@ function parseRequestedEngines(value: unknown): WorkflowEngine[] | null {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function stringArrayValue(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const strings = value
+    .map((entry) => stringValue(entry))
+    .filter((entry): entry is string => Boolean(entry));
+  return strings.length === value.length ? strings : undefined;
 }
 
 function numericValue(value: unknown): number | undefined {

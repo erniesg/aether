@@ -144,6 +144,131 @@ describe('POST /api/motion/regenerate', () => {
     });
   });
 
+  it('creates a reference-backed regeneration request and refreshed preview actions', async () => {
+    const { POST } = await import('@/app/api/motion/regenerate/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          referenceSignalId: 'hyperframes-launch-video-gallery',
+          sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+          scope: 'effect',
+          componentIds: ['hook-card', 'app-frame'],
+          prompt: 'Apply source-backed launch-video style to the hook and app frame.',
+          requestedAt: 970,
+          requestedEngines: ['remotion', 'hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      regenerationRequest: {
+        id: 'regen-reference-hyperframes-launch-video-gallery-effect-970',
+        projectId: 'motion-aether-launch',
+        draftId: 'draft-primary',
+        referenceSignalId: 'hyperframes-launch-video-gallery',
+        referenceTitle: 'HyperFrames launch video source gallery',
+        sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+        scope: 'effect',
+        componentIds: ['hook-card', 'app-frame'],
+        componentLabels: ['Hook card', 'App frame'],
+        status: 'planned',
+      },
+      previewPlan: {
+        projectId: 'motion-aether-launch',
+        referenceSignals: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'hyperframes-launch-video-gallery',
+            actions: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'reference-signal-hyperframes-launch-video-gallery-effect',
+                label: 'Apply reference style to Hook card / App frame',
+              }),
+            ]),
+          }),
+        ]),
+        executionHistory: {
+          status: 'saved',
+          savedStepCount: 1,
+          receiptCount: 2,
+          latestReceiptLabels: ['Reference signal', 'Component style update'],
+          entries: [
+            {
+              id: 'execution-reference-signal-hyperframes-launch-video-gallery-effect-970',
+              gateId: 'drafts',
+              label: 'Apply reference style to Hook card / App frame',
+              receiptLabels: ['Reference signal', 'Component style update'],
+            },
+          ],
+        },
+        enginePreviews: [
+          { engine: 'remotion', status: 'ready' },
+          { engine: 'hyperframes', status: 'ready' },
+        ],
+      },
+      project: {
+        graphNodes: expect.arrayContaining([
+          {
+            id: 'node-regen-reference-hyperframes-launch-video-gallery-effect-970',
+            kind: 'revision',
+            inputRefs: [
+              'hyperframes-launch-video-gallery',
+              'https://hyperframes.heygen.com/launch-videos',
+              'hook-card',
+              'app-frame',
+            ],
+            outputRefs: ['regen-reference-hyperframes-launch-video-gallery-effect-970'],
+            status: 'planned',
+            provenance: expect.arrayContaining([
+              { kind: 'revision', ref: 'regen-reference-hyperframes-launch-video-gallery-effect-970' },
+              {
+                kind: 'reference',
+                ref: 'https://hyperframes.heygen.com/launch-videos',
+                label: 'HyperFrames launch video source gallery',
+              },
+            ]),
+          },
+        ]),
+        executionHistory: [
+          {
+            id: 'execution-reference-signal-hyperframes-launch-video-gallery-effect-970',
+            gateId: 'drafts',
+            label: 'Apply reference style to Hook card / App frame',
+            savedAt: 970,
+            receiptCount: 2,
+            receiptLabels: ['Reference signal', 'Component style update'],
+            receipts: [
+              {
+                id: 'receipt-reference-signal-regen-reference-hyperframes-launch-video-gallery-effect-970-reference',
+                kind: 'revision',
+                label: 'Reference signal',
+                ref: 'hyperframes-launch-video-gallery',
+              },
+              {
+                id: 'receipt-reference-signal-regen-reference-hyperframes-launch-video-gallery-effect-970-component-style-update',
+                kind: 'revision',
+                label: 'Component style update',
+                ref: 'regen-reference-hyperframes-launch-video-gallery-effect-970:component-style-update',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(json.regenerationRequest.inputRefs).toEqual([
+      'hyperframes-launch-video-gallery',
+      'https://hyperframes.heygen.com/launch-videos',
+      'hook-card',
+      'app-frame',
+    ]);
+  });
+
   it('rejects unsupported component scopes before creating a request', async () => {
     const { POST } = await import('@/app/api/motion/regenerate/route');
 

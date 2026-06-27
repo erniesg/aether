@@ -3,6 +3,8 @@ import type { MotionWorkflowMode } from './project';
 import {
   buildMotionReviewPlan,
   createMotionComponentRegenerationRequest,
+  createMotionReferenceSignalRegenerationRequest,
+  stageMotionReferenceSignalRegeneration,
 } from './reviewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
@@ -142,5 +144,92 @@ describe('createMotionComponentRegenerationRequest', () => {
         requestedAt: 91,
       })
     ).toThrow(/does not support proof regeneration/);
+  });
+});
+
+describe('createMotionReferenceSignalRegenerationRequest', () => {
+  it('creates a reference-backed regeneration request for selected motion components', () => {
+    const request = createMotionReferenceSignalRegenerationRequest(project(), {
+      referenceSignalId: 'hyperframes-launch-video-gallery',
+      sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+      scope: 'effect',
+      componentIds: ['hook-card', 'app-frame'],
+      prompt: 'Apply source-backed launch-video style to the hook and app frame.',
+      requestedAt: 92,
+    });
+
+    expect(request).toMatchObject({
+      id: 'regen-reference-hyperframes-launch-video-gallery-effect-92',
+      projectId: 'motion-aether-launch',
+      draftId: 'draft-primary',
+      referenceSignalId: 'hyperframes-launch-video-gallery',
+      referenceTitle: 'HyperFrames launch video source gallery',
+      sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+      scope: 'effect',
+      componentIds: ['hook-card', 'app-frame'],
+      componentLabels: ['Hook card', 'App frame'],
+      status: 'planned',
+    });
+    expect(request.inputRefs).toEqual([
+      'hyperframes-launch-video-gallery',
+      'https://hyperframes.heygen.com/launch-videos',
+      'hook-card',
+      'app-frame',
+    ]);
+    expect(request.provenance).toContainEqual({
+      kind: 'reference',
+      ref: 'https://hyperframes.heygen.com/launch-videos',
+      label: 'HyperFrames launch video source gallery',
+    });
+
+    const staged = stageMotionReferenceSignalRegeneration(project(), request);
+    expect(staged.graphNodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'node-regen-reference-hyperframes-launch-video-gallery-effect-92',
+          kind: 'revision',
+          inputRefs: [
+            'hyperframes-launch-video-gallery',
+            'https://hyperframes.heygen.com/launch-videos',
+            'hook-card',
+            'app-frame',
+          ],
+          outputRefs: ['regen-reference-hyperframes-launch-video-gallery-effect-92'],
+          status: 'planned',
+          provenance: expect.arrayContaining([
+            { kind: 'revision', ref: 'regen-reference-hyperframes-launch-video-gallery-effect-92' },
+            {
+              kind: 'reference',
+              ref: 'https://hyperframes.heygen.com/launch-videos',
+              label: 'HyperFrames launch video source gallery',
+            },
+          ]),
+        }),
+      ])
+    );
+  });
+
+  it('rejects unknown corpus references and unknown component ids', () => {
+    expect(() =>
+      createMotionReferenceSignalRegenerationRequest(project(), {
+        referenceSignalId: 'missing-reference',
+        sourceUrl: 'https://example.com/missing',
+        scope: 'effect',
+        componentIds: ['hook-card'],
+        prompt: 'Use this reference.',
+        requestedAt: 93,
+      })
+    ).toThrow(/Motion reference signal not found/);
+
+    expect(() =>
+      createMotionReferenceSignalRegenerationRequest(project(), {
+        referenceSignalId: 'hyperframes-launch-video-gallery',
+        sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+        scope: 'effect',
+        componentIds: ['missing-component'],
+        prompt: 'Use this reference.',
+        requestedAt: 94,
+      })
+    ).toThrow(/Motion component is not registered/);
   });
 });

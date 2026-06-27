@@ -15,7 +15,10 @@ import type {
   MotionExecutionReceipt,
   MotionProvenanceRef,
 } from './project';
-import type { MotionComponentRegenerationRequest } from './reviewPlan';
+import type {
+  MotionComponentRegenerationRequest,
+  MotionReferenceSignalRegenerationRequest,
+} from './reviewPlan';
 import type { MotionSyncPlan } from './syncPlan';
 import { getMotionComponent, type MotionRegenerateScope } from './componentRegistry';
 
@@ -239,6 +242,40 @@ export function appendComponentRegenerationExecutionHistory(
     id: `execution-regeneration-${slugifyId(request.componentId)}-${slugifyId(request.scope)}-${savedAt}`,
     gateId: 'drafts',
     label: `Regenerate ${request.scope} for ${componentLabel}`,
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+    ]),
+  });
+}
+
+export function appendReferenceSignalRegenerationExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  request: MotionReferenceSignalRegenerationRequest,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const planLabel = referenceSignalPlanReceiptLabel(request.scope);
+  const receipts = [
+    regenerationReceipt({
+      id: `receipt-reference-signal-${request.id}-reference`,
+      label: 'Reference signal',
+      ref: request.referenceSignalId,
+    }),
+    regenerationReceipt({
+      id: `receipt-reference-signal-${request.id}-${slugifyId(planLabel)}`,
+      label: planLabel,
+      ref: `${request.id}:${slugifyId(planLabel)}`,
+    }),
+  ];
+
+  return appendExecutionEntry(history, {
+    id: `execution-reference-signal-${slugifyId(request.referenceSignalId)}-${slugifyId(request.scope)}-${savedAt}`,
+    gateId: 'drafts',
+    label: referenceSignalExecutionLabel(request),
     savedAt,
     receiptCount: receipts.length,
     receiptLabels: receipts.map((receipt) => receipt.label),
@@ -593,6 +630,25 @@ function regenerationPlanReceiptLabel(scope: MotionRegenerateScope): string {
     case 'cta':
       return 'Script update';
   }
+}
+
+function referenceSignalPlanReceiptLabel(scope: MotionRegenerateScope): string {
+  if (scope === 'capture') return 'Capture plan';
+  if (scope === 'caption') return 'Voice and caption update';
+  if (scope === 'effect' || scope === 'timing') return 'Component style update';
+  return 'Component plan';
+}
+
+function referenceSignalExecutionLabel(
+  request: MotionReferenceSignalRegenerationRequest
+): string {
+  if (request.scope === 'effect') {
+    return `Apply reference style to ${request.componentLabels.join(' / ')}`;
+  }
+  if (request.scope === 'capture') {
+    return `Regenerate capture from ${readableLabel(request.referenceSignalId)}`;
+  }
+  return `Apply reference ${request.scope} to ${request.componentLabels.join(' / ')}`;
 }
 
 function visualSourceRef(ref: string): MotionProvenanceRef {

@@ -3,6 +3,7 @@ import {
   type MotionEditControl,
   type MotionRegenerateScope,
 } from './componentRegistry';
+import { listMotionReferenceCorpus } from './referenceCorpus';
 import type {
   MotionDraft,
   MotionGraphNode,
@@ -99,9 +100,35 @@ export interface MotionComponentRegenerationRequest {
   requestedAt: number;
 }
 
+export interface MotionReferenceSignalRegenerationRequest {
+  id: string;
+  projectId: string;
+  draftId: string;
+  referenceSignalId: string;
+  referenceTitle: string;
+  sourceUrl: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
+  componentLabels: string[];
+  prompt: string;
+  inputRefs: string[];
+  status: 'planned';
+  provenance: MotionProvenanceRef[];
+  requestedAt: number;
+}
+
 export interface CreateMotionComponentRegenerationRequestInput {
   clipId: string;
   scope: MotionRegenerateScope;
+  prompt: string;
+  requestedAt: number;
+}
+
+export interface CreateMotionReferenceSignalRegenerationRequestInput {
+  referenceSignalId: string;
+  sourceUrl?: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
   prompt: string;
   requestedAt: number;
 }
@@ -198,6 +225,74 @@ export function stageMotionComponentRegeneration(
   };
 }
 
+export function createMotionReferenceSignalRegenerationRequest(
+  project: MotionProject,
+  input: CreateMotionReferenceSignalRegenerationRequestInput
+): MotionReferenceSignalRegenerationRequest {
+  const reference = listMotionReferenceCorpus().find(
+    (entry) => entry.id === input.referenceSignalId
+  );
+  if (!reference) {
+    throw new Error(`Motion reference signal not found: ${input.referenceSignalId}`);
+  }
+
+  const componentIds = uniqueStrings(input.componentIds);
+  if (componentIds.length === 0) {
+    throw new Error('At least one component id is required for reference regeneration');
+  }
+
+  const componentLabels = componentIds.map((componentId) => {
+    const component = getMotionComponent(componentId);
+    if (!component) {
+      throw new Error(`Motion component is not registered: ${componentId}`);
+    }
+    return component.label;
+  });
+
+  const sourceUrl = input.sourceUrl ?? reference.sourceUrl;
+  const inputRefs = uniqueStrings([
+    reference.id,
+    sourceUrl,
+    ...componentIds,
+  ]);
+
+  return {
+    id: `regen-reference-${reference.id}-${input.scope}-${input.requestedAt}`,
+    projectId: project.id,
+    draftId: project.currentDraftId,
+    referenceSignalId: reference.id,
+    referenceTitle: reference.title,
+    sourceUrl,
+    scope: input.scope,
+    componentIds,
+    componentLabels,
+    prompt: input.prompt,
+    inputRefs,
+    status: 'planned',
+    provenance: [
+      { kind: 'reference', ref: sourceUrl, label: reference.title },
+      { kind: 'revision', ref: `reference-signal:${reference.id}:${input.scope}` },
+    ],
+    requestedAt: input.requestedAt,
+  };
+}
+
+export function stageMotionReferenceSignalRegeneration(
+  project: MotionProject,
+  request: MotionReferenceSignalRegenerationRequest
+): MotionProject {
+  const node = referenceSignalRegenerationRequestToGraphNode(request);
+
+  return {
+    ...project,
+    graphNodes: [
+      ...project.graphNodes.filter((candidate) => candidate.id !== node.id),
+      node,
+    ],
+    updatedAt: Math.max(project.updatedAt, request.requestedAt),
+  };
+}
+
 function regenerationRequestToGraphNode(
   request: MotionComponentRegenerationRequest
 ): MotionGraphNode {
@@ -205,6 +300,22 @@ function regenerationRequestToGraphNode(
     id: `node-${request.id}`,
     kind: 'revision',
     inputRefs: uniqueStrings([request.clipId, ...request.inputRefs]),
+    outputRefs: [request.id],
+    status: 'planned',
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+    ]),
+  };
+}
+
+function referenceSignalRegenerationRequestToGraphNode(
+  request: MotionReferenceSignalRegenerationRequest
+): MotionGraphNode {
+  return {
+    id: `node-${request.id}`,
+    kind: 'revision',
+    inputRefs: [...request.inputRefs],
     outputRefs: [request.id],
     status: 'planned',
     provenance: uniqueProvenance([
