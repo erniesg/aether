@@ -193,8 +193,10 @@ capture, render, and provenance debugging.
   applied redaction manifest and supplied capture receipts before setup
   receipts are saved. Agents can also call a separate computer-use capture
   handoff to apply approved screenshots, recordings, traces, and redaction
-  provenance into the editable timeline. GitHub repo URLs, local repo paths, and site/app
-  URL sources can now create editable project starts; PR sources can
+  provenance into the editable timeline, or choose a guarded full-auto
+  computer-use handoff that runs the saved gates with those approved capture
+  receipts instead of the browser runner. GitHub repo URLs, local repo paths,
+  and site/app URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
   configured. Real screen capture and recording remain provider execution work.
 - `lib/motion/productionPlan.ts` now derives a concrete production queue from an

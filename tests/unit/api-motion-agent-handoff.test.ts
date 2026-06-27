@@ -294,6 +294,138 @@ describe('POST /api/motion/agent-handoff', () => {
     expect(render).toHaveBeenCalledTimes(1);
   });
 
+  it('runs full-auto with an approved computer-use capture runner', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    const synthesize = vi.fn(async (request: VoiceSynthesisRequest) => voiceResultFor(request));
+    const render = vi.fn(async (request: MotionRenderRequest) => renderResultFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+    unregister.push(registerVoiceProvider('voice-test', () => voiceProvider(synthesize)));
+    unregister.push(registerMotionRenderProvider('remotion-test', () => renderProvider(render)));
+
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['full-auto-computer-use-run'],
+          input: {
+            imageToVideoProviderId: 'image-video-test',
+            voiceProviderId: 'voice-test',
+            renderProviderId: 'remotion-test',
+            computerUseCaptureRunner: {
+              kind: 'computer-use-local',
+              approved: true,
+              redactionManifest: {
+                labels: ['tokens', 'emails'],
+                applied: true,
+                receiptRef: 'full-auto-redaction-pass',
+              },
+              receipts: [
+                {
+                  assetUrl: 'asset://computer-use/tong-full-auto.png',
+                  width: 1080,
+                  height: 1920,
+                  mimeType: 'image/png',
+                  redactions: [
+                    {
+                      label: 'tokens',
+                      target: 'settings panel',
+                      action: 'blur',
+                      applied: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      finalProject: {
+        id: 'motion-tong-agent-route',
+        exports: [
+          expect.objectContaining({
+            id: 'export-x-9x16',
+            status: 'ready',
+            assetId: 'render-export-x-9x16-video',
+          }),
+        ],
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'capture',
+            label: 'Product capture',
+            providerId: 'computer-use-capture',
+          }),
+          expect.objectContaining({ gateId: 'render' }),
+        ]),
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'capture',
+            providerId: 'computer-use-capture',
+            status: 'done',
+          }),
+        ]),
+      },
+      finalResponse: {
+        ok: true,
+        status: 'complete',
+        run: {
+          advancedStepIds: [
+            'capture',
+            'visual-source',
+            'visual-generation',
+            'voice',
+            'sync',
+            'render',
+          ],
+        },
+        captureRunner: expect.objectContaining({
+          kind: 'computer-use-local',
+          providerId: 'computer-use-capture',
+          approved: true,
+          receiptCount: 1,
+        }),
+      },
+      steps: [
+        expect.objectContaining({
+          templateId: 'full-auto-computer-use-run',
+          status: 'complete',
+          responseStatus: 200,
+        }),
+      ],
+    });
+    const appFrameClip = json.finalProject.tracks
+      .flatMap((track: { clips: unknown[] }) => track.clips)
+      .find((clip: { componentId?: string }) => clip.componentId === 'app-frame');
+    expect(appFrameClip).toMatchObject({
+      props: expect.objectContaining({
+        captureArtifactKind: 'screenshot',
+        captureProviderId: 'computer-use-capture',
+        sourceAssetId: 'capture-computer-use-screenshot-http-localhost-3000',
+        sourceVisualAssetId: 'capture-computer-use-screenshot-http-localhost-3000',
+        generatedVideoAssetId: 'generated-clip-beat-demo-text-image-to-video',
+      }),
+    });
+    expect(captureRunnerMock.captureCalls).toHaveLength(0);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(synthesize).toHaveBeenCalledTimes(6);
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
   it('returns an explicit blocked run when selected source-edit templates still need files', async () => {
     const startJson = await startLocalRepoProject();
     const { POST } = await import('@/app/api/motion/agent-handoff/route');

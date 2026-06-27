@@ -127,6 +127,37 @@ function buildTemplates(input: {
         'export pack',
       ]),
     });
+    if (capture) {
+      templates.push({
+        id: 'full-auto-computer-use-run',
+        label: 'Run saved gates with computer-use capture',
+        method: 'POST',
+        route: '/api/motion/full-auto',
+        toolId: 'motion-render',
+        body: cleanBody({
+          project: PROJECT_PLACEHOLDER,
+          requestedEngines: engines,
+          captureRequestIds: capture.requestIds,
+          captureRunner: '$computerUseCaptureRunner',
+          imageToVideoProviderId: '$imageToVideoProviderId?',
+          voiceProviderId: '$voiceProviderId?',
+          renderProviderId: '$renderProviderId?',
+          renderEngine: preferredRenderEngine(engines),
+        }),
+        inputPlaceholders: [PROJECT_PLACEHOLDER, '$computerUseCaptureRunner'],
+        expectedReceipts: uniqueStrings([
+          'captures',
+          'approval receipt',
+          'redaction receipt',
+          'source asset picks',
+          'generated clips',
+          'voice clips',
+          'timeline sync',
+          'contact sheet',
+          'export pack',
+        ]),
+      });
+    }
     templates.push(...setupDryRunTemplates({ engines, capture }));
   }
 

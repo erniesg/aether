@@ -1889,6 +1889,20 @@ const agentHandoff: MotionAgentExecutionHandoff = {
       expectedReceipts: ['captures', 'voice clips', 'export pack'],
     },
     {
+      id: 'full-auto-computer-use-run',
+      label: 'Run saved gates with computer-use capture',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-render',
+      body: {
+        project: '$motionProject',
+        captureRequestIds: ['capture-home-still', 'capture-dom-snapshot'],
+        captureRunner: '$computerUseCaptureRunner',
+      },
+      inputPlaceholders: ['$motionProject', '$computerUseCaptureRunner'],
+      expectedReceipts: ['captures', 'approval receipt', 'redaction receipt', 'export pack'],
+    },
+    {
       id: 'review-capture',
       label: 'Capture product media',
       method: 'POST',
@@ -2397,13 +2411,15 @@ describe('TimelineLens', () => {
 
     expect(screen.getByText('agent actions')).toBeInTheDocument();
     expect(screen.getAllByText('Run saved gates').length).toBeGreaterThan(0);
+    expect(screen.getByText('Run saved gates with computer-use capture')).toBeInTheDocument();
     expect(screen.getByText('Capture product media')).toBeInTheDocument();
     expect(screen.getByText('Apply computer-use capture')).toBeInTheDocument();
-    expect(screen.getAllByText('Apply source edits').length).toBeGreaterThan(0);
-    expect(screen.getByText('/api/motion/full-auto')).toBeInTheDocument();
+    expect(screen.getByText('5 actions')).toBeInTheDocument();
+    expect(screen.getAllByText('/api/motion/full-auto').length).toBeGreaterThan(0);
     expect(screen.getAllByText('/api/motion/capture').length).toBeGreaterThan(0);
     expect(screen.getAllByText('local runner').length).toBeGreaterThan(0);
     expect(screen.getAllByText('captures / voice clips').length).toBeGreaterThan(0);
+    expect(screen.getByText('captures / approval receipt')).toBeInTheDocument();
     expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
     expect(screen.queryByText('$computerUseCaptureRunner')).not.toBeInTheDocument();
     expect(screen.queryByText('$editedSourceFiles')).not.toBeInTheDocument();
