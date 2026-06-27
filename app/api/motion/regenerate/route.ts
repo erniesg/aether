@@ -21,6 +21,8 @@ import {
   stageMotionReferenceSignalRegeneration,
   stageMotionTasteReferenceRegeneration,
 } from '@/lib/motion/reviewPlan';
+import { buildMotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
+import type { MotionRenderEngine } from '@/lib/providers/video/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -153,6 +155,14 @@ export async function POST(request: Request): Promise<Response> {
         ),
       };
       const capturePlan = buildAgentMotionCapturePlan(updatedProject);
+      const sourcePatchDraft = buildMotionSourcePatchDraft(
+        updatedProject,
+        regenerationRequest.sourcePatchPlan,
+        {
+          engine: sourcePatchDraftEngine(requestedEngines),
+          requestedAt,
+        }
+      );
 
       return NextResponse.json({
         ok: true,
@@ -164,6 +174,7 @@ export async function POST(request: Request): Promise<Response> {
           requestedAt,
         }),
         capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+        sourcePatchDraft,
       });
     }
 
@@ -192,6 +203,14 @@ export async function POST(request: Request): Promise<Response> {
         ),
       };
       const capturePlan = buildAgentMotionCapturePlan(updatedProject);
+      const sourcePatchDraft = buildMotionSourcePatchDraft(
+        updatedProject,
+        regenerationRequest.sourcePatchPlan,
+        {
+          engine: sourcePatchDraftEngine(requestedEngines),
+          requestedAt,
+        }
+      );
 
       return NextResponse.json({
         ok: true,
@@ -203,6 +222,7 @@ export async function POST(request: Request): Promise<Response> {
           requestedAt,
         }),
         capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+        sourcePatchDraft,
       });
     }
 
@@ -229,6 +249,14 @@ export async function POST(request: Request): Promise<Response> {
       ),
     };
     const capturePlan = buildAgentMotionCapturePlan(updatedProject);
+    const sourcePatchDraft = buildMotionSourcePatchDraft(
+      updatedProject,
+      regenerationRequest.sourcePatchPlan,
+      {
+        engine: sourcePatchDraftEngine(requestedEngines),
+        requestedAt,
+      }
+    );
 
     return NextResponse.json({
       ok: true,
@@ -240,11 +268,18 @@ export async function POST(request: Request): Promise<Response> {
         requestedAt,
       }),
       capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+      sourcePatchDraft,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return jsonError(400, message, { code: 'motion_regeneration_failed' });
   }
+}
+
+function sourcePatchDraftEngine(requestedEngines: WorkflowEngine[] | null): MotionRenderEngine {
+  if (requestedEngines?.includes('remotion')) return 'remotion';
+  if (requestedEngines?.includes('hyperframes')) return 'hyperframes';
+  return 'remotion';
 }
 
 function parseRequestedEngines(value: unknown): WorkflowEngine[] | null {

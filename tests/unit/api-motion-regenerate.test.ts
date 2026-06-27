@@ -667,6 +667,27 @@ describe('POST /api/motion/regenerate', () => {
         'agent-trace',
       ])
     );
+    expect(json.sourcePatchDraft).toMatchObject({
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      sourceEditId: 'source-edit-regen-taste-claude-agent-demo-playback-review-effect-990',
+      targetClipIds: ['clip-beat-hook-text', 'clip-beat-payoff-text'],
+      requestTemplate: {
+        project: '$motionProject',
+        files: '$draftSourceFiles',
+        requestedEngines: '$selectedEngines',
+      },
+    });
+    expect(json.sourcePatchDraft.files.map((file: { path: string }) => file.path)).toEqual([
+      'timeline/draft-primary.json',
+      'STORYBOARD.md',
+      'EDIT.md',
+    ]);
+    expect(
+      json.sourcePatchDraft.files.find(
+        (file: { path: string }) => file.path === 'timeline/draft-primary.json'
+      )?.contents
+    ).toContain('"sourcePatchDraft"');
   });
 
   it('rejects unsupported component scopes before creating a request', async () => {
