@@ -26,9 +26,10 @@ Direct `x.com` pages were not readable through the text-fetch path used during
 this research pass. This plan is based on official product pages, accessible
 demo/product-video tooling pages, indexed social snippets, and the repo's
 existing aether motion code. Before locking the component library, run one
-authenticated X and YouTube collection pass over launch/demo posts from
-Anthropic, OpenAI, Cursor, Linear, Screen Studio, Runway, Pika, HeyGen, Arcade,
-Clueso, and Descript.
+authenticated X pass and one playback-backed YouTube/public-video pass over
+launch/demo posts from Anthropic, OpenAI, Cursor, Linear, Screen Studio,
+Runway, Pika, HeyGen, Arcade, Clueso, Descript, and HyperFrames daily skill
+launches.
 
 ## Reference refresh: 2026-06-24
 
@@ -84,9 +85,31 @@ See `research-corpus-and-next-slices.md` for the current external research
 matrix and next implementation slices. The typed corpus in
 `lib/motion/referenceCorpus.ts` now maps HyperFrames skills, HyperFrames launch
 video source projects, Testreel, Screen Studio, Clueso, Arcade, Descript,
-Anthropic/Claude agent surfaces, Remotion, and the remaining authenticated
-X/video corpus pass into workflow-specific observed formats, shot notes, style
-tags, component ids, review/full-auto behavior, and provider seams.
+Anthropic/Claude agent surfaces, Remotion, and the remaining X/YouTube video
+corpus pass into workflow-specific observed formats, shot notes, style tags,
+component ids, review/full-auto behavior, and provider seams.
+
+## Reference refresh: 2026-06-27
+
+- The user's HyperFrames `pr-to-video` launch snippet is now represented as a
+  first-class corpus entry, not merely prose. It maps to a reusable launch-kit
+  shape: problem hook, workflow name, agent proof, install command, captions,
+  and CTA. That keeps daily skill launches editable and regenerable.
+- The corpus now separates `authenticated-video-needed` from
+  `public-video-review-needed`. X posts require authenticated media access;
+  public YouTube/launch demos require playback review for timing, shot order,
+  transitions, captions, and crop language. Both are explicit follow-up
+  evidence states instead of being treated as accessible-page research.
+- Claude and agent-product videos should be tagged frame-by-frame for prompt
+  chip, file-read stack, diff card, terminal run, preview pane, receipt/proof,
+  caption language, transition, and CTA. Aether already has provider-neutral
+  components for those beats; the missing part is the playback-backed taste
+  corpus that chooses the strongest defaults.
+- Same-shell source preview is no longer only a plan: Remotion prepared sources
+  mount through `@remotion/player`, HyperFrames prepared HTML mounts through a
+  sandboxed iframe, and both stay backed by editable timeline/source bundles.
+  The next work is richer source edits and replacement actions, not creating a
+  separate preview product.
 
 ## Architecture decision
 

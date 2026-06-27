@@ -9,10 +9,13 @@
 This pass used accessible official product pages, public GitHub repositories,
 and the existing Aether motion implementation. Direct X corpus review still
 needs an authenticated browser pass because public text fetches do not reliably
-expose video posts, playback, or attached media. Treat this file as the
-implementation plan for the next product slices, not as the final taste corpus.
-The typed seed corpus lives in `lib/motion/referenceCorpus.ts` and is exposed
-through `/api/motion/workflows` as workflow-specific `referenceCorpus` entries.
+expose video posts, playback, or attached media. Public YouTube and launch-demo
+videos also need a playback-backed pass because timing, shot order, transitions,
+captions, and crop language cannot be verified from product pages alone. Treat
+this file as the implementation plan for the next product slices, not as the
+final taste corpus. The typed seed corpus lives in `lib/motion/referenceCorpus.ts`
+and is exposed through `/api/motion/workflows` as workflow-specific
+`referenceCorpus` entries.
 
 ## Research signals
 
@@ -91,11 +94,11 @@ Aether now has the right backbone:
    computer-use, visual-source, image-to-video, voice, and render readiness
    without executing the expensive production gate; end-to-end provider-backed
    artifact generation remains follow-up.
-3. **Real preview runtime.** The timeline lens now has a source-backed preview
-   shell with frame scrubbing, component focus, and explicit Remotion Player /
-   HyperFrames iframe runtime targets. The preview-source route now returns the
-   source package for those targets, but Aether still needs the real mounted
-   Player or iframe once runtime dependencies are configured.
+3. **Preview editing depth.** The timeline lens now has a source-backed preview
+   shell with frame scrubbing, component focus, a same-shell Remotion Player,
+   and a sandboxed HyperFrames iframe. The remaining gap is deeper source-backed
+   editing: replace capture source, adjust crop/zoom/keyframes, regenerate a
+   selected component, and round-trip those edits through `MotionProject`.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source
@@ -118,7 +121,7 @@ Add a typed `MotionReferenceCorpus` and saved example fixture under the repo
 video spec. It should store source URL, platform, source kind, observed video
 format, transcript or shot notes, component tags, style tags, and Aether
 component ids. The first fixture can use accessible pages; authenticated X
-videos become a follow-up import.
+videos and public playback-reviewed YouTube videos become follow-up imports.
 
 Status: implemented as a typed seed corpus with workflow lookup and discovery
 API exposure. Entries now include source URL, platform, source kind, proof
@@ -128,7 +131,10 @@ corpus includes concrete current examples for HyperFrames workflow skills,
 HyperFrames PR-to-video, HyperFrames launch-video source projects, Testreel
 programmatic Playwright recordings, Claude Code agent-trace product surfaces,
 Screen Studio, Clueso, Arcade, Descript, Anthropic computer use, Remotion, and
-an explicit authenticated-X placeholder.
+explicit X and public-Claude-launch-video placeholders. The corpus separates
+`authenticated-video-needed` from `public-video-review-needed` so agent workers
+know whether the next evidence pass needs login/session access or public
+playback review.
 
 Acceptance evidence:
 
@@ -137,6 +143,30 @@ Acceptance evidence:
   lookup.
 - Workflow discovery tests prove repo-launch and PR-to-video responses include
   relevant reference corpus entries.
+- Corpus tests prove X and public YouTube/Claude video follow-ups remain
+  discoverable as review-needed entries instead of being mistaken for completed
+  page research.
+
+### Slice A2: Playback-backed taste corpus
+
+Collect actual X, YouTube, and product launch/demo videos into a saved fixture
+before expanding final motion art direction. Each example should include source
+URL, account/channel, platform crop, transcript or caption notes, timestamped
+shot list, hook type, capture source, component tags, effect tags, transition
+tags, voice/caption style, CTA, and Aether component ids. The first batch should
+cover Claude/agent-product demos, HyperFrames daily skill launches, Screen
+Studio-style product demos, and launch cuts from OpenAI, Cursor, Linear,
+Runway, Pika, HeyGen, Arcade, Clueso, and Descript.
+
+Acceptance evidence:
+
+- Fixture tests prove every example has timestamped shot notes, component tags,
+  style/effect tags, crop target, and a proof boundary.
+- Workflow discovery surfaces the strongest examples per workflow without
+  showing raw debug ids in the primary timeline lens.
+- The timeline lens can show "taste references" as creator-facing cards with
+  regenerate-component actions for hook, capture, caption, voice, transition,
+  and CTA.
 
 ### Slice B: Runner setup cards in the timeline lens
 

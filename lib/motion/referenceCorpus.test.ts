@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getMotionComponent } from './componentRegistry';
 import {
   corpusEntriesNeedingAuthenticatedReview,
+  corpusEntriesNeedingVideoPlaybackReview,
   listMotionReferenceCorpus,
   listMotionReferenceCorpusForWorkflow,
   validateMotionReferenceCorpus,
@@ -50,6 +51,25 @@ describe('motion reference corpus', () => {
     ).toEqual(expect.arrayContaining(['capture', 'caption', 'proof']));
   });
 
+  it('separates video playback corpus follow-up from accessible-page research', () => {
+    const needsPlaybackReview = corpusEntriesNeedingVideoPlaybackReview();
+
+    expect(needsPlaybackReview.map((entry) => entry.id)).toEqual(
+      expect.arrayContaining([
+        'authenticated-x-launch-corpus',
+        'public-claude-launch-demo-corpus',
+      ])
+    );
+    expect(
+      needsPlaybackReview.find((entry) => entry.id === 'public-claude-launch-demo-corpus')
+    ).toMatchObject({
+      platform: 'youtube',
+      proofBoundary: 'public-video-review-needed',
+      componentIds: expect.arrayContaining(['agent-trace', 'terminal-card', 'app-frame']),
+      tags: expect.arrayContaining(['capture', 'caption', 'code']),
+    });
+  });
+
   it('keeps concrete launch and capture examples queryable by workflow', () => {
     const entries = listMotionReferenceCorpus();
     const ids = new Set(entries.map((entry) => entry.id));
@@ -60,7 +80,17 @@ describe('motion reference corpus', () => {
         'hyperframes-pr-to-video-skill',
         'testreel-programmatic-product-video',
         'claude-code-agent-trace',
+        'hyperframes-pr-to-video-launch-note',
+        'public-claude-launch-demo-corpus',
       ])
+    );
+    expect(entries.find((entry) => entry.id === 'hyperframes-pr-to-video-launch-note')).toMatchObject(
+      {
+        proofBoundary: 'user-supplied-snippet',
+        observedFormat: 'social-launch-video-corpus',
+        componentIds: expect.arrayContaining(['command-card', 'code-diff-card']),
+        tags: expect.arrayContaining(['script', 'storyboard', 'review-edit']),
+      }
     );
     expect(entries.find((entry) => entry.id === 'testreel-programmatic-product-video')).toMatchObject(
       {
@@ -80,7 +110,12 @@ describe('motion reference corpus', () => {
       ])
     );
     expect(listMotionReferenceCorpusForWorkflow('pr-to-video').map((entry) => entry.id)).toEqual(
-      expect.arrayContaining(['hyperframes-skills', 'hyperframes-pr-to-video-skill'])
+      expect.arrayContaining([
+        'hyperframes-skills',
+        'hyperframes-pr-to-video-skill',
+        'hyperframes-pr-to-video-launch-note',
+        'public-claude-launch-demo-corpus',
+      ])
     );
   });
 });

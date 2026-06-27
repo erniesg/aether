@@ -462,7 +462,11 @@ The first accessible research matrix now lives in
 not replace it.
 
 The current implementation has the data and workflow seams to ingest that
-corpus, but it does not yet include the corpus artifact, a mounted Remotion
-Player or HyperFrames iframe preview, real renderer dependency execution in the
-app process, configured voice providers, creator UI controls for trusted runner
-execution, or authenticated desktop/computer-use recording execution.
+corpus. The typed seed corpus now lives in `lib/motion/referenceCorpus.ts`, and
+workflow discovery exposes it as `referenceCorpus` entries. Same-shell source
+preview is also now mounted for generated bundles: Remotion uses
+`@remotion/player`, and HyperFrames uses a sandboxed iframe. The remaining gaps
+are the playback-backed corpus fixture, richer source-backed edit/replacement
+actions, real renderer dependency execution in the app process, configured
+voice providers, creator UI controls for trusted runner execution, and
+authenticated desktop/computer-use recording execution.

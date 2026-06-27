@@ -24,6 +24,7 @@ export type MotionReferenceCorpusProofBoundary =
   | 'accessible-page'
   | 'public-repo'
   | 'authenticated-video-needed'
+  | 'public-video-review-needed'
   | 'user-supplied-snippet';
 
 export type MotionReferenceObservedFormat =
@@ -112,10 +113,12 @@ const REFERENCE_SIGNAL_PRIORITY: Partial<Record<WorkflowRegistryId, string[]>> =
     'remotion-agent-video',
   ],
   'pr-to-video': [
+    'hyperframes-pr-to-video-launch-note',
     'hyperframes-pr-to-video-skill',
     'claude-code-agent-trace',
     'hyperframes-skills',
     'authenticated-x-launch-corpus',
+    'public-claude-launch-demo-corpus',
   ],
 };
 
@@ -183,6 +186,38 @@ const CORPUS: MotionReferenceCorpusEntry[] = [
     tags: ['script', 'storyboard', 'proof', 'code', 'caption', 'voice', 'render', 'full-auto'],
     aetherImplication:
       'Keep PR videos evidence-driven with code-change providers, source-backed scripts, and readable diff/mechanism components.',
+  },
+  {
+    id: 'hyperframes-pr-to-video-launch-note',
+    title: 'HyperFrames PR-to-video launch note',
+    sourceUrl:
+      'https://x.com/search?q=%22Nobody%20reads%20pull%20requests%22%20%22pr-to-video%22&src=typed_query',
+    platform: 'x',
+    sourceKind: 'launch-video-corpus',
+    proofBoundary: 'user-supplied-snippet',
+    observedFormat: 'social-launch-video-corpus',
+    observedPrimitives: [
+      'daily skill-launch announcement',
+      'single workflow promise framed around a painful source artifact',
+      'install command, agent capability, and follow-for-more CTA',
+    ],
+    shotNotes: [
+      'This is a social launch post pattern: problem hook, workflow name, proof of agent action, install command, CTA.',
+      'Aether should turn new reusable video skills into launch kits before final render, not hardcode the copy in an engine.',
+    ],
+    styleTags: ['agent-native', 'vertical-social', 'caption-forward', 'high-contrast-code'],
+    componentIds: [
+      'hook-card',
+      'command-card',
+      'agent-trace',
+      'code-diff-card',
+      'caption-line',
+      'cta-card',
+    ],
+    workflowIds: ['pr-to-video', 'repo-launch-video'],
+    tags: ['script', 'storyboard', 'proof', 'code', 'caption', 'render', 'review-edit'],
+    aetherImplication:
+      'Skill launches need a reusable launch-kit artifact with hook, install command, source evidence, draft variations, and regenerable proof components.',
   },
   {
     id: 'hyperframes-launch-video-gallery',
@@ -385,6 +420,37 @@ const CORPUS: MotionReferenceCorpusEntry[] = [
       'Agent-native app launches need reusable traces for prompts, file reads, edits, commands, previews, and receipts.',
   },
   {
+    id: 'public-claude-launch-demo-corpus',
+    title: 'Public Claude and agent launch-demo video corpus',
+    sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+    platform: 'youtube',
+    sourceKind: 'launch-video-corpus',
+    proofBoundary: 'public-video-review-needed',
+    observedFormat: 'social-launch-video-corpus',
+    observedPrimitives: [
+      'public launch and demo videos from Claude and agent products',
+      'screen, terminal, IDE, browser, and product-preview footage',
+      'requires playback review for timing, transitions, captions, and shot sequencing',
+    ],
+    shotNotes: [
+      'The next taste pass should sample real videos frame-by-frame instead of inferring entirely from product pages.',
+      'Aether should store transcript, timestamped shot notes, component tags, effect tags, and platform crop notes per example.',
+    ],
+    styleTags: ['agent-native', 'minimal-editorial', 'high-contrast-code', 'screen-polish'],
+    componentIds: [
+      'hook-card',
+      'agent-trace',
+      'terminal-card',
+      'app-frame',
+      'caption-line',
+      'proof-card',
+    ],
+    workflowIds: ['repo-launch-video', 'feature-social-video', 'pr-to-video'],
+    tags: ['script', 'capture', 'cursor', 'caption', 'proof', 'code', 'review-edit'],
+    aetherImplication:
+      'Do a playback-backed video-corpus pass before locking final motion taste, especially for agent traces, screen captures, captions, and transitions.',
+  },
+  {
     id: 'remotion-agent-video',
     title: 'Remotion agent-friendly video',
     sourceUrl: 'https://www.remotion.dev/docs/',
@@ -499,6 +565,14 @@ export function listRankedMotionReferenceCorpusForWorkflow(
 export function corpusEntriesNeedingAuthenticatedReview(): MotionReferenceCorpusEntry[] {
   return listMotionReferenceCorpus().filter(
     (entry) => entry.proofBoundary === 'authenticated-video-needed'
+  );
+}
+
+export function corpusEntriesNeedingVideoPlaybackReview(): MotionReferenceCorpusEntry[] {
+  return listMotionReferenceCorpus().filter(
+    (entry) =>
+      entry.proofBoundary === 'authenticated-video-needed' ||
+      entry.proofBoundary === 'public-video-review-needed'
   );
 }
 
