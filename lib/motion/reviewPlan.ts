@@ -16,6 +16,7 @@ import type {
   TimelineClip,
   TimelineTrack,
 } from './project';
+import { materializeMotionTimeline } from './timeline';
 
 export type MotionReviewPrimaryAction = 'request-review' | 'queue-render';
 export type MotionReviewActionId =
@@ -348,15 +349,17 @@ export function stageMotionDraftVariation(
   request: MotionDraftVariationRequest
 ): MotionProject {
   const node = draftVariationRequestToGraphNode(request);
+  const materialized = materializeMotionTimeline(project, {
+    draftId: request.draftId,
+    updatedAt: Math.max(project.updatedAt, request.requestedAt),
+  });
 
   return {
-    ...project,
-    currentDraftId: request.draftId,
+    ...materialized,
     graphNodes: [
-      ...project.graphNodes.filter((candidate) => candidate.id !== node.id),
+      ...materialized.graphNodes.filter((candidate) => candidate.id !== node.id),
       node,
     ],
-    updatedAt: Math.max(project.updatedAt, request.requestedAt),
   };
 }
 

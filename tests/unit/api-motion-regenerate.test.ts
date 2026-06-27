@@ -310,7 +310,49 @@ describe('POST /api/motion/regenerate', () => {
       },
       project: {
         currentDraftId: 'draft-demo-first',
+        tracks: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'track-text',
+            clips: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'clip-beat-demo-text',
+                props: expect.objectContaining({ role: 'demo' }),
+              }),
+            ]),
+          }),
+        ]),
+        drafts: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'draft-demo-first',
+            status: 'ready',
+            tracks: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'track-text',
+                clips: expect.arrayContaining([
+                  expect.objectContaining({
+                    id: 'clip-beat-demo-text',
+                    props: expect.objectContaining({ role: 'demo' }),
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+        ]),
         graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'node-sync-timeline',
+            kind: 'sync',
+            inputRefs: [
+              'beat-hook',
+              'beat-demo',
+              'beat-proof',
+              'beat-payoff',
+              'beat-problem',
+              'beat-cta',
+            ],
+            outputRefs: ['track-text', 'track-caption', 'track-voice', 'track-transition'],
+            status: 'done',
+          }),
           {
             id: 'node-regen-draft-draft-demo-first-980',
             kind: 'revision',
@@ -370,6 +412,19 @@ describe('POST /api/motion/regenerate', () => {
           expect.objectContaining({
             draftId: 'draft-demo-first',
             isCurrent: true,
+          }),
+        ]),
+        timelineRows: expect.arrayContaining([
+          expect.objectContaining({
+            trackId: 'track-text',
+            clips: [
+              expect.objectContaining({ clipId: 'clip-beat-hook-text' }),
+              expect.objectContaining({ clipId: 'clip-beat-demo-text' }),
+              expect.objectContaining({ clipId: 'clip-beat-proof-text' }),
+              expect.objectContaining({ clipId: 'clip-beat-payoff-text' }),
+              expect.objectContaining({ clipId: 'clip-beat-problem-text' }),
+              expect.objectContaining({ clipId: 'clip-beat-cta-text' }),
+            ],
           }),
         ]),
         executionHistory: {
