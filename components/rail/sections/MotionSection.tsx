@@ -9,6 +9,7 @@ import {
   runMotionAgentHandoffFromStart,
   type MotionAgentHandoffClientResult,
 } from '@/lib/motion/agentHandoffClient';
+import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 import { motionStartSummary, setMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionWorkflowIntent } from '@/lib/motion/workflowRouter';
 import type { MotionPlatformTarget, MotionWorkflowMode } from '@/lib/motion/project';
@@ -85,6 +86,10 @@ export interface MotionSectionProps {
     result: AgentMotionStartResult,
     action: MotionRailRegenerationAction
   ) => Promise<MotionRegenerateClientResult>;
+  applySourcePatch?: (
+    result: AgentMotionStartResult,
+    draft: MotionSourcePatchDraft
+  ) => Promise<MotionSourcePatchClientResult>;
   runAgentHandoff?: (
     result: AgentMotionStartResult
   ) => Promise<MotionAgentHandoffClientResult>;
@@ -96,6 +101,14 @@ export interface MotionRegenerateClientResult {
   reviewPlan?: AgentMotionStartResult['reviewPlan'];
   previewPlan?: AgentMotionStartResult['previewPlan'];
   capturePlan?: AgentMotionStartResult['capturePlan'];
+  sourcePatchDraft?: MotionSourcePatchDraft | null;
+}
+
+export interface MotionSourcePatchClientResult {
+  status?: string;
+  project?: AgentMotionStartResult['project'];
+  reviewPlan?: AgentMotionStartResult['reviewPlan'];
+  previewPlan?: AgentMotionStartResult['previewPlan'];
 }
 
 const INTENTS: MotionWorkflowIntent[] = [
@@ -200,6 +213,36 @@ async function defaultRegenerateMotion(
   return json;
 }
 
+async function defaultApplySourcePatch(
+  result: AgentMotionStartResult,
+  draft: MotionSourcePatchDraft
+): Promise<MotionSourcePatchClientResult> {
+  if (!result.project) throw new Error('project is required for source patch');
+  if (draft.status !== 'ready') {
+    throw new Error(draft.blockers[0] ?? 'source patch blocked');
+  }
+
+  const res = await fetch(draft.route, {
+    method: draft.method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project: result.project,
+      id: draft.sourceEditId,
+      files: draft.files,
+      requestedEngines: result.workflow.plan.engines,
+      requestedAt: Date.now(),
+    }),
+  });
+  const json = (await res.json()) as MotionSourcePatchClientResult & {
+    ok?: boolean;
+    error?: string;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new Error(json.error ?? `source patch failed: ${res.status}`);
+  }
+  return json;
+}
+
 export function motionSectionSummary(result: AgentMotionStartResult | undefined): string {
   return motionStartSummary(result);
 }
@@ -208,6 +251,7 @@ export function MotionSection({
   workspaceId,
   startMotion = defaultStartMotion,
   regenerateMotion = defaultRegenerateMotion,
+  applySourcePatch = defaultApplySourcePatch,
   runAgentHandoff = defaultRunAgentHandoff,
 }: MotionSectionProps) {
   const [source, setSource] = useState('');
@@ -219,6 +263,7 @@ export function MotionSection({
   const [regenerateStatus, setRegenerateStatus] = useState<MotionRegenerateStatus>({
     kind: 'idle',
   });
+  const [sourcePatchDraft, setSourcePatchDraft] = useState<MotionSourcePatchDraft | null>(null);
   const [recentSources, setRecentSources] = useState<MotionRecentSourceDraft[]>([]);
   const sourceRef = source.trim();
   const sourceDraft = sourceRef ? buildMotionSourceDraft(sourceRef, intent) : null;
@@ -259,6 +304,7 @@ export function MotionSection({
       setStatus({ kind: 'done', result });
       setHandoffStatus({ kind: 'idle' });
       setRegenerateStatus({ kind: 'idle' });
+      setSourcePatchDraft(null);
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
     }
@@ -272,6 +318,7 @@ export function MotionSection({
     setStatus({ kind: 'idle' });
     setHandoffStatus({ kind: 'idle' });
     setRegenerateStatus({ kind: 'idle' });
+    setSourcePatchDraft(null);
   };
 
   const runSceneRegeneration = async (action: MotionRailRegenerationAction) => {
@@ -290,9 +337,45 @@ export function MotionSection({
       };
       setMotionStartResult(workspaceId, updatedResult);
       setStatus({ kind: 'done', result: updatedResult });
+      setSourcePatchDraft(result.sourcePatchDraft ?? null);
       setRegenerateStatus({
         kind: 'done',
         message: `${result.regenerationRequest?.scope ?? action.scope} regeneration planned`,
+      });
+    } catch (error) {
+      setRegenerateStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  const applyCurrentSourcePatch = async (draft: MotionSourcePatchDraft) => {
+    if (status.kind !== 'done') return;
+    if (regenerateStatus.kind === 'running') return;
+    if (draft.status !== 'ready') {
+      setRegenerateStatus({
+        kind: 'error',
+        message: draft.blockers[0] ?? 'source patch blocked',
+      });
+      return;
+    }
+
+    setRegenerateStatus({ kind: 'running', actionId: draft.id });
+    try {
+      const result = await applySourcePatch(status.result, draft);
+      const updatedResult = {
+        ...status.result,
+        project: result.project ?? status.result.project,
+        reviewPlan: result.reviewPlan ?? status.result.reviewPlan,
+        previewPlan: result.previewPlan ?? status.result.previewPlan,
+      };
+      setMotionStartResult(workspaceId, updatedResult);
+      setStatus({ kind: 'done', result: updatedResult });
+      setSourcePatchDraft(null);
+      setRegenerateStatus({
+        kind: 'done',
+        message: result.status === 'applied' ? 'source patch applied' : `source patch ${result.status ?? 'saved'}`,
       });
     } catch (error) {
       setRegenerateStatus({
@@ -426,7 +509,9 @@ export function MotionSection({
             result={status.result}
             handoffStatus={handoffStatus}
             regenerateStatus={regenerateStatus}
+            sourcePatchDraft={sourcePatchDraft}
             onRegenerateScene={(action) => void runSceneRegeneration(action)}
+            onApplySourcePatch={(draft) => void applyCurrentSourcePatch(draft)}
             onContinueFullAuto={() => void continueFullAuto(status.result)}
           />
         </>
@@ -509,13 +594,17 @@ function MotionReviewQueue({
   result,
   handoffStatus,
   regenerateStatus,
+  sourcePatchDraft,
   onRegenerateScene,
+  onApplySourcePatch,
   onContinueFullAuto,
 }: {
   result: AgentMotionStartResult;
   handoffStatus: MotionHandoffStatus;
   regenerateStatus: MotionRegenerateStatus;
+  sourcePatchDraft: MotionSourcePatchDraft | null;
   onRegenerateScene: (action: MotionRailRegenerationAction) => void;
+  onApplySourcePatch: (draft: MotionSourcePatchDraft) => void;
   onContinueFullAuto: () => void;
 }) {
   const previewPlan = result.previewPlan;
@@ -569,6 +658,13 @@ function MotionReviewQueue({
           label="regenerate"
           items={previewPlan.regenerationActions.slice(0, 2).map((action) => action.label)}
         />
+        {sourcePatchDraft ? (
+          <MotionSourcePatchRailStrip
+            draft={sourcePatchDraft}
+            regenerateStatus={regenerateStatus}
+            onApply={onApplySourcePatch}
+          />
+        ) : null}
         {nextTemplate ? (
           <MotionReviewQueueList label="next action" items={[nextTemplate.label]} />
         ) : null}
@@ -619,6 +715,48 @@ function MotionReviewQueue({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function MotionSourcePatchRailStrip({
+  draft,
+  regenerateStatus,
+  onApply,
+}: {
+  draft: MotionSourcePatchDraft;
+  regenerateStatus: MotionRegenerateStatus;
+  onApply: (draft: MotionSourcePatchDraft) => void;
+}) {
+  const isReady = draft.status === 'ready';
+  const isApplying = regenerateStatus.kind === 'running' && regenerateStatus.actionId === draft.id;
+
+  return (
+    <div className="rounded-sm border border-border-soft bg-surface-panel px-1.5 py-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            source patch draft
+          </div>
+          <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+            {isReady
+              ? `${draft.targetClipIds.length} clip${draft.targetClipIds.length === 1 ? '' : 's'}`
+              : draft.blockers[0] ?? 'source patch blocked'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onApply(draft)}
+          disabled={!isReady || regenerateStatus.kind === 'running'}
+          className={cn(
+            'shrink-0 rounded-sm border border-border-soft bg-surface-panel-muted px-1.5 py-0.5',
+            'font-mono text-[10px] uppercase tracking-wide text-ink-dim transition-colors',
+            'hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+        >
+          {isApplying ? 'applying' : 'apply source patch draft'}
+        </button>
+      </div>
+    </div>
   );
 }
 

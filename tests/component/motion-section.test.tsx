@@ -8,6 +8,7 @@ import {
   type MotionStartClientRequest,
 } from '@/components/rail/sections/MotionSection';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
+import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 import {
   getMotionStartResult,
   resetMotionStartResultsForTests,
@@ -478,6 +479,95 @@ describe('MotionSection', () => {
     );
     expect(getMotionStartResult('demo-ws')?.previewPlan).toMatchObject({
       title: 'tong refreshed launch video',
+    });
+  });
+
+  it('lets creators apply source patch drafts returned by scene regeneration', async () => {
+    const startMotion = vi.fn(async () => reviewReadyResult('tong'));
+    const regeneratedResult = reviewReadyResult('tong');
+    const regeneratedPreviewPlan = regeneratedResult.previewPlan;
+    if (!regeneratedPreviewPlan) throw new Error('regenerated preview plan fixture missing');
+    const sourcePatchDraft: MotionSourcePatchDraft = {
+      id: 'source-patch-draft-regen-app-frame-capture',
+      status: 'ready' as const,
+      route: '/api/motion/source-edit' as const,
+      method: 'POST' as const,
+      sourceEditId: 'source-edit-regen-app-frame-capture',
+      sourcePatchPlanId: 'source-patch-regen-app-frame-capture',
+      files: [
+        {
+          path: 'timeline/draft-primary.json',
+          contents: '{"tracks":[]}',
+        },
+      ],
+      targetClipIds: ['clip-beat-demo-text'],
+      requestTemplate: {
+        project: '$motionProject' as const,
+        id: 'source-edit-regen-app-frame-capture',
+        files: '$draftSourceFiles' as const,
+        requestedEngines: '$selectedEngines' as const,
+        requestedAt: '$now' as const,
+      },
+      blockers: [],
+    };
+    const regenerateMotion = vi.fn(async () => ({
+      regenerationRequest: { scope: 'capture' },
+      project: regeneratedResult.project,
+      previewPlan: regeneratedPreviewPlan,
+      reviewPlan: regeneratedResult.reviewPlan,
+      capturePlan: regeneratedResult.capturePlan,
+      sourcePatchDraft,
+    }));
+    const applySourcePatch = vi.fn(async () => ({
+      status: 'applied',
+      project: regeneratedResult.project,
+      previewPlan: {
+        ...regeneratedPreviewPlan,
+        title: 'tong source-edited launch video',
+      },
+      reviewPlan: regeneratedResult.reviewPlan,
+    }));
+    render(
+      <MotionSection
+        workspaceId="demo-ws"
+        startMotion={startMotion}
+        regenerateMotion={regenerateMotion}
+        applySourcePatch={applySourcePatch}
+      />
+    );
+
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      '/Users/erniesg/code/erniesg/tong'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    const reviewQueue = await screen.findByRole('region', {
+      name: /motion review queue/i,
+    });
+    await userEvent.click(
+      within(reviewQueue).getByRole('button', { name: /Regenerate capture for App frame/i })
+    );
+
+    await waitFor(() => {
+      expect(reviewQueue).toHaveTextContent('source patch draft');
+    });
+    await userEvent.click(
+      within(reviewQueue).getByRole('button', { name: /apply source patch draft/i })
+    );
+
+    await waitFor(() => {
+      expect(reviewQueue).toHaveTextContent('source patch applied');
+    });
+    expect(applySourcePatch).toHaveBeenCalledWith(
+      expect.objectContaining({ project: expect.any(Object) }),
+      expect.objectContaining({
+        id: 'source-patch-draft-regen-app-frame-capture',
+        sourceEditId: 'source-edit-regen-app-frame-capture',
+      })
+    );
+    expect(getMotionStartResult('demo-ws')?.previewPlan).toMatchObject({
+      title: 'tong source-edited launch video',
     });
   });
 
