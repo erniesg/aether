@@ -170,12 +170,15 @@ function applyArtifactToClip(
   artifact: MotionGeneratedVideoClip
 ): TimelineClip {
   const previousAssetId = clip.assetId ?? stringProp(clip.props.assetId);
+  const selectedTake = generatedVideoTakeForArtifact(artifact, providerId, previousAssetId);
+  const props = { ...clip.props };
+  delete props.pendingGeneratedVideoTakeId;
 
   return {
     ...clip,
     assetId: artifact.id,
     props: {
-      ...clip.props,
+      ...props,
       assetId: artifact.id,
       assetUrl: artifact.assetUrl,
       generatedVideoAssetId: artifact.id,
@@ -183,6 +186,11 @@ function applyArtifactToClip(
       imageToVideoProviderId: providerId,
       sourceAssetId: artifact.sourceAssetId,
       ...(previousAssetId ? { sourceVisualAssetId: previousAssetId } : {}),
+      generatedVideoTakes: upsertGeneratedVideoTake(
+        generatedVideoTakesFromProps(clip.props.generatedVideoTakes),
+        selectedTake
+      ),
+      selectedGeneratedVideoTakeId: selectedTake.id,
       ...(artifact.durationMs === undefined ? {} : { durationMs: artifact.durationMs }),
       width: artifact.width,
       height: artifact.height,
