@@ -274,9 +274,11 @@ function buildTemplates(input: {
       method: 'POST',
       route: '/api/motion/voice',
       toolId: 'motion-voice',
-      body: {
+      body: cleanBody({
         project: PROJECT_PLACEHOLDER,
-      },
+        draftId: input.project.currentDraftId,
+        providerId: '$voiceProviderId?',
+      }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['voice clips', 'word timings', 'transcript'],
     },
@@ -333,6 +335,7 @@ function buildTemplates(input: {
       body: cleanBody({
         project: PROJECT_PLACEHOLDER,
         engine: preferredRenderEngine(engines),
+        providerId: '$renderProviderId?',
       }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['contact sheet', 'poster still', 'mp4 probe'],

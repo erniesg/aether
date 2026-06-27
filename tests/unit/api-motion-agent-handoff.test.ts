@@ -139,31 +139,40 @@ function generatedClipFor(request: MotionImageToVideoRequest): MotionImageToVide
   };
 }
 
-function voiceProvider(synthesize: VoiceProvider['synthesize']): VoiceProvider {
+function voiceProvider(
+  synthesize: VoiceProvider['synthesize'],
+  id = 'voice-test'
+): VoiceProvider {
   return {
-    id: 'voice-test',
+    id,
     displayName: 'Voice test synthesis',
     available: () => true,
     synthesize,
   };
 }
 
-function voiceResultFor(request: VoiceSynthesisRequest): VoiceSynthesisResult {
+function voiceResultFor(
+  request: VoiceSynthesisRequest,
+  providerId = 'voice-test'
+): VoiceSynthesisResult {
   return {
-    providerId: 'voice-test',
+    providerId,
     artifacts: request.expectedArtifacts.map((artifact) => ({
       ...artifact,
       assetUrl: `asset://${artifact.path}`,
       ...(artifact.kind === 'audio' ? { durationMs: request.durationFrames * 30 } : {}),
-      provenance: [{ kind: 'provider', ref: 'voice-test' }, ...artifact.provenance],
+      provenance: [{ kind: 'provider', ref: providerId }, ...artifact.provenance],
     })),
-    provenance: [{ kind: 'provider', ref: 'voice-test' }],
+    provenance: [{ kind: 'provider', ref: providerId }],
   };
 }
 
-function renderProvider(render: MotionRenderProvider['render']): MotionRenderProvider {
+function renderProvider(
+  render: MotionRenderProvider['render'],
+  id = 'remotion-test'
+): MotionRenderProvider {
   return {
-    id: 'remotion-test',
+    id,
     engine: 'remotion',
     displayName: 'Remotion test render',
     available: () => true,
@@ -171,16 +180,19 @@ function renderProvider(render: MotionRenderProvider['render']): MotionRenderPro
   };
 }
 
-function renderResultFor(request: MotionRenderRequest): MotionRenderResult {
+function renderResultFor(
+  request: MotionRenderRequest,
+  providerId = 'remotion-test'
+): MotionRenderResult {
   return {
-    providerId: 'remotion-test',
+    providerId,
     engine: 'remotion',
     outputs: request.outputs.map((output) => ({
       ...output,
       assetUrl: `asset://${output.path}`,
-      provenance: [{ kind: 'provider', ref: 'remotion-test' }, ...output.provenance],
+      provenance: [{ kind: 'provider', ref: providerId }, ...output.provenance],
     })),
-    provenance: [{ kind: 'provider', ref: 'remotion-test' }],
+    provenance: [{ kind: 'provider', ref: providerId }],
   };
 }
 
@@ -798,6 +810,133 @@ describe('POST /api/motion/agent-handoff', () => {
         ]),
       },
     });
+  });
+
+  it('uses the selected voice provider when generating voice through review handoff', async () => {
+    const defaultSynthesize = vi.fn(async (request: VoiceSynthesisRequest) =>
+      voiceResultFor(request, 'voice-default')
+    );
+    const selectedSynthesize = vi.fn(async (request: VoiceSynthesisRequest) =>
+      voiceResultFor(request, 'voice-selected')
+    );
+    unregister.push(
+      registerVoiceProvider('voice-default', () =>
+        voiceProvider(defaultSynthesize, 'voice-default')
+      )
+    );
+    unregister.push(
+      registerVoiceProvider('voice-selected', () =>
+        voiceProvider(selectedSynthesize, 'voice-selected')
+      )
+    );
+
+    const startJson = await startLocalRepoProject('review');
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['generate-voice'],
+          input: {
+            voiceProviderId: 'voice-selected',
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'generate-voice',
+          status: 'complete',
+          responseJson: expect.objectContaining({
+            status: 'synthesized',
+          }),
+        }),
+      ],
+      finalProject: {
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'voice',
+            providerId: 'voice-selected',
+          }),
+        ]),
+      },
+    });
+    expect(defaultSynthesize).not.toHaveBeenCalled();
+    expect(selectedSynthesize).toHaveBeenCalledTimes(6);
+  });
+
+  it('uses the selected render provider when rendering proof through review handoff', async () => {
+    const defaultRender = vi.fn(async (request: MotionRenderRequest) =>
+      renderResultFor(request, 'remotion-default')
+    );
+    const selectedRender = vi.fn(async (request: MotionRenderRequest) =>
+      renderResultFor(request, 'remotion-selected')
+    );
+    unregister.push(
+      registerMotionRenderProvider('remotion-default', () =>
+        renderProvider(defaultRender, 'remotion-default')
+      )
+    );
+    unregister.push(
+      registerMotionRenderProvider('remotion-selected', () =>
+        renderProvider(selectedRender, 'remotion-selected')
+      )
+    );
+
+    const startJson = await startLocalRepoProject('review');
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['render-proof'],
+          input: {
+            renderProviderId: 'remotion-selected',
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'render-proof',
+          status: 'complete',
+          responseJson: expect.objectContaining({
+            status: 'rendered',
+            renderResult: expect.objectContaining({
+              providerId: 'remotion-selected',
+            }),
+          }),
+        }),
+      ],
+      finalProject: {
+        exports: [
+          expect.objectContaining({
+            status: 'ready',
+            assetId: 'render-export-x-9x16-video',
+          }),
+        ],
+      },
+    });
+    expect(defaultRender).not.toHaveBeenCalled();
+    expect(selectedRender).toHaveBeenCalledTimes(1);
   });
 
   it('records a product flow through the recording handoff template', async () => {
