@@ -406,6 +406,12 @@
   classes; timeline editing must remain source-backed; and the user's
   `pr-to-video` daily skill launch copy is represented as a workflow example
   rather than as renderer copy.
+- Product-video taste references now map website/app capture examples into
+  richer reusable primitives: device frames, logo motion, flow diagrams, and
+  hotspot markers. Remotion and HyperFrames source generation emit named
+  adapters/classes for those primitives, and the website-to-video taste corpus
+  keeps public playback as an explicit follow-up instead of treating source
+  research as finished video review.
 
 ## Next Slices
 

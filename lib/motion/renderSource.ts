@@ -1085,6 +1085,152 @@ function AvatarBubble({ brand, clip, text }: MotionComponentRenderProps) {
   );
 }
 
+function DeviceFrame({ brand, clip, text, mediaUrl, mimeType }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const device = clipPropText(clip, "device", "desktop");
+  const caption = clipPropText(clip, "caption", text || "Product capture");
+  const safeZone = clipPropText(clip, "safeZone", "safe crop");
+  const radius = device === "mobile" ? 42 : 24;
+
+  return (
+    <div style={{ width: device === "mobile" ? 430 : 860, maxWidth: "88%" }}>
+      <div
+        style={{
+          border: "4px solid " + palette[1],
+          borderRadius: radius,
+          padding: device === "mobile" ? 18 : 12,
+          background: palette[1],
+          boxShadow: "0 36px 92px rgba(0,0,0,0.28)",
+        }}
+      >
+        <div
+          style={{
+            minHeight: device === "mobile" ? 700 : 440,
+            overflow: "hidden",
+            borderRadius: Math.max(14, radius - 14),
+            background: "rgba(255,255,255,0.82)",
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          {mediaUrl && mimeType.startsWith("video/") ? (
+            <Video src={mediaUrl} muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : null}
+          {mediaUrl && mimeType.startsWith("image/") ? (
+            <Img src={mediaUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : null}
+          {!mediaUrl ? <span style={{ color: palette[1], fontSize: 32, fontWeight: 800 }}>{caption}</span> : null}
+        </div>
+      </div>
+      <div style={{ marginTop: 18, color: palette[2], fontSize: 22, fontWeight: 900, textAlign: "center" }}>
+        {device} / {safeZone}
+      </div>
+      <div style={{ marginTop: 8, color: palette[1], fontSize: 30, fontWeight: 800, textAlign: "center" }}>
+        {caption}
+      </div>
+    </div>
+  );
+}
+
+function LogoMotion({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const wordmark = clipPropText(clip, "wordmark", text || compositionTitle);
+  const logoAssetId = clipPropText(clip, "logoAssetId", wordmark.slice(0, 2).toUpperCase());
+  const motionPreset = clipPropText(clip, "motionPreset", brand.motionStyle || "brand reveal");
+
+  return (
+    <CardShell brand={brand}>
+      <div
+        style={{
+          margin: "0 auto 24px",
+          width: 138,
+          height: 138,
+          borderRadius: 34,
+          background: palette[1],
+          color: palette[0],
+          display: "grid",
+          placeItems: "center",
+          fontSize: 34,
+          fontWeight: 900,
+        }}
+      >
+        {logoAssetId.slice(0, 3).toUpperCase()}
+      </div>
+      <DisplayText text={wordmark} brand={brand} size={72} />
+      <div style={{ marginTop: 18, color: palette[2], fontSize: 22, fontWeight: 900, textAlign: "center" }}>
+        {motionPreset}
+      </div>
+    </CardShell>
+  );
+}
+
+function FlowDiagram({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const headline = clipPropText(clip, "headline", text || "Workflow");
+  const steps = clipCodeLines(clip, "steps");
+  const diagramSteps = steps.length > 0 ? steps : ["facts", "script", "capture", "render"];
+
+  return (
+    <CardShell brand={brand}>
+      <DisplayText text={headline} brand={brand} size={48} />
+      <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, minWidth: 820 }}>
+        {diagramSteps.slice(0, 4).map((step, index) => (
+          <div
+            key={step + String(index)}
+            style={{
+              minHeight: 126,
+              border: "2px solid " + palette[1],
+              borderRadius: 18,
+              background: index % 2 === 0 ? "rgba(26,26,26,0.08)" : "rgba(200,65,58,0.14)",
+              display: "grid",
+              placeItems: "center",
+              padding: 14,
+              color: palette[1],
+              fontSize: 24,
+              fontWeight: 900,
+              textAlign: "center",
+            }}
+          >
+            {String(index + 1).padStart(2, "0")} {step}
+          </div>
+        ))}
+      </div>
+    </CardShell>
+  );
+}
+
+function HotspotMarker({ brand, clip, text }: MotionComponentRenderProps) {
+  const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
+  const targetLabel = clipPropText(clip, "targetLabel", text || "Hotspot");
+  const hotspot = clipPropText(clip, "hotspot", "x=50 y=50");
+  const action = clipPropText(clip, "action", "Open detail");
+
+  return (
+    <CardShell brand={brand}>
+      <div style={{ display: "grid", gap: 18, placeItems: "center" }}>
+        <div
+          style={{
+            width: 124,
+            height: 124,
+            borderRadius: 999,
+            border: "5px solid " + palette[2],
+            display: "grid",
+            placeItems: "center",
+            color: palette[2],
+            fontSize: 36,
+            fontWeight: 900,
+          }}
+        >
+          +
+        </div>
+        <DisplayText text={targetLabel} brand={brand} size={46} />
+        <div style={{ color: palette[2], fontSize: 20, fontWeight: 900 }}>{hotspot}</div>
+        <div style={{ color: palette[1], fontSize: 28, fontWeight: 800 }}>{action}</div>
+      </div>
+    </CardShell>
+  );
+}
+
 function ContactSheetProof({ brand, clip, text }: MotionComponentRenderProps) {
   const palette = brand.palette.length >= 3 ? brand.palette : ["#f4ede0", "#1a1a1a", "#c8413a"];
   const frameIds = clipCodeLines(clip, "frameAssetIds");
@@ -1378,6 +1524,14 @@ function renderMotionComponent(props: MotionComponentRenderProps) {
       return <SplitScreenCompare {...props} />;
     case "avatar-bubble":
       return <AvatarBubble {...props} />;
+    case "device-frame":
+      return <DeviceFrame {...props} />;
+    case "logo-motion":
+      return <LogoMotion {...props} />;
+    case "flow-diagram":
+      return <FlowDiagram {...props} />;
+    case "hotspot-marker":
+      return <HotspotMarker {...props} />;
     case "data-visual-card":
       return <DataVisualCard {...props} />;
     case "code-highlight-card":
@@ -1610,6 +1764,10 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
         .cursor-callout__zoom,
         .split-screen-compare__caption,
         .avatar-bubble__speaker,
+        .device-frame__device,
+        .logo-motion__preset,
+        .flow-diagram__headline,
+        .hotspot-marker__action,
         .data-visual-card__label,
         .contact-sheet-proof__status,
         .cta-card__action {
@@ -1780,6 +1938,101 @@ function hyperframesIndexSource(project: MotionProject, request: MotionRenderReq
           color: ${palette.foreground};
           font-size: 32px;
           line-height: 1.12;
+        }
+
+        .device-frame__shell {
+          min-width: 420px;
+          padding: 14px;
+          border: 4px solid ${palette.foreground};
+          border-radius: 34px;
+          background: ${palette.foreground};
+          box-shadow: 0 32px 84px rgba(0, 0, 0, 0.24);
+        }
+
+        .device-frame__screen {
+          display: grid;
+          place-items: center;
+          min-height: 440px;
+          overflow: hidden;
+          border-radius: 22px;
+          background: rgba(255, 255, 255, 0.78);
+          color: ${palette.foreground};
+          font-size: 28px;
+          font-weight: 800;
+        }
+
+        .device-frame__device,
+        .device-frame__caption {
+          display: block;
+          margin-top: 14px;
+        }
+
+        .logo-motion__mark {
+          display: grid;
+          place-items: center;
+          width: 128px;
+          height: 128px;
+          margin: 0 auto 20px;
+          border-radius: 30px;
+          background: ${palette.foreground};
+          color: ${palette.background};
+          font-size: 32px;
+          font-weight: 900;
+        }
+
+        .logo-motion__wordmark {
+          display: block;
+          color: ${palette.foreground};
+          font-size: 78px;
+          line-height: 0.98;
+          font-weight: 900;
+        }
+
+        .logo-motion__preset {
+          display: block;
+          margin-top: 18px;
+        }
+
+        .flow-diagram__steps {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 12px;
+          min-width: 760px;
+          margin-top: 20px;
+        }
+
+        .flow-diagram__step {
+          display: grid;
+          place-items: center;
+          min-height: 118px;
+          padding: 14px;
+          border: 2px solid ${palette.foreground};
+          border-radius: 16px;
+          background: rgba(26, 26, 26, 0.08);
+          color: ${palette.foreground};
+          font-size: 23px;
+          font-weight: 900;
+          word-break: break-word;
+        }
+
+        .hotspot-marker__ring {
+          display: grid;
+          place-items: center;
+          width: 112px;
+          height: 112px;
+          margin: 0 auto 18px;
+          border: 5px solid ${palette.accent};
+          border-radius: 999px;
+          color: ${palette.accent};
+          font-size: 40px;
+          font-weight: 900;
+        }
+
+        .hotspot-marker__target,
+        .hotspot-marker__hotspot,
+        .hotspot-marker__action {
+          display: block;
+          margin-top: 12px;
         }
 
         .data-visual-card__metric {
@@ -2059,6 +2312,43 @@ function hyperframesComponentBody(
     const caption = stringProp(props.caption) ?? text;
     const avatarAssetId = stringProp(props.avatarAssetId) ?? speakerName.slice(0, 2).toUpperCase();
     return `<div class="avatar-bubble__row"><span class="avatar-bubble__avatar">${escapeHtml(avatarAssetId.slice(0, 2).toUpperCase())}</span><span><span class="avatar-bubble__speaker">${escapeHtml(speakerName)}</span><span class="avatar-bubble__caption">${escapeHtml(caption)}</span></span></div>`;
+  }
+
+  if (componentId === 'device-frame') {
+    const device = stringProp(props.device) ?? 'desktop';
+    const caption = (stringProp(props.caption) ?? text) || 'Product capture';
+    const safeZone = stringProp(props.safeZone) ?? 'safe crop';
+    const media =
+      mediaUrl && mimeType.startsWith('video/')
+        ? `<video class="motion-media" src="${escapeHtml(mediaUrl)}" muted playsinline crossorigin="anonymous"></video>`
+        : mediaUrl && mimeType.startsWith('image/')
+          ? `<img class="motion-media" src="${escapeHtml(mediaUrl)}" alt="" crossorigin="anonymous" />`
+          : `<span>${escapeHtml(caption)}</span>`;
+    return `<div class="device-frame__shell"><div class="device-frame__screen">${media}</div></div><span class="device-frame__device">${escapeHtml(device)}</span><span class="device-frame__caption">${escapeHtml(caption)} / ${escapeHtml(safeZone)}</span>`;
+  }
+
+  if (componentId === 'logo-motion') {
+    const wordmark = (stringProp(props.wordmark) ?? text) || 'brand';
+    const logoAssetId = stringProp(props.logoAssetId) ?? wordmark.slice(0, 2).toUpperCase();
+    const motionPreset = stringProp(props.motionPreset) ?? 'brand reveal';
+    return `<span class="logo-motion__mark">${escapeHtml(logoAssetId.slice(0, 3).toUpperCase())}</span><strong class="logo-motion__wordmark">${escapeHtml(wordmark)}</strong><span class="logo-motion__preset">${escapeHtml(motionPreset)}</span>`;
+  }
+
+  if (componentId === 'flow-diagram') {
+    const headline = (stringProp(props.headline) ?? text) || 'Workflow';
+    const steps = stringLinesProp(props.steps);
+    const stepMarkup = (steps.length > 0 ? steps : ['facts', 'script', 'capture', 'render'])
+      .slice(0, 4)
+      .map((step) => `<span class="flow-diagram__step">${escapeHtml(step)}</span>`)
+      .join('');
+    return `<span class="flow-diagram__headline">${escapeHtml(headline)}</span><span class="flow-diagram__steps">${stepMarkup}</span>`;
+  }
+
+  if (componentId === 'hotspot-marker') {
+    const targetLabel = (stringProp(props.targetLabel) ?? text) || 'Hotspot';
+    const hotspot = stringProp(props.hotspot) ?? 'x=50 y=50';
+    const action = stringProp(props.action) ?? 'Open detail';
+    return `<span class="hotspot-marker__ring">+</span><strong class="hotspot-marker__target">${escapeHtml(targetLabel)}</strong><span class="hotspot-marker__hotspot">${escapeHtml(hotspot)}</span><span class="hotspot-marker__action">${escapeHtml(action)}</span>`;
   }
 
   if (componentId === 'data-visual-card') {

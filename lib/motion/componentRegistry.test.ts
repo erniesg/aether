@@ -19,6 +19,10 @@ describe('motion component registry', () => {
       'cursor-callout',
       'split-screen-compare',
       'avatar-bubble',
+      'device-frame',
+      'logo-motion',
+      'flow-diagram',
+      'hotspot-marker',
       'data-visual-card',
       'code-diff-card',
       'code-highlight-card',
@@ -136,6 +140,43 @@ describe('motion component registry', () => {
     const avatarBubble = getMotionComponent('avatar-bubble');
     expect(avatarBubble?.requiredProps).toEqual(['avatarAssetId', 'speakerName', 'caption']);
     expect(avatarBubble?.regenerateScopes).toEqual(['asset', 'copy', 'caption', 'timing']);
+
+    const deviceFrame = getMotionComponent('device-frame');
+    expect(deviceFrame?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(deviceFrame?.requiredProps).toEqual(['assetId', 'device', 'caption']);
+    expect(deviceFrame?.editControls.map((control) => control.id)).toEqual([
+      'assetId',
+      'device',
+      'caption',
+      'safeZone',
+      'effectPreset',
+    ]);
+    expect(deviceFrame?.regenerateScopes).toEqual([
+      'capture',
+      'caption',
+      'timing',
+      'effect',
+    ]);
+
+    const logoMotion = getMotionComponent('logo-motion');
+    expect(logoMotion?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(logoMotion?.requiredProps).toEqual(['logoAssetId', 'wordmark', 'motionPreset']);
+    expect(logoMotion?.regenerateScopes).toEqual(['asset', 'copy', 'timing', 'effect']);
+
+    const flowDiagram = getMotionComponent('flow-diagram');
+    expect(flowDiagram?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(flowDiagram?.requiredProps).toEqual(['headline', 'steps']);
+    expect(flowDiagram?.regenerateScopes).toEqual(['diagram', 'copy', 'timing', 'effect']);
+
+    const hotspotMarker = getMotionComponent('hotspot-marker');
+    expect(hotspotMarker?.engines).toEqual(['remotion', 'hyperframes']);
+    expect(hotspotMarker?.requiredProps).toEqual(['targetLabel', 'hotspot', 'action']);
+    expect(hotspotMarker?.regenerateScopes).toEqual([
+      'capture',
+      'caption',
+      'timing',
+      'effect',
+    ]);
 
     const dataVisual = getMotionComponent('data-visual-card');
     expect(dataVisual?.requiredProps).toEqual(['metric', 'label']);

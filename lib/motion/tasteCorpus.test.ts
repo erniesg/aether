@@ -77,4 +77,41 @@ describe('motion taste corpus', () => {
       ])
     );
   });
+
+  it('maps website-to-video product references to device, brand, flow, and hotspot primitives', () => {
+    const websiteTaste = listMotionTasteCorpusForWorkflow('website-to-video');
+
+    expect(websiteTaste).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'hyperframes-website-to-video-production-source',
+          platform: 'github',
+          reviewStatus: 'needs-public-playback',
+          proofBoundary: 'public-repo',
+          componentIds: expect.arrayContaining([
+            'device-frame',
+            'logo-motion',
+            'flow-diagram',
+            'hotspot-marker',
+          ]),
+          regenerateScopes: expect.arrayContaining([
+            'capture',
+            'asset',
+            'diagram',
+            'effect',
+          ]),
+          shotList: expect.arrayContaining([
+            expect.objectContaining({
+              componentIds: expect.arrayContaining(['device-frame', 'hotspot-marker']),
+              editTargets: expect.arrayContaining(['capture', 'timing']),
+            }),
+            expect.objectContaining({
+              componentIds: expect.arrayContaining(['flow-diagram', 'logo-motion']),
+              editTargets: expect.arrayContaining(['diagram', 'effect']),
+            }),
+          ]),
+        }),
+      ])
+    );
+  });
 });

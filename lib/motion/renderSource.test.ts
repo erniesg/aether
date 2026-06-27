@@ -745,6 +745,137 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(hyperframesEntry).toContain('contact-sheet-proof__status">ready for review');
   });
 
+  it('emits source adapters for product capture and interactive demo primitives', () => {
+    const baseProject = projectWithVisualTimeline();
+    const componentTracks: TimelineTrack[] = [
+      {
+        id: 'track-product-demo-structure',
+        kind: 'text',
+        clips: [
+          {
+            id: 'clip-device-frame',
+            componentId: 'device-frame',
+            startFrame: 0,
+            durationFrames: 90,
+            assetId: 'capture-mobile-home',
+            props: {
+              assetId: 'capture-mobile-home',
+              assetUrl: 'asset://captures/mobile-home.png',
+              mimeType: 'image/png',
+              device: 'mobile',
+              caption: 'Mobile launch surface',
+              safeZone: '9:16 feed',
+              text: 'Mobile launch surface',
+            },
+            linkedVariantScope: 'format-local',
+            provenance: [{ kind: 'capture', ref: 'mobile-home' }],
+          },
+          {
+            id: 'clip-logo-motion',
+            componentId: 'logo-motion',
+            startFrame: 90,
+            durationFrames: 75,
+            props: {
+              logoAssetId: 'logo-aether',
+              wordmark: 'aether',
+              motionPreset: 'skill-drop-reveal',
+              text: 'aether',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'reference', ref: 'brand-system' }],
+          },
+          {
+            id: 'clip-flow-diagram',
+            componentId: 'flow-diagram',
+            startFrame: 165,
+            durationFrames: 105,
+            props: {
+              headline: 'Repo to launch cut',
+              steps: ['facts', 'script', 'capture', 'render'],
+              text: 'Repo to launch cut',
+            },
+            linkedVariantScope: 'global',
+            provenance: [{ kind: 'repo', ref: 'motion-workflow' }],
+          },
+          {
+            id: 'clip-hotspot-marker',
+            componentId: 'hotspot-marker',
+            startFrame: 270,
+            durationFrames: 75,
+            props: {
+              targetLabel: 'Timeline draft',
+              hotspot: 'x=62 y=44',
+              action: 'Regenerate this scene',
+              text: 'Timeline draft',
+            },
+            linkedVariantScope: 'format-local',
+            provenance: [{ kind: 'reference', ref: 'interactive-demo-layer' }],
+          },
+        ],
+      },
+    ];
+    const project = {
+      ...baseProject,
+      tracks: componentTracks,
+      drafts: baseProject.drafts.map((draft) =>
+        draft.id === baseProject.currentDraftId
+          ? { ...draft, tracks: componentTracks }
+          : draft
+      ),
+    };
+
+    const remotionBundle = buildMotionRenderSourceBundle(project, renderRequest(project, 'remotion'));
+    const remotionEntry =
+      remotionBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(remotionEntry).toContain('function DeviceFrame');
+    expect(remotionEntry).toContain('function LogoMotion');
+    expect(remotionEntry).toContain('function FlowDiagram');
+    expect(remotionEntry).toContain('function HotspotMarker');
+    expect(remotionEntry).toContain('case "device-frame":');
+    expect(remotionEntry).toContain('case "logo-motion":');
+    expect(remotionEntry).toContain('case "flow-diagram":');
+    expect(remotionEntry).toContain('case "hotspot-marker":');
+    expect(remotionEntry).toContain('Mobile launch surface');
+    expect(remotionEntry).toContain('Repo to launch cut');
+
+    const manifest = JSON.parse(
+      remotionBundle.files.find((file) => file.kind === 'manifest')?.contents ?? '{}'
+    );
+    expect(manifest.componentIds).toEqual([
+      'device-frame',
+      'logo-motion',
+      'flow-diagram',
+      'hotspot-marker',
+    ]);
+    expect(manifest.editContract.editableComponents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          componentId: 'device-frame',
+          editControlIds: ['assetId', 'device', 'caption', 'safeZone', 'effectPreset'],
+        }),
+        expect.objectContaining({
+          componentId: 'flow-diagram',
+          editControlIds: ['headline', 'steps', 'diagramKind', 'accentColor'],
+        }),
+      ])
+    );
+
+    const hyperframesBundle = buildMotionRenderSourceBundle(
+      project,
+      renderRequest(project, 'hyperframes')
+    );
+    const hyperframesEntry =
+      hyperframesBundle.files.find((file) => file.kind === 'entry')?.contents ?? '';
+    expect(hyperframesEntry).toContain('data-component-id="device-frame"');
+    expect(hyperframesEntry).toContain('device-frame__device">mobile');
+    expect(hyperframesEntry).toContain('data-component-id="logo-motion"');
+    expect(hyperframesEntry).toContain('logo-motion__wordmark">aether');
+    expect(hyperframesEntry).toContain('data-component-id="flow-diagram"');
+    expect(hyperframesEntry).toContain('flow-diagram__step">render');
+    expect(hyperframesEntry).toContain('data-component-id="hotspot-marker"');
+    expect(hyperframesEntry).toContain('hotspot-marker__action">Regenerate this scene');
+  });
+
   it('emits source adapters for granular code motion primitives', () => {
     const baseProject = projectWithVisualTimeline();
     const componentTracks: TimelineTrack[] = [

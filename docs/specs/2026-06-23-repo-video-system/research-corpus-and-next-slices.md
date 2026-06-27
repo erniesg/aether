@@ -165,10 +165,14 @@ edit targets, caption style, transition notes, and regeneration scopes.
 Workflow discovery exposes those entries as `tasteReferences`. The current
 entries include the user-supplied HyperFrames `pr-to-video` launch snippet, a
 public Claude/agent demo playback-review placeholder, and a Screen
-Studio-style product-demo grammar. The timeline lens now renders those
-references as creator-facing cards with timestamped shot notes, review status,
-crop targets, effect tags, and regenerate actions. Authenticated X playback and
-full public-video sampling still remain follow-up evidence collection.
+Studio-style product-demo grammar. Website-to-video/product-demo references now
+also map into richer reusable primitives discovered from product-video research:
+device frames, logo motion, flow diagrams, and hotspot markers, with
+source-backed Remotion/HyperFrames adapters and edit contracts. The timeline
+lens now renders those references as creator-facing cards with timestamped shot
+notes, review status, crop targets, effect tags, and regenerate actions.
+Authenticated X playback and full public-video sampling still remain follow-up
+evidence collection.
 
 Acceptance evidence:
 

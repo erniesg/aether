@@ -32,6 +32,10 @@ export interface MotionComponentDefinition {
     | 'cursor-callout'
     | 'split-screen-compare'
     | 'avatar-bubble'
+    | 'device-frame'
+    | 'logo-motion'
+    | 'flow-diagram'
+    | 'hotspot-marker'
     | 'data-visual-card'
     | 'code-diff-card'
     | 'code-highlight-card'
@@ -221,6 +225,67 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'position', label: 'Position', kind: 'select' },
     ],
     regenerateScopes: ['asset', 'copy', 'caption', 'timing'],
+  },
+  {
+    id: 'device-frame',
+    label: 'Device frame',
+    description: 'Phone, tablet, or desktop capture shell with crop-safe caption space.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['assetId', 'device', 'caption'],
+    editControls: [
+      { id: 'assetId', label: 'Capture', kind: 'asset' },
+      { id: 'device', label: 'Device', kind: 'select' },
+      { id: 'caption', label: 'Caption', kind: 'text' },
+      { id: 'safeZone', label: 'Safe zone', kind: 'select' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['capture', 'caption', 'timing', 'effect'],
+  },
+  {
+    id: 'logo-motion',
+    label: 'Logo motion',
+    description: 'Logo, wordmark, or app mark reveal for launch intros and outros.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['logoAssetId', 'wordmark', 'motionPreset'],
+    editControls: [
+      { id: 'logoAssetId', label: 'Logo', kind: 'asset' },
+      { id: 'wordmark', label: 'Wordmark', kind: 'text' },
+      { id: 'motionPreset', label: 'Motion preset', kind: 'select' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+    ],
+    regenerateScopes: ['asset', 'copy', 'timing', 'effect'],
+  },
+  {
+    id: 'flow-diagram',
+    label: 'Flow diagram',
+    description: 'Creator-facing workflow, product flow, or agent sequence diagram.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['headline', 'steps'],
+    editControls: [
+      { id: 'headline', label: 'Headline', kind: 'text' },
+      { id: 'steps', label: 'Steps', kind: 'text' },
+      { id: 'diagramKind', label: 'Diagram kind', kind: 'select' },
+      { id: 'accentColor', label: 'Accent color', kind: 'color' },
+    ],
+    regenerateScopes: ['diagram', 'copy', 'timing', 'effect'],
+  },
+  {
+    id: 'hotspot-marker',
+    label: 'Hotspot marker',
+    description: 'Interactive-demo marker for a feature, link, branch, or callout target.',
+    engines: ['remotion', 'hyperframes'],
+    aspectRatios: ALL_ASPECTS,
+    requiredProps: ['targetLabel', 'hotspot', 'action'],
+    editControls: [
+      { id: 'targetLabel', label: 'Target', kind: 'text' },
+      { id: 'hotspot', label: 'Hotspot', kind: 'text' },
+      { id: 'action', label: 'Action', kind: 'text' },
+      { id: 'effectPreset', label: 'Effect', kind: 'select' },
+    ],
+    regenerateScopes: ['capture', 'caption', 'timing', 'effect'],
   },
   {
     id: 'data-visual-card',
