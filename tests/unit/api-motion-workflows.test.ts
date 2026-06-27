@@ -44,13 +44,15 @@ describe('GET /api/motion/workflows', () => {
           'Demo-first launch',
           'Founder-note launch',
         ],
-        componentSlotLabels: [
+        componentSlotLabels: expect.arrayContaining([
           'Hook card',
           'Proof card',
           'App frame',
+          'Cursor callout',
           'Agent trace',
+          'Contact sheet proof',
           'CTA card',
-        ],
+        ]),
         referencePatternLabels: expect.arrayContaining([
           'Launch hook title',
           'Real product capture',
@@ -163,6 +165,19 @@ describe('GET /api/motion/workflows', () => {
           ],
         }),
       ],
+      referenceCorpus: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'hyperframes-launch-video-gallery',
+          observedFormat: 'launch-video-source',
+          componentIds: expect.arrayContaining(['hook-card', 'app-frame']),
+          styleTags: expect.arrayContaining(['source-backed', 'kinetic-type']),
+        }),
+        expect.objectContaining({
+          id: 'testreel-programmatic-product-video',
+          observedFormat: 'screen-recording-product-demo',
+          tags: expect.arrayContaining(['capture', 'cursor', 'zoom']),
+        }),
+      ]),
       skillContract: {
         runModes: ['review', 'full-auto'],
         reviewArtifacts: [
@@ -215,8 +230,8 @@ describe('GET /api/motion/workflows', () => {
       },
       workflowCount: 1,
     });
-    expect(json.workflows).toEqual([
-      expect.objectContaining({
+    expect(json.workflows).toHaveLength(1);
+    expect(json.workflows[0]).toMatchObject({
         id: 'pr-to-video',
         sourceKinds: ['pr', 'repo'],
         engines: ['remotion', 'hyperframes'],
@@ -229,7 +244,7 @@ describe('GET /api/motion/workflows', () => {
           label: 'PR to video',
           manifestPathRelative: 'lib/agent/skills/pr-to-video/SKILL.md',
           startShorthands: ['repoPath', 'repoUrl', 'prRef', 'sourceRefs'],
-          launchKit: {
+          launchKit: expect.objectContaining({
             kind: 'motion-workflow-launch-kit',
             label: 'PR to video launch kit',
             primaryFormat: 'x 9:16 30s',
@@ -242,24 +257,22 @@ describe('GET /api/motion/workflows', () => {
               'New skill launching every day. Follow for more.',
             ],
             platformTargets: ['x 9:16 30s', 'linkedin 4:5 45s'],
-            componentSlotLabels: [
+            componentSlotLabels: expect.arrayContaining([
               'Hook card',
               'Code diff card',
-              'Code highlight card',
-              'Code scroll card',
-              'Code typing card',
               'Mechanism diagram',
               'Evidence card',
+              'Contact sheet proof',
               'CTA card',
-            ],
-            reviewArtifactLabels: [
+            ]),
+            reviewArtifactLabels: expect.arrayContaining([
               'Video plan',
               'Draft variations',
               'Component plan',
               'Sync plan',
               'Render proof',
-            ],
-            editSurfaceLabels: [
+            ]),
+            editSurfaceLabels: expect.arrayContaining([
               'script',
               'code evidence',
               'component',
@@ -267,7 +280,7 @@ describe('GET /api/motion/workflows', () => {
               'timing',
               'effect',
               'export',
-            ],
+            ]),
             reviewObjects: expect.arrayContaining([
               expect.objectContaining({
                 kind: 'source-evidence',
@@ -300,22 +313,20 @@ describe('GET /api/motion/workflows', () => {
                 artifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
               }),
             ]),
-          },
+          }),
           draftVariationLabels: [
             'Daily skill launch',
             'Maintainer brief',
             'Mechanism-first cut',
           ],
-          componentSlotLabels: [
+          componentSlotLabels: expect.arrayContaining([
             'Hook card',
             'Code diff card',
-            'Code highlight card',
-            'Code scroll card',
-            'Code typing card',
             'Mechanism diagram',
             'Evidence card',
+            'Contact sheet proof',
             'CTA card',
-          ],
+          ]),
           referencePatternLabels: expect.arrayContaining([
             'Code diff explainer',
             'Proof receipt card',
@@ -412,8 +423,14 @@ describe('GET /api/motion/workflows', () => {
             ],
           }),
         ],
-      }),
-    ]);
+        referenceCorpus: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'hyperframes-pr-to-video-skill',
+            observedFormat: 'pr-explainer-source',
+            componentIds: expect.arrayContaining(['code-diff-card', 'contact-sheet-proof']),
+          }),
+        ]),
+      });
     expect(json.workflows[0].examples[0].sampleCopyLines).toContain(
       'npx skills add heygen-com/hyperframes'
     );

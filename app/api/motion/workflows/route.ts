@@ -19,6 +19,10 @@ import {
   type MotionWorkflowSkillRecipe,
 } from '@/lib/motion/workflowSkillCatalog';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
+import {
+  listMotionReferenceCorpusForWorkflow,
+  type MotionReferenceCorpusEntry,
+} from '@/lib/motion/referenceCorpus';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,6 +65,7 @@ interface MotionWorkflowSkillResponse {
   workflowRecipe: MotionWorkflowSkillRecipe | null;
   installableSkillDraft: MotionWorkflowSkillDraft;
   examples: MotionWorkflowExampleResponse[];
+  referenceCorpus: MotionReferenceCorpusResponse[];
   status: WorkflowRegistryEntry['status'];
 }
 
@@ -76,6 +81,23 @@ interface MotionWorkflowExampleResponse {
   reusableComponentIds: string[];
   editSurfaces: string[];
   sampleCopyLines: string[];
+}
+
+interface MotionReferenceCorpusResponse {
+  id: string;
+  title: string;
+  sourceUrl: string;
+  platform: MotionReferenceCorpusEntry['platform'];
+  sourceKind: MotionReferenceCorpusEntry['sourceKind'];
+  proofBoundary: MotionReferenceCorpusEntry['proofBoundary'];
+  observedFormat: MotionReferenceCorpusEntry['observedFormat'];
+  observedPrimitives: string[];
+  shotNotes: string[];
+  styleTags: MotionReferenceCorpusEntry['styleTags'];
+  componentIds: string[];
+  workflowIds: string[];
+  tags: MotionReferenceCorpusEntry['tags'];
+  aetherImplication: string;
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -173,6 +195,9 @@ function toMotionWorkflowSkillResponse(
     workflowRecipe: getMotionWorkflowSkillRecipe(workflow.id),
     installableSkillDraft: buildDiscoverySkillDraft(workflow),
     examples: listMotionWorkflowExamples(workflow.id).map(toMotionWorkflowExampleResponse),
+    referenceCorpus: listMotionReferenceCorpusForWorkflow(workflow.id).map(
+      toMotionReferenceCorpusResponse
+    ),
     status: workflow.status,
   };
 }
@@ -216,6 +241,27 @@ function toMotionWorkflowExampleResponse(
     reusableComponentIds: [...example.reusableComponentIds],
     editSurfaces: [...example.editSurfaces],
     sampleCopyLines: [...example.sampleCopyLines],
+  };
+}
+
+function toMotionReferenceCorpusResponse(
+  entry: MotionReferenceCorpusEntry
+): MotionReferenceCorpusResponse {
+  return {
+    id: entry.id,
+    title: entry.title,
+    sourceUrl: entry.sourceUrl,
+    platform: entry.platform,
+    sourceKind: entry.sourceKind,
+    proofBoundary: entry.proofBoundary,
+    observedFormat: entry.observedFormat,
+    observedPrimitives: [...entry.observedPrimitives],
+    shotNotes: [...entry.shotNotes],
+    styleTags: [...entry.styleTags],
+    componentIds: [...entry.componentIds],
+    workflowIds: [...entry.workflowIds],
+    tags: [...entry.tags],
+    aetherImplication: entry.aetherImplication,
   };
 }
 

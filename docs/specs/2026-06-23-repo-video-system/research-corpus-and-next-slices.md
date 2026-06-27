@@ -11,7 +11,8 @@ and the existing Aether motion implementation. Direct X corpus review still
 needs an authenticated browser pass because public text fetches do not reliably
 expose video posts, playback, or attached media. Treat this file as the
 implementation plan for the next product slices, not as the final taste corpus.
-The typed seed corpus lives in `lib/motion/referenceCorpus.ts`.
+The typed seed corpus lives in `lib/motion/referenceCorpus.ts` and is exposed
+through `/api/motion/workflows` as workflow-specific `referenceCorpus` entries.
 
 ## Research signals
 
@@ -119,12 +120,23 @@ format, transcript or shot notes, component tags, style tags, and Aether
 component ids. The first fixture can use accessible pages; authenticated X
 videos become a follow-up import.
 
+Status: implemented as a typed seed corpus with workflow lookup and discovery
+API exposure. Entries now include source URL, platform, source kind, proof
+boundary, observed format, observed primitives, shot notes, style tags,
+component ids, workflow ids, functional tags, and Aether implication. The
+corpus includes concrete current examples for HyperFrames workflow skills,
+HyperFrames PR-to-video, HyperFrames launch-video source projects, Testreel
+programmatic Playwright recordings, Claude Code agent-trace product surfaces,
+Screen Studio, Clueso, Arcade, Descript, Anthropic computer use, Remotion, and
+an explicit authenticated-X placeholder.
+
 Acceptance evidence:
 
-- Unit tests validate required source URL, tags, component ids, and proof
-  boundary labels.
-- Spec fixture includes at least HyperFrames, iart, Screen Studio, Clueso,
-  Arcade, Descript, Anthropic computer use, and Remotion docs.
+- Unit tests validate required source URL, observed format, shot notes, style
+  tags, component ids, workflow ids, proof boundary labels, and workflow
+  lookup.
+- Workflow discovery tests prove repo-launch and PR-to-video responses include
+  relevant reference corpus entries.
 
 ### Slice B: Runner setup cards in the timeline lens
 

@@ -81,10 +81,12 @@ Clueso, and Descript.
 ## Research matrix: 2026-06-24
 
 See `research-corpus-and-next-slices.md` for the current external research
-matrix and next implementation slices. It maps HyperFrames skills,
-`iart-ai/motion-skills`, Screen Studio, Clueso, Arcade, Descript, Anthropic
-computer-use, and Remotion into Aether component groups, review/full-auto
-behavior, provider seams, and the remaining authenticated X/video corpus pass.
+matrix and next implementation slices. The typed corpus in
+`lib/motion/referenceCorpus.ts` now maps HyperFrames skills, HyperFrames launch
+video source projects, Testreel, Screen Studio, Clueso, Arcade, Descript,
+Anthropic/Claude agent surfaces, Remotion, and the remaining authenticated
+X/video corpus pass into workflow-specific observed formats, shot notes, style
+tags, component ids, review/full-auto behavior, and provider seams.
 
 ## Architecture decision
 
