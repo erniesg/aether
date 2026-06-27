@@ -559,6 +559,7 @@ const previewPlan: MotionPreviewPlan = {
       ],
     },
   ],
+  tasteReferences: [],
   storyboard: [
     {
       beatId: 'beat-hook',
@@ -2337,6 +2338,98 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
     expect(screen.queryByText('hyperframes-launch-video-gallery')).not.toBeInTheDocument();
     expect(screen.queryByText('testreel-programmatic-product-video')).not.toBeInTheDocument();
+  });
+
+  it('shows taste references with timestamped shots and regenerate actions', async () => {
+    const onRegenerateComponent = vi.fn<(actionId: string) => void>();
+    const planWithTasteReferences = {
+      ...previewPlan,
+      tasteReferences: [
+        {
+          id: 'claude-agent-demo-playback-review',
+          title: 'Claude-style agent product demo',
+          sourceLabel: 'youtube taste',
+          proofBoundaryLabel: 'public video review needed',
+          reviewStatusLabel: 'needs public playback',
+          hookTypeLabel: 'agent action',
+          targetCropLabels: ['16:9', '9:16'],
+          styleLabels: ['agent native', 'screen polish'],
+          componentLabels: ['Hook card', 'Agent trace', 'Terminal proof', 'App frame'],
+          effectLabels: ['terminal scan', 'code focus', 'soft wipe'],
+          regenerateScopeLabels: ['copy', 'proof', 'code', 'timing'],
+          shotList: [
+            {
+              id: 'agent-demo-terminal',
+              label: 'Command proof',
+              timeRangeLabel: '6.5-10.5s',
+              visual: 'Show tests, render, or local command output as proof of work.',
+              componentLabels: ['Agent trace', 'Terminal proof', 'Proof card'],
+              effectLabels: ['terminal scan', 'proof flash'],
+              editTargetLabels: ['proof', 'timing'],
+              captionStyleLabel: 'lower third',
+              transitionOutLabel: 'soft wipe',
+            },
+          ],
+          aetherUse:
+            'Use to choose defaults for agent-trace videos where the product story is prompt, code, command, preview, and receipt.',
+          actions: [
+            {
+              id: 'taste-reference-claude-agent-demo-playback-review-effect',
+              label: 'Apply agent action timing to Hook card / Agent trace',
+              scope: 'effect',
+              toolId: 'motion-revise',
+              route: '/api/motion/regenerate',
+              method: 'POST',
+              componentLabels: ['Hook card', 'Agent trace'],
+              requestTemplate: {
+                project: '$motionProject',
+                tasteReferenceId: 'claude-agent-demo-playback-review',
+                sourceEntryId: 'public-claude-launch-demo-corpus',
+                scope: 'effect',
+                componentIds: ['hook-card', 'agent-trace'],
+                requestedEngines: '$selectedEngines',
+                requestedAt: '$now',
+              },
+              expectedReceiptLabels: [
+                'taste reference',
+                'timestamped shot plan',
+                'updated preview plan',
+              ],
+            },
+          ],
+        },
+      ],
+    } as MotionPreviewPlan;
+
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={planWithTasteReferences}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onRegenerateComponent={onRegenerateComponent}
+      />
+    );
+
+    expect(screen.getByText('taste references')).toBeInTheDocument();
+    expect(screen.getByText('Claude-style agent product demo')).toBeInTheDocument();
+    expect(screen.getByText('needs public playback')).toBeInTheDocument();
+    expect(screen.getAllByText('agent action').length).toBeGreaterThan(0);
+    expect(screen.getByText('16:9 / 9:16')).toBeInTheDocument();
+    expect(screen.getByText('Command proof')).toBeInTheDocument();
+    expect(screen.getByText('6.5-10.5s')).toBeInTheDocument();
+    expect(screen.getByText(/Agent trace \/ Terminal proof \/ Proof card/)).toBeInTheDocument();
+    const applyTaste = screen.getByRole('button', {
+      name: /apply taste reference from claude-style agent product demo/i,
+    });
+    expect(within(applyTaste).getByText('effect')).toBeInTheDocument();
+    expect(within(applyTaste).getByText(/timestamped shot plan/)).toBeInTheDocument();
+    await userEvent.click(applyTaste);
+    expect(onRegenerateComponent).toHaveBeenCalledWith(
+      'taste-reference-claude-agent-demo-playback-review-effect'
+    );
+    expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
+    expect(screen.queryByText('claude-agent-demo-playback-review')).not.toBeInTheDocument();
   });
 
   it('keeps extra repo capture targets compact until creators open them', async () => {

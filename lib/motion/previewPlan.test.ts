@@ -5,6 +5,7 @@ import { appendSetupDryRunExecutionHistory } from './executionHistory';
 import {
   buildMotionPreviewPlan,
   type MotionPreviewReferenceSignal,
+  type MotionPreviewTasteReference,
 } from './previewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
@@ -753,6 +754,54 @@ describe('buildMotionPreviewPlan', () => {
           ]),
           blockerLabels: expect.arrayContaining([
             'stop on login, payment, personal data, or secret fields appear',
+          ]),
+        }),
+      ])
+    );
+
+    const tasteReferences: MotionPreviewTasteReference[] = preview.tasteReferences;
+    expect(tasteReferences.map((reference) => reference.title).slice(0, 2)).toEqual([
+      'HyperFrames PR-to-video skill drop',
+      'Claude-style agent product demo',
+    ]);
+    expect(tasteReferences).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Claude-style agent product demo',
+          reviewStatusLabel: 'needs public playback',
+          hookTypeLabel: 'agent action',
+          targetCropLabels: ['16:9', '9:16'],
+          componentLabels: expect.arrayContaining(['Agent trace', 'Terminal proof']),
+          shotList: expect.arrayContaining([
+            expect.objectContaining({
+              label: 'Command proof',
+              timeRangeLabel: '6.5-10.5s',
+              componentLabels: expect.arrayContaining(['Agent trace', 'Terminal proof']),
+              editTargetLabels: expect.arrayContaining(['proof', 'timing']),
+            }),
+          ]),
+          actions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'taste-reference-claude-agent-demo-playback-review-effect',
+              label: 'Apply agent action timing to Hook card / Agent trace',
+              scope: 'effect',
+              toolId: 'motion-revise',
+              route: '/api/motion/regenerate',
+              requestTemplate: expect.objectContaining({
+                project: '$motionProject',
+                tasteReferenceId: 'claude-agent-demo-playback-review',
+                sourceEntryId: 'public-claude-launch-demo-corpus',
+                scope: 'effect',
+                componentIds: expect.arrayContaining(['hook-card', 'agent-trace']),
+                requestedEngines: '$selectedEngines',
+                requestedAt: '$now',
+              }),
+              expectedReceiptLabels: [
+                'taste reference',
+                'timestamped shot plan',
+                'updated preview plan',
+              ],
+            }),
           ]),
         }),
       ])

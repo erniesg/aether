@@ -58,6 +58,11 @@ import {
   type MotionReferenceCorpusEntry,
 } from './referenceCorpus';
 import {
+  listMotionTasteCorpusForWorkflow,
+  type MotionTasteCorpusEntry,
+  type MotionTasteShot,
+} from './tasteCorpus';
+import {
   buildMotionCanvasMaterialPlan,
   type MotionCanvasMaterialPlan,
 } from './canvasMaterial';
@@ -286,6 +291,61 @@ export interface MotionPreviewReferenceSignalAction {
   componentLabels: string[];
   requestTemplate: MotionPreviewReferenceSignalRequestTemplate;
   expectedReceiptLabels: string[];
+}
+
+export interface MotionPreviewTasteReferenceRequestTemplate {
+  project: '$motionProject';
+  tasteReferenceId: string;
+  sourceEntryId: string;
+  sourceUrl: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
+  prompt: string;
+  requestedEngines: '$selectedEngines';
+  requestedAt: '$now';
+}
+
+export interface MotionPreviewTasteReferenceAction {
+  id: string;
+  label: string;
+  scope: MotionRegenerateScope;
+  toolId: ToolRegistryId;
+  route: '/api/motion/regenerate';
+  method: 'POST';
+  componentIds: string[];
+  componentLabels: string[];
+  requestTemplate: MotionPreviewTasteReferenceRequestTemplate;
+  expectedReceiptLabels: string[];
+}
+
+export interface MotionPreviewTasteReferenceShot {
+  id: string;
+  label: string;
+  timeRangeLabel: string;
+  visual: string;
+  componentLabels: string[];
+  effectLabels: string[];
+  editTargetLabels: string[];
+  captionStyleLabel: string;
+  transitionOutLabel: string | null;
+}
+
+export interface MotionPreviewTasteReference {
+  id: string;
+  title: string;
+  sourceUrl: string;
+  sourceLabel: string;
+  proofBoundaryLabel: string;
+  reviewStatusLabel: string;
+  hookTypeLabel: string;
+  targetCropLabels: string[];
+  styleLabels: string[];
+  componentLabels: string[];
+  effectLabels: string[];
+  regenerateScopeLabels: string[];
+  shotList: MotionPreviewTasteReferenceShot[];
+  aetherUse: string;
+  actions: MotionPreviewTasteReferenceAction[];
 }
 
 export interface MotionPreviewEditSourceComponent {
@@ -716,6 +776,7 @@ export interface MotionPreviewPlan {
   canvasMaterialPlan: MotionCanvasMaterialPlan;
   referenceGrammar: MotionReferenceGrammarPlan;
   referenceSignals: MotionPreviewReferenceSignal[];
+  tasteReferences: MotionPreviewTasteReference[];
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   capabilitySetup: MotionPreviewCapabilitySetup;
@@ -761,6 +822,7 @@ export function buildMotionPreviewPlan(
     requestedAt: options.requestedAt,
   });
   const referenceSignals = buildReferenceSignals(project);
+  const tasteReferences = buildTasteReferences(project);
   const visualSourcingPlan = buildMotionVisualSourcingPlan(project, {
     draftId: project.currentDraftId,
     requestedAt: options.requestedAt,
@@ -854,6 +916,7 @@ export function buildMotionPreviewPlan(
     canvasMaterialPlan,
     referenceGrammar,
     referenceSignals,
+    tasteReferences,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary,
     capabilitySetup: buildCapabilitySetup(project, productionPlan, enginePreviews, capturePlan, {
@@ -897,6 +960,11 @@ function buildExecutionHistorySummary(
 function buildReferenceSignals(project: MotionProject): MotionPreviewReferenceSignal[] {
   const workflowId = inferReferenceWorkflowId(project);
   return listRankedMotionReferenceCorpusForWorkflow(workflowId).map(referenceSignalFromCorpusEntry);
+}
+
+function buildTasteReferences(project: MotionProject): MotionPreviewTasteReference[] {
+  const workflowId = inferReferenceWorkflowId(project);
+  return listMotionTasteCorpusForWorkflow(workflowId).map(tasteReferenceFromCorpusEntry);
 }
 
 function inferReferenceWorkflowId(project: MotionProject): WorkflowRegistryId {
@@ -1015,6 +1083,127 @@ function referenceSignalReceiptLabels(scope: MotionRegenerateScope): string[] {
     return ['reference signal', 'component style update', 'updated preview plan'];
   }
   return ['reference signal', 'component plan', 'updated preview plan'];
+}
+
+function tasteReferenceFromCorpusEntry(entry: MotionTasteCorpusEntry): MotionPreviewTasteReference {
+  const componentLabels = uniqueStrings(entry.componentIds.map(componentLabelFor));
+  const effectLabels = entry.effectTags.map(readableLabel);
+  const regenerateScopeLabels = entry.regenerateScopes.map(readableLabel);
+
+  return {
+    id: entry.id,
+    title: entry.title,
+    sourceUrl: entry.sourceUrl,
+    sourceLabel: `${readableLabel(entry.platform)} taste`,
+    proofBoundaryLabel: readableLabel(entry.proofBoundary),
+    reviewStatusLabel: readableLabel(entry.reviewStatus),
+    hookTypeLabel: readableLabel(entry.hookType),
+    targetCropLabels: [...entry.targetCrops],
+    styleLabels: entry.styleTags.map(readableLabel),
+    componentLabels,
+    effectLabels,
+    regenerateScopeLabels,
+    shotList: entry.shotList.map(tasteReferenceShotFromCorpusShot),
+    aetherUse: entry.aetherUse,
+    actions: tasteReferenceActions(entry, componentLabels),
+  };
+}
+
+function tasteReferenceShotFromCorpusShot(shot: MotionTasteShot): MotionPreviewTasteReferenceShot {
+  return {
+    id: shot.id,
+    label: shot.label,
+    timeRangeLabel: `${formatSeconds(shot.startSeconds)}-${formatSeconds(shot.endSeconds)}s`,
+    visual: shot.visual,
+    componentLabels: uniqueStrings(shot.componentIds.map(componentLabelFor)),
+    effectLabels: shot.effectTags.map(readableLabel),
+    editTargetLabels: shot.editTargets.map(readableLabel),
+    captionStyleLabel: readableLabel(shot.captionStyle),
+    transitionOutLabel: shot.transitionOut ? readableLabel(shot.transitionOut) : null,
+  };
+}
+
+function tasteReferenceActions(
+  entry: MotionTasteCorpusEntry,
+  componentLabels: string[]
+): MotionPreviewTasteReferenceAction[] {
+  const focusedComponentIds = entry.componentIds.slice(0, 2);
+  const focusedComponentLabels = componentLabels.slice(0, 2);
+  const actions: MotionPreviewTasteReferenceAction[] = [
+    tasteReferenceAction(entry, {
+      scope: 'effect',
+      componentIds: focusedComponentIds,
+      componentLabels: focusedComponentLabels,
+      label: `Apply ${readableLabel(entry.hookType)} timing to ${focusedComponentLabels.join(
+        ' / '
+      )}`,
+    }),
+  ];
+
+  if (entry.regenerateScopes.includes('capture')) {
+    actions.push(
+      tasteReferenceAction(entry, {
+        scope: 'capture',
+        componentIds: focusedComponentIds,
+        componentLabels: focusedComponentLabels,
+        label: `Regenerate capture from ${entry.title}`,
+      })
+    );
+  }
+
+  if (entry.regenerateScopes.includes('caption')) {
+    actions.push(
+      tasteReferenceAction(entry, {
+        scope: 'caption',
+        componentIds: focusedComponentIds,
+        componentLabels: focusedComponentLabels,
+        label: `Regenerate captions from ${entry.title}`,
+      })
+    );
+  }
+
+  return actions;
+}
+
+function tasteReferenceAction(
+  entry: MotionTasteCorpusEntry,
+  options: {
+    scope: MotionRegenerateScope;
+    componentIds: string[];
+    componentLabels: string[];
+    label: string;
+  }
+): MotionPreviewTasteReferenceAction {
+  return {
+    id: `taste-reference-${entry.id}-${options.scope}`,
+    label: options.label,
+    scope: options.scope,
+    toolId: regenerationToolIdForScope(options.scope),
+    route: '/api/motion/regenerate',
+    method: 'POST',
+    componentIds: [...options.componentIds],
+    componentLabels: [...options.componentLabels],
+    requestTemplate: {
+      project: '$motionProject',
+      tasteReferenceId: entry.id,
+      sourceEntryId: entry.sourceEntryId,
+      sourceUrl: entry.sourceUrl,
+      scope: options.scope,
+      componentIds: [...options.componentIds],
+      prompt: `${options.label}. Use the timestamped ${entry.title} taste reference as the editable motion guide.`,
+      requestedEngines: '$selectedEngines',
+      requestedAt: '$now',
+    },
+    expectedReceiptLabels: [
+      'taste reference',
+      'timestamped shot plan',
+      'updated preview plan',
+    ],
+  };
+}
+
+function formatSeconds(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function buildAgentRunbook(

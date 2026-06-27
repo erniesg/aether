@@ -480,6 +480,15 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
+      {previewPlan.tasteReferences.length > 0 ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionTasteReferencesStrip
+            references={previewPlan.tasteReferences}
+            onRegenerateComponent={onRegenerateComponent}
+          />
+        </section>
+      ) : null}
+
       {capturePlan ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionCapturePlanView
@@ -2520,6 +2529,128 @@ function referenceSignalActionAriaLabel(
   if (action.scope === 'effect') return `apply reference style from ${signalTitle}`;
   if (action.scope === 'capture') return `regenerate capture from ${signalTitle}`;
   return `apply reference ${action.scope} from ${signalTitle}`;
+}
+
+function MotionTasteReferencesStrip({
+  references,
+  onRegenerateComponent,
+}: {
+  references: MotionPreviewPlan['tasteReferences'];
+  onRegenerateComponent?: (actionId: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            taste references
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {references
+              .slice(0, 3)
+              .map((reference) => reference.hookTypeLabel)
+              .join(' / ')}
+          </div>
+        </div>
+        <Chip tone="info" size="sm">
+          {references.length} cuts
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-2">
+        {references.slice(0, 4).map((reference) => (
+          <div
+            key={reference.id}
+            className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+          >
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-caption text-xs text-ink">{reference.title}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  <Chip tone="neutral" size="sm">
+                    {reference.reviewStatusLabel}
+                  </Chip>
+                  <Chip tone="neutral" size="sm">
+                    {reference.hookTypeLabel}
+                  </Chip>
+                  <Chip tone="neutral" size="sm">
+                    {reference.targetCropLabels.join(' / ')}
+                  </Chip>
+                </div>
+              </div>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                {reference.sourceLabel}
+              </span>
+            </div>
+            <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+              {reference.aetherUse}
+            </div>
+            {reference.shotList[0] ? (
+              <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-caption text-2xs text-ink-dim">
+                    {reference.shotList[0].label}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                    {reference.shotList[0].timeRangeLabel}
+                  </span>
+                </div>
+                <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+                  {reference.shotList[0].visual}
+                </div>
+                <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                  {reference.shotList[0].componentLabels.slice(0, 4).join(' / ')}
+                </div>
+              </div>
+            ) : null}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {reference.effectLabels.slice(0, 4).map((label) => (
+                <Chip key={`${reference.id}-${label}`} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
+            </div>
+            {onRegenerateComponent && reference.actions.length > 0 ? (
+              <div className="mt-2 grid gap-1">
+                {reference.actions.slice(0, 2).map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    aria-label={tasteReferenceActionAriaLabel(reference.title, action)}
+                    onClick={() => onRegenerateComponent(action.id)}
+                    className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 text-left transition-colors hover:border-accent hover:text-accent"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate font-caption text-2xs text-ink-dim">
+                        {action.label}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                        {action.scope}
+                      </span>
+                    </span>
+                    <span className="mt-1 block truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                      receipts:{' '}
+                      {action.expectedReceiptLabels
+                        .filter((label) => label !== 'taste reference')
+                        .slice(0, 2)
+                        .join(' / ')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function tasteReferenceActionAriaLabel(
+  referenceTitle: string,
+  action: MotionPreviewPlan['tasteReferences'][number]['actions'][number]
+): string {
+  if (action.scope === 'capture') return `regenerate capture from ${referenceTitle}`;
+  return `apply taste reference from ${referenceTitle}`;
 }
 
 function MotionVideoPlanReview({

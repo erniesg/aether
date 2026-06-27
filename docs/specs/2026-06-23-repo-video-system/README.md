@@ -109,8 +109,8 @@ component ids, review/full-auto behavior, and provider seams.
   source refs, proof boundary, playback review status, target crops, hook type,
   timestamped shot lists, component ids, effect tags, edit targets, and
   regenerate scopes. Workflow discovery returns those entries as
-  `tasteReferences` so agents can choose reference moves before creating a
-  project.
+  `tasteReferences`, and the timeline lens now renders them as creator-facing
+  reference cards with timestamped shot notes and regenerate actions.
 - Same-shell source preview is no longer only a plan: Remotion prepared sources
   mount through `@remotion/player`, HyperFrames prepared HTML mounts through a
   sandboxed iframe, and both stay backed by editable timeline/source bundles.
