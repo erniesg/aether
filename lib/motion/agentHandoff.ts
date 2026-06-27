@@ -44,6 +44,7 @@ export interface MaterializedMotionAgentRequestTemplate {
 }
 
 const PROJECT_PLACEHOLDER = '$motionProject';
+const OMIT_OPTIONAL_PLACEHOLDER = Symbol('omit optional placeholder');
 
 export function buildMotionAgentExecutionHandoff(input: {
   workflow: RoutedAgentMotionWorkflow;
@@ -108,17 +109,12 @@ function buildTemplates(input: {
         requestedEngines: engines,
         ...(capture ? { captureRequestIds: capture.requestIds } : {}),
         ...(capture?.runner ? { captureRunner: capture.runner } : {}),
-        imageToVideoProviderId: '$imageToVideoProviderId',
-        voiceProviderId: '$voiceProviderId',
-        renderProviderId: '$renderProviderId',
+        imageToVideoProviderId: '$imageToVideoProviderId?',
+        voiceProviderId: '$voiceProviderId?',
+        renderProviderId: '$renderProviderId?',
         renderEngine: preferredRenderEngine(engines),
       }),
-      inputPlaceholders: [
-        PROJECT_PLACEHOLDER,
-        '$imageToVideoProviderId',
-        '$voiceProviderId',
-        '$renderProviderId',
-      ],
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: uniqueStrings([
         ...(capture ? ['captures'] : []),
         'source asset picks',
@@ -298,9 +294,9 @@ function setupDryRunTemplates(input: {
       body: cleanBody({
         ...baseBody,
         setupDryRun: { setupId: 'visual-generation' },
-        imageToVideoProviderId: '$imageToVideoProviderId',
+        imageToVideoProviderId: '$imageToVideoProviderId?',
       }),
-      inputPlaceholders: [PROJECT_PLACEHOLDER, '$imageToVideoProviderId'],
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['generated clip receipt', 'timeline update receipt'],
     },
     {
@@ -312,9 +308,9 @@ function setupDryRunTemplates(input: {
       body: cleanBody({
         ...baseBody,
         setupDryRun: { setupId: 'voice' },
-        voiceProviderId: '$voiceProviderId',
+        voiceProviderId: '$voiceProviderId?',
       }),
-      inputPlaceholders: [PROJECT_PLACEHOLDER, '$voiceProviderId'],
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['audio receipt', 'word timing receipt', 'transcript receipt'],
     },
     {
@@ -327,9 +323,9 @@ function setupDryRunTemplates(input: {
         ...baseBody,
         setupDryRun: { setupId: 'render' },
         renderEngine: preferredRenderEngine(input.engines),
-        renderProviderId: '$renderProviderId',
+        renderProviderId: '$renderProviderId?',
       }),
-      inputPlaceholders: [PROJECT_PLACEHOLDER, '$renderProviderId'],
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['source lint', 'contact sheet', 'mp4 probe'],
     }
   );
@@ -408,7 +404,9 @@ function materializeBody(
   missing: Set<string>
 ): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(body).map(([key, value]) => [key, materializeValue(value, placeholders, missing)])
+    Object.entries(body)
+      .map(([key, value]) => [key, materializeValue(value, placeholders, missing)] as const)
+      .filter(([, value]) => value !== OMIT_OPTIONAL_PLACEHOLDER)
   );
 }
 
@@ -418,11 +416,14 @@ function materializeValue(
   missing: Set<string>
 ): unknown {
   if (typeof value === 'string' && value.startsWith('$')) {
-    if (Object.prototype.hasOwnProperty.call(placeholders, value)) {
-      const replacement = placeholders[value];
+    const optional = value.endsWith('?');
+    const placeholder = optional ? value.slice(0, -1) : value;
+    if (Object.prototype.hasOwnProperty.call(placeholders, placeholder)) {
+      const replacement = placeholders[placeholder];
       if (replacement !== undefined) return replacement;
     }
-    missing.add(value);
+    if (optional) return OMIT_OPTIONAL_PLACEHOLDER;
+    missing.add(placeholder);
     return value;
   }
 

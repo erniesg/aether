@@ -294,7 +294,7 @@ describe('POST /api/motion/agent-handoff', () => {
     expect(render).toHaveBeenCalledTimes(1);
   });
 
-  it('returns an explicit blocked run when selected templates still have placeholders', async () => {
+  it('returns an explicit blocked run when selected source-edit templates still need files', async () => {
     const startJson = await startLocalRepoProject();
     const { POST } = await import('@/app/api/motion/agent-handoff/route');
     const res = await POST(
@@ -304,7 +304,7 @@ describe('POST /api/motion/agent-handoff', () => {
         body: JSON.stringify({
           handoff: startJson.agentHandoff,
           project: startJson.project,
-          templateIds: ['setup-visual-generation'],
+          templateIds: ['edit-source'],
         }),
       })
     );
@@ -318,9 +318,9 @@ describe('POST /api/motion/agent-handoff', () => {
       },
       steps: [
         {
-          templateId: 'setup-visual-generation',
+          templateId: 'edit-source',
           status: 'skipped',
-          missingPlaceholders: ['$imageToVideoProviderId'],
+          missingPlaceholders: ['$editedSourceFiles'],
           responseStatus: null,
           responseJson: null,
         },

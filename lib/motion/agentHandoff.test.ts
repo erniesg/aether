@@ -121,4 +121,19 @@ describe('materializeMotionAgentRequestTemplate', () => {
     expect(result.missingPlaceholders).toEqual(['$renderProviderId']);
     expect(result.body.renderProviderId).toBe('$renderProviderId');
   });
+
+  it('omits optional provider placeholders when no provider is selected', () => {
+    const result = materializeMotionAgentRequestTemplate(
+      template({
+        project: '$motionProject',
+        imageToVideoProviderId: '$imageToVideoProviderId?',
+        voiceProviderId: '$voiceProviderId?',
+        renderProviderId: '$renderProviderId?',
+      }),
+      { project }
+    );
+
+    expect(result.missingPlaceholders).toEqual([]);
+    expect(result.body).toEqual({ project });
+  });
 });
