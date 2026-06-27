@@ -529,6 +529,34 @@ const previewPlan: MotionPreviewPlan = {
       ],
       implication:
         'Use source-backed launch taste to pick component slots and editable effect presets.',
+      actions: [
+        {
+          id: 'reference-signal-hyperframes-launch-video-gallery-effect',
+          label: 'Apply reference style to Hook card / App frame',
+          scope: 'effect',
+          toolId: 'motion-revise',
+          route: '/api/motion/regenerate',
+          method: 'POST',
+          componentIds: ['hook-card', 'app-frame'],
+          componentLabels: ['Hook card', 'App frame'],
+          requestTemplate: {
+            project: '$motionProject',
+            referenceSignalId: 'hyperframes-launch-video-gallery',
+            sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+            scope: 'effect',
+            componentIds: ['hook-card', 'app-frame'],
+            prompt:
+              'Apply reference style to Hook card / App frame. Use HyperFrames launch video source gallery as the source-backed reference signal.',
+            requestedEngines: '$selectedEngines',
+            requestedAt: '$now',
+          },
+          expectedReceiptLabels: [
+            'reference signal',
+            'component style update',
+            'updated preview plan',
+          ],
+        },
+      ],
     },
   ],
   storyboard: [
@@ -2189,7 +2217,8 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
   });
 
-  it('shows reference signals for reviewing and regenerating motion components', () => {
+  it('shows reference signals for reviewing and regenerating motion components', async () => {
+    const onRegenerateComponent = vi.fn<(actionId: string) => void>();
     const planWithReferenceSignals = {
       ...previewPlan,
       referenceSignals: [
@@ -2207,6 +2236,31 @@ describe('TimelineLens', () => {
           ],
           implication:
             'Use source-backed launch taste to pick component slots and editable effect presets.',
+          actions: [
+            {
+              id: 'reference-signal-hyperframes-launch-video-gallery-effect',
+              label: 'Apply reference style to Hook card / App frame',
+              scope: 'effect',
+              toolId: 'motion-revise',
+              route: '/api/motion/regenerate',
+              method: 'POST',
+              componentLabels: ['Hook card', 'App frame'],
+              requestTemplate: {
+                project: '$motionProject',
+                referenceSignalId: 'hyperframes-launch-video-gallery',
+                sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+                scope: 'effect',
+                componentIds: ['hook-card', 'app-frame'],
+                requestedEngines: '$selectedEngines',
+                requestedAt: '$now',
+              },
+              expectedReceiptLabels: [
+                'reference signal',
+                'component style update',
+                'updated preview plan',
+              ],
+            },
+          ],
         },
         {
           id: 'testreel-programmatic-product-video',
@@ -2222,6 +2276,31 @@ describe('TimelineLens', () => {
           ],
           implication:
             'Persist capture definitions so one step can be tweaked and regenerated without losing editability.',
+          actions: [
+            {
+              id: 'reference-signal-testreel-programmatic-product-video-capture',
+              label: 'Regenerate capture from screen recording product demo',
+              scope: 'capture',
+              toolId: 'motion-capture',
+              route: '/api/motion/regenerate',
+              method: 'POST',
+              componentLabels: ['App frame', 'Cursor callout'],
+              requestTemplate: {
+                project: '$motionProject',
+                referenceSignalId: 'testreel-programmatic-product-video',
+                sourceUrl: 'https://github.com/greentfrapp/testreel',
+                scope: 'capture',
+                componentIds: ['app-frame', 'cursor-callout'],
+                requestedEngines: '$selectedEngines',
+                requestedAt: '$now',
+              },
+              expectedReceiptLabels: [
+                'reference signal',
+                'capture plan',
+                'updated preview plan',
+              ],
+            },
+          ],
         },
       ],
     } as MotionPreviewPlan;
@@ -2232,6 +2311,7 @@ describe('TimelineLens', () => {
         previewPlan={planWithReferenceSignals}
         selectedClipId={null}
         onSelectClip={() => {}}
+        onRegenerateComponent={onRegenerateComponent}
       />
     );
 
@@ -2245,6 +2325,16 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('source backed').length).toBeGreaterThan(0);
     expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
     expect(screen.getByText(/Hook card \/ App frame \/ UI reveal frame/)).toBeInTheDocument();
+    const applyStyle = screen.getByRole('button', {
+      name: /apply reference style from hyperframes launch video source gallery/i,
+    });
+    expect(within(applyStyle).getByText('effect')).toBeInTheDocument();
+    expect(within(applyStyle).getByText(/component style update/)).toBeInTheDocument();
+    await userEvent.click(applyStyle);
+    expect(onRegenerateComponent).toHaveBeenCalledWith(
+      'reference-signal-hyperframes-launch-video-gallery-effect'
+    );
+    expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
     expect(screen.queryByText('hyperframes-launch-video-gallery')).not.toBeInTheDocument();
     expect(screen.queryByText('testreel-programmatic-product-video')).not.toBeInTheDocument();
   });

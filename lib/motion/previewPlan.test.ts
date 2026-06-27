@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { CaptureResult } from '@/lib/providers/capture/types';
 import { applyCaptureResultToMotionProject } from './captureApply';
 import { appendSetupDryRunExecutionHistory } from './executionHistory';
-import { buildMotionPreviewPlan } from './previewPlan';
+import {
+  buildMotionPreviewPlan,
+  type MotionPreviewReferenceSignal,
+} from './previewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
 import type { AgentMotionWorkflowRunPlan } from './workflowPlan';
@@ -317,17 +320,7 @@ describe('buildMotionPreviewPlan', () => {
         'captions align to voice',
       ]),
     });
-    const referenceSignals = (
-      preview as {
-        referenceSignals?: Array<{
-          title: string;
-          observedFormatLabel: string;
-          proofBoundaryLabel: string;
-          styleLabels: string[];
-          componentLabels: string[];
-        }>;
-      }
-    ).referenceSignals;
+    const referenceSignals: MotionPreviewReferenceSignal[] = preview.referenceSignals;
     expect(referenceSignals?.map((signal) => signal.title).slice(0, 3)).toEqual([
       'HyperFrames launch video source gallery',
       'Testreel programmatic product videos',
@@ -341,6 +334,31 @@ describe('buildMotionPreviewPlan', () => {
           proofBoundaryLabel: 'accessible page',
           styleLabels: expect.arrayContaining(['source backed', 'kinetic type']),
           componentLabels: expect.arrayContaining(['Hook card', 'App frame']),
+          actions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'reference-signal-hyperframes-launch-video-gallery-effect',
+              label: 'Apply reference style to Hook card / App frame',
+              scope: 'effect',
+              toolId: 'motion-revise',
+              route: '/api/motion/regenerate',
+              method: 'POST',
+              componentLabels: expect.arrayContaining(['Hook card', 'App frame']),
+              requestTemplate: expect.objectContaining({
+                project: '$motionProject',
+                referenceSignalId: 'hyperframes-launch-video-gallery',
+                sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+                scope: 'effect',
+                componentIds: expect.arrayContaining(['hook-card', 'app-frame']),
+                requestedEngines: '$selectedEngines',
+                requestedAt: '$now',
+              }),
+              expectedReceiptLabels: [
+                'reference signal',
+                'component style update',
+                'updated preview plan',
+              ],
+            }),
+          ]),
         }),
         expect.objectContaining({
           title: 'Testreel programmatic product videos',
@@ -348,6 +366,15 @@ describe('buildMotionPreviewPlan', () => {
           proofBoundaryLabel: 'public repo',
           styleLabels: expect.arrayContaining(['agent native', 'screen polish']),
           componentLabels: expect.arrayContaining(['App frame', 'Cursor callout']),
+          actions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'reference-signal-testreel-programmatic-product-video-capture',
+              label: 'Regenerate capture from screen recording product demo',
+              scope: 'capture',
+              toolId: 'motion-capture',
+              componentLabels: expect.arrayContaining(['App frame', 'Cursor callout']),
+            }),
+          ]),
         }),
       ])
     );

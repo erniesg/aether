@@ -468,7 +468,10 @@ function MotionPreviewPlanView({
 
       {previewPlan.referenceSignals.length > 0 ? (
         <section className="border-b border-border-soft px-4 py-3">
-          <MotionReferenceSignalsStrip signals={previewPlan.referenceSignals} />
+          <MotionReferenceSignalsStrip
+            signals={previewPlan.referenceSignals}
+            onRegenerateComponent={onRegenerateComponent}
+          />
         </section>
       ) : null}
 
@@ -2408,8 +2411,10 @@ function MotionReferenceGrammarStrip({
 
 function MotionReferenceSignalsStrip({
   signals,
+  onRegenerateComponent,
 }: {
   signals: MotionPreviewPlan['referenceSignals'];
+  onRegenerateComponent?: (actionId: string) => void;
 }) {
   return (
     <div className="min-w-0">
@@ -2466,11 +2471,49 @@ function MotionReferenceSignalsStrip({
                 </Chip>
               ))}
             </div>
+            {onRegenerateComponent && signal.actions.length > 0 ? (
+              <div className="mt-2 grid gap-1">
+                {signal.actions.slice(0, 2).map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    aria-label={referenceSignalActionAriaLabel(signal.title, action)}
+                    onClick={() => onRegenerateComponent(action.id)}
+                    className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5 text-left transition-colors hover:border-accent hover:text-accent"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate font-caption text-2xs text-ink-dim">
+                        {action.label}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                        {action.scope}
+                      </span>
+                    </span>
+                    <span className="mt-1 block truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                      receipts:{' '}
+                      {action.expectedReceiptLabels
+                        .filter((label) => label !== 'reference signal')
+                        .slice(0, 2)
+                        .join(' / ')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+function referenceSignalActionAriaLabel(
+  signalTitle: string,
+  action: MotionPreviewPlan['referenceSignals'][number]['actions'][number]
+): string {
+  if (action.scope === 'effect') return `apply reference style from ${signalTitle}`;
+  if (action.scope === 'capture') return `regenerate capture from ${signalTitle}`;
+  return `apply reference ${action.scope} from ${signalTitle}`;
 }
 
 function MotionVideoPlanReview({

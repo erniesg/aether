@@ -264,6 +264,30 @@ export interface MotionPreviewRegenerationAction {
   expectedReceiptLabels: string[];
 }
 
+export interface MotionPreviewReferenceSignalRequestTemplate {
+  project: '$motionProject';
+  referenceSignalId: string;
+  sourceUrl: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
+  prompt: string;
+  requestedEngines: '$selectedEngines';
+  requestedAt: '$now';
+}
+
+export interface MotionPreviewReferenceSignalAction {
+  id: string;
+  label: string;
+  scope: MotionRegenerateScope;
+  toolId: ToolRegistryId;
+  route: '/api/motion/regenerate';
+  method: 'POST';
+  componentIds: string[];
+  componentLabels: string[];
+  requestTemplate: MotionPreviewReferenceSignalRequestTemplate;
+  expectedReceiptLabels: string[];
+}
+
 export interface MotionPreviewEditSourceComponent {
   trackId: string;
   trackKind: MotionTrackKind;
@@ -647,6 +671,7 @@ export interface MotionPreviewReferenceSignal {
   componentLabels: string[];
   shotNotes: string[];
   implication: string;
+  actions: MotionPreviewReferenceSignalAction[];
 }
 
 export interface MotionPreviewPlan {
@@ -928,6 +953,8 @@ function priorityRank(priority: string[], id: string): number {
 function referenceSignalFromCorpusEntry(
   entry: MotionReferenceCorpusEntry
 ): MotionPreviewReferenceSignal {
+  const componentLabels = uniqueStrings(entry.componentIds.map(componentLabelFor));
+
   return {
     id: entry.id,
     title: entry.title,
@@ -936,10 +963,89 @@ function referenceSignalFromCorpusEntry(
     observedFormatLabel: readableLabel(entry.observedFormat),
     proofBoundaryLabel: readableLabel(entry.proofBoundary),
     styleLabels: entry.styleTags.map(readableLabel),
-    componentLabels: uniqueStrings(entry.componentIds.map(componentLabelFor)),
+    componentLabels,
     shotNotes: entry.shotNotes.slice(0, 2),
     implication: entry.aetherImplication,
+    actions: referenceSignalActions(entry, componentLabels),
   };
+}
+
+function referenceSignalActions(
+  entry: MotionReferenceCorpusEntry,
+  componentLabels: string[]
+): MotionPreviewReferenceSignalAction[] {
+  const componentIds = entry.componentIds.slice(0, 4);
+  const focusedComponentIds = componentIds.slice(0, 2);
+  const focusedComponentLabels = componentLabels.slice(0, 2);
+  const actions: MotionPreviewReferenceSignalAction[] = [
+    referenceSignalAction(entry, {
+      scope: 'effect',
+      componentIds: focusedComponentIds,
+      componentLabels: focusedComponentLabels,
+      label: `Apply reference style to ${focusedComponentLabels.join(' / ')}`,
+    }),
+  ];
+
+  if (
+    entry.tags.some((tag) => tag === 'capture' || tag === 'cursor' || tag === 'zoom') &&
+    focusedComponentIds.length > 0
+  ) {
+    actions.push(
+      referenceSignalAction(entry, {
+        scope: 'capture',
+        componentIds: focusedComponentIds,
+        componentLabels: focusedComponentLabels,
+        label: `Regenerate capture from ${readableLabel(entry.observedFormat)}`,
+      })
+    );
+  }
+
+  return actions;
+}
+
+function referenceSignalAction(
+  entry: MotionReferenceCorpusEntry,
+  options: {
+    scope: MotionRegenerateScope;
+    componentIds: string[];
+    componentLabels: string[];
+    label: string;
+  }
+): MotionPreviewReferenceSignalAction {
+  return {
+    id: `reference-signal-${entry.id}-${options.scope}`,
+    label: options.label,
+    scope: options.scope,
+    toolId: regenerationToolIdForScope(options.scope),
+    route: '/api/motion/regenerate',
+    method: 'POST',
+    componentIds: [...options.componentIds],
+    componentLabels: [...options.componentLabels],
+    requestTemplate: {
+      project: '$motionProject',
+      referenceSignalId: entry.id,
+      sourceUrl: entry.sourceUrl,
+      scope: options.scope,
+      componentIds: [...options.componentIds],
+      prompt: `${options.label}. Use ${entry.title} as the source-backed reference signal.`,
+      requestedEngines: '$selectedEngines',
+      requestedAt: '$now',
+    },
+    expectedReceiptLabels: referenceSignalReceiptLabels(options.scope),
+  };
+}
+
+function referenceSignalReceiptLabels(scope: MotionRegenerateScope): string[] {
+  if (scope === 'capture') {
+    return ['reference signal', 'capture plan', 'updated preview plan'];
+  }
+  if (scope === 'caption') {
+    return ['reference signal', 'voice and caption update', 'updated preview plan'];
+  }
+  if (scope === 'effect' || scope === 'timing') {
+    return ['reference signal', 'component style update', 'updated preview plan'];
+  }
+  return ['reference signal', 'component plan', 'updated preview plan'];
 }
 
 function buildAgentRunbook(
