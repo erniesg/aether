@@ -86,6 +86,7 @@ import {
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import {
   applyMotionAgentHandoffResult,
+  type MotionAgentHandoffClientResult,
   motionAgentHandoffInputFromPrefs,
   motionAgentHandoffStatusLabel,
   runMotionAgentHandoffFromStart,
@@ -282,6 +283,15 @@ const ARTBOARD_DIMS: Record<string, { w: number; h: number }> = {
 const PLACEHOLDER_SKETCH =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZwkmBYAAAAASUVORK5CYII=';
 
+const MOTION_SETUP_TEMPLATE_BY_ITEM_ID: Record<string, string> = {
+  capture: 'review-capture',
+  'local-app': 'setup-local-app',
+  'visual-source': 'setup-visual-source',
+  'visual-generation': 'setup-visual-generation',
+  voice: 'setup-voice',
+  render: 'setup-render',
+};
+
 /**
  * Stitch a SemanticCreativeComponent into a single dispatchable prompt for
  * the existing generate pipeline. The component carries hero / mood / safe
@@ -308,6 +318,30 @@ function buildEyesClosedPrompt(component: SemanticCreativeComponent): string {
     parts.push(`Reserve negative space: ${reservations.join(' and ')}.`);
   }
   return parts.join(' ');
+}
+
+function motionCapabilitySetupStatusLabel(
+  itemLabel: string,
+  result: MotionAgentHandoffClientResult
+): string {
+  if (result.status === 'blocked') {
+    const missing = result.steps?.flatMap((step) => step.missingPlaceholders) ?? [];
+    return missing.length > 0
+      ? `${itemLabel} setup blocked: missing ${Array.from(new Set(missing)).join(', ')}`
+      : `${itemLabel} setup blocked`;
+  }
+  if (result.status === 'failed') return `${itemLabel} setup failed`;
+
+  const finalResponse = result.finalResponse ?? {};
+  const setupDryRun = finalResponse.setupDryRun;
+  if (setupDryRun && typeof setupDryRun === 'object' && !Array.isArray(setupDryRun)) {
+    const labels = (setupDryRun as { receiptLabels?: unknown }).receiptLabels;
+    if (Array.isArray(labels) && labels.length > 0) {
+      return `${itemLabel} setup saved`;
+    }
+  }
+
+  return motionAgentHandoffStatusLabel(result);
 }
 
 interface GenerateTargetSpec {
@@ -1122,13 +1156,36 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     setMotionTimelineActionStatus('drafting reusable motion skill');
   }, [motionStart]);
   const handleTimelineCapabilitySetupSelect = useCallback(
-    (itemId: string) => {
+    async (itemId: string) => {
       const item = motionStart?.previewPlan?.capabilitySetup.items.find(
         (candidate) => candidate.id === itemId
       );
-      setMotionTimelineActionStatus(`${item?.label ?? 'Capability'} setup selected`);
+      const templateId = item ? MOTION_SETUP_TEMPLATE_BY_ITEM_ID[item.id] : undefined;
+      const hasTemplate = Boolean(
+        templateId &&
+          motionStart?.agentHandoff?.templates.some((template) => template.id === templateId)
+      );
+
+      if (!motionStart || !item || !templateId || !hasTemplate) {
+        setMotionTimelineActionStatus(`${item?.label ?? 'Capability'} setup selected`);
+        return;
+      }
+
+      setMotionTimelineActionStatus(`setting up ${item.label}`);
+      try {
+        const handoffResult = await runMotionAgentHandoffFromStart(motionStart, {
+          templateIds: [templateId],
+          input: motionAgentHandoffInputFromPrefs(providerPrefs),
+        });
+        setMotionStartResult(wsId, applyMotionAgentHandoffResult(motionStart, handoffResult));
+        setMotionTimelineActionStatus(
+          motionCapabilitySetupStatusLabel(item.label, handoffResult)
+        );
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
     },
-    [motionStart]
+    [motionStart, providerPrefs, wsId]
   );
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
