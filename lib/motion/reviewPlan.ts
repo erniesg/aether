@@ -96,6 +96,7 @@ export interface MotionComponentRegenerationRequest {
   componentId: string;
   scope: MotionRegenerateScope;
   prompt: string;
+  sourcePatchPlan: MotionRegenerationSourcePatchPlan;
   inputRefs: string[];
   status: 'planned';
   provenance: MotionProvenanceRef[];
@@ -113,10 +114,56 @@ export interface MotionReferenceSignalRegenerationRequest {
   componentIds: string[];
   componentLabels: string[];
   prompt: string;
+  sourcePatchPlan: MotionRegenerationSourcePatchPlan;
   inputRefs: string[];
   status: 'planned';
   provenance: MotionProvenanceRef[];
   requestedAt: number;
+}
+
+export type MotionRegenerationSourcePatchTargetKind =
+  | 'timeline-json'
+  | 'script'
+  | 'storyboard'
+  | 'edit-contract';
+
+export type MotionRegenerationSourcePatchOperationKind =
+  | 'attach-capture-or-asset'
+  | 'sync-effect-cues'
+  | 'retime-clips'
+  | 'update-component-props'
+  | 'update-script-copy'
+  | 'update-storyboard-scene';
+
+export interface MotionRegenerationSourcePatchTargetFile {
+  path: string;
+  kind: MotionRegenerationSourcePatchTargetKind;
+  label: string;
+  reason: string;
+}
+
+export interface MotionRegenerationSourcePatchInstruction {
+  id: string;
+  label: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
+  componentLabels: string[];
+  targetPaths: string[];
+  operationKinds: MotionRegenerationSourcePatchOperationKind[];
+  guidanceRefs: string[];
+  prompt: string;
+}
+
+export interface MotionRegenerationSourcePatchPlan {
+  id: string;
+  status: 'planned';
+  route: '/api/motion/source-edit';
+  method: 'POST';
+  toolId: 'motion-source-edit';
+  sourceEditId: string;
+  targetFiles: MotionRegenerationSourcePatchTargetFile[];
+  instructions: MotionRegenerationSourcePatchInstruction[];
+  expectedReceiptLabels: string[];
 }
 
 export interface MotionTasteReferenceRegenerationShot {
@@ -145,6 +192,7 @@ export interface MotionTasteReferenceRegenerationRequest {
   componentLabels: string[];
   timestampedShotPlan: MotionTasteReferenceRegenerationShot[];
   prompt: string;
+  sourcePatchPlan: MotionRegenerationSourcePatchPlan;
   inputRefs: string[];
   status: 'planned';
   provenance: MotionProvenanceRef[];
@@ -256,15 +304,26 @@ export function createMotionComponentRegenerationRequest(
     .filter((ref) => ref.kind === 'story-beat')
     .map((ref) => ref.ref);
   const inputRefs = Array.from(new Set([located.clip.id, ...storyRefs]));
+  const requestId = `regen-${located.clip.id}-${input.scope}-${input.requestedAt}`;
 
   return {
-    id: `regen-${located.clip.id}-${input.scope}-${input.requestedAt}`,
+    id: requestId,
     projectId: project.id,
     draftId: project.currentDraftId,
     clipId: located.clip.id,
     componentId: component.id,
     scope: input.scope,
     prompt: input.prompt,
+    sourcePatchPlan: createSourcePatchPlan({
+      requestId,
+      draftId: project.currentDraftId,
+      scope: input.scope,
+      componentIds: [component.id],
+      componentLabels: [component.label],
+      label: `Regenerate ${input.scope} for ${component.label}`,
+      prompt: input.prompt,
+      guidanceRefs: inputRefs,
+    }),
     inputRefs,
     status: 'planned',
     provenance: [{ kind: 'timeline', ref: located.clip.id }, ...located.clip.provenance],
@@ -318,9 +377,11 @@ export function createMotionReferenceSignalRegenerationRequest(
     sourceUrl,
     ...componentIds,
   ]);
+  const requestId = `regen-reference-${reference.id}-${input.scope}-${input.requestedAt}`;
+  const label = `Apply ${input.scope} guidance to ${componentLabels.join(' / ')}`;
 
   return {
-    id: `regen-reference-${reference.id}-${input.scope}-${input.requestedAt}`,
+    id: requestId,
     projectId: project.id,
     draftId: project.currentDraftId,
     referenceSignalId: reference.id,
@@ -330,6 +391,16 @@ export function createMotionReferenceSignalRegenerationRequest(
     componentIds,
     componentLabels,
     prompt: input.prompt,
+    sourcePatchPlan: createSourcePatchPlan({
+      requestId,
+      draftId: project.currentDraftId,
+      scope: input.scope,
+      componentIds,
+      componentLabels,
+      label,
+      prompt: input.prompt,
+      guidanceRefs: [reference.id, sourceUrl],
+    }),
     inputRefs,
     status: 'planned',
     provenance: [
@@ -395,9 +466,11 @@ export function createMotionTasteReferenceRegenerationRequest(
     ...timestampedShotPlan.map((shot) => shot.id),
     ...componentIds,
   ]);
+  const requestId = `regen-taste-${tasteReference.id}-${input.scope}-${input.requestedAt}`;
+  const label = `Apply ${input.scope} guidance to ${componentLabels.join(' / ')}`;
 
   return {
-    id: `regen-taste-${tasteReference.id}-${input.scope}-${input.requestedAt}`,
+    id: requestId,
     projectId: project.id,
     draftId: project.currentDraftId,
     tasteReferenceId: tasteReference.id,
@@ -409,6 +482,20 @@ export function createMotionTasteReferenceRegenerationRequest(
     componentLabels,
     timestampedShotPlan,
     prompt: input.prompt,
+    sourcePatchPlan: createSourcePatchPlan({
+      requestId,
+      draftId: project.currentDraftId,
+      scope: input.scope,
+      componentIds,
+      componentLabels,
+      label,
+      prompt: input.prompt,
+      guidanceRefs: [
+        tasteReference.id,
+        tasteReference.sourceEntryId,
+        ...timestampedShotPlan.map((shot) => shot.id),
+      ],
+    }),
     inputRefs,
     status: 'planned',
     provenance: [
@@ -562,6 +649,118 @@ function tasteShotToRegenerationShot(shot: MotionTasteShot): MotionTasteReferenc
     captionStyle: shot.captionStyle,
     ...(shot.transitionOut ? { transitionOut: shot.transitionOut } : {}),
   };
+}
+
+function createSourcePatchPlan(input: {
+  requestId: string;
+  draftId: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
+  componentLabels: string[];
+  label: string;
+  prompt: string;
+  guidanceRefs: string[];
+}): MotionRegenerationSourcePatchPlan {
+  const targetFiles = sourcePatchTargetFiles(input.draftId, input.scope);
+  return {
+    id: `source-patch-${input.requestId}`,
+    status: 'planned',
+    route: '/api/motion/source-edit',
+    method: 'POST',
+    toolId: 'motion-source-edit',
+    sourceEditId: `source-edit-${input.requestId}`,
+    targetFiles,
+    instructions: [
+      {
+        id: `source-patch-${input.requestId}-${input.scope}`,
+        label: input.label,
+        scope: input.scope,
+        componentIds: [...input.componentIds],
+        componentLabels: [...input.componentLabels],
+        targetPaths: targetFiles.map((file) => file.path),
+        operationKinds: sourcePatchOperationKinds(input.scope),
+        guidanceRefs: uniqueStrings(input.guidanceRefs),
+        prompt: input.prompt,
+      },
+    ],
+    expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+  };
+}
+
+function sourcePatchTargetFiles(
+  draftId: string,
+  scope: MotionRegenerateScope
+): MotionRegenerationSourcePatchTargetFile[] {
+  const timelinePath = `timeline/${draftId}.json`;
+  if (scope === 'caption' || scope === 'copy' || scope === 'cta') {
+    return [
+      sourcePatchTargetFile('SCRIPT.md', 'script', 'Update narration, caption, or CTA copy.'),
+      sourcePatchTargetFile(
+        timelinePath,
+        'timeline-json',
+        'Propagate copy changes into clip props and synced captions.'
+      ),
+      sourcePatchTargetFile('EDIT.md', 'edit-contract', 'Review editable component controls.'),
+    ];
+  }
+
+  return [
+    sourcePatchTargetFile(
+      timelinePath,
+      'timeline-json',
+      'Update clip props, timing, assets, and sync effect cues.'
+    ),
+    sourcePatchTargetFile('STORYBOARD.md', 'storyboard', 'Update scene intent and component notes.'),
+    sourcePatchTargetFile('EDIT.md', 'edit-contract', 'Review editable component controls.'),
+  ];
+}
+
+function sourcePatchTargetFile(
+  path: string,
+  kind: MotionRegenerationSourcePatchTargetKind,
+  reason: string
+): MotionRegenerationSourcePatchTargetFile {
+  return {
+    path,
+    kind,
+    label: sourcePatchTargetLabel(kind),
+    reason,
+  };
+}
+
+function sourcePatchTargetLabel(kind: MotionRegenerationSourcePatchTargetKind): string {
+  switch (kind) {
+    case 'timeline-json':
+      return 'Timeline JSON';
+    case 'script':
+      return 'Script';
+    case 'storyboard':
+      return 'Storyboard';
+    case 'edit-contract':
+      return 'Edit contract';
+  }
+}
+
+function sourcePatchOperationKinds(
+  scope: MotionRegenerateScope
+): MotionRegenerationSourcePatchOperationKind[] {
+  switch (scope) {
+    case 'capture':
+    case 'asset':
+      return ['attach-capture-or-asset', 'update-component-props', 'update-storyboard-scene'];
+    case 'effect':
+      return ['sync-effect-cues', 'update-component-props', 'update-storyboard-scene'];
+    case 'timing':
+      return ['retime-clips', 'sync-effect-cues', 'update-component-props'];
+    case 'caption':
+    case 'copy':
+    case 'cta':
+      return ['update-script-copy', 'update-component-props'];
+    case 'proof':
+    case 'code':
+    case 'diagram':
+      return ['update-component-props', 'update-storyboard-scene'];
+  }
 }
 
 function findCurrentDraft(project: MotionProject): MotionDraft | undefined {

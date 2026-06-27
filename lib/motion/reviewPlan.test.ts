@@ -4,6 +4,7 @@ import {
   buildMotionReviewPlan,
   createMotionComponentRegenerationRequest,
   createMotionReferenceSignalRegenerationRequest,
+  createMotionTasteReferenceRegenerationRequest,
   stageMotionReferenceSignalRegeneration,
 } from './reviewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
@@ -133,6 +134,47 @@ describe('createMotionComponentRegenerationRequest', () => {
       kind: 'timeline',
       ref: 'clip-beat-demo-text',
     });
+    expect(request.sourcePatchPlan).toMatchObject({
+      id: 'source-patch-regen-clip-beat-demo-text-capture-90',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      toolId: 'motion-source-edit',
+      sourceEditId: 'source-edit-regen-clip-beat-demo-text-capture-90',
+      status: 'planned',
+      targetFiles: [
+        {
+          path: 'timeline/draft-primary.json',
+          kind: 'timeline-json',
+          label: 'Timeline JSON',
+        },
+        {
+          path: 'STORYBOARD.md',
+          kind: 'storyboard',
+          label: 'Storyboard',
+        },
+        {
+          path: 'EDIT.md',
+          kind: 'edit-contract',
+          label: 'Edit contract',
+        },
+      ],
+      instructions: [
+        {
+          id: 'source-patch-regen-clip-beat-demo-text-capture-90-capture',
+          label: 'Regenerate capture for App frame',
+          componentIds: ['app-frame'],
+          componentLabels: ['App frame'],
+          targetPaths: ['timeline/draft-primary.json', 'STORYBOARD.md', 'EDIT.md'],
+          operationKinds: [
+            'attach-capture-or-asset',
+            'update-component-props',
+            'update-storyboard-scene',
+          ],
+          guidanceRefs: ['clip-beat-demo-text', 'beat-demo'],
+        },
+      ],
+      expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+    });
   });
 
   it('rejects regeneration scopes that the component does not declare', () => {
@@ -180,6 +222,31 @@ describe('createMotionReferenceSignalRegenerationRequest', () => {
       kind: 'reference',
       ref: 'https://hyperframes.heygen.com/launch-videos',
       label: 'HyperFrames launch video source gallery',
+    });
+    expect(request.sourcePatchPlan).toMatchObject({
+      id: 'source-patch-regen-reference-hyperframes-launch-video-gallery-effect-92',
+      route: '/api/motion/source-edit',
+      sourceEditId: 'source-edit-regen-reference-hyperframes-launch-video-gallery-effect-92',
+      targetFiles: [
+        { path: 'timeline/draft-primary.json', kind: 'timeline-json' },
+        { path: 'STORYBOARD.md', kind: 'storyboard' },
+        { path: 'EDIT.md', kind: 'edit-contract' },
+      ],
+      instructions: [
+        {
+          label: 'Apply effect guidance to Hook card / App frame',
+          componentIds: ['hook-card', 'app-frame'],
+          operationKinds: [
+            'sync-effect-cues',
+            'update-component-props',
+            'update-storyboard-scene',
+          ],
+          guidanceRefs: [
+            'hyperframes-launch-video-gallery',
+            'https://hyperframes.heygen.com/launch-videos',
+          ],
+        },
+      ],
     });
 
     const staged = stageMotionReferenceSignalRegeneration(project(), request);
@@ -231,5 +298,59 @@ describe('createMotionReferenceSignalRegenerationRequest', () => {
         requestedAt: 94,
       })
     ).toThrow(/Motion component is not registered/);
+  });
+});
+
+describe('createMotionTasteReferenceRegenerationRequest', () => {
+  it('creates a source-edit patch plan from timestamped taste guidance', () => {
+    const request = createMotionTasteReferenceRegenerationRequest(project(), {
+      tasteReferenceId: 'claude-agent-demo-playback-review',
+      sourceEntryId: 'public-claude-launch-demo-corpus',
+      sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+      scope: 'effect',
+      componentIds: ['hook-card', 'agent-trace'],
+      prompt: 'Use the timestamped agent-demo reference as the effect guide.',
+      requestedAt: 95,
+    });
+
+    expect(request).toMatchObject({
+      id: 'regen-taste-claude-agent-demo-playback-review-effect-95',
+      sourcePatchPlan: {
+        id: 'source-patch-regen-taste-claude-agent-demo-playback-review-effect-95',
+        route: '/api/motion/source-edit',
+        method: 'POST',
+        toolId: 'motion-source-edit',
+        sourceEditId: 'source-edit-regen-taste-claude-agent-demo-playback-review-effect-95',
+        status: 'planned',
+        targetFiles: [
+          { path: 'timeline/draft-primary.json', kind: 'timeline-json' },
+          { path: 'STORYBOARD.md', kind: 'storyboard' },
+          { path: 'EDIT.md', kind: 'edit-contract' },
+        ],
+        instructions: [
+          {
+            id: 'source-patch-regen-taste-claude-agent-demo-playback-review-effect-95-effect',
+            label: 'Apply effect guidance to Hook card / Agent trace',
+            componentIds: ['hook-card', 'agent-trace'],
+            componentLabels: ['Hook card', 'Agent trace'],
+            operationKinds: [
+              'sync-effect-cues',
+              'update-component-props',
+              'update-storyboard-scene',
+            ],
+            guidanceRefs: [
+              'claude-agent-demo-playback-review',
+              'public-claude-launch-demo-corpus',
+              'agent-demo-prompt',
+              'agent-demo-files',
+              'agent-demo-terminal',
+              'agent-demo-preview',
+              'agent-demo-cta',
+            ],
+          },
+        ],
+        expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+      },
+    });
   });
 });

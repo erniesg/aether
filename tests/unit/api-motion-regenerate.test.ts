@@ -62,6 +62,15 @@ describe('POST /api/motion/regenerate', () => {
         scope: 'capture',
         prompt: 'Refresh this app-frame capture with the latest canvas flow.',
         status: 'planned',
+        sourcePatchPlan: {
+          route: '/api/motion/source-edit',
+          sourceEditId: 'source-edit-regen-clip-beat-demo-text-capture-950',
+          targetFiles: [
+            { path: 'timeline/draft-primary.json' },
+            { path: 'STORYBOARD.md' },
+            { path: 'EDIT.md' },
+          ],
+        },
       },
       reviewPlan: {
         projectId: 'motion-aether-launch',
@@ -71,14 +80,14 @@ describe('POST /api/motion/regenerate', () => {
         executionHistory: {
           status: 'saved',
           savedStepCount: 1,
-          receiptCount: 2,
-          latestReceiptLabels: ['Regeneration request', 'Capture plan'],
+          receiptCount: 3,
+          latestReceiptLabels: ['Regeneration request', 'Capture plan', 'Source patch plan'],
           entries: [
             {
               id: 'execution-regeneration-app-frame-capture-950',
               gateId: 'drafts',
               label: 'Regenerate capture for App frame',
-              receiptLabels: ['Regeneration request', 'Capture plan'],
+              receiptLabels: ['Regeneration request', 'Capture plan', 'Source patch plan'],
             },
           ],
         },
@@ -112,8 +121,8 @@ describe('POST /api/motion/regenerate', () => {
             gateId: 'drafts',
             label: 'Regenerate capture for App frame',
             savedAt: 950,
-            receiptCount: 2,
-            receiptLabels: ['Regeneration request', 'Capture plan'],
+            receiptCount: 3,
+            receiptLabels: ['Regeneration request', 'Capture plan', 'Source patch plan'],
             receipts: [
               {
                 id: 'receipt-regeneration-regen-clip-beat-demo-text-capture-950-request',
@@ -126,6 +135,12 @@ describe('POST /api/motion/regenerate', () => {
                 kind: 'revision',
                 label: 'Capture plan',
                 ref: 'regen-clip-beat-demo-text-capture-950:capture-plan',
+              },
+              {
+                id: 'receipt-regeneration-regen-clip-beat-demo-text-capture-950-source-patch-plan',
+                kind: 'revision',
+                label: 'Source patch plan',
+                ref: 'source-patch-regen-clip-beat-demo-text-capture-950',
               },
             ],
             provenance: expect.arrayContaining([
@@ -179,6 +194,15 @@ describe('POST /api/motion/regenerate', () => {
         componentIds: ['hook-card', 'app-frame'],
         componentLabels: ['Hook card', 'App frame'],
         status: 'planned',
+        sourcePatchPlan: {
+          route: '/api/motion/source-edit',
+          sourceEditId: 'source-edit-regen-reference-hyperframes-launch-video-gallery-effect-970',
+          targetFiles: [
+            { path: 'timeline/draft-primary.json' },
+            { path: 'STORYBOARD.md' },
+            { path: 'EDIT.md' },
+          ],
+        },
       },
       previewPlan: {
         projectId: 'motion-aether-launch',
@@ -196,14 +220,14 @@ describe('POST /api/motion/regenerate', () => {
         executionHistory: {
           status: 'saved',
           savedStepCount: 1,
-          receiptCount: 2,
-          latestReceiptLabels: ['Reference signal', 'Component style update'],
+          receiptCount: 3,
+          latestReceiptLabels: ['Reference signal', 'Component style update', 'Source patch plan'],
           entries: [
             {
               id: 'execution-reference-signal-hyperframes-launch-video-gallery-effect-970',
               gateId: 'drafts',
               label: 'Apply reference style to Hook card / App frame',
-              receiptLabels: ['Reference signal', 'Component style update'],
+              receiptLabels: ['Reference signal', 'Component style update', 'Source patch plan'],
             },
           ],
         },
@@ -241,8 +265,8 @@ describe('POST /api/motion/regenerate', () => {
             gateId: 'drafts',
             label: 'Apply reference style to Hook card / App frame',
             savedAt: 970,
-            receiptCount: 2,
-            receiptLabels: ['Reference signal', 'Component style update'],
+            receiptCount: 3,
+            receiptLabels: ['Reference signal', 'Component style update', 'Source patch plan'],
             receipts: [
               {
                 id: 'receipt-reference-signal-regen-reference-hyperframes-launch-video-gallery-effect-970-reference',
@@ -255,6 +279,12 @@ describe('POST /api/motion/regenerate', () => {
                 kind: 'revision',
                 label: 'Component style update',
                 ref: 'regen-reference-hyperframes-launch-video-gallery-effect-970:component-style-update',
+              },
+              {
+                id: 'receipt-reference-signal-regen-reference-hyperframes-launch-video-gallery-effect-970-source-patch-plan',
+                kind: 'revision',
+                label: 'Source patch plan',
+                ref: 'source-patch-regen-reference-hyperframes-launch-video-gallery-effect-970',
               },
             ],
           },
@@ -477,6 +507,29 @@ describe('POST /api/motion/regenerate', () => {
         prompt:
           'Use the timestamped Claude-style agent demo as the effect and timing guide.',
         status: 'planned',
+        sourcePatchPlan: {
+          route: '/api/motion/source-edit',
+          sourceEditId: 'source-edit-regen-taste-claude-agent-demo-playback-review-effect-990',
+          targetFiles: [
+            { path: 'timeline/draft-primary.json' },
+            { path: 'STORYBOARD.md' },
+            { path: 'EDIT.md' },
+          ],
+          instructions: [
+            {
+              label: 'Apply effect guidance to Hook card / Agent trace',
+              guidanceRefs: [
+                'claude-agent-demo-playback-review',
+                'public-claude-launch-demo-corpus',
+                'agent-demo-prompt',
+                'agent-demo-files',
+                'agent-demo-terminal',
+                'agent-demo-preview',
+                'agent-demo-cta',
+              ],
+            },
+          ],
+        },
         timestampedShotPlan: expect.arrayContaining([
           {
             id: 'agent-demo-terminal',
@@ -509,10 +562,11 @@ describe('POST /api/motion/regenerate', () => {
         executionHistory: {
           status: 'saved',
           savedStepCount: 1,
-          receiptCount: 3,
+          receiptCount: 4,
           latestReceiptLabels: [
             'Taste reference',
             'Timestamped shot plan',
+            'Source patch plan',
             'Updated preview plan',
           ],
           entries: [
@@ -523,6 +577,7 @@ describe('POST /api/motion/regenerate', () => {
               receiptLabels: [
                 'Taste reference',
                 'Timestamped shot plan',
+                'Source patch plan',
                 'Updated preview plan',
               ],
             },
@@ -565,10 +620,11 @@ describe('POST /api/motion/regenerate', () => {
             gateId: 'drafts',
             label: 'Apply taste reference to Hook card / Agent trace',
             savedAt: 990,
-            receiptCount: 3,
+            receiptCount: 4,
             receiptLabels: [
               'Taste reference',
               'Timestamped shot plan',
+              'Source patch plan',
               'Updated preview plan',
             ],
             receipts: [
@@ -583,6 +639,12 @@ describe('POST /api/motion/regenerate', () => {
                 kind: 'revision',
                 label: 'Timestamped shot plan',
                 ref: 'regen-taste-claude-agent-demo-playback-review-effect-990:timestamped-shot-plan',
+              },
+              {
+                id: 'receipt-taste-reference-regen-taste-claude-agent-demo-playback-review-effect-990-source-patch-plan',
+                kind: 'revision',
+                label: 'Source patch plan',
+                ref: 'source-patch-regen-taste-claude-agent-demo-playback-review-effect-990',
               },
               {
                 id: 'receipt-taste-reference-regen-taste-claude-agent-demo-playback-review-effect-990-preview-plan',

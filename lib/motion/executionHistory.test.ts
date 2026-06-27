@@ -51,8 +51,8 @@ describe('appendComponentRegenerationExecutionHistory', () => {
         gateId: 'drafts',
         label: 'Regenerate capture for App frame',
         savedAt: 91,
-        receiptCount: 2,
-        receiptLabels: ['Regeneration request', 'Capture plan'],
+        receiptCount: 3,
+        receiptLabels: ['Regeneration request', 'Capture plan', 'Source patch plan'],
         receipts: [
           {
             id: 'receipt-regeneration-regen-clip-beat-demo-text-capture-90-request',
@@ -65,6 +65,12 @@ describe('appendComponentRegenerationExecutionHistory', () => {
             kind: 'revision',
             label: 'Capture plan',
             ref: 'regen-clip-beat-demo-text-capture-90:capture-plan',
+          },
+          {
+            id: 'receipt-regeneration-regen-clip-beat-demo-text-capture-90-source-patch-plan',
+            kind: 'revision',
+            label: 'Source patch plan',
+            ref: 'source-patch-regen-clip-beat-demo-text-capture-90',
           },
         ],
         provenance: expect.arrayContaining([

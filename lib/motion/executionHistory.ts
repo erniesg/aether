@@ -238,6 +238,11 @@ export function appendComponentRegenerationExecutionHistory(
       label: planLabel,
       ref: `${request.id}:${slugifyId(planLabel)}`,
     }),
+    regenerationReceipt({
+      id: `receipt-regeneration-${request.id}-source-patch-plan`,
+      label: 'Source patch plan',
+      ref: request.sourcePatchPlan.id,
+    }),
   ];
 
   return appendExecutionEntry(history, {
@@ -272,6 +277,11 @@ export function appendReferenceSignalRegenerationExecutionHistory(
       label: planLabel,
       ref: `${request.id}:${slugifyId(planLabel)}`,
     }),
+    regenerationReceipt({
+      id: `receipt-reference-signal-${request.id}-source-patch-plan`,
+      label: 'Source patch plan',
+      ref: request.sourcePatchPlan.id,
+    }),
   ];
 
   return appendExecutionEntry(history, {
@@ -304,6 +314,11 @@ export function appendTasteReferenceRegenerationExecutionHistory(
       id: `receipt-taste-reference-${request.id}-shot-plan`,
       label: 'Timestamped shot plan',
       ref: `${request.id}:timestamped-shot-plan`,
+    }),
+    regenerationReceipt({
+      id: `receipt-taste-reference-${request.id}-source-patch-plan`,
+      label: 'Source patch plan',
+      ref: request.sourcePatchPlan.id,
     }),
     regenerationReceipt({
       id: `receipt-taste-reference-${request.id}-preview-plan`,
