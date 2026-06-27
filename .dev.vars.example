@@ -30,6 +30,8 @@ AETHER_REMOTION_RENDER_PROJECT_DIR=/absolute/path/to/aether-motion-render
 AETHER_HYPERFRAMES_RENDER_PROJECT_DIR=/absolute/path/to/aether-hyperframes-render
 # Optional shared fallback used when an engine-specific dir is unset.
 AETHER_MOTION_RENDER_PROJECT_DIR=
+# Optional default provider id for motion render handoffs.
+MOTION_RENDER_PROVIDER=remotion-local
 # Optional command/package overrides; defaults are `npx remotion` and
 # `npx hyperframes`.
 AETHER_MOTION_RENDER_COMMAND=

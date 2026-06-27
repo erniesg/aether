@@ -46,11 +46,12 @@ describe('SettingsPopover', () => {
     expect(dialog.className).toMatch(/w-\[|max-w-/);
   });
 
-  it('shows three provider rows: voice, image, segmentation', async () => {
+  it('shows provider rows for voice, image, render, and segmentation', async () => {
     render(<SettingsPopover prefs={DEFAULT_PREFS} onSave={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
     expect(screen.getByLabelText(/voice/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/image/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/render/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/segmentation/i)).toBeInTheDocument();
   });
 
@@ -90,6 +91,26 @@ describe('SettingsPopover', () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({ imageProviderId: 'gemini' })
+      );
+    });
+  });
+
+  it('calls onSave with updated prefs when render dropdown changes', async () => {
+    const onSave = vi.fn();
+    render(
+      <SettingsPopover
+        prefs={{ renderProviderId: 'remotion-local' }}
+        onSave={onSave}
+      />
+    );
+    await userEvent.click(screen.getByRole('button', { name: /settings/i }));
+
+    const renderSelect = screen.getByLabelText(/render/i) as HTMLSelectElement;
+    await userEvent.selectOptions(renderSelect, 'hyperframes-local');
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ renderProviderId: 'hyperframes-local' })
       );
     });
   });
@@ -184,6 +205,16 @@ describe('SettingsPopover', () => {
     expect(options).toContain('volcengine');
   });
 
+  it('render dropdown includes Remotion and HyperFrames local runners', async () => {
+    render(<SettingsPopover prefs={DEFAULT_PREFS} onSave={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: /settings/i }));
+
+    const renderSelect = screen.getByLabelText(/render/i) as HTMLSelectElement;
+    const options = Array.from(renderSelect.options).map((o) => o.value);
+    expect(options).toContain('remotion-local');
+    expect(options).toContain('hyperframes-local');
+  });
+
   it('segmentation dropdown includes sam3 and sam2 options', async () => {
     render(<SettingsPopover prefs={DEFAULT_PREFS} onSave={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: /settings/i }));
@@ -200,6 +231,7 @@ describe('SettingsPopover', () => {
         prefs={{
           voiceProviderId: 'openai-realtime',
           imageProviderId: 'replicate',
+          renderProviderId: 'hyperframes-local',
           segmentationProviderId: 'sam2',
         }}
         onSave={vi.fn()}
@@ -209,6 +241,7 @@ describe('SettingsPopover', () => {
 
     expect(screen.getByLabelText<HTMLSelectElement>(/voice/i).value).toBe('openai-realtime');
     expect(screen.getByLabelText<HTMLSelectElement>(/image/i).value).toBe('replicate');
+    expect(screen.getByLabelText<HTMLSelectElement>(/render/i).value).toBe('hyperframes-local');
     expect(screen.getByLabelText<HTMLSelectElement>(/segmentation/i).value).toBe('sam2');
   });
 

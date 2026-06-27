@@ -66,6 +66,7 @@ export function motionAgentHandoffInputFromPrefs(
   return {
     ...(prefs?.imageProviderId ? { imageToVideoProviderId: prefs.imageProviderId } : {}),
     ...(prefs?.voiceProviderId ? { voiceProviderId: prefs.voiceProviderId } : {}),
+    ...(prefs?.renderProviderId ? { renderProviderId: prefs.renderProviderId } : {}),
   };
 }
 

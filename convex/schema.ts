@@ -919,6 +919,7 @@ export default defineSchema({
     imageModel: v.optional(v.string()),
     voiceProviderId: v.optional(v.string()),
     voiceModel: v.optional(v.string()),
+    renderProviderId: v.optional(v.string()),
     segmentationProviderId: v.optional(v.string()),
     updatedAt: v.number(),
   }).index('by_workspace', ['workspaceId']),

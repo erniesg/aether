@@ -22,6 +22,7 @@ export interface WorkspaceProviderPrefs {
   imageModel?: string;
   voiceProviderId?: VoiceProviderId;
   voiceModel?: string;
+  renderProviderId?: string;
   segmentationProviderId?: string;
 }
 
@@ -92,6 +93,22 @@ export function resolveImageProviderId(
   return (
     prefs?.imageProviderId ??
     (typeof process !== 'undefined' ? process.env.IMAGE_GEN_PROVIDER : undefined)
+  );
+}
+
+// ─── Motion render ──────────────────────────────────────────────────────────
+
+/**
+ * Resolve which motion render provider id to prefer.
+ * Returns undefined when neither pref nor env is set; render routes then pick
+ * the first configured provider for the requested engine.
+ */
+export function resolveRenderProviderId(
+  prefs: WorkspaceProviderPrefs | null | undefined
+): string | undefined {
+  return (
+    prefs?.renderProviderId ??
+    (typeof process !== 'undefined' ? process.env.MOTION_RENDER_PROVIDER : undefined)
   );
 }
 

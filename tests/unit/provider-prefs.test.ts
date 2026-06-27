@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
 import {
   resolveImageProviderId,
+  resolveRenderProviderId,
   resolveSegmentationProviderId,
   resolveVoiceProvider,
 } from '@/lib/providers/prefs';
@@ -108,6 +109,28 @@ describe('resolveImageProviderId', () => {
     process.env.IMAGE_GEN_PROVIDER = 'openai';
     const prefs: WorkspaceProviderPrefs = { imageProviderId: 'replicate' };
     expect(resolveImageProviderId(prefs)).toBe('replicate');
+  });
+});
+
+describe('resolveRenderProviderId', () => {
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it('returns workspace pref when set — overrides env', () => {
+    process.env.MOTION_RENDER_PROVIDER = 'hyperframes-local';
+    const prefs: WorkspaceProviderPrefs = { renderProviderId: 'remotion-local' };
+    expect(resolveRenderProviderId(prefs)).toBe('remotion-local');
+  });
+
+  it('falls back to env when no workspace pref exists', () => {
+    process.env.MOTION_RENDER_PROVIDER = 'hyperframes-local';
+    expect(resolveRenderProviderId(null)).toBe('hyperframes-local');
+  });
+
+  it('returns undefined when neither pref nor env is set', () => {
+    delete process.env.MOTION_RENDER_PROVIDER;
+    expect(resolveRenderProviderId(null)).toBeUndefined();
   });
 });
 

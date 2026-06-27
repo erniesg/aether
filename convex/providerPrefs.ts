@@ -14,7 +14,7 @@ export const getProviderPrefs = queryGeneric({
   handler: async (ctx, args): Promise<WorkspaceProviderPrefs | null> => {
     const doc = await ctx.db
       .query('workspaceProviderPrefs')
-      .withIndex('by_workspace', (q: any) => q.eq('workspaceId', args.workspaceId))
+      .withIndex('by_workspace', (q) => q.eq('workspaceId', args.workspaceId))
       .first();
     if (!doc) return null;
     const prefs: WorkspaceProviderPrefs = {};
@@ -22,6 +22,7 @@ export const getProviderPrefs = queryGeneric({
     if (doc.imageModel) prefs.imageModel = doc.imageModel;
     if (doc.voiceProviderId) prefs.voiceProviderId = doc.voiceProviderId as import('../lib/voice/types').VoiceProviderId;
     if (doc.voiceModel) prefs.voiceModel = doc.voiceModel;
+    if (doc.renderProviderId) prefs.renderProviderId = doc.renderProviderId;
     if (doc.segmentationProviderId) prefs.segmentationProviderId = doc.segmentationProviderId;
     return prefs;
   },
@@ -35,13 +36,14 @@ export const saveProviderPrefs = mutationGeneric({
       imageModel: v.optional(v.string()),
       voiceProviderId: v.optional(v.string()),
       voiceModel: v.optional(v.string()),
+      renderProviderId: v.optional(v.string()),
       segmentationProviderId: v.optional(v.string()),
     }),
   },
   handler: async (ctx, args): Promise<string> => {
     const existing = await ctx.db
       .query('workspaceProviderPrefs')
-      .withIndex('by_workspace', (q: any) => q.eq('workspaceId', args.workspaceId))
+      .withIndex('by_workspace', (q) => q.eq('workspaceId', args.workspaceId))
       .first();
 
     const patch = {
@@ -50,6 +52,7 @@ export const saveProviderPrefs = mutationGeneric({
       imageModel: args.prefs.imageModel,
       voiceProviderId: args.prefs.voiceProviderId,
       voiceModel: args.prefs.voiceModel,
+      renderProviderId: args.prefs.renderProviderId,
       segmentationProviderId: args.prefs.segmentationProviderId,
       updatedAt: Date.now(),
     };

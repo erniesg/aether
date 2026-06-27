@@ -4,7 +4,7 @@
  * SettingsPopover — workspace-scoped provider overrides.
  *
  * Lives in the header (navigation taxonomy). Opens a small popover
- * (<300×220px) with three provider rows: voice, image, segmentation.
+ * (<300×220px) with provider rows: voice, image, render, segmentation.
  * Persists to Convex on every change; shows a "saved" chip after save.
  *
  * Hard rules respected:
@@ -36,6 +36,11 @@ const IMAGE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'gemini', label: 'gemini' },
   { value: 'replicate', label: 'replicate' },
   { value: 'volcengine', label: 'volcengine' },
+];
+
+const RENDER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'remotion-local', label: 'remotion-local' },
+  { value: 'hyperframes-local', label: 'hyperframes-local' },
 ];
 
 const SEGMENTATION_OPTIONS: Array<{ value: string; label: string }> = [
@@ -156,6 +161,17 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
     [local, commit]
   );
 
+  const handleRenderChange = useCallback(
+    async (e: ChangeEvent<HTMLSelectElement>) => {
+      const next: WorkspaceProviderPrefs = {
+        ...local,
+        renderProviderId: e.target.value || undefined,
+      };
+      await commit(next);
+    },
+    [local, commit]
+  );
+
   const effectiveVoice = local.voiceProviderId ?? 'gemini-live';
   const showModelField = effectiveVoice === 'gemini-live';
 
@@ -258,6 +274,24 @@ export function SettingsPopover({ prefs, onSave, className }: SettingsPopoverPro
             >
               <option value="">default</option>
               {IMAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </Row>
+
+          {/* Render row */}
+          <Row label="render" htmlFor="wp-render">
+            <select
+              id="wp-render"
+              aria-label="render"
+              value={local.renderProviderId ?? ''}
+              onChange={handleRenderChange}
+              className={selectCls}
+            >
+              <option value="">default</option>
+              {RENDER_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>

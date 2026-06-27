@@ -358,7 +358,10 @@
   `AETHER_MOTION_RENDER_PROJECT_DIR` register provider-neutral local command
   renderers for `/api/motion/render` and saved full-auto render setup gates;
   when unset, the render routes still fail closed with provider-required
-  handoffs.
+  handoffs. The workspace provider popover now also includes a render provider
+  preference (`remotion-local` or `hyperframes-local`), persists it with the
+  other provider choices, and passes it into agent handoff templates as
+  `renderProviderId`.
 - Workflow skill launch kits now expose review objects for PR/repo evidence,
   draft variations, component regeneration handles, teaser targets, and export
   packs. The generated `SKILL.md` instructions include those objects, the
