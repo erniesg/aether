@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { MotionProject } from '@/lib/motion/project';
-import { applyMotionImageToVideoResultToMotionProject } from '@/lib/motion/imageToVideoApply';
+import {
+  applyMotionImageToVideoResultToMotionProject,
+  stageMotionImageToVideoResultForReview,
+} from '@/lib/motion/imageToVideoApply';
 import { buildMotionImageToVideoPlan } from '@/lib/motion/imageToVideoPlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
@@ -51,6 +54,10 @@ export async function POST(request: Request): Promise<Response> {
   const requestedAt = numericValue(body.requestedAt) ?? Date.now();
   const updatedAt = numericValue(body.updatedAt);
   const draftId = stringValue(body.draftId);
+  const applyMode = parseApplyMode(body.applyMode);
+  if (body.applyMode !== undefined && !applyMode) {
+    return jsonError(400, 'applyMode must be "apply" or "stage"');
+  }
   const plan = buildMotionImageToVideoPlan(project, {
     draftId,
     fps,
@@ -90,15 +97,22 @@ export async function POST(request: Request): Promise<Response> {
       selectedRequests.map((generationRequest) => provider.generate(generationRequest))
     );
     const generationResult = mergeGenerationResults(provider.id, generationResults);
-    const updatedProject = applyMotionImageToVideoResultToMotionProject(
-      withPlannedNode(project, plan.imageToVideoNode),
-      generationResult,
-      { updatedAt }
-    );
+    const shouldStageForReview = applyMode === 'stage';
+    const updatedProject = shouldStageForReview
+      ? stageMotionImageToVideoResultForReview(
+          withPlannedNode(project, plan.imageToVideoNode),
+          generationResult,
+          { updatedAt }
+        )
+      : applyMotionImageToVideoResultToMotionProject(
+          withPlannedNode(project, plan.imageToVideoNode),
+          generationResult,
+          { updatedAt }
+        );
 
     return NextResponse.json({
       ok: true,
-      status: 'generated',
+      status: shouldStageForReview ? 'generated-for-review' : 'generated',
       project: updatedProject,
       imageToVideoPlan: buildMotionImageToVideoPlan(updatedProject, {
         draftId: plan.draftId,
@@ -212,6 +226,12 @@ function stringValue(value: unknown): string | undefined {
 
 function numericValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function parseApplyMode(value: unknown): 'apply' | 'stage' | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'apply' || value === 'stage') return value;
+  return undefined;
 }
 
 function uniqueProvenance(

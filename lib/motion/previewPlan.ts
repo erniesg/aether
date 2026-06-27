@@ -503,6 +503,19 @@ export interface MotionPreviewVisualGenerationRequest {
   sourceKind: string | null;
   sourceMimeType: string | null;
   outputLabel: string;
+  pendingTakeCount?: number;
+  pendingTakeLabels?: string[];
+  pendingTakes?: MotionPreviewVisualGenerationTake[];
+}
+
+export interface MotionPreviewVisualGenerationTake {
+  takeId: string;
+  assetId: string;
+  assetUrl: string;
+  providerLabel: string;
+  sourceAssetId: string;
+  mimeType: string;
+  status: string;
 }
 
 export type MotionPreviewVisualGenerationNodeStatus =
@@ -780,7 +793,8 @@ export function buildMotionPreviewPlan(
   );
   const visualGenerationSummary = buildVisualGenerationSummary(
     imageToVideoPlan,
-    timelineRows
+    timelineRows,
+    tracks
   );
   const canvasMaterialPlan = buildMotionCanvasMaterialPlan({
     projectId: project.id,
@@ -1890,11 +1904,13 @@ function buildVisualSourcingSummary(
 
 function buildVisualGenerationSummary(
   imageToVideoPlan: ReturnType<typeof buildMotionImageToVideoPlan>,
-  timelineRows: MotionPreviewTimelineRow[]
+  timelineRows: MotionPreviewTimelineRow[],
+  tracks: TimelineTrack[]
 ): MotionPreviewVisualGenerationSummary {
   const requests = imageToVideoPlan.requests.map((request) => {
     const clip = findTimelineClipById(timelineRows, request.clipId);
     const componentLabel = clip?.componentLabel ?? 'Visual clip';
+    const pendingTakes = generatedVideoTakesForClip(tracks, request.clipId);
     return {
       requestId: request.id,
       clipId: request.clipId,
@@ -1907,8 +1923,15 @@ function buildVisualGenerationSummary(
       sourceKind: request.source.kind ?? null,
       sourceMimeType: request.source.mimeType ?? null,
       outputLabel: `${request.aspectRatio} ${request.width}x${request.height}`,
+      pendingTakeCount: pendingTakes.length,
+      pendingTakeLabels: pendingTakes.map((take) => take.providerLabel),
+      pendingTakes,
     };
   });
+  const pendingTakeCount = requests.reduce(
+    (count, request) => count + (request.pendingTakeCount ?? 0),
+    0
+  );
 
   return {
     status: imageToVideoPlan.status,
@@ -1920,7 +1943,7 @@ function buildVisualGenerationSummary(
       (request) => `${request.componentLabel} ${request.durationSeconds}s`
     ),
     requests,
-    nodePlan: buildVisualGenerationNodePlan(imageToVideoPlan, requests),
+    nodePlan: buildVisualGenerationNodePlan(imageToVideoPlan, requests, pendingTakeCount),
     blockerLabels: imageToVideoPlan.blockers.map((blocker) => blocker.label),
     nextActionLabels: imageToVideoPlan.nextActions.map((action) => action.label),
   };
@@ -1936,7 +1959,8 @@ function sourceLabelForImageToVideoRequest(
 
 function buildVisualGenerationNodePlan(
   imageToVideoPlan: ReturnType<typeof buildMotionImageToVideoPlan>,
-  requests: MotionPreviewVisualGenerationRequest[]
+  requests: MotionPreviewVisualGenerationRequest[],
+  pendingTakeCount = 0
 ): MotionPreviewVisualGenerationNodePlan {
   if (imageToVideoPlan.status === 'needs-timeline') {
     return {
@@ -1990,6 +2014,10 @@ function buildVisualGenerationNodePlan(
 
   const sourceLabels = uniqueStrings(requests.map((request) => `${request.componentLabel} source`));
   const outputLabels = uniqueStrings(requests.map((request) => request.outputLabel));
+  const pendingTakeLabels = uniqueStrings(
+    requests.flatMap((request) => request.pendingTakeLabels ?? [])
+  );
+  const hasPendingTakes = pendingTakeCount > 0;
 
   return {
     status: imageToVideoPlan.status,
@@ -2005,9 +2033,9 @@ function buildVisualGenerationNodePlan(
       {
         id: 'image-to-video',
         label: 'Image-to-video',
-        status: 'ready',
+        status: hasPendingTakes ? 'complete' : 'ready',
         inputLabels: sourceLabels,
-        outputLabels,
+        outputLabels: hasPendingTakes ? pendingTakeLabels : outputLabels,
         actionLabel:
           imageToVideoPlan.nextActions.find((action) => action.id === 'generate-video-clips')
             ?.label ?? 'Generate video clips',
@@ -2015,8 +2043,8 @@ function buildVisualGenerationNodePlan(
       {
         id: 'review-generated-clips',
         label: 'Review generated clips',
-        status: 'planned',
-        inputLabels: outputLabels,
+        status: hasPendingTakes ? 'ready' : 'planned',
+        inputLabels: hasPendingTakes ? pendingTakeLabels : outputLabels,
         outputLabels: ['Approved clips'],
         actionLabel:
           imageToVideoPlan.nextActions.find((action) => action.id === 'review-generated-clips')
@@ -2048,8 +2076,53 @@ function buildVisualGenerationNodePlan(
         label: 'updates edit',
       },
     ],
-    nextNodeId: 'image-to-video',
+    nextNodeId: hasPendingTakes ? 'review-generated-clips' : 'image-to-video',
   };
+}
+
+function generatedVideoTakesForClip(
+  tracks: TimelineTrack[],
+  clipId: string
+): MotionPreviewVisualGenerationTake[] {
+  const takes = tracks
+    .flatMap((track) => track.clips)
+    .filter((clip) => clip.id === clipId)
+    .flatMap((clip) => previewGeneratedVideoTakes(clip.props.generatedVideoTakes));
+  const seen = new Set<string>();
+  return takes.filter((take) => {
+    if (seen.has(take.takeId)) return false;
+    seen.add(take.takeId);
+    return true;
+  });
+}
+
+function previewGeneratedVideoTakes(value: unknown): MotionPreviewVisualGenerationTake[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return [];
+    const take = candidate as Record<string, unknown>;
+    const takeId = stringValue(take.id);
+    const assetId = stringValue(take.assetId);
+    const assetUrl = stringValue(take.assetUrl);
+    const providerId = stringValue(take.providerId);
+    const sourceAssetId = stringValue(take.sourceAssetId);
+    const mimeType = stringValue(take.mimeType);
+    const status = stringValue(take.status);
+    if (!takeId || !assetId || !assetUrl || !providerId || !sourceAssetId || !mimeType) {
+      return [];
+    }
+    return [
+      {
+        takeId,
+        assetId,
+        assetUrl,
+        providerLabel: readableLabel(providerId),
+        sourceAssetId,
+        mimeType,
+        status: status ?? 'ready',
+      },
+    ];
+  });
 }
 
 function findTimelineClipById(

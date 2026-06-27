@@ -15,6 +15,22 @@ export interface ApplyMotionImageToVideoResultToMotionProjectOptions {
   updatedAt?: number;
 }
 
+export interface MotionGeneratedVideoTake {
+  id: string;
+  assetId: string;
+  requestId: string;
+  assetUrl: string;
+  providerId: string;
+  sourceAssetId: string;
+  sourceVisualAssetId?: string;
+  durationMs?: number;
+  width: number;
+  height: number;
+  mimeType: string;
+  status: 'ready';
+  provenance: MotionProvenanceRef[];
+}
+
 export function applyMotionImageToVideoResultToMotionProject(
   project: MotionProject,
   result: MotionImageToVideoResult,
@@ -31,6 +47,34 @@ export function applyMotionImageToVideoResultToMotionProject(
       tracks:
         draft.tracks.length > 0
           ? applyArtifactsToTracks(draft.tracks, result.providerId, artifactsByClipId)
+          : draft.tracks,
+    })),
+    graphNodes: upsertImageToVideoNode(project.graphNodes, result, provenance),
+    executionHistory: appendImageToVideoExecutionHistory(
+      project.executionHistory,
+      result,
+      options.updatedAt ?? project.updatedAt
+    ),
+    updatedAt: options.updatedAt ?? project.updatedAt,
+  };
+}
+
+export function stageMotionImageToVideoResultForReview(
+  project: MotionProject,
+  result: MotionImageToVideoResult,
+  options: ApplyMotionImageToVideoResultToMotionProjectOptions = {}
+): MotionProject {
+  const artifactsByClipId = groupArtifactsByClipId(result.artifacts);
+  const provenance = imageToVideoResultProvenance(result);
+
+  return {
+    ...project,
+    tracks: stageArtifactsOnTracks(project.tracks, result.providerId, artifactsByClipId),
+    drafts: project.drafts.map((draft) => ({
+      ...draft,
+      tracks:
+        draft.tracks.length > 0
+          ? stageArtifactsOnTracks(draft.tracks, result.providerId, artifactsByClipId)
           : draft.tracks,
     })),
     graphNodes: upsertImageToVideoNode(project.graphNodes, result, provenance),
@@ -66,6 +110,20 @@ function applyArtifactsToTracks(
   }));
 }
 
+function stageArtifactsOnTracks(
+  tracks: TimelineTrack[],
+  providerId: string,
+  artifactsByClipId: Map<string, MotionGeneratedVideoClip>
+): TimelineTrack[] {
+  return tracks.map((track) => ({
+    ...track,
+    clips: track.clips.map((clip) => {
+      const artifact = artifactsByClipId.get(clip.id);
+      return artifact ? stageArtifactOnClip(clip, providerId, artifact) : clip;
+    }),
+  }));
+}
+
 function applyArtifactToClip(
   clip: TimelineClip,
   providerId: string,
@@ -97,6 +155,84 @@ function applyArtifactToClip(
       imageToVideoArtifactRef(artifact),
     ]),
   };
+}
+
+function stageArtifactOnClip(
+  clip: TimelineClip,
+  providerId: string,
+  artifact: MotionGeneratedVideoClip
+): TimelineClip {
+  const previousAssetId = clip.assetId ?? stringProp(clip.props.assetId);
+  const nextTake = generatedVideoTakeForArtifact(artifact, providerId, previousAssetId);
+
+  return {
+    ...clip,
+    props: {
+      ...clip.props,
+      generatedVideoTakes: upsertGeneratedVideoTake(
+        generatedVideoTakesFromProps(clip.props.generatedVideoTakes),
+        nextTake
+      ),
+      pendingGeneratedVideoTakeId: nextTake.id,
+    },
+    provenance: uniqueProvenance([
+      ...clip.provenance,
+      ...artifact.provenance,
+      imageToVideoArtifactRef(artifact),
+    ]),
+  };
+}
+
+function generatedVideoTakeForArtifact(
+  artifact: MotionGeneratedVideoClip,
+  providerId: string,
+  sourceVisualAssetId?: string
+): MotionGeneratedVideoTake {
+  return {
+    id: artifact.id,
+    assetId: artifact.id,
+    requestId: artifact.requestId,
+    assetUrl: artifact.assetUrl,
+    providerId,
+    sourceAssetId: artifact.sourceAssetId,
+    ...(sourceVisualAssetId ? { sourceVisualAssetId } : {}),
+    ...(artifact.durationMs === undefined ? {} : { durationMs: artifact.durationMs }),
+    width: artifact.width,
+    height: artifact.height,
+    mimeType: artifact.mimeType,
+    status: 'ready',
+    provenance: uniqueProvenance([...artifact.provenance, imageToVideoArtifactRef(artifact)]),
+  };
+}
+
+function generatedVideoTakesFromProps(value: unknown): MotionGeneratedVideoTake[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isGeneratedVideoTake);
+}
+
+function isGeneratedVideoTake(value: unknown): value is MotionGeneratedVideoTake {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<MotionGeneratedVideoTake>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.assetId === 'string' &&
+    typeof candidate.assetUrl === 'string' &&
+    typeof candidate.providerId === 'string' &&
+    typeof candidate.requestId === 'string' &&
+    typeof candidate.sourceAssetId === 'string' &&
+    typeof candidate.width === 'number' &&
+    typeof candidate.height === 'number' &&
+    typeof candidate.mimeType === 'string' &&
+    candidate.status === 'ready' &&
+    Array.isArray(candidate.provenance)
+  );
+}
+
+function upsertGeneratedVideoTake(
+  takes: MotionGeneratedVideoTake[],
+  nextTake: MotionGeneratedVideoTake
+): MotionGeneratedVideoTake[] {
+  return [...takes.filter((take) => take.id !== nextTake.id), nextTake];
 }
 
 function upsertImageToVideoNode(

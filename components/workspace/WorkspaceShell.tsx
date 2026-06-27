@@ -1112,6 +1112,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         body: JSON.stringify({
           project: motionStart.project,
           draftId: motionStart.project.currentDraftId,
+          applyMode: 'stage',
           requestedAt,
           updatedAt: requestedAt,
         }),
@@ -1137,6 +1138,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       });
       if (json.status === 'generated') {
         setMotionTimelineActionStatus('video clips generated');
+      } else if (json.status === 'generated-for-review') {
+        setMotionTimelineActionStatus('video takes ready for review');
       } else if (json.status === 'provider-required') {
         setMotionTimelineActionStatus('image-to-video provider required');
       } else if (json.imageToVideoPlan?.status === 'needs-visual-source') {

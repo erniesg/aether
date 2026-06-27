@@ -241,6 +241,63 @@ describe('POST /api/motion/image-to-video', () => {
     });
   });
 
+  it('stages generated clips for creator review when requested', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => resultFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () => provider(generate))
+    );
+
+    const { POST } = await import('@/app/api/motion/image-to-video/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/image-to-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: projectWithVisualSource(),
+          providerId: 'image-video-test',
+          applyMode: 'stage',
+          requestIds: ['image-to-video-clip-beat-demo-text'],
+          requestedAt: 905,
+          updatedAt: 906,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'generated-for-review',
+      project: {
+        id: 'motion-aether-launch',
+        updatedAt: 906,
+      },
+    });
+
+    const generatedClip = json.project.tracks
+      .flatMap((track: { clips: Array<{ id: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { id: string }) => clip.id === 'clip-beat-demo-text');
+    expect(generatedClip.assetId).toBe('capture-screenshot-aether-localhost');
+    expect(generatedClip.props).toMatchObject({
+      generatedVideoTakes: [
+        {
+          id: 'generated-clip-beat-demo-text-image-to-video',
+          assetId: 'generated-clip-beat-demo-text-image-to-video',
+          assetUrl: 'asset://generated/motion-aether-launch/clip-beat-demo-text/image-to-video.mp4',
+          providerId: 'image-video-test',
+          requestId: 'image-to-video-clip-beat-demo-text',
+          sourceAssetId: 'capture-screenshot-aether-localhost',
+          sourceVisualAssetId: 'capture-screenshot-aether-localhost',
+          mimeType: 'video/mp4',
+          status: 'ready',
+        },
+      ],
+    });
+    expect(json.previewPlan.visualGenerationSummary.nodePlan.nextNodeId).toBe(
+      'review-generated-clips'
+    );
+  });
+
   it('returns visual-source blockers before resolving providers', async () => {
     const generate = vi.fn(async (request: MotionImageToVideoRequest) => resultFor(request));
     unregister.push(
