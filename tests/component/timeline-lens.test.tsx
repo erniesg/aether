@@ -1908,6 +1908,20 @@ const agentHandoff: MotionAgentExecutionHandoff = {
       expectedReceipts: ['screenshot', 'viewport receipt'],
     },
     {
+      id: 'review-computer-use-capture',
+      label: 'Apply computer-use capture',
+      method: 'POST',
+      route: '/api/motion/capture',
+      toolId: 'motion-capture',
+      body: {
+        project: '$motionProject',
+        requestIds: ['capture-home-still', 'capture-dom-snapshot'],
+        captureRunner: '$computerUseCaptureRunner',
+      },
+      inputPlaceholders: ['$motionProject', '$computerUseCaptureRunner'],
+      expectedReceipts: ['screenshot', 'recording', 'trace', 'redaction receipt'],
+    },
+    {
       id: 'edit-source',
       label: 'Apply source edits',
       method: 'POST',
@@ -2384,12 +2398,14 @@ describe('TimelineLens', () => {
     expect(screen.getByText('agent actions')).toBeInTheDocument();
     expect(screen.getAllByText('Run saved gates').length).toBeGreaterThan(0);
     expect(screen.getByText('Capture product media')).toBeInTheDocument();
+    expect(screen.getByText('Apply computer-use capture')).toBeInTheDocument();
     expect(screen.getAllByText('Apply source edits').length).toBeGreaterThan(0);
     expect(screen.getByText('/api/motion/full-auto')).toBeInTheDocument();
-    expect(screen.getByText('/api/motion/capture')).toBeInTheDocument();
+    expect(screen.getAllByText('/api/motion/capture').length).toBeGreaterThan(0);
     expect(screen.getAllByText('local runner').length).toBeGreaterThan(0);
     expect(screen.getAllByText('captures / voice clips').length).toBeGreaterThan(0);
     expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
+    expect(screen.queryByText('$computerUseCaptureRunner')).not.toBeInTheDocument();
     expect(screen.queryByText('$editedSourceFiles')).not.toBeInTheDocument();
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
 

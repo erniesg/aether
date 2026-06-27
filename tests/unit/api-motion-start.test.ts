@@ -324,6 +324,24 @@ describe('POST /api/motion/start', () => {
             }),
           }),
           expect.objectContaining({
+            id: 'review-computer-use-capture',
+            label: 'Apply computer-use capture',
+            route: '/api/motion/capture',
+            toolId: 'motion-capture',
+            body: {
+              project: '$motionProject',
+              requestIds: ['capture-local-app-still', 'capture-local-dom'],
+              captureRunner: '$computerUseCaptureRunner',
+            },
+            inputPlaceholders: ['$motionProject', '$computerUseCaptureRunner'],
+            expectedReceipts: expect.arrayContaining([
+              'screenshot',
+              'snapshot',
+              'approval receipt',
+              'redaction receipt',
+            ]),
+          }),
+          expect.objectContaining({
             id: 'prepare-preview-source',
             label: 'Prepare preview source',
             route: '/api/motion/preview-source',

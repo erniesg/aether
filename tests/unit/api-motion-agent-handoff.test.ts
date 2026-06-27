@@ -413,6 +413,107 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 
+  it('applies approved computer-use capture receipts through the capture handoff template', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['review-computer-use-capture'],
+          input: {
+            computerUseCaptureRunner: {
+              kind: 'computer-use-local',
+              approved: true,
+              redactionManifest: {
+                labels: ['tokens', 'emails'],
+                applied: true,
+                receiptRef: 'redaction-pass-2',
+              },
+              receipts: [
+                {
+                  assetUrl: 'asset://computer-use/tong-product-flow.png',
+                  width: 1080,
+                  height: 1920,
+                  redactions: [
+                    {
+                      label: 'tokens',
+                      target: 'settings panel',
+                      action: 'blur',
+                      applied: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'review-computer-use-capture',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            status: 'captured',
+            captureRunner: expect.objectContaining({
+              kind: 'computer-use-local',
+              providerId: 'computer-use-capture',
+              approved: true,
+              receiptCount: 1,
+            }),
+          }),
+        }),
+      ],
+      finalProject: {
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'capture',
+            label: 'Product capture',
+            providerId: 'computer-use-capture',
+          }),
+        ]),
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'capture',
+            providerId: 'computer-use-capture',
+            status: 'done',
+          }),
+        ]),
+      },
+    });
+    const appFrameClip = json.finalProject.tracks
+      .flatMap((track: { clips: unknown[] }) => track.clips)
+      .find((clip: { componentId?: string }) => clip.componentId === 'app-frame');
+    expect(appFrameClip).toMatchObject({
+      assetId: 'capture-computer-use-screenshot-http-localhost-3000',
+      props: expect.objectContaining({
+        assetUrl: 'asset://computer-use/tong-product-flow.png',
+        captureArtifactKind: 'screenshot',
+        captureProviderId: 'computer-use-capture',
+        redactions: [
+          {
+            label: 'tokens',
+            target: 'settings panel',
+            action: 'blur',
+            applied: true,
+          },
+        ],
+      }),
+    });
+  });
+
   it('applies edited source files through the source-edit handoff template', async () => {
     const startJson = await startLocalRepoProject();
     const plan = buildMotionRenderPlan(startJson.project, {

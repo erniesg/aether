@@ -145,6 +145,24 @@ function buildTemplates(input: {
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: capture.expectedReceipts,
     });
+    templates.push({
+      id: 'review-computer-use-capture',
+      label: 'Apply computer-use capture',
+      method: 'POST',
+      route: '/api/motion/capture',
+      toolId: 'motion-capture',
+      body: cleanBody({
+        project: PROJECT_PLACEHOLDER,
+        requestIds: capture.requestIds,
+        captureRunner: '$computerUseCaptureRunner',
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER, '$computerUseCaptureRunner'],
+      expectedReceipts: uniqueStrings([
+        ...capture.expectedReceipts,
+        'approval receipt',
+        'redaction receipt',
+      ]),
+    });
   }
 
   templates.push(
