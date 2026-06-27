@@ -4,6 +4,7 @@ import type { MotionImageToVideoResult } from '@/lib/providers/video/types';
 import { applyCaptureResultToMotionProject } from './captureApply';
 import {
   applyMotionImageToVideoResultToMotionProject,
+  applyStagedMotionImageToVideoTake,
   stageMotionImageToVideoResultForReview,
 } from './imageToVideoApply';
 import { buildMotionImageToVideoPlan } from './imageToVideoPlan';
@@ -250,5 +251,80 @@ describe('applyMotionImageToVideoResultToMotionProject', () => {
       inputRefs: ['clip-beat-demo-text', 'capture-screenshot-aether-localhost'],
       outputRefs: ['generated-clip-beat-demo-text-image-to-video'],
     });
+  });
+
+  it('applies a staged generated video take into the editable timeline clip', () => {
+    const { project, plan } = projectWithImageToVideoPlan();
+    const request = plan.requests[0];
+    const staged = stageMotionImageToVideoResultForReview(
+      project,
+      {
+        providerId: 'runway',
+        artifacts: [
+          {
+            ...request.output,
+            requestId: request.id,
+            assetUrl: 'asset://generated/aether-demo.mp4',
+            durationMs: 8000,
+            provenance: [{ kind: 'provider', ref: 'runway' }],
+          },
+        ],
+        provenance: [{ kind: 'provider', ref: 'runway' }],
+      },
+      { updatedAt: 44 }
+    );
+
+    const updated = applyStagedMotionImageToVideoTake(staged, {
+      clipId: 'clip-beat-demo-text',
+      takeId: 'generated-clip-beat-demo-text-image-to-video',
+      updatedAt: 45,
+    });
+
+    expect(updated?.updatedAt).toBe(45);
+
+    const appliedClip = updated?.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(appliedClip).toMatchObject({
+      assetId: 'generated-clip-beat-demo-text-image-to-video',
+      props: {
+        assetId: 'generated-clip-beat-demo-text-image-to-video',
+        assetUrl: 'asset://generated/aether-demo.mp4',
+        generatedVideoAssetId: 'generated-clip-beat-demo-text-image-to-video',
+        generatedVideoUrl: 'asset://generated/aether-demo.mp4',
+        imageToVideoProviderId: 'runway',
+        sourceAssetId: 'capture-screenshot-aether-localhost',
+        sourceVisualAssetId: 'capture-screenshot-aether-localhost',
+        durationMs: 8000,
+        width: 1080,
+        height: 1920,
+        mimeType: 'video/mp4',
+        selectedGeneratedVideoTakeId: 'generated-clip-beat-demo-text-image-to-video',
+        status: 'ready',
+      },
+    });
+    expect(appliedClip?.props.pendingGeneratedVideoTakeId).toBeUndefined();
+    expect(appliedClip?.props.generatedVideoTakes).toHaveLength(1);
+
+    const currentDraftClip = updated?.drafts
+      .find((draft) => draft.id === updated.currentDraftId)
+      ?.tracks.flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(currentDraftClip?.assetId).toBe('generated-clip-beat-demo-text-image-to-video');
+    expect(currentDraftClip?.props.selectedGeneratedVideoTakeId).toBe(
+      'generated-clip-beat-demo-text-image-to-video'
+    );
+  });
+
+  it('returns null when applying a missing generated video take', () => {
+    const { project } = projectWithImageToVideoPlan();
+
+    expect(
+      applyStagedMotionImageToVideoTake(project, {
+        clipId: 'clip-beat-demo-text',
+        takeId: 'missing-take',
+        updatedAt: 45,
+      })
+    ).toBeNull();
   });
 });

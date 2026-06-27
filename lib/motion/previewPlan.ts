@@ -506,6 +506,8 @@ export interface MotionPreviewVisualGenerationRequest {
   pendingTakeCount?: number;
   pendingTakeLabels?: string[];
   pendingTakes?: MotionPreviewVisualGenerationTake[];
+  selectedTakeCount?: number;
+  selectedTakeLabels?: string[];
 }
 
 export interface MotionPreviewVisualGenerationTake {
@@ -1910,7 +1912,7 @@ function buildVisualGenerationSummary(
   const requests = imageToVideoPlan.requests.map((request) => {
     const clip = findTimelineClipById(timelineRows, request.clipId);
     const componentLabel = clip?.componentLabel ?? 'Visual clip';
-    const pendingTakes = generatedVideoTakesForClip(tracks, request.clipId);
+    const takeState = generatedVideoTakeStateForClip(tracks, request.clipId);
     return {
       requestId: request.id,
       clipId: request.clipId,
@@ -1923,13 +1925,19 @@ function buildVisualGenerationSummary(
       sourceKind: request.source.kind ?? null,
       sourceMimeType: request.source.mimeType ?? null,
       outputLabel: `${request.aspectRatio} ${request.width}x${request.height}`,
-      pendingTakeCount: pendingTakes.length,
-      pendingTakeLabels: pendingTakes.map((take) => take.providerLabel),
-      pendingTakes,
+      pendingTakeCount: takeState.pendingTakes.length,
+      pendingTakeLabels: takeState.pendingTakes.map((take) => take.providerLabel),
+      pendingTakes: takeState.pendingTakes,
+      selectedTakeCount: takeState.selectedTakes.length,
+      selectedTakeLabels: takeState.selectedTakes.map((take) => take.providerLabel),
     };
   });
   const pendingTakeCount = requests.reduce(
     (count, request) => count + (request.pendingTakeCount ?? 0),
+    0
+  );
+  const selectedTakeCount = requests.reduce(
+    (count, request) => count + (request.selectedTakeCount ?? 0),
     0
   );
 
@@ -1943,7 +1951,12 @@ function buildVisualGenerationSummary(
       (request) => `${request.componentLabel} ${request.durationSeconds}s`
     ),
     requests,
-    nodePlan: buildVisualGenerationNodePlan(imageToVideoPlan, requests, pendingTakeCount),
+    nodePlan: buildVisualGenerationNodePlan(
+      imageToVideoPlan,
+      requests,
+      pendingTakeCount,
+      selectedTakeCount
+    ),
     blockerLabels: imageToVideoPlan.blockers.map((blocker) => blocker.label),
     nextActionLabels: imageToVideoPlan.nextActions.map((action) => action.label),
   };
@@ -1960,7 +1973,8 @@ function sourceLabelForImageToVideoRequest(
 function buildVisualGenerationNodePlan(
   imageToVideoPlan: ReturnType<typeof buildMotionImageToVideoPlan>,
   requests: MotionPreviewVisualGenerationRequest[],
-  pendingTakeCount = 0
+  pendingTakeCount = 0,
+  selectedTakeCount = 0
 ): MotionPreviewVisualGenerationNodePlan {
   if (imageToVideoPlan.status === 'needs-timeline') {
     return {
@@ -2017,7 +2031,16 @@ function buildVisualGenerationNodePlan(
   const pendingTakeLabels = uniqueStrings(
     requests.flatMap((request) => request.pendingTakeLabels ?? [])
   );
+  const selectedTakeLabels = uniqueStrings(
+    requests.flatMap((request) => request.selectedTakeLabels ?? [])
+  );
   const hasPendingTakes = pendingTakeCount > 0;
+  const hasSelectedTakes = selectedTakeCount > 0;
+  const generatedOutputLabels = hasPendingTakes
+    ? pendingTakeLabels
+    : hasSelectedTakes
+      ? selectedTakeLabels
+      : outputLabels;
 
   return {
     status: imageToVideoPlan.status,
@@ -2033,9 +2056,9 @@ function buildVisualGenerationNodePlan(
       {
         id: 'image-to-video',
         label: 'Image-to-video',
-        status: hasPendingTakes ? 'complete' : 'ready',
+        status: hasPendingTakes || hasSelectedTakes ? 'complete' : 'ready',
         inputLabels: sourceLabels,
-        outputLabels: hasPendingTakes ? pendingTakeLabels : outputLabels,
+        outputLabels: generatedOutputLabels,
         actionLabel:
           imageToVideoPlan.nextActions.find((action) => action.id === 'generate-video-clips')
             ?.label ?? 'Generate video clips',
@@ -2043,8 +2066,8 @@ function buildVisualGenerationNodePlan(
       {
         id: 'review-generated-clips',
         label: 'Review generated clips',
-        status: hasPendingTakes ? 'ready' : 'planned',
-        inputLabels: hasPendingTakes ? pendingTakeLabels : outputLabels,
+        status: hasPendingTakes ? 'ready' : hasSelectedTakes ? 'complete' : 'planned',
+        inputLabels: generatedOutputLabels,
         outputLabels: ['Approved clips'],
         actionLabel:
           imageToVideoPlan.nextActions.find((action) => action.id === 'review-generated-clips')
@@ -2053,8 +2076,8 @@ function buildVisualGenerationNodePlan(
       {
         id: 'timeline-update',
         label: 'Timeline update',
-        status: 'planned',
-        inputLabels: ['Approved clips'],
+        status: hasPendingTakes ? 'planned' : hasSelectedTakes ? 'ready' : 'planned',
+        inputLabels: hasSelectedTakes ? selectedTakeLabels : ['Approved clips'],
         outputLabels: ['Synced timeline'],
         actionLabel: 'Apply approved clips',
       },
@@ -2076,18 +2099,43 @@ function buildVisualGenerationNodePlan(
         label: 'updates edit',
       },
     ],
-    nextNodeId: hasPendingTakes ? 'review-generated-clips' : 'image-to-video',
+    nextNodeId: hasPendingTakes
+      ? 'review-generated-clips'
+      : hasSelectedTakes
+        ? 'timeline-update'
+        : 'image-to-video',
   };
 }
 
-function generatedVideoTakesForClip(
+function generatedVideoTakeStateForClip(
   tracks: TimelineTrack[],
   clipId: string
-): MotionPreviewVisualGenerationTake[] {
-  const takes = tracks
+): {
+  pendingTakes: MotionPreviewVisualGenerationTake[];
+  selectedTakes: MotionPreviewVisualGenerationTake[];
+} {
+  const states = tracks
     .flatMap((track) => track.clips)
     .filter((clip) => clip.id === clipId)
-    .flatMap((clip) => previewGeneratedVideoTakes(clip.props.generatedVideoTakes));
+    .map((clip) => {
+      const selectedTakeId = stringValue(clip.props.selectedGeneratedVideoTakeId);
+      const takes = previewGeneratedVideoTakes(clip.props.generatedVideoTakes);
+      return {
+        pendingTakes: takes.filter((take) => take.takeId !== selectedTakeId),
+        selectedTakes: selectedTakeId
+          ? takes.filter((take) => take.takeId === selectedTakeId)
+          : [],
+      };
+    });
+  return {
+    pendingTakes: uniqueGeneratedVideoTakes(states.flatMap((state) => state.pendingTakes)),
+    selectedTakes: uniqueGeneratedVideoTakes(states.flatMap((state) => state.selectedTakes)),
+  };
+}
+
+function uniqueGeneratedVideoTakes(
+  takes: MotionPreviewVisualGenerationTake[]
+): MotionPreviewVisualGenerationTake[] {
   const seen = new Set<string>();
   return takes.filter((take) => {
     if (seen.has(take.takeId)) return false;

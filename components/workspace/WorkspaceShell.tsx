@@ -1153,6 +1153,51 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
+  const handleTimelineApplyGeneratedVideoTake = useCallback(
+    async (clipId: string, takeId: string) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus('applying video take');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/image-to-video/take', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            clipId,
+            takeId,
+            requestedAt,
+            updatedAt: requestedAt,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          status?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+        };
+        if (!res.ok || json.ok === false || !json.project || !json.previewPlan) {
+          throw new Error(json.error ?? `video take apply failed: ${res.status}`);
+        }
+
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan,
+        });
+        setMotionTimelineActionStatus(
+          json.status === 'take-applied' ? 'video take applied' : 'video take checked'
+        );
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
   const handleTimelinePinMotionSkill = useCallback(() => {
     if (!motionStart) return;
     setPendingSkillManifest(motionStart.workflow.plan.skillDraft.manifest);
@@ -2959,6 +3004,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onExportPack={handleTimelineExportPack}
             onPlanVisuals={handleTimelinePlanVisuals}
             onGenerateVideoClips={handleTimelineGenerateVideoClips}
+            onApplyGeneratedVideoTake={handleTimelineApplyGeneratedVideoTake}
             onCaptureMotion={handleTimelineCapture}
             onPinMotionSkill={handleTimelinePinMotionSkill}
             onSelectCapabilitySetup={handleTimelineCapabilitySetupSelect}

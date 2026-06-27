@@ -84,6 +84,7 @@ export interface TimelineLensProps {
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
+  onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
@@ -116,6 +117,7 @@ export function TimelineLens({
   onExportPack,
   onPlanVisuals,
   onGenerateVideoClips,
+  onApplyGeneratedVideoTake,
   onCaptureMotion,
   onPinMotionSkill,
   onEditClipSummary,
@@ -174,6 +176,7 @@ export function TimelineLens({
             onExportPack={onExportPack}
             onPlanVisuals={onPlanVisuals}
             onGenerateVideoClips={onGenerateVideoClips}
+            onApplyGeneratedVideoTake={onApplyGeneratedVideoTake}
             onCaptureMotion={onCaptureMotion}
             onPinMotionSkill={onPinMotionSkill}
             onEditClipSummary={onEditClipSummary}
@@ -225,6 +228,7 @@ function MotionPreviewPlanView({
   onExportPack,
   onPlanVisuals,
   onGenerateVideoClips,
+  onApplyGeneratedVideoTake,
   onCaptureMotion,
   onPinMotionSkill,
   onEditClipSummary,
@@ -254,6 +258,7 @@ function MotionPreviewPlanView({
   onExportPack?: () => void;
   onPlanVisuals?: () => void;
   onGenerateVideoClips?: () => void;
+  onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
@@ -493,6 +498,7 @@ function MotionPreviewPlanView({
         <MotionVisualGenerationStrip
           summary={previewPlan.visualGenerationSummary}
           onGenerateVideoClips={onGenerateVideoClips}
+          onApplyGeneratedVideoTake={onApplyGeneratedVideoTake}
           onOpenNodeLens={() => setAdvancedNodeLensOpen(true)}
         />
       </section>
@@ -3214,10 +3220,12 @@ function MotionVisualSourcingStrip({
 function MotionVisualGenerationStrip({
   summary,
   onGenerateVideoClips,
+  onApplyGeneratedVideoTake,
   onOpenNodeLens,
 }: {
   summary: MotionPreviewVisualGenerationSummary;
   onGenerateVideoClips?: () => void;
+  onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
   onOpenNodeLens?: () => void;
 }) {
   return (
@@ -3252,6 +3260,27 @@ function MotionVisualGenerationStrip({
               <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
                 {request.outputLabel}
               </div>
+              {request.pendingTakes && request.pendingTakes.length > 0 ? (
+                <div className="mt-2 grid gap-1" aria-label={`${request.componentLabel} takes`}>
+                  {request.pendingTakes.map((take) => (
+                    <button
+                      key={take.takeId}
+                      type="button"
+                      onClick={() => onApplyGeneratedVideoTake?.(request.clipId, take.takeId)}
+                      disabled={!onApplyGeneratedVideoTake}
+                      aria-label={`apply ${take.providerLabel} take`}
+                      className="flex min-w-0 items-center justify-between gap-2 rounded-sm border border-border-soft bg-surface-canvas px-2 py-1.5 text-left transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="truncate font-caption text-2xs text-ink">
+                        {take.providerLabel}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                        {take.mimeType.replace('video/', '')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

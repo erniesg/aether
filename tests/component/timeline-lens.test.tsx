@@ -3206,6 +3206,72 @@ describe('TimelineLens', () => {
     expect(onGenerateVideoClips).toHaveBeenCalledTimes(1);
   });
 
+  it('lets creators apply a staged image-to-video take from the preview plan', async () => {
+    const onApplyGeneratedVideoTake = vi.fn<(clipId: string, takeId: string) => void>();
+    const request = previewPlan.visualGenerationSummary.requests[0];
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          visualGenerationSummary: {
+            ...previewPlan.visualGenerationSummary,
+            requests: [
+              {
+                ...request,
+                pendingTakeCount: 1,
+                pendingTakeLabels: ['image video test'],
+                pendingTakes: [
+                  {
+                    takeId: 'generated-clip-beat-demo-text-image-to-video',
+                    assetId: 'generated-clip-beat-demo-text-image-to-video',
+                    assetUrl: 'asset://generated/aether-demo.mp4',
+                    providerLabel: 'image video test',
+                    sourceAssetId: 'capture-screenshot-aether-localhost',
+                    mimeType: 'video/mp4',
+                    status: 'ready',
+                  },
+                ],
+              },
+            ],
+            nodePlan: {
+              ...previewPlan.visualGenerationSummary.nodePlan,
+              nextNodeId: 'review-generated-clips',
+              nodes: previewPlan.visualGenerationSummary.nodePlan.nodes.map((node) => {
+                if (node.id === 'image-to-video') {
+                  return {
+                    ...node,
+                    status: 'complete' as const,
+                    outputLabels: ['image video test'],
+                  };
+                }
+                if (node.id === 'review-generated-clips') {
+                  return {
+                    ...node,
+                    status: 'ready' as const,
+                    inputLabels: ['image video test'],
+                  };
+                }
+                return node;
+              }),
+            },
+          },
+        }}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onApplyGeneratedVideoTake={onApplyGeneratedVideoTake}
+      />
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /apply image video test take/i })
+    );
+    expect(onApplyGeneratedVideoTake).toHaveBeenCalledWith(
+      'clip-beat-demo-text',
+      'generated-clip-beat-demo-text-image-to-video'
+    );
+  });
+
   it('shows the image-to-video node chain inside the timeline lens', () => {
     render(
       <TimelineLens

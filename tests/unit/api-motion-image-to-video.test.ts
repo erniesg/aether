@@ -298,6 +298,67 @@ describe('POST /api/motion/image-to-video', () => {
     );
   });
 
+  it('applies a staged generated clip take into the editable timeline', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => resultFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () => provider(generate))
+    );
+
+    const { POST: generateTake } = await import('@/app/api/motion/image-to-video/route');
+    const stagedRes = await generateTake(
+      new Request('http://localhost/api/motion/image-to-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: projectWithVisualSource(),
+          providerId: 'image-video-test',
+          applyMode: 'stage',
+          requestIds: ['image-to-video-clip-beat-demo-text'],
+          requestedAt: 907,
+          updatedAt: 908,
+        }),
+      })
+    );
+    const stagedJson = await stagedRes.json();
+
+    const { POST: applyTake } = await import('@/app/api/motion/image-to-video/take/route');
+    const res = await applyTake(
+      new Request('http://localhost/api/motion/image-to-video/take', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: stagedJson.project,
+          clipId: 'clip-beat-demo-text',
+          takeId: 'generated-clip-beat-demo-text-image-to-video',
+          requestedAt: 909,
+          updatedAt: 910,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'take-applied',
+      project: {
+        id: 'motion-aether-launch',
+        updatedAt: 910,
+      },
+    });
+    const appliedClip = json.project.tracks
+      .flatMap((track: { clips: Array<{ id: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { id: string }) => clip.id === 'clip-beat-demo-text');
+    expect(appliedClip).toMatchObject({
+      assetId: 'generated-clip-beat-demo-text-image-to-video',
+      props: {
+        generatedVideoAssetId: 'generated-clip-beat-demo-text-image-to-video',
+        selectedGeneratedVideoTakeId: 'generated-clip-beat-demo-text-image-to-video',
+      },
+    });
+    expect(json.previewPlan.visualGenerationSummary.nodePlan.nextNodeId).toBe('timeline-update');
+  });
+
   it('returns visual-source blockers before resolving providers', async () => {
     const generate = vi.fn(async (request: MotionImageToVideoRequest) => resultFor(request));
     unregister.push(

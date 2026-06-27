@@ -31,6 +31,12 @@ export interface MotionGeneratedVideoTake {
   provenance: MotionProvenanceRef[];
 }
 
+export interface ApplyStagedMotionImageToVideoTakeOptions {
+  clipId: string;
+  takeId: string;
+  updatedAt?: number;
+}
+
 export function applyMotionImageToVideoResultToMotionProject(
   project: MotionProject,
   result: MotionImageToVideoResult,
@@ -55,6 +61,27 @@ export function applyMotionImageToVideoResultToMotionProject(
       result,
       options.updatedAt ?? project.updatedAt
     ),
+    updatedAt: options.updatedAt ?? project.updatedAt,
+  };
+}
+
+export function applyStagedMotionImageToVideoTake(
+  project: MotionProject,
+  options: ApplyStagedMotionImageToVideoTakeOptions
+): MotionProject | null {
+  const take = findGeneratedVideoTake(project, options.clipId, options.takeId);
+  if (!take) return null;
+
+  return {
+    ...project,
+    tracks: applyGeneratedVideoTakeToTracks(project.tracks, options.clipId, take),
+    drafts: project.drafts.map((draft) => ({
+      ...draft,
+      tracks:
+        draft.tracks.length > 0
+          ? applyGeneratedVideoTakeToTracks(draft.tracks, options.clipId, take)
+          : draft.tracks,
+    })),
     updatedAt: options.updatedAt ?? project.updatedAt,
   };
 }
@@ -110,6 +137,19 @@ function applyArtifactsToTracks(
   }));
 }
 
+function applyGeneratedVideoTakeToTracks(
+  tracks: TimelineTrack[],
+  clipId: string,
+  take: MotionGeneratedVideoTake
+): TimelineTrack[] {
+  return tracks.map((track) => ({
+    ...track,
+    clips: track.clips.map((clip) =>
+      clip.id === clipId ? applyGeneratedVideoTakeToClip(clip, take) : clip
+    ),
+  }));
+}
+
 function stageArtifactsOnTracks(
   tracks: TimelineTrack[],
   providerId: string,
@@ -153,6 +193,40 @@ function applyArtifactToClip(
       ...clip.provenance,
       ...artifact.provenance,
       imageToVideoArtifactRef(artifact),
+    ]),
+  };
+}
+
+function applyGeneratedVideoTakeToClip(
+  clip: TimelineClip,
+  take: MotionGeneratedVideoTake
+): TimelineClip {
+  const props = { ...clip.props };
+  delete props.pendingGeneratedVideoTakeId;
+
+  return {
+    ...clip,
+    assetId: take.assetId,
+    props: {
+      ...props,
+      assetId: take.assetId,
+      assetUrl: take.assetUrl,
+      generatedVideoAssetId: take.assetId,
+      generatedVideoUrl: take.assetUrl,
+      imageToVideoProviderId: take.providerId,
+      sourceAssetId: take.sourceAssetId,
+      ...(take.sourceVisualAssetId ? { sourceVisualAssetId: take.sourceVisualAssetId } : {}),
+      ...(take.durationMs === undefined ? {} : { durationMs: take.durationMs }),
+      width: take.width,
+      height: take.height,
+      mimeType: take.mimeType,
+      selectedGeneratedVideoTakeId: take.id,
+      status: 'ready',
+    },
+    provenance: uniqueProvenance([
+      ...clip.provenance,
+      ...take.provenance,
+      imageToVideoTakeRef(take),
     ]),
   };
 }
@@ -235,6 +309,28 @@ function upsertGeneratedVideoTake(
   return [...takes.filter((take) => take.id !== nextTake.id), nextTake];
 }
 
+function findGeneratedVideoTake(
+  project: MotionProject,
+  clipId: string,
+  takeId: string
+): MotionGeneratedVideoTake | null {
+  for (const clip of allProjectClips(project)) {
+    if (clip.id !== clipId) continue;
+    const take = generatedVideoTakesFromProps(clip.props.generatedVideoTakes).find(
+      (candidate) => candidate.id === takeId
+    );
+    if (take) return take;
+  }
+  return null;
+}
+
+function allProjectClips(project: MotionProject): TimelineClip[] {
+  return [
+    ...project.tracks.flatMap((track) => track.clips),
+    ...project.drafts.flatMap((draft) => draft.tracks.flatMap((track) => track.clips)),
+  ];
+}
+
 function upsertImageToVideoNode(
   nodes: MotionGraphNode[],
   result: MotionImageToVideoResult,
@@ -282,6 +378,10 @@ function imageToVideoResultProvenance(
 
 function imageToVideoArtifactRef(artifact: MotionGeneratedVideoClip): MotionProvenanceRef {
   return { kind: 'image-to-video', ref: artifact.id };
+}
+
+function imageToVideoTakeRef(take: MotionGeneratedVideoTake): MotionProvenanceRef {
+  return { kind: 'image-to-video', ref: take.id };
 }
 
 function stringProp(value: unknown): string | undefined {
