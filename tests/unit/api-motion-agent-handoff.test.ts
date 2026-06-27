@@ -740,6 +740,66 @@ describe('POST /api/motion/agent-handoff', () => {
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
+  it('auto-applies the pending generated video take when no take ids are supplied', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+
+    const startJson = await startLocalRepoProject('review');
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['review-capture', 'generate-visuals', 'apply-generated-video-take'],
+          input: {
+            imageToVideoProviderId: 'image-video-test',
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({ templateId: 'review-capture', status: 'complete' }),
+        expect.objectContaining({ templateId: 'generate-visuals', status: 'complete' }),
+        expect.objectContaining({
+          templateId: 'apply-generated-video-take',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            status: 'take-applied',
+          }),
+        }),
+      ],
+      finalProject: {
+        tracks: expect.arrayContaining([
+          expect.objectContaining({
+            clips: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'clip-beat-demo-text',
+                assetId: 'generated-clip-beat-demo-text-image-to-video',
+                props: expect.objectContaining({
+                  selectedGeneratedVideoTakeId: 'generated-clip-beat-demo-text-image-to-video',
+                }),
+              }),
+            ]),
+          }),
+        ]),
+      },
+    });
+  });
+
   it('records a product flow through the recording handoff template', async () => {
     const startJson = await startLocalRepoProject();
     const { POST } = await import('@/app/api/motion/agent-handoff/route');

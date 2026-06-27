@@ -55,6 +55,7 @@ export async function runMotionAgentHandoffTemplates(
     const materialized = materializeMotionAgentRequestTemplate(template, {
       project: currentProject,
       ...input.input,
+      ...autoMaterializeInputForTemplate(template, currentProject, input.input),
     });
 
     if (materialized.missingPlaceholders.length > 0) {
@@ -114,6 +115,53 @@ export async function runMotionAgentHandoffTemplates(
   };
 }
 
+function autoMaterializeInputForTemplate(
+  template: MotionAgentRequestTemplate,
+  project: MotionProject,
+  input?: Omit<MaterializeMotionAgentRequestTemplateInput, 'project'>
+): Omit<MaterializeMotionAgentRequestTemplateInput, 'project'> {
+  if (template.id !== 'apply-generated-video-take') return {};
+  if (input?.generatedVideoClipId && input.generatedVideoTakeId) return {};
+
+  const pendingTake = findPendingGeneratedVideoTake(project);
+  if (!pendingTake) return {};
+
+  return {
+    generatedVideoClipId: input?.generatedVideoClipId ?? pendingTake.clipId,
+    generatedVideoTakeId: input?.generatedVideoTakeId ?? pendingTake.takeId,
+  };
+}
+
+function findPendingGeneratedVideoTake(
+  project: MotionProject
+): { clipId: string; takeId: string } | null {
+  for (const clip of [
+    ...project.tracks.flatMap((track) => track.clips),
+    ...project.drafts
+      .filter((draft) => draft.id === project.currentDraftId)
+      .flatMap((draft) => draft.tracks.flatMap((track) => track.clips)),
+  ]) {
+    const selectedTakeId = stringProp(clip.props.selectedGeneratedVideoTakeId);
+    for (const take of generatedVideoTakesFromValue(clip.props.generatedVideoTakes)) {
+      if (take.takeId !== selectedTakeId) {
+        return { clipId: clip.id, takeId: take.takeId };
+      }
+    }
+  }
+
+  return null;
+}
+
+function generatedVideoTakesFromValue(value: unknown): Array<{ takeId: string }> {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return [];
+    const takeId = stringProp((candidate as Record<string, unknown>).id);
+    return takeId ? [{ takeId }] : [];
+  });
+}
+
 function findTemplate(
   templates: MotionAgentRequestTemplate[],
   templateId: string
@@ -129,4 +177,8 @@ function projectFromResponse(json: Record<string, unknown>): MotionProject | nul
   const project = json.project;
   if (!project || typeof project !== 'object' || Array.isArray(project)) return null;
   return project as MotionProject;
+}
+
+function stringProp(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 }
