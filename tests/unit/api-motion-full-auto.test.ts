@@ -9,6 +9,7 @@ import type {
   CaptureRequest,
   CaptureResult,
 } from '@/lib/providers/capture/types';
+import { resetConfiguredMotionRenderProvidersForTests } from '@/lib/providers/video/configured-render';
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
 import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
@@ -25,6 +26,15 @@ import type {
   MotionRenderRequest,
   MotionRenderResult,
 } from '@/lib/providers/video/types';
+
+const RENDER_ENV_KEYS = [
+  'AETHER_MOTION_RENDER_PROJECT_DIR',
+  'AETHER_REMOTION_RENDER_PROJECT_DIR',
+  'AETHER_HYPERFRAMES_RENDER_PROJECT_DIR',
+] as const;
+const ORIGINAL_RENDER_ENV = Object.fromEntries(
+  RENDER_ENV_KEYS.map((key) => [key, process.env[key]])
+);
 
 const captureRunnerMock = vi.hoisted(() => {
   const captureCalls: CaptureRequest[] = [];
@@ -320,6 +330,8 @@ describe('POST /api/motion/full-auto', () => {
 
   afterEach(() => {
     while (unregister.length > 0) unregister.pop()?.();
+    resetConfiguredMotionRenderProvidersForTests();
+    restoreRenderEnv();
   });
 
   it('returns a saved full-auto pause with production, review, and preview plans', async () => {
@@ -726,6 +738,60 @@ describe('POST /api/motion/full-auto', () => {
     expect(generate).not.toHaveBeenCalled();
     expect(synthesize).not.toHaveBeenCalled();
     expect(render).not.toHaveBeenCalled();
+  });
+
+  it('uses env-configured render providers for render setup dry-runs', async () => {
+    process.env.AETHER_REMOTION_RENDER_PROJECT_DIR = '/tmp/aether-remotion-render';
+
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: projectWithSelectedVisualSource(),
+          setupDryRun: {
+            setupId: 'render',
+          },
+          renderEngine: 'remotion',
+          requestedAt: 792,
+          updatedAt: 793,
+          requestedEngines: ['remotion'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      setupDryRun: {
+        setupId: 'render',
+        gateId: 'render',
+        receiptLabels: ['source lint', 'contact sheet', 'mp4 probe'],
+      },
+      project: {
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'execution-setup-render-793',
+            gateId: 'setup',
+            label: 'Render runner',
+            providerId: 'remotion-local',
+            receiptLabels: ['source lint', 'contact sheet', 'mp4 probe'],
+          }),
+        ]),
+      },
+      providers: {
+        render: [
+          {
+            id: 'remotion-local',
+            engine: 'remotion',
+            displayName: 'Remotion local render',
+            available: true,
+          },
+        ],
+      },
+    });
   });
 
   it('executes image-to-video providers for selected visual sources before pausing at voice', async () => {
@@ -1139,3 +1205,11 @@ describe('POST /api/motion/full-auto', () => {
     });
   });
 });
+
+function restoreRenderEnv(): void {
+  for (const key of RENDER_ENV_KEYS) {
+    const original = ORIGINAL_RENDER_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}

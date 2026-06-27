@@ -50,6 +50,7 @@ import {
   MotionRenderProviderUnavailableError,
   resolveMotionRenderProvider,
 } from '@/lib/providers/video/render-registry';
+import { ensureConfiguredMotionRenderProviders } from '@/lib/providers/video/configured-render';
 import {
   listMotionImageToVideoProviders,
   MotionImageToVideoProviderUnavailableError,
@@ -80,6 +81,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  ensureConfiguredMotionRenderProviders();
+
   let body: MotionFullAutoRequestBody;
   try {
     const parsed = await request.json();

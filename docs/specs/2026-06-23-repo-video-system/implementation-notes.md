@@ -352,6 +352,13 @@
   `captureRunner.kind = "playwright-local"` contract as the capture route, so a
   trusted agent can launch a local repo app, collect capture receipts, and
   continue the saved queue without registering a global capture provider.
+- Local Remotion/HyperFrames render runners can now be enabled from trusted
+  environment config. `AETHER_REMOTION_RENDER_PROJECT_DIR`,
+  `AETHER_HYPERFRAMES_RENDER_PROJECT_DIR`, or the shared
+  `AETHER_MOTION_RENDER_PROJECT_DIR` register provider-neutral local command
+  renderers for `/api/motion/render` and saved full-auto render setup gates;
+  when unset, the render routes still fail closed with provider-required
+  handoffs.
 - Workflow skill launch kits now expose review objects for PR/repo evidence,
   draft variations, component regeneration handles, teaser targets, and export
   packs. The generated `SKILL.md` instructions include those objects, the

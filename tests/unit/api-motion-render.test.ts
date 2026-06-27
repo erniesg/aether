@@ -2,12 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
+import { resetConfiguredMotionRenderProvidersForTests } from '@/lib/providers/video/configured-render';
 import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import type {
   MotionRenderProvider,
   MotionRenderRequest,
   MotionRenderResult,
 } from '@/lib/providers/video/types';
+
+const RENDER_ENV_KEYS = [
+  'AETHER_MOTION_RENDER_PROJECT_DIR',
+  'AETHER_REMOTION_RENDER_PROJECT_DIR',
+  'AETHER_HYPERFRAMES_RENDER_PROJECT_DIR',
+] as const;
+const ORIGINAL_RENDER_ENV = Object.fromEntries(
+  RENDER_ENV_KEYS.map((key) => [key, process.env[key]])
+);
 
 function baseProject(): MotionProject {
   return buildRepoLaunchMotionProject({
@@ -52,6 +62,8 @@ describe('POST /api/motion/render', () => {
 
   afterEach(() => {
     while (unregister.length > 0) unregister.pop()?.();
+    resetConfiguredMotionRenderProvidersForTests();
+    restoreRenderEnv();
   });
 
   it('returns a provider-required render handoff when no renderer is configured', async () => {
@@ -237,6 +249,44 @@ describe('POST /api/motion/render', () => {
     expect(render).not.toHaveBeenCalled();
   });
 
+  it('lists env-configured local render providers before renderer execution', async () => {
+    process.env.AETHER_REMOTION_RENDER_PROJECT_DIR = '/tmp/aether-remotion-render';
+
+    const { POST } = await import('@/app/api/motion/render/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: baseProject(),
+          engine: 'remotion',
+          requestedAt: 904,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'blocked',
+      plan: {
+        status: 'needs-timeline',
+        blockers: [{ id: 'timeline-required' }],
+      },
+      request: null,
+      renderResult: null,
+      providers: [
+        {
+          id: 'remotion-local',
+          engine: 'remotion',
+          displayName: 'Remotion local render',
+          available: true,
+        },
+      ],
+    });
+  });
+
   it('rejects malformed render requests', async () => {
     const { POST } = await import('@/app/api/motion/render/route');
     const missingProject = await POST(
@@ -280,3 +330,11 @@ describe('POST /api/motion/render', () => {
     expect(badJson.status).toBe(400);
   });
 });
+
+function restoreRenderEnv(): void {
+  for (const key of RENDER_ENV_KEYS) {
+    const original = ORIGINAL_RENDER_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}

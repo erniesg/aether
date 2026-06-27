@@ -22,6 +22,22 @@ GOOGLE_GEMINI_API_KEY=...
 REPLICATE_API_TOKEN=r8_...
 VOLCENGINE_ARK_API_KEY=...
 
+# Motion render providers.
+# Leave unset to keep render routes in provider-required mode. Set one or both
+# project dirs to enable trusted local Remotion/HyperFrames command runners for
+# repo/app launch videos and full-auto render dry-runs.
+AETHER_REMOTION_RENDER_PROJECT_DIR=/absolute/path/to/aether-motion-render
+AETHER_HYPERFRAMES_RENDER_PROJECT_DIR=/absolute/path/to/aether-hyperframes-render
+# Optional shared fallback used when an engine-specific dir is unset.
+AETHER_MOTION_RENDER_PROJECT_DIR=
+# Optional command/package overrides; defaults are `npx remotion` and
+# `npx hyperframes`.
+AETHER_MOTION_RENDER_COMMAND=
+AETHER_REMOTION_RENDER_PACKAGE=
+AETHER_HYPERFRAMES_RENDER_PACKAGE=
+AETHER_REMOTION_ENTRY_POINT=
+AETHER_HYPERFRAMES_RENDER_QUALITY=standard
+
 # Segmentation providers
 # `sam2` uses REPLICATE_API_TOKEN.
 # `sam3` expects an external HTTP endpoint, typically a Modal web endpoint.
