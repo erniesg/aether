@@ -4,6 +4,7 @@ import {
   type MotionAgentHandoffDispatchResult,
 } from '@/lib/motion/agentHandoffRunner';
 import type { MotionProject } from '@/lib/motion/project';
+import type { MotionTimelineRevisionOperation } from '@/lib/motion/revise';
 import type {
   MaterializedMotionAgentRequestTemplate,
   MotionAgentExecutionHandoff,
@@ -29,6 +30,7 @@ const ROUTE_HANDLERS: Record<string, MotionRouteHandlerLoader> = {
   '/api/motion/regenerate': async () =>
     (await import('@/app/api/motion/regenerate/route')).POST,
   '/api/motion/render': async () => (await import('@/app/api/motion/render/route')).POST,
+  '/api/motion/revise': async () => (await import('@/app/api/motion/revise/route')).POST,
   '/api/motion/source-edit': async () =>
     (await import('@/app/api/motion/source-edit/route')).POST,
   '/api/motion/sync': async () => (await import('@/app/api/motion/sync/route')).POST,
@@ -131,9 +133,19 @@ function parseInput(body: MotionAgentHandoffRequestBody) {
     computerUseCaptureRunner:
       input.computerUseCaptureRunner ?? body.computerUseCaptureRunner,
     editedSourceFiles: input.editedSourceFiles ?? body.editedSourceFiles,
+    timelineRevisionId: stringValue(input.timelineRevisionId ?? body.timelineRevisionId),
+    timelineRevisionOperations: timelineRevisionOperationsValue(
+      input.timelineRevisionOperations ?? body.timelineRevisionOperations
+    ),
   };
 }
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function timelineRevisionOperationsValue(
+  value: unknown
+): MotionTimelineRevisionOperation[] | undefined {
+  return Array.isArray(value) ? (value as MotionTimelineRevisionOperation[]) : undefined;
 }

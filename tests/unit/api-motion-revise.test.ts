@@ -100,6 +100,48 @@ describe('POST /api/motion/revise', () => {
     expect(json.project.graphNodes.some((node: { kind: string }) => node.kind === 'revision')).toBe(true);
   });
 
+  it('accepts full clip prop replacement operations from agent edits', async () => {
+    const { POST } = await import('@/app/api/motion/revise/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/revise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          id: 'revision-hook-replace-props',
+          requestedAt: 904,
+          operations: [
+            {
+              kind: 'replace-clip-props',
+              clipId: 'clip-beat-hook-text',
+              props: {
+                headline: 'Repo launch video',
+                effectPreset: 'proof-pulse',
+              },
+            },
+          ],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const hookClip = json.project.tracks
+      .flatMap((track: { clips: Array<{ id: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { id: string }) => clip.id === 'clip-beat-hook-text');
+
+    expect(hookClip.props).toEqual({
+      headline: 'Repo launch video',
+      effectPreset: 'proof-pulse',
+    });
+    expect(json.previewPlan.timelineRows[0].clips[0]).toMatchObject({
+      clipId: 'clip-beat-hook-text',
+      effectPreset: 'proof-pulse',
+      effectLabel: 'proof pulse',
+      summary: 'Repo launch video',
+    });
+  });
+
   it('rejects unsafe timeline edits without returning a revised project', async () => {
     const { POST } = await import('@/app/api/motion/revise/route');
     const res = await POST(

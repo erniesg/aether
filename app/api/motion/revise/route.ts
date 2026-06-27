@@ -101,7 +101,7 @@ function parseOperations(value: unknown): MotionTimelineRevisionOperation[] | nu
       ];
     }
 
-    if (kind === 'update-clip-props') {
+    if (kind === 'update-clip-props' || kind === 'replace-clip-props') {
       const clipId = stringValue(candidate.clipId);
       if (!clipId || !isObject(candidate.props)) return [];
       return [{ kind, clipId, props: candidate.props }];

@@ -8,6 +8,7 @@ import {
   type MotionReferenceCorpusEntry,
 } from './referenceCorpus';
 import { buildMotionReviewPlan } from './reviewPlan';
+import type { MotionTimelineRevisionOperation } from './revise';
 import type { RoutedAgentMotionWorkflow } from './workflowRouter';
 
 export interface MotionAgentRequestTemplate {
@@ -38,6 +39,8 @@ export interface MaterializeMotionAgentRequestTemplateInput {
   renderProviderId?: string;
   computerUseCaptureRunner?: unknown;
   editedSourceFiles?: unknown;
+  timelineRevisionId?: string;
+  timelineRevisionOperations?: MotionTimelineRevisionOperation[];
 }
 
 export interface MaterializedMotionAgentRequestTemplate {
@@ -82,6 +85,8 @@ export function materializeMotionAgentRequestTemplate(
     $renderProviderId: input.renderProviderId,
     $computerUseCaptureRunner: input.computerUseCaptureRunner,
     $editedSourceFiles: input.editedSourceFiles,
+    $timelineRevisionId: input.timelineRevisionId,
+    $timelineRevisionOperations: input.timelineRevisionOperations,
   };
   const missing = new Set<string>();
 
@@ -224,6 +229,21 @@ function buildTemplates(input: {
     ...draftVariationTemplates(input.project, engines),
     ...componentRegenerationTemplates(input.project, engines),
     ...referenceSignalRegenerationTemplates(input.workflow.workflowId, engines),
+    {
+      id: 'apply-timeline-revision',
+      label: 'Apply timeline revision',
+      method: 'POST',
+      route: '/api/motion/revise',
+      toolId: 'motion-revise',
+      body: cleanBody({
+        project: PROJECT_PLACEHOLDER,
+        id: '$timelineRevisionId?',
+        operations: '$timelineRevisionOperations',
+        requestedEngines: engines,
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER, '$timelineRevisionOperations'],
+      expectedReceipts: ['updated script', 'updated timeline', 'updated preview plan'],
+    },
     {
       id: 'generate-visuals',
       label: 'Generate or select visuals',

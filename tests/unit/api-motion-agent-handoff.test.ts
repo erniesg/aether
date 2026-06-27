@@ -941,6 +941,91 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 
+  it('applies direct timeline revision operations through an agent handoff template', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['apply-timeline-revision'],
+          input: {
+            timelineRevisionId: 'agent-hook-tighten',
+            timelineRevisionOperations: [
+              {
+                kind: 'update-story-beat',
+                beatId: 'beat-hook',
+                narration: 'Tong turns a city repo into a launch-ready language video.',
+              },
+              {
+                kind: 'update-clip-props',
+                clipId: 'clip-beat-hook-text',
+                props: {
+                  text: 'City repo to launch video',
+                  emphasis: 'agent-edited hook',
+                },
+              },
+            ],
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'apply-timeline-revision',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            previewPlan: expect.objectContaining({
+              storyboard: [
+                expect.objectContaining({
+                  beatId: 'beat-hook',
+                  narration: 'Tong turns a city repo into a launch-ready language video.',
+                }),
+                ...Array(5).fill(expect.any(Object)),
+              ],
+            }),
+          }),
+        }),
+      ],
+      finalProject: {
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'node-revision-agent-hook-tighten',
+            kind: 'revision',
+            inputRefs: ['beat-hook', 'clip-beat-hook-text'],
+            outputRefs: ['beat-hook', 'clip-beat-hook-text'],
+            status: 'done',
+          }),
+        ]),
+      },
+    });
+
+    const hookClip = json.finalProject.tracks
+      .flatMap((track: { clips: unknown[] }) => track.clips)
+      .find((clip: { id?: string }) => clip.id === 'clip-beat-hook-text');
+    expect(hookClip).toMatchObject({
+      props: expect.objectContaining({
+        text: 'City repo to launch video',
+        emphasis: 'agent-edited hook',
+      }),
+      provenance: expect.arrayContaining([
+        { kind: 'manual', ref: 'agent-hook-tighten' },
+        { kind: 'revision', ref: 'agent-hook-tighten' },
+      ]),
+    });
+  });
+
   it('applies edited source files through the source-edit handoff template', async () => {
     const startJson = await startLocalRepoProject();
     const plan = buildMotionRenderPlan(startJson.project, {
