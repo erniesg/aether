@@ -10,6 +10,7 @@ import type { MotionProductionPlan } from '@/lib/motion/productionPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
+import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 
 afterEach(cleanup);
 
@@ -2216,6 +2217,59 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
+  });
+
+  it('shows a source patch draft for review and apply from the timeline', async () => {
+    const onApplySourcePatchDraft = vi.fn<(draftId: string) => void>();
+    const sourcePatchDraft: MotionSourcePatchDraft = {
+      id: 'source-patch-draft-source-patch-regen-taste-demo',
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      sourceEditId: 'source-edit-regen-taste-demo',
+      sourcePatchPlanId: 'source-patch-regen-taste-demo',
+      files: [
+        { path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' },
+        { path: 'STORYBOARD.md', contents: '## beat-hook\nSource patch: Apply agent timing' },
+        {
+          path: 'EDIT.md',
+          contents: '## clip-beat-hook-text\nSource patch: Apply agent timing',
+        },
+      ],
+      targetClipIds: ['clip-beat-hook-text', 'clip-beat-payoff-text'],
+      requestTemplate: {
+        project: '$motionProject',
+        id: 'source-edit-regen-taste-demo',
+        files: '$draftSourceFiles',
+        requestedEngines: '$selectedEngines',
+        requestedAt: '$now',
+      },
+      blockers: [],
+    };
+
+    render(
+      <TimelineLens
+        tracks={tracks}
+        previewPlan={previewPlan}
+        sourcePatchDraft={sourcePatchDraft}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onApplySourcePatchDraft={onApplySourcePatchDraft}
+      />
+    );
+
+    expect(screen.getByText('source patch draft')).toBeInTheDocument();
+    expect(screen.getAllByText('/api/motion/source-edit').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('source-edit-regen-taste-demo').length).toBeGreaterThan(0);
+    expect(screen.getByText('timeline/draft-primary.json / STORYBOARD.md / EDIT.md')).toBeInTheDocument();
+    expect(screen.getByText('clip-beat-hook-text / clip-beat-payoff-text')).toBeInTheDocument();
+
+    const apply = screen.getByRole('button', { name: /apply source patch draft/i });
+    await userEvent.click(apply);
+
+    expect(onApplySourcePatchDraft).toHaveBeenCalledWith(
+      'source-patch-draft-source-patch-regen-taste-demo'
+    );
   });
 
   it('shows reference signals for reviewing and regenerating motion components', async () => {

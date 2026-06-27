@@ -320,21 +320,67 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
 
   it('timeline regeneration button plans a scoped agent handoff and refreshes motion state', async () => {
     const start = storedRegeneratableMotionStart();
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          ok: true,
-          project: start.project,
-          reviewPlan: start.reviewPlan,
-          previewPlan: start.previewPlan,
-          capturePlan: start.capturePlan,
-          regenerationRequest: {
-            scope: 'capture',
-          },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
-    );
+    const sourcePatchDraft = {
+      id: 'source-patch-draft-regen-capture',
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      sourceEditId: 'source-edit-regen-capture',
+      sourcePatchPlanId: 'source-patch-regen-capture',
+      files: [
+        {
+          path: 'timeline/draft-primary.json',
+          contents: '{"tracks":[]}',
+        },
+      ],
+      targetClipIds: ['clip-beat-demo-text'],
+      requestTemplate: {
+        project: '$motionProject',
+        id: 'source-edit-regen-capture',
+        files: '$draftSourceFiles',
+        requestedEngines: '$selectedEngines',
+        requestedAt: '$now',
+      },
+      blockers: [],
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes('/api/motion/regenerate')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            project: start.project,
+            reviewPlan: start.reviewPlan,
+            previewPlan: start.previewPlan,
+            capturePlan: start.capturePlan,
+            sourcePatchDraft,
+            regenerationRequest: {
+              scope: 'capture',
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.includes('/api/motion/source-edit')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            status: 'applied',
+            project: start.project,
+            reviewPlan: start.reviewPlan,
+            previewPlan: start.previewPlan,
+            appliedEdits: [],
+            blockers: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
     setMotionStartResult('demo-ws', start);
     renderShell();
 
@@ -344,12 +390,29 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent('capture regeneration planned');
     });
+    await waitFor(() => {
+      expect(screen.getByText('source patch draft')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('source-edit-regen-capture').length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/motion/regenerate',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: expect.stringContaining('"clipId":"clip-beat-demo-text"'),
+      })
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /apply source patch draft/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('source patch applied');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/source-edit',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"id":"source-edit-regen-capture"'),
       })
     );
   });

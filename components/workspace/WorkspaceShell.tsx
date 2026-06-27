@@ -102,6 +102,7 @@ import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
+import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 import type { MotionEffectPresetId } from '@/lib/motion/effectPresets';
 import {
   buildExportRequestBody,
@@ -450,6 +451,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [view, setView] = useState<ViewId>('canvas');
   const [selectedTimelineClipId, setSelectedTimelineClipId] = useState<string | null>(null);
   const [motionTimelineActionStatus, setMotionTimelineActionStatus] = useState<string | null>(null);
+  const [motionSourcePatchDraft, setMotionSourcePatchDraft] =
+    useState<MotionSourcePatchDraft | null>(null);
   const motionTimelineTracks = useMemo<TimelineTrack[]>(
     () => motionStart?.project?.tracks ?? [],
     [motionStart]
@@ -510,6 +513,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           previewPlan?: typeof motionStart.previewPlan;
           capturePlan?: typeof motionStart.capturePlan;
           regenerationRequest?: { scope?: string };
+          sourcePatchDraft?: MotionSourcePatchDraft | null;
         };
         if (!res.ok || json.ok === false) {
           throw new Error(json.error ?? `regeneration failed: ${res.status}`);
@@ -521,12 +525,62 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           previewPlan: json.previewPlan ?? motionStart.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
         });
+        setMotionSourcePatchDraft(json.sourcePatchDraft ?? null);
         setMotionTimelineActionStatus(`${json.regenerationRequest?.scope ?? action.scope} regeneration planned`);
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
     },
     [motionStart, wsId]
+  );
+  const handleTimelineApplySourcePatchDraft = useCallback(
+    async (draftId: string) => {
+      if (!motionStart?.project || !motionSourcePatchDraft) return;
+      if (motionSourcePatchDraft.id !== draftId) return;
+      if (motionSourcePatchDraft.status !== 'ready') {
+        setMotionTimelineActionStatus('source patch blocked');
+        return;
+      }
+
+      setMotionTimelineActionStatus('applying source patch');
+      try {
+        const res = await fetch(motionSourcePatchDraft.route, {
+          method: motionSourcePatchDraft.method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            id: motionSourcePatchDraft.sourceEditId,
+            files: motionSourcePatchDraft.files,
+            requestedEngines: motionStart.workflow.plan.engines,
+            requestedAt: Date.now(),
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          status?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error ?? `source patch failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project ?? motionStart.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan ?? motionStart.previewPlan,
+        });
+        setMotionSourcePatchDraft(null);
+        setMotionTimelineActionStatus(
+          json.status === 'applied' ? 'source patch applied' : `source patch ${json.status ?? 'saved'}`
+        );
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionSourcePatchDraft, motionStart, wsId]
   );
   const handleTimelineDraftSelect = useCallback(
     (draftId: string) => {
@@ -553,6 +607,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
         });
         setMotionTimelineActionStatus(`${draft.label} selected`);
+        setMotionSourcePatchDraft(null);
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
@@ -3005,6 +3060,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           <TimelineLens
             tracks={motionTimelineTracks}
             previewPlan={motionPreviewPlan}
+            sourcePatchDraft={motionSourcePatchDraft}
             selectedClipId={selectedTimelineClipId}
             onSelectClip={setSelectedTimelineClipId}
             onSelectDraft={handleTimelineDraftSelect}
@@ -3013,6 +3069,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSyncMotion={handleTimelineSync}
             onRenderMotion={handleTimelineRender}
             onPreparePreviewSource={handleTimelinePreparePreviewSource}
+            onApplySourcePatchDraft={handleTimelineApplySourcePatchDraft}
             onRunFullAuto={handleTimelineRunFullAuto}
             onDropMotionPlanToCanvas={handleTimelineDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={handleTimelineDropRenderProofToCanvas}

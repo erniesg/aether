@@ -18,6 +18,7 @@ import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
 import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
+import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 import type {
   MotionProductionPlan,
   MotionProductionStep,
@@ -69,6 +70,7 @@ export interface TimelineLensProps {
   tracks: TimelineTrack[];
   previewPlan?: MotionPreviewPlan | null;
   preparedPreviewSource?: MotionPreparedPreviewSource | null;
+  sourcePatchDraft?: MotionSourcePatchDraft | null;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
@@ -77,6 +79,7 @@ export interface TimelineLensProps {
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
+  onApplySourcePatchDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
@@ -102,6 +105,7 @@ export function TimelineLens({
   tracks,
   previewPlan,
   preparedPreviewSource = null,
+  sourcePatchDraft = null,
   selectedClipId,
   onSelectClip,
   onSelectDraft,
@@ -110,6 +114,7 @@ export function TimelineLens({
   onSyncMotion,
   onRenderMotion,
   onPreparePreviewSource,
+  onApplySourcePatchDraft,
   onRunFullAuto,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
@@ -161,6 +166,7 @@ export function TimelineLens({
           <MotionPreviewPlanView
             previewPlan={previewPlan}
             preparedPreviewSource={preparedPreviewSource}
+            sourcePatchDraft={sourcePatchDraft}
             selectedClipId={selectedClipId}
             onSelectClip={onSelectClip}
             onSelectDraft={onSelectDraft}
@@ -169,6 +175,7 @@ export function TimelineLens({
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
             onPreparePreviewSource={onPreparePreviewSource}
+            onApplySourcePatchDraft={onApplySourcePatchDraft}
             onRunFullAuto={onRunFullAuto}
             onSelectCapabilitySetup={onSelectCapabilitySetup}
             onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
@@ -213,6 +220,7 @@ export function TimelineLens({
 function MotionPreviewPlanView({
   previewPlan,
   preparedPreviewSource,
+  sourcePatchDraft,
   selectedClipId,
   onSelectClip,
   onSelectDraft,
@@ -221,6 +229,7 @@ function MotionPreviewPlanView({
   onSyncMotion,
   onRenderMotion,
   onPreparePreviewSource,
+  onApplySourcePatchDraft,
   onRunFullAuto,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
@@ -243,6 +252,7 @@ function MotionPreviewPlanView({
 }: {
   previewPlan: MotionPreviewPlan;
   preparedPreviewSource: MotionPreparedPreviewSource | null;
+  sourcePatchDraft: MotionSourcePatchDraft | null;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
@@ -251,6 +261,7 @@ function MotionPreviewPlanView({
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
+  onApplySourcePatchDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
@@ -452,6 +463,15 @@ function MotionPreviewPlanView({
       <section className="border-b border-border-soft px-4 py-3">
         <MotionEditSourceStrip editSource={previewPlan.editSource} />
       </section>
+
+      {sourcePatchDraft ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionSourcePatchDraftStrip
+            draft={sourcePatchDraft}
+            onApplySourcePatchDraft={onApplySourcePatchDraft}
+          />
+        </section>
+      ) : null}
 
       {previewPlan.sourceProfile ? (
         <section className="border-b border-border-soft px-4 py-3">
@@ -1962,6 +1982,71 @@ function MotionEditSourceStrip({
             <div className="font-caption text-xs text-ink-faint">no editable targets</div>
           ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionSourcePatchDraftStrip({
+  draft,
+  onApplySourcePatchDraft,
+}: {
+  draft: MotionSourcePatchDraft;
+  onApplySourcePatchDraft?: (draftId: string) => void;
+}) {
+  const fileLabel = draft.files.map((file) => file.path).join(' / ') || 'source files pending';
+  const clipLabel = draft.targetClipIds.join(' / ') || 'target clips pending';
+  const canApply = draft.status === 'ready' && Boolean(onApplySourcePatchDraft);
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            source patch draft
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {draft.status === 'ready'
+              ? draft.sourceEditId
+              : draft.blockers[0] ?? 'source patch blocked'}
+          </div>
+        </div>
+        <Chip tone={draft.status === 'ready' ? 'ok' : 'warn'} size="sm">
+          {draft.status}
+        </Chip>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_180px]">
+        <div className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="flex flex-wrap items-center gap-1">
+            <Chip tone="neutral" size="sm">
+              {draft.route}
+            </Chip>
+            <Chip tone="info" size="sm">
+              {draft.sourceEditId}
+            </Chip>
+          </div>
+          <div className="mt-2 truncate font-caption text-xs text-ink">
+            {fileLabel}
+          </div>
+          <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+            {clipLabel}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={!canApply}
+          onClick={() => onApplySourcePatchDraft?.(draft.id)}
+          className={cn(
+            'rounded-sm border px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+            canApply
+              ? 'border-accent/50 bg-accent/10 text-accent hover:border-accent hover:text-ink'
+              : 'cursor-default border-border-soft bg-surface-panel text-ink-faint'
+          )}
+        >
+          apply source patch draft
+        </button>
       </div>
     </div>
   );
