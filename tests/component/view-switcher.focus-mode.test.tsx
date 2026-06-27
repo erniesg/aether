@@ -614,6 +614,47 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('advanced node lens scopes visual-source regeneration to one request', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'ready',
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          visualSourcingPlan: {
+            status: 'ready',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /open node lens/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /regenerate find motion references/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('visual sources planned');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/visuals',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining(
+          '"requestIds":["visual-source-reference-search"]'
+        ),
+      })
+    );
+  });
+
   it('advanced node lens scopes image-to-video generation to one request', async () => {
     const start = storedRegeneratableMotionStart();
     const attachVisualSource = (tracks: TimelineTrack[]) =>

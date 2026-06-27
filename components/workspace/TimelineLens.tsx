@@ -85,7 +85,7 @@ export interface TimelineLensProps {
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
-  onPlanVisuals?: () => void;
+  onPlanVisuals?: (requestIds?: string[]) => void;
   onGenerateVideoClips?: (requestIds?: string[]) => void;
   onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
@@ -267,7 +267,7 @@ function MotionPreviewPlanView({
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
   onExportPack?: () => void;
-  onPlanVisuals?: () => void;
+  onPlanVisuals?: (requestIds?: string[]) => void;
   onGenerateVideoClips?: (requestIds?: string[]) => void;
   onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
@@ -3263,7 +3263,7 @@ function ImageToVideoActionButton({
   onGenerateVideoClips,
 }: {
   summary: MotionPreviewVisualGenerationSummary;
-  onPlanVisuals?: () => void;
+  onPlanVisuals?: (requestIds?: string[]) => void;
   onGenerateVideoClips: () => void;
 }) {
   const ready = summary.status === 'ready';
@@ -3277,7 +3277,13 @@ function ImageToVideoActionButton({
   return (
     <button
       type="button"
-      onClick={shouldPlanVisuals ? onPlanVisuals : onGenerateVideoClips}
+      onClick={() => {
+        if (shouldPlanVisuals) {
+          onPlanVisuals?.();
+          return;
+        }
+        onGenerateVideoClips();
+      }}
       className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
     >
       {label}
@@ -3620,7 +3626,7 @@ function MotionGenerationNodeLens({
   onExportPack,
 }: {
   previewPlan: MotionPreviewPlan;
-  onPlanVisuals?: () => void;
+  onPlanVisuals?: (requestIds?: string[]) => void;
   onGenerateVideoClips?: (requestIds?: string[]) => void;
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
@@ -3725,7 +3731,7 @@ function buildGenerationNodeLensCards(
   previewPlan: MotionPreviewPlan,
   options: {
     renderEngine: MotionRenderEngine | null;
-    onPlanVisuals?: () => void;
+    onPlanVisuals?: (requestIds?: string[]) => void;
     onGenerateVideoClips?: (requestIds?: string[]) => void;
     onGenerateVoice?: () => void;
     onSyncMotion?: () => void;
@@ -3736,6 +3742,25 @@ function buildGenerationNodeLensCards(
   const visualNode = previewPlan.visualGenerationSummary.nodePlan.nodes.find(
     (node) => node.id === 'image-to-video'
   );
+  const visualSourceRequestNodes = previewPlan.visualSourcingSummary.requests.map((request) => ({
+    id: visualSourceRequestNodeId(request),
+    label: `Visual source · ${request.label}`,
+    status: previewPlan.visualSourcingSummary.status,
+    inputLabels: uniqueLabels([
+      ...request.sourceLabels,
+      ...request.targetRoles.map(readableLabel),
+    ]),
+    outputLabels: uniqueLabels([
+      ...request.expectedOutputs,
+      ...request.componentLabels,
+    ]),
+    providerLabels: request.providerRequirementLabels,
+    receiptLabels: request.expectedOutputs,
+    actionLabel: options.onPlanVisuals ? `regenerate ${request.label}` : null,
+    onAction: options.onPlanVisuals
+      ? () => options.onPlanVisuals?.([request.requestId])
+      : undefined,
+  }));
   const imageToVideoRequestNodes = previewPlan.visualGenerationSummary.requests.map((request) => ({
     id: imageToVideoRequestNodeId(request),
     label: `Image-to-video · ${request.componentLabel}`,
@@ -3779,6 +3804,7 @@ function buildGenerationNodeLensCards(
       actionLabel: options.onPlanVisuals ? 'regenerate Visual sources' : null,
       onAction: options.onPlanVisuals,
     },
+    ...visualSourceRequestNodes,
     {
       id: 'image-to-video',
       label: 'Image-to-video',
@@ -3852,6 +3878,12 @@ function buildGenerationNodeLensCards(
   ];
 }
 
+function visualSourceRequestNodeId(
+  request: MotionPreviewVisualSourcingSummary['requests'][number]
+): string {
+  return `visual-source-request-${request.requestId}`;
+}
+
 function imageToVideoRequestNodeId(
   request: MotionPreviewVisualGenerationSummary['requests'][number]
 ): string {
@@ -3881,6 +3913,18 @@ function buildGenerationNodeLensEdges(
       : 'image-to-video';
   return uniqueGenerationNodeLensEdges([
     ...visualEdges,
+    ...previewPlan.visualSourcingSummary.requests.flatMap((request) => [
+      {
+        from: 'visual-source',
+        to: visualSourceRequestNodeId(request),
+        label: 'scopes source',
+      },
+      {
+        from: visualSourceRequestNodeId(request),
+        to: 'image-to-video',
+        label: 'feeds motion',
+      },
+    ]),
     ...previewPlan.visualGenerationSummary.requests.flatMap((request) => [
       {
         from: 'image-to-video',

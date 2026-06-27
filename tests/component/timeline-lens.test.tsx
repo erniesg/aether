@@ -3455,14 +3455,18 @@ describe('TimelineLens', () => {
 
     expect(screen.getByText('advanced node lens')).toBeInTheDocument();
     const generationPath = within(screen.getByLabelText('generation path'));
-    expect(generationPath.getByText('Source visuals')).toBeInTheDocument();
+    expect(generationPath.getAllByText('Source visuals').length).toBeGreaterThan(0);
     expect(generationPath.getByText('animates')).toBeInTheDocument();
+    expect(generationPath.getAllByText('scopes source').length).toBeGreaterThan(0);
+    expect(generationPath.getAllByText('feeds motion').length).toBeGreaterThan(0);
     expect(generationPath.getByText('offers takes')).toBeInTheDocument();
     expect(generationPath.getByText('sets timing')).toBeInTheDocument();
     expect(generationPath.getByText('adds narration')).toBeInTheDocument();
     expect(generationPath.getByText('renders proof')).toBeInTheDocument();
     expect(generationPath.getByText('packages')).toBeInTheDocument();
     expect(screen.getAllByText('Visual sources').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Visual source · Find motion references').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Visual source · Generate key stills').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Image-to-video').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Image-to-video · App frame').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Voice and captions').length).toBeGreaterThan(0);

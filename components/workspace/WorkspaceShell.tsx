@@ -1125,7 +1125,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
-  const handleTimelinePlanVisuals = useCallback(async () => {
+  const handleTimelinePlanVisuals = useCallback(async (requestIds?: string[]) => {
     if (!motionStart?.project) return;
 
     setMotionTimelineActionStatus('planning visual sources');
@@ -1137,6 +1137,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         body: JSON.stringify({
           project: motionStart.project,
           draftId: motionStart.project.currentDraftId,
+          ...(requestIds?.length ? { requestIds } : {}),
           requestedAt,
         }),
       });
