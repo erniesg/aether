@@ -646,6 +646,71 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 
+  it('stages component regeneration through an agent handoff template', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['regenerate-component-clip-beat-demo-text-capture'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'regenerate-component-clip-beat-demo-text-capture',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            regenerationRequest: expect.objectContaining({
+              projectId: 'motion-tong-agent-route',
+              clipId: 'clip-beat-demo-text',
+              componentId: 'app-frame',
+              scope: 'capture',
+              prompt: 'Regenerate capture for App frame',
+              status: 'planned',
+            }),
+          }),
+        }),
+      ],
+      finalProject: {
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'revision',
+            inputRefs: expect.arrayContaining(['clip-beat-demo-text', 'beat-demo']),
+            status: 'planned',
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'drafts',
+            label: 'Regenerate capture for App frame',
+            receiptLabels: ['Regeneration request', 'Capture plan'],
+          }),
+        ]),
+      },
+      finalResponse: {
+        previewPlan: {
+          executionHistory: {
+            status: 'saved',
+            latestReceiptLabels: ['Regeneration request', 'Capture plan'],
+          },
+        },
+      },
+    });
+  });
+
   it('applies edited source files through the source-edit handoff template', async () => {
     const startJson = await startLocalRepoProject();
     const plan = buildMotionRenderPlan(startJson.project, {

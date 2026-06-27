@@ -368,6 +368,26 @@ describe('POST /api/motion/start', () => {
             ]),
           }),
           expect.objectContaining({
+            id: 'regenerate-component-clip-beat-demo-text-capture',
+            label: 'Regenerate capture for App frame',
+            method: 'POST',
+            route: '/api/motion/regenerate',
+            toolId: 'motion-capture',
+            body: {
+              project: '$motionProject',
+              clipId: 'clip-beat-demo-text',
+              scope: 'capture',
+              prompt: 'Regenerate capture for App frame',
+              requestedEngines: ['remotion', 'hyperframes'],
+            },
+            inputPlaceholders: ['$motionProject'],
+            expectedReceipts: [
+              'regeneration request',
+              'capture plan',
+              'updated preview plan',
+            ],
+          }),
+          expect.objectContaining({
             id: 'prepare-preview-source',
             label: 'Prepare preview source',
             route: '/api/motion/preview-source',

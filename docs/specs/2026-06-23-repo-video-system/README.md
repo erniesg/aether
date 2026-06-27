@@ -199,6 +199,9 @@ capture, render, and provenance debugging.
   and site/app URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
   configured. Real screen capture and recording remain provider execution work.
+  Component regeneration actions are now also agent handoff templates, so the
+  same boundary can stage scoped capture, caption, timing, effect, proof, code,
+  or copy revisions from the reviewable draft board.
 - `lib/motion/productionPlan.ts` now derives a concrete production queue from an
   editable motion project: plan, drafts, capture, image-to-video, voice, sync,
   render, and export steps are marked complete, ready, blocked, review, or

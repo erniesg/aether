@@ -1,7 +1,9 @@
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { WorkflowEngine } from '@/lib/workflow/registry';
 import type { AgentMotionCapturePlan } from './capturePlan';
+import type { MotionRegenerateScope } from './componentRegistry';
 import type { MotionProject, MotionWorkflowMode } from './project';
+import { buildMotionReviewPlan } from './reviewPlan';
 import type { RoutedAgentMotionWorkflow } from './workflowRouter';
 
 export interface MotionAgentRequestTemplate {
@@ -197,6 +199,7 @@ function buildTemplates(input: {
   }
 
   templates.push(
+    ...componentRegenerationTemplates(input.project, engines),
     {
       id: 'generate-visuals',
       label: 'Generate or select visuals',
@@ -293,6 +296,76 @@ function buildTemplates(input: {
   );
 
   return templates;
+}
+
+function componentRegenerationTemplates(
+  project: MotionProject,
+  engines: WorkflowEngine[]
+): MotionAgentRequestTemplate[] {
+  const reviewPlan = buildMotionReviewPlan(project);
+
+  return reviewPlan.componentSlots.flatMap((slot) =>
+    slot.regenerateScopes.map((scope) => {
+      const label = `Regenerate ${scope} for ${slot.componentLabel}`;
+      return {
+        id: `regenerate-component-${slot.clipId}-${scope}`,
+        label,
+        method: 'POST' as const,
+        route: '/api/motion/regenerate',
+        toolId: regenerationToolIdForScope(scope),
+        body: cleanBody({
+          project: PROJECT_PLACEHOLDER,
+          clipId: slot.clipId,
+          scope,
+          prompt: label,
+          requestedEngines: engines,
+        }),
+        inputPlaceholders: [PROJECT_PLACEHOLDER],
+        expectedReceipts: regenerationReceiptLabelsForScope(scope),
+      };
+    })
+  );
+}
+
+function regenerationToolIdForScope(scope: MotionRegenerateScope): ToolRegistryId {
+  switch (scope) {
+    case 'capture':
+      return 'motion-capture';
+    case 'asset':
+    case 'proof':
+    case 'code':
+    case 'diagram':
+      return 'motion-visuals';
+    case 'caption':
+      return 'motion-voice';
+    case 'timing':
+    case 'effect':
+      return 'motion-revise';
+    case 'copy':
+    case 'cta':
+      return 'motion-storyboard';
+  }
+}
+
+function regenerationReceiptLabelsForScope(scope: MotionRegenerateScope): string[] {
+  switch (scope) {
+    case 'capture':
+      return ['regeneration request', 'capture plan', 'updated preview plan'];
+    case 'asset':
+    case 'proof':
+    case 'code':
+    case 'diagram':
+      return ['regeneration request', 'visual source plan', 'updated preview plan'];
+    case 'caption':
+      return ['regeneration request', 'voice and caption update', 'updated preview plan'];
+    case 'timing':
+      return ['regeneration request', 'timing update', 'updated preview plan'];
+    case 'effect':
+      return ['regeneration request', 'effect update', 'updated preview plan'];
+    case 'copy':
+    case 'cta':
+      return ['regeneration request', 'script update', 'updated preview plan'];
+  }
 }
 
 function setupDryRunTemplates(input: {
