@@ -3,6 +3,7 @@ import type { WorkflowEngine } from '@/lib/workflow/registry';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
+import { applyMotionSyncPlanToMotionProject } from '@/lib/motion/syncApply';
 import { buildMotionSyncPlan } from '@/lib/motion/syncPlan';
 
 export const runtime = 'nodejs';
@@ -41,21 +42,50 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const requestedAt = numericValue(body.requestedAt) ?? Date.now();
+  const updatedAt = numericValue(body.updatedAt) ?? requestedAt;
+  const draftId = stringValue(body.draftId);
+  const fps = numericValue(body.fps);
   const project = body.project as unknown as MotionProject;
 
   try {
+    const syncPlan = buildMotionSyncPlan(project, {
+      draftId,
+      fps,
+      requestedAt,
+    });
+
+    if (syncPlan.status === 'ready') {
+      const syncedProject = applyMotionSyncPlanToMotionProject(project, syncPlan, {
+        providerId: 'motion-sync',
+        updatedAt,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        status: 'synced',
+        project: syncedProject,
+        syncPlan: buildMotionSyncPlan(syncedProject, {
+          draftId,
+          fps,
+          requestedAt,
+        }),
+        reviewPlan: buildMotionReviewPlan(syncedProject),
+        previewPlan: buildMotionPreviewPlan(syncedProject, {
+          engines: requestedEngines ?? undefined,
+          fps,
+          requestedAt,
+        }),
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       project,
-      syncPlan: buildMotionSyncPlan(project, {
-        draftId: stringValue(body.draftId),
-        fps: numericValue(body.fps),
-        requestedAt,
-      }),
+      syncPlan,
       reviewPlan: buildMotionReviewPlan(project),
       previewPlan: buildMotionPreviewPlan(project, {
         engines: requestedEngines ?? undefined,
-        fps: numericValue(body.fps),
+        fps,
         requestedAt,
       }),
     });
