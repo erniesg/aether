@@ -619,6 +619,49 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     },
     [motionStart, wsId]
   );
+  const handleTimelineDraftApprove = useCallback(
+    (draftId: string) => {
+      if (!motionStart?.project) return;
+      const draft = motionStart.project.drafts.find((candidate) => candidate.id === draftId);
+      if (!draft) return;
+
+      try {
+        const requestedAt = Date.now();
+        const project = materializeMotionTimeline(
+          {
+            ...motionStart.project,
+            drafts: motionStart.project.drafts.map((candidate) => {
+              if (candidate.id === draftId) return { ...candidate, status: 'approved' as const };
+              if (candidate.status === 'approved') return { ...candidate, status: 'ready' as const };
+              return candidate;
+            }),
+          },
+          {
+            draftId,
+            updatedAt: requestedAt,
+          }
+        );
+        const capturePlan = buildAgentMotionCapturePlan(project);
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project,
+          reviewPlan: buildMotionReviewPlan(project),
+          previewPlan: buildMotionPreviewPlan(project, {
+            engines: motionStart.workflow.plan.engines,
+            workflowRunPlan: motionStart.workflow.plan.runPlan,
+            requestedAt,
+          }),
+          capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+          sourcePatchDraft: null,
+        });
+        setMotionTimelineActionStatus(`${draft.label} approved`);
+        setMotionSourcePatchDraft(null);
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
   const handleTimelineClipSummaryEdit = useCallback(
     async (clipId: string, summary: string) => {
       if (!motionStart?.project) return;
@@ -3127,6 +3170,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onRenderMotion={handleTimelineRender}
             onPreparePreviewSource={handleTimelinePreparePreviewSource}
             onApplySourcePatchDraft={handleTimelineApplySourcePatchDraft}
+            onApproveDraft={handleTimelineDraftApprove}
             onRunFullAuto={handleTimelineRunFullAuto}
             onDropMotionPlanToCanvas={handleTimelineDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={handleTimelineDropRenderProofToCanvas}

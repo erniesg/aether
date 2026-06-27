@@ -82,6 +82,7 @@ export interface TimelineLensProps {
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
   onApplySourcePatchDraft?: (draftId: string) => void;
+  onApproveDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
@@ -118,6 +119,7 @@ export function TimelineLens({
   onRenderMotion,
   onPreparePreviewSource,
   onApplySourcePatchDraft,
+  onApproveDraft,
   onRunFullAuto,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
@@ -180,6 +182,7 @@ export function TimelineLens({
             onRenderMotion={onRenderMotion}
             onPreparePreviewSource={onPreparePreviewSource}
             onApplySourcePatchDraft={onApplySourcePatchDraft}
+            onApproveDraft={onApproveDraft}
             onRunFullAuto={onRunFullAuto}
             onSelectCapabilitySetup={onSelectCapabilitySetup}
             onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
@@ -235,6 +238,7 @@ function MotionPreviewPlanView({
   onRenderMotion,
   onPreparePreviewSource,
   onApplySourcePatchDraft,
+  onApproveDraft,
   onRunFullAuto,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
@@ -268,6 +272,7 @@ function MotionPreviewPlanView({
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
   onApplySourcePatchDraft?: (draftId: string) => void;
+  onApproveDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
@@ -291,6 +296,7 @@ function MotionPreviewPlanView({
 }) {
   const selectedClip = findPreviewClip(previewPlan, selectedClipId);
   const renderEngine = preferredRenderEngine(previewPlan.enginePreviews);
+  const currentDraft = previewPlan.draftOptions.find((draft) => draft.isCurrent) ?? null;
   const [advancedNodeLensOpen, setAdvancedNodeLensOpen] = useState(false);
 
   useEffect(() => {
@@ -340,6 +346,21 @@ function MotionPreviewPlanView({
               />
             ))}
           </div>
+          {currentDraft ? (
+            <button
+              type="button"
+              disabled={!onApproveDraft || currentDraft.status === 'approved'}
+              onClick={() => onApproveDraft?.(currentDraft.draftId)}
+              className={cn(
+                'mt-2 rounded-sm border px-3 py-1.5 font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+                onApproveDraft && currentDraft.status !== 'approved'
+                  ? 'border-accent/50 bg-accent/10 text-accent hover:border-accent hover:text-ink'
+                  : 'cursor-default border-border-soft bg-surface-panel text-ink-faint'
+              )}
+            >
+              {currentDraft.status === 'approved' ? 'current draft approved' : 'approve current draft'}
+            </button>
+          ) : null}
         </div>
 
         <div className="min-w-0">

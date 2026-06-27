@@ -3171,6 +3171,7 @@ describe('TimelineLens', () => {
   it('lets creators request draft selection and scoped component regeneration', async () => {
     const onSelectDraft = vi.fn<(draftId: string) => void>();
     const onRegenerateComponent = vi.fn<(actionId: string) => void>();
+    const onApproveDraft = vi.fn<(draftId: string) => void>();
     render(
       <TimelineLens
         tracks={[]}
@@ -3178,6 +3179,7 @@ describe('TimelineLens', () => {
         selectedClipId={null}
         onSelectClip={() => {}}
         onSelectDraft={onSelectDraft}
+        onApproveDraft={onApproveDraft}
         onRegenerateComponent={onRegenerateComponent}
       />
     );
@@ -3194,6 +3196,9 @@ describe('TimelineLens', () => {
 
     await userEvent.click(demoDraft);
     expect(onSelectDraft).toHaveBeenCalledWith('draft-demo');
+
+    await userEvent.click(screen.getByRole('button', { name: /approve current draft/i }));
+    expect(onApproveDraft).toHaveBeenCalledWith('draft-primary');
 
     await userEvent.click(screen.getByRole('button', { name: /regenerate capture for app frame/i }));
     expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');

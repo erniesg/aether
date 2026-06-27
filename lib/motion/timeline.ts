@@ -130,7 +130,9 @@ export function materializeMotionTimeline(
     currentDraftId: selectedDraftId,
     tracks,
     drafts: project.drafts.map((draft) =>
-      draft.id === selectedDraftId ? { ...draft, status: 'ready', tracks } : draft
+      draft.id === selectedDraftId
+        ? { ...draft, status: draft.status === 'approved' ? 'approved' : 'ready', tracks }
+        : draft
     ),
     graphNodes: [
       ...project.graphNodes.filter((node) => node.id !== syncNode.id),

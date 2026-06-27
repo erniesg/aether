@@ -459,7 +459,7 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
-  it('timeline draft cards switch the stored motion project to that variation', async () => {
+  it('timeline draft cards switch and approve the stored motion project variation', async () => {
     setMotionStartResult('demo-ws', storedRegeneratableMotionStart());
     renderShell();
 
@@ -476,6 +476,14 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
       'aria-pressed',
       'true'
     );
+
+    const approveDraft = screen.getByRole('button', { name: /approve current draft/i });
+    expect(approveDraft).toBeEnabled();
+    await userEvent.click(approveDraft);
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('Demo-first cut approved');
+    });
+    expect(screen.getByRole('button', { name: /current draft approved/i })).toBeDisabled();
   });
 
   it('timeline voice action requests synthesis and reports provider handoff state', async () => {
