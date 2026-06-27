@@ -668,6 +668,56 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     },
     [motionStart, wsId]
   );
+  const handleTimelineClipPropsEdit = useCallback(
+    async (clipId: string, props: Record<string, string | number | boolean | null>) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus('applying source controls');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/revise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            id: `source-controls-${clipId}-${requestedAt}`,
+            requestedAt,
+            updatedAt: requestedAt,
+            requestedEngines: motionStart.workflow.plan.engines,
+            operations: [
+              {
+                kind: 'update-clip-props',
+                clipId,
+                props,
+              },
+            ],
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+        };
+        if (!res.ok || json.ok === false || !json.project || !json.previewPlan) {
+          throw new Error(json.error ?? `source control edit failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+        });
+        setMotionTimelineActionStatus('clip source updated');
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
   const handleTimelineClipEffectEdit = useCallback(
     async (clipId: string, effectPreset: MotionEffectPresetId) => {
       if (!motionStart?.project) return;
@@ -3083,6 +3133,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onPinMotionSkill={handleTimelinePinMotionSkill}
             onSelectCapabilitySetup={handleTimelineCapabilitySetupSelect}
             onEditClipSummary={handleTimelineClipSummaryEdit}
+            onEditClipProps={handleTimelineClipPropsEdit}
             onEditClipEffect={handleTimelineClipEffectEdit}
             onEditClipTiming={handleTimelineClipTimingEdit}
             capturePlan={motionStart?.capturePlan ?? null}

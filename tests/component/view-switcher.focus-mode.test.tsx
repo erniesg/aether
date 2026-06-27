@@ -614,6 +614,58 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('timeline selected app frame applies capture source, caption, and zoom edits', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          capturePlan: start.capturePlan,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /app frame clip/i }));
+    await userEvent.type(screen.getByLabelText(/clip capture asset/i), 'capture://fresh-demo');
+    await userEvent.clear(screen.getByLabelText(/clip caption/i));
+    await userEvent.type(screen.getByLabelText(/clip caption/i), 'Fresh product flow');
+    await userEvent.clear(screen.getByLabelText(/clip zoom/i));
+    await userEvent.type(screen.getByLabelText(/clip zoom/i), '1.35');
+    await userEvent.click(screen.getByRole('button', { name: /apply source controls/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('clip source updated');
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/revise',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    const reviseCall = fetchMock.mock.calls.find((call) => call[0] === '/api/motion/revise');
+    const body = JSON.parse(String(reviseCall?.[1]?.body));
+    expect(body.operations).toEqual([
+      {
+        kind: 'update-clip-props',
+        clipId: 'clip-beat-demo-text',
+        props: {
+          assetId: 'capture://fresh-demo',
+          caption: 'Fresh product flow',
+          zoom: 1.35,
+        },
+      },
+    ]);
+  });
+
   it('advanced node lens scopes visual-source regeneration to one request', async () => {
     const start = storedRegeneratableMotionStart();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(

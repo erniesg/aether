@@ -66,6 +66,8 @@ export interface TimelineCaptureActionOptions {
   captureRunner?: TimelineCaptureRunnerInput;
 }
 
+type EditableClipPropValue = string | number | boolean | null;
+
 export interface TimelineLensProps {
   tracks: TimelineTrack[];
   previewPlan?: MotionPreviewPlan | null;
@@ -91,6 +93,7 @@ export interface TimelineLensProps {
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  onEditClipProps?: (clipId: string, props: Record<string, EditableClipPropValue>) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan?: AgentMotionCapturePlan | null;
@@ -126,6 +129,7 @@ export function TimelineLens({
   onCaptureMotion,
   onPinMotionSkill,
   onEditClipSummary,
+  onEditClipProps,
   onEditClipEffect,
   onEditClipTiming,
   capturePlan = null,
@@ -187,6 +191,7 @@ export function TimelineLens({
             onCaptureMotion={onCaptureMotion}
             onPinMotionSkill={onPinMotionSkill}
             onEditClipSummary={onEditClipSummary}
+            onEditClipProps={onEditClipProps}
             onEditClipEffect={onEditClipEffect}
             onEditClipTiming={onEditClipTiming}
             capturePlan={capturePlan}
@@ -241,6 +246,7 @@ function MotionPreviewPlanView({
   onCaptureMotion,
   onPinMotionSkill,
   onEditClipSummary,
+  onEditClipProps,
   onEditClipEffect,
   onEditClipTiming,
   capturePlan,
@@ -273,6 +279,7 @@ function MotionPreviewPlanView({
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  onEditClipProps?: (clipId: string, props: Record<string, EditableClipPropValue>) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan: AgentMotionCapturePlan | null;
@@ -638,6 +645,7 @@ function MotionPreviewPlanView({
         <SelectedClipEditor
           clip={selectedClip}
           onEditClipSummary={onEditClipSummary}
+          onEditClipProps={onEditClipProps}
           onEditClipEffect={onEditClipEffect}
           onEditClipTiming={onEditClipTiming}
         />
@@ -2849,15 +2857,20 @@ function preferredRenderEngine(
 function SelectedClipEditor({
   clip,
   onEditClipSummary,
+  onEditClipProps,
   onEditClipEffect,
   onEditClipTiming,
 }: {
   clip: MotionPreviewTimelineClip;
   onEditClipSummary?: (clipId: string, summary: string) => void;
+  onEditClipProps?: (clipId: string, props: Record<string, EditableClipPropValue>) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
 }) {
   const [summary, setSummary] = useState(clip.summary);
+  const [assetId, setAssetId] = useState(editableStringValue(clip, 'assetId'));
+  const [caption, setCaption] = useState(editableStringValue(clip, 'caption', clip.summary));
+  const [zoom, setZoom] = useState(editableNumberInputValue(clip, 'zoom', 1));
   const [startSeconds, setStartSeconds] = useState(formatSecondsInput(clip.startSeconds));
   const [durationSeconds, setDurationSeconds] = useState(
     formatSecondsInput(clip.durationSeconds)
@@ -2865,11 +2878,27 @@ function SelectedClipEditor({
 
   useEffect(() => {
     setSummary(clip.summary);
+    setAssetId(editableStringValue(clip, 'assetId'));
+    setCaption(editableStringValue(clip, 'caption', clip.summary));
+    setZoom(editableNumberInputValue(clip, 'zoom', 1));
     setStartSeconds(formatSecondsInput(clip.startSeconds));
     setDurationSeconds(formatSecondsInput(clip.durationSeconds));
-  }, [clip.clipId, clip.durationSeconds, clip.startSeconds, clip.summary]);
+  }, [clip]);
 
   const canApply = summary.trim().length > 0 && summary.trim() !== clip.summary.trim();
+  const hasAssetControl = clip.editControlIds.includes('assetId');
+  const hasCaptionControl = clip.editControlIds.includes('caption');
+  const hasZoomControl = clip.editControlIds.includes('zoom');
+  const hasSourceControls = hasAssetControl || hasCaptionControl || hasZoomControl;
+  const parsedZoom = Number(zoom);
+  const zoomIsValid = !hasZoomControl || (Number.isFinite(parsedZoom) && parsedZoom > 0);
+  const sourceControlsChanged =
+    (hasAssetControl && assetId.trim() !== editableStringValue(clip, 'assetId')) ||
+    (hasCaptionControl && caption.trim() !== editableStringValue(clip, 'caption', clip.summary)) ||
+    (hasZoomControl &&
+      Math.abs(parsedZoom - editableNumberValue(clip, 'zoom', 1)) > 0.001);
+  const canApplySourceControls =
+    Boolean(onEditClipProps) && hasSourceControls && zoomIsValid && sourceControlsChanged;
   const canEditEffects = clip.regenerateScopes.includes('effect') && Boolean(onEditClipEffect);
   const parsedStartSeconds = Number(startSeconds);
   const parsedDurationSeconds = Number(durationSeconds);
@@ -2945,6 +2974,62 @@ function SelectedClipEditor({
             apply timing
           </button>
         </div>
+        {hasSourceControls ? (
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,96px)_auto]">
+            {hasAssetControl ? (
+              <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+                capture
+                <input
+                  type="text"
+                  aria-label="clip capture asset"
+                  value={assetId}
+                  onChange={(event) => setAssetId(event.target.value)}
+                  className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+                />
+              </label>
+            ) : null}
+            {hasCaptionControl ? (
+              <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+                caption
+                <input
+                  type="text"
+                  aria-label="clip caption"
+                  value={caption}
+                  onChange={(event) => setCaption(event.target.value)}
+                  className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+                />
+              </label>
+            ) : null}
+            {hasZoomControl ? (
+              <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+                zoom
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.05"
+                  aria-label="clip zoom"
+                  value={zoom}
+                  onChange={(event) => setZoom(event.target.value)}
+                  className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-mono text-xs text-ink outline-none focus:border-accent"
+                />
+              </label>
+            ) : null}
+            <button
+              type="button"
+              disabled={!canApplySourceControls}
+              onClick={() => {
+                const props: Record<string, EditableClipPropValue> = {};
+                if (hasAssetControl) props.assetId = assetId.trim();
+                if (hasCaptionControl) props.caption = caption.trim();
+                if (hasZoomControl) props.zoom = parsedZoom;
+                onEditClipProps?.(clip.clipId, props);
+              }}
+              className="self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              apply source controls
+            </button>
+          </div>
+        ) : null}
         {canEditEffects ? (
           <div className="flex flex-wrap gap-1" aria-label="effect presets">
             {MOTION_EFFECT_PRESETS.map((preset) => {
@@ -2976,6 +3061,32 @@ function SelectedClipEditor({
 
 function formatSecondsInput(value: number): string {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
+}
+
+function editableStringValue(
+  clip: MotionPreviewTimelineClip,
+  key: string,
+  fallback = ''
+): string {
+  const value = clip.editableProps?.[key];
+  return typeof value === 'string' ? value : fallback;
+}
+
+function editableNumberValue(
+  clip: MotionPreviewTimelineClip,
+  key: string,
+  fallback: number
+): number {
+  const value = clip.editableProps?.[key];
+  return typeof value === 'number' ? value : fallback;
+}
+
+function editableNumberInputValue(
+  clip: MotionPreviewTimelineClip,
+  key: string,
+  fallback: number
+): string {
+  return formatSecondsInput(editableNumberValue(clip, key, fallback));
 }
 
 function WorkflowExamplesView({ examples }: { examples: MotionWorkflowExample[] }) {

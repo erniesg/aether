@@ -225,6 +225,7 @@ export interface MotionPreviewTimelineClip {
   summary: string;
   linkedVariantScope: TimelineClip['linkedVariantScope'];
   editControlIds: string[];
+  editableProps?: Record<string, string | number | boolean | null>;
   regenerateScopes: string[];
   effectPreset: string | null;
   effectLabel: string | null;
@@ -2903,6 +2904,10 @@ function buildTimelineRows(tracks: TimelineTrack[]): MotionPreviewTimelineRow[] 
         summary: clipSummary(clip),
         linkedVariantScope: clip.linkedVariantScope,
         editControlIds: component?.editControls.map((control) => control.id) ?? [],
+        editableProps: editablePropsForClip(
+          clip,
+          component?.editControls.map((control) => control.id) ?? []
+        ),
         regenerateScopes: component?.regenerateScopes ?? [],
         effectPreset: effectPreset?.id ?? null,
         effectLabel: effectPreset?.label ?? null,
@@ -3039,6 +3044,28 @@ function clipSummary(clip: TimelineClip): string {
   }
 
   return '';
+}
+
+function editablePropsForClip(
+  clip: TimelineClip,
+  editControlIds: string[]
+): Record<string, string | number | boolean | null> {
+  const props: Record<string, string | number | boolean | null> = {};
+  for (const id of editControlIds) {
+    const value = clip.props[id];
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean' ||
+      value === null
+    ) {
+      props[id] = value;
+    }
+  }
+  if (clip.assetId && editControlIds.includes('assetId') && props.assetId === undefined) {
+    props.assetId = clip.assetId;
+  }
+  return props;
 }
 
 function isMotionRenderEngine(engine: WorkflowEngine): engine is MotionRenderEngine {
