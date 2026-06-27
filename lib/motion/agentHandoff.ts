@@ -41,6 +41,8 @@ export interface MaterializeMotionAgentRequestTemplateInput {
   editedSourceFiles?: unknown;
   timelineRevisionId?: string;
   timelineRevisionOperations?: MotionTimelineRevisionOperation[];
+  generatedVideoClipId?: string;
+  generatedVideoTakeId?: string;
 }
 
 export interface MaterializedMotionAgentRequestTemplate {
@@ -87,6 +89,8 @@ export function materializeMotionAgentRequestTemplate(
     $editedSourceFiles: input.editedSourceFiles,
     $timelineRevisionId: input.timelineRevisionId,
     $timelineRevisionOperations: input.timelineRevisionOperations,
+    $generatedVideoClipId: input.generatedVideoClipId,
+    $generatedVideoTakeId: input.generatedVideoTakeId,
   };
   const missing = new Set<string>();
 
@@ -250,12 +254,20 @@ function buildTemplates(input: {
       method: 'POST',
       route: '/api/motion/image-to-video',
       toolId: 'motion-visuals',
-      body: {
+      body: cleanBody({
         project: PROJECT_PLACEHOLDER,
-      },
+        draftId: input.project.currentDraftId,
+        applyMode: input.project.workflowMode === 'review' ? 'stage' : 'apply',
+        providerId: '$imageToVideoProviderId?',
+      }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
-      expectedReceipts: ['generated clips', 'image-to-video receipts'],
+      expectedReceipts: uniqueStrings([
+        'generated clips',
+        'image-to-video receipts',
+        ...(input.project.workflowMode === 'review' ? ['generated take options'] : []),
+      ]),
     },
+    ...generatedVideoTakeTemplates(input.project),
     {
       id: 'generate-voice',
       label: 'Generate voice and timings',
@@ -406,6 +418,108 @@ function referenceSignalRegenerationTemplates(
   return listRankedMotionReferenceCorpusForWorkflow(workflowId).flatMap((entry) =>
     referenceSignalTemplatesForEntry(entry, engines)
   );
+}
+
+function generatedVideoTakeTemplates(project: MotionProject): MotionAgentRequestTemplate[] {
+  return [
+    {
+      id: 'apply-generated-video-take',
+      label: 'Apply selected generated video take',
+      method: 'POST',
+      route: '/api/motion/image-to-video/take',
+      toolId: 'motion-visuals',
+      body: {
+        project: PROJECT_PLACEHOLDER,
+        clipId: '$generatedVideoClipId',
+        takeId: '$generatedVideoTakeId',
+      },
+      inputPlaceholders: [
+        PROJECT_PLACEHOLDER,
+        '$generatedVideoClipId',
+        '$generatedVideoTakeId',
+      ],
+      expectedReceipts: ['approved clip', 'updated timeline', 'updated preview plan'],
+    },
+    ...pendingGeneratedVideoTakeSelections(project).map((selection) => ({
+      id: `apply-generated-video-take-${selection.clipId}-${selection.takeId}`,
+      label: `Apply ${selection.providerLabel} take for ${selection.componentLabel}`,
+      method: 'POST' as const,
+      route: '/api/motion/image-to-video/take' as const,
+      toolId: 'motion-visuals' as const,
+      body: {
+        project: PROJECT_PLACEHOLDER,
+        clipId: selection.clipId,
+        takeId: selection.takeId,
+      },
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
+      expectedReceipts: ['approved clip', 'updated timeline', 'updated preview plan'],
+    })),
+  ];
+}
+
+interface PendingGeneratedVideoTakeSelection {
+  clipId: string;
+  takeId: string;
+  providerLabel: string;
+  componentLabel: string;
+}
+
+function pendingGeneratedVideoTakeSelections(
+  project: MotionProject
+): PendingGeneratedVideoTakeSelection[] {
+  const selections = [
+    ...pendingGeneratedVideoTakeSelectionsFromTracks(project.tracks),
+    ...project.drafts.flatMap((draft) =>
+      draft.id === project.currentDraftId
+        ? pendingGeneratedVideoTakeSelectionsFromTracks(draft.tracks)
+        : []
+    ),
+  ];
+  const seen = new Set<string>();
+  return selections.filter((selection) => {
+    const key = `${selection.clipId}:${selection.takeId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function pendingGeneratedVideoTakeSelectionsFromTracks(
+  tracks: MotionProject['tracks']
+): PendingGeneratedVideoTakeSelection[] {
+  return tracks.flatMap((track) =>
+    track.clips.flatMap((clip) => {
+      const selectedTakeId = stringRecordValue(clip.props, 'selectedGeneratedVideoTakeId');
+      const takes = generatedVideoTakesFromValue(clip.props.generatedVideoTakes).filter(
+        (take) => take.takeId !== selectedTakeId
+      );
+      const componentLabel = clip.componentId
+        ? componentLabelFor(clip.componentId)
+        : readableLabel(clip.id);
+
+      return takes.map((take) => ({
+        clipId: clip.id,
+        takeId: take.takeId,
+        providerLabel: take.providerLabel,
+        componentLabel,
+      }));
+    })
+  );
+}
+
+function generatedVideoTakesFromValue(
+  value: unknown
+): Array<{ takeId: string; providerLabel: string }> {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return [];
+    const take = candidate as Record<string, unknown>;
+    const takeId = stringRecordValue(take, 'id');
+    const providerId = stringRecordValue(take, 'providerId');
+    if (!takeId || !providerId) return [];
+    return [{ takeId, providerLabel: readableLabel(providerId) }];
+  });
 }
 
 function referenceSignalTemplatesForEntry(
@@ -697,6 +811,15 @@ function nextTemplateId(
     return 'full-auto-run';
   }
 
+  if (mode === 'review') {
+    const pendingTakeTemplate = templates.find(
+      (template) =>
+        template.id.startsWith('apply-generated-video-take-') &&
+        template.id !== 'apply-generated-video-take'
+    );
+    if (pendingTakeTemplate) return pendingTakeTemplate.id;
+  }
+
   return templates[0]?.id ?? null;
 }
 
@@ -714,6 +837,14 @@ function readableLabel(value: string): string {
 
 function sentenceCase(value: string): string {
   return value.length > 0 ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
+}
+
+function stringRecordValue(
+  record: Record<string, unknown>,
+  key: string
+): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 }
 
 function preferredRenderEngine(engines: WorkflowEngine[]): 'remotion' | 'hyperframes' {

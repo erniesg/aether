@@ -25,6 +25,8 @@ const ROUTE_HANDLERS: Record<string, MotionRouteHandlerLoader> = {
   '/api/motion/full-auto': async () => (await import('@/app/api/motion/full-auto/route')).POST,
   '/api/motion/image-to-video': async () =>
     (await import('@/app/api/motion/image-to-video/route')).POST,
+  '/api/motion/image-to-video/take': async () =>
+    (await import('@/app/api/motion/image-to-video/take/route')).POST,
   '/api/motion/preview-source': async () =>
     (await import('@/app/api/motion/preview-source/route')).POST,
   '/api/motion/regenerate': async () =>
@@ -136,6 +138,12 @@ function parseInput(body: MotionAgentHandoffRequestBody) {
     timelineRevisionId: stringValue(input.timelineRevisionId ?? body.timelineRevisionId),
     timelineRevisionOperations: timelineRevisionOperationsValue(
       input.timelineRevisionOperations ?? body.timelineRevisionOperations
+    ),
+    generatedVideoClipId: stringValue(
+      input.generatedVideoClipId ?? body.generatedVideoClipId
+    ),
+    generatedVideoTakeId: stringValue(
+      input.generatedVideoTakeId ?? body.generatedVideoTakeId
     ),
   };
 }

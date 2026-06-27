@@ -184,7 +184,7 @@ function renderResultFor(request: MotionRenderRequest): MotionRenderResult {
   };
 }
 
-async function startLocalRepoProject() {
+async function startLocalRepoProject(mode: 'review' | 'full-auto' = 'full-auto') {
   const repoPath = await makeLocalRepo();
   const { POST: startPOST } = await import('@/app/api/motion/start/route');
   const res = await startPOST(
@@ -196,7 +196,7 @@ async function startLocalRepoProject() {
         workspaceId: 'demo-ws',
         repoPath,
         intent: 'launch',
-        mode: 'full-auto',
+        mode,
         audience: 'language learners',
         tone: 'textural',
         platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
@@ -657,6 +657,87 @@ describe('POST /api/motion/agent-handoff', () => {
         ],
       }),
     });
+  });
+
+  it('stages and applies a generated video take through review handoff templates', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+
+    const startJson = await startLocalRepoProject('review');
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['review-capture', 'generate-visuals', 'apply-generated-video-take'],
+          input: {
+            imageToVideoProviderId: 'image-video-test',
+            generatedVideoClipId: 'clip-beat-demo-text',
+            generatedVideoTakeId: 'generated-clip-beat-demo-text-image-to-video',
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({ templateId: 'review-capture', status: 'complete' }),
+        expect.objectContaining({
+          templateId: 'generate-visuals',
+          status: 'complete',
+          responseJson: expect.objectContaining({
+            ok: true,
+            status: 'generated-for-review',
+          }),
+        }),
+        expect.objectContaining({
+          templateId: 'apply-generated-video-take',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            status: 'take-applied',
+          }),
+        }),
+      ],
+      finalProject: {
+        tracks: expect.arrayContaining([
+          expect.objectContaining({
+            clips: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'clip-beat-demo-text',
+                assetId: 'generated-clip-beat-demo-text-image-to-video',
+                props: expect.objectContaining({
+                  generatedVideoAssetId: 'generated-clip-beat-demo-text-image-to-video',
+                  selectedGeneratedVideoTakeId: 'generated-clip-beat-demo-text-image-to-video',
+                }),
+              }),
+            ]),
+          }),
+        ]),
+      },
+      finalResponse: {
+        previewPlan: {
+          visualGenerationSummary: {
+            nodePlan: {
+              nextNodeId: 'timeline-update',
+            },
+          },
+        },
+      },
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it('records a product flow through the recording handoff template', async () => {
