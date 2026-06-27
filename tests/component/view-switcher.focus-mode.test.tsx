@@ -16,6 +16,7 @@ import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { buildAgentMotionWorkflowPlan } from '@/lib/motion/workflowPlan';
 import { appendSetupDryRunExecutionHistory } from '@/lib/motion/executionHistory';
+import type { MotionProject, TimelineTrack } from '@/lib/motion/project';
 
 afterEach(() => {
   cleanup();
@@ -609,6 +610,85 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: expect.stringContaining('"draftId":"draft-primary"'),
+      })
+    );
+  });
+
+  it('advanced node lens scopes image-to-video generation to one request', async () => {
+    const start = storedRegeneratableMotionStart();
+    const attachVisualSource = (tracks: TimelineTrack[]) =>
+      tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) =>
+          clip.id === 'clip-beat-demo-text'
+            ? {
+                ...clip,
+                assetId: 'capture-screenshot-aether-localhost',
+                props: {
+                  ...clip.props,
+                  assetUrl: 'asset://capture/aether-home.png',
+                  captureArtifactKind: 'screenshot',
+                  captureProviderId: 'browser-capture',
+                  mimeType: 'image/png',
+                  width: 1080,
+                  height: 1920,
+                },
+              }
+            : clip
+        ),
+      }));
+    const projectWithVisualSource: MotionProject = {
+      ...start.project!,
+      tracks: attachVisualSource(start.project!.tracks),
+      drafts: start.project!.drafts.map((draft) =>
+        draft.id === start.project!.currentDraftId
+          ? { ...draft, tracks: attachVisualSource(draft.tracks) }
+          : draft
+      ),
+    };
+    const previewPlan = buildMotionPreviewPlan(projectWithVisualSource, {
+      engines: start.workflow.plan.engines,
+      requestedAt: 95,
+    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'generated-for-review',
+          project: projectWithVisualSource,
+          reviewPlan: start.reviewPlan,
+          previewPlan,
+          imageToVideoPlan: {
+            status: 'ready',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', {
+      ...start,
+      project: projectWithVisualSource,
+      previewPlan,
+    });
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /open node lens/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /generate app frame video clip/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('video takes ready for review');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/image-to-video',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining(
+          '"requestIds":["image-to-video-clip-beat-demo-text"]'
+        ),
       })
     );
   });

@@ -1170,7 +1170,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, wsId]);
-  const handleTimelineGenerateVideoClips = useCallback(async () => {
+  const handleTimelineGenerateVideoClips = useCallback(async (requestIds?: string[]) => {
     if (!motionStart?.project) return;
 
     setMotionTimelineActionStatus('generating video clips');
@@ -1183,6 +1183,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           project: motionStart.project,
           draftId: motionStart.project.currentDraftId,
           applyMode: 'stage',
+          ...(requestIds?.length ? { requestIds } : {}),
           requestedAt,
           updatedAt: requestedAt,
         }),

@@ -3438,7 +3438,7 @@ describe('TimelineLens', () => {
   });
 
   it('opens an advanced generation node lens from the timeline', async () => {
-    const onGenerateVideoClips = vi.fn<() => void>();
+    const onGenerateVideoClips = vi.fn<(requestIds?: string[]) => void>();
     render(
       <TimelineLens
         tracks={[]}
@@ -3464,6 +3464,7 @@ describe('TimelineLens', () => {
     expect(generationPath.getByText('packages')).toBeInTheDocument();
     expect(screen.getAllByText('Visual sources').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Image-to-video').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Image-to-video · App frame').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Voice and captions').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Timeline sync').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Render proof').length).toBeGreaterThan(0);
@@ -3474,8 +3475,12 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText(/receipts: MP4 \/ Poster \/ Subtitles/).length).toBeGreaterThan(0);
     expect(screen.queryByText('image-to-video-clip-beat-demo-text')).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: /regenerate image-to-video/i }));
-    expect(onGenerateVideoClips).toHaveBeenCalledTimes(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: /generate app frame video clip/i })
+    );
+    expect(onGenerateVideoClips).toHaveBeenCalledWith([
+      'image-to-video-clip-beat-demo-text',
+    ]);
   });
 
   it('shows visual-source blockers before image-to-video generation is possible', () => {
