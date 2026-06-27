@@ -437,6 +437,176 @@ describe('POST /api/motion/regenerate', () => {
     });
   });
 
+  it('creates a taste-reference regeneration request from timestamped shot guidance', async () => {
+    const { POST } = await import('@/app/api/motion/regenerate/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          tasteReferenceId: 'claude-agent-demo-playback-review',
+          sourceEntryId: 'public-claude-launch-demo-corpus',
+          sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+          scope: 'effect',
+          componentIds: ['hook-card', 'agent-trace'],
+          prompt:
+            'Use the timestamped Claude-style agent demo as the effect and timing guide.',
+          requestedAt: 990,
+          requestedEngines: ['remotion', 'hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      regenerationRequest: {
+        id: 'regen-taste-claude-agent-demo-playback-review-effect-990',
+        projectId: 'motion-aether-launch',
+        draftId: 'draft-primary',
+        tasteReferenceId: 'claude-agent-demo-playback-review',
+        tasteReferenceTitle: 'Claude-style agent product demo',
+        sourceEntryId: 'public-claude-launch-demo-corpus',
+        sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+        scope: 'effect',
+        componentIds: ['hook-card', 'agent-trace'],
+        componentLabels: ['Hook card', 'Agent trace'],
+        prompt:
+          'Use the timestamped Claude-style agent demo as the effect and timing guide.',
+        status: 'planned',
+        timestampedShotPlan: expect.arrayContaining([
+          {
+            id: 'agent-demo-terminal',
+            startSeconds: 6.5,
+            endSeconds: 10.5,
+            label: 'Command proof',
+            visual: 'Show tests, render, or local command output as proof of work.',
+            componentIds: ['agent-trace', 'terminal-card', 'proof-card'],
+            effectTags: ['terminal-scan', 'proof-flash'],
+            editTargets: ['proof', 'timing'],
+            captionStyle: 'lower-third',
+            transitionOut: 'soft-wipe',
+          },
+        ]),
+      },
+      previewPlan: {
+        projectId: 'motion-aether-launch',
+        tasteReferences: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'claude-agent-demo-playback-review',
+            title: 'Claude-style agent product demo',
+            actions: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'taste-reference-claude-agent-demo-playback-review-effect',
+                label: 'Apply agent action timing to Hook card / Agent trace',
+              }),
+            ]),
+          }),
+        ]),
+        executionHistory: {
+          status: 'saved',
+          savedStepCount: 1,
+          receiptCount: 3,
+          latestReceiptLabels: [
+            'Taste reference',
+            'Timestamped shot plan',
+            'Updated preview plan',
+          ],
+          entries: [
+            {
+              id: 'execution-taste-reference-claude-agent-demo-playback-review-effect-990',
+              gateId: 'drafts',
+              label: 'Apply taste reference to Hook card / Agent trace',
+              receiptLabels: [
+                'Taste reference',
+                'Timestamped shot plan',
+                'Updated preview plan',
+              ],
+            },
+          ],
+        },
+        enginePreviews: [
+          { engine: 'remotion', status: 'ready' },
+          { engine: 'hyperframes', status: 'ready' },
+        ],
+      },
+      project: {
+        graphNodes: expect.arrayContaining([
+          {
+            id: 'node-regen-taste-claude-agent-demo-playback-review-effect-990',
+            kind: 'revision',
+            inputRefs: expect.arrayContaining([
+              'claude-agent-demo-playback-review',
+              'public-claude-launch-demo-corpus',
+              'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+              'agent-demo-terminal',
+              'hook-card',
+              'agent-trace',
+            ]),
+            outputRefs: ['regen-taste-claude-agent-demo-playback-review-effect-990'],
+            status: 'planned',
+            provenance: expect.arrayContaining([
+              { kind: 'revision', ref: 'regen-taste-claude-agent-demo-playback-review-effect-990' },
+              {
+                kind: 'reference',
+                ref: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+                label: 'Claude-style agent product demo',
+              },
+              { kind: 'manual', ref: 'taste-reference:claude-agent-demo-playback-review' },
+            ]),
+          },
+        ]),
+        executionHistory: [
+          {
+            id: 'execution-taste-reference-claude-agent-demo-playback-review-effect-990',
+            gateId: 'drafts',
+            label: 'Apply taste reference to Hook card / Agent trace',
+            savedAt: 990,
+            receiptCount: 3,
+            receiptLabels: [
+              'Taste reference',
+              'Timestamped shot plan',
+              'Updated preview plan',
+            ],
+            receipts: [
+              {
+                id: 'receipt-taste-reference-regen-taste-claude-agent-demo-playback-review-effect-990-reference',
+                kind: 'revision',
+                label: 'Taste reference',
+                ref: 'claude-agent-demo-playback-review',
+              },
+              {
+                id: 'receipt-taste-reference-regen-taste-claude-agent-demo-playback-review-effect-990-shot-plan',
+                kind: 'revision',
+                label: 'Timestamped shot plan',
+                ref: 'regen-taste-claude-agent-demo-playback-review-effect-990:timestamped-shot-plan',
+              },
+              {
+                id: 'receipt-taste-reference-regen-taste-claude-agent-demo-playback-review-effect-990-preview-plan',
+                kind: 'revision',
+                label: 'Updated preview plan',
+                ref: 'regen-taste-claude-agent-demo-playback-review-effect-990:preview-plan',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(json.regenerationRequest.inputRefs).toEqual(
+      expect.arrayContaining([
+        'claude-agent-demo-playback-review',
+        'public-claude-launch-demo-corpus',
+        'agent-demo-prompt',
+        'agent-demo-terminal',
+        'hook-card',
+        'agent-trace',
+      ])
+    );
+  });
+
   it('rejects unsupported component scopes before creating a request', async () => {
     const { POST } = await import('@/app/api/motion/regenerate/route');
 

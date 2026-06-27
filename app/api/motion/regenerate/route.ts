@@ -7,6 +7,7 @@ import {
   appendComponentRegenerationExecutionHistory,
   appendDraftVariationExecutionHistory,
   appendReferenceSignalRegenerationExecutionHistory,
+  appendTasteReferenceRegenerationExecutionHistory,
 } from '@/lib/motion/executionHistory';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import {
@@ -14,9 +15,11 @@ import {
   createMotionComponentRegenerationRequest,
   createMotionDraftVariationRequest,
   createMotionReferenceSignalRegenerationRequest,
+  createMotionTasteReferenceRegenerationRequest,
   stageMotionDraftVariation,
   stageMotionComponentRegeneration,
   stageMotionReferenceSignalRegeneration,
+  stageMotionTasteReferenceRegeneration,
 } from '@/lib/motion/reviewPlan';
 
 export const runtime = 'nodejs';
@@ -52,12 +55,17 @@ export async function POST(request: Request): Promise<Response> {
   const clipId = stringValue(body.clipId);
   const draftId = stringValue(body.draftId);
   const referenceSignalId = stringValue(body.referenceSignalId);
+  const tasteReferenceId = stringValue(body.tasteReferenceId);
+  const sourceEntryId = stringValue(body.sourceEntryId);
   const sourceUrl = stringValue(body.sourceUrl);
   const componentIds = stringArrayValue(body.componentIds);
   const scope = stringValue(body.scope);
   const prompt = stringValue(body.prompt);
-  if (!clipId && !referenceSignalId && !draftId) {
-    return jsonError(400, 'clipId, referenceSignalId, or draftId with prompt is required');
+  if (!clipId && !referenceSignalId && !tasteReferenceId && !draftId) {
+    return jsonError(
+      400,
+      'clipId, referenceSignalId, tasteReferenceId, or draftId with prompt is required'
+    );
   }
   if (draftId && !prompt) {
     return jsonError(400, 'draftId and prompt are required');
@@ -72,6 +80,9 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (referenceSignalId && (!componentIds || componentIds.length === 0)) {
     return jsonError(400, 'componentIds are required for reference regeneration');
+  }
+  if (tasteReferenceId && (!componentIds || componentIds.length === 0)) {
+    return jsonError(400, 'componentIds are required for taste reference regeneration');
   }
 
   const requestedEngines = parseRequestedEngines(body.requestedEngines);
@@ -96,6 +107,46 @@ export async function POST(request: Request): Promise<Response> {
       const updatedProject = {
         ...stagedProject,
         executionHistory: appendDraftVariationExecutionHistory(
+          stagedProject.executionHistory,
+          regenerationRequest,
+          requestedAt
+        ),
+      };
+      const capturePlan = buildAgentMotionCapturePlan(updatedProject);
+
+      return NextResponse.json({
+        ok: true,
+        regenerationRequest,
+        project: updatedProject,
+        reviewPlan: buildMotionReviewPlan(updatedProject),
+        previewPlan: buildMotionPreviewPlan(updatedProject, {
+          engines: requestedEngines ?? undefined,
+          requestedAt,
+        }),
+        capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+      });
+    }
+
+    if (tasteReferenceId) {
+      if (!scope || !prompt) {
+        return jsonError(400, 'scope and prompt are required');
+      }
+      const regenerationRequest = createMotionTasteReferenceRegenerationRequest(project, {
+        tasteReferenceId,
+        sourceEntryId,
+        sourceUrl,
+        scope: scope as MotionRegenerateScope,
+        componentIds: componentIds ?? [],
+        prompt,
+        requestedAt,
+      });
+      const stagedProject = stageMotionTasteReferenceRegeneration(
+        project,
+        regenerationRequest
+      );
+      const updatedProject = {
+        ...stagedProject,
+        executionHistory: appendTasteReferenceRegenerationExecutionHistory(
           stagedProject.executionHistory,
           regenerationRequest,
           requestedAt

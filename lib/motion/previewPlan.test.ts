@@ -4,6 +4,7 @@ import { applyCaptureResultToMotionProject } from './captureApply';
 import { appendSetupDryRunExecutionHistory } from './executionHistory';
 import {
   buildMotionPreviewPlan,
+  findMotionPreviewRegenerationAction,
   type MotionPreviewReferenceSignal,
   type MotionPreviewTasteReference,
 } from './previewPlan';
@@ -806,6 +807,58 @@ describe('buildMotionPreviewPlan', () => {
         }),
       ])
     );
+  });
+
+  it('resolves component, reference-signal, and taste-reference regeneration actions', () => {
+    const preview = buildMotionPreviewPlan(project(), {
+      engines: ['remotion', 'hyperframes'],
+      requestedAt: 900,
+    });
+
+    expect(
+      findMotionPreviewRegenerationAction(
+        preview,
+        'regen-option-clip-beat-demo-text-capture'
+      )
+    ).toMatchObject({
+      id: 'regen-option-clip-beat-demo-text-capture',
+      requestTemplate: {
+        clipId: 'clip-beat-demo-text',
+        scope: 'capture',
+      },
+    });
+
+    expect(
+      findMotionPreviewRegenerationAction(
+        preview,
+        'reference-signal-hyperframes-launch-video-gallery-effect'
+      )
+    ).toMatchObject({
+      id: 'reference-signal-hyperframes-launch-video-gallery-effect',
+      requestTemplate: {
+        referenceSignalId: 'hyperframes-launch-video-gallery',
+        scope: 'effect',
+        componentIds: ['hook-card', 'app-frame'],
+      },
+    });
+
+    expect(
+      findMotionPreviewRegenerationAction(
+        preview,
+        'taste-reference-claude-agent-demo-playback-review-effect'
+      )
+    ).toMatchObject({
+      id: 'taste-reference-claude-agent-demo-playback-review-effect',
+      requestTemplate: {
+        tasteReferenceId: 'claude-agent-demo-playback-review',
+        sourceEntryId: 'public-claude-launch-demo-corpus',
+        sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+        scope: 'effect',
+        componentIds: ['hook-card', 'agent-trace'],
+      },
+    });
+
+    expect(findMotionPreviewRegenerationAction(preview, 'missing-action')).toBeNull();
   });
 
   it('uses saved setup dry-run receipts to advance capability setup without completing production gates', () => {

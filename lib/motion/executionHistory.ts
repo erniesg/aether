@@ -19,6 +19,7 @@ import type {
   MotionComponentRegenerationRequest,
   MotionDraftVariationRequest,
   MotionReferenceSignalRegenerationRequest,
+  MotionTasteReferenceRegenerationRequest,
 } from './reviewPlan';
 import type { MotionSyncPlan } from './syncPlan';
 import { getMotionComponent, type MotionRegenerateScope } from './componentRegistry';
@@ -284,6 +285,45 @@ export function appendReferenceSignalRegenerationExecutionHistory(
     provenance: uniqueProvenance([
       { kind: 'revision', ref: request.id },
       ...request.provenance,
+    ]),
+  });
+}
+
+export function appendTasteReferenceRegenerationExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  request: MotionTasteReferenceRegenerationRequest,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const receipts = [
+    regenerationReceipt({
+      id: `receipt-taste-reference-${request.id}-reference`,
+      label: 'Taste reference',
+      ref: request.tasteReferenceId,
+    }),
+    regenerationReceipt({
+      id: `receipt-taste-reference-${request.id}-shot-plan`,
+      label: 'Timestamped shot plan',
+      ref: `${request.id}:timestamped-shot-plan`,
+    }),
+    regenerationReceipt({
+      id: `receipt-taste-reference-${request.id}-preview-plan`,
+      label: 'Updated preview plan',
+      ref: `${request.id}:preview-plan`,
+    }),
+  ];
+
+  return appendExecutionEntry(history, {
+    id: `execution-taste-reference-${slugifyId(request.tasteReferenceId)}-${slugifyId(request.scope)}-${savedAt}`,
+    gateId: 'drafts',
+    label: `Apply taste reference to ${request.componentLabels.join(' / ')}`,
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+      ...request.timestampedShotPlan.map((shot) => ({ kind: 'manual' as const, ref: `taste-shot:${shot.id}` })),
     ]),
   });
 }

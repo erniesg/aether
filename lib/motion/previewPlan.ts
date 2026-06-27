@@ -787,6 +787,38 @@ export interface MotionPreviewPlan {
   requestedAt: number;
 }
 
+export type MotionPreviewRegenerationRequestAction =
+  | MotionPreviewRegenerationAction
+  | MotionPreviewReferenceSignalAction
+  | MotionPreviewTasteReferenceAction;
+
+export function listMotionPreviewRegenerationRequestActions(
+  previewPlan: Pick<
+    MotionPreviewPlan,
+    'regenerationActions' | 'referenceSignals' | 'tasteReferences'
+  >
+): MotionPreviewRegenerationRequestAction[] {
+  return [
+    ...previewPlan.regenerationActions,
+    ...previewPlan.referenceSignals.flatMap((signal) => signal.actions),
+    ...previewPlan.tasteReferences.flatMap((reference) => reference.actions),
+  ];
+}
+
+export function findMotionPreviewRegenerationAction(
+  previewPlan: Pick<
+    MotionPreviewPlan,
+    'regenerationActions' | 'referenceSignals' | 'tasteReferences'
+  >,
+  actionId: string
+): MotionPreviewRegenerationRequestAction | null {
+  return (
+    listMotionPreviewRegenerationRequestActions(previewPlan).find(
+      (candidate) => candidate.id === actionId
+    ) ?? null
+  );
+}
+
 export interface BuildMotionPreviewPlanOptions {
   engines?: WorkflowEngine[];
   workflowRunPlan?: AgentMotionWorkflowRunPlan;

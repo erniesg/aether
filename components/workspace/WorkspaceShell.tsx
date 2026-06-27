@@ -94,6 +94,7 @@ import {
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import {
   buildMotionPreviewPlan,
+  findMotionPreviewRegenerationAction,
   type MotionPreviewRenderProofCanvasDropTarget,
 } from '@/lib/motion/previewPlan';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
@@ -468,24 +469,38 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const handleTimelineRegenerate = useCallback(
     async (actionId: string) => {
       if (!motionStart?.project || !motionStart.previewPlan) return;
-      const action = motionStart.previewPlan.regenerationActions.find(
-        (candidate) => candidate.id === actionId
-      );
+      const action = findMotionPreviewRegenerationAction(motionStart.previewPlan, actionId);
       if (!action) return;
 
       setMotionTimelineActionStatus(`planning ${action.scope}`);
       try {
+        const requestTemplate = action.requestTemplate;
+        const requestBody: Record<string, unknown> = {
+          project: motionStart.project,
+          scope: requestTemplate.scope,
+          prompt: requestTemplate.prompt,
+          requestedEngines: motionStart.workflow.plan.engines,
+          requestedAt: Date.now(),
+        };
+        if ('clipId' in requestTemplate) requestBody.clipId = requestTemplate.clipId;
+        if ('referenceSignalId' in requestTemplate) {
+          requestBody.referenceSignalId = requestTemplate.referenceSignalId;
+        }
+        if ('tasteReferenceId' in requestTemplate) {
+          requestBody.tasteReferenceId = requestTemplate.tasteReferenceId;
+        }
+        if ('sourceEntryId' in requestTemplate) {
+          requestBody.sourceEntryId = requestTemplate.sourceEntryId;
+        }
+        if ('sourceUrl' in requestTemplate) requestBody.sourceUrl = requestTemplate.sourceUrl;
+        if ('componentIds' in requestTemplate) {
+          requestBody.componentIds = requestTemplate.componentIds;
+        }
+
         const res = await fetch(action.route, {
           method: action.method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: motionStart.project,
-            clipId: action.requestTemplate.clipId,
-            scope: action.requestTemplate.scope,
-            prompt: action.requestTemplate.prompt,
-            requestedEngines: motionStart.workflow.plan.engines,
-            requestedAt: Date.now(),
-          }),
+          body: JSON.stringify(requestBody),
         });
         const json = (await res.json()) as {
           ok?: boolean;

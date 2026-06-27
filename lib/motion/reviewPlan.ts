@@ -4,6 +4,7 @@ import {
   type MotionRegenerateScope,
 } from './componentRegistry';
 import { listMotionReferenceCorpus } from './referenceCorpus';
+import { listMotionTasteCorpus, type MotionTasteShot } from './tasteCorpus';
 import type {
   MotionDraft,
   MotionGraphNode,
@@ -118,6 +119,38 @@ export interface MotionReferenceSignalRegenerationRequest {
   requestedAt: number;
 }
 
+export interface MotionTasteReferenceRegenerationShot {
+  id: string;
+  startSeconds: number;
+  endSeconds: number;
+  label: string;
+  visual: string;
+  componentIds: string[];
+  effectTags: string[];
+  editTargets: MotionRegenerateScope[];
+  captionStyle: MotionTasteShot['captionStyle'];
+  transitionOut?: MotionTasteShot['transitionOut'];
+}
+
+export interface MotionTasteReferenceRegenerationRequest {
+  id: string;
+  projectId: string;
+  draftId: string;
+  tasteReferenceId: string;
+  tasteReferenceTitle: string;
+  sourceEntryId: string;
+  sourceUrl: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
+  componentLabels: string[];
+  timestampedShotPlan: MotionTasteReferenceRegenerationShot[];
+  prompt: string;
+  inputRefs: string[];
+  status: 'planned';
+  provenance: MotionProvenanceRef[];
+  requestedAt: number;
+}
+
 export interface MotionDraftVariationRequest {
   id: string;
   projectId: string;
@@ -140,6 +173,16 @@ export interface CreateMotionComponentRegenerationRequestInput {
 
 export interface CreateMotionReferenceSignalRegenerationRequestInput {
   referenceSignalId: string;
+  sourceUrl?: string;
+  scope: MotionRegenerateScope;
+  componentIds: string[];
+  prompt: string;
+  requestedAt: number;
+}
+
+export interface CreateMotionTasteReferenceRegenerationRequestInput {
+  tasteReferenceId: string;
+  sourceEntryId?: string;
   sourceUrl?: string;
   scope: MotionRegenerateScope;
   componentIds: string[];
@@ -313,6 +356,87 @@ export function stageMotionReferenceSignalRegeneration(
   };
 }
 
+export function createMotionTasteReferenceRegenerationRequest(
+  project: MotionProject,
+  input: CreateMotionTasteReferenceRegenerationRequestInput
+): MotionTasteReferenceRegenerationRequest {
+  const tasteReference = listMotionTasteCorpus().find(
+    (entry) => entry.id === input.tasteReferenceId
+  );
+  if (!tasteReference) {
+    throw new Error(`Motion taste reference not found: ${input.tasteReferenceId}`);
+  }
+  if (!tasteReference.regenerateScopes.includes(input.scope)) {
+    throw new Error(`${tasteReference.title} does not support ${input.scope} regeneration`);
+  }
+  if (input.sourceEntryId && input.sourceEntryId !== tasteReference.sourceEntryId) {
+    throw new Error(`Motion taste reference source does not match: ${input.sourceEntryId}`);
+  }
+
+  const componentIds = uniqueStrings(input.componentIds);
+  if (componentIds.length === 0) {
+    throw new Error('At least one component id is required for taste reference regeneration');
+  }
+
+  const componentLabels = componentIds.map((componentId) => {
+    const component = getMotionComponent(componentId);
+    if (!component) {
+      throw new Error(`Motion component is not registered: ${componentId}`);
+    }
+    return component.label;
+  });
+
+  const sourceUrl = input.sourceUrl ?? tasteReference.sourceUrl;
+  const timestampedShotPlan = tasteReference.shotList.map(tasteShotToRegenerationShot);
+  const inputRefs = uniqueStrings([
+    tasteReference.id,
+    tasteReference.sourceEntryId,
+    sourceUrl,
+    ...timestampedShotPlan.map((shot) => shot.id),
+    ...componentIds,
+  ]);
+
+  return {
+    id: `regen-taste-${tasteReference.id}-${input.scope}-${input.requestedAt}`,
+    projectId: project.id,
+    draftId: project.currentDraftId,
+    tasteReferenceId: tasteReference.id,
+    tasteReferenceTitle: tasteReference.title,
+    sourceEntryId: tasteReference.sourceEntryId,
+    sourceUrl,
+    scope: input.scope,
+    componentIds,
+    componentLabels,
+    timestampedShotPlan,
+    prompt: input.prompt,
+    inputRefs,
+    status: 'planned',
+    provenance: [
+      { kind: 'reference', ref: sourceUrl, label: tasteReference.title },
+      { kind: 'manual', ref: `taste-reference:${tasteReference.id}` },
+      { kind: 'manual', ref: `taste-source:${tasteReference.sourceEntryId}` },
+      { kind: 'revision', ref: `taste-reference:${tasteReference.id}:${input.scope}` },
+    ],
+    requestedAt: input.requestedAt,
+  };
+}
+
+export function stageMotionTasteReferenceRegeneration(
+  project: MotionProject,
+  request: MotionTasteReferenceRegenerationRequest
+): MotionProject {
+  const node = tasteReferenceRegenerationRequestToGraphNode(request);
+
+  return {
+    ...project,
+    graphNodes: [
+      ...project.graphNodes.filter((candidate) => candidate.id !== node.id),
+      node,
+    ],
+    updatedAt: Math.max(project.updatedAt, request.requestedAt),
+  };
+}
+
 export function createMotionDraftVariationRequest(
   project: MotionProject,
   input: CreateMotionDraftVariationRequestInput
@@ -395,6 +519,22 @@ function referenceSignalRegenerationRequestToGraphNode(
   };
 }
 
+function tasteReferenceRegenerationRequestToGraphNode(
+  request: MotionTasteReferenceRegenerationRequest
+): MotionGraphNode {
+  return {
+    id: `node-${request.id}`,
+    kind: 'revision',
+    inputRefs: [...request.inputRefs],
+    outputRefs: [request.id],
+    status: 'planned',
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+    ]),
+  };
+}
+
 function draftVariationRequestToGraphNode(request: MotionDraftVariationRequest): MotionGraphNode {
   return {
     id: `node-${request.id}`,
@@ -406,6 +546,21 @@ function draftVariationRequestToGraphNode(request: MotionDraftVariationRequest):
       { kind: 'revision', ref: request.id },
       ...request.provenance,
     ]),
+  };
+}
+
+function tasteShotToRegenerationShot(shot: MotionTasteShot): MotionTasteReferenceRegenerationShot {
+  return {
+    id: shot.id,
+    startSeconds: shot.startSeconds,
+    endSeconds: shot.endSeconds,
+    label: shot.label,
+    visual: shot.visual,
+    componentIds: [...shot.componentIds],
+    effectTags: [...shot.effectTags],
+    editTargets: [...shot.editTargets],
+    captionStyle: shot.captionStyle,
+    ...(shot.transitionOut ? { transitionOut: shot.transitionOut } : {}),
   };
 }
 
