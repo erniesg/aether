@@ -66,7 +66,7 @@ describe('materializeMotionAgentRequestTemplate', () => {
         imageToVideoProviderId: '$imageToVideoProviderId',
         voiceProviderId: '$voiceProviderId',
       },
-      sourceFiles: '$editedSourceFiles',
+      files: '$editedSourceFiles',
       renderProviderId: '$renderProviderId',
       unchanged: 'literal',
     });
@@ -91,7 +91,7 @@ describe('materializeMotionAgentRequestTemplate', () => {
           imageToVideoProviderId: 'image-provider',
           voiceProviderId: 'voice-provider',
         },
-        sourceFiles: [{ path: 'src/video.tsx', contents: 'export {}' }],
+        files: [{ path: 'src/video.tsx', contents: 'export {}' }],
         renderProviderId: 'render-provider',
         unchanged: 'literal',
       },
@@ -103,7 +103,7 @@ describe('materializeMotionAgentRequestTemplate', () => {
         imageToVideoProviderId: '$imageToVideoProviderId',
         voiceProviderId: '$voiceProviderId',
       },
-      sourceFiles: '$editedSourceFiles',
+      files: '$editedSourceFiles',
       renderProviderId: '$renderProviderId',
       unchanged: 'literal',
     });

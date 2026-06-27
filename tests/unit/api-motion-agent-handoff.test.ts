@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { buildMotionRenderRequest } from '@/lib/motion/renderExecution';
+import { buildMotionRenderPlan } from '@/lib/motion/renderPlan';
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
 import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
@@ -323,6 +325,87 @@ describe('POST /api/motion/agent-handoff', () => {
           responseJson: null,
         },
       ],
+    });
+  });
+
+  it('applies edited source files through the source-edit handoff template', async () => {
+    const startJson = await startLocalRepoProject();
+    const plan = buildMotionRenderPlan(startJson.project, {
+      engine: 'remotion',
+      requestedAt: 831,
+    });
+    if (plan.status !== 'ready') throw new Error('expected render-ready project');
+    const renderRequest = buildMotionRenderRequest(startJson.project, plan);
+    const timelineFile = renderRequest.sourceFiles?.find(
+      (file) => file.path === 'timeline/draft-primary.json'
+    );
+    if (!timelineFile) throw new Error('missing editable timeline file');
+
+    const timeline = JSON.parse(timelineFile.contents);
+    const cue = timeline.syncEffectCues.find(
+      (candidate: { id?: string }) =>
+        candidate.id === 'effect-clip-transition-beat-proof-to-beat-demo'
+    );
+    if (!cue) throw new Error('missing sync effect cue');
+    cue.label = 'Agent-edited transition proof';
+    cue.effectPresetId = 'proof-pulse';
+    cue.durationSeconds = 0.5;
+
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['edit-source'],
+          input: {
+            editedSourceFiles: [
+              {
+                path: timelineFile.path,
+                contents: JSON.stringify(timeline),
+              },
+            ],
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'edit-source',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            status: 'applied',
+          }),
+        }),
+      ],
+    });
+    const editedClip = json.finalProject.tracks
+      .flatMap((track: { clips: unknown[] }) => track.clips)
+      .find(
+        (clip: { id?: string }) => clip.id === 'clip-transition-beat-proof-to-beat-demo'
+      );
+    expect(editedClip).toMatchObject({
+      props: {
+        effectPreset: 'proof-pulse',
+        syncEffectCueOverrides: [
+          expect.objectContaining({
+            id: 'effect-clip-transition-beat-proof-to-beat-demo',
+            label: 'Agent-edited transition proof',
+            effectPresetId: 'proof-pulse',
+            durationSeconds: 0.5,
+          }),
+        ],
+      },
     });
   });
 });

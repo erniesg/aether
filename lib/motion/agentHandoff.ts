@@ -208,10 +208,15 @@ function buildTemplates(input: {
       toolId: 'motion-source-edit',
       body: {
         project: PROJECT_PLACEHOLDER,
-        sourceFiles: '$editedSourceFiles',
+        files: '$editedSourceFiles',
       },
       inputPlaceholders: [PROJECT_PLACEHOLDER, '$editedSourceFiles'],
-      expectedReceipts: ['updated script', 'updated storyboard', 'updated timeline'],
+      expectedReceipts: [
+        'updated script',
+        'updated storyboard',
+        'updated timeline',
+        'sync effect edits',
+      ],
     },
     {
       id: 'render-proof',

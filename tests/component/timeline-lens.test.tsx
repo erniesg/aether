@@ -1915,10 +1915,15 @@ const agentHandoff: MotionAgentExecutionHandoff = {
       toolId: 'motion-source-edit',
       body: {
         project: '$motionProject',
-        sourceFiles: '$editedSourceFiles',
+        files: '$editedSourceFiles',
       },
       inputPlaceholders: ['$motionProject', '$editedSourceFiles'],
-      expectedReceipts: ['updated script', 'updated storyboard', 'updated timeline'],
+      expectedReceipts: [
+        'updated script',
+        'updated storyboard',
+        'updated timeline',
+        'sync effect edits',
+      ],
     },
   ],
 };

@@ -326,7 +326,7 @@ describe('POST /api/motion/start', () => {
             toolId: 'motion-source-edit',
             body: {
               project: '$motionProject',
-              sourceFiles: '$editedSourceFiles',
+              files: '$editedSourceFiles',
             },
           }),
         ]),
