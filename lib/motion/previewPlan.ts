@@ -54,7 +54,7 @@ import {
   type MotionReferenceGrammarPlan,
 } from './referenceGrammar';
 import {
-  listMotionReferenceCorpusForWorkflow,
+  listRankedMotionReferenceCorpusForWorkflow,
   type MotionReferenceCorpusEntry,
 } from './referenceCorpus';
 import {
@@ -720,37 +720,6 @@ export interface BuildMotionPreviewPlanOptions {
 }
 
 const DEFAULT_PREVIEW_ENGINES: WorkflowEngine[] = ['remotion', 'hyperframes'];
-const REFERENCE_SIGNAL_LIMIT = 5;
-const REFERENCE_SIGNAL_PRIORITY: Partial<Record<WorkflowRegistryId, string[]>> = {
-  'repo-launch-video': [
-    'hyperframes-launch-video-gallery',
-    'testreel-programmatic-product-video',
-    'claude-code-agent-trace',
-    'remotion-agent-video',
-    'hyperframes-skills',
-  ],
-  'feature-social-video': [
-    'screen-studio-product-demos',
-    'clueso-product-videos',
-    'hyperframes-launch-video-gallery',
-    'testreel-programmatic-product-video',
-    'descript-ai-video-editor',
-  ],
-  'website-to-video': [
-    'screen-studio-product-demos',
-    'testreel-programmatic-product-video',
-    'clueso-product-videos',
-    'arcade-interactive-product-story',
-    'remotion-agent-video',
-  ],
-  'pr-to-video': [
-    'hyperframes-pr-to-video-skill',
-    'claude-code-agent-trace',
-    'hyperframes-skills',
-    'authenticated-x-launch-corpus',
-  ],
-};
-
 export function buildMotionPreviewPlan(
   project: MotionProject,
   options: BuildMotionPreviewPlanOptions
@@ -911,18 +880,7 @@ function buildExecutionHistorySummary(
 
 function buildReferenceSignals(project: MotionProject): MotionPreviewReferenceSignal[] {
   const workflowId = inferReferenceWorkflowId(project);
-  const priority = REFERENCE_SIGNAL_PRIORITY[workflowId] ?? [];
-
-  return listMotionReferenceCorpusForWorkflow(workflowId)
-    .map((entry, index) => ({ entry, index }))
-    .sort((a, b) => {
-      const rankA = priorityRank(priority, a.entry.id);
-      const rankB = priorityRank(priority, b.entry.id);
-      if (rankA !== rankB) return rankA - rankB;
-      return a.index - b.index;
-    })
-    .slice(0, REFERENCE_SIGNAL_LIMIT)
-    .map(({ entry }) => referenceSignalFromCorpusEntry(entry));
+  return listRankedMotionReferenceCorpusForWorkflow(workflowId).map(referenceSignalFromCorpusEntry);
 }
 
 function inferReferenceWorkflowId(project: MotionProject): WorkflowRegistryId {
@@ -943,11 +901,6 @@ function inferReferenceWorkflowId(project: MotionProject): WorkflowRegistryId {
   }
 
   return 'repo-launch-video';
-}
-
-function priorityRank(priority: string[], id: string): number {
-  const index = priority.indexOf(id);
-  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
 }
 
 function referenceSignalFromCorpusEntry(

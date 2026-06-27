@@ -791,6 +791,80 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 
+  it('stages reference-signal regeneration through an agent handoff template', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['reference-signal-hyperframes-launch-video-gallery-effect'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'reference-signal-hyperframes-launch-video-gallery-effect',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            regenerationRequest: expect.objectContaining({
+              projectId: 'motion-tong-agent-route',
+              referenceSignalId: 'hyperframes-launch-video-gallery',
+              referenceTitle: 'HyperFrames launch video source gallery',
+              sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+              scope: 'effect',
+              componentIds: ['hook-card', 'app-frame'],
+              componentLabels: ['Hook card', 'App frame'],
+              prompt:
+                'Apply reference style to Hook card / App frame. Use HyperFrames launch video source gallery as the source-backed reference signal.',
+              status: 'planned',
+            }),
+          }),
+        }),
+      ],
+      finalProject: {
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'revision',
+            inputRefs: [
+              'hyperframes-launch-video-gallery',
+              'https://hyperframes.heygen.com/launch-videos',
+              'hook-card',
+              'app-frame',
+            ],
+            status: 'planned',
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'drafts',
+            label: 'Apply reference style to Hook card / App frame',
+            receiptLabels: ['Reference signal', 'Component style update'],
+          }),
+        ]),
+      },
+      finalResponse: {
+        previewPlan: {
+          executionHistory: {
+            status: 'saved',
+            latestReceiptLabels: ['Reference signal', 'Component style update'],
+          },
+        },
+      },
+    });
+  });
+
   it('applies edited source files through the source-edit handoff template', async () => {
     const startJson = await startLocalRepoProject();
     const plan = buildMotionRenderPlan(startJson.project, {

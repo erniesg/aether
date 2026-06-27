@@ -407,6 +407,48 @@ describe('POST /api/motion/start', () => {
             ],
           }),
           expect.objectContaining({
+            id: 'reference-signal-hyperframes-launch-video-gallery-effect',
+            label: 'Apply reference style to Hook card / App frame',
+            method: 'POST',
+            route: '/api/motion/regenerate',
+            toolId: 'motion-revise',
+            body: {
+              project: '$motionProject',
+              referenceSignalId: 'hyperframes-launch-video-gallery',
+              sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+              scope: 'effect',
+              componentIds: ['hook-card', 'app-frame'],
+              prompt:
+                'Apply reference style to Hook card / App frame. Use HyperFrames launch video source gallery as the source-backed reference signal.',
+              requestedEngines: ['remotion', 'hyperframes'],
+            },
+            inputPlaceholders: ['$motionProject'],
+            expectedReceipts: [
+              'reference signal',
+              'component style update',
+              'updated preview plan',
+            ],
+          }),
+          expect.objectContaining({
+            id: 'reference-signal-testreel-programmatic-product-video-capture',
+            label: 'Regenerate capture from screen recording product demo',
+            route: '/api/motion/regenerate',
+            toolId: 'motion-capture',
+            body: expect.objectContaining({
+              project: '$motionProject',
+              referenceSignalId: 'testreel-programmatic-product-video',
+              sourceUrl: 'https://github.com/greentfrapp/testreel',
+              scope: 'capture',
+              componentIds: ['app-frame', 'cursor-callout'],
+              requestedEngines: ['remotion', 'hyperframes'],
+            }),
+            expectedReceipts: [
+              'reference signal',
+              'capture plan',
+              'updated preview plan',
+            ],
+          }),
+          expect.objectContaining({
             id: 'prepare-preview-source',
             label: 'Prepare preview source',
             route: '/api/motion/preview-source',

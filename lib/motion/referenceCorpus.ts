@@ -88,6 +88,37 @@ export interface MotionReferenceCorpusEntry {
   aetherImplication: string;
 }
 
+const REFERENCE_SIGNAL_LIMIT = 5;
+const REFERENCE_SIGNAL_PRIORITY: Partial<Record<WorkflowRegistryId, string[]>> = {
+  'repo-launch-video': [
+    'hyperframes-launch-video-gallery',
+    'testreel-programmatic-product-video',
+    'claude-code-agent-trace',
+    'remotion-agent-video',
+    'hyperframes-skills',
+  ],
+  'feature-social-video': [
+    'screen-studio-product-demos',
+    'clueso-product-videos',
+    'hyperframes-launch-video-gallery',
+    'testreel-programmatic-product-video',
+    'descript-ai-video-editor',
+  ],
+  'website-to-video': [
+    'screen-studio-product-demos',
+    'testreel-programmatic-product-video',
+    'clueso-product-videos',
+    'arcade-interactive-product-story',
+    'remotion-agent-video',
+  ],
+  'pr-to-video': [
+    'hyperframes-pr-to-video-skill',
+    'claude-code-agent-trace',
+    'hyperframes-skills',
+    'authenticated-x-launch-corpus',
+  ],
+};
+
 const CORPUS: MotionReferenceCorpusEntry[] = [
   {
     id: 'hyperframes-skills',
@@ -447,6 +478,24 @@ export function listMotionReferenceCorpusForWorkflow(
   );
 }
 
+export function listRankedMotionReferenceCorpusForWorkflow(
+  workflowId: WorkflowRegistryId,
+  limit = REFERENCE_SIGNAL_LIMIT
+): MotionReferenceCorpusEntry[] {
+  const priority = REFERENCE_SIGNAL_PRIORITY[workflowId] ?? [];
+
+  return listMotionReferenceCorpusForWorkflow(workflowId)
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const rankA = priorityRank(priority, a.entry.id);
+      const rankB = priorityRank(priority, b.entry.id);
+      if (rankA !== rankB) return rankA - rankB;
+      return a.index - b.index;
+    })
+    .slice(0, limit)
+    .map(({ entry }) => entry);
+}
+
 export function corpusEntriesNeedingAuthenticatedReview(): MotionReferenceCorpusEntry[] {
   return listMotionReferenceCorpus().filter(
     (entry) => entry.proofBoundary === 'authenticated-video-needed'
@@ -488,4 +537,9 @@ export function validateMotionReferenceCorpus(
     }
   }
   return errors;
+}
+
+function priorityRank(priority: string[], id: string): number {
+  const index = priority.indexOf(id);
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
 }

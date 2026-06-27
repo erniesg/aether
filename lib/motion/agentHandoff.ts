@@ -1,8 +1,12 @@
 import type { ToolRegistryId } from '@/lib/tool/registry';
-import type { WorkflowEngine } from '@/lib/workflow/registry';
+import type { WorkflowEngine, WorkflowRegistryId } from '@/lib/workflow/registry';
 import type { AgentMotionCapturePlan, AgentMotionCapturePlanRequest } from './capturePlan';
-import type { MotionRegenerateScope } from './componentRegistry';
+import { getMotionComponent, type MotionRegenerateScope } from './componentRegistry';
 import type { MotionProject, MotionWorkflowMode } from './project';
+import {
+  listRankedMotionReferenceCorpusForWorkflow,
+  type MotionReferenceCorpusEntry,
+} from './referenceCorpus';
 import { buildMotionReviewPlan } from './reviewPlan';
 import type { RoutedAgentMotionWorkflow } from './workflowRouter';
 
@@ -218,6 +222,7 @@ function buildTemplates(input: {
 
   templates.push(
     ...componentRegenerationTemplates(input.project, engines),
+    ...referenceSignalRegenerationTemplates(input.workflow.workflowId, engines),
     {
       id: 'generate-visuals',
       label: 'Generate or select visuals',
@@ -345,6 +350,79 @@ function componentRegenerationTemplates(
   );
 }
 
+function referenceSignalRegenerationTemplates(
+  workflowId: WorkflowRegistryId,
+  engines: WorkflowEngine[]
+): MotionAgentRequestTemplate[] {
+  return listRankedMotionReferenceCorpusForWorkflow(workflowId).flatMap((entry) =>
+    referenceSignalTemplatesForEntry(entry, engines)
+  );
+}
+
+function referenceSignalTemplatesForEntry(
+  entry: MotionReferenceCorpusEntry,
+  engines: WorkflowEngine[]
+): MotionAgentRequestTemplate[] {
+  const componentIds = entry.componentIds.slice(0, 4);
+  const focusedComponentIds = componentIds.slice(0, 2);
+  if (focusedComponentIds.length === 0) return [];
+
+  const focusedComponentLabels = focusedComponentIds.map(componentLabelFor);
+  const templates = [
+    referenceSignalTemplate(entry, {
+      scope: 'effect',
+      componentIds: focusedComponentIds,
+      componentLabels: focusedComponentLabels,
+      label: `Apply reference style to ${focusedComponentLabels.join(' / ')}`,
+      engines,
+    }),
+  ];
+
+  if (entry.tags.some((tag) => tag === 'capture' || tag === 'cursor' || tag === 'zoom')) {
+    templates.push(
+      referenceSignalTemplate(entry, {
+        scope: 'capture',
+        componentIds: focusedComponentIds,
+        componentLabels: focusedComponentLabels,
+        label: `Regenerate capture from ${readableLabel(entry.observedFormat)}`,
+        engines,
+      })
+    );
+  }
+
+  return templates;
+}
+
+function referenceSignalTemplate(
+  entry: MotionReferenceCorpusEntry,
+  options: {
+    scope: MotionRegenerateScope;
+    componentIds: string[];
+    componentLabels: string[];
+    label: string;
+    engines: WorkflowEngine[];
+  }
+): MotionAgentRequestTemplate {
+  return {
+    id: `reference-signal-${entry.id}-${options.scope}`,
+    label: options.label,
+    method: 'POST',
+    route: '/api/motion/regenerate',
+    toolId: regenerationToolIdForScope(options.scope),
+    body: cleanBody({
+      project: PROJECT_PLACEHOLDER,
+      referenceSignalId: entry.id,
+      sourceUrl: entry.sourceUrl,
+      scope: options.scope,
+      componentIds: [...options.componentIds],
+      prompt: `${options.label}. Use ${entry.title} as the source-backed reference signal.`,
+      requestedEngines: options.engines,
+    }),
+    inputPlaceholders: [PROJECT_PLACEHOLDER],
+    expectedReceipts: referenceSignalReceiptLabels(options.scope),
+  };
+}
+
 function regenerationToolIdForScope(scope: MotionRegenerateScope): ToolRegistryId {
   switch (scope) {
     case 'capture':
@@ -363,6 +441,19 @@ function regenerationToolIdForScope(scope: MotionRegenerateScope): ToolRegistryI
     case 'cta':
       return 'motion-storyboard';
   }
+}
+
+function referenceSignalReceiptLabels(scope: MotionRegenerateScope): string[] {
+  if (scope === 'capture') {
+    return ['reference signal', 'capture plan', 'updated preview plan'];
+  }
+  if (scope === 'caption') {
+    return ['reference signal', 'voice and caption update', 'updated preview plan'];
+  }
+  if (scope === 'effect' || scope === 'timing') {
+    return ['reference signal', 'component style update', 'updated preview plan'];
+  }
+  return ['reference signal', 'component plan', 'updated preview plan'];
 }
 
 function regenerationReceiptLabelsForScope(scope: MotionRegenerateScope): string[] {
@@ -562,6 +653,14 @@ function nextTemplateId(
 
 function sourceLabels(project: MotionProject): string[] {
   return project.sourceRefs.map((source) => source.label ?? source.ref);
+}
+
+function componentLabelFor(componentId: string): string {
+  return getMotionComponent(componentId)?.label ?? readableLabel(componentId);
+}
+
+function readableLabel(value: string): string {
+  return value.replace(/[-_]/g, ' ');
 }
 
 function preferredRenderEngine(engines: WorkflowEngine[]): 'remotion' | 'hyperframes' {
