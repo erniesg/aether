@@ -317,6 +317,40 @@ describe('buildMotionPreviewPlan', () => {
         'captions align to voice',
       ]),
     });
+    const referenceSignals = (
+      preview as {
+        referenceSignals?: Array<{
+          title: string;
+          observedFormatLabel: string;
+          proofBoundaryLabel: string;
+          styleLabels: string[];
+          componentLabels: string[];
+        }>;
+      }
+    ).referenceSignals;
+    expect(referenceSignals?.map((signal) => signal.title).slice(0, 3)).toEqual([
+      'HyperFrames launch video source gallery',
+      'Testreel programmatic product videos',
+      'Claude Code agent-trace product story',
+    ]);
+    expect(referenceSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'HyperFrames launch video source gallery',
+          observedFormatLabel: 'launch video source',
+          proofBoundaryLabel: 'accessible page',
+          styleLabels: expect.arrayContaining(['source backed', 'kinetic type']),
+          componentLabels: expect.arrayContaining(['Hook card', 'App frame']),
+        }),
+        expect.objectContaining({
+          title: 'Testreel programmatic product videos',
+          observedFormatLabel: 'screen recording product demo',
+          proofBoundaryLabel: 'public repo',
+          styleLabels: expect.arrayContaining(['agent native', 'screen polish']),
+          componentLabels: expect.arrayContaining(['App frame', 'Cursor callout']),
+        }),
+      ])
+    );
     expect(preview.draftOptions.map((draft) => draft.label)).toEqual([
       'Primary launch cut',
       'Proof-first cut',

@@ -1,4 +1,4 @@
-import type { WorkflowEngine } from '@/lib/workflow/registry';
+import type { WorkflowEngine, WorkflowRegistryId } from '@/lib/workflow/registry';
 import type {
   AgentMotionWorkflowRunPlan,
   MotionWorkflowRunStep,
@@ -53,6 +53,10 @@ import {
   buildMotionReferenceGrammarPlan,
   type MotionReferenceGrammarPlan,
 } from './referenceGrammar';
+import {
+  listMotionReferenceCorpusForWorkflow,
+  type MotionReferenceCorpusEntry,
+} from './referenceCorpus';
 import {
   buildMotionCanvasMaterialPlan,
   type MotionCanvasMaterialPlan,
@@ -632,6 +636,19 @@ export interface MotionPreviewCapabilitySetup {
   items: MotionPreviewCapabilitySetupItem[];
 }
 
+export interface MotionPreviewReferenceSignal {
+  id: string;
+  title: string;
+  sourceUrl: string;
+  sourceLabel: string;
+  observedFormatLabel: string;
+  proofBoundaryLabel: string;
+  styleLabels: string[];
+  componentLabels: string[];
+  shotNotes: string[];
+  implication: string;
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -658,6 +675,7 @@ export interface MotionPreviewPlan {
   renderProofSummary: MotionPreviewRenderProofSummary;
   canvasMaterialPlan: MotionCanvasMaterialPlan;
   referenceGrammar: MotionReferenceGrammarPlan;
+  referenceSignals: MotionPreviewReferenceSignal[];
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
   visualGenerationSummary: MotionPreviewVisualGenerationSummary;
   capabilitySetup: MotionPreviewCapabilitySetup;
@@ -677,6 +695,36 @@ export interface BuildMotionPreviewPlanOptions {
 }
 
 const DEFAULT_PREVIEW_ENGINES: WorkflowEngine[] = ['remotion', 'hyperframes'];
+const REFERENCE_SIGNAL_LIMIT = 5;
+const REFERENCE_SIGNAL_PRIORITY: Partial<Record<WorkflowRegistryId, string[]>> = {
+  'repo-launch-video': [
+    'hyperframes-launch-video-gallery',
+    'testreel-programmatic-product-video',
+    'claude-code-agent-trace',
+    'remotion-agent-video',
+    'hyperframes-skills',
+  ],
+  'feature-social-video': [
+    'screen-studio-product-demos',
+    'clueso-product-videos',
+    'hyperframes-launch-video-gallery',
+    'testreel-programmatic-product-video',
+    'descript-ai-video-editor',
+  ],
+  'website-to-video': [
+    'screen-studio-product-demos',
+    'testreel-programmatic-product-video',
+    'clueso-product-videos',
+    'arcade-interactive-product-story',
+    'remotion-agent-video',
+  ],
+  'pr-to-video': [
+    'hyperframes-pr-to-video-skill',
+    'claude-code-agent-trace',
+    'hyperframes-skills',
+    'authenticated-x-launch-corpus',
+  ],
+};
 
 export function buildMotionPreviewPlan(
   project: MotionProject,
@@ -703,6 +751,7 @@ export function buildMotionPreviewPlan(
     draftId: project.currentDraftId,
     requestedAt: options.requestedAt,
   });
+  const referenceSignals = buildReferenceSignals(project);
   const visualSourcingPlan = buildMotionVisualSourcingPlan(project, {
     draftId: project.currentDraftId,
     requestedAt: options.requestedAt,
@@ -794,6 +843,7 @@ export function buildMotionPreviewPlan(
     renderProofSummary,
     canvasMaterialPlan,
     referenceGrammar,
+    referenceSignals,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
     visualGenerationSummary,
     capabilitySetup: buildCapabilitySetup(project, productionPlan, enginePreviews, capturePlan, {
@@ -831,6 +881,64 @@ function buildExecutionHistorySummary(
     receiptCount: entries.reduce((total, entry) => total + entry.receiptCount, 0),
     latestReceiptLabels: latestEntry?.receiptLabels ?? [],
     entries,
+  };
+}
+
+function buildReferenceSignals(project: MotionProject): MotionPreviewReferenceSignal[] {
+  const workflowId = inferReferenceWorkflowId(project);
+  const priority = REFERENCE_SIGNAL_PRIORITY[workflowId] ?? [];
+
+  return listMotionReferenceCorpusForWorkflow(workflowId)
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const rankA = priorityRank(priority, a.entry.id);
+      const rankB = priorityRank(priority, b.entry.id);
+      if (rankA !== rankB) return rankA - rankB;
+      return a.index - b.index;
+    })
+    .slice(0, REFERENCE_SIGNAL_LIMIT)
+    .map(({ entry }) => referenceSignalFromCorpusEntry(entry));
+}
+
+function inferReferenceWorkflowId(project: MotionProject): WorkflowRegistryId {
+  if (project.brief.projectKind === 'pr' || project.sourceProfile?.kind === 'pr') {
+    return 'pr-to-video';
+  }
+
+  if (project.sourceProfile?.kind === 'site' && !project.brief.appProfile.repoUrl) {
+    return 'website-to-video';
+  }
+
+  if (
+    project.brief.projectKind === 'feature' ||
+    project.brief.projectKind === 'social' ||
+    project.brief.projectKind === 'demo'
+  ) {
+    return 'feature-social-video';
+  }
+
+  return 'repo-launch-video';
+}
+
+function priorityRank(priority: string[], id: string): number {
+  const index = priority.indexOf(id);
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+}
+
+function referenceSignalFromCorpusEntry(
+  entry: MotionReferenceCorpusEntry
+): MotionPreviewReferenceSignal {
+  return {
+    id: entry.id,
+    title: entry.title,
+    sourceUrl: entry.sourceUrl,
+    sourceLabel: `${readableLabel(entry.platform)} source`,
+    observedFormatLabel: readableLabel(entry.observedFormat),
+    proofBoundaryLabel: readableLabel(entry.proofBoundary),
+    styleLabels: entry.styleTags.map(readableLabel),
+    componentLabels: uniqueStrings(entry.componentIds.map(componentLabelFor)),
+    shotNotes: entry.shotNotes.slice(0, 2),
+    implication: entry.aetherImplication,
   };
 }
 

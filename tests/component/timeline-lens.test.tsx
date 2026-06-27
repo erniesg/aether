@@ -514,6 +514,23 @@ const previewPlan: MotionPreviewPlan = {
     provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
     requestedAt: 130,
   },
+  referenceSignals: [
+    {
+      id: 'hyperframes-launch-video-gallery',
+      title: 'HyperFrames launch video source gallery',
+      sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+      sourceLabel: 'web source',
+      observedFormatLabel: 'launch video source',
+      proofBoundaryLabel: 'accessible page',
+      styleLabels: ['source backed', 'kinetic type', 'brand system'],
+      componentLabels: ['Hook card', 'App frame', 'UI reveal frame'],
+      shotNotes: [
+        'Launch examples pair a concrete surface with a strong visual system and short social pacing.',
+      ],
+      implication:
+        'Use source-backed launch taste to pick component slots and editable effect presets.',
+    },
+  ],
   storyboard: [
     {
       beatId: 'beat-hook',
@@ -2170,6 +2187,66 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
+  });
+
+  it('shows reference signals for reviewing and regenerating motion components', () => {
+    const planWithReferenceSignals = {
+      ...previewPlan,
+      referenceSignals: [
+        {
+          id: 'hyperframes-launch-video-gallery',
+          title: 'HyperFrames launch video source gallery',
+          sourceUrl: 'https://hyperframes.heygen.com/launch-videos',
+          sourceLabel: 'web source',
+          observedFormatLabel: 'launch video source',
+          proofBoundaryLabel: 'accessible page',
+          styleLabels: ['source backed', 'kinetic type', 'brand system'],
+          componentLabels: ['Hook card', 'App frame', 'UI reveal frame'],
+          shotNotes: [
+            'Launch examples pair a concrete surface with a strong visual system and short social pacing.',
+          ],
+          implication:
+            'Use source-backed launch taste to pick component slots and editable effect presets.',
+        },
+        {
+          id: 'testreel-programmatic-product-video',
+          title: 'Testreel programmatic product videos',
+          sourceUrl: 'https://github.com/greentfrapp/testreel',
+          sourceLabel: 'github source',
+          observedFormatLabel: 'screen recording product demo',
+          proofBoundaryLabel: 'public repo',
+          styleLabels: ['agent native', 'screen polish', 'verification led'],
+          componentLabels: ['App frame', 'Cursor callout', 'Contact sheet proof'],
+          shotNotes: [
+            'LLM agents can generate a repeatable recording definition instead of manually recording each take.',
+          ],
+          implication:
+            'Persist capture definitions so one step can be tweaked and regenerated without losing editability.',
+        },
+      ],
+    } as MotionPreviewPlan;
+
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={planWithReferenceSignals}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+      />
+    );
+
+    expect(screen.getByText('reference signals')).toBeInTheDocument();
+    expect(screen.getByText('HyperFrames launch video source gallery')).toBeInTheDocument();
+    expect(screen.getByText('Testreel programmatic product videos')).toBeInTheDocument();
+    expect(screen.getByText('launch video source')).toBeInTheDocument();
+    expect(screen.getByText('screen recording product demo')).toBeInTheDocument();
+    expect(screen.getByText('accessible page')).toBeInTheDocument();
+    expect(screen.getByText('public repo')).toBeInTheDocument();
+    expect(screen.getAllByText('source backed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Hook card \/ App frame \/ UI reveal frame/)).toBeInTheDocument();
+    expect(screen.queryByText('hyperframes-launch-video-gallery')).not.toBeInTheDocument();
+    expect(screen.queryByText('testreel-programmatic-product-video')).not.toBeInTheDocument();
   });
 
   it('keeps extra repo capture targets compact until creators open them', async () => {

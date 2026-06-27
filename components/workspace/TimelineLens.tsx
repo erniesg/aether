@@ -466,6 +466,12 @@ function MotionPreviewPlanView({
         <MotionReferenceGrammarStrip grammar={previewPlan.referenceGrammar} />
       </section>
 
+      {previewPlan.referenceSignals.length > 0 ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionReferenceSignalsStrip signals={previewPlan.referenceSignals} />
+        </section>
+      ) : null}
+
       {capturePlan ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionCapturePlanView
@@ -2395,6 +2401,73 @@ function MotionReferenceGrammarStrip({
             </div>
           ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MotionReferenceSignalsStrip({
+  signals,
+}: {
+  signals: MotionPreviewPlan['referenceSignals'];
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            reference signals
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {signals
+              .slice(0, 3)
+              .map((signal) => signal.observedFormatLabel)
+              .join(' / ')}
+          </div>
+        </div>
+        <Chip tone="info" size="sm">
+          {signals.length} examples
+        </Chip>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-2">
+        {signals.slice(0, 4).map((signal) => (
+          <div
+            key={signal.id}
+            className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+          >
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-caption text-xs text-ink">{signal.title}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  <Chip tone="neutral" size="sm">
+                    {signal.observedFormatLabel}
+                  </Chip>
+                  <Chip tone="neutral" size="sm">
+                    {signal.proofBoundaryLabel}
+                  </Chip>
+                </div>
+              </div>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                {signal.sourceLabel}
+              </span>
+            </div>
+            {signal.shotNotes[0] ? (
+              <div className="mt-2 line-clamp-2 font-caption text-2xs text-ink-faint">
+                {signal.shotNotes[0]}
+              </div>
+            ) : null}
+            <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {signal.componentLabels.slice(0, 4).join(' / ')}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {signal.styleLabels.slice(0, 4).map((label) => (
+                <Chip key={`${signal.id}-${label}`} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
