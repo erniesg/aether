@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import {
   MotionSection,
   type MotionAgentHandoffClientResult,
+  type MotionRegenerateClientResult,
   type MotionStartClientRequest,
 } from '@/components/rail/sections/MotionSection';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
@@ -62,6 +63,23 @@ function readyResult(appName = 'aether'): AgentMotionStartResult {
 }
 
 function reviewReadyResult(appName = 'tong'): AgentMotionStartResult {
+  const appFrameCaptureAction = {
+    id: 'regen-app-frame-capture',
+    label: 'Regenerate capture for App frame',
+    clipId: 'clip-beat-demo-text',
+    componentLabel: 'App frame',
+    componentId: 'app-frame',
+    scope: 'capture',
+    requestTemplate: {
+      project: '$motionProject',
+      clipId: 'clip-beat-demo-text',
+      scope: 'capture',
+      prompt: 'Regenerate capture for App frame',
+      requestedEngines: '$selectedEngines',
+      requestedAt: '$now',
+    },
+  };
+
   return {
     ...readyResult(appName),
     previewPlan: {
@@ -76,12 +94,14 @@ function reviewReadyResult(appName = 'tong'): AgentMotionStartResult {
             role: 'hook',
             narration: 'Turn the repo into a launch cut.',
             visualLabel: 'Hook card',
+            regenerationActions: [],
           },
           {
             sceneId: 'scene-demo',
             role: 'demo',
             narration: 'Show the app flow and export pack.',
             visualLabel: 'App frame',
+            regenerationActions: [appFrameCaptureAction],
           },
         ],
       },
@@ -100,12 +120,7 @@ function reviewReadyResult(appName = 'tong'): AgentMotionStartResult {
         },
       ],
       regenerationActions: [
-        {
-          id: 'regen-app-frame-capture',
-          label: 'Regenerate capture for App frame',
-          componentLabel: 'App frame',
-          scope: 'capture',
-        },
+        appFrameCaptureAction,
       ],
     },
     agentHandoff: {
@@ -412,6 +427,58 @@ describe('MotionSection', () => {
     expect(
       within(reviewQueue).getByRole('button', { name: /continue full auto/i })
     ).toBeEnabled();
+  });
+
+  it('lets creators trigger scene-level component regeneration from the video plan', async () => {
+    const startMotion = vi.fn(async () => reviewReadyResult('tong'));
+    const regeneratedResult = reviewReadyResult('tong');
+    const regeneratedPreviewPlan = regeneratedResult.previewPlan;
+    if (!regeneratedPreviewPlan) throw new Error('regenerated preview plan fixture missing');
+    const regenerateMotion = vi.fn(async (): Promise<MotionRegenerateClientResult> => ({
+      regenerationRequest: { scope: 'capture' },
+      project: regeneratedResult.project,
+      previewPlan: {
+        ...regeneratedPreviewPlan,
+        title: 'tong refreshed launch video',
+      },
+      reviewPlan: regeneratedResult.reviewPlan,
+      capturePlan: regeneratedResult.capturePlan,
+    }));
+    render(
+      <MotionSection
+        workspaceId="demo-ws"
+        startMotion={startMotion}
+        regenerateMotion={regenerateMotion}
+      />
+    );
+
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      '/Users/erniesg/code/erniesg/tong'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    const reviewQueue = await screen.findByRole('region', {
+      name: /motion review queue/i,
+    });
+    await userEvent.click(
+      within(reviewQueue).getByRole('button', { name: /Regenerate capture for App frame/i })
+    );
+
+    await waitFor(() => {
+      expect(reviewQueue).toHaveTextContent('capture regeneration planned');
+    });
+    expect(regenerateMotion).toHaveBeenCalledWith(
+      expect.objectContaining({ project: expect.any(Object) }),
+      expect.objectContaining({
+        id: 'regen-app-frame-capture',
+        clipId: 'clip-beat-demo-text',
+        scope: 'capture',
+      })
+    );
+    expect(getMotionStartResult('demo-ws')?.previewPlan).toMatchObject({
+      title: 'tong refreshed launch video',
+    });
   });
 
   it('applies completed full-auto handoff results to the same workspace video state', async () => {

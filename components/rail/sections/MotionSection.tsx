@@ -29,6 +29,17 @@ type MotionHandoffStatus =
   | { kind: 'done'; result: MotionAgentHandoffClientResult }
   | { kind: 'error'; message: string };
 
+type MotionRegenerateStatus =
+  | { kind: 'idle' }
+  | { kind: 'running'; actionId: string }
+  | { kind: 'done'; message: string }
+  | { kind: 'error'; message: string };
+
+type MotionRailRegenerationAction =
+  NonNullable<AgentMotionStartResult['previewPlan']>['regenerationActions'][number];
+type MotionRailVideoPlanScene =
+  NonNullable<AgentMotionStartResult['previewPlan']>['videoPlan']['scenes'][number];
+
 interface MotionSourceDraftEntry {
   kind: WorkflowSourceKind;
   label: string;
@@ -70,9 +81,21 @@ export interface MotionStartClientRequest {
 export interface MotionSectionProps {
   workspaceId?: string;
   startMotion?: (request: MotionStartClientRequest) => Promise<AgentMotionStartResult>;
+  regenerateMotion?: (
+    result: AgentMotionStartResult,
+    action: MotionRailRegenerationAction
+  ) => Promise<MotionRegenerateClientResult>;
   runAgentHandoff?: (
     result: AgentMotionStartResult
   ) => Promise<MotionAgentHandoffClientResult>;
+}
+
+export interface MotionRegenerateClientResult {
+  regenerationRequest?: { scope?: string };
+  project?: AgentMotionStartResult['project'];
+  reviewPlan?: AgentMotionStartResult['reviewPlan'];
+  previewPlan?: AgentMotionStartResult['previewPlan'];
+  capturePlan?: AgentMotionStartResult['capturePlan'];
 }
 
 const INTENTS: MotionWorkflowIntent[] = [
@@ -148,6 +171,35 @@ async function defaultRunAgentHandoff(
   return runMotionAgentHandoffFromStart(result);
 }
 
+async function defaultRegenerateMotion(
+  result: AgentMotionStartResult,
+  action: MotionRailRegenerationAction
+): Promise<MotionRegenerateClientResult> {
+  if (!result.project) throw new Error('project is required for regeneration');
+
+  const requestTemplate = action.requestTemplate;
+  const res = await fetch(action.route, {
+    method: action.method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project: result.project,
+      clipId: requestTemplate.clipId,
+      scope: requestTemplate.scope,
+      prompt: requestTemplate.prompt,
+      requestedEngines: result.workflow.plan.engines,
+      requestedAt: Date.now(),
+    }),
+  });
+  const json = (await res.json()) as MotionRegenerateClientResult & {
+    ok?: boolean;
+    error?: string;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new Error(json.error ?? `regeneration failed: ${res.status}`);
+  }
+  return json;
+}
+
 export function motionSectionSummary(result: AgentMotionStartResult | undefined): string {
   return motionStartSummary(result);
 }
@@ -155,6 +207,7 @@ export function motionSectionSummary(result: AgentMotionStartResult | undefined)
 export function MotionSection({
   workspaceId,
   startMotion = defaultStartMotion,
+  regenerateMotion = defaultRegenerateMotion,
   runAgentHandoff = defaultRunAgentHandoff,
 }: MotionSectionProps) {
   const [source, setSource] = useState('');
@@ -163,6 +216,9 @@ export function MotionSection({
   const [targetPresetId, setTargetPresetId] = useState<string>(TARGET_PRESETS[0].id);
   const [status, setStatus] = useState<MotionStartStatus>({ kind: 'idle' });
   const [handoffStatus, setHandoffStatus] = useState<MotionHandoffStatus>({ kind: 'idle' });
+  const [regenerateStatus, setRegenerateStatus] = useState<MotionRegenerateStatus>({
+    kind: 'idle',
+  });
   const [recentSources, setRecentSources] = useState<MotionRecentSourceDraft[]>([]);
   const sourceRef = source.trim();
   const sourceDraft = sourceRef ? buildMotionSourceDraft(sourceRef, intent) : null;
@@ -202,6 +258,7 @@ export function MotionSection({
       );
       setStatus({ kind: 'done', result });
       setHandoffStatus({ kind: 'idle' });
+      setRegenerateStatus({ kind: 'idle' });
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
     }
@@ -214,6 +271,35 @@ export function MotionSection({
     setTargetPresetId(recentSource.targetPresetId);
     setStatus({ kind: 'idle' });
     setHandoffStatus({ kind: 'idle' });
+    setRegenerateStatus({ kind: 'idle' });
+  };
+
+  const runSceneRegeneration = async (action: MotionRailRegenerationAction) => {
+    if (status.kind !== 'done') return;
+    if (regenerateStatus.kind === 'running') return;
+
+    setRegenerateStatus({ kind: 'running', actionId: action.id });
+    try {
+      const result = await regenerateMotion(status.result, action);
+      const updatedResult = {
+        ...status.result,
+        project: result.project ?? status.result.project,
+        reviewPlan: result.reviewPlan ?? status.result.reviewPlan,
+        previewPlan: result.previewPlan ?? status.result.previewPlan,
+        capturePlan: result.capturePlan ?? status.result.capturePlan,
+      };
+      setMotionStartResult(workspaceId, updatedResult);
+      setStatus({ kind: 'done', result: updatedResult });
+      setRegenerateStatus({
+        kind: 'done',
+        message: `${result.regenerationRequest?.scope ?? action.scope} regeneration planned`,
+      });
+    } catch (error) {
+      setRegenerateStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   };
 
   const continueFullAuto = async (result: AgentMotionStartResult) => {
@@ -339,6 +425,8 @@ export function MotionSection({
           <MotionReviewQueue
             result={status.result}
             handoffStatus={handoffStatus}
+            regenerateStatus={regenerateStatus}
+            onRegenerateScene={(action) => void runSceneRegeneration(action)}
             onContinueFullAuto={() => void continueFullAuto(status.result)}
           />
         </>
@@ -420,10 +508,14 @@ function MotionSourceDraftPreview({ draft }: { draft: MotionSourceDraft }) {
 function MotionReviewQueue({
   result,
   handoffStatus,
+  regenerateStatus,
+  onRegenerateScene,
   onContinueFullAuto,
 }: {
   result: AgentMotionStartResult;
   handoffStatus: MotionHandoffStatus;
+  regenerateStatus: MotionRegenerateStatus;
+  onRegenerateScene: (action: MotionRailRegenerationAction) => void;
   onContinueFullAuto: () => void;
 }) {
   const previewPlan = result.previewPlan;
@@ -464,9 +556,10 @@ function MotionReviewQueue({
       </div>
 
       <div className="mt-2 grid gap-2">
-        <MotionReviewQueueList
-          label="plan"
-          items={motionPlanSceneItems(previewPlan.videoPlan.scenes)}
+        <MotionPlanSceneList
+          scenes={previewPlan.videoPlan.scenes}
+          regenerateStatus={regenerateStatus}
+          onRegenerateScene={onRegenerateScene}
         />
         <MotionReviewQueueList
           label="drafts"
@@ -514,6 +607,12 @@ function MotionReviewQueue({
         </div>
       ) : null}
 
+      {regenerateStatus.kind === 'done' || regenerateStatus.kind === 'error' ? (
+        <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim">
+          {regenerateStatus.message}
+        </div>
+      ) : null}
+
       {handoffStatus.kind === 'error' ? (
         <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim">
           {handoffStatus.message}
@@ -523,13 +622,62 @@ function MotionReviewQueue({
   );
 }
 
-function motionPlanSceneItems(
-  scenes: NonNullable<AgentMotionStartResult['previewPlan']>['videoPlan']['scenes']
-): string[] {
-  return scenes.slice(0, 3).map((scene) => {
-    const summary = scene.narration.trim() || scene.visualLabel.trim() || scene.editSummary.trim();
-    return summary ? `${scene.role}: ${summary}` : scene.role;
-  });
+function MotionPlanSceneList({
+  scenes,
+  regenerateStatus,
+  onRegenerateScene,
+}: {
+  scenes: MotionRailVideoPlanScene[];
+  regenerateStatus: MotionRegenerateStatus;
+  onRegenerateScene: (action: MotionRailRegenerationAction) => void;
+}) {
+  const visibleScenes = scenes.slice(0, 3);
+  if (visibleScenes.length === 0) return null;
+
+  return (
+    <div className="min-w-0">
+      <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">plan</div>
+      <div className="mt-1 grid gap-1">
+        {visibleScenes.map((scene) => (
+          <div
+            key={scene.sceneId}
+            className="rounded-sm border border-border-soft bg-surface-panel px-1.5 py-1"
+          >
+            <div className="truncate font-caption text-2xs text-ink-dim">
+              {motionPlanSceneLabel(scene)}
+            </div>
+            {scene.regenerationActions.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {scene.regenerationActions.slice(0, 2).map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => onRegenerateScene(action)}
+                    disabled={regenerateStatus.kind === 'running'}
+                    className={cn(
+                      'rounded-sm border border-border-soft bg-surface-panel-muted px-1.5 py-0.5',
+                      'font-mono text-[10px] uppercase tracking-wide text-ink-dim transition-colors',
+                      'hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
+                    )}
+                  >
+                    {regenerateStatus.kind === 'running' &&
+                    regenerateStatus.actionId === action.id
+                      ? 'planning'
+                      : action.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function motionPlanSceneLabel(scene: MotionRailVideoPlanScene): string {
+  const summary = scene.narration.trim() || scene.visualLabel.trim() || scene.editSummary.trim();
+  return summary ? `${scene.role}: ${summary}` : scene.role;
 }
 
 function handoffStatusLabel(status: MotionHandoffStatus): string | null {
