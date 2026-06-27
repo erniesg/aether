@@ -334,6 +334,7 @@ export function MotionSection({
         reviewPlan: result.reviewPlan ?? status.result.reviewPlan,
         previewPlan: result.previewPlan ?? status.result.previewPlan,
         capturePlan: result.capturePlan ?? status.result.capturePlan,
+        sourcePatchDraft: result.sourcePatchDraft ?? null,
       };
       setMotionStartResult(workspaceId, updatedResult);
       setStatus({ kind: 'done', result: updatedResult });
@@ -369,6 +370,7 @@ export function MotionSection({
         project: result.project ?? status.result.project,
         reviewPlan: result.reviewPlan ?? status.result.reviewPlan,
         previewPlan: result.previewPlan ?? status.result.previewPlan,
+        sourcePatchDraft: null,
       };
       setMotionStartResult(workspaceId, updatedResult);
       setStatus({ kind: 'done', result: updatedResult });

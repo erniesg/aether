@@ -453,6 +453,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [motionTimelineActionStatus, setMotionTimelineActionStatus] = useState<string | null>(null);
   const [motionSourcePatchDraft, setMotionSourcePatchDraft] =
     useState<MotionSourcePatchDraft | null>(null);
+  const activeMotionSourcePatchDraft =
+    motionSourcePatchDraft ?? motionStart?.sourcePatchDraft ?? null;
   const motionTimelineTracks = useMemo<TimelineTrack[]>(
     () => motionStart?.project?.tracks ?? [],
     [motionStart]
@@ -524,6 +526,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan ?? motionStart.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
+          sourcePatchDraft: json.sourcePatchDraft ?? null,
         });
         setMotionSourcePatchDraft(json.sourcePatchDraft ?? null);
         setMotionTimelineActionStatus(`${json.regenerationRequest?.scope ?? action.scope} regeneration planned`);
@@ -535,22 +538,22 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   );
   const handleTimelineApplySourcePatchDraft = useCallback(
     async (draftId: string) => {
-      if (!motionStart?.project || !motionSourcePatchDraft) return;
-      if (motionSourcePatchDraft.id !== draftId) return;
-      if (motionSourcePatchDraft.status !== 'ready') {
+      if (!motionStart?.project || !activeMotionSourcePatchDraft) return;
+      if (activeMotionSourcePatchDraft.id !== draftId) return;
+      if (activeMotionSourcePatchDraft.status !== 'ready') {
         setMotionTimelineActionStatus('source patch blocked');
         return;
       }
 
       setMotionTimelineActionStatus('applying source patch');
       try {
-        const res = await fetch(motionSourcePatchDraft.route, {
-          method: motionSourcePatchDraft.method,
+        const res = await fetch(activeMotionSourcePatchDraft.route, {
+          method: activeMotionSourcePatchDraft.method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             project: motionStart.project,
-            id: motionSourcePatchDraft.sourceEditId,
-            files: motionSourcePatchDraft.files,
+            id: activeMotionSourcePatchDraft.sourceEditId,
+            files: activeMotionSourcePatchDraft.files,
             requestedEngines: motionStart.workflow.plan.engines,
             requestedAt: Date.now(),
           }),
@@ -571,6 +574,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           project: json.project ?? motionStart.project,
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan ?? motionStart.previewPlan,
+          sourcePatchDraft: null,
         });
         setMotionSourcePatchDraft(null);
         setMotionTimelineActionStatus(
@@ -580,7 +584,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
     },
-    [motionSourcePatchDraft, motionStart, wsId]
+    [activeMotionSourcePatchDraft, motionStart, wsId]
   );
   const handleTimelineDraftSelect = useCallback(
     (draftId: string) => {
@@ -605,6 +609,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             requestedAt,
           }),
           capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+          sourcePatchDraft: null,
         });
         setMotionTimelineActionStatus(`${draft.label} selected`);
         setMotionSourcePatchDraft(null);
@@ -3112,7 +3117,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           <TimelineLens
             tracks={motionTimelineTracks}
             previewPlan={motionPreviewPlan}
-            sourcePatchDraft={motionSourcePatchDraft}
+            sourcePatchDraft={activeMotionSourcePatchDraft}
             selectedClipId={selectedTimelineClipId}
             onSelectClip={setSelectedTimelineClipId}
             onSelectDraft={handleTimelineDraftSelect}

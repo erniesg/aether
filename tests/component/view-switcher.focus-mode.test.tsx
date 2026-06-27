@@ -16,6 +16,7 @@ import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { buildAgentMotionWorkflowPlan } from '@/lib/motion/workflowPlan';
 import { appendSetupDryRunExecutionHistory } from '@/lib/motion/executionHistory';
+import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 import type { MotionProject, TimelineTrack } from '@/lib/motion/project';
 
 afterEach(() => {
@@ -317,6 +318,46 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByRole('region', { name: /timeline/i })).toBeInTheDocument();
     expect(screen.getAllByText('aether launch video').length).toBeGreaterThan(0);
     expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
+  });
+
+  it('surfaces stored motion source patch drafts in the timeline lens', async () => {
+    const sourcePatchDraft: MotionSourcePatchDraft = {
+      id: 'source-patch-draft-stored',
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      sourceEditId: 'source-edit-stored',
+      sourcePatchPlanId: 'source-patch-stored',
+      files: [
+        {
+          path: 'timeline/draft-primary.json',
+          contents: '{"tracks":[]}',
+        },
+      ],
+      targetClipIds: ['clip-beat-demo-text'],
+      requestTemplate: {
+        project: '$motionProject',
+        id: 'source-edit-stored',
+        files: '$draftSourceFiles',
+        requestedEngines: '$selectedEngines',
+        requestedAt: '$now',
+      },
+      blockers: [],
+    };
+    const start = {
+      ...storedRegeneratableMotionStart(),
+      sourcePatchDraft,
+    } as AgentMotionStartResult;
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('source patch draft')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('source-edit-stored').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /apply source patch draft/i })).toBeEnabled();
   });
 
   it('timeline regeneration button plans a scoped agent handoff and refreshes motion state', async () => {

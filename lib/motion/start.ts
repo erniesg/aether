@@ -49,6 +49,7 @@ import type {
   MotionRenderEngine,
   MotionRenderSourceFile,
 } from '@/lib/providers/video/types';
+import type { MotionSourcePatchDraft } from './sourcePatchDraft';
 
 export type AgentMotionStartStatus =
   | 'ready'
@@ -134,6 +135,7 @@ export interface AgentMotionStartResult {
   reviewPlan: MotionReviewPlan | null;
   previewPlan: MotionPreviewPlan | null;
   preparedPreviewSource?: MotionPreparedPreviewSource | null;
+  sourcePatchDraft?: MotionSourcePatchDraft | null;
   capturePlan: AgentMotionCapturePlan | null;
   agentHandoff: MotionAgentExecutionHandoff | null;
   examples: MotionWorkflowExample[];
