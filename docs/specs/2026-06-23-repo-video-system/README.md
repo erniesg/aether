@@ -188,7 +188,10 @@ capture, render, and provenance debugging.
   chosen template sequence, carry the updated project between responses, and
   return per-template receipts for setup dry-runs and full-auto gates; agents
   can call `/api/motion/agent-handoff` to run that sequence through the
-  whitelisted motion routes. GitHub repo URLs, local repo paths, and site/app
+  whitelisted motion routes. Computer-use capture setup is now a guarded
+  handoff template: it requires an approved `computer-use-local` runner with an
+  applied redaction manifest and supplied capture receipts before setup
+  receipts are saved. GitHub repo URLs, local repo paths, and site/app
   URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
   configured. Real screen capture and recording remain provider execution work.

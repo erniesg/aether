@@ -126,6 +126,8 @@ function parseInput(body: MotionAgentHandoffRequestBody) {
     ),
     voiceProviderId: stringValue(input.voiceProviderId ?? body.voiceProviderId),
     renderProviderId: stringValue(input.renderProviderId ?? body.renderProviderId),
+    computerUseCaptureRunner:
+      input.computerUseCaptureRunner ?? body.computerUseCaptureRunner,
     editedSourceFiles: input.editedSourceFiles ?? body.editedSourceFiles,
   };
 }

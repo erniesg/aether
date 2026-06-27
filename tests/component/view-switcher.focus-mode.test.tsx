@@ -910,6 +910,57 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
   });
 
+  it('timeline computer-use setup card pauses until approval and redaction receipts exist', async () => {
+    const start = storedLocalAppFullAutoMotionStart();
+    expect(start.agentHandoff?.templates.map((template) => template.id)).toContain(
+      'setup-computer-use'
+    );
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'blocked',
+          projectId: start.project!.id,
+          finalProject: start.project,
+          finalResponse: null,
+          steps: [
+            {
+              templateId: 'setup-computer-use',
+              label: 'Approve computer-use capture',
+              route: '/api/motion/full-auto',
+              method: 'POST',
+              missingPlaceholders: ['$computerUseCaptureRunner'],
+              status: 'skipped',
+              responseStatus: null,
+              responseJson: null,
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /set up computer-use capture/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Computer-use capture setup blocked: missing $computerUseCaptureRunner'
+      );
+    });
+    const handoffCall = fetchMock.mock.calls.find(
+      (call) => call[0] === '/api/motion/agent-handoff'
+    );
+    expect(handoffCall).toBeDefined();
+    const body = JSON.parse(String(handoffCall?.[1]?.body));
+    expect(body.templateIds).toEqual(['setup-computer-use']);
+    expect(body.input).toEqual({});
+    expect(screen.getByRole('navigation', { name: /inputs/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /outputs/i })).toBeInTheDocument();
+  });
+
   it('timeline source preview focuses a component without leaving the shell', async () => {
     setMotionStartResult('demo-ws', storedRegeneratableMotionStart());
     renderShell();

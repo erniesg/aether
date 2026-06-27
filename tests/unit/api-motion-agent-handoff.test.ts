@@ -328,6 +328,91 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 
+  it('runs the guarded computer-use setup template when approval and redaction receipts are supplied', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['setup-computer-use'],
+          input: {
+            computerUseCaptureRunner: {
+              kind: 'computer-use-local',
+              approved: true,
+              redactionManifest: {
+                labels: ['tokens', 'private workspace names'],
+                applied: true,
+                receiptRef: 'redaction-pass-1',
+              },
+              receipts: [
+                {
+                  assetUrl: 'asset://computer-use/tong-auth-state.png',
+                  width: 1080,
+                  height: 1920,
+                  mimeType: 'image/png',
+                  redactions: [
+                    {
+                      label: 'tokens',
+                      target: 'settings panel',
+                      action: 'blur',
+                      applied: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'setup-computer-use',
+          status: 'complete',
+          responseStatus: 200,
+        }),
+      ],
+      finalResponse: {
+        ok: true,
+        setupDryRun: {
+          setupId: 'computer-use',
+          gateId: 'capture',
+          receiptLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
+        },
+        previewPlan: {
+          capabilitySetup: {
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'computer-use',
+                status: 'configured',
+                dryRunPendingLabels: [],
+              }),
+            ]),
+          },
+        },
+      },
+      finalProject: {
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'setup',
+            label: 'Computer-use capture',
+            receiptLabels: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
+          }),
+        ]),
+      },
+    });
+  });
+
   it('applies edited source files through the source-edit handoff template', async () => {
     const startJson = await startLocalRepoProject();
     const plan = buildMotionRenderPlan(startJson.project, {

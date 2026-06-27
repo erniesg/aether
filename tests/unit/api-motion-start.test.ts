@@ -247,6 +247,25 @@ describe('POST /api/motion/start', () => {
             expectedReceipts: ['HTTP readiness receipt', 'process cleanup receipt'],
           }),
           expect.objectContaining({
+            id: 'setup-computer-use',
+            label: 'Approve computer-use capture',
+            method: 'POST',
+            route: '/api/motion/full-auto',
+            toolId: 'motion-capture',
+            body: {
+              project: '$motionProject',
+              requestedEngines: ['remotion', 'hyperframes'],
+              setupDryRun: { setupId: 'computer-use' },
+              captureRunner: '$computerUseCaptureRunner',
+            },
+            inputPlaceholders: ['$motionProject', '$computerUseCaptureRunner'],
+            expectedReceipts: [
+              'approval receipt',
+              'redaction receipt',
+              'safe-scope receipt',
+            ],
+          }),
+          expect.objectContaining({
             id: 'setup-visual-generation',
             label: 'Dry-run image-to-video provider',
             route: '/api/motion/full-auto',

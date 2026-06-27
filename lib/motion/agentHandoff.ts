@@ -30,6 +30,7 @@ export interface MaterializeMotionAgentRequestTemplateInput {
   imageToVideoProviderId?: string;
   voiceProviderId?: string;
   renderProviderId?: string;
+  computerUseCaptureRunner?: unknown;
   editedSourceFiles?: unknown;
 }
 
@@ -73,6 +74,7 @@ export function materializeMotionAgentRequestTemplate(
     $imageToVideoProviderId: input.imageToVideoProviderId,
     $voiceProviderId: input.voiceProviderId,
     $renderProviderId: input.renderProviderId,
+    $computerUseCaptureRunner: input.computerUseCaptureRunner,
     $editedSourceFiles: input.editedSourceFiles,
   };
   const missing = new Set<string>();
@@ -268,6 +270,23 @@ function setupDryRunTemplates(input: {
       }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['HTTP readiness receipt', 'process cleanup receipt'],
+    });
+  }
+
+  if (input.capture) {
+    templates.push({
+      id: 'setup-computer-use',
+      label: 'Approve computer-use capture',
+      method: 'POST',
+      route: '/api/motion/full-auto',
+      toolId: 'motion-capture',
+      body: cleanBody({
+        ...baseBody,
+        setupDryRun: { setupId: 'computer-use' },
+        captureRunner: '$computerUseCaptureRunner',
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER, '$computerUseCaptureRunner'],
+      expectedReceipts: ['approval receipt', 'redaction receipt', 'safe-scope receipt'],
     });
   }
 

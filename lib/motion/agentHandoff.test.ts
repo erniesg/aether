@@ -136,4 +136,45 @@ describe('materializeMotionAgentRequestTemplate', () => {
     expect(result.missingPlaceholders).toEqual([]);
     expect(result.body).toEqual({ project });
   });
+
+  it('requires the guarded computer-use capture runner placeholder when present', () => {
+    const sourceTemplate = template({
+      project: '$motionProject',
+      setupDryRun: { setupId: 'computer-use' },
+      captureRunner: '$computerUseCaptureRunner',
+    });
+
+    const blocked = materializeMotionAgentRequestTemplate(sourceTemplate, { project });
+    expect(blocked.missingPlaceholders).toEqual(['$computerUseCaptureRunner']);
+    expect(blocked.body.captureRunner).toBe('$computerUseCaptureRunner');
+
+    const approvedRunner = {
+      kind: 'computer-use-local',
+      approved: true,
+      redactionManifest: {
+        labels: ['tokens', 'emails'],
+        applied: true,
+        receiptRef: 'redaction-approved-1',
+      },
+      receipts: [
+        {
+          assetUrl: 'asset://computer-use/aether-home.png',
+          width: 1080,
+          height: 1920,
+          mimeType: 'image/png',
+        },
+      ],
+    };
+    const ready = materializeMotionAgentRequestTemplate(sourceTemplate, {
+      project,
+      computerUseCaptureRunner: approvedRunner,
+    });
+
+    expect(ready.missingPlaceholders).toEqual([]);
+    expect(ready.body).toEqual({
+      project,
+      setupDryRun: { setupId: 'computer-use' },
+      captureRunner: approvedRunner,
+    });
+  });
 });

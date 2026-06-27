@@ -26,6 +26,7 @@ export interface MotionAgentHandoffClientInput {
   imageToVideoProviderId?: string;
   voiceProviderId?: string;
   renderProviderId?: string;
+  computerUseCaptureRunner?: unknown;
   editedSourceFiles?: unknown;
 }
 

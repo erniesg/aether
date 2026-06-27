@@ -286,6 +286,7 @@ const PLACEHOLDER_SKETCH =
 const MOTION_SETUP_TEMPLATE_BY_ITEM_ID: Record<string, string> = {
   capture: 'review-capture',
   'local-app': 'setup-local-app',
+  'computer-use': 'setup-computer-use',
   'visual-source': 'setup-visual-source',
   'visual-generation': 'setup-visual-generation',
   voice: 'setup-voice',
