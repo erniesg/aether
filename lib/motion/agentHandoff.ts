@@ -1,6 +1,6 @@
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { WorkflowEngine } from '@/lib/workflow/registry';
-import type { AgentMotionCapturePlan } from './capturePlan';
+import type { AgentMotionCapturePlan, AgentMotionCapturePlanRequest } from './capturePlan';
 import type { MotionRegenerateScope } from './componentRegistry';
 import type { MotionProject, MotionWorkflowMode } from './project';
 import { buildMotionReviewPlan } from './reviewPlan';
@@ -99,6 +99,7 @@ function buildTemplates(input: {
 }): MotionAgentRequestTemplate[] {
   const engines = input.workflow.plan.engines;
   const capture = captureTemplateParts(input.project, input.capturePlan);
+  const recording = recordingCaptureTemplateParts(input.project, input.capturePlan);
   const templates: MotionAgentRequestTemplate[] = [];
 
   if (input.project.workflowMode === 'full-auto') {
@@ -195,6 +196,23 @@ function buildTemplates(input: {
         'approval receipt',
         'redaction receipt',
       ]),
+    });
+  }
+
+  if (recording) {
+    templates.push({
+      id: 'record-product-flow',
+      label: 'Record product flow',
+      method: 'POST',
+      route: '/api/motion/capture',
+      toolId: 'motion-capture',
+      body: cleanBody({
+        project: PROJECT_PLACEHOLDER,
+        requestIds: recording.requestIds,
+        ...(recording.runner ? { captureRunner: recording.runner } : {}),
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
+      expectedReceipts: recording.expectedReceipts,
     });
   }
 
@@ -474,24 +492,43 @@ function setupDryRunTemplates(input: {
   return templates;
 }
 
+type CaptureTemplateParts = {
+  requestIds: string[];
+  runner?: {
+    kind: 'playwright-local';
+    outputDir: string;
+    launchLocalApp: boolean;
+    headless: boolean;
+  };
+  expectedReceipts: string[];
+};
+
 function captureTemplateParts(
   project: MotionProject,
   capturePlan: AgentMotionCapturePlan | null
-):
-  | {
-      requestIds: string[];
-      runner?: {
-        kind: 'playwright-local';
-        outputDir: string;
-        launchLocalApp: boolean;
-        headless: boolean;
-      };
-      expectedReceipts: string[];
-    }
-  | null {
+): CaptureTemplateParts | null {
+  return captureTemplatePartsForRequests(project, capturePlan, (request) => request.required);
+}
+
+function recordingCaptureTemplateParts(
+  project: MotionProject,
+  capturePlan: AgentMotionCapturePlan | null
+): CaptureTemplateParts | null {
+  return captureTemplatePartsForRequests(
+    project,
+    capturePlan,
+    (request) => request.request.mode === 'screen-recording'
+  );
+}
+
+function captureTemplatePartsForRequests(
+  project: MotionProject,
+  capturePlan: AgentMotionCapturePlan | null,
+  selectRequest: (request: AgentMotionCapturePlanRequest) => boolean
+): CaptureTemplateParts | null {
   if (!capturePlan || capturePlan.status !== 'ready') return null;
 
-  const requests = capturePlan.requests.filter((request) => request.required);
+  const requests = capturePlan.requests.filter(selectRequest);
   if (requests.length === 0) return null;
 
   const needsLocalAppLaunch = requests.some((request) => request.request.appLaunch);

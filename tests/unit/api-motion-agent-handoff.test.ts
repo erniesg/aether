@@ -52,11 +52,24 @@ vi.mock('@/lib/providers/capture/playwright', () => ({
         artifacts: [
           {
             id: `agent-route-${request.mode}`,
-            kind: request.mode === 'dom-snapshot' ? 'snapshot' : 'screenshot',
-            assetUrl: `asset://agent-route/${request.mode}`,
+            kind:
+              request.mode === 'screen-recording'
+                ? 'recording'
+                : request.mode === 'dom-snapshot'
+                  ? 'snapshot'
+                  : 'screenshot',
+            assetUrl: `asset://agent-route/${request.mode}${
+              request.mode === 'screen-recording' ? '.webm' : ''
+            }`,
             width: request.viewport.width,
             height: request.viewport.height,
-            mimeType: request.mode === 'dom-snapshot' ? 'application/json' : 'image/png',
+            durationMs: request.mode === 'screen-recording' ? 3000 : undefined,
+            mimeType:
+              request.mode === 'screen-recording'
+                ? 'video/webm'
+                : request.mode === 'dom-snapshot'
+                  ? 'application/json'
+                  : 'image/png',
             viewport: request.viewport,
             cursorTargets: [],
             provenance: [{ kind: 'provider', ref: 'playwright-browser-runner' }],
@@ -642,6 +655,73 @@ describe('POST /api/motion/agent-handoff', () => {
             applied: true,
           },
         ],
+      }),
+    });
+  });
+
+  it('records a product flow through the recording handoff template', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['record-product-flow'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.status).toBe('complete');
+    expect(json.steps).toHaveLength(1);
+    expect(json.steps[0]).toMatchObject({
+      templateId: 'record-product-flow',
+      status: 'complete',
+      responseStatus: 200,
+      responseJson: expect.objectContaining({
+        ok: true,
+        status: 'captured',
+        selectedRequests: [expect.objectContaining({ id: 'record-local-flow' })],
+        captureRunner: expect.objectContaining({
+          kind: 'playwright-local',
+          providerId: 'browser-capture',
+        }),
+      }),
+    });
+    expect(json.finalProject.executionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          gateId: 'capture',
+          label: 'Product capture',
+          providerId: 'browser-capture',
+        }),
+      ])
+    );
+    const captureNode = json.finalProject.graphNodes.find(
+      (node: { kind?: string; providerId?: string }) =>
+        node.kind === 'capture' && node.providerId === 'browser-capture'
+    );
+    expect(captureNode).toMatchObject({ status: 'done' });
+    expect(captureNode.outputRefs).toContain('agent-route-screen-recording');
+    expect(captureRunnerMock.captureCalls).toHaveLength(1);
+    expect(captureRunnerMock.captureCalls[0]).toMatchObject({ mode: 'screen-recording' });
+
+    const appFrameClip = json.finalProject.tracks
+      .flatMap((track: { clips: unknown[] }) => track.clips)
+      .find((clip: { componentId?: string }) => clip.componentId === 'app-frame');
+    expect(appFrameClip).toMatchObject({
+      assetId: 'agent-route-screen-recording',
+      props: expect.objectContaining({
+        assetUrl: 'asset://agent-route/screen-recording.webm',
+        captureArtifactKind: 'recording',
+        captureProviderId: 'browser-capture',
+        durationMs: 3000,
+        mimeType: 'video/webm',
       }),
     });
   });

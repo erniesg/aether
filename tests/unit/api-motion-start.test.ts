@@ -368,6 +368,25 @@ describe('POST /api/motion/start', () => {
             ]),
           }),
           expect.objectContaining({
+            id: 'record-product-flow',
+            label: 'Record product flow',
+            method: 'POST',
+            route: '/api/motion/capture',
+            toolId: 'motion-capture',
+            body: expect.objectContaining({
+              project: '$motionProject',
+              requestIds: ['record-local-flow'],
+              captureRunner: {
+                kind: 'playwright-local',
+                outputDir: 'outputs/motion-captures/motion-tong-full-auto',
+                launchLocalApp: true,
+                headless: true,
+              },
+            }),
+            inputPlaceholders: ['$motionProject'],
+            expectedReceipts: ['recording', 'cursor targets', 'app-state receipt'],
+          }),
+          expect.objectContaining({
             id: 'regenerate-component-clip-beat-demo-text-capture',
             label: 'Regenerate capture for App frame',
             method: 'POST',

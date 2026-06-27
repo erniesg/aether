@@ -198,7 +198,10 @@ capture, render, and provenance debugging.
   receipts instead of the browser runner. GitHub repo URLs, local repo paths,
   and site/app URL sources can now create editable project starts; PR sources can
   create editable code-change explainer starts when a code-change provider is
-  configured. Real screen capture and recording remain provider execution work.
+  configured. Browser capture handoffs can now also expose an explicit
+  `record-product-flow` action for optional screen-recording requests, so an
+  agent can record app or site motion through the local runner before visual
+  generation or render.
   Component regeneration actions are now also agent handoff templates, so the
   same boundary can stage scoped capture, caption, timing, effect, proof, code,
   or copy revisions from the reviewable draft board.
@@ -949,6 +952,9 @@ would produce hard-to-edit outputs.
   recording, and computer-use fallback.
 - Start with deterministic screenshot-driven product demos: DPR 2 captures,
   route/app receipts, cursor target coordinates, and safe-zone crops.
+- Expose optional product-flow recording as a reusable handoff action, separate
+  from deterministic still capture, so agents can record motion when the video
+  draft needs interaction footage.
 - Store captures as canvas assets and timeline-ready clips with provenance.
 - Tests: provider availability, artifact metadata, coordinate mapping, no
   hardcoded browser/app provider, debug details hidden by default.
