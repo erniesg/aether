@@ -865,6 +865,82 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 
+  it('selects a draft variation through an agent handoff template', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['select-draft-draft-demo-first'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'select-draft-draft-demo-first',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            regenerationRequest: expect.objectContaining({
+              projectId: 'motion-tong-agent-route',
+              draftId: 'draft-demo-first',
+              draftLabel: 'Demo-first cut',
+              angle: 'show the product surface early, then back it with proof',
+              prompt:
+                'Use draft variation Demo-first cut. Show the product surface early, then back it with proof',
+              status: 'planned',
+            }),
+          }),
+        }),
+      ],
+      finalProject: {
+        currentDraftId: 'draft-demo-first',
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'revision',
+            inputRefs: [
+              'draft-demo-first',
+              'beat-hook',
+              'beat-demo',
+              'beat-proof',
+              'beat-payoff',
+              'beat-problem',
+              'beat-cta',
+            ],
+            status: 'planned',
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'drafts',
+            label: 'Use draft variation Demo-first cut',
+            receiptLabels: ['Draft variation', 'Updated preview plan'],
+          }),
+        ]),
+      },
+      finalResponse: {
+        previewPlan: {
+          draftId: 'draft-demo-first',
+          executionHistory: {
+            status: 'saved',
+            latestReceiptLabels: ['Draft variation', 'Updated preview plan'],
+          },
+        },
+      },
+    });
+  });
+
   it('applies edited source files through the source-edit handoff template', async () => {
     const startJson = await startLocalRepoProject();
     const plan = buildMotionRenderPlan(startJson.project, {

@@ -5,13 +5,16 @@ import type { MotionProject } from '@/lib/motion/project';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import {
   appendComponentRegenerationExecutionHistory,
+  appendDraftVariationExecutionHistory,
   appendReferenceSignalRegenerationExecutionHistory,
 } from '@/lib/motion/executionHistory';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import {
   buildMotionReviewPlan,
   createMotionComponentRegenerationRequest,
+  createMotionDraftVariationRequest,
   createMotionReferenceSignalRegenerationRequest,
+  stageMotionDraftVariation,
   stageMotionComponentRegeneration,
   stageMotionReferenceSignalRegeneration,
 } from '@/lib/motion/reviewPlan';
@@ -47,15 +50,19 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const clipId = stringValue(body.clipId);
+  const draftId = stringValue(body.draftId);
   const referenceSignalId = stringValue(body.referenceSignalId);
   const sourceUrl = stringValue(body.sourceUrl);
   const componentIds = stringArrayValue(body.componentIds);
   const scope = stringValue(body.scope);
   const prompt = stringValue(body.prompt);
-  if (!clipId && !referenceSignalId) {
-    return jsonError(400, 'clipId, scope, and prompt are required');
+  if (!clipId && !referenceSignalId && !draftId) {
+    return jsonError(400, 'clipId, referenceSignalId, or draftId with prompt is required');
   }
-  if (!scope || !prompt) {
+  if (draftId && !prompt) {
+    return jsonError(400, 'draftId and prompt are required');
+  }
+  if (!draftId && (!scope || !prompt)) {
     return jsonError(
       400,
       referenceSignalId
@@ -76,7 +83,43 @@ export async function POST(request: Request): Promise<Response> {
   const project = body.project as unknown as MotionProject;
 
   try {
+    if (draftId) {
+      if (!prompt) {
+        return jsonError(400, 'draftId and prompt are required');
+      }
+      const regenerationRequest = createMotionDraftVariationRequest(project, {
+        draftId,
+        prompt,
+        requestedAt,
+      });
+      const stagedProject = stageMotionDraftVariation(project, regenerationRequest);
+      const updatedProject = {
+        ...stagedProject,
+        executionHistory: appendDraftVariationExecutionHistory(
+          stagedProject.executionHistory,
+          regenerationRequest,
+          requestedAt
+        ),
+      };
+      const capturePlan = buildAgentMotionCapturePlan(updatedProject);
+
+      return NextResponse.json({
+        ok: true,
+        regenerationRequest,
+        project: updatedProject,
+        reviewPlan: buildMotionReviewPlan(updatedProject),
+        previewPlan: buildMotionPreviewPlan(updatedProject, {
+          engines: requestedEngines ?? undefined,
+          requestedAt,
+        }),
+        capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
+      });
+    }
+
     if (referenceSignalId) {
+      if (!scope || !prompt) {
+        return jsonError(400, 'scope and prompt are required');
+      }
       const regenerationRequest = createMotionReferenceSignalRegenerationRequest(project, {
         referenceSignalId,
         sourceUrl,
@@ -113,6 +156,9 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (!clipId) {
+      return jsonError(400, 'clipId, scope, and prompt are required');
+    }
+    if (!scope || !prompt) {
       return jsonError(400, 'clipId, scope, and prompt are required');
     }
 

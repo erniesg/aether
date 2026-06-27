@@ -117,6 +117,19 @@ export interface MotionReferenceSignalRegenerationRequest {
   requestedAt: number;
 }
 
+export interface MotionDraftVariationRequest {
+  id: string;
+  projectId: string;
+  draftId: string;
+  draftLabel: string;
+  angle: string;
+  prompt: string;
+  inputRefs: string[];
+  status: 'planned';
+  provenance: MotionProvenanceRef[];
+  requestedAt: number;
+}
+
 export interface CreateMotionComponentRegenerationRequestInput {
   clipId: string;
   scope: MotionRegenerateScope;
@@ -129,6 +142,12 @@ export interface CreateMotionReferenceSignalRegenerationRequestInput {
   sourceUrl?: string;
   scope: MotionRegenerateScope;
   componentIds: string[];
+  prompt: string;
+  requestedAt: number;
+}
+
+export interface CreateMotionDraftVariationRequestInput {
+  draftId: string;
   prompt: string;
   requestedAt: number;
 }
@@ -293,6 +312,54 @@ export function stageMotionReferenceSignalRegeneration(
   };
 }
 
+export function createMotionDraftVariationRequest(
+  project: MotionProject,
+  input: CreateMotionDraftVariationRequestInput
+): MotionDraftVariationRequest {
+  const draft = project.drafts.find((candidate) => candidate.id === input.draftId);
+  if (!draft) {
+    throw new Error(`Motion draft variation not found: ${input.draftId}`);
+  }
+
+  const storyRefs = draft.story.map((beat) => beat.id);
+  const inputRefs = uniqueStrings([draft.id, ...storyRefs]);
+
+  return {
+    id: `regen-draft-${draft.id}-${input.requestedAt}`,
+    projectId: project.id,
+    draftId: draft.id,
+    draftLabel: draft.label,
+    angle: draft.angle,
+    prompt: input.prompt,
+    inputRefs,
+    status: 'planned',
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: `draft-variation:${draft.id}` },
+      ...draft.provenance,
+      ...draft.story.map((beat) => ({ kind: 'story-beat' as const, ref: beat.id })),
+      ...draft.story.flatMap((beat) => beat.provenance),
+    ]),
+    requestedAt: input.requestedAt,
+  };
+}
+
+export function stageMotionDraftVariation(
+  project: MotionProject,
+  request: MotionDraftVariationRequest
+): MotionProject {
+  const node = draftVariationRequestToGraphNode(request);
+
+  return {
+    ...project,
+    currentDraftId: request.draftId,
+    graphNodes: [
+      ...project.graphNodes.filter((candidate) => candidate.id !== node.id),
+      node,
+    ],
+    updatedAt: Math.max(project.updatedAt, request.requestedAt),
+  };
+}
+
 function regenerationRequestToGraphNode(
   request: MotionComponentRegenerationRequest
 ): MotionGraphNode {
@@ -312,6 +379,20 @@ function regenerationRequestToGraphNode(
 function referenceSignalRegenerationRequestToGraphNode(
   request: MotionReferenceSignalRegenerationRequest
 ): MotionGraphNode {
+  return {
+    id: `node-${request.id}`,
+    kind: 'revision',
+    inputRefs: [...request.inputRefs],
+    outputRefs: [request.id],
+    status: 'planned',
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+    ]),
+  };
+}
+
+function draftVariationRequestToGraphNode(request: MotionDraftVariationRequest): MotionGraphNode {
   return {
     id: `node-${request.id}`,
     kind: 'revision',

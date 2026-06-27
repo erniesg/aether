@@ -407,6 +407,25 @@ describe('POST /api/motion/start', () => {
             ],
           }),
           expect.objectContaining({
+            id: 'select-draft-draft-demo-first',
+            label: 'Use draft variation Demo-first cut',
+            method: 'POST',
+            route: '/api/motion/regenerate',
+            toolId: 'motion-storyboard',
+            body: {
+              project: '$motionProject',
+              draftId: 'draft-demo-first',
+              prompt:
+                'Use draft variation Demo-first cut. Show the product surface early, then back it with proof',
+              requestedEngines: ['remotion', 'hyperframes'],
+            },
+            inputPlaceholders: ['$motionProject'],
+            expectedReceipts: [
+              'draft variation',
+              'updated preview plan',
+            ],
+          }),
+          expect.objectContaining({
             id: 'reference-signal-hyperframes-launch-video-gallery-effect',
             label: 'Apply reference style to Hook card / App frame',
             method: 'POST',

@@ -269,6 +269,119 @@ describe('POST /api/motion/regenerate', () => {
     ]);
   });
 
+  it('selects a draft variation and refreshes the editable preview plan', async () => {
+    const { POST } = await import('@/app/api/motion/regenerate/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          draftId: 'draft-demo-first',
+          prompt: 'Use the demo-first draft variation before capture.',
+          requestedAt: 980,
+          requestedEngines: ['remotion', 'hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      regenerationRequest: {
+        id: 'regen-draft-draft-demo-first-980',
+        projectId: 'motion-aether-launch',
+        draftId: 'draft-demo-first',
+        draftLabel: 'Demo-first cut',
+        angle: 'show the product surface early, then back it with proof',
+        prompt: 'Use the demo-first draft variation before capture.',
+        inputRefs: [
+          'draft-demo-first',
+          'beat-hook',
+          'beat-demo',
+          'beat-proof',
+          'beat-payoff',
+          'beat-problem',
+          'beat-cta',
+        ],
+        status: 'planned',
+      },
+      project: {
+        currentDraftId: 'draft-demo-first',
+        graphNodes: expect.arrayContaining([
+          {
+            id: 'node-regen-draft-draft-demo-first-980',
+            kind: 'revision',
+            inputRefs: [
+              'draft-demo-first',
+              'beat-hook',
+              'beat-demo',
+              'beat-proof',
+              'beat-payoff',
+              'beat-problem',
+              'beat-cta',
+            ],
+            outputRefs: ['regen-draft-draft-demo-first-980'],
+            status: 'planned',
+            provenance: expect.arrayContaining([
+              { kind: 'revision', ref: 'regen-draft-draft-demo-first-980' },
+              { kind: 'story-beat', ref: 'beat-demo' },
+            ]),
+          },
+        ]),
+        executionHistory: [
+          {
+            id: 'execution-draft-variation-draft-demo-first-980',
+            gateId: 'drafts',
+            label: 'Use draft variation Demo-first cut',
+            savedAt: 980,
+            receiptCount: 2,
+            receiptLabels: ['Draft variation', 'Updated preview plan'],
+            receipts: [
+              {
+                id: 'receipt-draft-variation-regen-draft-draft-demo-first-980-draft',
+                kind: 'revision',
+                label: 'Draft variation',
+                ref: 'draft-demo-first',
+              },
+              {
+                id: 'receipt-draft-variation-regen-draft-draft-demo-first-980-preview-plan',
+                kind: 'revision',
+                label: 'Updated preview plan',
+                ref: 'regen-draft-draft-demo-first-980:preview-plan',
+              },
+            ],
+          },
+        ],
+      },
+      reviewPlan: {
+        drafts: expect.arrayContaining([
+          expect.objectContaining({
+            draftId: 'draft-demo-first',
+            isCurrent: true,
+          }),
+        ]),
+      },
+      previewPlan: {
+        draftId: 'draft-demo-first',
+        draftOptions: expect.arrayContaining([
+          expect.objectContaining({
+            draftId: 'draft-demo-first',
+            isCurrent: true,
+          }),
+        ]),
+        executionHistory: {
+          status: 'saved',
+          savedStepCount: 1,
+          receiptCount: 2,
+          latestReceiptLabels: ['Draft variation', 'Updated preview plan'],
+        },
+      },
+    });
+  });
+
   it('rejects unsupported component scopes before creating a request', async () => {
     const { POST } = await import('@/app/api/motion/regenerate/route');
 

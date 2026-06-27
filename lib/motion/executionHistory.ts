@@ -17,6 +17,7 @@ import type {
 } from './project';
 import type {
   MotionComponentRegenerationRequest,
+  MotionDraftVariationRequest,
   MotionReferenceSignalRegenerationRequest,
 } from './reviewPlan';
 import type { MotionSyncPlan } from './syncPlan';
@@ -276,6 +277,39 @@ export function appendReferenceSignalRegenerationExecutionHistory(
     id: `execution-reference-signal-${slugifyId(request.referenceSignalId)}-${slugifyId(request.scope)}-${savedAt}`,
     gateId: 'drafts',
     label: referenceSignalExecutionLabel(request),
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      { kind: 'revision', ref: request.id },
+      ...request.provenance,
+    ]),
+  });
+}
+
+export function appendDraftVariationExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  request: MotionDraftVariationRequest,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const receipts = [
+    regenerationReceipt({
+      id: `receipt-draft-variation-${request.id}-draft`,
+      label: 'Draft variation',
+      ref: request.draftId,
+    }),
+    regenerationReceipt({
+      id: `receipt-draft-variation-${request.id}-preview-plan`,
+      label: 'Updated preview plan',
+      ref: `${request.id}:preview-plan`,
+    }),
+  ];
+
+  return appendExecutionEntry(history, {
+    id: `execution-draft-variation-${slugifyId(request.draftId)}-${savedAt}`,
+    gateId: 'drafts',
+    label: `Use draft variation ${request.draftLabel}`,
     savedAt,
     receiptCount: receipts.length,
     receiptLabels: receipts.map((receipt) => receipt.label),

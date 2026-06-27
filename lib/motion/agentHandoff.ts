@@ -221,6 +221,7 @@ function buildTemplates(input: {
   }
 
   templates.push(
+    ...draftVariationTemplates(input.project, engines),
     ...componentRegenerationTemplates(input.project, engines),
     ...referenceSignalRegenerationTemplates(input.workflow.workflowId, engines),
     {
@@ -319,6 +320,34 @@ function buildTemplates(input: {
   );
 
   return templates;
+}
+
+function draftVariationTemplates(
+  project: MotionProject,
+  engines: WorkflowEngine[]
+): MotionAgentRequestTemplate[] {
+  const reviewPlan = buildMotionReviewPlan(project);
+
+  return reviewPlan.drafts
+    .filter((draft) => !draft.isCurrent)
+    .map((draft) => {
+      const label = `Use draft variation ${draft.label}`;
+      return {
+        id: `select-draft-${draft.draftId}`,
+        label,
+        method: 'POST' as const,
+        route: '/api/motion/regenerate',
+        toolId: 'motion-storyboard',
+        body: cleanBody({
+          project: PROJECT_PLACEHOLDER,
+          draftId: draft.draftId,
+          prompt: `${label}. ${sentenceCase(draft.angle)}`,
+          requestedEngines: engines,
+        }),
+        inputPlaceholders: [PROJECT_PLACEHOLDER],
+        expectedReceipts: ['draft variation', 'updated preview plan'],
+      };
+    });
 }
 
 function componentRegenerationTemplates(
@@ -661,6 +690,10 @@ function componentLabelFor(componentId: string): string {
 
 function readableLabel(value: string): string {
   return value.replace(/[-_]/g, ' ');
+}
+
+function sentenceCase(value: string): string {
+  return value.length > 0 ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 }
 
 function preferredRenderEngine(engines: WorkflowEngine[]): 'remotion' | 'hyperframes' {
