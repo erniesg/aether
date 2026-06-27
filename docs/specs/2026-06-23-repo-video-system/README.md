@@ -105,6 +105,12 @@ component ids, review/full-auto behavior, and provider seams.
   caption language, transition, and CTA. Aether already has provider-neutral
   components for those beats; the missing part is the playback-backed taste
   corpus that chooses the strongest defaults.
+- `lib/motion/tasteCorpus.ts` now defines that taste-corpus shape: entries carry
+  source refs, proof boundary, playback review status, target crops, hook type,
+  timestamped shot lists, component ids, effect tags, edit targets, and
+  regenerate scopes. Workflow discovery returns those entries as
+  `tasteReferences` so agents can choose reference moves before creating a
+  project.
 - Same-shell source preview is no longer only a plan: Remotion prepared sources
   mount through `@remotion/player`, HyperFrames prepared HTML mounts through a
   sandboxed iframe, and both stay backed by editable timeline/source bundles.

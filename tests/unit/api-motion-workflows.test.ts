@@ -178,6 +178,18 @@ describe('GET /api/motion/workflows', () => {
           tags: expect.arrayContaining(['capture', 'cursor', 'zoom']),
         }),
       ]),
+      tasteReferences: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'claude-agent-demo-playback-review',
+          reviewStatus: 'needs-public-playback',
+          shotList: expect.arrayContaining([
+            expect.objectContaining({
+              componentIds: expect.arrayContaining(['agent-trace', 'terminal-card']),
+              editTargets: expect.arrayContaining(['proof', 'timing']),
+            }),
+          ]),
+        }),
+      ]),
       skillContract: {
         runModes: ['review', 'full-auto'],
         reviewArtifacts: [
@@ -428,6 +440,15 @@ describe('GET /api/motion/workflows', () => {
             id: 'hyperframes-pr-to-video-skill',
             observedFormat: 'pr-explainer-source',
             componentIds: expect.arrayContaining(['code-diff-card', 'contact-sheet-proof']),
+          }),
+        ]),
+        tasteReferences: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'hyperframes-pr-to-video-skill-drop',
+            sourceEntryId: 'hyperframes-pr-to-video-launch-note',
+            hookType: 'pain-point',
+            reviewStatus: 'needs-authenticated-playback',
+            componentIds: expect.arrayContaining(['hook-card', 'command-card', 'code-diff-card']),
           }),
         ]),
       });

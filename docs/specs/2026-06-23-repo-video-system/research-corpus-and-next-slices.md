@@ -158,6 +158,16 @@ cover Claude/agent-product demos, HyperFrames daily skill launches, Screen
 Studio-style product demos, and launch cuts from OpenAI, Cursor, Linear,
 Runway, Pika, HeyGen, Arcade, Clueso, and Descript.
 
+Status: first typed seed implemented. `lib/motion/tasteCorpus.ts` now stores
+workflow-specific taste references with proof boundary, playback review status,
+target crops, hook type, timestamped shot list, component ids, effect tags,
+edit targets, caption style, transition notes, and regeneration scopes.
+Workflow discovery exposes those entries as `tasteReferences`. The current
+entries include the user-supplied HyperFrames `pr-to-video` launch snippet, a
+public Claude/agent demo playback-review placeholder, and a Screen
+Studio-style product-demo grammar. Authenticated X playback and full
+public-video sampling still remain follow-up evidence collection.
+
 Acceptance evidence:
 
 - Fixture tests prove every example has timestamped shot notes, component tags,

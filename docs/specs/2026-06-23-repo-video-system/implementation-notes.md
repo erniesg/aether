@@ -463,10 +463,14 @@ not replace it.
 
 The current implementation has the data and workflow seams to ingest that
 corpus. The typed seed corpus now lives in `lib/motion/referenceCorpus.ts`, and
-workflow discovery exposes it as `referenceCorpus` entries. Same-shell source
-preview is also now mounted for generated bundles: Remotion uses
-`@remotion/player`, and HyperFrames uses a sandboxed iframe. The remaining gaps
-are the playback-backed corpus fixture, richer source-backed edit/replacement
-actions, real renderer dependency execution in the app process, configured
-voice providers, creator UI controls for trusted runner execution, and
-authenticated desktop/computer-use recording execution.
+workflow discovery exposes it as `referenceCorpus` entries. The first typed
+taste-corpus seed now lives in `lib/motion/tasteCorpus.ts`, and workflow
+discovery exposes it as `tasteReferences` with timestamped shot lists, hook
+types, component ids, effect tags, edit targets, and playback review status.
+Same-shell source preview is also now mounted for generated bundles: Remotion
+uses `@remotion/player`, and HyperFrames uses a sandboxed iframe. The remaining
+gaps are authenticated/public playback collection for the broader taste
+fixture, richer source-backed edit/replacement actions, real renderer
+dependency execution in the app process, configured voice providers, creator UI
+controls for trusted runner execution, and authenticated desktop/computer-use
+recording execution.

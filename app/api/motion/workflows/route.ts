@@ -23,6 +23,10 @@ import {
   listMotionReferenceCorpusForWorkflow,
   type MotionReferenceCorpusEntry,
 } from '@/lib/motion/referenceCorpus';
+import {
+  listMotionTasteCorpusForWorkflow,
+  type MotionTasteCorpusEntry,
+} from '@/lib/motion/tasteCorpus';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -66,6 +70,7 @@ interface MotionWorkflowSkillResponse {
   installableSkillDraft: MotionWorkflowSkillDraft;
   examples: MotionWorkflowExampleResponse[];
   referenceCorpus: MotionReferenceCorpusResponse[];
+  tasteReferences: MotionTasteCorpusResponse[];
   status: WorkflowRegistryEntry['status'];
 }
 
@@ -98,6 +103,38 @@ interface MotionReferenceCorpusResponse {
   workflowIds: string[];
   tags: MotionReferenceCorpusEntry['tags'];
   aetherImplication: string;
+}
+
+interface MotionTasteCorpusResponse {
+  id: string;
+  title: string;
+  sourceEntryId: string;
+  sourceUrl: string;
+  platform: MotionTasteCorpusEntry['platform'];
+  proofBoundary: MotionTasteCorpusEntry['proofBoundary'];
+  reviewStatus: MotionTasteCorpusEntry['reviewStatus'];
+  workflowIds: string[];
+  targetCrops: string[];
+  hookType: MotionTasteCorpusEntry['hookType'];
+  styleTags: MotionTasteCorpusEntry['styleTags'];
+  componentIds: string[];
+  effectTags: MotionTasteCorpusEntry['effectTags'];
+  regenerateScopes: string[];
+  shotList: MotionTasteShotResponse[];
+  aetherUse: string;
+}
+
+interface MotionTasteShotResponse {
+  id: string;
+  startSeconds: number;
+  endSeconds: number;
+  label: string;
+  visual: string;
+  componentIds: string[];
+  effectTags: MotionTasteCorpusEntry['effectTags'];
+  editTargets: string[];
+  captionStyle: MotionTasteCorpusEntry['shotList'][number]['captionStyle'];
+  transitionOut?: MotionTasteCorpusEntry['shotList'][number]['transitionOut'];
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -198,6 +235,9 @@ function toMotionWorkflowSkillResponse(
     referenceCorpus: listMotionReferenceCorpusForWorkflow(workflow.id).map(
       toMotionReferenceCorpusResponse
     ),
+    tasteReferences: listMotionTasteCorpusForWorkflow(workflow.id).map(
+      toMotionTasteCorpusResponse
+    ),
     status: workflow.status,
   };
 }
@@ -262,6 +302,38 @@ function toMotionReferenceCorpusResponse(
     workflowIds: [...entry.workflowIds],
     tags: [...entry.tags],
     aetherImplication: entry.aetherImplication,
+  };
+}
+
+function toMotionTasteCorpusResponse(entry: MotionTasteCorpusEntry): MotionTasteCorpusResponse {
+  return {
+    id: entry.id,
+    title: entry.title,
+    sourceEntryId: entry.sourceEntryId,
+    sourceUrl: entry.sourceUrl,
+    platform: entry.platform,
+    proofBoundary: entry.proofBoundary,
+    reviewStatus: entry.reviewStatus,
+    workflowIds: [...entry.workflowIds],
+    targetCrops: [...entry.targetCrops],
+    hookType: entry.hookType,
+    styleTags: [...entry.styleTags],
+    componentIds: [...entry.componentIds],
+    effectTags: [...entry.effectTags],
+    regenerateScopes: [...entry.regenerateScopes],
+    shotList: entry.shotList.map((shot) => ({
+      id: shot.id,
+      startSeconds: shot.startSeconds,
+      endSeconds: shot.endSeconds,
+      label: shot.label,
+      visual: shot.visual,
+      componentIds: [...shot.componentIds],
+      effectTags: [...shot.effectTags],
+      editTargets: [...shot.editTargets],
+      captionStyle: shot.captionStyle,
+      ...(shot.transitionOut ? { transitionOut: shot.transitionOut } : {}),
+    })),
+    aetherUse: entry.aetherUse,
   };
 }
 
