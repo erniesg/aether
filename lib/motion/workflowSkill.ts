@@ -12,6 +12,7 @@ import type {
   AgentMotionWorkflowRunPlan,
   MotionWorkflowPlanSourceRef,
   MotionWorkflowPrimaryAction,
+  MotionWorkflowRunStepGate,
   MotionWorkflowSourceStatus,
 } from './workflowPlan';
 import type { MotionWorkflowExample } from './workflowExamples';
@@ -59,6 +60,7 @@ export interface MotionWorkflowSkillDraft {
   sampleCopyLines: string[];
   timelineContract: MotionWorkflowTimelineContract;
   launchKit: MotionWorkflowLaunchKit;
+  capabilityPlan: MotionWorkflowCapabilityPlan;
 }
 
 export interface MotionWorkflowTimelineContract {
@@ -108,6 +110,32 @@ export interface MotionWorkflowLaunchKitReviewObject {
   regenerationScopes?: string[];
 }
 
+export interface MotionWorkflowCapabilityPlan {
+  kind: 'motion-workflow-capability-plan';
+  mode: WorkflowRunMode;
+  primaryAction: MotionWorkflowPrimaryAction;
+  canRunFullAuto: boolean;
+  fullAutoTemplateHints: string[];
+  reviewTemplateHints: string[];
+  steps: MotionWorkflowCapabilityStep[];
+}
+
+export interface MotionWorkflowCapabilityStep {
+  id: string;
+  gateId: MotionWorkflowRunStepGate;
+  label: string;
+  reviewRequired: boolean;
+  autoAdvance: boolean;
+  toolNames: string[];
+  apiRoutes: string[];
+  expectedArtifacts: string[];
+  reviewObjectIds: string[];
+  reviewObjectLabels: string[];
+  agentTemplateHints: string[];
+  editSurfaceLabels: string[];
+  verificationLabels: string[];
+}
+
 const ROUTE_TOOL_NAMES: Record<string, string> = {
   '/api/motion/start': 'motion_start',
   '/api/motion/agent-handoff': 'motion_agent_handoff',
@@ -147,6 +175,12 @@ export function buildMotionWorkflowSkillDraft(
     sampleCopyLines,
   });
   const timelineContract = buildTimelineContract(plan, recipe);
+  const capabilityPlan = buildCapabilityPlan({
+    plan,
+    recipe,
+    launchKit,
+    verificationLabels,
+  });
   const manifest: SkillManifest = {
     name: safeSkillName(plan.workflowId),
     version: 1,
@@ -164,6 +198,7 @@ export function buildMotionWorkflowSkillDraft(
       sampleCopyLines,
       timelineContract,
       launchKit,
+      capabilityPlan,
     }),
   };
 
@@ -189,7 +224,178 @@ export function buildMotionWorkflowSkillDraft(
     sampleCopyLines,
     timelineContract,
     launchKit,
+    capabilityPlan,
   };
+}
+
+function buildCapabilityPlan({
+  plan,
+  recipe,
+  launchKit,
+  verificationLabels,
+}: {
+  plan: MotionWorkflowSkillPlanInput;
+  recipe: MotionWorkflowSkillRecipe | null;
+  launchKit: MotionWorkflowLaunchKit;
+  verificationLabels: string[];
+}): MotionWorkflowCapabilityPlan {
+  const canRunFullAuto = plan.skillContract?.runModes.includes('full-auto') ?? false;
+  const steps = plan.runPlan.steps.map((step): MotionWorkflowCapabilityStep => {
+    const reviewObjects = reviewObjectsForGate(step.gateId, launchKit.reviewObjects);
+
+    return {
+      id: `capability-step-${step.gateId}`,
+      gateId: step.gateId,
+      label: step.label,
+      reviewRequired: step.reviewRequired,
+      autoAdvance: step.autoAdvance,
+      toolNames: step.apiRoutes.map((route) => ROUTE_TOOL_NAMES[route] ?? routeToToolName(route)),
+      apiRoutes: [...step.apiRoutes],
+      expectedArtifacts: [...step.expectedArtifacts],
+      reviewObjectIds: reviewObjects.map((object) => object.id),
+      reviewObjectLabels: reviewObjects.map((object) => object.label),
+      agentTemplateHints: agentTemplateHintsForGate(step.gateId, recipe),
+      editSurfaceLabels: editSurfaceLabelsForGate(step.gateId),
+      verificationLabels: verificationLabelsForGate(step.gateId, verificationLabels),
+    };
+  });
+
+  return {
+    kind: 'motion-workflow-capability-plan',
+    mode: plan.mode,
+    primaryAction: plan.primaryAction,
+    canRunFullAuto,
+    fullAutoTemplateHints: canRunFullAuto ? fullAutoTemplateHintsFor(plan, recipe) : [],
+    reviewTemplateHints: uniqueStrings(steps.flatMap((step) => step.agentTemplateHints)),
+    steps,
+  };
+}
+
+function reviewObjectsForGate(
+  gateId: MotionWorkflowRunStepGate,
+  reviewObjects: MotionWorkflowLaunchKitReviewObject[]
+): MotionWorkflowLaunchKitReviewObject[] {
+  switch (gateId) {
+    case 'source':
+    case 'plan':
+      return reviewObjects.filter((object) => object.kind === 'source-evidence');
+    case 'drafts':
+      return reviewObjects.filter((object) => object.kind === 'draft-variation');
+    case 'capture':
+      return reviewObjects.filter(
+        (object) =>
+          object.kind === 'component-regeneration' &&
+          object.regenerationScopes?.some((scope) => scope === 'capture')
+      );
+    case 'visuals':
+      return reviewObjects.filter(
+        (object) =>
+          object.kind === 'component-regeneration' &&
+          object.regenerationScopes?.some((scope) =>
+            ['asset', 'proof', 'code', 'diagram'].includes(scope)
+          )
+      );
+    case 'voice':
+      return reviewObjects.filter(
+        (object) =>
+          object.kind === 'component-regeneration' &&
+          object.regenerationScopes?.some((scope) => ['caption', 'copy'].includes(scope))
+      );
+    case 'timeline':
+      return reviewObjects.filter(
+        (object) =>
+          object.kind === 'timeline-contract' ||
+          (object.kind === 'component-regeneration' &&
+            object.regenerationScopes?.some((scope) => ['timing', 'effect'].includes(scope)))
+      );
+    case 'render':
+      return reviewObjects.filter((object) => object.kind === 'teaser-target');
+    case 'export':
+      return reviewObjects.filter((object) => object.kind === 'export-pack');
+  }
+}
+
+function agentTemplateHintsForGate(
+  gateId: MotionWorkflowRunStepGate,
+  recipe: MotionWorkflowSkillRecipe | null
+): string[] {
+  switch (gateId) {
+    case 'source':
+    case 'plan':
+      return ['motion-start'];
+    case 'drafts':
+      return ['select-draft-*', 'regenerate-component-*'];
+    case 'capture':
+      return recipe?.generationLanes.includes('capture')
+        ? ['review-capture', 'review-computer-use-capture', 'record-product-flow']
+        : [];
+    case 'visuals':
+      return ['generate-visuals', 'apply-generated-video-take', 'reference-signal-*'];
+    case 'voice':
+      return ['generate-voice'];
+    case 'timeline':
+      return ['sync-timeline', 'apply-timeline-revision', 'prepare-preview-source', 'edit-source'];
+    case 'render':
+      return ['render-proof'];
+    case 'export':
+      return ['export-pack'];
+  }
+}
+
+function editSurfaceLabelsForGate(gateId: MotionWorkflowRunStepGate): string[] {
+  switch (gateId) {
+    case 'source':
+      return ['source'];
+    case 'plan':
+      return ['script', 'brief', 'proof'];
+    case 'drafts':
+      return ['script', 'story beats', 'component'];
+    case 'capture':
+      return ['capture', 'recording', 'crop', 'cursor path'];
+    case 'visuals':
+      return ['visual', 'image-to-video', 'component'];
+    case 'voice':
+      return ['voice', 'caption', 'word timing'];
+    case 'timeline':
+      return ['timing', 'effect', 'transition', 'source edit'];
+    case 'render':
+      return ['render', 'contact sheet', 'poster'];
+    case 'export':
+      return ['export', 'pack manifest'];
+  }
+}
+
+function verificationLabelsForGate(
+  gateId: MotionWorkflowRunStepGate,
+  verificationLabels: string[]
+): string[] {
+  switch (gateId) {
+    case 'render':
+      return verificationLabels.filter((label) =>
+        ['contact sheet', 'mp4 probe', 'poster'].includes(label)
+      );
+    case 'export':
+      return verificationLabels.filter((label) =>
+        ['subtitles', 'transcript', 'provenance manifest'].includes(label)
+      );
+    case 'timeline':
+      return verificationLabels.filter((label) => ['subtitles', 'transcript'].includes(label));
+    default:
+      return [];
+  }
+}
+
+function fullAutoTemplateHintsFor(
+  plan: MotionWorkflowSkillPlanInput,
+  recipe: MotionWorkflowSkillRecipe | null
+): string[] {
+  return uniqueStrings([
+    'full-auto-run',
+    ...(plan.runPlan.steps.some((step) => step.gateId === 'capture') ||
+    recipe?.generationLanes.includes('capture')
+      ? ['full-auto-computer-use-run']
+      : []),
+  ]);
 }
 
 function buildTimelineContract(
@@ -520,6 +726,7 @@ function buildSkillInstructions({
   sampleCopyLines,
   timelineContract,
   launchKit,
+  capabilityPlan,
 }: {
   plan: MotionWorkflowSkillPlanInput;
   toolNames: string[];
@@ -531,6 +738,7 @@ function buildSkillInstructions({
   sampleCopyLines: string[];
   timelineContract: MotionWorkflowTimelineContract;
   launchKit: MotionWorkflowLaunchKit;
+  capabilityPlan: MotionWorkflowCapabilityPlan;
 }): string {
   const hasCaptureStep = plan.runPlan.steps.some((step) =>
     step.apiRoutes.includes('/api/motion/capture')
@@ -625,6 +833,14 @@ function buildSkillInstructions({
     `Review mode: ${timelineContract.reviewModeInstruction}`,
     `Full auto: ${timelineContract.fullAutoInstruction}`,
     '',
+    '## Capability Plan',
+    '',
+    `Mode: ${capabilityPlan.mode}.`,
+    `Primary action: ${capabilityPlan.primaryAction}.`,
+    `Full-auto templates: ${formatList(capabilityPlan.fullAutoTemplateHints)}.`,
+    `Review templates: ${formatList(capabilityPlan.reviewTemplateHints)}.`,
+    ...capabilityPlan.steps.map(formatCapabilityStep),
+    '',
     recipe && recipe.skillPacks.length > 0 ? '## Skill Packs' : '',
     ...(recipe?.skillPacks.map(formatSkillPackRequirement) ?? []),
     recipe && recipe.skillPacks.length > 0 ? '' : '',
@@ -685,6 +901,17 @@ function buildSkillInstructions({
             primitive: timelineContract.primitive,
             syncCues: timelineContract.syncCueLabels,
             editableObjects: timelineContract.editableObjectLabels,
+          },
+          capabilityPlan: {
+            mode: capabilityPlan.mode,
+            primaryAction: capabilityPlan.primaryAction,
+            steps: capabilityPlan.steps.map((step) => ({
+              id: step.id,
+              gateId: step.gateId,
+              label: step.label,
+              reviewObjects: step.reviewObjectLabels,
+              templates: step.agentTemplateHints,
+            })),
           },
           motionStartRequest: {
             workspaceId: 'workspace',
@@ -758,6 +985,17 @@ function formatSkillPackRequirement(pack: MotionWorkflowSkillPackRequirement): s
     `  Install: ${pack.installCommand}.`,
     `  Source: ${pack.sourceUrl}.`,
     `  Verify: ${pack.verificationLabels.join(', ')}.`,
+  ].join('\n');
+}
+
+function formatCapabilityStep(step: MotionWorkflowCapabilityStep): string {
+  return [
+    `- ${step.label}: ${step.reviewRequired ? 'review gate' : 'auto gate'}`,
+    `  Routes: ${formatList(step.apiRoutes)}.`,
+    `  Templates: ${formatList(step.agentTemplateHints)}.`,
+    `  Review objects: ${formatList(step.reviewObjectLabels)}.`,
+    `  Edit: ${formatList(step.editSurfaceLabels)}.`,
+    `  Verify: ${formatList(step.verificationLabels)}.`,
   ].join('\n');
 }
 

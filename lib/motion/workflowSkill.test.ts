@@ -400,6 +400,78 @@ describe('motion workflow skill drafts', () => {
         'Export pack',
       ],
     });
+    expect(plan.skillDraft.capabilityPlan).toMatchObject({
+      kind: 'motion-workflow-capability-plan',
+      mode: 'review',
+      primaryAction: 'request-review',
+      canRunFullAuto: true,
+      fullAutoTemplateHints: ['full-auto-run', 'full-auto-computer-use-run'],
+      reviewTemplateHints: expect.arrayContaining([
+        'review-capture',
+        'review-computer-use-capture',
+        'generate-visuals',
+        'generate-voice',
+        'sync-timeline',
+        'prepare-preview-source',
+        'edit-source',
+        'render-proof',
+        'export-pack',
+      ]),
+      steps: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'capability-step-plan',
+          gateId: 'plan',
+          label: 'Video plan',
+          reviewRequired: true,
+          reviewObjectLabels: expect.arrayContaining(['Tong repo']),
+          editSurfaceLabels: expect.arrayContaining(['script']),
+          agentTemplateHints: ['motion-start'],
+        }),
+        expect.objectContaining({
+          id: 'capability-step-drafts',
+          gateId: 'drafts',
+          reviewObjectLabels: expect.arrayContaining([
+            'Proof-first launch',
+            'Demo-first launch',
+            'Founder-note launch',
+          ]),
+          agentTemplateHints: expect.arrayContaining([
+            'select-draft-*',
+            'regenerate-component-*',
+          ]),
+        }),
+        expect.objectContaining({
+          id: 'capability-step-capture',
+          gateId: 'capture',
+          reviewObjectLabels: expect.arrayContaining(['Regenerate App frame']),
+          editSurfaceLabels: expect.arrayContaining(['capture', 'crop', 'cursor path']),
+          agentTemplateHints: expect.arrayContaining([
+            'review-capture',
+            'review-computer-use-capture',
+            'record-product-flow',
+          ]),
+        }),
+        expect.objectContaining({
+          id: 'capability-step-timeline',
+          gateId: 'timeline',
+          reviewObjectLabels: expect.arrayContaining(['Timeline sync and source edits']),
+          editSurfaceLabels: expect.arrayContaining(['timing', 'effect']),
+          agentTemplateHints: expect.arrayContaining([
+            'sync-timeline',
+            'apply-timeline-revision',
+            'prepare-preview-source',
+            'edit-source',
+          ]),
+        }),
+        expect.objectContaining({
+          id: 'capability-step-export',
+          gateId: 'export',
+          reviewObjectLabels: expect.arrayContaining(['x 9:16 30s export pack']),
+          editSurfaceLabels: expect.arrayContaining(['export']),
+          agentTemplateHints: ['export-pack'],
+        }),
+      ]),
+    });
     expect(plan.skillDraft.manifest.instructions).toContain('Review video plan before continuing');
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
     expect(plan.skillDraft.manifest.instructions).toContain('Editable objects: story beats, draft variations');
