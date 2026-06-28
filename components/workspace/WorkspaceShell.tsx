@@ -1053,6 +1053,30 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
     }
   }, [motionStart, providerPrefs, wsId]);
+  const handleTimelineRunAgentTemplate = useCallback(
+    async (templateId: string) => {
+      const template = motionStart?.agentHandoff?.templates.find(
+        (candidate) => candidate.id === templateId
+      );
+      if (!motionStart?.project || !template) {
+        setMotionTimelineActionStatus('agent action unavailable');
+        return;
+      }
+
+      setMotionTimelineActionStatus(`running ${template.label}`);
+      try {
+        const handoffResult = await runMotionAgentHandoffFromStart(motionStart, {
+          templateIds: [templateId],
+          input: motionAgentHandoffInputFromPrefs(providerPrefs),
+        });
+        setMotionStartResult(wsId, applyMotionAgentHandoffResult(motionStart, handoffResult));
+        setMotionTimelineActionStatus(motionAgentHandoffStatusLabel(handoffResult));
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, providerPrefs, wsId]
+  );
   const handleTimelineRender = useCallback(
     async (engine: MotionRenderEngine) => {
       if (!motionStart?.project) return;
@@ -3190,6 +3214,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onApplySourcePatchDraft={handleTimelineApplySourcePatchDraft}
             onApproveDraft={handleTimelineDraftApprove}
             onRunFullAuto={handleTimelineRunFullAuto}
+            onRunAgentTemplate={handleTimelineRunAgentTemplate}
             onDropMotionPlanToCanvas={handleTimelineDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={handleTimelineDropRenderProofToCanvas}
             onExportPack={handleTimelineExportPack}

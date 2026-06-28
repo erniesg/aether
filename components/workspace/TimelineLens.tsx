@@ -84,6 +84,7 @@ export interface TimelineLensProps {
   onApplySourcePatchDraft?: (draftId: string) => void;
   onApproveDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
+  onRunAgentTemplate?: (templateId: string) => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
@@ -121,6 +122,7 @@ export function TimelineLens({
   onApplySourcePatchDraft,
   onApproveDraft,
   onRunFullAuto,
+  onRunAgentTemplate,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
@@ -184,6 +186,7 @@ export function TimelineLens({
             onApplySourcePatchDraft={onApplySourcePatchDraft}
             onApproveDraft={onApproveDraft}
             onRunFullAuto={onRunFullAuto}
+            onRunAgentTemplate={onRunAgentTemplate}
             onSelectCapabilitySetup={onSelectCapabilitySetup}
             onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={onDropRenderProofToCanvas}
@@ -240,6 +243,7 @@ function MotionPreviewPlanView({
   onApplySourcePatchDraft,
   onApproveDraft,
   onRunFullAuto,
+  onRunAgentTemplate,
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
@@ -274,6 +278,7 @@ function MotionPreviewPlanView({
   onApplySourcePatchDraft?: (draftId: string) => void;
   onApproveDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
+  onRunAgentTemplate?: (templateId: string) => void;
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
@@ -443,7 +448,11 @@ function MotionPreviewPlanView({
 
       {workflowSkillDraft ? (
         <section className="border-b border-border-soft px-4 py-3">
-          <MotionWorkflowSkillStrip draft={workflowSkillDraft} />
+          <MotionWorkflowSkillStrip
+            draft={workflowSkillDraft}
+            handoff={agentHandoff}
+            onRunAgentTemplate={onRunAgentTemplate}
+          />
         </section>
       ) : null}
 
@@ -458,6 +467,7 @@ function MotionPreviewPlanView({
           <MotionAgentActionsStrip
             handoff={agentHandoff}
             onRunFullAuto={onRunFullAuto}
+            onRunAgentTemplate={onRunAgentTemplate}
           />
         </section>
       ) : null}
@@ -1375,9 +1385,11 @@ function MotionAgentPlanStepRow({
 function MotionAgentActionsStrip({
   handoff,
   onRunFullAuto,
+  onRunAgentTemplate,
 }: {
   handoff: MotionAgentExecutionHandoff;
   onRunFullAuto?: () => void;
+  onRunAgentTemplate?: (templateId: string) => void;
 }) {
   const nextTemplate =
     handoff.templates.find((template) => template.id === handoff.nextTemplateId) ??
@@ -1413,6 +1425,7 @@ function MotionAgentActionsStrip({
                 key={template.id}
                 template={template}
                 isNext={template.id === handoff.nextTemplateId}
+                onRunAgentTemplate={onRunAgentTemplate}
               />
             ))}
           </div>
@@ -1457,15 +1470,16 @@ function MotionAgentActionsStrip({
 function MotionAgentActionTemplateRow({
   template,
   isNext,
+  onRunAgentTemplate,
 }: {
   template: MotionAgentExecutionHandoff['templates'][number];
   isNext: boolean;
+  onRunAgentTemplate?: (templateId: string) => void;
 }) {
   const receiptLabel = template.expectedReceipts.slice(0, 2).join(' / ');
   const hasLocalRunner = templateHasLocalRunner(template);
-
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+  const content = (
+    <>
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           <span className="truncate font-caption text-xs text-ink">{template.label}</span>
@@ -1487,6 +1501,25 @@ function MotionAgentActionTemplateRow({
       <Chip tone={isNext ? 'info' : 'neutral'} size="sm">
         {isNext ? 'next' : template.method.toLowerCase()}
       </Chip>
+    </>
+  );
+
+  if (onRunAgentTemplate) {
+    return (
+      <button
+        type="button"
+        onClick={() => onRunAgentTemplate(template.id)}
+        aria-label={`run ${template.label} agent action`}
+        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm text-left transition-colors duration-fast ease-quick hover:text-accent"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      {content}
     </div>
   );
 }
@@ -2256,9 +2289,18 @@ function productionStepTone(
 
 function MotionWorkflowSkillStrip({
   draft,
+  handoff,
+  onRunAgentTemplate,
 }: {
   draft: MotionWorkflowSkillDraft;
+  handoff: MotionAgentExecutionHandoff | null;
+  onRunAgentTemplate?: (templateId: string) => void;
 }) {
+  const fullAutoTemplate = findAgentTemplateByHints(
+    handoff,
+    draft.capabilityPlan.fullAutoTemplateHints
+  );
+
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -2413,43 +2455,67 @@ function MotionWorkflowSkillStrip({
               <Chip tone={draft.capabilityPlan.canRunFullAuto ? 'ok' : 'neutral'} size="sm">
                 {draft.capabilityPlan.canRunFullAuto ? 'full auto ready' : 'review only'}
               </Chip>
+              {fullAutoTemplate && onRunAgentTemplate ? (
+                <button
+                  type="button"
+                  onClick={() => onRunAgentTemplate(fullAutoTemplate.id)}
+                  aria-label={`run ${fullAutoTemplate.label} from capability plan`}
+                  className="rounded-pill border border-accent/40 px-2 py-0.5 font-mono text-2xs uppercase tracking-wide text-accent transition-colors duration-fast ease-quick hover:border-accent hover:text-ink"
+                >
+                  run full auto
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="mt-2 grid gap-2 md:grid-cols-3 xl:grid-cols-5">
-            {selectCapabilityPlanSteps(draft.capabilityPlan.steps).map((step) => (
-              <div
-                key={step.id}
-                className="min-w-0 rounded-sm border border-border-soft bg-surface-canvas px-3 py-2"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate font-caption text-xs text-ink">{step.label}</div>
-                    {step.reviewObjectLabels[0] ? (
-                      <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
-                        {step.reviewObjectLabels[0]}
-                      </div>
-                    ) : null}
+            {selectCapabilityPlanSteps(draft.capabilityPlan.steps).map((step) => {
+              const stepTemplate = findAgentTemplateByHints(handoff, step.agentTemplateHints);
+
+              return (
+                <div
+                  key={step.id}
+                  className="min-w-0 rounded-sm border border-border-soft bg-surface-canvas px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-caption text-xs text-ink">{step.label}</div>
+                      {step.reviewObjectLabels[0] ? (
+                        <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+                          {step.reviewObjectLabels[0]}
+                        </div>
+                      ) : null}
+                    </div>
+                    <Chip tone={step.reviewRequired ? 'warn' : 'ok'} size="sm">
+                      {step.reviewRequired ? 'review' : 'auto'}
+                    </Chip>
                   </div>
-                  <Chip tone={step.reviewRequired ? 'warn' : 'ok'} size="sm">
-                    {step.reviewRequired ? 'review' : 'auto'}
-                  </Chip>
+                  {step.editSurfaceLabels.length > 0 ? (
+                    <div className="mt-2 truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+                      {step.editSurfaceLabels.slice(0, 3).join(' / ')}
+                    </div>
+                  ) : null}
+                  {step.agentTemplateHints.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {step.agentTemplateHints.slice(0, 3).map((templateHint) => (
+                        <Chip key={templateHint} tone="neutral" size="sm">
+                          {templateHint}
+                        </Chip>
+                      ))}
+                    </div>
+                  ) : null}
+                  {stepTemplate && onRunAgentTemplate ? (
+                    <button
+                      type="button"
+                      onClick={() => onRunAgentTemplate(stepTemplate.id)}
+                      aria-label={`run ${stepTemplate.label} from ${step.label} capability step`}
+                      className="mt-2 w-full rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 text-left font-caption text-xs text-ink-dim transition-colors duration-fast ease-quick hover:border-accent hover:text-accent"
+                    >
+                      {step.reviewRequired ? 'review action' : 'run action'}
+                    </button>
+                  ) : null}
                 </div>
-                {step.editSurfaceLabels.length > 0 ? (
-                  <div className="mt-2 truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
-                    {step.editSurfaceLabels.slice(0, 3).join(' / ')}
-                  </div>
-                ) : null}
-                {step.agentTemplateHints.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {step.agentTemplateHints.slice(0, 3).map((templateHint) => (
-                      <Chip key={templateHint} tone="neutral" size="sm">
-                        {templateHint}
-                      </Chip>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -2471,6 +2537,20 @@ function selectCapabilityPlanSteps<
   });
   if (selected.length > 0) return selected.slice(0, 5);
   return steps.slice(0, 5);
+}
+
+function findAgentTemplateByHints(
+  handoff: MotionAgentExecutionHandoff | null,
+  hints: string[]
+): MotionAgentExecutionHandoff['templates'][number] | null {
+  if (!handoff) return null;
+  return (
+    hints
+      .map((hint) => handoff.templates.find((template) => template.id === hint))
+      .find((template): template is MotionAgentExecutionHandoff['templates'][number] =>
+        Boolean(template)
+      ) ?? null
+  );
 }
 
 function formatLaunchKitReviewObjectKind(kind: string): string {

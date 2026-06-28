@@ -2873,6 +2873,35 @@ describe('TimelineLens', () => {
     expect(onRunFullAuto).toHaveBeenCalledTimes(1);
   });
 
+  it('runs matching handoff templates from the workflow capability plan', async () => {
+    const onRunAgentTemplate = vi.fn<(templateId: string) => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        workflowSkillDraft={workflowSkillDraft}
+        agentHandoff={agentHandoff}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onRunAgentTemplate={onRunAgentTemplate}
+      />
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: /run run saved gates from capability plan/i,
+      })
+    );
+    expect(onRunAgentTemplate).toHaveBeenCalledWith('full-auto-run');
+
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: /run capture product media from product capture capability step/i,
+      })
+    );
+    expect(onRunAgentTemplate).toHaveBeenCalledWith('review-capture');
+  });
+
   it('shows actionable capability setup cards for missing runners and providers', async () => {
     const onSelectCapabilitySetup = vi.fn();
     render(
