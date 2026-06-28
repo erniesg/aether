@@ -1056,7 +1056,7 @@ describe('POST /api/motion/agent-handoff', () => {
           expect.objectContaining({
             gateId: 'drafts',
             label: 'Regenerate capture for App frame',
-            receiptLabels: ['Regeneration request', 'Capture plan'],
+            receiptLabels: ['Regeneration request', 'Capture plan', 'Source patch plan'],
           }),
         ]),
       },
@@ -1064,7 +1064,7 @@ describe('POST /api/motion/agent-handoff', () => {
         previewPlan: {
           executionHistory: {
             status: 'saved',
-            latestReceiptLabels: ['Regeneration request', 'Capture plan'],
+            latestReceiptLabels: ['Regeneration request', 'Capture plan', 'Source patch plan'],
           },
         },
       },
@@ -1130,7 +1130,7 @@ describe('POST /api/motion/agent-handoff', () => {
           expect.objectContaining({
             gateId: 'drafts',
             label: 'Apply reference style to Hook card / App frame',
-            receiptLabels: ['Reference signal', 'Component style update'],
+            receiptLabels: ['Reference signal', 'Component style update', 'Source patch plan'],
           }),
         ]),
       },
@@ -1138,7 +1138,7 @@ describe('POST /api/motion/agent-handoff', () => {
         previewPlan: {
           executionHistory: {
             status: 'saved',
-            latestReceiptLabels: ['Reference signal', 'Component style update'],
+            latestReceiptLabels: ['Reference signal', 'Component style update', 'Source patch plan'],
           },
         },
       },

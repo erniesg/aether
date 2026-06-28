@@ -331,8 +331,17 @@ export interface MotionPreviewTasteReferenceShot {
   transitionOutLabel: string | null;
 }
 
+export interface MotionPreviewTasteReferenceDraftInfluence {
+  recommendedDraftId: string;
+  recommendedDraftLabel: string;
+  reasonLabel: string;
+  defaultShotLabels: string[];
+  componentMatchLabels: string[];
+}
+
 export interface MotionPreviewTasteReference {
   id: string;
+  rank: number;
   title: string;
   sourceUrl: string;
   sourceLabel: string;
@@ -345,6 +354,7 @@ export interface MotionPreviewTasteReference {
   effectLabels: string[];
   regenerateScopeLabels: string[];
   shotList: MotionPreviewTasteReferenceShot[];
+  draftInfluence: MotionPreviewTasteReferenceDraftInfluence;
   aetherUse: string;
   actions: MotionPreviewTasteReferenceAction[];
 }
@@ -997,7 +1007,16 @@ function buildReferenceSignals(project: MotionProject): MotionPreviewReferenceSi
 
 function buildTasteReferences(project: MotionProject): MotionPreviewTasteReference[] {
   const workflowId = inferReferenceWorkflowId(project);
-  return listMotionTasteCorpusForWorkflow(workflowId).map(tasteReferenceFromCorpusEntry);
+  return rankTasteReferencesForProject(
+    project,
+    listMotionTasteCorpusForWorkflow(workflowId)
+  ).map((ranked) =>
+    tasteReferenceFromCorpusEntry(
+      ranked.entry,
+      ranked.rank,
+      tasteDraftInfluence(project, ranked.entry)
+    )
+  );
 }
 
 function inferReferenceWorkflowId(project: MotionProject): WorkflowRegistryId {
@@ -1118,13 +1137,18 @@ function referenceSignalReceiptLabels(scope: MotionRegenerateScope): string[] {
   return ['reference signal', 'component plan', 'updated preview plan'];
 }
 
-function tasteReferenceFromCorpusEntry(entry: MotionTasteCorpusEntry): MotionPreviewTasteReference {
+function tasteReferenceFromCorpusEntry(
+  entry: MotionTasteCorpusEntry,
+  rank: number,
+  draftInfluence: MotionPreviewTasteReferenceDraftInfluence
+): MotionPreviewTasteReference {
   const componentLabels = uniqueStrings(entry.componentIds.map(componentLabelFor));
   const effectLabels = entry.effectTags.map(readableLabel);
   const regenerateScopeLabels = entry.regenerateScopes.map(readableLabel);
 
   return {
     id: entry.id,
+    rank,
     title: entry.title,
     sourceUrl: entry.sourceUrl,
     sourceLabel: `${readableLabel(entry.platform)} taste`,
@@ -1137,8 +1161,145 @@ function tasteReferenceFromCorpusEntry(entry: MotionTasteCorpusEntry): MotionPre
     effectLabels,
     regenerateScopeLabels,
     shotList: entry.shotList.map(tasteReferenceShotFromCorpusShot),
+    draftInfluence,
     aetherUse: entry.aetherUse,
     actions: tasteReferenceActions(entry, componentLabels),
+  };
+}
+
+function rankTasteReferencesForProject(
+  project: MotionProject,
+  entries: MotionTasteCorpusEntry[]
+): Array<{ entry: MotionTasteCorpusEntry; rank: number }> {
+  return entries
+    .map((entry, index) => ({
+      entry,
+      index,
+      score: tasteReferenceScore(project, entry),
+    }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((ranked, index) => ({ entry: ranked.entry, rank: index + 1 }));
+}
+
+function tasteReferenceScore(project: MotionProject, entry: MotionTasteCorpusEntry): number {
+  const targetCrops = new Set(project.brief.platformTargets.map((target) => target.aspectRatio));
+  const captureCandidates = project.sourceProfile?.captureCandidates ?? [];
+  const hasCaptureCandidates = captureCandidates.length > 0;
+  const hasRecordingCandidate = captureCandidates.some(
+    (candidate) => candidate.mode === 'screen-recording'
+  );
+  const productComponentCount = entry.componentIds.filter(isProductCaptureComponent).length;
+  let score = 0;
+
+  score += entry.targetCrops.filter((crop) => targetCrops.has(crop)).length * 4;
+
+  if (hasCaptureCandidates) {
+    score += Math.min(productComponentCount, 3) * 4;
+  }
+
+  if (hasRecordingCandidate && entry.effectTags.includes('cursor-zoom')) {
+    score += 3;
+  }
+
+  if (entry.hookType === 'product-name') score += 3;
+  if (entry.hookType === 'before-after') score += 2;
+  if (entry.hookType === 'agent-action') score += 1;
+  if (entry.styleTags.includes('interactive-hotspots')) score += 2;
+
+  if (
+    project.brief.projectKind === 'demo' ||
+    project.brief.projectKind === 'feature' ||
+    project.brief.projectKind === 'social'
+  ) {
+    if (entry.hookType === 'product-name' || entry.hookType === 'before-after') score += 4;
+    if (entry.componentIds.includes('app-frame') || entry.componentIds.includes('device-frame')) {
+      score += 2;
+    }
+  }
+
+  return score;
+}
+
+function isProductCaptureComponent(componentId: string): boolean {
+  return (
+    componentId === 'app-frame' ||
+    componentId === 'device-frame' ||
+    componentId === 'ui-reveal-frame' ||
+    componentId === 'cursor-callout' ||
+    componentId === 'hotspot-marker' ||
+    componentId === 'split-screen-compare'
+  );
+}
+
+function tasteDraftInfluence(
+  project: MotionProject,
+  entry: MotionTasteCorpusEntry
+): MotionPreviewTasteReferenceDraftInfluence {
+  const recommendedDraft = recommendedDraftForTasteReference(project, entry);
+  const componentMatchLabels = uniqueStrings(entry.componentIds.map(componentLabelFor)).slice(0, 4);
+  const defaultShotLabels = entry.shotList.slice(0, 3).map((shot) => shot.label);
+
+  return {
+    recommendedDraftId: recommendedDraft.id,
+    recommendedDraftLabel: recommendedDraft.label,
+    reasonLabel: `${entry.title} best informs ${recommendedDraft.label}: ${componentMatchLabels
+      .slice(0, 3)
+      .join(', ')}.`,
+    defaultShotLabels,
+    componentMatchLabels,
+  };
+}
+
+function recommendedDraftForTasteReference(
+  project: MotionProject,
+  entry: MotionTasteCorpusEntry
+): Pick<MotionDraft, 'id' | 'label'> {
+  if (
+    entry.hookType === 'agent-action' ||
+    entry.componentIds.includes('agent-trace') ||
+    entry.componentIds.includes('terminal-card')
+  ) {
+    return findDraftForTasteReference(project, [
+      'draft-proof-first',
+      'draft-pr-reviewer-cut',
+      'draft-pr-mechanism-first',
+      project.currentDraftId,
+    ]);
+  }
+
+  if (
+    entry.hookType === 'product-name' ||
+    entry.hookType === 'before-after' ||
+    entry.componentIds.some(isProductCaptureComponent)
+  ) {
+    return findDraftForTasteReference(project, [
+      'draft-demo-first',
+      project.currentDraftId,
+    ]);
+  }
+
+  if (entry.hookType === 'proof-first') {
+    return findDraftForTasteReference(project, [
+      'draft-proof-first',
+      'draft-pr-reviewer-cut',
+      project.currentDraftId,
+    ]);
+  }
+
+  return findDraftForTasteReference(project, [project.currentDraftId]);
+}
+
+function findDraftForTasteReference(
+  project: MotionProject,
+  draftIds: string[]
+): Pick<MotionDraft, 'id' | 'label'> {
+  const draft = draftIds
+    .map((draftId) => project.drafts.find((candidate) => candidate.id === draftId))
+    .find((candidate): candidate is MotionDraft => Boolean(candidate));
+
+  return {
+    id: draft?.id ?? project.currentDraftId,
+    label: draft?.label ?? 'Current draft',
   };
 }
 

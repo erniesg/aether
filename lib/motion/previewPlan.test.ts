@@ -762,13 +762,29 @@ describe('buildMotionPreviewPlan', () => {
 
     const tasteReferences: MotionPreviewTasteReference[] = preview.tasteReferences;
     expect(tasteReferences.map((reference) => reference.title).slice(0, 2)).toEqual([
-      'HyperFrames PR-to-video skill drop',
-      'Claude-style agent product demo',
+      'Screen Studio-style polished product demo',
+      'Arcade product-story AI videos',
     ]);
+    expect(tasteReferences[0]).toMatchObject({
+      rank: 1,
+      title: 'Screen Studio-style polished product demo',
+      draftInfluence: {
+        recommendedDraftId: 'draft-demo-first',
+        recommendedDraftLabel: 'Demo-first cut',
+        defaultShotLabels: ['Product surface first', 'Cursor-guided action', 'UI reveal'],
+        componentMatchLabels: expect.arrayContaining(['App frame', 'Cursor callout']),
+      },
+    });
     expect(tasteReferences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           title: 'Claude-style agent product demo',
+          rank: expect.any(Number),
+          draftInfluence: expect.objectContaining({
+            recommendedDraftId: 'draft-proof-first',
+            recommendedDraftLabel: 'Proof-first cut',
+            defaultShotLabels: ['Prompt to agent', 'Reads and edits', 'Command proof'],
+          }),
           reviewStatusLabel: 'needs public playback',
           hookTypeLabel: 'agent action',
           targetCropLabels: ['16:9', '9:16'],
