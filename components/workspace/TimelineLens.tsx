@@ -861,7 +861,10 @@ function MotionPlayablePreviewStrip({
           </div>
 
           {preparedSource ? (
-            <MotionPreparedPreviewRuntimeHost source={preparedSource} />
+            <MotionPreparedPreviewRuntimeHost
+              source={preparedSource}
+              selectedClipId={selectedClipId}
+            />
           ) : null}
 
           <div className="mt-4 grid gap-1">
@@ -927,8 +930,10 @@ function MotionPlayablePreviewStrip({
 
 function MotionPreparedPreviewRuntimeHost({
   source,
+  selectedClipId,
 }: {
   source: MotionPreparedPreviewSource;
+  selectedClipId: string | null;
 }) {
   const sourceFileCount = source.sourceHost.sourceFileCount || source.sourceFiles.length;
   const sourcePaths = uniqueLabels([
@@ -1010,7 +1015,7 @@ function MotionPreparedPreviewRuntimeHost({
         />
       ) : null}
       {source.runtimeKind === 'remotion-player' && runtimeHost.status === 'source-ready' ? (
-        <MotionRemotionPlayerPreview source={source} />
+        <MotionRemotionPlayerPreview source={source} selectedClipId={selectedClipId} />
       ) : null}
     </div>
   );

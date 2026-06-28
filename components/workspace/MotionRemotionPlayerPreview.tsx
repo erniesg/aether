@@ -10,6 +10,8 @@ interface PreparedTimelineSource {
   compositionId: string;
   fps: number;
   durationFrames: number;
+  initialFrame: number;
+  focusedClipLabel: string | null;
   tracks: TimelineTrack[];
 }
 
@@ -20,10 +22,15 @@ interface RemotionTimelineCompositionProps {
 
 export function MotionRemotionPlayerPreview({
   source,
+  selectedClipId = null,
 }: {
   source: MotionPreparedPreviewSource;
+  selectedClipId?: string | null;
 }) {
-  const timeline = useMemo(() => preparedTimelineSource(source), [source]);
+  const timeline = useMemo(
+    () => preparedTimelineSource(source, selectedClipId),
+    [source, selectedClipId]
+  );
 
   if (!timeline) return null;
 
@@ -33,16 +40,19 @@ export function MotionRemotionPlayerPreview({
       role="region"
       className="mt-3 overflow-hidden rounded-sm border border-border-soft bg-surface-canvas"
     >
-      <div className="border-b border-border-soft px-2 py-1 font-mono text-2xs uppercase tracking-wide text-ink-dim">
-        {timeline.compositionId}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-soft px-2 py-1 font-mono text-2xs uppercase tracking-wide text-ink-dim">
+        <span>{timeline.compositionId}</span>
+        {timeline.focusedClipLabel ? <span>{timeline.focusedClipLabel}</span> : null}
       </div>
       <Player
+        key={`${timeline.compositionId}:${timeline.initialFrame}`}
         component={RemotionTimelineComposition}
         compositionHeight={1920}
         compositionWidth={1080}
         controls
         durationInFrames={timeline.durationFrames}
         fps={timeline.fps}
+        initialFrame={timeline.initialFrame}
         inputProps={{ compositionId: timeline.compositionId, tracks: timeline.tracks }}
         style={{
           aspectRatio: '9 / 16',
@@ -146,7 +156,10 @@ function PreviewClipCard({
   );
 }
 
-function preparedTimelineSource(source: MotionPreparedPreviewSource): PreparedTimelineSource | null {
+function preparedTimelineSource(
+  source: MotionPreparedPreviewSource,
+  selectedClipId: string | null
+): PreparedTimelineSource | null {
   const timelineFile =
     source.sourceFiles.find((file) => file.kind === 'timeline') ??
     source.sourceFiles.find((file) => file.path === source.sourceHost.timelinePath);
@@ -156,16 +169,48 @@ function preparedTimelineSource(source: MotionPreparedPreviewSource): PreparedTi
   try {
     const parsed = JSON.parse(timelineFile.contents) as Partial<PreparedTimelineSource>;
     if (!Array.isArray(parsed.tracks)) return null;
+    const durationFrames =
+      numericValue(parsed.durationFrames) ??
+      Math.max(1, Math.round(source.durationSeconds * source.fps));
+    const fps = numericValue(parsed.fps) ?? source.fps;
+    const selectedClip = selectedTimelineClip(parsed.tracks, selectedClipId);
+    const initialFrame = clampFrame(selectedClip?.startFrame ?? 0, durationFrames);
+
     return {
       compositionId: stringValue(parsed.compositionId) ?? source.compositionId,
-      durationFrames:
-        numericValue(parsed.durationFrames) ?? Math.max(1, Math.round(source.durationSeconds * source.fps)),
-      fps: numericValue(parsed.fps) ?? source.fps,
+      durationFrames,
+      fps,
+      initialFrame,
+      focusedClipLabel: selectedClip
+        ? `focus ${selectedClip.componentId ?? selectedClip.id} @ ${formatTimelineSeconds(initialFrame, fps)}`
+        : null,
       tracks: parsed.tracks,
     };
   } catch {
     return null;
   }
+}
+
+function selectedTimelineClip(
+  tracks: TimelineTrack[],
+  selectedClipId: string | null
+): TimelineClip | null {
+  if (!selectedClipId) return null;
+
+  for (const track of tracks) {
+    const clip = track.clips.find((candidate) => candidate.id === selectedClipId);
+    if (clip) return clip;
+  }
+
+  return null;
+}
+
+function clampFrame(frame: number, durationFrames: number): number {
+  return Math.max(0, Math.min(frame, Math.max(0, durationFrames - 1)));
+}
+
+function formatTimelineSeconds(frame: number, fps: number): string {
+  return `${(frame / fps).toFixed(1)}s`;
 }
 
 function clipPreviewText(clip: TimelineClip): string {

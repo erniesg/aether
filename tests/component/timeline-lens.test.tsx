@@ -2667,6 +2667,63 @@ describe('TimelineLens', () => {
     expect(screen.queryByText(/registerRoot/)).not.toBeInTheDocument();
   });
 
+  it('opens the prepared Remotion Player on the selected editable component', () => {
+    const focusedPreparedSource: MotionPreparedPreviewSource = {
+      ...preparedPreviewSource,
+      sourceFiles: preparedPreviewSource.sourceFiles.map((file) =>
+        file.kind === 'timeline'
+          ? {
+              ...file,
+              contents: JSON.stringify({
+                compositionId: 'motion-aether-launch-draft-primary',
+                fps: 30,
+                durationFrames: 900,
+                tracks: [
+                  {
+                    id: 'track-text',
+                    kind: 'text',
+                    clips: [
+                      {
+                        id: 'clip-beat-hook-text',
+                        componentId: 'hook-card',
+                        startFrame: 0,
+                        durationFrames: 90,
+                        props: { caption: 'Turn a repo into a launch video.' },
+                      },
+                      {
+                        id: 'clip-beat-demo-text',
+                        componentId: 'app-frame',
+                        startFrame: 120,
+                        durationFrames: 120,
+                        props: {
+                          caption: 'Show the generated timeline and capture plan.',
+                        },
+                      },
+                    ],
+                  },
+                ],
+              }),
+            }
+          : file
+      ),
+    };
+
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        preparedPreviewSource={focusedPreparedSource}
+        selectedClipId="clip-beat-demo-text"
+        onSelectClip={() => {}}
+      />
+    );
+
+    const host = screen.getByRole('group', { name: /prepared remotion preview runtime/i });
+    const player = within(host).getByRole('region', { name: /remotion player preview/i });
+    expect(within(player).getByText('focus app-frame @ 4.0s')).toBeInTheDocument();
+    expect(within(player).getByText('Show the generated timeline and capture plan.')).toBeInTheDocument();
+  });
+
   it('mounts prepared HyperFrames HTML in a sandboxed preview frame', () => {
     const hyperframesPreviewPlan: MotionPreviewPlan = {
       ...previewPlan,
