@@ -31,6 +31,47 @@ and is exposed through `/api/motion/workflows` as workflow-specific
 | Anthropic computer use | Agents can perceive screens, move cursors, click, type, and automate workflows, but the capability is explicitly experimental and should start with low-risk tasks. | Browser/computer-use capture needs an explicit trusted runner setup, permission gate, scrubbed receipts, and safe fallbacks before full-auto capture. |
 | Remotion docs | Remotion is agent-friendly, component-based, previewable, renderable, and has product surfaces for Player, Timeline, Recorder, captions, and parametrized videos. | Remotion should be an adapter and in-app preview surface over provider-neutral component ids, not a separate video product mode. |
 
+## Reference refresh: 2026-06-28
+
+- `iart-ai/motion-skills` is useful mainly as a shape reference: narrow
+  installable packs, skill folders with `SKILL.md` plus references, and
+  render-and-verify loops. Aether should mirror that contract for reusable
+  motion workflows while keeping the creator surface as canvas/timeline
+  material.
+- HyperFrames currently exposes workflow skills for `pr-to-video`,
+  `product-launch-video`, `website-to-video`, captions, media, motion
+  graphics, music, slideshow, and Remotion-to-HyperFrames portability. Aether's
+  workflow catalog should keep those as reusable recipes over one
+  `MotionProject`, not branch into separate product modes.
+- Screen Studio reinforces the core product-demo component set: automatic and
+  manual zooms, smooth cursor movement, vertical export, transcript/subtitles,
+  webcam/audio, device capture, background/spacing/brand presets, crop, keyboard
+  shortcuts, GIF/MP4 export, and timeline zoom edits.
+- Arcade adds the interactive-demo compatibility layer the user asked about:
+  source starts from actual product capture or upload, then becomes demos,
+  videos, visuals, voiceovers, hotspots/callouts, branches, chapters, embeds,
+  downloads, and analytics. Aether should store hotspots and branches as
+  timeline/node metadata now even when the first export is a flat video.
+- Descript adds the editable-output requirement: generated video, B-roll,
+  avatars, voice clones, captions, translation, transcript/script editing, and
+  regenerate speech must remain source-backed. One line change should be able
+  to regenerate voice, captions, avatar/presenter layer, and timing links.
+- Anthropic computer-use docs keep desktop/app recording in the guarded lane:
+  screenshot, mouse, keyboard, and desktop automation are useful for captures,
+  but must require explicit permission, scoped targets, redaction, stop
+  conditions, and human confirmation before full-auto continues.
+- Remotion's current docs explicitly support coding-agent skills and embedding
+  the `Player` in React apps with runtime-customizable props. That confirms the
+  existing Aether choice: Remotion should preview editable source bundles in the
+  same shell while HyperFrames remains a deterministic HTML/source render
+  adapter.
+
+This refresh is now encoded in `lib/motion/tasteCorpus.ts` as three additional
+workflow taste entries: Arcade-style product story, Descript-style editable AI
+video, and Anthropic-style guarded computer-use capture. All three are marked
+with conservative review statuses until actual public playback or authenticated
+X/video review supplies timestamp-verified cuts.
+
 ## Component taxonomy to support
 
 The current registry already covers many launch and PR primitives. The research

@@ -114,4 +114,89 @@ describe('motion taste corpus', () => {
       ])
     );
   });
+
+  it('adds public product-story and AI-editor references for reviewable draft planning', () => {
+    const featureTaste = listMotionTasteCorpusForWorkflow('feature-social-video');
+
+    expect(featureTaste).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'arcade-product-story-ai-videos',
+          reviewStatus: 'needs-public-playback',
+          proofBoundary: 'accessible-page',
+          hookType: 'product-name',
+          componentIds: expect.arrayContaining([
+            'app-frame',
+            'hotspot-marker',
+            'flow-diagram',
+            'voice-line',
+          ]),
+          regenerateScopes: expect.arrayContaining([
+            'capture',
+            'diagram',
+            'caption',
+            'timing',
+          ]),
+          shotList: expect.arrayContaining([
+            expect.objectContaining({
+              componentIds: expect.arrayContaining(['hotspot-marker']),
+              editTargets: expect.arrayContaining(['capture', 'caption']),
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          id: 'descript-ai-editor-regenerate-speech',
+          reviewStatus: 'needs-public-playback',
+          proofBoundary: 'accessible-page',
+          hookType: 'before-after',
+          componentIds: expect.arrayContaining([
+            'voice-line',
+            'caption-line',
+            'avatar-bubble',
+            'split-screen-compare',
+          ]),
+          regenerateScopes: expect.arrayContaining([
+            'copy',
+            'caption',
+            'timing',
+            'asset',
+          ]),
+          shotList: expect.arrayContaining([
+            expect.objectContaining({
+              componentIds: expect.arrayContaining(['voice-line', 'caption-line']),
+              editTargets: expect.arrayContaining(['copy', 'caption']),
+            }),
+          ]),
+        }),
+      ])
+    );
+  });
+
+  it('keeps computer-use capture as an explicitly guarded taste reference', () => {
+    const repoTaste = listMotionTasteCorpusForWorkflow('repo-launch-video');
+
+    expect(repoTaste).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'anthropic-computer-use-capture-boundary',
+          reviewStatus: 'needs-public-playback',
+          proofBoundary: 'accessible-page',
+          hookType: 'agent-action',
+          componentIds: expect.arrayContaining([
+            'agent-trace',
+            'app-frame',
+            'proof-card',
+            'contact-sheet-proof',
+          ]),
+          regenerateScopes: expect.arrayContaining(['capture', 'proof', 'timing']),
+          shotList: expect.arrayContaining([
+            expect.objectContaining({
+              componentIds: expect.arrayContaining(['agent-trace', 'app-frame']),
+              editTargets: expect.arrayContaining(['capture', 'proof']),
+            }),
+          ]),
+        }),
+      ])
+    );
+  });
 });
