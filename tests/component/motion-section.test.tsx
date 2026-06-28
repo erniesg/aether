@@ -143,6 +143,26 @@ function reviewReadyResult(appName = 'tong'): AgentMotionStartResult {
           inputPlaceholders: ['$motionProject'],
           expectedReceipts: ['captures', 'voice clips', 'export pack'],
         },
+        {
+          id: 'generate-visuals',
+          label: 'Generate or select visuals',
+          method: 'POST',
+          route: '/api/motion/image-to-video',
+          toolId: 'motion-visuals',
+          body: {},
+          inputPlaceholders: ['$motionProject'],
+          expectedReceipts: ['generated clips', 'generated take options'],
+        },
+        {
+          id: 'generate-voice',
+          label: 'Generate voice and timings',
+          method: 'POST',
+          route: '/api/motion/voice',
+          toolId: 'motion-voice',
+          body: {},
+          inputPlaceholders: ['$motionProject'],
+          expectedReceipts: ['voice clips', 'word timings'],
+        },
       ],
     },
   } as unknown as AgentMotionStartResult;
@@ -462,6 +482,89 @@ describe('MotionSection', () => {
     expect(
       within(reviewQueue).getByRole('button', { name: /continue full auto/i })
     ).toBeEnabled();
+  });
+
+  it('lets creators run individual agent handoff templates from the review queue', async () => {
+    const startMotion = vi.fn(async () => reviewReadyResult('tong'));
+    const updatedResult = reviewReadyResult('tong');
+    const runAgentHandoff = vi.fn<
+      (
+        result: AgentMotionStartResult,
+        input: MotionAgentHandoffClientInput,
+        options?: { templateIds?: string[] }
+      ) => Promise<MotionAgentHandoffClientResult>
+    >(async () => ({
+      status: 'complete',
+      projectId: 'motion-tong-launch',
+      finalProject: updatedResult.project,
+      finalResponse: {
+        previewPlan: {
+          ...updatedResult.previewPlan,
+          title: 'tong generated visual takes',
+        },
+        agentHandoff: {
+          ...updatedResult.agentHandoff,
+          nextTemplateId: 'generate-voice',
+        },
+      },
+      steps: [
+        {
+          templateId: 'generate-visuals',
+          label: 'Generate or select visuals',
+          route: '/api/motion/image-to-video',
+          method: 'POST',
+          missingPlaceholders: [],
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: {},
+        },
+      ],
+    }));
+    render(
+      <MotionSection
+        workspaceId="demo-ws"
+        startMotion={startMotion}
+        providerPrefs={{
+          imageProviderId: 'runway',
+          voiceProviderId: 'gemini-live',
+          renderProviderId: 'remotion-local',
+        }}
+        runAgentHandoff={runAgentHandoff}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /full-auto/i }));
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      '/Users/erniesg/code/erniesg/tong'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    const reviewQueue = await screen.findByRole('region', {
+      name: /motion review queue/i,
+    });
+    await userEvent.click(
+      within(reviewQueue).getByRole('button', {
+        name: /run Generate or select visuals agent action/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(reviewQueue).toHaveTextContent('tong generated visual takes');
+    });
+    expect(reviewQueue).toHaveTextContent('Generate voice and timings');
+    expect(runAgentHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({ agentHandoff: expect.any(Object) }),
+      {
+        imageToVideoProviderId: 'runway',
+        voiceProviderId: 'gemini-live',
+        renderProviderId: 'remotion-local',
+      },
+      { templateIds: ['generate-visuals'] }
+    );
+    expect(getMotionStartResult('demo-ws')?.previewPlan).toMatchObject({
+      title: 'tong generated visual takes',
+    });
   });
 
   it('lets creators trigger scene-level component regeneration from the video plan', async () => {

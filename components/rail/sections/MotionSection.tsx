@@ -45,6 +45,8 @@ type MotionRailRegenerationAction =
   NonNullable<AgentMotionStartResult['previewPlan']>['regenerationActions'][number];
 type MotionRailVideoPlanScene =
   NonNullable<AgentMotionStartResult['previewPlan']>['videoPlan']['scenes'][number];
+type MotionRailAgentTemplate =
+  NonNullable<AgentMotionStartResult['agentHandoff']>['templates'][number];
 
 interface MotionSourceDraftEntry {
   kind: WorkflowSourceKind;
@@ -98,7 +100,8 @@ export interface MotionSectionProps {
   providerPrefs?: WorkspaceProviderPrefs | null;
   runAgentHandoff?: (
     result: AgentMotionStartResult,
-    input: MotionAgentHandoffClientInput
+    input: MotionAgentHandoffClientInput,
+    options?: { templateIds?: string[] }
   ) => Promise<MotionAgentHandoffClientResult>;
 }
 
@@ -194,9 +197,13 @@ async function defaultStartMotion(
 
 async function defaultRunAgentHandoff(
   result: AgentMotionStartResult,
-  input: MotionAgentHandoffClientInput
+  input: MotionAgentHandoffClientInput,
+  options?: { templateIds?: string[] }
 ): Promise<MotionAgentHandoffClientResult> {
-  return runMotionAgentHandoffFromStart(result, { input });
+  return runMotionAgentHandoffFromStart(result, {
+    input,
+    ...(options?.templateIds ? { templateIds: options.templateIds } : {}),
+  });
 }
 
 async function defaultRegenerateMotion(
@@ -405,14 +412,17 @@ export function MotionSection({
     }
   };
 
-  const continueFullAuto = async (result: AgentMotionStartResult) => {
+  const runAgentHandoffSelection = async (
+    result: AgentMotionStartResult,
+    templateIds?: string[]
+  ) => {
     if (handoffStatus.kind === 'running') return;
     setHandoffStatus({ kind: 'running' });
     try {
-      const handoffResult = await runAgentHandoff(
-        result,
-        motionAgentHandoffInputFromPrefs(activeProviderPrefs)
-      );
+      const providerInput = motionAgentHandoffInputFromPrefs(activeProviderPrefs);
+      const handoffResult = templateIds
+        ? await runAgentHandoff(result, providerInput, { templateIds })
+        : await runAgentHandoff(result, providerInput);
       const updatedResult = applyMotionAgentHandoffResult(result, handoffResult);
       setMotionStartResult(workspaceId, updatedResult);
       setStatus({ kind: 'done', result: updatedResult });
@@ -545,7 +555,10 @@ export function MotionSection({
             sourcePatchDraft={sourcePatchDraft}
             onRegenerateScene={(action) => void runSceneRegeneration(action)}
             onApplySourcePatch={(draft) => void applyCurrentSourcePatch(draft)}
-            onContinueFullAuto={() => void continueFullAuto(status.result)}
+            onContinueFullAuto={() => void runAgentHandoffSelection(status.result)}
+            onRunAgentTemplate={(templateId) =>
+              void runAgentHandoffSelection(status.result, [templateId])
+            }
           />
         </>
       ) : status.kind === 'error' ? (
@@ -674,6 +687,7 @@ function MotionReviewQueue({
   onRegenerateScene,
   onApplySourcePatch,
   onContinueFullAuto,
+  onRunAgentTemplate,
 }: {
   result: AgentMotionStartResult;
   handoffStatus: MotionHandoffStatus;
@@ -682,6 +696,7 @@ function MotionReviewQueue({
   onRegenerateScene: (action: MotionRailRegenerationAction) => void;
   onApplySourcePatch: (draft: MotionSourcePatchDraft) => void;
   onContinueFullAuto: () => void;
+  onRunAgentTemplate: (templateId: string) => void;
 }) {
   const previewPlan = result.previewPlan;
   if (!previewPlan) return null;
@@ -696,6 +711,11 @@ function MotionReviewQueue({
   const canContinue =
     result.agentHandoff?.mode === 'full-auto' &&
     nextTemplate?.route === '/api/motion/full-auto';
+  const agentActionTemplates = result.agentHandoff
+    ? result.agentHandoff.templates
+        .filter((template) => !(canContinue && template.id === nextTemplate?.id))
+        .slice(0, 4)
+    : [];
   const handoffReceiptLabel = handoffStatusLabel(handoffStatus);
 
   return (
@@ -741,6 +761,12 @@ function MotionReviewQueue({
             onApply={onApplySourcePatch}
           />
         ) : null}
+        <MotionAgentActionRailStrip
+          templates={agentActionTemplates}
+          running={handoffStatus.kind === 'running'}
+          nextTemplateId={result.agentHandoff?.nextTemplateId ?? null}
+          onRunAgentTemplate={onRunAgentTemplate}
+        />
         {nextTemplate ? (
           <MotionReviewQueueList label="next action" items={[nextTemplate.label]} />
         ) : null}
@@ -791,6 +817,52 @@ function MotionReviewQueue({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function MotionAgentActionRailStrip({
+  templates,
+  running,
+  nextTemplateId,
+  onRunAgentTemplate,
+}: {
+  templates: MotionRailAgentTemplate[];
+  running: boolean;
+  nextTemplateId: string | null;
+  onRunAgentTemplate: (templateId: string) => void;
+}) {
+  if (templates.length === 0) return null;
+
+  return (
+    <div className="min-w-0" role="group" aria-label="agent handoff actions">
+      <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">agent steps</div>
+      <div className="mt-1 grid gap-1">
+        {templates.map((template) => (
+          <button
+            key={template.id}
+            type="button"
+            onClick={() => onRunAgentTemplate(template.id)}
+            disabled={running}
+            aria-label={`run ${template.label} agent action`}
+            className={cn(
+              'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-sm border px-1.5 py-1 text-left',
+              'border-border-soft bg-surface-panel font-caption text-2xs text-ink-dim transition-colors',
+              'hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            {running ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+            ) : (
+              <Play className="h-3 w-3" aria-hidden="true" />
+            )}
+            <span className="truncate">{template.label}</span>
+            <span className="rounded-sm border border-border-soft px-1 py-0.5 font-mono text-[9px] uppercase tracking-wide text-ink-faint">
+              {template.id === nextTemplateId ? 'next' : template.method.toLowerCase()}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
