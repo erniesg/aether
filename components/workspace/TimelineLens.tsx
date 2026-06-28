@@ -431,6 +431,7 @@ function MotionPreviewPlanView({
           onSelectClip={onSelectClip}
           onPreparePreviewSource={onPreparePreviewSource}
           onApplyGeneratedVideoTake={onApplyGeneratedVideoTake}
+          onRegenerateComponent={onRegenerateComponent}
         />
       </section>
 
@@ -755,6 +756,7 @@ function MotionPlayablePreviewStrip({
   onSelectClip,
   onPreparePreviewSource,
   onApplyGeneratedVideoTake,
+  onRegenerateComponent,
 }: {
   previewPlan: MotionPreviewPlan;
   preparedPreviewSource: MotionPreparedPreviewSource | null;
@@ -762,6 +764,7 @@ function MotionPlayablePreviewStrip({
   onSelectClip: (clipId: string) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
   onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
+  onRegenerateComponent?: (actionId: string) => void;
 }) {
   const sourcePreview = buildSourcePreview(previewPlan);
   const [previewSeconds, setPreviewSeconds] = useState(0);
@@ -952,6 +955,21 @@ function MotionPlayablePreviewStrip({
                     ))}
                   </div>
                 ) : null}
+                {component.regenerationActions.length > 0 ? (
+                  <div className="mt-2 grid gap-1">
+                    {component.regenerationActions.slice(0, 2).map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={() => onRegenerateComponent?.(action.id)}
+                        disabled={!onRegenerateComponent}
+                        className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 text-left font-caption text-2xs transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -1087,12 +1105,18 @@ interface MotionSourcePreviewComponent {
   editControlLabels: string[];
   generatedTakeLabel: string | null;
   pendingGeneratedTakes: MotionSourcePreviewGeneratedTake[];
+  regenerationActions: MotionSourcePreviewRegenerationAction[];
 }
 
 interface MotionSourcePreviewGeneratedTake {
   takeId: string;
   providerLabel: string;
   mimeType: string;
+}
+
+interface MotionSourcePreviewRegenerationAction {
+  id: string;
+  label: string;
 }
 
 interface MotionSourcePreview {
@@ -1132,6 +1156,12 @@ function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview
       editControlLabels: component.editControlLabels,
       generatedTakeLabel: generatedTakeLabelForState(generatedTakeState),
       pendingGeneratedTakes: generatedTakeState.pendingTakes,
+      regenerationActions: previewPlan.regenerationActions
+        .filter((action) => action.clipId === component.clipId)
+        .map((action) => ({
+          id: action.id,
+          label: previewControlRegenerationLabel(action.label, component.componentLabel),
+        })),
     };
   });
 
@@ -1218,6 +1248,11 @@ function generatedTakeLabelForState(state: {
   }
 
   return null;
+}
+
+function previewControlRegenerationLabel(label: string, componentLabel: string): string {
+  const suffix = ` for ${componentLabel}`;
+  return label.endsWith(suffix) ? label.slice(0, -suffix.length) : label;
 }
 
 function summarizePreviewSourceFiles(editSource: MotionPreviewEditSource): string {

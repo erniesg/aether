@@ -3527,6 +3527,26 @@ describe('TimelineLens', () => {
     );
   });
 
+  it('surfaces component regeneration actions in the editable preview controls', async () => {
+    const onRegenerateComponent = vi.fn<(actionId: string) => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId="clip-beat-demo-text"
+        onSelectClip={() => {}}
+        onRegenerateComponent={onRegenerateComponent}
+      />
+    );
+
+    const appFrameControl = screen.getByRole('group', { name: /app frame preview control/i });
+    await userEvent.click(
+      within(appFrameControl).getByRole('button', { name: /^regenerate capture$/i })
+    );
+
+    expect(onRegenerateComponent).toHaveBeenCalledWith('regen-option-clip-beat-demo-text-capture');
+  });
+
   it('shows the image-to-video node chain inside the timeline lens', () => {
     render(
       <TimelineLens
