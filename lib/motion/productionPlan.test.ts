@@ -65,6 +65,19 @@ function project(mode: 'review' | 'full-auto' = 'review') {
   );
 }
 
+function approvedProject() {
+  const base = project();
+  return materializeMotionTimeline(
+    {
+      ...base,
+      drafts: base.drafts.map((draft) =>
+        draft.id === base.currentDraftId ? { ...draft, status: 'approved' as const } : draft
+      ),
+    },
+    { draftId: base.currentDraftId, updatedAt: 122 }
+  );
+}
+
 const captureResult: CaptureResult = {
   providerId: 'browser-capture',
   artifacts: [
@@ -158,7 +171,58 @@ function renderedProject() {
 }
 
 describe('buildMotionProductionPlan', () => {
-  it('summarizes the review-mode queue from a concrete motion project', () => {
+  it('blocks review-mode production until the current draft variation is approved', () => {
+    const unapproved = buildMotionProductionPlan(project(), {
+      engines: ['remotion', 'hyperframes'],
+      requestedAt: 200,
+    });
+
+    expect(unapproved).toMatchObject({
+      nextStepId: 'drafts',
+      nextActionLabel: 'Review draft variations',
+    });
+    expect(unapproved.steps.find((step) => step.id === 'drafts')).toMatchObject({
+      status: 'review',
+      reviewRequired: true,
+    });
+    expect(unapproved.steps.find((step) => step.id === 'capture')).toMatchObject({
+      status: 'blocked',
+      blockerLabels: ['Approve a draft variation before product capture'],
+    });
+    expect(unapproved.steps.find((step) => step.id === 'visual-source')).toMatchObject({
+      status: 'blocked',
+      blockerLabels: ['Approve a draft variation before visual sourcing'],
+    });
+    expect(unapproved.steps.find((step) => step.id === 'voice')).toMatchObject({
+      status: 'blocked',
+      blockerLabels: ['Approve a draft variation before voice and caption work'],
+    });
+
+    const approved = buildMotionProductionPlan(approvedProject(), {
+      engines: ['remotion', 'hyperframes'],
+      requestedAt: 201,
+    });
+
+    expect(approved).toMatchObject({
+      nextStepId: 'capture',
+      nextActionLabel: 'Capture product material',
+    });
+    expect(approved.steps.find((step) => step.id === 'drafts')).toMatchObject({
+      status: 'complete',
+      reviewRequired: false,
+    });
+    expect(approved.steps.find((step) => step.id === 'capture')).toMatchObject({
+      status: 'ready',
+    });
+    expect(approved.steps.find((step) => step.id === 'visual-source')).toMatchObject({
+      status: 'ready',
+    });
+    expect(approved.steps.find((step) => step.id === 'voice')).toMatchObject({
+      status: 'ready',
+    });
+  });
+
+  it('summarizes the gated review-mode queue from a concrete motion project', () => {
     const plan = buildMotionProductionPlan(project(), {
       engines: ['remotion', 'hyperframes'],
       requestedAt: 200,
@@ -173,17 +237,17 @@ describe('buildMotionProductionPlan', () => {
       nextStepId: 'drafts',
       nextActionLabel: 'Review draft variations',
       completeCount: 1,
-      readyCount: 4,
-      blockedCount: 3,
-      optionalCount: 1,
+      readyCount: 1,
+      blockedCount: 7,
+      optionalCount: 0,
     });
     expect(plan.steps.map((step) => [step.id, step.status, step.reviewRequired])).toEqual([
       ['plan', 'complete', false],
       ['drafts', 'review', true],
-      ['capture', 'ready', true],
-      ['visual-source', 'ready', true],
-      ['visual-generation', 'optional', true],
-      ['voice', 'ready', true],
+      ['capture', 'blocked', true],
+      ['visual-source', 'blocked', true],
+      ['visual-generation', 'blocked', true],
+      ['voice', 'blocked', true],
       ['sync', 'blocked', true],
       ['render', 'blocked', true],
       ['export', 'blocked', true],
@@ -192,18 +256,19 @@ describe('buildMotionProductionPlan', () => {
       apiRoutes: ['/api/motion/capture'],
       toolIds: ['motion-capture'],
       providerRequirementLabels: ['browser capture', 'screen recording'],
-      blockerLabels: [],
+      blockerLabels: ['Approve a draft variation before product capture'],
     });
     expect(plan.steps.find((step) => step.id === 'visual-source')).toMatchObject({
       apiRoutes: ['/api/motion/visuals'],
       toolIds: ['motion-visuals'],
       providerRequirementLabels: ['asset library', 'reference search', 'image generation'],
+      blockerLabels: ['Approve a draft variation before visual sourcing'],
     });
     expect(plan.steps.find((step) => step.id === 'sync')?.blockerLabels).toEqual([
-      'Generate voice and word timings before final sync',
+      'Approve a draft variation before timeline sync',
     ]);
     expect(plan.steps.find((step) => step.id === 'render')?.blockerLabels).toContain(
-      'Review voice and caption sync before render'
+      'Approve a draft variation before render proof'
     );
   });
 

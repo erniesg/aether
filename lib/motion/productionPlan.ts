@@ -276,6 +276,8 @@ function buildSteps(
   const timelineReady = currentTracks(project).length > 0;
   const planReady = project.story.length > 0;
   const draftsReady = project.drafts.length > 0 && timelineReady;
+  const draftApproved = currentDraftApproved(project);
+  const productionGateBlocked = project.workflowMode === 'review' && !draftApproved;
   const voiceComplete = isGraphDone(project.graphNodes, 'voice') || plans.syncPlan.status === 'ready';
   const syncComplete = isGraphNodeDone(project.graphNodes, 'node-sync-plan');
   const syncReady = plans.syncPlan.status === 'ready';
@@ -289,7 +291,9 @@ function buildSteps(
     step('drafts', project, {
       status: draftsReady
         ? project.workflowMode === 'review'
-          ? 'review'
+          ? draftApproved
+            ? 'complete'
+            : 'review'
           : 'complete'
         : planReady
           ? 'ready'
@@ -297,41 +301,94 @@ function buildSteps(
       blockerLabels: planReady ? [] : ['Create story beats before draft variations'],
       providerRequirementLabels: [],
     }),
-    captureStep(project, plans.capturePlan),
-    visualSourceStep(project, plans.visualSourcingPlan),
-    visualGenerationStep(project, plans.imageToVideoPlan),
-    step('voice', project, {
-      status: voiceComplete ? 'complete' : plans.voicePlan.status === 'ready' ? 'ready' : 'blocked',
-      blockerLabels: plans.voicePlan.blockers.map((blocker) => blocker.label),
-      providerRequirementLabels: plans.voicePlan.providerRequirements.map(readableRequirement),
-      verificationReceipts: nodeReceipts(project, 'voice', 'render'),
-    }),
-    step('sync', project, {
-      status: syncComplete ? 'complete' : syncReady ? 'ready' : 'blocked',
-      blockerLabels: plans.syncPlan.blockers.map((blocker) => blocker.label),
-      providerRequirementLabels: plans.syncPlan.providerRequirements.map(readableRequirement),
-    }),
-    step('render', project, {
-      status:
-        plans.exportPackPlan.status === 'ready'
-          ? 'complete'
-          : plans.renderPlan.status === 'ready' && syncComplete
-            ? 'ready'
-            : 'blocked',
-      blockerLabels: [
-        ...plans.renderPlan.blockers.map((blocker) => blocker.label),
-        ...(syncComplete ? [] : ['Review voice and caption sync before render']),
-      ],
-      providerRequirementLabels: [],
-      verificationReceipts: renderReceipts(project),
-    }),
-    step('export', project, {
-      status: plans.exportPackPlan.status === 'ready' ? 'complete' : 'blocked',
-      blockerLabels: plans.exportPackPlan.blockers.map((blocker) => blocker.label),
-      providerRequirementLabels: [],
-      verificationReceipts: exportReceipts(plans.exportPackPlan),
-    }),
+    productionGateBlocked
+      ? gatedProductionStep(
+          'capture',
+          project,
+          'Approve a draft variation before product capture',
+          plans.capturePlan.providerRequirements.map(readableRequirement)
+        )
+      : captureStep(project, plans.capturePlan),
+    productionGateBlocked
+      ? gatedProductionStep(
+          'visual-source',
+          project,
+          'Approve a draft variation before visual sourcing',
+          plans.visualSourcingPlan.providerRequirements.map(readableRequirement)
+        )
+      : visualSourceStep(project, plans.visualSourcingPlan),
+    productionGateBlocked
+      ? gatedProductionStep(
+          'visual-generation',
+          project,
+          'Approve a draft variation before image-to-video generation',
+          plans.imageToVideoPlan.providerRequirements.map(readableRequirement)
+        )
+      : visualGenerationStep(project, plans.imageToVideoPlan),
+    productionGateBlocked
+      ? gatedProductionStep(
+          'voice',
+          project,
+          'Approve a draft variation before voice and caption work',
+          plans.voicePlan.providerRequirements.map(readableRequirement)
+        )
+      : step('voice', project, {
+          status: voiceComplete ? 'complete' : plans.voicePlan.status === 'ready' ? 'ready' : 'blocked',
+          blockerLabels: plans.voicePlan.blockers.map((blocker) => blocker.label),
+          providerRequirementLabels: plans.voicePlan.providerRequirements.map(readableRequirement),
+          verificationReceipts: nodeReceipts(project, 'voice', 'render'),
+        }),
+    productionGateBlocked
+      ? gatedProductionStep(
+          'sync',
+          project,
+          'Approve a draft variation before timeline sync',
+          plans.syncPlan.providerRequirements.map(readableRequirement)
+        )
+      : step('sync', project, {
+          status: syncComplete ? 'complete' : syncReady ? 'ready' : 'blocked',
+          blockerLabels: plans.syncPlan.blockers.map((blocker) => blocker.label),
+          providerRequirementLabels: plans.syncPlan.providerRequirements.map(readableRequirement),
+        }),
+    productionGateBlocked
+      ? gatedProductionStep('render', project, 'Approve a draft variation before render proof')
+      : step('render', project, {
+          status:
+            plans.exportPackPlan.status === 'ready'
+              ? 'complete'
+              : plans.renderPlan.status === 'ready' && syncComplete
+                ? 'ready'
+                : 'blocked',
+          blockerLabels: [
+            ...plans.renderPlan.blockers.map((blocker) => blocker.label),
+            ...(syncComplete ? [] : ['Review voice and caption sync before render']),
+          ],
+          providerRequirementLabels: [],
+          verificationReceipts: renderReceipts(project),
+        }),
+    productionGateBlocked
+      ? gatedProductionStep('export', project, 'Approve a draft variation before export')
+      : step('export', project, {
+          status: plans.exportPackPlan.status === 'ready' ? 'complete' : 'blocked',
+          blockerLabels: plans.exportPackPlan.blockers.map((blocker) => blocker.label),
+          providerRequirementLabels: [],
+          verificationReceipts: exportReceipts(plans.exportPackPlan),
+        }),
   ];
+}
+
+function gatedProductionStep(
+  id: MotionProductionStepId,
+  project: MotionProject,
+  blockerLabel: string,
+  providerRequirementLabels: string[] = []
+): MotionProductionStep {
+  return step(id, project, {
+    status: 'blocked',
+    blockerLabels: [blockerLabel],
+    providerRequirementLabels,
+    verificationReceipts: [],
+  });
 }
 
 function captureStep(
@@ -451,6 +508,14 @@ function currentTracks(project: MotionProject): TimelineTrack[] {
   const draft = project.drafts.find((candidate) => candidate.id === project.currentDraftId);
   if (draft?.tracks.length) return draft.tracks;
   return project.tracks;
+}
+
+function currentDraftApproved(project: MotionProject): boolean {
+  if (project.workflowMode !== 'review') return true;
+  return (
+    project.drafts.find((candidate) => candidate.id === project.currentDraftId)?.status ===
+    'approved'
+  );
 }
 
 function captureReceipts(project: MotionProject): MotionProductionVerificationReceipt[] {
