@@ -304,7 +304,7 @@ function buildSteps(
           : 'blocked',
       blockerLabels: planReady ? [] : ['Create story beats before draft variations'],
       providerRequirementLabels: [],
-      verificationReceipts: draftApproved ? draftApprovalReceipts(project) : [],
+      verificationReceipts: draftApproved ? draftDecisionReceipts(project) : [],
     }),
     productionGateBlocked
       ? gatedProductionStep(
@@ -523,15 +523,28 @@ function currentDraftApproved(project: MotionProject): boolean {
   );
 }
 
-function draftApprovalReceipts(project: MotionProject): MotionProductionVerificationReceipt[] {
+function draftDecisionReceipts(project: MotionProject): MotionProductionVerificationReceipt[] {
   const draft = project.drafts.find((candidate) => candidate.id === project.currentDraftId);
-  if (!draft || draft.status !== 'approved') return [];
+  if (!draft) return [];
+
+  if (project.workflowMode === 'review') {
+    if (draft.status !== 'approved') return [];
+
+    return [
+      {
+        id: `receipt-draft-approval-${draft.id}`,
+        kind: 'draft',
+        label: 'Draft approval',
+        ref: draft.id,
+      },
+    ];
+  }
 
   return [
     {
-      id: `receipt-draft-approval-${draft.id}`,
+      id: `receipt-draft-selection-${draft.id}`,
       kind: 'draft',
-      label: 'Draft approval',
+      label: 'Selected draft',
       ref: draft.id,
     },
   ];

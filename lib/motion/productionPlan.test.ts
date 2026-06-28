@@ -294,6 +294,13 @@ describe('buildMotionProductionPlan', () => {
       status: 'complete',
       reviewRequired: false,
       autoAdvance: false,
+      verificationReceipts: [
+        expect.objectContaining({
+          kind: 'draft',
+          label: 'Selected draft',
+          ref: 'draft-primary',
+        }),
+      ],
     });
     expect(plan.steps.find((step) => step.id === 'capture')).toMatchObject({
       status: 'ready',
