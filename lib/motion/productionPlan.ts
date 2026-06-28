@@ -54,7 +54,11 @@ export type MotionProductionStepStatus =
   | 'blocked'
   | 'review'
   | 'optional';
-export type MotionProductionVerificationReceiptKind = 'capture' | 'render' | 'export';
+export type MotionProductionVerificationReceiptKind =
+  | 'draft'
+  | 'capture'
+  | 'render'
+  | 'export';
 
 export interface MotionProductionVerificationReceipt {
   id: string;
@@ -300,6 +304,7 @@ function buildSteps(
           : 'blocked',
       blockerLabels: planReady ? [] : ['Create story beats before draft variations'],
       providerRequirementLabels: [],
+      verificationReceipts: draftApproved ? draftApprovalReceipts(project) : [],
     }),
     productionGateBlocked
       ? gatedProductionStep(
@@ -516,6 +521,20 @@ function currentDraftApproved(project: MotionProject): boolean {
     project.drafts.find((candidate) => candidate.id === project.currentDraftId)?.status ===
     'approved'
   );
+}
+
+function draftApprovalReceipts(project: MotionProject): MotionProductionVerificationReceipt[] {
+  const draft = project.drafts.find((candidate) => candidate.id === project.currentDraftId);
+  if (!draft || draft.status !== 'approved') return [];
+
+  return [
+    {
+      id: `receipt-draft-approval-${draft.id}`,
+      kind: 'draft',
+      label: 'Draft approval',
+      ref: draft.id,
+    },
+  ];
 }
 
 function captureReceipts(project: MotionProject): MotionProductionVerificationReceipt[] {

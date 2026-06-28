@@ -6,6 +6,7 @@ import { WorkspaceShell } from '@/components/workspace/WorkspaceShell';
 import { resetRunsForTests } from '@/lib/store/runs';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
 import {
+  getMotionStartResult,
   resetMotionStartResultsForTests,
   setMotionStartResult,
 } from '@/lib/motion/start-store';
@@ -484,6 +485,17 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
       expect(screen.getByRole('status')).toHaveTextContent('Demo-first cut approved');
     });
     expect(screen.getByRole('button', { name: /current draft approved/i })).toBeDisabled();
+
+    const approvedStart = getMotionStartResult('demo-ws');
+    expect(approvedStart?.project?.executionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          gateId: 'drafts',
+          label: 'Approve draft variation Demo-first cut',
+          receiptLabels: ['Draft approval', 'Approved timeline'],
+        }),
+      ])
+    );
   });
 
   it('timeline voice action requests synthesis and reports provider handoff state', async () => {

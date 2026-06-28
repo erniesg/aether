@@ -103,6 +103,7 @@ import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { setMotionStartResult, useMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
 import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
+import { appendDraftApprovalExecutionHistory } from '@/lib/motion/executionHistory';
 import type { MotionEffectPresetId } from '@/lib/motion/effectPresets';
 import {
   buildExportRequestBody,
@@ -641,12 +642,29 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             updatedAt: requestedAt,
           }
         );
-        const capturePlan = buildAgentMotionCapturePlan(project);
+        const approvedProject = {
+          ...project,
+          executionHistory: appendDraftApprovalExecutionHistory(
+            project.executionHistory,
+            {
+              projectId: project.id,
+              draftId: draft.id,
+              draftLabel: draft.label,
+              provenance: [
+                ...draft.provenance,
+                ...draft.story.map((beat) => ({ kind: 'story-beat' as const, ref: beat.id })),
+                ...draft.story.flatMap((beat) => beat.provenance),
+              ],
+            },
+            requestedAt
+          ),
+        };
+        const capturePlan = buildAgentMotionCapturePlan(approvedProject);
         setMotionStartResult(wsId, {
           ...motionStart,
-          project,
-          reviewPlan: buildMotionReviewPlan(project),
-          previewPlan: buildMotionPreviewPlan(project, {
+          project: approvedProject,
+          reviewPlan: buildMotionReviewPlan(approvedProject),
+          previewPlan: buildMotionPreviewPlan(approvedProject, {
             engines: motionStart.workflow.plan.engines,
             workflowRunPlan: motionStart.workflow.plan.runPlan,
             requestedAt,

@@ -47,6 +47,13 @@ export interface MotionSetupDryRunReceiptInput {
   provenance: MotionProvenanceRef[];
 }
 
+export interface MotionDraftApprovalReceiptInput {
+  projectId: string;
+  draftId: string;
+  draftLabel: string;
+  provenance: MotionProvenanceRef[];
+}
+
 export function appendCaptureExecutionHistory(
   history: MotionExecutionHistoryEntry[] | undefined,
   result: CaptureResult,
@@ -372,6 +379,45 @@ export function appendDraftVariationExecutionHistory(
     provenance: uniqueProvenance([
       { kind: 'revision', ref: request.id },
       ...request.provenance,
+    ]),
+  });
+}
+
+export function appendDraftApprovalExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  input: MotionDraftApprovalReceiptInput,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const draftId = slugifyId(input.draftId);
+  const receipts: MotionExecutionReceipt[] = [
+    {
+      id: `receipt-draft-approval-${draftId}`,
+      kind: 'draft',
+      label: 'Draft approval',
+      ref: input.draftId,
+    },
+    {
+      id: `receipt-draft-approval-${draftId}-timeline`,
+      kind: 'draft',
+      label: 'Approved timeline',
+      ref: `${input.draftId}:timeline`,
+    },
+  ];
+
+  return appendExecutionEntry(history, {
+    id: `execution-draft-approval-${draftId}-${savedAt}`,
+    gateId: 'drafts',
+    label: `Approve draft variation ${input.draftLabel}`,
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      ...input.provenance,
+      { kind: 'manual', ref: `draft-approval:${input.draftId}` },
+      { kind: 'timeline', ref: input.draftId },
+      { kind: 'revision', ref: `draft-variation:${input.draftId}` },
+      { kind: 'manual', ref: `motion-project:${input.projectId}` },
     ]),
   });
 }

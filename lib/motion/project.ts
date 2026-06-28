@@ -226,6 +226,7 @@ export type MotionExecutionGateId =
 
 export type MotionExecutionReceiptKind =
   | 'setup'
+  | 'draft'
   | 'capture'
   | 'visual-source'
   | 'image-to-video'

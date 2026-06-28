@@ -210,6 +210,13 @@ describe('buildMotionProductionPlan', () => {
     expect(approved.steps.find((step) => step.id === 'drafts')).toMatchObject({
       status: 'complete',
       reviewRequired: false,
+      verificationReceipts: [
+        expect.objectContaining({
+          kind: 'draft',
+          label: 'Draft approval',
+          ref: 'draft-primary',
+        }),
+      ],
     });
     expect(approved.steps.find((step) => step.id === 'capture')).toMatchObject({
       status: 'ready',
