@@ -915,6 +915,11 @@ function MotionPlayablePreviewStrip({
                 <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
                   {component.editControlLabels.slice(0, 3).join(' / ') || 'timeline edit'}
                 </div>
+                {component.generatedTakeLabel ? (
+                  <div className="mt-1 truncate font-caption text-2xs text-ink-dim">
+                    {component.generatedTakeLabel}
+                  </div>
+                ) : null}
               </button>
             );
           })}
@@ -1048,6 +1053,7 @@ interface MotionSourcePreviewComponent {
   startSeconds: number;
   durationSeconds: number;
   editControlLabels: string[];
+  generatedTakeLabel: string | null;
 }
 
 interface MotionSourcePreview {
@@ -1077,6 +1083,7 @@ function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview
 
   const components = editSource.components.map((component) => {
     const clip = findClipById(previewPlan, component.clipId);
+    const generatedTakeLabel = generatedTakeLabelForComponent(previewPlan, component.clipId);
     return {
       clipId: component.clipId,
       componentLabel: component.componentLabel,
@@ -1084,6 +1091,7 @@ function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview
       startSeconds: clip?.startSeconds ?? 0,
       durationSeconds: clip?.durationSeconds ?? Math.min(3, engine.durationSeconds),
       editControlLabels: component.editControlLabels,
+      generatedTakeLabel,
     };
   });
 
@@ -1121,6 +1129,29 @@ function findClipById(
     const clip = row.clips.find((candidate) => candidate.clipId === clipId);
     if (clip) return clip;
   }
+  return null;
+}
+
+function generatedTakeLabelForComponent(
+  previewPlan: MotionPreviewPlan,
+  clipId: string
+): string | null {
+  const request = previewPlan.visualGenerationSummary.requests.find(
+    (candidate) => candidate.clipId === clipId
+  );
+  if (!request) return null;
+
+  const pendingTakeLabels = request.pendingTakeLabels ?? [];
+  const selectedTakeLabels = request.selectedTakeLabels ?? [];
+
+  if (pendingTakeLabels.length > 0) {
+    return `pending take: ${pendingTakeLabels.slice(0, 2).join(' / ')}`;
+  }
+
+  if (selectedTakeLabels.length > 0) {
+    return `selected take: ${selectedTakeLabels.slice(0, 2).join(' / ')}`;
+  }
+
   return null;
 }
 

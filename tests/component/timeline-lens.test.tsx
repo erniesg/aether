@@ -3481,6 +3481,44 @@ describe('TimelineLens', () => {
     );
   });
 
+  it('surfaces staged image-to-video takes in the editable preview controls', () => {
+    const request = previewPlan.visualGenerationSummary.requests[0];
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          visualGenerationSummary: {
+            ...previewPlan.visualGenerationSummary,
+            requests: [
+              {
+                ...request,
+                pendingTakeCount: 1,
+                pendingTakeLabels: ['image video test'],
+                pendingTakes: [
+                  {
+                    takeId: 'generated-clip-beat-demo-text-image-to-video',
+                    assetId: 'generated-clip-beat-demo-text-image-to-video',
+                    assetUrl: 'asset://generated/aether-demo.mp4',
+                    providerLabel: 'image video test',
+                    sourceAssetId: 'capture-screenshot-aether-localhost',
+                    mimeType: 'video/mp4',
+                    status: 'ready',
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        selectedClipId="clip-beat-demo-text"
+        onSelectClip={() => {}}
+      />
+    );
+
+    const appFrameControl = screen.getByRole('button', { name: /focus app frame/i });
+    expect(within(appFrameControl).getByText('pending take: image video test')).toBeInTheDocument();
+  });
+
   it('shows the image-to-video node chain inside the timeline lens', () => {
     render(
       <TimelineLens
