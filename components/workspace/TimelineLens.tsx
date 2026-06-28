@@ -430,6 +430,7 @@ function MotionPreviewPlanView({
           selectedClipId={selectedClipId}
           onSelectClip={onSelectClip}
           onPreparePreviewSource={onPreparePreviewSource}
+          onApplyGeneratedVideoTake={onApplyGeneratedVideoTake}
         />
       </section>
 
@@ -753,12 +754,14 @@ function MotionPlayablePreviewStrip({
   selectedClipId,
   onSelectClip,
   onPreparePreviewSource,
+  onApplyGeneratedVideoTake,
 }: {
   previewPlan: MotionPreviewPlan;
   preparedPreviewSource: MotionPreparedPreviewSource | null;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
+  onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
 }) {
   const sourcePreview = buildSourcePreview(previewPlan);
   const [previewSeconds, setPreviewSeconds] = useState(0);
@@ -898,12 +901,10 @@ function MotionPlayablePreviewStrip({
           {sourcePreview.components.slice(0, 4).map((component) => {
             const selected = component.clipId === selectedClipId;
             return (
-              <button
+              <div
                 key={component.clipId}
-                type="button"
-                aria-label={`focus ${component.componentLabel}`}
-                aria-pressed={selected}
-                onClick={() => onSelectClip(component.clipId)}
+                role="group"
+                aria-label={`${component.componentLabel} preview control`}
                 className={cn(
                   'rounded-sm border px-3 py-2 text-left transition-colors duration-fast ease-quick',
                   selected
@@ -911,16 +912,47 @@ function MotionPlayablePreviewStrip({
                     : 'border-border-soft bg-surface-canvas text-ink-dim hover:border-border hover:text-ink'
                 )}
               >
-                <div className="truncate font-caption text-xs">{component.componentLabel}</div>
-                <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
-                  {component.editControlLabels.slice(0, 3).join(' / ') || 'timeline edit'}
-                </div>
+                <button
+                  type="button"
+                  aria-label={`focus ${component.componentLabel}`}
+                  aria-pressed={selected}
+                  onClick={() => onSelectClip(component.clipId)}
+                  className="w-full text-left"
+                >
+                  <div className="truncate font-caption text-xs">{component.componentLabel}</div>
+                  <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+                    {component.editControlLabels.slice(0, 3).join(' / ') || 'timeline edit'}
+                  </div>
+                </button>
                 {component.generatedTakeLabel ? (
                   <div className="mt-1 truncate font-caption text-2xs text-ink-dim">
                     {component.generatedTakeLabel}
                   </div>
                 ) : null}
-              </button>
+                {component.pendingGeneratedTakes.length > 0 ? (
+                  <div className="mt-2 grid gap-1">
+                    {component.pendingGeneratedTakes.slice(0, 2).map((take) => (
+                      <button
+                        key={take.takeId}
+                        type="button"
+                        onClick={() =>
+                          onApplyGeneratedVideoTake?.(component.clipId, take.takeId)
+                        }
+                        disabled={!onApplyGeneratedVideoTake}
+                        aria-label={`use ${take.providerLabel} take`}
+                        className="flex min-w-0 items-center justify-between gap-2 rounded-sm border border-border-soft bg-surface-panel px-2 py-1 text-left transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="truncate font-caption text-2xs">
+                          {take.providerLabel}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                          {take.mimeType.replace('video/', '')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </div>
@@ -1054,6 +1086,13 @@ interface MotionSourcePreviewComponent {
   durationSeconds: number;
   editControlLabels: string[];
   generatedTakeLabel: string | null;
+  pendingGeneratedTakes: MotionSourcePreviewGeneratedTake[];
+}
+
+interface MotionSourcePreviewGeneratedTake {
+  takeId: string;
+  providerLabel: string;
+  mimeType: string;
 }
 
 interface MotionSourcePreview {
@@ -1083,7 +1122,7 @@ function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview
 
   const components = editSource.components.map((component) => {
     const clip = findClipById(previewPlan, component.clipId);
-    const generatedTakeLabel = generatedTakeLabelForComponent(previewPlan, component.clipId);
+    const generatedTakeState = generatedTakeStateForComponent(previewPlan, component.clipId);
     return {
       clipId: component.clipId,
       componentLabel: component.componentLabel,
@@ -1091,7 +1130,8 @@ function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview
       startSeconds: clip?.startSeconds ?? 0,
       durationSeconds: clip?.durationSeconds ?? Math.min(3, engine.durationSeconds),
       editControlLabels: component.editControlLabels,
-      generatedTakeLabel,
+      generatedTakeLabel: generatedTakeLabelForState(generatedTakeState),
+      pendingGeneratedTakes: generatedTakeState.pendingTakes,
     };
   });
 
@@ -1132,17 +1172,42 @@ function findClipById(
   return null;
 }
 
-function generatedTakeLabelForComponent(
+function generatedTakeStateForComponent(
   previewPlan: MotionPreviewPlan,
   clipId: string
-): string | null {
+): {
+  pendingTakeLabels: string[];
+  selectedTakeLabels: string[];
+  pendingTakes: MotionSourcePreviewGeneratedTake[];
+} {
   const request = previewPlan.visualGenerationSummary.requests.find(
     (candidate) => candidate.clipId === clipId
   );
-  if (!request) return null;
+  if (!request) {
+    return {
+      pendingTakeLabels: [],
+      selectedTakeLabels: [],
+      pendingTakes: [],
+    };
+  }
 
-  const pendingTakeLabels = request.pendingTakeLabels ?? [];
-  const selectedTakeLabels = request.selectedTakeLabels ?? [];
+  return {
+    pendingTakeLabels: request.pendingTakeLabels ?? [],
+    selectedTakeLabels: request.selectedTakeLabels ?? [],
+    pendingTakes: (request.pendingTakes ?? []).map((take) => ({
+      takeId: take.takeId,
+      providerLabel: take.providerLabel,
+      mimeType: take.mimeType,
+    })),
+  };
+}
+
+function generatedTakeLabelForState(state: {
+  pendingTakeLabels: string[];
+  selectedTakeLabels: string[];
+}): string | null {
+  const pendingTakeLabels = state.pendingTakeLabels;
+  const selectedTakeLabels = state.selectedTakeLabels;
 
   if (pendingTakeLabels.length > 0) {
     return `pending take: ${pendingTakeLabels.slice(0, 2).join(' / ')}`;

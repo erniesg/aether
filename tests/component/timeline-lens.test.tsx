@@ -3481,7 +3481,8 @@ describe('TimelineLens', () => {
     );
   });
 
-  it('surfaces staged image-to-video takes in the editable preview controls', () => {
+  it('surfaces staged image-to-video takes in the editable preview controls', async () => {
+    const onApplyGeneratedVideoTake = vi.fn<(clipId: string, takeId: string) => void>();
     const request = previewPlan.visualGenerationSummary.requests[0];
     render(
       <TimelineLens
@@ -3512,11 +3513,18 @@ describe('TimelineLens', () => {
         }}
         selectedClipId="clip-beat-demo-text"
         onSelectClip={() => {}}
+        onApplyGeneratedVideoTake={onApplyGeneratedVideoTake}
       />
     );
 
-    const appFrameControl = screen.getByRole('button', { name: /focus app frame/i });
+    const appFrameControl = screen.getByRole('group', { name: /app frame preview control/i });
     expect(within(appFrameControl).getByText('pending take: image video test')).toBeInTheDocument();
+
+    await userEvent.click(within(appFrameControl).getByRole('button', { name: /use image video test take/i }));
+    expect(onApplyGeneratedVideoTake).toHaveBeenCalledWith(
+      'clip-beat-demo-text',
+      'generated-clip-beat-demo-text-image-to-video'
+    );
   });
 
   it('shows the image-to-video node chain inside the timeline lens', () => {
