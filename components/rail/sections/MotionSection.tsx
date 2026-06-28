@@ -157,6 +157,13 @@ const TARGET_PRESETS = [
   targets: MotionPlatformTarget[];
 }>;
 
+const APP_REPO_SHORTCUTS = [
+  { id: 'aether', label: 'aether', repoPath: '~/code/erniesg/aether' },
+  { id: 'tong', label: 'tong', repoPath: '~/code/erniesg/tong' },
+  { id: 'paillette', label: 'paillette', repoPath: '~/code/erniesg/paillette' },
+  { id: 'accrue', label: 'accrue', repoPath: '~/code/erniesg/accrue' },
+] as const;
+
 const RECENT_SOURCE_STORAGE_KEY = 'aether.motion.recentSources.v1';
 const RECENT_SOURCE_LIMIT = 6;
 
@@ -419,6 +426,16 @@ export function MotionSection({
           rows={3}
           className="min-h-16 resize-y rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
         />
+        <MotionAppRepoShortcuts
+          selectedSource={sourceRef}
+          onSelect={(repoPath) => {
+            setSource(repoPath);
+            setStatus({ kind: 'idle' });
+            setHandoffStatus({ kind: 'idle' });
+            setRegenerateStatus({ kind: 'idle' });
+            setSourcePatchDraft(null);
+          }}
+        />
         {sourceDraft ? <MotionSourceDraftPreview draft={sourceDraft} /> : null}
         {recentSources.length > 0 ? (
           <MotionRecentSources sources={recentSources} onSelect={applyRecentSource} />
@@ -526,6 +543,49 @@ export function MotionSection({
           {status.message}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MotionAppRepoShortcuts({
+  selectedSource,
+  onSelect,
+}: {
+  selectedSource: string;
+  onSelect: (repoPath: string) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="app repo shortcuts"
+      className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5"
+    >
+      <div className="mb-1 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+        app repos
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {APP_REPO_SHORTCUTS.map((shortcut) => {
+          const selected = selectedSource === shortcut.repoPath;
+          return (
+            <button
+              key={shortcut.id}
+              type="button"
+              aria-pressed={selected}
+              aria-label={`use ${shortcut.label} repo`}
+              onClick={() => onSelect(shortcut.repoPath)}
+              className={cn(
+                'inline-flex max-w-full items-center rounded-sm border px-1.5 py-0.5',
+                'font-caption text-2xs transition-colors',
+                selected
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border-soft bg-surface-panel text-ink-dim hover:border-accent hover:text-ink'
+              )}
+            >
+              {shortcut.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

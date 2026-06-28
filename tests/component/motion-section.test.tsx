@@ -243,6 +243,39 @@ describe('MotionSection', () => {
     );
   });
 
+  it('offers known app repo shortcuts for starting local launch videos', async () => {
+    const startMotion = vi.fn(async () => readyResult('tong'));
+    render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
+
+    const appRepos = screen.getByRole('group', { name: /app repo shortcuts/i });
+    expect(appRepos).toHaveTextContent('aether');
+    expect(appRepos).toHaveTextContent('tong');
+    expect(appRepos).toHaveTextContent('paillette');
+    expect(appRepos).toHaveTextContent('accrue');
+
+    await userEvent.click(within(appRepos).getByRole('button', { name: /use tong repo/i }));
+
+    expect(screen.getByRole('textbox', { name: /motion source/i })).toHaveValue(
+      '~/code/erniesg/tong'
+    );
+    expect(screen.getByRole('group', { name: /motion source draft/i })).toHaveTextContent(
+      'Local repo'
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    await waitFor(() => {
+      expect(startMotion).toHaveBeenCalledTimes(1);
+    });
+    expect(startMotion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoPath: '~/code/erniesg/tong',
+        intent: 'launch',
+        mode: 'review',
+      })
+    );
+  });
+
   it('can start a PR source in full-auto mode', async () => {
     const startMotion = vi.fn(async () => readyResult('aether'));
     render(<MotionSection workspaceId="demo-ws" startMotion={startMotion} />);
