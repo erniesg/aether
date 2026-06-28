@@ -5,18 +5,23 @@ import { useEffect, useState } from 'react';
 import type { AgentMotionStartResult } from '@/lib/motion/start';
 import {
   applyMotionAgentHandoffResult,
+  motionAgentHandoffInputFromPrefs,
   motionAgentHandoffMissingPlaceholders,
   runMotionAgentHandoffFromStart,
+  type MotionAgentHandoffClientInput,
   type MotionAgentHandoffClientResult,
 } from '@/lib/motion/agentHandoffClient';
 import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 import { motionStartSummary, setMotionStartResult } from '@/lib/motion/start-store';
 import type { MotionWorkflowIntent } from '@/lib/motion/workflowRouter';
 import type { MotionPlatformTarget, MotionWorkflowMode } from '@/lib/motion/project';
+import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
+import { useWorkspaceProviderPrefs } from '@/lib/providers/prefs-store';
 import type { WorkflowSourceKind } from '@/lib/workflow/registry';
 import { cn } from '@/lib/utils/cn';
 
 export type { MotionAgentHandoffClientResult } from '@/lib/motion/agentHandoffClient';
+export type { MotionAgentHandoffClientInput } from '@/lib/motion/agentHandoffClient';
 
 type MotionStartStatus =
   | { kind: 'idle' }
@@ -90,8 +95,10 @@ export interface MotionSectionProps {
     result: AgentMotionStartResult,
     draft: MotionSourcePatchDraft
   ) => Promise<MotionSourcePatchClientResult>;
+  providerPrefs?: WorkspaceProviderPrefs | null;
   runAgentHandoff?: (
-    result: AgentMotionStartResult
+    result: AgentMotionStartResult,
+    input: MotionAgentHandoffClientInput
   ) => Promise<MotionAgentHandoffClientResult>;
 }
 
@@ -186,9 +193,10 @@ async function defaultStartMotion(
 }
 
 async function defaultRunAgentHandoff(
-  result: AgentMotionStartResult
+  result: AgentMotionStartResult,
+  input: MotionAgentHandoffClientInput
 ): Promise<MotionAgentHandoffClientResult> {
-  return runMotionAgentHandoffFromStart(result);
+  return runMotionAgentHandoffFromStart(result, { input });
 }
 
 async function defaultRegenerateMotion(
@@ -259,8 +267,11 @@ export function MotionSection({
   startMotion = defaultStartMotion,
   regenerateMotion = defaultRegenerateMotion,
   applySourcePatch = defaultApplySourcePatch,
+  providerPrefs,
   runAgentHandoff = defaultRunAgentHandoff,
 }: MotionSectionProps) {
+  const storedProviderPrefs = useWorkspaceProviderPrefs(workspaceId ?? '');
+  const activeProviderPrefs = providerPrefs ?? storedProviderPrefs;
   const [source, setSource] = useState('');
   const [intent, setIntent] = useState<MotionWorkflowIntent>('launch');
   const [mode, setMode] = useState<MotionWorkflowMode>('review');
@@ -398,7 +409,10 @@ export function MotionSection({
     if (handoffStatus.kind === 'running') return;
     setHandoffStatus({ kind: 'running' });
     try {
-      const handoffResult = await runAgentHandoff(result);
+      const handoffResult = await runAgentHandoff(
+        result,
+        motionAgentHandoffInputFromPrefs(activeProviderPrefs)
+      );
       const updatedResult = applyMotionAgentHandoffResult(result, handoffResult);
       setMotionStartResult(workspaceId, updatedResult);
       setStatus({ kind: 'done', result: updatedResult });

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import {
   MotionSection,
   type MotionAgentHandoffClientResult,
+  type MotionAgentHandoffClientInput,
   type MotionRegenerateClientResult,
   type MotionStartClientRequest,
 } from '@/components/rail/sections/MotionSection';
@@ -606,7 +607,12 @@ describe('MotionSection', () => {
 
   it('applies completed full-auto handoff results to the same workspace video state', async () => {
     const startMotion = vi.fn(async () => reviewReadyResult('tong'));
-    const runAgentHandoff = vi.fn(async (): Promise<MotionAgentHandoffClientResult> => ({
+    const runAgentHandoff = vi.fn<
+      (
+        result: AgentMotionStartResult,
+        input: MotionAgentHandoffClientInput
+      ) => Promise<MotionAgentHandoffClientResult>
+    >(async () => ({
       status: 'complete',
       projectId: 'motion-tong-launch',
       finalProject: {
@@ -649,11 +655,17 @@ describe('MotionSection', () => {
           responseJson: {},
         },
       ],
-    }));
+    })
+    );
     render(
       <MotionSection
         workspaceId="demo-ws"
         startMotion={startMotion}
+        providerPrefs={{
+          imageProviderId: 'runway',
+          voiceProviderId: 'gemini-live',
+          renderProviderId: 'remotion-local',
+        }}
         runAgentHandoff={runAgentHandoff}
       />
     );
@@ -679,6 +691,14 @@ describe('MotionSection', () => {
       title: 'tong rendered launch cut',
       workflowMode: 'full-auto',
     });
+    expect(runAgentHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({ agentHandoff: expect.any(Object) }),
+      {
+        imageToVideoProviderId: 'runway',
+        voiceProviderId: 'gemini-live',
+        renderProviderId: 'remotion-local',
+      }
+    );
   });
 
   it('keeps blocked full-auto handoffs visible as provider setup blockers', async () => {
