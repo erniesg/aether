@@ -2400,8 +2400,77 @@ function MotionWorkflowSkillStrip({
           ))}
         </div>
       ) : null}
+      {draft.capabilityPlan.steps.length > 0 ? (
+        <div className="mt-2 min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              capability plan
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <Chip tone="info" size="sm">
+                {formatCapabilityPlanMode(draft.capabilityPlan.mode)}
+              </Chip>
+              <Chip tone={draft.capabilityPlan.canRunFullAuto ? 'ok' : 'neutral'} size="sm">
+                {draft.capabilityPlan.canRunFullAuto ? 'full auto ready' : 'review only'}
+              </Chip>
+            </div>
+          </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-3 xl:grid-cols-5">
+            {selectCapabilityPlanSteps(draft.capabilityPlan.steps).map((step) => (
+              <div
+                key={step.id}
+                className="min-w-0 rounded-sm border border-border-soft bg-surface-canvas px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-caption text-xs text-ink">{step.label}</div>
+                    {step.reviewObjectLabels[0] ? (
+                      <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+                        {step.reviewObjectLabels[0]}
+                      </div>
+                    ) : null}
+                  </div>
+                  <Chip tone={step.reviewRequired ? 'warn' : 'ok'} size="sm">
+                    {step.reviewRequired ? 'review' : 'auto'}
+                  </Chip>
+                </div>
+                {step.editSurfaceLabels.length > 0 ? (
+                  <div className="mt-2 truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+                    {step.editSurfaceLabels.slice(0, 3).join(' / ')}
+                  </div>
+                ) : null}
+                {step.agentTemplateHints.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {step.agentTemplateHints.slice(0, 3).map((templateHint) => (
+                      <Chip key={templateHint} tone="neutral" size="sm">
+                        {templateHint}
+                      </Chip>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function formatCapabilityPlanMode(mode: string): string {
+  return mode === 'full-auto' ? 'full auto mode' : `${mode} mode`;
+}
+
+function selectCapabilityPlanSteps<
+  T extends { gateId: string; id: string }
+>(steps: T[]): T[] {
+  const priority = ['plan', 'drafts', 'capture', 'visuals', 'voice', 'timeline', 'render', 'export'];
+  const selected = priority.flatMap((gateId) => {
+    const step = steps.find((candidate) => candidate.gateId === gateId);
+    return step ? [step] : [];
+  });
+  if (selected.length > 0) return selected.slice(0, 5);
+  return steps.slice(0, 5);
 }
 
 function formatLaunchKitReviewObjectKind(kind: string): string {
