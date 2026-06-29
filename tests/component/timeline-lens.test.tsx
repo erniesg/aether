@@ -572,6 +572,41 @@ const previewPlan: MotionPreviewPlan = {
       'Track x 9:16 completion',
     ],
     nextActionLabels: ['Review interactive markers', 'Export flat video with metadata'],
+    exportPlan: {
+      id: 'interactive-export-motion-aether-launch-draft-primary',
+      projectId: 'motion-aether-launch',
+      draftId: 'draft-primary',
+      status: 'ready',
+      markerCount: 7,
+      exportableMarkerCount: 7,
+      markerKindLabels: ['chapter', 'hotspot', 'callout', 'branch', 'link', 'analytics'],
+      manifest: {
+        id: 'interactive-export-motion-aether-launch-draft-primary-manifest',
+        path: 'interactive-demos/motion-aether-launch/draft-primary/manifest.json',
+        mimeType: 'application/json',
+        markerIds: [
+          'interactive-chapter-beat-hook',
+          'interactive-chapter-beat-demo',
+          'interactive-hotspot-clip-beat-demo-text',
+          'marker-demo-callout',
+          'interactive-branch-draft-demo-first',
+          'interactive-link-beat-cta',
+          'interactive-analytics-x-9-16-30s',
+        ],
+        provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+      },
+      shareTarget: {
+        id: 'interactive-share-motion-aether-launch-draft-primary',
+        path: 'interactive-demos/motion-aether-launch/draft-primary/share.json',
+        mimeType: 'application/json',
+        manifestId: 'interactive-export-motion-aether-launch-draft-primary-manifest',
+        label: 'aether interactive demo',
+      },
+      blockerLabels: [],
+      actionLabels: ['Export interactive manifest', 'Create share link metadata'],
+      requestedAt: 130,
+      provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+    },
     markers: [
       {
         id: 'interactive-chapter-beat-hook',
@@ -2317,6 +2352,9 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Show canvas prompt')).toBeInTheDocument();
     expect(screen.getByText('Branch to Demo-first cut')).toBeInTheDocument();
     expect(screen.getByText('Track x 9:16 completion')).toBeInTheDocument();
+    expect(screen.getByText('interactive manifest')).toBeInTheDocument();
+    expect(screen.getByText('7 export markers')).toBeInTheDocument();
+    expect(screen.getByText('interactive-demos/motion-aether-launch/draft-primary/manifest.json')).toBeInTheDocument();
     expect(screen.getByText('workflow mode')).toBeInTheDocument();
     expect(screen.getAllByText('review gates').length).toBeGreaterThan(0);
     expect(screen.getByText('Review gates')).toBeInTheDocument();

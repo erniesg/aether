@@ -443,6 +443,11 @@
   existing revision API. These edits persist on `MotionProject` with typed
   revision provenance, merge with the derived preview markers, and expose
   callouts in the same timeline lens.
+- Interactive markers now feed a provider-neutral interactive export plan:
+  `lib/motion/interactiveExportPlan.ts` emits the manifest path, share metadata
+  path, marker counts, exportable marker kinds, blockers, and provenance. The
+  timeline lens shows that manifest contract in the interactive-demo strip while
+  hosted/share-page materialization remains a later provider step.
 
 ## Next Slices
 

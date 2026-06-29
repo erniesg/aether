@@ -2622,6 +2622,7 @@ function MotionInteractiveDemoStrip({
 }: {
   summary: MotionPreviewPlan['interactiveDemo'];
 }) {
+  const exportPlan = summary.exportPlan;
   const primaryCounts = [
     formatCount(summary.markerCount, 'marker'),
     formatCount(summary.chapterCount, 'chapter'),
@@ -2652,6 +2653,34 @@ function MotionInteractiveDemoStrip({
             {label}
           </Chip>
         ))}
+      </div>
+      <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-caption text-xs text-ink">interactive manifest</div>
+            <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+              {exportPlan.manifest?.path ?? exportPlan.blockerLabels[0] ?? 'markers required'}
+            </div>
+          </div>
+          <Chip tone={exportPlan.status === 'ready' ? 'ok' : 'warn'} size="sm">
+            {exportPlan.status.replace(/-/g, ' ')}
+          </Chip>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1">
+          <Chip tone="neutral" size="sm">
+            {formatCount(exportPlan.exportableMarkerCount, 'export marker')}
+          </Chip>
+          {exportPlan.shareTarget ? (
+            <Chip tone="neutral" size="sm">
+              share metadata
+            </Chip>
+          ) : null}
+          {exportPlan.markerKindLabels.slice(0, 4).map((label) => (
+            <Chip key={label} tone="neutral" size="sm">
+              {label}
+            </Chip>
+          ))}
+        </div>
       </div>
       {summary.markers.length > 0 ? (
         <div className="mt-2 grid gap-2 md:grid-cols-3 xl:grid-cols-5">

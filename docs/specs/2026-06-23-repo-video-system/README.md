@@ -216,8 +216,10 @@ capture, render, and provenance debugging.
    from the video plan/timeline. Authored marker revisions can now upsert or
    remove callouts, hotspots, links, branches, chapters, or analytics markers on
    the same `MotionProject`, and the timeline lens merges those edits back into
-   creator review. Next, add an interactive export adapter for Arcade-style
-   manifests and share links.
+   creator review. The preview plan now also builds an interactive export
+   manifest/share-target contract at `interactive-demos/<project>/<draft>/`,
+   ready for a future provider to materialize into hosted Arcade-style demos.
+   Next, add that provider/materialization path.
 7. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
    metadata, poster proof, subtitles, transcripts, and manifest checks as first
    class graph nodes before export.
@@ -510,6 +512,11 @@ capture, render, and provenance debugging.
   operations on `/api/motion/revise`. Authored markers persist on the
   `MotionProject` with typed revision provenance, merge with derived markers in
   preview, and surface callouts inside the same timeline lens.
+- `lib/motion/interactiveExportPlan.ts` now adapts those markers into a
+  provider-neutral interactive manifest plan: marker counts, exportable marker
+  kinds, manifest path, share metadata path, blockers, actions, and provenance.
+  The timeline lens shows this as an artifact-first manifest row inside the
+  interactive demo strip, not as a separate console.
 - `lib/motion/referencePatterns.ts` now records reusable product-video patterns
   that came out of the launch/demo research pass: launch hooks, real product
   capture, screen zoom callouts, caption-led social cuts, proof receipts,

@@ -184,8 +184,9 @@ Aether now has the right backbone:
    product hotspots, draft branches, CTA links, and export analytics markers
    from the same motion object. Explicit marker authoring now persists callouts,
    hotspots, links, branches, chapters, and analytics markers through revision
-   provenance; the remaining work is an interactive export adapter, not a
-   separate demo product path.
+   provenance. The interactive export plan now creates the manifest/share
+   metadata contract; the remaining work is provider-backed hosted/share-page
+   materialization, not a separate demo product path.
 7. **Executable mode switching.** The preview now shows review vs full-auto as
    mode-control choices. Those choices still need a materialized action path:
    restart from the same source refs in a different mode or switch the current

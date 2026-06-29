@@ -19,6 +19,10 @@ import {
   type MotionExportPackStatus,
 } from './exportPackPlan';
 import {
+  buildMotionInteractiveExportPlan,
+  type MotionInteractiveExportPlan,
+} from './interactiveExportPlan';
+import {
   buildMotionImageToVideoPlan,
   type MotionImageToVideoPlanStatus,
 } from './imageToVideoPlan';
@@ -825,6 +829,7 @@ export interface MotionPreviewInteractiveDemoSummary {
   analyticsCount: number;
   markerLabels: string[];
   nextActionLabels: string[];
+  exportPlan: MotionInteractiveExportPlan;
   markers: MotionPreviewInteractiveMarker[];
 }
 
@@ -1030,7 +1035,14 @@ export function buildMotionPreviewPlan(
     renderProofSummary,
     canvasMaterialPlan,
     referenceGrammar,
-    interactiveDemo: buildInteractiveDemoSummary(project, reviewPlan, tracks, timelineRows, draftOptions),
+    interactiveDemo: buildInteractiveDemoSummary(
+      project,
+      reviewPlan,
+      tracks,
+      timelineRows,
+      draftOptions,
+      options.requestedAt
+    ),
     referenceSignals,
     tasteReferences,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
@@ -1104,7 +1116,8 @@ function buildInteractiveDemoSummary(
   reviewPlan: MotionReviewPlan,
   tracks: TimelineTrack[],
   timelineRows: MotionPreviewTimelineRow[],
-  draftOptions: MotionPreviewDraftOption[]
+  draftOptions: MotionPreviewDraftOption[],
+  requestedAt: number
 ): MotionPreviewInteractiveDemoSummary {
   const markers: MotionPreviewInteractiveMarker[] = [
     ...chapterInteractiveMarkers(reviewPlan, timelineRows),
@@ -1117,6 +1130,11 @@ function buildInteractiveDemoSummary(
     markers,
     authoredInteractiveMarkers(project.interactiveMarkers ?? [])
   );
+  const exportPlan = buildMotionInteractiveExportPlan(project, {
+    draftId: project.currentDraftId,
+    markers: mergedMarkers,
+    requestedAt,
+  });
 
   return {
     status: mergedMarkers.length > 0 ? 'ready' : 'empty',
@@ -1132,6 +1150,7 @@ function buildInteractiveDemoSummary(
       mergedMarkers.length > 0
         ? ['Review interactive markers', 'Export flat video with metadata']
         : ['Add product captures or CTA links'],
+    exportPlan,
     markers: mergedMarkers,
   };
 }

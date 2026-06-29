@@ -366,6 +366,22 @@ describe('buildMotionPreviewPlan', () => {
       branchCount: 2,
       linkCount: 1,
       analyticsCount: 1,
+      exportPlan: {
+        status: 'ready',
+        manifest: {
+          id: 'interactive-export-motion-aether-launch-draft-primary-manifest',
+          path: 'interactive-demos/motion-aether-launch/draft-primary/manifest.json',
+          mimeType: 'application/json',
+        },
+        shareTarget: {
+          id: 'interactive-share-motion-aether-launch-draft-primary',
+          path: 'interactive-demos/motion-aether-launch/draft-primary/share.json',
+          mimeType: 'application/json',
+        },
+        markerCount: 11,
+        exportableMarkerCount: 11,
+        blockerLabels: [],
+      },
       markerLabels: expect.arrayContaining([
         'Demo chapter',
         'App frame hotspot',
@@ -837,6 +853,14 @@ describe('buildMotionPreviewPlan', () => {
     expect(preview.interactiveDemo).toMatchObject({
       status: 'ready',
       calloutCount: 1,
+      exportPlan: {
+        status: 'ready',
+        markerCount: 12,
+        exportableMarkerCount: 12,
+        manifest: {
+          id: 'interactive-export-motion-aether-launch-draft-primary-manifest',
+        },
+      },
       markerLabels: expect.arrayContaining(['Review the prompt composer']),
     });
     expect(preview.interactiveDemo.markers).toEqual(
