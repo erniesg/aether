@@ -278,6 +278,33 @@ export interface MotionExecutionReceipt {
   assetUrl?: string;
   path?: string;
   mimeType?: string;
+  capture?: MotionExecutionCaptureReceipt;
+}
+
+export interface MotionExecutionCaptureReceipt {
+  target?: {
+    kind: string;
+    ref: string;
+  };
+  viewport: {
+    width: number;
+    height: number;
+    deviceScaleFactor: number;
+  };
+  appLaunch?: {
+    command: string;
+    cwd?: string;
+    targetUrl: string;
+    readiness: {
+      kind: string;
+      url: string;
+      timeoutMs: number;
+    };
+  };
+  redactionStatus: {
+    applied: boolean;
+    labels: string[];
+  };
 }
 
 export interface MotionSavedArtifactSummary {

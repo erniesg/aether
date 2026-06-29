@@ -73,12 +73,14 @@ function normalizeArtifact(input: {
   return {
     id: artifactId(input.request, input.index),
     kind,
+    target: input.request.target,
     assetUrl: input.artifact.assetUrl,
     width: input.artifact.width ?? input.request.viewport.width,
     height: input.artifact.height ?? input.request.viewport.height,
     ...(input.artifact.durationMs === undefined ? {} : { durationMs: input.artifact.durationMs }),
     mimeType: input.artifact.mimeType ?? mimeTypeForKind(kind),
     viewport: input.request.viewport,
+    ...(input.request.appLaunch ? { appLaunch: input.request.appLaunch } : {}),
     cursorTargets: input.artifact.cursorTargets ?? cursorTargetsFromSteps(input.request),
     provenance,
   };

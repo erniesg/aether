@@ -75,12 +75,14 @@ export interface CaptureRedactionManifest {
 export interface CaptureArtifact {
   id: string;
   kind: CaptureArtifactKind;
+  target?: CaptureTarget;
   assetUrl: string;
   width: number;
   height: number;
   durationMs?: number;
   mimeType: string;
   viewport: CaptureViewport;
+  appLaunch?: CaptureAppLaunch;
   cursorTargets: CaptureCursorTarget[];
   redactions?: CaptureRedaction[];
   provenance: MotionProvenanceRef[];

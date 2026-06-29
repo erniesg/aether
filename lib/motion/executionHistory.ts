@@ -611,8 +611,51 @@ function captureReceipt(providerId: string, artifact: CaptureArtifact): MotionEx
     ref: artifact.id,
     providerId,
     assetUrl: artifact.assetUrl,
+    path: filePathFromAssetUrl(artifact.assetUrl),
     mimeType: artifact.mimeType,
+    capture: {
+      ...(artifact.target
+        ? {
+            target: {
+              kind: artifact.target.kind,
+              ref: artifact.target.ref,
+            },
+          }
+        : {}),
+      viewport: artifact.viewport,
+      ...(artifact.appLaunch
+        ? {
+            appLaunch: {
+              command: artifact.appLaunch.command,
+              ...(artifact.appLaunch.cwd ? { cwd: artifact.appLaunch.cwd } : {}),
+              targetUrl: artifact.appLaunch.targetUrl,
+              readiness: artifact.appLaunch.readiness,
+            },
+          }
+        : {}),
+      redactionStatus: captureRedactionStatus(artifact),
+    },
   };
+}
+
+function captureRedactionStatus(artifact: CaptureArtifact): {
+  applied: boolean;
+  labels: string[];
+} {
+  const redactions = artifact.redactions ?? [];
+  return {
+    applied: redactions.every((redaction) => redaction.applied),
+    labels: uniqueStrings(redactions.map((redaction) => redaction.label)),
+  };
+}
+
+function filePathFromAssetUrl(assetUrl: string): string | undefined {
+  if (!assetUrl.startsWith('file:')) return undefined;
+  try {
+    return decodeURIComponent(new URL(assetUrl).pathname);
+  } catch {
+    return undefined;
+  }
 }
 
 function voiceReceipt(providerId: string, artifact: VoiceArtifact): MotionExecutionReceipt {

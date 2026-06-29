@@ -115,14 +115,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const provider = inlineRunner?.provider ?? resolveCaptureProvider(stringValue(body.providerId));
-    const captureResults = await Promise.all(
-      selectedRequests.map((planRequest) =>
-        provider.capture({
-          ...planRequest.request,
-          preferredProviderId: provider.id,
-        })
-      )
-    );
+    const captureResults = await runSelectedCaptureRequests(provider, selectedRequests);
     const captureResult = mergeCaptureResults(provider.id, captureResults);
     const updatedProject = applyCaptureResultToMotionProject(project, captureResult, {
       updatedAt,
@@ -175,6 +168,22 @@ export async function POST(request: Request): Promise<Response> {
     const message = error instanceof Error ? error.message : String(error);
     return jsonError(502, message, { code: 'motion_capture_failed' });
   }
+}
+
+async function runSelectedCaptureRequests(
+  provider: ReturnType<typeof resolveCaptureProvider>,
+  selectedRequests: AgentMotionCapturePlanRequest[]
+): Promise<CaptureResult[]> {
+  const results: CaptureResult[] = [];
+  for (const planRequest of selectedRequests) {
+    results.push(
+      await provider.capture({
+        ...planRequest.request,
+        preferredProviderId: provider.id,
+      })
+    );
+  }
+  return results;
 }
 
 function selectedAppLaunches(

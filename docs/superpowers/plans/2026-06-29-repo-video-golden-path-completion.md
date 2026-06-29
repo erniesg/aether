@@ -242,11 +242,11 @@ git commit -m "feat: round trip editable motion source bundles"
 - Modify: `tests/e2e/` or create: `tests/e2e/motion-local-app-capture.spec.ts`
 - Modify: `docs/specs/2026-06-23-repo-video-system/evidence/` if screenshots are saved
 
-- [ ] **Step 1: Write failing local capture proof**
+- [x] **Step 1: Write failing local capture proof**
 
 Create a test that starts a simple local app fixture, opts into `captureRunner.kind = "playwright-local"`, captures screenshot, DOM snapshot, interaction trace, and optional screen recording, then applies receipts to the motion project.
 
-- [ ] **Step 2: Run the failing test**
+- [x] **Step 2: Run the failing test**
 
 Run:
 
@@ -256,11 +256,11 @@ npx vitest run tests/unit/api-motion-capture-local-runner.test.ts --pool=forks
 
 Expected: FAIL if recording, local-app readiness, or receipt application is incomplete.
 
-- [ ] **Step 3: Implement missing capture runner behavior**
+- [x] **Step 3: Implement missing capture runner behavior**
 
 Keep runner opt-in. Save files under an Aether-controlled output directory. Persist target URL, viewport, local command, readiness proof, artifact paths, MIME types, and redaction status as typed receipts.
 
-- [ ] **Step 4: Run capture tests**
+- [x] **Step 4: Run capture tests**
 
 Run:
 
@@ -270,10 +270,10 @@ npx vitest run tests/unit/api-motion-capture-local-runner.test.ts tests/unit/api
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-git add tests/unit/api-motion-capture-local-runner.test.ts tests/e2e/motion-local-app-capture.spec.ts lib/providers/capture lib/motion/captureApply.ts
+git add tests/unit/api-motion-capture-local-runner.test.ts app/api/motion/capture/route.ts lib/providers/capture lib/motion/executionHistory.ts lib/motion/project.ts
 git commit -m "feat: prove local app capture receipts"
 ```
 
