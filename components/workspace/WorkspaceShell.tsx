@@ -1358,6 +1358,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           ok?: boolean;
           error?: string;
           status?: string;
+          project?: typeof motionStart.project;
           reviewPlan?: typeof motionStart.reviewPlan;
           previewPlan?: typeof motionStart.previewPlan;
           previewSource?: MotionPreparedPreviewSource | null;
@@ -1368,6 +1369,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
         setMotionStartResult(wsId, {
           ...motionStart,
+          project: json.project ?? motionStart.project,
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan ?? motionStart.previewPlan,
           preparedPreviewSource:

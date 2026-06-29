@@ -324,6 +324,124 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
   });
 
+  it('timeline preview-source action persists returned source receipts on the motion project', async () => {
+    const start = storedRegeneratableMotionStart();
+    const returnedProject = {
+      ...start.project!,
+      executionHistory: [
+        {
+          id: 'execution-preview-source-preview-source-render-plan-motion-aether-launch-draft-primary-remotion',
+          gateId: 'render' as const,
+          label: 'Preview source package',
+          providerId: 'remotion-preview-source',
+          savedAt: 930,
+          receiptCount: 4,
+          receiptLabels: [
+            'Preview source files',
+            'Runtime mount target',
+            'Edit contract',
+            'Source package setup',
+          ],
+          receipts: [
+            {
+              id: 'receipt-preview-source-files',
+              kind: 'render' as const,
+              label: 'Preview source files',
+              ref: 'preview-source-render-plan-motion-aether-launch-draft-primary-remotion:source-files',
+              providerId: 'remotion-preview-source',
+              path: 'remotion/index.tsx',
+              mimeType: 'text/typescript',
+            },
+          ],
+          provenance: [{ kind: 'render' as const, ref: 'preview-source-render-plan-motion-aether-launch-draft-primary-remotion' }],
+        },
+      ],
+      updatedAt: 930,
+    };
+    const returnedPreviewPlan = buildMotionPreviewPlan(returnedProject, {
+      engines: start.workflow.plan.engines,
+      requestedAt: 930,
+    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'ready',
+          project: returnedProject,
+          reviewPlan: start.reviewPlan,
+          previewPlan: returnedPreviewPlan,
+          previewSource: {
+            id: 'preview-source-render-plan-motion-aether-launch-draft-primary-remotion',
+            projectId: returnedProject.id,
+            draftId: returnedProject.currentDraftId,
+            engine: 'remotion',
+            runtimeKind: 'remotion-player',
+            label: 'Remotion Player',
+            mountLabel: 'Mount Remotion Player',
+            compositionId: 'motion-aether-launch-draft-primary',
+            entryPoint: 'remotion/index.tsx',
+            durationSeconds: 30,
+            fps: 30,
+            sourceHostRequirement: 'Serve the source bundle to the same-shell preview runtime.',
+            editLinkLabels: ['component props', 'timeline JSON'],
+            runtimeHost: {
+              status: 'source-ready',
+              previewSurface: 'player',
+              dependencyLabels: ['@remotion/player', 'remotion'],
+              adapterRequirement:
+                'aether Player adapter mounts timeline/draft-primary.json through @remotion/player.',
+            },
+            sourcePackage: null,
+            sourceHost: {
+              apiRoute: '/api/motion/preview-source',
+              entryPath: 'remotion/index.tsx',
+              timelinePath: 'timeline/draft-primary.json',
+              manifestPath: 'renders/motion-aether-launch/source-manifest.json',
+              sourceFileCount: 1,
+            },
+            sourceFiles: [
+              {
+                kind: 'entry',
+                path: 'remotion/index.tsx',
+                mimeType: 'text/typescript',
+                contents: 'registerRoot(RemotionRoot);',
+                provenance: [{ kind: 'render', ref: 'render-plan-motion-aether-launch-draft-primary-remotion' }],
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /prepare remotion preview source/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'remotion preview source ready (1 files)'
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/preview-source',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    expect(getMotionStartResult('demo-ws')?.preparedPreviewSource).toMatchObject({
+      id: 'preview-source-render-plan-motion-aether-launch-draft-primary-remotion',
+    });
+    expect(getMotionStartResult('demo-ws')?.project?.executionHistory).toEqual(
+      returnedProject.executionHistory
+    );
+  });
+
   it('surfaces stored motion source patch drafts in the timeline lens', async () => {
     const sourcePatchDraft: MotionSourcePatchDraft = {
       id: 'source-patch-draft-stored',
@@ -678,7 +796,7 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     renderShell();
 
     await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
-    const demoFirst = screen.getByRole('button', { name: /demo-first cut/i });
+    const demoFirst = screen.getByRole('button', { name: /^demo-first cut/i });
     expect(demoFirst).toHaveAttribute('aria-pressed', 'false');
 
     await userEvent.click(demoFirst);
@@ -686,7 +804,7 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent('Demo-first cut selected');
     });
-    expect(screen.getByRole('button', { name: /demo-first cut/i })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^demo-first cut/i })).toHaveAttribute(
       'aria-pressed',
       'true'
     );

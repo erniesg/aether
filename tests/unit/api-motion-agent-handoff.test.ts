@@ -597,6 +597,95 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 
+  it('prepares editable preview source through the agent-native route', async () => {
+    const startJson = await startLocalRepoProject();
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['prepare-preview-source'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      finalProject: {
+        id: 'motion-tong-agent-route',
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            gateId: 'render',
+            label: 'Preview source package',
+            receiptLabels: [
+              'Preview source files',
+              'Runtime mount target',
+              'Edit contract',
+              'Source package setup',
+            ],
+          }),
+        ]),
+      },
+      finalResponse: {
+        ok: true,
+        status: 'ready',
+        previewSource: {
+          engine: 'remotion',
+          runtimeKind: 'remotion-player',
+          sourceHost: {
+            apiRoute: '/api/motion/preview-source',
+            entryPath: 'remotion/index.tsx',
+            timelinePath: 'timeline/draft-primary.json',
+          },
+          sourcePackage: {
+            kind: 'editable-motion-source',
+            engine: 'remotion',
+            dependencyLabels: ['remotion', '@remotion/media', 'react', 'react-dom'],
+          },
+        },
+        previewPlan: {
+          fullAutoReview: {
+            savedArtifacts: expect.arrayContaining([
+              expect.objectContaining({
+                kind: 'render',
+                label: 'Preview source files',
+                ref: expect.stringContaining(':source-files'),
+                path: 'remotion/index.tsx',
+              }),
+              expect.objectContaining({
+                kind: 'render',
+                label: 'Source package setup',
+                path: expect.stringContaining('.source-manifest.json'),
+              }),
+            ]),
+          },
+        },
+      },
+      steps: [
+        expect.objectContaining({
+          templateId: 'prepare-preview-source',
+          status: 'complete',
+          responseStatus: 200,
+        }),
+      ],
+    });
+    expect(json.finalResponse.previewSource.sourceFiles.map((file: { path: string }) => file.path)).toEqual([
+      'remotion/index.tsx',
+      'DESIGN.md',
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline/draft-primary.json',
+      'EDIT.md',
+      'renders/motion-tong-agent-route/render-plan-motion-tong-agent-route-draft-primary-remotion.source-manifest.json',
+    ]);
+  });
+
   it('runs a selected source-author template through the agent-native route', async () => {
     const author = vi.fn(async (request: MotionSourceAuthorRequest) =>
       authoredSourceResultFor(request)
