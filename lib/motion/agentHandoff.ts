@@ -20,6 +20,20 @@ export interface MotionAgentRequestTemplate {
   body: Record<string, unknown>;
   inputPlaceholders: string[];
   expectedReceipts: string[];
+  capturePlan?: MotionAgentCaptureTemplatePlan;
+}
+
+export interface MotionAgentCaptureTemplatePlan {
+  kind: 'motion-agent-capture-template-plan';
+  applyRoute: '/api/motion/capture';
+  requestIds: string[];
+  requestLabels: string[];
+  requestModes: string[];
+  targetLabels: string[];
+  setupLabels: string[];
+  receiptLabels: string[];
+  runnerLabel: string;
+  fallbackLabels: string[];
 }
 
 export interface MotionAgentExecutionHandoff {
@@ -55,6 +69,7 @@ export interface MaterializedMotionAgentRequestTemplate {
   toolId: ToolRegistryId;
   body: Record<string, unknown>;
   missingPlaceholders: string[];
+  capturePlan?: MotionAgentCaptureTemplatePlan;
 }
 
 const PROJECT_PLACEHOLDER = '$motionProject';
@@ -106,6 +121,7 @@ export function materializeMotionAgentRequestTemplate(
     toolId: template.toolId,
     body: materializeBody(template.body, placeholders, missing),
     missingPlaceholders: Array.from(missing),
+    ...(template.capturePlan ? { capturePlan: template.capturePlan } : {}),
   };
 }
 
@@ -138,7 +154,7 @@ function buildTemplates(input: {
       }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: uniqueStrings([
-        ...(capture ? ['captures'] : []),
+        ...(capture ? ['captures', ...capture.capturePlan.receiptLabels] : []),
         'source asset picks',
         'generated clips',
         'voice clips',
@@ -146,6 +162,7 @@ function buildTemplates(input: {
         'contact sheet',
         'export pack',
       ]),
+      ...(capture ? { capturePlan: capture.capturePlan } : {}),
     });
     if (capture) {
       templates.push({
@@ -167,8 +184,7 @@ function buildTemplates(input: {
         inputPlaceholders: [PROJECT_PLACEHOLDER, '$computerUseCaptureRunner'],
         expectedReceipts: uniqueStrings([
           'captures',
-          'approval receipt',
-          'redaction receipt',
+          ...capture.computerUseCapturePlan.receiptLabels,
           'source asset picks',
           'generated clips',
           'voice clips',
@@ -176,6 +192,7 @@ function buildTemplates(input: {
           'contact sheet',
           'export pack',
         ]),
+        capturePlan: capture.computerUseCapturePlan,
       });
     }
     templates.push(...setupDryRunTemplates({ engines, capture }));
@@ -195,6 +212,7 @@ function buildTemplates(input: {
       }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: capture.expectedReceipts,
+      capturePlan: capture.capturePlan,
     });
     templates.push({
       id: 'review-computer-use-capture',
@@ -213,6 +231,7 @@ function buildTemplates(input: {
         'approval receipt',
         'redaction receipt',
       ]),
+      capturePlan: capture.computerUseCapturePlan,
     });
   }
 
@@ -230,6 +249,7 @@ function buildTemplates(input: {
       }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: recording.expectedReceipts,
+      capturePlan: recording.capturePlan,
     });
   }
 
@@ -793,6 +813,8 @@ type CaptureTemplateParts = {
     headless: boolean;
   };
   expectedReceipts: string[];
+  capturePlan: MotionAgentCaptureTemplatePlan;
+  computerUseCapturePlan: MotionAgentCaptureTemplatePlan;
 };
 
 function captureTemplateParts(
@@ -838,6 +860,44 @@ function captureTemplatePartsForRequests(
     requestIds: requests.map((request) => request.id),
     ...(runner ? { runner } : {}),
     expectedReceipts: uniqueStrings(requests.flatMap((request) => request.expectedArtifacts)),
+    capturePlan: captureTemplatePlanForRequests(capturePlan, requests, 'Playwright local capture'),
+    computerUseCapturePlan: captureTemplatePlanForRequests(
+      capturePlan,
+      requests,
+      'computer-use capture',
+      ['approval receipt', 'redaction receipt']
+    ),
+  };
+}
+
+function captureTemplatePlanForRequests(
+  capturePlan: AgentMotionCapturePlan,
+  requests: AgentMotionCapturePlanRequest[],
+  runnerLabel: string,
+  extraReceiptLabels: string[] = []
+): MotionAgentCaptureTemplatePlan {
+  return {
+    kind: 'motion-agent-capture-template-plan',
+    applyRoute: '/api/motion/capture',
+    requestIds: requests.map((request) => request.id),
+    requestLabels: requests.map((request) => request.label),
+    requestModes: uniqueStrings(requests.map((request) => request.request.mode)),
+    targetLabels: uniqueStrings(
+      requests.map((request) => `${request.request.target.kind} ${request.request.target.ref}`)
+    ),
+    setupLabels: uniqueStrings(
+      requests.flatMap((request) => {
+        const appLaunch = request.request.appLaunch;
+        return appLaunch ? [`${appLaunch.command} -> ${appLaunch.targetUrl}`] : [];
+      })
+    ),
+    receiptLabels: uniqueStrings([
+      ...requests.flatMap((request) => request.expectedArtifacts),
+      ...(requests.some((request) => request.request.appLaunch) ? ['app launch readiness'] : []),
+      ...extraReceiptLabels,
+    ]),
+    runnerLabel,
+    fallbackLabels: capturePlan.fallbacks.map((fallback) => fallback.label),
   };
 }
 

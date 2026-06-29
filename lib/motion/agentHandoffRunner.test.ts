@@ -274,6 +274,7 @@ describe('runMotionAgentHandoffTemplates', () => {
             'voice',
             'sync',
             'render',
+            'export',
           ],
         },
       },
@@ -286,6 +287,17 @@ describe('runMotionAgentHandoffTemplates', () => {
       'setup-render',
       'full-auto-run',
     ]);
+    expect(result.steps.find((step) => step.templateId === 'full-auto-run')?.capturePlan).toMatchObject({
+      kind: 'motion-agent-capture-template-plan',
+      requestIds: ['capture-local-app-still', 'capture-local-dom'],
+      requestModes: ['screenshot', 'dom-snapshot'],
+      runnerLabel: 'Playwright local capture',
+      receiptLabels: expect.arrayContaining([
+        'screenshot',
+        'snapshot',
+        'app launch readiness',
+      ]),
+    });
     expect(result.steps.every((step) => step.missingPlaceholders.length === 0)).toBe(true);
     expect(result.finalProject.executionHistory).toEqual(
       expect.arrayContaining([

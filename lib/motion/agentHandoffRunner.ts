@@ -3,6 +3,7 @@ import {
   materializeMotionAgentRequestTemplate,
   type MaterializedMotionAgentRequestTemplate,
   type MaterializeMotionAgentRequestTemplateInput,
+  type MotionAgentCaptureTemplatePlan,
   type MotionAgentExecutionHandoff,
   type MotionAgentRequestTemplate,
 } from './agentHandoff';
@@ -33,6 +34,7 @@ export interface MotionAgentHandoffRunStep {
   status: 'skipped' | 'complete' | 'failed';
   responseStatus: number | null;
   responseJson: Record<string, unknown> | null;
+  capturePlan?: MotionAgentCaptureTemplatePlan;
 }
 
 export interface RunMotionAgentHandoffTemplatesResult {
@@ -68,6 +70,7 @@ export async function runMotionAgentHandoffTemplates(
         status: 'skipped',
         responseStatus: null,
         responseJson: null,
+        ...(materialized.capturePlan ? { capturePlan: materialized.capturePlan } : {}),
       });
       return {
         status: 'blocked',
@@ -93,6 +96,7 @@ export async function runMotionAgentHandoffTemplates(
       status: ok ? 'complete' : 'failed',
       responseStatus: response.status,
       responseJson: response.json,
+      ...(materialized.capturePlan ? { capturePlan: materialized.capturePlan } : {}),
     });
 
     if (!ok) {
