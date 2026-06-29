@@ -1543,6 +1543,11 @@ function MotionAgentActionsStrip({
     handoff.templates[0] ??
     null;
   const visibleTemplates = handoff.templates.slice(0, 4);
+  const capturePreflight =
+    nextTemplate?.capturePlan ??
+    visibleTemplates.find((template) => template.capturePlan)?.capturePlan ??
+    handoff.templates.find((template) => template.capturePlan)?.capturePlan ??
+    null;
   const canRunFullAuto =
     handoff.mode === 'full-auto' &&
     nextTemplate?.route === '/api/motion/full-auto' &&
@@ -1610,6 +1615,39 @@ function MotionAgentActionsStrip({
           ) : null}
         </div>
       </div>
+      {capturePreflight ? (
+        <div className="mt-2 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                capture preflight
+              </div>
+              <div className="mt-1 truncate font-caption text-xs text-ink">
+                {capturePreflight.runnerLabel}
+              </div>
+            </div>
+            <Chip tone="info" size="sm">
+              {formatCount(capturePreflight.requestIds.length, 'target')}
+            </Chip>
+          </div>
+          <div className="mt-2 grid gap-1 sm:grid-cols-3">
+            <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {capturePreflight.requestLabels.slice(0, 2).join(' / ')}
+            </div>
+            <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {capturePreflight.requestModes.slice(0, 3).join(' / ')}
+            </div>
+            <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {capturePreflight.receiptLabels.slice(0, 3).join(' / ')}
+            </div>
+          </div>
+          {capturePreflight.setupLabels[0] ? (
+            <div className="mt-2 truncate font-caption text-2xs text-ink-faint">
+              {capturePreflight.setupLabels[0]}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

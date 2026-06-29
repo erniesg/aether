@@ -2434,6 +2434,18 @@ const agentHandoff: MotionAgentExecutionHandoff = {
       },
       inputPlaceholders: ['$motionProject'],
       expectedReceipts: ['captures', 'voice clips', 'export pack'],
+      capturePlan: {
+        kind: 'motion-agent-capture-template-plan',
+        applyRoute: '/api/motion/capture',
+        requestIds: ['capture-home-still', 'capture-dom-snapshot'],
+        requestLabels: ['Capture hero still', 'Capture DOM snapshot'],
+        requestModes: ['screenshot', 'dom-snapshot'],
+        targetLabels: ['local-app https://aether.local/demo'],
+        setupLabels: ['npm run dev -> https://aether.local/demo'],
+        receiptLabels: ['screenshot', 'viewport receipt', 'app launch readiness'],
+        runnerLabel: 'Playwright local capture',
+        fallbackLabels: ['Use computer control when browser capture cannot reach the app state'],
+      },
     },
     {
       id: 'full-auto-computer-use-run',
@@ -2467,6 +2479,18 @@ const agentHandoff: MotionAgentExecutionHandoff = {
       },
       inputPlaceholders: ['$motionProject'],
       expectedReceipts: ['screenshot', 'viewport receipt'],
+      capturePlan: {
+        kind: 'motion-agent-capture-template-plan',
+        applyRoute: '/api/motion/capture',
+        requestIds: ['capture-home-still', 'capture-dom-snapshot'],
+        requestLabels: ['Capture hero still', 'Capture DOM snapshot'],
+        requestModes: ['screenshot', 'dom-snapshot'],
+        targetLabels: ['local-app https://aether.local/demo'],
+        setupLabels: ['npm run dev -> https://aether.local/demo'],
+        receiptLabels: ['screenshot', 'viewport receipt', 'app launch readiness'],
+        runnerLabel: 'Playwright local capture',
+        fallbackLabels: ['Use computer control when browser capture cannot reach the app state'],
+      },
     },
     {
       id: 'review-computer-use-capture',
@@ -3612,6 +3636,12 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('local runner').length).toBeGreaterThan(0);
     expect(screen.getAllByText('captures / voice clips').length).toBeGreaterThan(0);
     expect(screen.getByText('captures / approval receipt')).toBeInTheDocument();
+    expect(screen.getByText('capture preflight')).toBeInTheDocument();
+    expect(screen.getByText('Playwright local capture')).toBeInTheDocument();
+    expect(screen.getByText('Capture hero still / Capture DOM snapshot')).toBeInTheDocument();
+    expect(screen.getByText('screenshot / dom-snapshot')).toBeInTheDocument();
+    expect(screen.getByText('screenshot / viewport receipt / app launch readiness')).toBeInTheDocument();
+    expect(screen.getAllByText('npm run dev -> https://aether.local/demo').length).toBeGreaterThan(0);
     expect(screen.queryByText('$motionProject')).not.toBeInTheDocument();
     expect(screen.queryByText('$computerUseCaptureRunner')).not.toBeInTheDocument();
     expect(screen.queryByText('$editedSourceFiles')).not.toBeInTheDocument();
