@@ -470,6 +470,10 @@
   mount their prepared HTML in a sandboxed same-shell iframe. The actual
   `@remotion/player` embed remains follow-up work once runtime dependencies
   are configured.
+- Preview plans and `/api/motion/preview-source` now surface the render source
+  manifest's editable source-package contract directly: dependency labels,
+  source write order, setup commands, and scaffold commands are available
+  without asking the creator shell or an agent to parse raw manifest JSON.
 - The timeline lens now opens a progressive advanced node lens from the
   visual-generation strip while the graph route remains unavailable. The lens
   keeps the surface creator-facing by showing visual source, image-to-video,

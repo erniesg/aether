@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { MotionProject } from '@/lib/motion/project';
-import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
+import {
+  buildMotionPreviewPlan,
+  summarizeMotionRenderSourcePackageFromSourceFiles,
+} from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import { buildMotionRenderRequest } from '@/lib/motion/renderExecution';
 import { buildMotionRenderPlan } from '@/lib/motion/renderPlan';
@@ -83,6 +86,7 @@ export async function POST(request: Request): Promise<Response> {
   const entryFile = findSourceFile(sourceFiles, 'entry');
   const timelineFile = findSourceFile(sourceFiles, 'timeline');
   const manifestFile = findSourceFile(sourceFiles, 'manifest');
+  const sourcePackage = summarizeMotionRenderSourcePackageFromSourceFiles(sourceFiles);
 
   return NextResponse.json({
     ok: true,
@@ -110,6 +114,7 @@ export async function POST(request: Request): Promise<Response> {
         'Serve the source bundle to the same-shell preview runtime.',
       editLinkLabels: runtimePreview?.editLinkLabels ?? [],
       runtimeHost: buildRuntimeHost(engine),
+      sourcePackage,
       sourceHost: {
         apiRoute: '/api/motion/preview-source',
         entryPath: entryFile?.path ?? null,

@@ -71,6 +71,22 @@ describe('POST /api/motion/preview-source', () => {
           adapterRequirement:
             'aether Player adapter mounts timeline/draft-primary.json through @remotion/player.',
         },
+        sourcePackage: {
+          kind: 'editable-motion-source',
+          engine: 'remotion',
+          projectRoot: '.',
+          sourceWriteOrder: [
+            'DESIGN.md',
+            'SCRIPT.md',
+            'STORYBOARD.md',
+            'timeline/draft-primary.json',
+            'EDIT.md',
+            'remotion/index.tsx',
+          ],
+          dependencyLabels: ['remotion', '@remotion/media', 'react', 'react-dom'],
+          setupCommandLabels: ['Install Remotion render dependencies'],
+          scaffoldCommandLabels: ['Create a blank Remotion source workspace'],
+        },
       },
       previewPlan: {
         projectId: 'motion-aether-launch',
@@ -138,6 +154,22 @@ describe('POST /api/motion/preview-source', () => {
           previewSurface: 'iframe',
           dependencyLabels: ['HTML preview frame', 'GSAP timeline'],
           adapterRequirement: null,
+        },
+        sourcePackage: {
+          kind: 'editable-motion-source',
+          engine: 'hyperframes',
+          projectRoot: '.',
+          sourceWriteOrder: [
+            'DESIGN.md',
+            'SCRIPT.md',
+            'STORYBOARD.md',
+            'timeline/draft-primary.json',
+            'EDIT.md',
+            'index.html',
+          ],
+          dependencyLabels: ['hyperframes', 'gsap'],
+          setupCommandLabels: ['Check HyperFrames render environment'],
+          scaffoldCommandLabels: ['Create a HyperFrames product-promo source workspace'],
         },
       },
     });

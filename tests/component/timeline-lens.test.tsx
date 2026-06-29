@@ -934,6 +934,7 @@ const previewPlan: MotionPreviewPlan = {
           'renders/motion-aether-launch/export-x-9x16/poster.png',
           'renders/motion-aether-launch/export-x-9x16/manifest.json',
         ],
+        sourcePackage: null,
         action: {
           id: 'verify-render-package-remotion',
           label: 'Verify Remotion package',

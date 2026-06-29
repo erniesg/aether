@@ -1479,6 +1479,36 @@ describe('buildMotionPreviewPlan', () => {
         'renders/motion-aether-launch/export-x-9x16/video.mp4',
         'renders/motion-aether-launch/export-x-9x16/manifest.json',
       ]),
+      sourcePackage: {
+        kind: 'editable-motion-source',
+        engine: 'remotion',
+        projectRoot: '.',
+        runtimeRequirement: 'Node.js with Remotion CLI support',
+        sourceWriteOrder: [
+          'DESIGN.md',
+          'SCRIPT.md',
+          'STORYBOARD.md',
+          'timeline/draft-primary.json',
+          'EDIT.md',
+          'remotion/index.tsx',
+        ],
+        dependencyLabels: ['remotion', '@remotion/media', 'react', 'react-dom'],
+        setupCommandLabels: ['Install Remotion render dependencies'],
+        scaffoldCommandLabels: ['Create a blank Remotion source workspace'],
+        setupCommands: [
+          expect.objectContaining({
+            id: 'setup-remotion-dependencies',
+            display: 'npm install remotion @remotion/media react react-dom',
+          }),
+        ],
+        scaffoldCommands: [
+          expect.objectContaining({
+            id: 'scaffold-remotion-blank',
+            display:
+              'npx create-video@latest --yes --blank --no-tailwind motion-render-source',
+          }),
+        ],
+      },
       action: {
         id: 'verify-render-package-remotion',
         label: 'Verify Remotion package',

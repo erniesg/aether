@@ -138,6 +138,26 @@ export interface MotionPreviewRenderPackageCommand {
   outputPath?: string;
 }
 
+export interface MotionPreviewSourcePackageDependencyHint {
+  packageName: string;
+  role: string;
+  required: boolean;
+}
+
+export interface MotionPreviewSourcePackage {
+  kind: 'editable-motion-source';
+  engine: MotionRenderEngine;
+  projectRoot: string;
+  runtimeRequirement: string;
+  sourceWriteOrder: string[];
+  dependencyHints: MotionPreviewSourcePackageDependencyHint[];
+  dependencyLabels: string[];
+  scaffoldCommands: MotionPreviewRenderPackageCommand[];
+  setupCommands: MotionPreviewRenderPackageCommand[];
+  scaffoldCommandLabels: string[];
+  setupCommandLabels: string[];
+}
+
 export interface MotionPreviewRenderPackageArtifactCheck {
   outputId: string;
   kind: string;
@@ -185,6 +205,7 @@ export interface MotionPreviewRenderPackage {
   verificationLabels: string[];
   proofArtifactLabels: string[];
   proofArtifactPaths: string[];
+  sourcePackage: MotionPreviewSourcePackage | null;
   action: MotionPreviewRenderPackageAction;
 }
 
@@ -3107,8 +3128,26 @@ interface RenderPackageManifestProofArtifact {
   height?: unknown;
 }
 
+interface RenderPackageManifestDependencyHint {
+  packageName?: unknown;
+  role?: unknown;
+  required?: unknown;
+}
+
+interface RenderPackageManifestSourcePackage {
+  kind?: unknown;
+  engine?: unknown;
+  projectRoot?: unknown;
+  runtimeRequirement?: unknown;
+  sourceWriteOrder?: unknown;
+  dependencyHints?: unknown;
+  scaffoldCommands?: unknown;
+  setupCommands?: unknown;
+}
+
 interface RenderPackageManifestExecution {
   sourceHostRequirement?: unknown;
+  sourcePackage?: unknown;
   previewCommand?: unknown;
   renderCommands?: unknown;
   verificationCommands?: unknown;
@@ -3149,8 +3188,19 @@ function buildRenderPackageSummary(
     verificationLabels: verificationCommands.map((command) => command.label),
     proofArtifactLabels: uniqueStrings(proofArtifacts.map((artifact) => artifact.label)),
     proofArtifactPaths: proofArtifacts.map((artifact) => artifact.path),
+    sourcePackage: sourcePackageSummary(manifest.execution.sourcePackage),
     action: renderPackageAction(engine, verificationCommands, artifactChecks),
   };
+}
+
+export function summarizeMotionRenderSourcePackageFromSourceFiles(
+  sourceFiles: MotionRenderRequest['sourceFiles']
+): MotionPreviewSourcePackage | null {
+  const manifestFile = sourceFiles?.find((file) => file.kind === 'manifest');
+  if (!manifestFile) return null;
+
+  const manifest = parseRenderPackageManifest(manifestFile.contents);
+  return sourcePackageSummary(manifest?.execution?.sourcePackage);
 }
 
 function renderPackageAction(
@@ -3267,6 +3317,69 @@ function proofArtifactSummaries(
         height,
       },
     ];
+  });
+}
+
+function sourcePackageSummary(value: unknown): MotionPreviewSourcePackage | null {
+  const sourcePackage = value as RenderPackageManifestSourcePackage | null;
+  const kind = stringValue(sourcePackage?.kind);
+  const engine = stringValue(sourcePackage?.engine);
+  const projectRoot = stringValue(sourcePackage?.projectRoot);
+  const runtimeRequirement = stringValue(sourcePackage?.runtimeRequirement);
+  if (
+    kind !== 'editable-motion-source' ||
+    !isMotionRenderEngine(engine) ||
+    !projectRoot ||
+    !runtimeRequirement
+  ) {
+    return null;
+  }
+
+  const dependencyHints = dependencyHintSummaries(sourcePackage?.dependencyHints);
+  const scaffoldCommands = commandSummaries(sourcePackage?.scaffoldCommands);
+  const setupCommands = commandSummaries(sourcePackage?.setupCommands);
+
+  return {
+    kind,
+    engine,
+    projectRoot,
+    runtimeRequirement,
+    sourceWriteOrder: stringArray(sourcePackage?.sourceWriteOrder),
+    dependencyHints,
+    dependencyLabels: dependencyHints.map((hint) => hint.packageName),
+    scaffoldCommands,
+    setupCommands,
+    scaffoldCommandLabels: scaffoldCommands.map((command) => command.label),
+    setupCommandLabels: setupCommands.map((command) => command.label),
+  };
+}
+
+function dependencyHintSummaries(
+  value: unknown
+): MotionPreviewSourcePackageDependencyHint[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    const hint = item as RenderPackageManifestDependencyHint;
+    const packageName = stringValue(hint.packageName);
+    const role = stringValue(hint.role);
+    if (!packageName || !role) return [];
+
+    return [
+      {
+        packageName,
+        role,
+        required: hint.required === true,
+      },
+    ];
+  });
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const text = stringValue(item);
+    return text ? [text] : [];
   });
 }
 
@@ -3653,7 +3766,7 @@ function editablePropsForClip(
   return props;
 }
 
-function isMotionRenderEngine(engine: WorkflowEngine): engine is MotionRenderEngine {
+function isMotionRenderEngine(engine: unknown): engine is MotionRenderEngine {
   return engine === 'remotion' || engine === 'hyperframes';
 }
 
