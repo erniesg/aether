@@ -60,6 +60,7 @@ export interface MotionWorkflowSkillDraft {
   sampleCopyLines: string[];
   timelineContract: MotionWorkflowTimelineContract;
   sourcePackageContract: MotionWorkflowSourcePackageContract;
+  reviewLoopContract: MotionWorkflowReviewLoopContract;
   launchKit: MotionWorkflowLaunchKit;
   capabilityPlan: MotionWorkflowCapabilityPlan;
 }
@@ -84,6 +85,19 @@ export interface MotionWorkflowSourcePackageContract {
   setupCommandLabels: string[];
   verificationReceiptLabels: string[];
   routeLabels: string[];
+}
+
+export interface MotionWorkflowReviewLoopContract {
+  kind: 'motion-workflow-review-loop-contract';
+  modeLabels: string[];
+  creatorDecisionLabels: string[];
+  reviewArtifactLabels: string[];
+  draftBoardLabels: string[];
+  regenerationActionLabels: string[];
+  routeLabels: string[];
+  expectedReceiptLabels: string[];
+  reviewInstruction: string;
+  fullAutoInstruction: string;
 }
 
 export interface MotionWorkflowLaunchKit {
@@ -187,6 +201,12 @@ export function buildMotionWorkflowSkillDraft(
   });
   const timelineContract = buildTimelineContract(plan, recipe);
   const sourcePackageContract = buildSourcePackageContract(plan);
+  const reviewLoopContract = buildReviewLoopContract({
+    plan,
+    recipe,
+    launchKit,
+    regenerationLabels,
+  });
   const capabilityPlan = buildCapabilityPlan({
     plan,
     recipe,
@@ -210,6 +230,7 @@ export function buildMotionWorkflowSkillDraft(
       sampleCopyLines,
       timelineContract,
       sourcePackageContract,
+      reviewLoopContract,
       launchKit,
       capabilityPlan,
     }),
@@ -237,6 +258,7 @@ export function buildMotionWorkflowSkillDraft(
     sampleCopyLines,
     timelineContract,
     sourcePackageContract,
+    reviewLoopContract,
     launchKit,
     capabilityPlan,
   };
@@ -540,6 +562,69 @@ function sourcePackageSetupCommandLabels(engines: WorkflowEngine[]): string[] {
   ]);
 }
 
+function buildReviewLoopContract({
+  plan,
+  recipe,
+  launchKit,
+  regenerationLabels,
+}: {
+  plan: MotionWorkflowSkillPlanInput;
+  recipe: MotionWorkflowSkillRecipe | null;
+  launchKit: MotionWorkflowLaunchKit;
+  regenerationLabels: string[];
+}): MotionWorkflowReviewLoopContract {
+  const canRunFullAuto = plan.skillContract?.runModes.includes('full-auto') ?? false;
+  const draftBoardLabels = recipe?.draftVariations.map((variation) => variation.label) ?? [];
+  const componentRegenerationLabels = launchKit.reviewObjects
+    .filter((object) => object.kind === 'component-regeneration')
+    .map((object) => object.label);
+  const componentScopeLabels =
+    recipe?.componentSlots.flatMap((slot) =>
+      slot.regenerateScopes.map((scope) => `${slot.label}: ${scope}`)
+    ) ?? [];
+
+  return {
+    kind: 'motion-workflow-review-loop-contract',
+    modeLabels: ['Review gates', ...(canRunFullAuto ? ['Full auto'] : [])],
+    creatorDecisionLabels: uniqueStrings([
+      'Review video plan',
+      ...(draftBoardLabels.length > 0 ? ['Choose draft variation'] : []),
+      ...(componentRegenerationLabels.length > 0 ? ['Regenerate component'] : []),
+      ...(canRunFullAuto ? ['Switch to full auto'] : []),
+      'Render proof',
+      'Export pack',
+    ]),
+    reviewArtifactLabels: launchKit.reviewArtifactLabels,
+    draftBoardLabels,
+    regenerationActionLabels: uniqueStrings([
+      ...componentRegenerationLabels,
+      ...componentScopeLabels,
+      ...regenerationLabels,
+    ]),
+    routeLabels: [
+      '/api/motion/start',
+      '/api/motion/regenerate',
+      '/api/motion/revise',
+      '/api/motion/mode',
+      '/api/motion/agent-handoff',
+      ...(canRunFullAuto ? ['/api/motion/full-auto'] : []),
+    ],
+    expectedReceiptLabels: [
+      'video plan receipt',
+      'draft selection receipt',
+      'regeneration request',
+      'updated preview plan',
+      'mode switch receipt',
+      'render proof receipt',
+      'export pack receipt',
+    ],
+    reviewInstruction:
+      'Show video plan, draft board, regenerate actions, source package, render proof, and export pack before final export.',
+    fullAutoInstruction:
+      'Full auto can continue only through saved gates with receipts for plan, draft choice, regeneration, render proof, and export pack.',
+  };
+}
+
 function buildLaunchKit({
   plan,
   examples,
@@ -796,6 +881,7 @@ function buildSkillInstructions({
   sampleCopyLines,
   timelineContract,
   sourcePackageContract,
+  reviewLoopContract,
   launchKit,
   capabilityPlan,
 }: {
@@ -809,6 +895,7 @@ function buildSkillInstructions({
   sampleCopyLines: string[];
   timelineContract: MotionWorkflowTimelineContract;
   sourcePackageContract: MotionWorkflowSourcePackageContract;
+  reviewLoopContract: MotionWorkflowReviewLoopContract;
   launchKit: MotionWorkflowLaunchKit;
   capabilityPlan: MotionWorkflowCapabilityPlan;
 }): string {
@@ -913,6 +1000,18 @@ function buildSkillInstructions({
     `Receipts: ${formatList(sourcePackageContract.verificationReceiptLabels)}.`,
     `Routes: ${formatList(sourcePackageContract.routeLabels)}.`,
     '',
+    '## Review Loop',
+    '',
+    `Modes: ${formatList(reviewLoopContract.modeLabels)}.`,
+    `Creator decisions: ${formatList(reviewLoopContract.creatorDecisionLabels)}.`,
+    `Show: ${formatList(reviewLoopContract.reviewArtifactLabels)}.`,
+    `Draft board: ${formatList(reviewLoopContract.draftBoardLabels)}.`,
+    `Regenerate actions: ${formatList(reviewLoopContract.regenerationActionLabels)}.`,
+    `Routes: ${formatList(reviewLoopContract.routeLabels)}.`,
+    `Receipts: ${formatList(reviewLoopContract.expectedReceiptLabels)}.`,
+    `Review mode: ${reviewLoopContract.reviewInstruction}`,
+    `Full auto: ${reviewLoopContract.fullAutoInstruction}`,
+    '',
     '## Capability Plan',
     '',
     `Mode: ${capabilityPlan.mode}.`,
@@ -988,6 +1087,15 @@ function buildSkillInstructions({
             setupCommands: sourcePackageContract.setupCommandLabels,
             receipts: sourcePackageContract.verificationReceiptLabels,
             routes: sourcePackageContract.routeLabels,
+          },
+          reviewLoopContract: {
+            modes: reviewLoopContract.modeLabels,
+            creatorDecisions: reviewLoopContract.creatorDecisionLabels,
+            reviewArtifacts: reviewLoopContract.reviewArtifactLabels,
+            draftBoard: reviewLoopContract.draftBoardLabels,
+            regenerationActions: reviewLoopContract.regenerationActionLabels,
+            routes: reviewLoopContract.routeLabels,
+            receipts: reviewLoopContract.expectedReceiptLabels,
           },
           capabilityPlan: {
             mode: capabilityPlan.mode,

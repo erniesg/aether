@@ -440,6 +440,50 @@ describe('motion workflow skill drafts', () => {
         '/api/motion/render',
       ],
     });
+    expect(plan.skillDraft.reviewLoopContract).toMatchObject({
+      kind: 'motion-workflow-review-loop-contract',
+      modeLabels: ['Review gates', 'Full auto'],
+      creatorDecisionLabels: expect.arrayContaining([
+        'Review video plan',
+        'Choose draft variation',
+        'Regenerate component',
+        'Switch to full auto',
+        'Render proof',
+        'Export pack',
+      ]),
+      reviewArtifactLabels: expect.arrayContaining([
+        'Video plan',
+        'Draft variations',
+        'Component plan',
+        'Capture plan',
+        'Render proof',
+      ]),
+      draftBoardLabels: [
+        'Proof-first launch',
+        'Demo-first launch',
+        'Founder-note launch',
+      ],
+      regenerationActionLabels: expect.arrayContaining([
+        'Regenerate App frame',
+        'Regenerate Hook card',
+        'App frame: capture',
+      ]),
+      routeLabels: [
+        '/api/motion/start',
+        '/api/motion/regenerate',
+        '/api/motion/revise',
+        '/api/motion/mode',
+        '/api/motion/agent-handoff',
+        '/api/motion/full-auto',
+      ],
+      expectedReceiptLabels: expect.arrayContaining([
+        'video plan receipt',
+        'draft selection receipt',
+        'regeneration request',
+        'updated preview plan',
+        'render proof receipt',
+      ]),
+    });
     expect(plan.skillDraft.capabilityPlan).toMatchObject({
       kind: 'motion-workflow-capability-plan',
       mode: 'review',
@@ -522,6 +566,15 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('HyperFrames source package');
     expect(plan.skillDraft.manifest.instructions).toContain('Preview source files');
     expect(plan.skillDraft.manifest.instructions).toContain('Runtime mount target');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Review Loop');
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Show video plan, draft board, regenerate actions, source package, render proof, and export pack before final export.'
+    );
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Modes: Review gates, Full auto'
+    );
+    expect(plan.skillDraft.manifest.instructions).toContain('Regenerate App frame');
+    expect(plan.skillDraft.manifest.instructions).toContain('/api/motion/full-auto');
     expect(plan.skillDraft.manifest.instructions).toContain('app captures');
     expect(plan.skillDraft.manifest.instructions).toContain('effect cues');
     expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');

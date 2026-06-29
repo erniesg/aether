@@ -1990,6 +1990,51 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
       '/api/motion/render',
     ],
   },
+  reviewLoopContract: {
+    kind: 'motion-workflow-review-loop-contract',
+    modeLabels: ['Review gates', 'Full auto'],
+    creatorDecisionLabels: [
+      'Review video plan',
+      'Choose draft variation',
+      'Regenerate component',
+      'Switch to full auto',
+      'Render proof',
+      'Export pack',
+    ],
+    reviewArtifactLabels: [
+      'Video plan',
+      'Draft variations',
+      'Component plan',
+      'Capture plan',
+      'Render proof',
+    ],
+    draftBoardLabels: ['Proof-first launch', 'Demo-first launch', 'Founder-note launch'],
+    regenerationActionLabels: [
+      'Regenerate Hook card',
+      'Regenerate App frame',
+      'App frame: capture',
+      'Hook card: copy',
+    ],
+    routeLabels: [
+      '/api/motion/start',
+      '/api/motion/regenerate',
+      '/api/motion/revise',
+      '/api/motion/mode',
+      '/api/motion/agent-handoff',
+      '/api/motion/full-auto',
+    ],
+    expectedReceiptLabels: [
+      'video plan receipt',
+      'draft selection receipt',
+      'regeneration request',
+      'updated preview plan',
+      'render proof receipt',
+    ],
+    reviewInstruction:
+      'Show video plan, draft board, regenerate actions, source package, render proof, and export pack before final export.',
+    fullAutoInstruction:
+      'Full auto can continue only through saved gates with receipts for plan, draft choice, regeneration, render proof, and export pack.',
+  },
   launchKit: {
     kind: 'motion-workflow-launch-kit',
     label: 'Repo launch video launch kit',
@@ -2495,6 +2540,11 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Remotion source package / HyperFrames source package')).toBeInTheDocument();
     expect(screen.getByText('DESIGN.md / SCRIPT.md / STORYBOARD.md')).toBeInTheDocument();
     expect(screen.getByText('Preview source files / Runtime mount target')).toBeInTheDocument();
+    expect(screen.getByText('review loop')).toBeInTheDocument();
+    expect(screen.getAllByText('Review gates / Full auto').length).toBeGreaterThan(0);
+    expect(screen.getByText('Review video plan / Choose draft variation / Regenerate component')).toBeInTheDocument();
+    expect(screen.getAllByText('Regenerate Hook card / Regenerate App frame').length).toBeGreaterThan(0);
+    expect(screen.getByText('/api/motion/mode / /api/motion/full-auto')).toBeInTheDocument();
     expect(screen.getByText('launch kit')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video launch kit')).toBeInTheDocument();
     expect(screen.getByText('source evidence')).toBeInTheDocument();
