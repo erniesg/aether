@@ -87,7 +87,7 @@ export function applyMotionAgentHandoffResult(
     preparedPreviewSource: recordField(
       finalResponse,
       'preparedPreviewSource',
-      current.preparedPreviewSource ?? null
+      recordField(finalResponse, 'previewSource', current.preparedPreviewSource ?? null)
     ),
     capturePlan: recordField(finalResponse, 'capturePlan', current.capturePlan),
     agentHandoff: recordField(finalResponse, 'agentHandoff', current.agentHandoff),

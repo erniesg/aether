@@ -163,6 +163,16 @@ function reviewReadyResult(appName = 'tong'): AgentMotionStartResult {
           inputPlaceholders: ['$motionProject'],
           expectedReceipts: ['voice clips', 'word timings'],
         },
+        {
+          id: 'prepare-preview-source',
+          label: 'Prepare preview source',
+          method: 'POST',
+          route: '/api/motion/preview-source',
+          toolId: 'motion-preview-source',
+          body: {},
+          inputPlaceholders: ['$motionProject'],
+          expectedReceipts: ['preview source files', 'runtime mount target', 'edit contract'],
+        },
       ],
     },
   } as unknown as AgentMotionStartResult;
@@ -565,6 +575,119 @@ describe('MotionSection', () => {
     expect(getMotionStartResult('demo-ws')?.previewPlan).toMatchObject({
       title: 'tong generated visual takes',
     });
+  });
+
+  it('stores preview-source handoff output as editable prepared source state', async () => {
+    const startMotion = vi.fn(async () => reviewReadyResult('tong'));
+    const preparedSource = {
+      id: 'preview-source-motion-tong-launch',
+      projectId: 'motion-tong-launch',
+      draftId: 'draft-primary',
+      engine: 'remotion',
+      runtimeKind: 'remotion-player',
+      label: 'Remotion Player',
+      mountLabel: 'Mount Remotion Player',
+      compositionId: 'motion-tong-launch-draft-primary',
+      entryPoint: 'remotion/index.tsx',
+      durationSeconds: 30,
+      fps: 30,
+      sourceHostRequirement: 'Serve the source bundle to the same-shell preview runtime.',
+      editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
+      runtimeHost: {
+        status: 'source-ready',
+        previewSurface: 'player',
+        dependencyLabels: ['@remotion/player', 'remotion', '@remotion/media'],
+        adapterRequirement:
+          'aether Player adapter mounts timeline/draft-primary.json through @remotion/player.',
+      },
+      sourceHost: {
+        apiRoute: '/api/motion/preview-source',
+        entryPath: 'remotion/index.tsx',
+        timelinePath: 'timeline/draft-primary.json',
+        manifestPath:
+          'renders/motion-tong-launch/render-plan-motion-tong-launch-draft-primary-remotion.source-manifest.json',
+        sourceFileCount: 2,
+      },
+      sourceFiles: [
+        {
+          kind: 'entry',
+          path: 'remotion/index.tsx',
+          mimeType: 'text/typescript',
+          contents: 'registerRoot(RemotionRoot);',
+        },
+        {
+          kind: 'timeline',
+          path: 'timeline/draft-primary.json',
+          mimeType: 'application/json',
+          contents: '{"tracks":[]}',
+        },
+      ],
+    };
+    const runAgentHandoff = vi.fn<
+      (
+        result: AgentMotionStartResult,
+        input: MotionAgentHandoffClientInput,
+        options?: { templateIds?: string[] }
+      ) => Promise<MotionAgentHandoffClientResult>
+    >(async () => ({
+      status: 'complete',
+      projectId: 'motion-tong-launch',
+      finalProject: reviewReadyResult('tong').project,
+      finalResponse: {
+        status: 'ready',
+        previewSource: preparedSource,
+      },
+      steps: [
+        {
+          templateId: 'prepare-preview-source',
+          label: 'Prepare preview source',
+          route: '/api/motion/preview-source',
+          method: 'POST',
+          missingPlaceholders: [],
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: {},
+        },
+      ],
+    }));
+    render(
+      <MotionSection
+        workspaceId="demo-ws"
+        startMotion={startMotion}
+        runAgentHandoff={runAgentHandoff}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /full-auto/i }));
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      '/Users/erniesg/code/erniesg/tong'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    const reviewQueue = await screen.findByRole('region', {
+      name: /motion review queue/i,
+    });
+    await userEvent.click(
+      within(reviewQueue).getByRole('button', {
+        name: /run Prepare preview source agent action/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(getMotionStartResult('demo-ws')?.preparedPreviewSource).toMatchObject({
+        id: 'preview-source-motion-tong-launch',
+        sourceHost: {
+          timelinePath: 'timeline/draft-primary.json',
+          sourceFileCount: 2,
+        },
+      });
+    });
+    expect(runAgentHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({ agentHandoff: expect.any(Object) }),
+      {},
+      { templateIds: ['prepare-preview-source'] }
+    );
   });
 
   it('lets creators trigger scene-level component regeneration from the video plan', async () => {
