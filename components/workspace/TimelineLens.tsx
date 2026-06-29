@@ -2650,6 +2650,25 @@ function MotionWorkflowSkillStrip({
           ))}
         </div>
       ) : null}
+      <div className="mt-2 min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
+        <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+          editable source package
+        </div>
+        <div className="mt-1 truncate font-caption text-xs text-ink">
+          {draft.sourcePackageContract.engineLabels.join(' / ') || 'source package'}
+        </div>
+        <div className="mt-2 grid gap-1 sm:grid-cols-3">
+          <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {draft.sourcePackageContract.editableFileLabels.slice(0, 3).join(' / ')}
+          </div>
+          <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {draft.sourcePackageContract.verificationReceiptLabels.slice(0, 2).join(' / ')}
+          </div>
+          <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {draft.sourcePackageContract.routeLabels.slice(0, 2).join(' / ')}
+          </div>
+        </div>
+      </div>
       {draft.launchKit.reviewObjects.length > 0 ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           {selectLaunchKitReviewObjects(draft.launchKit.reviewObjects).map((object) => (

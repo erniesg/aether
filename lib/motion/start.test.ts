@@ -359,6 +359,7 @@ describe('startAgentMotionWorkflow', () => {
               '/api/motion/sync',
               '/api/motion/revise',
               '/api/motion/preview-source',
+              '/api/motion/source-author',
               '/api/motion/source-edit',
             ],
           }),

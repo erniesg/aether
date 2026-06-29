@@ -1960,6 +1960,36 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
     fullAutoInstruction:
       'Auto-advance only after timeline, sync cues, source edits, render proof, and provenance receipts are saved.',
   },
+  sourcePackageContract: {
+    kind: 'motion-workflow-source-package-contract',
+    engineLabels: ['Remotion source package', 'HyperFrames source package'],
+    editableFileLabels: [
+      'DESIGN.md',
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline JSON',
+      'EDIT.md',
+      'engine entrypoint',
+      'source manifest',
+    ],
+    setupCommandLabels: [
+      'Install Remotion render dependencies',
+      'Check HyperFrames render environment',
+    ],
+    verificationReceiptLabels: [
+      'Preview source files',
+      'Runtime mount target',
+      'Edit contract',
+      'Source package setup',
+      'Render source manifest',
+    ],
+    routeLabels: [
+      '/api/motion/preview-source',
+      '/api/motion/source-author',
+      '/api/motion/source-edit',
+      '/api/motion/render',
+    ],
+  },
   launchKit: {
     kind: 'motion-workflow-launch-kit',
     label: 'Repo launch video launch kit',
@@ -2461,6 +2491,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText('iart motion-design skills')).toBeInTheDocument();
     expect(screen.getByText('npx skills add iart-ai/motion-design-skills')).toBeInTheDocument();
     expect(screen.getByText('seek-shot.sh')).toBeInTheDocument();
+    expect(screen.getByText('editable source package')).toBeInTheDocument();
+    expect(screen.getByText('Remotion source package / HyperFrames source package')).toBeInTheDocument();
+    expect(screen.getByText('DESIGN.md / SCRIPT.md / STORYBOARD.md')).toBeInTheDocument();
+    expect(screen.getByText('Preview source files / Runtime mount target')).toBeInTheDocument();
     expect(screen.getByText('launch kit')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video launch kit')).toBeInTheDocument();
     expect(screen.getByText('source evidence')).toBeInTheDocument();

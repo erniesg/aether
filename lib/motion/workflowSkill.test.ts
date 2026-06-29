@@ -410,6 +410,36 @@ describe('motion workflow skill drafts', () => {
         'Export pack',
       ],
     });
+    expect(plan.skillDraft.sourcePackageContract).toMatchObject({
+      kind: 'motion-workflow-source-package-contract',
+      engineLabels: ['Remotion source package', 'HyperFrames source package'],
+      editableFileLabels: [
+        'DESIGN.md',
+        'SCRIPT.md',
+        'STORYBOARD.md',
+        'timeline JSON',
+        'EDIT.md',
+        'engine entrypoint',
+        'source manifest',
+      ],
+      setupCommandLabels: expect.arrayContaining([
+        'Install Remotion render dependencies',
+        'Check HyperFrames render environment',
+      ]),
+      verificationReceiptLabels: expect.arrayContaining([
+        'Preview source files',
+        'Runtime mount target',
+        'Edit contract',
+        'Source package setup',
+        'Render source manifest',
+      ]),
+      routeLabels: [
+        '/api/motion/preview-source',
+        '/api/motion/source-author',
+        '/api/motion/source-edit',
+        '/api/motion/render',
+      ],
+    });
     expect(plan.skillDraft.capabilityPlan).toMatchObject({
       kind: 'motion-workflow-capability-plan',
       mode: 'review',
@@ -487,6 +517,11 @@ describe('motion workflow skill drafts', () => {
     expect(plan.skillDraft.manifest.instructions).toContain('Review video plan before continuing');
     expect(plan.skillDraft.manifest.instructions).toContain('repoPath');
     expect(plan.skillDraft.manifest.instructions).toContain('Editable objects: story beats, draft variations');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Editable Source Package');
+    expect(plan.skillDraft.manifest.instructions).toContain('Remotion source package');
+    expect(plan.skillDraft.manifest.instructions).toContain('HyperFrames source package');
+    expect(plan.skillDraft.manifest.instructions).toContain('Preview source files');
+    expect(plan.skillDraft.manifest.instructions).toContain('Runtime mount target');
     expect(plan.skillDraft.manifest.instructions).toContain('app captures');
     expect(plan.skillDraft.manifest.instructions).toContain('effect cues');
     expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');

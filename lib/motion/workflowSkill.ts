@@ -59,6 +59,7 @@ export interface MotionWorkflowSkillDraft {
   verificationLabels: string[];
   sampleCopyLines: string[];
   timelineContract: MotionWorkflowTimelineContract;
+  sourcePackageContract: MotionWorkflowSourcePackageContract;
   launchKit: MotionWorkflowLaunchKit;
   capabilityPlan: MotionWorkflowCapabilityPlan;
 }
@@ -74,6 +75,15 @@ export interface MotionWorkflowTimelineContract {
   reviewGateLabels: string[];
   reviewModeInstruction: string;
   fullAutoInstruction: string;
+}
+
+export interface MotionWorkflowSourcePackageContract {
+  kind: 'motion-workflow-source-package-contract';
+  engineLabels: string[];
+  editableFileLabels: string[];
+  setupCommandLabels: string[];
+  verificationReceiptLabels: string[];
+  routeLabels: string[];
 }
 
 export interface MotionWorkflowLaunchKit {
@@ -176,6 +186,7 @@ export function buildMotionWorkflowSkillDraft(
     sampleCopyLines,
   });
   const timelineContract = buildTimelineContract(plan, recipe);
+  const sourcePackageContract = buildSourcePackageContract(plan);
   const capabilityPlan = buildCapabilityPlan({
     plan,
     recipe,
@@ -198,6 +209,7 @@ export function buildMotionWorkflowSkillDraft(
       verificationLabels,
       sampleCopyLines,
       timelineContract,
+      sourcePackageContract,
       launchKit,
       capabilityPlan,
     }),
@@ -224,6 +236,7 @@ export function buildMotionWorkflowSkillDraft(
     verificationLabels,
     sampleCopyLines,
     timelineContract,
+    sourcePackageContract,
     launchKit,
     capabilityPlan,
   };
@@ -474,6 +487,56 @@ function nodeOutputLabelsFor(
   return uniqueStrings([
     ...laneLabels,
     ...plan.runPlan.steps.flatMap((step) => step.expectedArtifacts),
+  ]);
+}
+
+function buildSourcePackageContract(
+  plan: MotionWorkflowSkillPlanInput
+): MotionWorkflowSourcePackageContract {
+  const engineLabels = uniqueStrings(
+    plan.engines.flatMap((engine) => {
+      if (engine === 'remotion') return ['Remotion source package'];
+      if (engine === 'hyperframes') return ['HyperFrames source package'];
+      return [];
+    })
+  );
+
+  return {
+    kind: 'motion-workflow-source-package-contract',
+    engineLabels,
+    editableFileLabels: [
+      'DESIGN.md',
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline JSON',
+      'EDIT.md',
+      'engine entrypoint',
+      'source manifest',
+    ],
+    setupCommandLabels: sourcePackageSetupCommandLabels(plan.engines),
+    verificationReceiptLabels: [
+      'Preview source files',
+      'Runtime mount target',
+      'Edit contract',
+      'Source package setup',
+      'Render source manifest',
+      'Validate Remotion still',
+      'Validate HyperFrames frames',
+      'MP4 artifact check',
+    ],
+    routeLabels: [
+      '/api/motion/preview-source',
+      '/api/motion/source-author',
+      '/api/motion/source-edit',
+      '/api/motion/render',
+    ],
+  };
+}
+
+function sourcePackageSetupCommandLabels(engines: WorkflowEngine[]): string[] {
+  return uniqueStrings([
+    ...(engines.includes('remotion') ? ['Install Remotion render dependencies'] : []),
+    ...(engines.includes('hyperframes') ? ['Check HyperFrames render environment'] : []),
   ]);
 }
 
@@ -732,6 +795,7 @@ function buildSkillInstructions({
   verificationLabels,
   sampleCopyLines,
   timelineContract,
+  sourcePackageContract,
   launchKit,
   capabilityPlan,
 }: {
@@ -744,6 +808,7 @@ function buildSkillInstructions({
   verificationLabels: string[];
   sampleCopyLines: string[];
   timelineContract: MotionWorkflowTimelineContract;
+  sourcePackageContract: MotionWorkflowSourcePackageContract;
   launchKit: MotionWorkflowLaunchKit;
   capabilityPlan: MotionWorkflowCapabilityPlan;
 }): string {
@@ -840,6 +905,14 @@ function buildSkillInstructions({
     `Review mode: ${timelineContract.reviewModeInstruction}`,
     `Full auto: ${timelineContract.fullAutoInstruction}`,
     '',
+    '## Editable Source Package',
+    '',
+    `Engines: ${formatList(sourcePackageContract.engineLabels)}.`,
+    `Editable files: ${formatList(sourcePackageContract.editableFileLabels)}.`,
+    `Setup commands: ${formatList(sourcePackageContract.setupCommandLabels)}.`,
+    `Receipts: ${formatList(sourcePackageContract.verificationReceiptLabels)}.`,
+    `Routes: ${formatList(sourcePackageContract.routeLabels)}.`,
+    '',
     '## Capability Plan',
     '',
     `Mode: ${capabilityPlan.mode}.`,
@@ -908,6 +981,13 @@ function buildSkillInstructions({
             primitive: timelineContract.primitive,
             syncCues: timelineContract.syncCueLabels,
             editableObjects: timelineContract.editableObjectLabels,
+          },
+          sourcePackageContract: {
+            engines: sourcePackageContract.engineLabels,
+            editableFiles: sourcePackageContract.editableFileLabels,
+            setupCommands: sourcePackageContract.setupCommandLabels,
+            receipts: sourcePackageContract.verificationReceiptLabels,
+            routes: sourcePackageContract.routeLabels,
           },
           capabilityPlan: {
             mode: capabilityPlan.mode,
