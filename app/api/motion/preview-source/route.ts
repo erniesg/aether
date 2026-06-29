@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { MotionProject } from '@/lib/motion/project';
+import { appendPreparedPreviewSourceExecutionHistory } from '@/lib/motion/executionHistory';
 import {
   buildMotionPreviewPlan,
   summarizeMotionRenderSourcePackageFromSourceFiles,
 } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
+import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
 import { buildMotionRenderRequest } from '@/lib/motion/renderExecution';
 import { buildMotionRenderPlan } from '@/lib/motion/renderPlan';
 import type {
@@ -87,45 +89,59 @@ export async function POST(request: Request): Promise<Response> {
   const timelineFile = findSourceFile(sourceFiles, 'timeline');
   const manifestFile = findSourceFile(sourceFiles, 'manifest');
   const sourcePackage = summarizeMotionRenderSourcePackageFromSourceFiles(sourceFiles);
+  const previewSource: MotionPreparedPreviewSource = {
+    id: `preview-source-${requestForSource.id}`,
+    projectId: project.id,
+    draftId: requestForSource.draftId,
+    engine,
+    runtimeKind:
+      runtimePreview?.kind ?? (engine === 'remotion' ? 'remotion-player' : 'hyperframes-iframe'),
+    label: runtimePreview?.label ?? (engine === 'remotion' ? 'Remotion Player' : 'HyperFrames iframe'),
+    mountLabel:
+      runtimePreview?.mountLabel ??
+      (engine === 'remotion' ? 'Mount Remotion Player' : 'Mount HyperFrames iframe'),
+    compositionId: requestForSource.compositionId,
+    entryPoint: entryFile?.path ?? (engine === 'remotion' ? 'remotion/index.tsx' : 'index.html'),
+    durationSeconds: requestForSource.durationFrames / requestForSource.fps,
+    fps: requestForSource.fps,
+    sourceHostRequirement:
+      runtimePreview?.sourceHostRequirement ??
+      'Serve the source bundle to the same-shell preview runtime.',
+    editLinkLabels: runtimePreview?.editLinkLabels ?? [],
+    runtimeHost: buildRuntimeHost(engine),
+    sourcePackage,
+    sourceHost: {
+      apiRoute: '/api/motion/preview-source',
+      entryPath: entryFile?.path ?? null,
+      timelinePath: timelineFile?.path ?? null,
+      manifestPath: manifestFile?.path ?? null,
+      sourceFileCount: sourceFiles.length,
+    },
+    sourceFiles,
+  };
+  const projectWithExecutionHistory: MotionProject = {
+    ...project,
+    executionHistory: appendPreparedPreviewSourceExecutionHistory(
+      project.executionHistory,
+      previewSource,
+      requestedAt
+    ),
+    updatedAt: requestedAt,
+  };
 
   return NextResponse.json({
     ok: true,
     status: 'ready',
-    project,
+    project: projectWithExecutionHistory,
     plan,
     request: requestForSource,
-    previewSource: {
-      id: `preview-source-${requestForSource.id}`,
-      projectId: project.id,
-      draftId: requestForSource.draftId,
-      engine,
-      runtimeKind:
-        runtimePreview?.kind ?? (engine === 'remotion' ? 'remotion-player' : 'hyperframes-iframe'),
-      label: runtimePreview?.label ?? (engine === 'remotion' ? 'Remotion Player' : 'HyperFrames iframe'),
-      mountLabel:
-        runtimePreview?.mountLabel ??
-        (engine === 'remotion' ? 'Mount Remotion Player' : 'Mount HyperFrames iframe'),
-      compositionId: requestForSource.compositionId,
-      entryPoint: entryFile?.path ?? (engine === 'remotion' ? 'remotion/index.tsx' : 'index.html'),
-      durationSeconds: requestForSource.durationFrames / requestForSource.fps,
-      fps: requestForSource.fps,
-      sourceHostRequirement:
-        runtimePreview?.sourceHostRequirement ??
-        'Serve the source bundle to the same-shell preview runtime.',
-      editLinkLabels: runtimePreview?.editLinkLabels ?? [],
-      runtimeHost: buildRuntimeHost(engine),
-      sourcePackage,
-      sourceHost: {
-        apiRoute: '/api/motion/preview-source',
-        entryPath: entryFile?.path ?? null,
-        timelinePath: timelineFile?.path ?? null,
-        manifestPath: manifestFile?.path ?? null,
-        sourceFileCount: sourceFiles.length,
-      },
-      sourceFiles,
-    },
-    reviewPlan: buildMotionReviewPlan(project),
-    previewPlan,
+    previewSource,
+    reviewPlan: buildMotionReviewPlan(projectWithExecutionHistory),
+    previewPlan: buildMotionPreviewPlan(projectWithExecutionHistory, {
+      engines: [engine],
+      fps,
+      requestedAt,
+    }),
   });
 }
 

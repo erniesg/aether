@@ -1,5 +1,9 @@
 import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
-import type { AgentMotionStartResult } from './start';
+import type { AgentMotionStartResult, MotionPreparedPreviewSource } from './start';
+import {
+  appendPreparedPreviewSourceExecutionHistory,
+  hasPreparedPreviewSourceExecutionHistory,
+} from './executionHistory';
 
 export interface MotionAgentHandoffClientStep {
   templateId: string;
@@ -72,25 +76,55 @@ export function motionAgentHandoffInputFromPrefs(
 
 export function applyMotionAgentHandoffResult(
   current: AgentMotionStartResult,
-  handoffResult: MotionAgentHandoffClientResult
+  handoffResult: MotionAgentHandoffClientResult,
+  options: { savedAt?: number } = {}
 ): AgentMotionStartResult {
   const finalResponse = handoffResult.finalResponse ?? {};
+  const preparedPreviewSourceFromResponse =
+    recordField<MotionPreparedPreviewSource | null>(finalResponse, 'preparedPreviewSource', null) ??
+    recordField<MotionPreparedPreviewSource | null>(finalResponse, 'previewSource', null);
+  const preparedPreviewSource =
+    preparedPreviewSourceFromResponse ?? current.preparedPreviewSource ?? null;
   const finalProject = isRecord(handoffResult.finalProject)
     ? (handoffResult.finalProject as unknown as AgentMotionStartResult['project'])
     : recordField(finalResponse, 'project', current.project);
+  const projectWithPreparedSourceReceipt =
+    finalProject && preparedPreviewSourceFromResponse
+      ? projectWithPreparedPreviewSourceReceipt(
+          finalProject,
+          preparedPreviewSourceFromResponse,
+          options.savedAt ?? Date.now()
+        )
+      : finalProject;
 
   return {
     ...current,
-    project: finalProject ?? current.project,
+    project: projectWithPreparedSourceReceipt ?? current.project,
     reviewPlan: recordField(finalResponse, 'reviewPlan', current.reviewPlan),
     previewPlan: recordField(finalResponse, 'previewPlan', current.previewPlan),
-    preparedPreviewSource: recordField(
-      finalResponse,
-      'preparedPreviewSource',
-      recordField(finalResponse, 'previewSource', current.preparedPreviewSource ?? null)
-    ),
+    preparedPreviewSource,
     capturePlan: recordField(finalResponse, 'capturePlan', current.capturePlan),
     agentHandoff: recordField(finalResponse, 'agentHandoff', current.agentHandoff),
+  };
+}
+
+function projectWithPreparedPreviewSourceReceipt(
+  project: NonNullable<AgentMotionStartResult['project']>,
+  source: MotionPreparedPreviewSource,
+  savedAt: number
+): NonNullable<AgentMotionStartResult['project']> {
+  if (hasPreparedPreviewSourceExecutionHistory(project.executionHistory, source)) {
+    return project;
+  }
+
+  return {
+    ...project,
+    executionHistory: appendPreparedPreviewSourceExecutionHistory(
+      project.executionHistory,
+      source,
+      savedAt
+    ),
+    updatedAt: savedAt,
   };
 }
 

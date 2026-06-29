@@ -99,8 +99,41 @@ describe('POST /api/motion/preview-source', () => {
             },
           },
         ],
+        executionHistory: {
+          savedStepCount: 1,
+          receiptCount: 4,
+          latestReceiptLabels: [
+            'Preview source files',
+            'Runtime mount target',
+            'Edit contract',
+            'Source package setup',
+          ],
+        },
       },
     });
+    expect(json.project.executionHistory).toContainEqual(
+      expect.objectContaining({
+        id: 'execution-preview-source-preview-source-render-plan-motion-aether-launch-draft-primary-remotion',
+        gateId: 'render',
+        label: 'Preview source package',
+        receiptLabels: [
+          'Preview source files',
+          'Runtime mount target',
+          'Edit contract',
+          'Source package setup',
+        ],
+        receipts: expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Preview source files',
+            path: 'remotion/index.tsx',
+          }),
+          expect.objectContaining({
+            label: 'Source package setup',
+            path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json',
+          }),
+        ]),
+      })
+    );
     expect(json.previewSource.editLinkLabels).toEqual([
       'component props',
       'timeline JSON',

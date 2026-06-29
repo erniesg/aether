@@ -15,6 +15,7 @@ import type {
   MotionExecutionReceipt,
   MotionProvenanceRef,
 } from './project';
+import type { MotionPreparedPreviewSource } from './start';
 import type { MotionExportPackPlan } from './exportPackPlan';
 import type { MotionInteractiveExportPlan } from './interactiveExportPlan';
 import type {
@@ -132,6 +133,40 @@ export function appendRenderPackageExecutionHistory(
       { kind: 'render', ref: `${request.id}:source-package` },
     ]),
   });
+}
+
+export function appendPreparedPreviewSourceExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  source: MotionPreparedPreviewSource,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const receipts = preparedPreviewSourceReceipts(source);
+  const providerId = preparedPreviewSourceProviderId(source);
+
+  return appendExecutionEntry(history, {
+    id: preparedPreviewSourceExecutionEntryId(source),
+    gateId: 'render',
+    label: 'Preview source package',
+    providerId,
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      { kind: 'render', ref: source.id },
+      { kind: 'render', ref: source.compositionId },
+      { kind: 'timeline', ref: source.draftId },
+      { kind: 'manual', ref: `preview-source:${source.runtimeKind}` },
+    ]),
+  });
+}
+
+export function hasPreparedPreviewSourceExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  source: MotionPreparedPreviewSource
+): boolean {
+  const entryId = preparedPreviewSourceExecutionEntryId(source);
+  return history?.some((entry) => entry.id === entryId) ?? false;
 }
 
 export function appendImageToVideoExecutionHistory(
@@ -799,6 +834,71 @@ function renderPackageReceipts(
     ),
     ...artifactCheckReceipts(providerId, request.id, manifest.execution.artifactChecks),
   ];
+}
+
+function preparedPreviewSourceExecutionEntryId(source: MotionPreparedPreviewSource): string {
+  return `execution-preview-source-${slugifyId(source.id)}`;
+}
+
+function preparedPreviewSourceProviderId(source: MotionPreparedPreviewSource): string {
+  return `${source.engine}-preview-source`;
+}
+
+function preparedPreviewSourceReceipts(
+  source: MotionPreparedPreviewSource
+): MotionExecutionReceipt[] {
+  const providerId = preparedPreviewSourceProviderId(source);
+  const entryFile = source.sourceFiles.find(
+    (file) => file.path === source.sourceHost.entryPath || file.path === source.entryPoint
+  );
+  const editFile = source.sourceFiles.find((file) => file.path === 'EDIT.md');
+  const manifestFile = source.sourceFiles.find(
+    (file) => file.path === source.sourceHost.manifestPath
+  );
+  const receiptId = slugifyId(source.id);
+  const receipts: MotionExecutionReceipt[] = [
+    {
+      id: `receipt-preview-source-${receiptId}-source-files`,
+      kind: 'render',
+      label: 'Preview source files',
+      ref: `${source.id}:source-files`,
+      providerId,
+      path: entryFile?.path ?? source.sourceHost.entryPath ?? source.entryPoint,
+      mimeType: entryFile?.mimeType,
+    },
+    {
+      id: `receipt-preview-source-${receiptId}-runtime-mount-target`,
+      kind: 'render',
+      label: 'Runtime mount target',
+      ref: `${source.id}:runtime:${source.runtimeKind}`,
+      providerId,
+      path: source.sourceHost.timelinePath ?? undefined,
+      mimeType: source.sourceHost.timelinePath ? 'application/json' : undefined,
+    },
+    {
+      id: `receipt-preview-source-${receiptId}-edit-contract`,
+      kind: 'render',
+      label: 'Edit contract',
+      ref: `${source.id}:edit-contract`,
+      providerId,
+      path: editFile?.path,
+      mimeType: editFile?.mimeType,
+    },
+  ];
+
+  if (source.sourcePackage) {
+    receipts.push({
+      id: `receipt-preview-source-${receiptId}-source-package-setup`,
+      kind: 'render',
+      label: 'Source package setup',
+      ref: `${source.id}:source-package`,
+      providerId,
+      path: manifestFile?.path ?? source.sourceHost.manifestPath ?? undefined,
+      mimeType: manifestFile?.mimeType ?? (source.sourceHost.manifestPath ? 'application/json' : undefined),
+    });
+  }
+
+  return receipts;
 }
 
 function parseRenderPackageManifest(contents: string): RenderPackageManifest | null {
