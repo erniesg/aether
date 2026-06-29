@@ -484,6 +484,40 @@ describe('motion workflow skill drafts', () => {
         'render proof receipt',
       ]),
     });
+    expect(plan.skillDraft.captureContract).toMatchObject({
+      kind: 'motion-workflow-capture-contract',
+      required: true,
+      targetLabels: [
+        'repoPath local app',
+        'repoUrl hosted app',
+        'siteUrl route',
+        'uploaded capture',
+      ],
+      captureModeLabels: [
+        'screenshot',
+        'DOM snapshot',
+        'interaction trace',
+        'screen recording',
+      ],
+      toolLabels: [
+        'app launch',
+        'browser capture',
+        'screen recording',
+        'computer-use fallback',
+      ],
+      routeLabels: [
+        '/api/motion/capture',
+        '/api/motion/regenerate',
+        '/api/motion/agent-handoff',
+      ],
+      receiptLabels: expect.arrayContaining([
+        'capture receipt',
+        'viewport receipt',
+        'cursor target receipt',
+        'app launch readiness',
+        'redaction receipt',
+      ]),
+    });
     expect(plan.skillDraft.capabilityPlan).toMatchObject({
       kind: 'motion-workflow-capability-plan',
       mode: 'review',
@@ -575,6 +609,15 @@ describe('motion workflow skill drafts', () => {
     );
     expect(plan.skillDraft.manifest.instructions).toContain('Regenerate App frame');
     expect(plan.skillDraft.manifest.instructions).toContain('/api/motion/full-auto');
+    expect(plan.skillDraft.manifest.instructions).toContain('## Capture Contract');
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Preferred path: Launch local or hosted app, capture browser stills and DOM, record only if the video needs product motion, then fall back to computer-use with creator approval.'
+    );
+    expect(plan.skillDraft.manifest.instructions).toContain(
+      'Tools: app launch, browser capture, screen recording, computer-use fallback'
+    );
+    expect(plan.skillDraft.manifest.instructions).toContain('app launch readiness');
+    expect(plan.skillDraft.manifest.instructions).toContain('redaction receipt');
     expect(plan.skillDraft.manifest.instructions).toContain('app captures');
     expect(plan.skillDraft.manifest.instructions).toContain('effect cues');
     expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');

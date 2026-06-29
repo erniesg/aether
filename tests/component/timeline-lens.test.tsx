@@ -2035,6 +2035,29 @@ const workflowSkillDraft: MotionWorkflowSkillDraft = {
     fullAutoInstruction:
       'Full auto can continue only through saved gates with receipts for plan, draft choice, regeneration, render proof, and export pack.',
   },
+  captureContract: {
+    kind: 'motion-workflow-capture-contract',
+    required: true,
+    targetLabels: ['repoPath local app', 'repoUrl hosted app', 'siteUrl route', 'uploaded capture'],
+    captureModeLabels: ['screenshot', 'DOM snapshot', 'interaction trace', 'screen recording'],
+    toolLabels: ['app launch', 'browser capture', 'screen recording', 'computer-use fallback'],
+    routeLabels: [
+      '/api/motion/capture',
+      '/api/motion/regenerate',
+      '/api/motion/agent-handoff',
+    ],
+    receiptLabels: [
+      'capture receipt',
+      'viewport receipt',
+      'cursor target receipt',
+      'app launch readiness',
+      'redaction receipt',
+    ],
+    preferredPathInstruction:
+      'Launch local or hosted app, capture browser stills and DOM, record only if the video needs product motion, then fall back to computer-use with creator approval.',
+    fallbackInstruction:
+      'Use computer-use only for authenticated, native, simulator, or gesture-heavy app states; stop on login, payment, personal data, or secret fields.',
+  },
   launchKit: {
     kind: 'motion-workflow-launch-kit',
     label: 'Repo launch video launch kit',
@@ -2545,6 +2568,10 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Review video plan / Choose draft variation / Regenerate component')).toBeInTheDocument();
     expect(screen.getAllByText('Regenerate Hook card / Regenerate App frame').length).toBeGreaterThan(0);
     expect(screen.getByText('/api/motion/mode / /api/motion/full-auto')).toBeInTheDocument();
+    expect(screen.getByText('capture contract')).toBeInTheDocument();
+    expect(screen.getByText('app launch / browser capture / screen recording')).toBeInTheDocument();
+    expect(screen.getByText('screenshot / DOM snapshot / interaction trace')).toBeInTheDocument();
+    expect(screen.getByText('capture receipt / viewport receipt')).toBeInTheDocument();
     expect(screen.getByText('launch kit')).toBeInTheDocument();
     expect(screen.getByText('Repo launch video launch kit')).toBeInTheDocument();
     expect(screen.getByText('source evidence')).toBeInTheDocument();

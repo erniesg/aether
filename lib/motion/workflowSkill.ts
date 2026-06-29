@@ -61,6 +61,7 @@ export interface MotionWorkflowSkillDraft {
   timelineContract: MotionWorkflowTimelineContract;
   sourcePackageContract: MotionWorkflowSourcePackageContract;
   reviewLoopContract: MotionWorkflowReviewLoopContract;
+  captureContract: MotionWorkflowCaptureContract;
   launchKit: MotionWorkflowLaunchKit;
   capabilityPlan: MotionWorkflowCapabilityPlan;
 }
@@ -98,6 +99,18 @@ export interface MotionWorkflowReviewLoopContract {
   expectedReceiptLabels: string[];
   reviewInstruction: string;
   fullAutoInstruction: string;
+}
+
+export interface MotionWorkflowCaptureContract {
+  kind: 'motion-workflow-capture-contract';
+  required: boolean;
+  targetLabels: string[];
+  captureModeLabels: string[];
+  toolLabels: string[];
+  routeLabels: string[];
+  receiptLabels: string[];
+  preferredPathInstruction: string;
+  fallbackInstruction: string;
 }
 
 export interface MotionWorkflowLaunchKit {
@@ -207,6 +220,7 @@ export function buildMotionWorkflowSkillDraft(
     launchKit,
     regenerationLabels,
   });
+  const captureContract = buildCaptureContract(plan, recipe);
   const capabilityPlan = buildCapabilityPlan({
     plan,
     recipe,
@@ -231,6 +245,7 @@ export function buildMotionWorkflowSkillDraft(
       timelineContract,
       sourcePackageContract,
       reviewLoopContract,
+      captureContract,
       launchKit,
       capabilityPlan,
     }),
@@ -259,6 +274,7 @@ export function buildMotionWorkflowSkillDraft(
     timelineContract,
     sourcePackageContract,
     reviewLoopContract,
+    captureContract,
     launchKit,
     capabilityPlan,
   };
@@ -625,6 +641,54 @@ function buildReviewLoopContract({
   };
 }
 
+function buildCaptureContract(
+  plan: MotionWorkflowSkillPlanInput,
+  recipe: MotionWorkflowSkillRecipe | null
+): MotionWorkflowCaptureContract {
+  const hasCaptureStep = plan.runPlan.steps.some((step) => step.gateId === 'capture');
+  const hasCaptureLane = recipe?.generationLanes.includes('capture') ?? false;
+  const hasRepoSource = plan.supportedSourceKinds.includes('repo');
+  const hasSiteSource = plan.supportedSourceKinds.includes('site');
+  const hasUploadSource = plan.supportedSourceKinds.includes('upload');
+
+  return {
+    kind: 'motion-workflow-capture-contract',
+    required: hasCaptureStep || hasCaptureLane,
+    targetLabels: uniqueStrings([
+      ...(hasRepoSource ? ['repoPath local app', 'repoUrl hosted app'] : []),
+      ...(hasSiteSource ? ['siteUrl route'] : []),
+      ...(hasUploadSource ? ['uploaded capture'] : []),
+      ...(hasCaptureStep || hasCaptureLane ? ['uploaded capture'] : []),
+    ]),
+    captureModeLabels: ['screenshot', 'DOM snapshot', 'interaction trace', 'screen recording'],
+    toolLabels: [
+      'app launch',
+      'browser capture',
+      'screen recording',
+      'computer-use fallback',
+    ],
+    routeLabels: [
+      '/api/motion/capture',
+      '/api/motion/regenerate',
+      '/api/motion/agent-handoff',
+    ],
+    receiptLabels: [
+      'capture receipt',
+      'viewport receipt',
+      'cursor target receipt',
+      'app launch readiness',
+      'DOM snapshot receipt',
+      'interaction trace receipt',
+      'recording receipt',
+      'redaction receipt',
+    ],
+    preferredPathInstruction:
+      'Launch local or hosted app, capture browser stills and DOM, record only if the video needs product motion, then fall back to computer-use with creator approval.',
+    fallbackInstruction:
+      'Use computer-use only for authenticated, native, simulator, or gesture-heavy app states; stop on login, payment, personal data, or secret fields.',
+  };
+}
+
 function buildLaunchKit({
   plan,
   examples,
@@ -882,6 +946,7 @@ function buildSkillInstructions({
   timelineContract,
   sourcePackageContract,
   reviewLoopContract,
+  captureContract,
   launchKit,
   capabilityPlan,
 }: {
@@ -896,6 +961,7 @@ function buildSkillInstructions({
   timelineContract: MotionWorkflowTimelineContract;
   sourcePackageContract: MotionWorkflowSourcePackageContract;
   reviewLoopContract: MotionWorkflowReviewLoopContract;
+  captureContract: MotionWorkflowCaptureContract;
   launchKit: MotionWorkflowLaunchKit;
   capabilityPlan: MotionWorkflowCapabilityPlan;
 }): string {
@@ -1012,6 +1078,15 @@ function buildSkillInstructions({
     `Review mode: ${reviewLoopContract.reviewInstruction}`,
     `Full auto: ${reviewLoopContract.fullAutoInstruction}`,
     '',
+    captureContract.required ? '## Capture Contract' : '',
+    captureContract.required ? `Targets: ${formatList(captureContract.targetLabels)}.` : '',
+    captureContract.required ? `Modes: ${formatList(captureContract.captureModeLabels)}.` : '',
+    captureContract.required ? `Tools: ${formatList(captureContract.toolLabels)}.` : '',
+    captureContract.required ? `Routes: ${formatList(captureContract.routeLabels)}.` : '',
+    captureContract.required ? `Receipts: ${formatList(captureContract.receiptLabels)}.` : '',
+    captureContract.required ? `Preferred path: ${captureContract.preferredPathInstruction}` : '',
+    captureContract.required ? `Fallback: ${captureContract.fallbackInstruction}` : '',
+    captureContract.required ? '' : '',
     '## Capability Plan',
     '',
     `Mode: ${capabilityPlan.mode}.`,
@@ -1096,6 +1171,14 @@ function buildSkillInstructions({
             regenerationActions: reviewLoopContract.regenerationActionLabels,
             routes: reviewLoopContract.routeLabels,
             receipts: reviewLoopContract.expectedReceiptLabels,
+          },
+          captureContract: {
+            required: captureContract.required,
+            targets: captureContract.targetLabels,
+            modes: captureContract.captureModeLabels,
+            tools: captureContract.toolLabels,
+            routes: captureContract.routeLabels,
+            receipts: captureContract.receiptLabels,
           },
           capabilityPlan: {
             mode: capabilityPlan.mode,
