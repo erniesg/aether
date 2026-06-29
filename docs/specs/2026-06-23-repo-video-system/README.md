@@ -117,6 +117,47 @@ component ids, review/full-auto behavior, and provider seams.
   The next work is richer source edits and replacement actions, not creating a
   separate preview product.
 
+## Reference refresh: 2026-06-29
+
+- [`iart-ai/motion-skills`](https://github.com/iart-ai/motion-skills) is a useful
+  contract model, not just a taste source: workflow-specific `SKILL.md` folders,
+  installable packs, and visual artifact verification loops. Aether should keep
+  every motion workflow pin-able as a reusable skill with render proof, contact
+  sheet, MP4 probe, and source-edit receipts.
+- [Remotion](https://www.remotion.dev/) and
+  [`@remotion/player`](https://www.remotion.dev/docs/player) confirm that the
+  in-app preview should stay parameterized and editable. Remotion is the React
+  player/render adapter over `MotionProject`; it is not a separate project mode.
+- [Anthropic computer use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool)
+  confirms why the capture lane must remain guarded: screenshots, mouse,
+  keyboard, and desktop automation are useful for app videos, but require
+  explicit scope, redaction, stop conditions, and review receipts before
+  full-auto continues.
+- [Screen Studio](https://screen.studio/) and its
+  [auto zoom guide](https://screen.studio/guide/auto-zoom) reinforce that
+  screen recordings need editable cursor, zoom, crop, click-focus, vertical
+  export, and caption/subtitle surfaces, not just a raw recording attachment.
+- [Clueso](https://www.clueso.io/) and its
+  [YC launch](https://www.ycombinator.com/launches/Ovz-clueso-product-videos-in-minutes-with-ai)
+  reinforce the full workflow shape: rough screen recording -> AI script ->
+  voiceover -> captions/effects/transitions/branding -> creator editing control
+  -> multilingual or multi-format exports.
+- [Arcade](https://www.arcade.software/) and its
+  [hotspot/callout docs](https://docs.arcade.software/kb/build/interactive-demo/edit/hotspots-callouts-and-spotlights)
+  add the interactive-demo compatibility requirement: hotspots, callouts,
+  branches, chapters, links, and analytics should be stored as node/timeline
+  metadata now, even when the first export is a flat MP4.
+- [Descript](https://www.descript.com/) adds the transcript/script editing
+  requirement: script, B-roll, generated video, captions, layout, transitions,
+  and speech regeneration need to remain source-backed so one line edit can
+  update voice, captions, timing, and visual inserts.
+- The latest implementation checkpoints now cover two of the earlier gaps:
+  `replace-clip-asset` lets an agent replace an `app-frame` capture with source
+  URL, crop, zoom, cursor path, and capture metadata while keeping top-level
+  clip assets aligned for image-to-video and render; `previewPlan.modeControl`
+  now exposes review gates and full-auto as explicit creator choices in the
+  timeline lens.
+
 ## Architecture decision
 
 Aether should ship workflow skills, not one giant "video generator." The unit
@@ -148,28 +189,37 @@ capture, render, and provenance debugging.
 
 ## Remaining implementation plan
 
-1. **Expose edit contracts in review mode.** Surface the new `EDIT.md` and
-   `editContract` in `MotionPreviewPlan` and the timeline lens as an "edit
-   source" artifact: script changes, component props, timing/effects, and
-   regenerate scopes per clip.
-2. **Add workflow-skill launch packaging.** Let `pr-to-video` and future daily
+1. **Make mode-control choices executable.** `previewPlan.modeControl` now shows
+   review gates vs full-auto and carries start-route templates. The next slice
+   should materialize those templates from the current project/source refs or
+   add a same-project mode-switch route, then refresh review, preview,
+   handoff, and production plans without losing selected providers or receipts.
+2. **Expand source-backed edit depth.** Capture replacement exists for
+   `app-frame` sources. Add crop/zoom keyframe editing, cursor path editing,
+   caption line replacement, effect changes, and script/storyboard edits through
+   the same structured revision/source-edit path.
+3. **Add workflow-skill launch packaging.** Let `pr-to-video` and future daily
    skill drops produce a reviewable launch-kit object: sample social copy,
    install command, teaser format, source PR evidence, and export targets.
-3. **Map HyperFrames catalog primitives.** Extend `componentRegistry` and
+4. **Map HyperFrames catalog primitives.** Extend `componentRegistry` and
    reference patterns for code animation, terminal, caption, social overlay,
    shader transition, device/UI reveal, data visual, and logo/outro classes.
    Keep the ids provider-neutral and let engine adapters decide exact source.
-4. **Add source-bundle import/export.** Allow an agent to round-trip a rendered
+5. **Add source-bundle import/export.** Allow an agent to round-trip a rendered
    source bundle: edit `SCRIPT.md`, `STORYBOARD.md`, timeline JSON, or
    `EDIT.md`, then apply structured revisions back into `MotionProject`.
-5. **Provider-backed capture execution.** Wire opt-in Playwright/browser
+6. **Provider-backed capture execution.** Wire opt-in Playwright/browser
    capture through a trusted agent runner so repo/app starts can launch local
    apps, take screenshots, record flows, save DOM/trace receipts, and feed
    `app-frame` clips.
-6. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
+7. **Interactive-demo metadata.** Add provider-neutral hotspot, callout, branch,
+   chapter, link, and analytics marker primitives so Arcade-style interactive
+   demos can share the same video plan/timeline before an interactive export
+   exists.
+8. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
    metadata, poster proof, subtitles, transcripts, and manifest checks as first
    class graph nodes before export.
-7. **Full-auto orchestration.** Add a saved run executor that advances through
+9. **Full-auto orchestration.** Add a saved run executor that advances through
    ready gates, pauses on missing provider/capture/approval, and writes every
    artifact receipt back to the same project instead of returning a transient
    route response.
@@ -239,6 +289,14 @@ capture, render, and provenance debugging.
   Component regeneration actions are now also agent handoff templates, so the
   same boundary can stage scoped capture, caption, timing, effect, proof, code,
   or copy revisions from the reviewable draft board.
+- `lib/motion/previewPlan.ts` now exposes `modeControl`, a creator-facing
+  review/full-auto choice object with current mode, option status, expected
+  receipts, and action templates. `components/workspace/TimelineLens.tsx`
+  renders this as a compact workflow-mode strip inside the same preview shell.
+- `lib/motion/revise.ts` now supports typed capture-source replacement through
+  `replace-clip-asset`, keeping clip-level `assetId` and editable component
+  props aligned for downstream image-to-video and render. `app-frame` controls
+  now include capture URL, crop, zoom, and cursor path.
 - `lib/motion/productionPlan.ts` now derives a concrete production queue from an
   editable motion project: plan, drafts, capture, image-to-video, voice, sync,
   render, and export steps are marked complete, ready, blocked, review, or

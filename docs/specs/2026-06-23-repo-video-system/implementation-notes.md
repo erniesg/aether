@@ -38,6 +38,11 @@
 - Selected timeline clips can now be edited for copy, reusable effect preset,
   start time, and duration; timing edits reuse the same typed revision endpoint
   and preserve server-side overlap validation.
+- App-frame capture sources can now be replaced through a typed
+  `replace-clip-asset` revision. The edit updates the top-level clip asset and
+  source props together, preserving source URL, crop, zoom, cursor path, capture
+  artifact kind, MIME type, and source asset linkage for image-to-video and
+  render.
 - Preview plans now include a creator-facing visual generation summary for
   image-to-video: ready clip requests show component, prompt, duration, and
   output shape, while missing key visuals appear as reviewable blockers.
@@ -53,6 +58,10 @@
   lens can show review/full-auto next actions, ready work, blockers, and
   optional image-to-video generation without turning the surface into a route
   log.
+- Preview plans now include a workflow-mode control object. The timeline lens
+  presents review gates and full-auto as explicit creator choices with expected
+  receipts and action templates, keeping mode selection in the same synthesis
+  shell rather than a separate route console.
 - Motion rail video starter for repo, PR, site URL, or local path sources with
   review/full-auto mode and target presets for X vertical, LinkedIn feed,
   website demo, and multi-format launch packs.

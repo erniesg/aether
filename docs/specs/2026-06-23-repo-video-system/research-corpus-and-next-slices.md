@@ -72,6 +72,30 @@ video, and Anthropic-style guarded computer-use capture. All three are marked
 with conservative review statuses until actual public playback or authenticated
 X/video review supplies timestamp-verified cuts.
 
+## Reference refresh: 2026-06-29
+
+- The external workflow shape is stable enough for the next engineering slices:
+  `iart-ai/motion-skills` validates installable workflow packs and render-proof
+  loops; Remotion validates same-shell React preview/player integration;
+  HyperFrames validates deterministic HTML/source bundles; Claude computer use
+  validates guarded capture; Screen Studio validates editable zoom/cursor/crop
+  tracks; Clueso validates AI script/voice/caption/effect/edit workflows;
+  Arcade validates interactive demo metadata; Descript validates transcript and
+  source-backed edit regeneration.
+- The key product model is now "one editable motion object, many execution
+  policies." Review and full-auto should not fork project shape. They differ
+  only in gate policy, receipt requirements, and whether ready steps advance
+  automatically.
+- `previewPlan.modeControl` is the first slice of that model. It exposes review
+  gates and full-auto as creator-facing choices with expected receipts and
+  action templates. The next implementation must make those templates executable
+  from current project state instead of only descriptive.
+- Capture-source editing is no longer purely future work. `app-frame` clips now
+  expose asset URL, crop, zoom, and cursor path controls, and
+  `replace-clip-asset` keeps top-level clip assets synced with editable props.
+  Remaining capture-edit work should focus on keyframes, cursor path editing,
+  and multi-source source-bundle round trips.
+
 ## Component taxonomy to support
 
 The current registry already covers many launch and PR primitives. The research
@@ -116,6 +140,9 @@ Aether now has the right backbone:
   source-backed playable preview controls, component focus, setup cards,
   advanced generation node lens, component controls, scoped regeneration,
   drop-to-canvas actions, and full-auto action wiring.
+- The timeline lens now also shows explicit workflow-mode choices: review gates
+  and full-auto are presented as creator-facing options with expected receipts
+  and `/api/motion/start` action templates.
 - Remotion and HyperFrames source generation preserve component ids and edit
   contracts in source bundles.
 
@@ -137,9 +164,11 @@ Aether now has the right backbone:
    artifact generation remains follow-up.
 3. **Preview editing depth.** The timeline lens now has a source-backed preview
    shell with frame scrubbing, component focus, a same-shell Remotion Player,
-   and a sandboxed HyperFrames iframe. The remaining gap is deeper source-backed
-   editing: replace capture source, adjust crop/zoom/keyframes, regenerate a
-   selected component, and round-trip those edits through `MotionProject`.
+   and a sandboxed HyperFrames iframe. Capture-source replacement now works for
+   `app-frame` clips with URL, crop, zoom, cursor path, and capture metadata.
+   The remaining gap is deeper source-backed editing: crop/zoom keyframes,
+   cursor path editing, caption/script/source-bundle round trips, regenerate a
+   selected component, and apply those edits through `MotionProject`.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source
@@ -151,7 +180,12 @@ Aether now has the right backbone:
 6. **Interactive-demo compatibility.** Hotspots, chapters, branches, and share
    links should be stored now so a video project can later export as an
    interactive demo without rebuilding the story.
-7. **Corpus-driven component gaps.** Device/avatar/logo/flowchart/social proof
+7. **Executable mode switching.** The preview now shows review vs full-auto as
+   mode-control choices. Those choices still need a materialized action path:
+   restart from the same source refs in a different mode or switch the current
+   project mode in place, then refresh the review, preview, production, and
+   handoff plans without dropping receipts or provider choices.
+8. **Corpus-driven component gaps.** Device/avatar/logo/flowchart/social proof
    primitives should be added based on tagged examples, not speculative UI.
 
 ## Next implementation slices
@@ -239,6 +273,24 @@ Acceptance evidence:
 - Full-auto tests prove the next actionable card changes after saved setup
   dry-run receipts.
 
+### Slice B2: Executable mode control
+
+Make the workflow-mode strip actionable. Either materialize
+`previewPlan.modeControl.options[*].requestTemplate` into a concrete
+`/api/motion/start` request from the current project/source refs, or add a
+same-project `/api/motion/mode` route that updates `workflowMode` and recomputes
+review, preview, production, and handoff plans.
+
+Acceptance evidence:
+
+- Preview-plan tests prove review and full-auto options include source
+  preservation, provider placeholders, expected receipts, and no raw debug ids.
+- API tests prove switching review -> full-auto and full-auto -> review
+  preserves source refs, selected draft, existing receipts, and provider
+  selections.
+- Timeline-lens tests prove creators can see the current mode, alternate mode,
+  expected gates, and next action without a separate route console.
+
 ### Slice C: Playable preview and source-backed edits
 
 Mount a preview player inside the timeline lens for source bundles. Remotion
@@ -258,6 +310,12 @@ same-shell iframe. Remotion prepared sources now mount a same-shell
 `@remotion/player` host backed by `timeline/draft-primary.json`, so creators
 can preview the editable timeline while generated TSX remains hidden source
 material.
+
+Recent continuation: `replace-clip-asset` now handles capture-source
+replacement for app-frame clips, including source URL, crop, zoom, cursor path,
+capture artifact kind, MIME type, and source asset linkage. The next edit-depth
+slice should add keyframe-level crop/zoom/cursor edits and source-bundle import
+from edited `SCRIPT.md`, `STORYBOARD.md`, timeline JSON, or `EDIT.md`.
 
 Acceptance evidence:
 
