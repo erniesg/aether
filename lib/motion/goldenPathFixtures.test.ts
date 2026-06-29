@@ -108,6 +108,18 @@ describe('repo video golden path fixtures', () => {
       })
     ).not.toThrow();
   });
+
+  it('requires a completed full-auto receipt chain after execution', () => {
+    expect(() =>
+      assertGoldenPathMotionProject({
+        project: motionProject({
+          executionHistory: [],
+        }),
+        agentHandoff: fullAutoHandoff(),
+        requireFullAutoReceipts: true,
+      })
+    ).toThrow(/full-auto receipts/);
+  });
 });
 
 function motionProject(overrides: Partial<MotionProject> = {}): MotionProject {

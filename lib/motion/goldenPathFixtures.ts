@@ -5,6 +5,7 @@ import type { WorkflowEngine } from '@/lib/workflow/registry';
 import type { MotionAgentExecutionHandoff } from './agentHandoff';
 import type {
   MotionAspectRatio,
+  MotionExecutionGateId,
   MotionPlatform,
   MotionPlatformTarget,
   MotionProject,
@@ -54,6 +55,8 @@ export interface RepoVideoGoldenPathStartRequest {
 export interface AssertGoldenPathMotionProjectInput {
   project: MotionProject | null | undefined;
   agentHandoff?: MotionAgentExecutionHandoff | null;
+  requireFullAutoReceipts?: boolean;
+  fullAutoReviewPacket?: unknown;
 }
 
 const DEFAULT_PLATFORM_TARGETS: MotionPlatformTarget[] = [
@@ -149,6 +152,9 @@ export function assertGoldenPathMotionProject(input: AssertGoldenPathMotionProje
   if (project.workflowMode === 'full-auto') {
     assertFullAutoHandoff(input.agentHandoff);
   }
+  if (input.requireFullAutoReceipts) {
+    assertFullAutoReceipts(project, input.fullAutoReviewPacket);
+  }
 }
 
 function assertFullAutoHandoff(handoff: MotionAgentExecutionHandoff | null | undefined): void {
@@ -159,6 +165,108 @@ function assertFullAutoHandoff(handoff: MotionAgentExecutionHandoff | null | und
   if (!handoff.nextTemplateId) {
     throw new Error('golden path requires next agent handoff action');
   }
+}
+
+function assertFullAutoReceipts(project: MotionProject, reviewPacket: unknown): void {
+  const history = project.executionHistory ?? [];
+  if (history.length === 0) throw new Error('golden path requires full-auto receipts');
+
+  const gateIds = new Set(history.map((entry) => entry.gateId));
+  const requiredGateIds: MotionExecutionGateId[] = [
+    'capture',
+    'visual-source',
+    'visual-generation',
+    'voice',
+    'sync',
+    'render',
+    'export',
+  ];
+  const missingGateIds = requiredGateIds.filter((gateId) => !gateIds.has(gateId));
+  if (missingGateIds.length > 0) {
+    throw new Error(`golden path requires full-auto receipts: ${missingGateIds.join(', ')}`);
+  }
+
+  const requiredRenderOutputs = ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'];
+  const renderLabels = history
+    .filter((entry) => entry.gateId === 'render')
+    .flatMap((entry) => entry.receiptLabels);
+  const missingRenderOutputs = requiredRenderOutputs.filter(
+    (label) => !renderLabels.some((receiptLabel) => receiptLabel.includes(label))
+  );
+  if (missingRenderOutputs.length > 0) {
+    throw new Error(`golden path requires render receipts: ${missingRenderOutputs.join(', ')}`);
+  }
+
+  if (!project.graphNodes.some((node) => node.kind === 'export-pack' && node.status === 'done')) {
+    throw new Error('golden path requires completed export-pack graph node');
+  }
+  if (!allClips(project).some(hasGeneratedVideoTake)) {
+    throw new Error('golden path requires generated-video take on a timeline clip');
+  }
+  if (!allClips(project).some(hasVoiceArtifacts)) {
+    throw new Error('golden path requires voice audio, word timing, and transcript assets');
+  }
+  if (!project.exports.some(hasReadyRenderedExport)) {
+    throw new Error('golden path requires ready rendered export assets');
+  }
+  if (!isFullAutoReviewPacket(reviewPacket)) {
+    throw new Error('golden path requires saved full-auto review packet');
+  }
+}
+
+function allClips(project: MotionProject) {
+  return [
+    ...project.tracks.flatMap((track) => track.clips),
+    ...project.drafts.flatMap((draft) => draft.tracks.flatMap((track) => track.clips)),
+  ];
+}
+
+function hasGeneratedVideoTake(clip: ReturnType<typeof allClips>[number]): boolean {
+  return (
+    typeof clip.props.generatedVideoAssetId === 'string' &&
+    Array.isArray(clip.props.generatedVideoTakes) &&
+    clip.props.generatedVideoTakes.length > 0
+  );
+}
+
+function hasVoiceArtifacts(clip: ReturnType<typeof allClips>[number]): boolean {
+  return (
+    typeof clip.props.audioAssetId === 'string' &&
+    typeof clip.props.wordTimingsAssetId === 'string' &&
+    typeof clip.props.transcriptAssetId === 'string'
+  );
+}
+
+function hasReadyRenderedExport(motionExport: MotionProject['exports'][number]): boolean {
+  return (
+    motionExport.status === 'ready' &&
+    Boolean(
+      motionExport.assetId &&
+        motionExport.posterAssetId &&
+        motionExport.subtitleAssetId &&
+        motionExport.transcriptAssetId &&
+        motionExport.manifestAssetId
+    )
+  );
+}
+
+function isFullAutoReviewPacket(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const packet = value as {
+    kind?: unknown;
+    savedArtifacts?: unknown;
+    proofLabels?: unknown;
+    savedReceiptLabels?: unknown;
+  };
+  return (
+    packet.kind === 'motion-full-auto-review-packet' &&
+    Array.isArray(packet.savedArtifacts) &&
+    packet.savedArtifacts.length > 0 &&
+    Array.isArray(packet.proofLabels) &&
+    packet.proofLabels.length > 0 &&
+    Array.isArray(packet.savedReceiptLabels) &&
+    packet.savedReceiptLabels.length > 0
+  );
 }
 
 function hasTimelineRows(project: MotionProject): boolean {

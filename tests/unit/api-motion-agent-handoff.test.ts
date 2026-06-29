@@ -8,6 +8,10 @@ import { buildMotionRenderPlan } from '@/lib/motion/renderPlan';
 import { createMotionComponentRegenerationRequest } from '@/lib/motion/reviewPlan';
 import { buildMotionSourcePatchDraftOptions } from '@/lib/motion/sourcePatchDraft';
 import {
+  assertGoldenPathMotionProject,
+  buildRepoVideoGoldenPathFixture,
+} from '@/lib/motion/goldenPathFixtures';
+import {
   registerMotionSourceAuthorProvider,
   type MotionSourceAuthorProvider,
 } from '@/lib/providers/source-author/registry';
@@ -415,6 +419,114 @@ describe('POST /api/motion/agent-handoff', () => {
       'full-auto-run',
     ]);
     expect(captureRunnerMock.captureCalls).toHaveLength(2);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(synthesize).toHaveBeenCalledTimes(6);
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it('proves the repo video golden path full-auto receipt contract', async () => {
+    const generate = vi.fn(async (request: MotionImageToVideoRequest) => generatedClipFor(request));
+    const synthesize = vi.fn(async (request: VoiceSynthesisRequest) => voiceResultFor(request));
+    const render = vi.fn(async (request: MotionRenderRequest) => renderResultFor(request));
+    unregister.push(
+      registerMotionImageToVideoProvider('image-video-test', () =>
+        imageToVideoProvider(generate)
+      )
+    );
+    unregister.push(registerVoiceProvider('voice-test', () => voiceProvider(synthesize)));
+    unregister.push(registerMotionRenderProvider('remotion-test', () => renderProvider(render)));
+
+    const fixture = await buildRepoVideoGoldenPathFixture({
+      appName: 'tong',
+      description: 'City-specific language learning app.',
+      audience: 'language learners',
+      tone: 'textural',
+      createdAt: 820,
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      requestedEngines: ['remotion', 'hyperframes'],
+    });
+    tempDirs.push(fixture.repoPath);
+
+    const { POST: startPOST } = await import('@/app/api/motion/start/route');
+    const startRes = await startPOST(
+      new Request('http://localhost/api/motion/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fixture.startRequest),
+      })
+    );
+    expect(startRes.status).toBe(200);
+    const startJson = await startRes.json();
+    expect(startJson.ok).toBe(true);
+
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: [
+            'setup-local-app',
+            'setup-visual-source',
+            'setup-visual-generation',
+            'setup-voice',
+            'setup-render',
+            'full-auto-run',
+          ],
+          input: {
+            imageToVideoProviderId: 'image-video-test',
+            voiceProviderId: 'voice-test',
+            renderProviderId: 'remotion-test',
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      finalProject: {
+        id: 'motion-tong-golden-path',
+      },
+      finalResponse: {
+        ok: true,
+        status: 'complete',
+        run: {
+          status: 'complete',
+          reason: null,
+          advancedStepIds: [
+            'capture',
+            'visual-source',
+            'visual-generation',
+            'voice',
+            'sync',
+            'render',
+            'export',
+          ],
+        },
+      },
+    });
+    assertGoldenPathMotionProject({
+      project: json.finalProject,
+      agentHandoff: startJson.agentHandoff,
+      requireFullAutoReceipts: true,
+      fullAutoReviewPacket: json.finalResponse.run.reviewPacket,
+    });
+    expect(json.finalProject.executionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ gateId: 'capture' }),
+        expect.objectContaining({ gateId: 'visual-source' }),
+        expect.objectContaining({ gateId: 'visual-generation' }),
+        expect.objectContaining({ gateId: 'voice' }),
+        expect.objectContaining({ gateId: 'sync' }),
+        expect.objectContaining({ gateId: 'render' }),
+        expect.objectContaining({ gateId: 'export' }),
+      ])
+    );
     expect(generate).toHaveBeenCalledTimes(1);
     expect(synthesize).toHaveBeenCalledTimes(6);
     expect(render).toHaveBeenCalledTimes(1);

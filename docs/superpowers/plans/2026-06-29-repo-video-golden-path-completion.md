@@ -135,7 +135,7 @@ git commit -m "test: add repo video golden path fixtures"
 - Modify: `tests/unit/api-motion-agent-handoff.test.ts`
 - Modify: `lib/motion/agentHandoffRunner.test.ts`
 
-- [ ] **Step 1: Add a failing end-to-end unit test**
+- [x] **Step 1: Add a failing end-to-end unit test**
 
 Add one test that starts a local repo, materializes the handoff templates, registers fixture capture, visual-source, image-to-video, voice, render, and source-author providers, runs `full-auto-run`, and verifies the returned project contains:
 
@@ -147,7 +147,7 @@ Add one test that starts a local repo, materializes the handoff templates, regis
 - export-pack readiness
 - saved full-auto review packet
 
-- [ ] **Step 2: Run the failing test**
+- [x] **Step 2: Run the failing test**
 
 Run:
 
@@ -157,11 +157,11 @@ npx vitest run tests/unit/api-motion-agent-handoff.test.ts -t "golden path" --po
 
 Expected: FAIL on the first missing provider or receipt assertion.
 
-- [ ] **Step 3: Implement missing fixture glue only**
+- [x] **Step 3: Implement missing fixture glue only**
 
 Use existing provider registries and API routes. Do not create a second orchestration path. If a route cannot carry a needed receipt, extend that route response and its project-apply helper rather than adding test-only state.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run:
 
@@ -171,7 +171,7 @@ npx vitest run tests/unit/api-motion-agent-handoff.test.ts lib/motion/agentHando
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/unit/api-motion-agent-handoff.test.ts lib/motion/agentHandoffRunner.test.ts app/api/motion lib/motion lib/providers
