@@ -232,6 +232,17 @@ export interface MotionPreviewStoryBeat {
   sourceRefs: MotionProvenanceRef[];
 }
 
+export interface MotionPreviewDraftReferenceInfluence {
+  referenceId: string;
+  referenceTitle: string;
+  sourceUrl: string;
+  sourceLabel: string;
+  reasonLabel: string;
+  shotLabels: string[];
+  componentLabels: string[];
+  editSurfaceLabels: string[];
+}
+
 export interface MotionPreviewDraftOption {
   draftId: string;
   label: string;
@@ -240,6 +251,7 @@ export interface MotionPreviewDraftOption {
   isCurrent: boolean;
   durationSeconds: number;
   roles: MotionPreviewStoryBeat['role'][];
+  referenceInfluences: MotionPreviewDraftReferenceInfluence[];
 }
 
 export interface MotionPreviewTimelineClip {
@@ -959,15 +971,9 @@ export function buildMotionPreviewPlan(
   const editableComponents = buildEditableComponents(tracks);
   const regenerationActions = buildRegenerationActions(editableComponents);
   const videoPlan = buildVideoPlan(reviewPlan, timelineRows, regenerationActions);
-  const draftOptions = reviewPlan.drafts.map((draft) => ({
-    draftId: draft.draftId,
-    label: draft.label,
-    angle: draft.angle,
-    status: draft.status,
-    isCurrent: draft.isCurrent,
-    durationSeconds: draft.durationSeconds,
-    roles: draft.roles,
-  }));
+  const referenceSignals = buildReferenceSignals(project);
+  const tasteReferences = buildTasteReferences(project);
+  const draftOptions = buildDraftOptions(reviewPlan, tasteReferences);
   const syncPlan = buildMotionSyncPlan(project, {
     draftId: project.currentDraftId,
     fps,
@@ -981,8 +987,6 @@ export function buildMotionPreviewPlan(
     draftId: project.currentDraftId,
     requestedAt: options.requestedAt,
   });
-  const referenceSignals = buildReferenceSignals(project);
-  const tasteReferences = buildTasteReferences(project);
   const visualSourcingPlan = buildMotionVisualSourcingPlan(project, {
     draftId: project.currentDraftId,
     requestedAt: options.requestedAt,
@@ -1408,6 +1412,43 @@ function buildTasteReferences(project: MotionProject): MotionPreviewTasteReferen
       tasteDraftInfluence(project, ranked.entry)
     )
   );
+}
+
+function buildDraftOptions(
+  reviewPlan: MotionReviewPlan,
+  tasteReferences: MotionPreviewTasteReference[]
+): MotionPreviewDraftOption[] {
+  return reviewPlan.drafts.map((draft) => ({
+    draftId: draft.draftId,
+    label: draft.label,
+    angle: draft.angle,
+    status: draft.status,
+    isCurrent: draft.isCurrent,
+    durationSeconds: draft.durationSeconds,
+    roles: draft.roles,
+    referenceInfluences: draftReferenceInfluences(draft.draftId, tasteReferences),
+  }));
+}
+
+function draftReferenceInfluences(
+  draftId: string,
+  tasteReferences: MotionPreviewTasteReference[]
+): MotionPreviewDraftReferenceInfluence[] {
+  return tasteReferences
+    .filter((reference) => reference.draftInfluence.recommendedDraftId === draftId)
+    .slice(0, 3)
+    .map((reference) => ({
+      referenceId: reference.id,
+      referenceTitle: reference.title,
+      sourceUrl: reference.sourceUrl,
+      sourceLabel: reference.sourceLabel,
+      reasonLabel: reference.draftInfluence.reasonLabel,
+      shotLabels: [...reference.draftInfluence.defaultShotLabels],
+      componentLabels: [...reference.draftInfluence.componentMatchLabels],
+      editSurfaceLabels: uniqueStrings(
+        reference.shotList.flatMap((shot) => shot.editTargetLabels)
+      ),
+    }));
 }
 
 function inferReferenceWorkflowId(project: MotionProject): WorkflowRegistryId {

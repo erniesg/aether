@@ -768,6 +768,7 @@ function MotionDraftOptionCard({
 }) {
   const roleLabel = draft.roles.map(readableLabel).join(' / ');
   const canChoose = Boolean(onSelectDraft) && !draft.isCurrent;
+  const referenceInfluence = draft.referenceInfluences[0] ?? null;
 
   return (
     <button
@@ -802,6 +803,19 @@ function MotionDraftOptionCard({
           </Chip>
         ) : null}
       </span>
+      {referenceInfluence ? (
+        <span className="mt-2 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5">
+          <span className="block truncate font-caption text-2xs text-ink-dim">
+            {referenceInfluence.referenceTitle}
+          </span>
+          <span className="mt-1 block truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {referenceInfluence.shotLabels.slice(0, 2).join(' / ')}
+          </span>
+          <span className="mt-1 block truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+            {referenceInfluence.componentLabels.slice(0, 2).join(' / ')}
+          </span>
+        </span>
+      ) : null}
       <span className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-dim">
         {draft.isCurrent ? 'editing this cut' : 'choose draft'}
       </span>

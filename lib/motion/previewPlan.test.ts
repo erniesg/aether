@@ -489,6 +489,35 @@ describe('buildMotionPreviewPlan', () => {
       'Proof-first cut',
       'Demo-first cut',
     ]);
+    expect(preview.draftOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          draftId: 'draft-demo-first',
+          referenceInfluences: expect.arrayContaining([
+            expect.objectContaining({
+              referenceId: 'screen-studio-product-demo-polish',
+              referenceTitle: 'Screen Studio-style polished product demo',
+              sourceLabel: 'product site taste',
+              reasonLabel: expect.stringContaining('best informs Demo-first cut'),
+              shotLabels: ['Product surface first', 'Cursor-guided action', 'UI reveal'],
+              componentLabels: expect.arrayContaining(['App frame', 'Cursor callout']),
+              editSurfaceLabels: expect.arrayContaining(['capture', 'timing', 'effect']),
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          draftId: 'draft-proof-first',
+          referenceInfluences: expect.arrayContaining([
+            expect.objectContaining({
+              referenceId: 'claude-agent-demo-playback-review',
+              referenceTitle: 'Claude-style agent product demo',
+              shotLabels: ['Prompt to agent', 'Reads and edits', 'Command proof'],
+              componentLabels: expect.arrayContaining(['Agent trace', 'Terminal proof']),
+            }),
+          ]),
+        }),
+      ])
+    );
     expect(preview.timelineRows.map((row) => row.trackKind)).toEqual([
       'text',
       'caption',

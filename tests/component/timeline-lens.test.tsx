@@ -761,6 +761,7 @@ const previewPlan: MotionPreviewPlan = {
       isCurrent: true,
       durationSeconds: 30,
       roles: ['hook', 'demo'],
+      referenceInfluences: [],
     },
     {
       draftId: 'draft-demo',
@@ -770,6 +771,19 @@ const previewPlan: MotionPreviewPlan = {
       isCurrent: false,
       durationSeconds: 30,
       roles: ['demo', 'hook'],
+      referenceInfluences: [
+        {
+          referenceId: 'screen-studio-product-demo-polish',
+          referenceTitle: 'Screen Studio-style polished product demo',
+          sourceUrl: 'https://www.screen.studio/',
+          sourceLabel: 'product site taste',
+          reasonLabel:
+            'Screen Studio-style polished product demo best informs Demo-first cut: App frame, Cursor callout.',
+          shotLabels: ['Product surface first', 'Cursor-guided action', 'UI reveal'],
+          componentLabels: ['App frame', 'Cursor callout'],
+          editSurfaceLabels: ['capture', 'timing', 'effect'],
+        },
+      ],
     },
   ],
   timelineRows: [
@@ -3984,6 +3998,9 @@ describe('TimelineLens', () => {
     expect(demoDraft).toHaveTextContent('ready');
     expect(within(demoDraft).getByText('30s')).toBeInTheDocument();
     expect(within(demoDraft).getByText('demo / hook')).toBeInTheDocument();
+    expect(demoDraft).toHaveTextContent('Screen Studio-style polished product demo');
+    expect(demoDraft).toHaveTextContent('Product surface first / Cursor-guided action');
+    expect(demoDraft).toHaveTextContent('App frame / Cursor callout');
 
     await userEvent.click(demoDraft);
     expect(onSelectDraft).toHaveBeenCalledWith('draft-demo');
