@@ -448,6 +448,11 @@
   path, marker counts, exportable marker kinds, blockers, and provenance. The
   timeline lens shows that manifest contract in the interactive-demo strip while
   hosted/share-page materialization remains a later provider step.
+- `/api/motion/interactive-export` now materializes ready interactive export
+  plans back onto the same project as an `interactive-export` graph node and
+  execution-history receipts for the manifest, share metadata, and marker
+  provenance. It is whitelisted for agent handoffs and deliberately does not
+  complete the normal rendered MP4 export-pack gate.
 
 ## Next Slices
 

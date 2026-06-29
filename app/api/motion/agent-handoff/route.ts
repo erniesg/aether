@@ -27,6 +27,8 @@ const ROUTE_HANDLERS: Record<string, MotionRouteHandlerLoader> = {
     (await import('@/app/api/motion/image-to-video/route')).POST,
   '/api/motion/image-to-video/take': async () =>
     (await import('@/app/api/motion/image-to-video/take/route')).POST,
+  '/api/motion/interactive-export': async () =>
+    (await import('@/app/api/motion/interactive-export/route')).POST,
   '/api/motion/preview-source': async () =>
     (await import('@/app/api/motion/preview-source/route')).POST,
   '/api/motion/regenerate': async () =>

@@ -222,7 +222,8 @@ export interface MotionGraphNode {
     | 'sync'
     | 'revision'
     | 'render'
-    | 'export-pack';
+    | 'export-pack'
+    | 'interactive-export';
   inputRefs: string[];
   outputRefs: string[];
   providerId?: string;
@@ -265,7 +266,8 @@ export type MotionExecutionReceiptKind =
   | 'sync'
   | 'revision'
   | 'render'
-  | 'export';
+  | 'export'
+  | 'interactive-export';
 
 export interface MotionExecutionReceipt {
   id: string;

@@ -218,8 +218,10 @@ capture, render, and provenance debugging.
    the same `MotionProject`, and the timeline lens merges those edits back into
    creator review. The preview plan now also builds an interactive export
    manifest/share-target contract at `interactive-demos/<project>/<draft>/`,
-   ready for a future provider to materialize into hosted Arcade-style demos.
-   Next, add that provider/materialization path.
+   and `/api/motion/interactive-export` can now save that manifest/share
+   contract back as an `interactive-export` graph node plus execution receipts
+   without marking the rendered MP4 export pack complete. Next, add hosted
+   Arcade-style share-page materialization.
 7. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
    metadata, poster proof, subtitles, transcripts, and manifest checks as first
    class graph nodes before export.
@@ -517,6 +519,12 @@ capture, render, and provenance debugging.
   kinds, manifest path, share metadata path, blockers, actions, and provenance.
   The timeline lens shows this as an artifact-first manifest row inside the
   interactive demo strip, not as a separate console.
+- `app/api/motion/interactive-export/route.ts` now exposes that manifest plan as
+  an agent-native materialization boundary. It applies ready plans through
+  `lib/motion/interactiveExportApply.ts`, writes an `interactive-export` graph
+  node and execution receipts, and is whitelisted for agent handoff through
+  `motion-interactive-export` without satisfying normal rendered export-pack
+  completion.
 - `lib/motion/referencePatterns.ts` now records reusable product-video patterns
   that came out of the launch/demo research pass: launch hooks, real product
   capture, screen zoom callouts, caption-led social cuts, proof receipts,

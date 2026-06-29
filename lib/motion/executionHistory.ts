@@ -16,6 +16,7 @@ import type {
   MotionProvenanceRef,
 } from './project';
 import type { MotionExportPackPlan } from './exportPackPlan';
+import type { MotionInteractiveExportPlan } from './interactiveExportPlan';
 import type {
   MotionComponentRegenerationRequest,
   MotionDraftVariationRequest,
@@ -502,6 +503,32 @@ export function appendExportPackExecutionHistory(
   });
 }
 
+export function appendInteractiveExportExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  plan: MotionInteractiveExportPlan,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  if (plan.status !== 'ready' || !plan.manifest || !plan.shareTarget) return history ?? [];
+
+  const receipts = interactiveExportReceipts(plan);
+  return appendExecutionEntry(history, {
+    id: `execution-${plan.id}-${savedAt}`,
+    gateId: 'export',
+    label: 'Interactive export',
+    providerId: 'motion-interactive-export',
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      ...plan.provenance,
+      { kind: 'export', ref: plan.manifest.id },
+      { kind: 'export', ref: plan.shareTarget.id },
+      { kind: 'export', ref: `${plan.id}:marker-provenance` },
+    ]),
+  });
+}
+
 function appendExecutionEntry(
   history: MotionExecutionHistoryEntry[] | undefined,
   entry: MotionExecutionHistoryEntry
@@ -620,6 +647,35 @@ function exportPackReceipts(plan: MotionExportPackPlan): MotionExecutionReceipt[
       kind: 'export',
       label: 'Pack provenance',
       ref: `${plan.id}:provenance`,
+    },
+  ];
+}
+
+function interactiveExportReceipts(plan: MotionInteractiveExportPlan): MotionExecutionReceipt[] {
+  if (!plan.manifest || !plan.shareTarget) return [];
+
+  return [
+    {
+      id: `receipt-${plan.manifest.id}`,
+      kind: 'interactive-export',
+      label: 'Interactive manifest',
+      ref: plan.manifest.id,
+      path: plan.manifest.path,
+      mimeType: plan.manifest.mimeType,
+    },
+    {
+      id: `receipt-${plan.shareTarget.id}`,
+      kind: 'interactive-export',
+      label: 'Interactive share metadata',
+      ref: plan.shareTarget.id,
+      path: plan.shareTarget.path,
+      mimeType: plan.shareTarget.mimeType,
+    },
+    {
+      id: `receipt-${plan.id}-marker-provenance`,
+      kind: 'interactive-export',
+      label: 'Interactive marker provenance',
+      ref: `${plan.id}:marker-provenance`,
     },
   ];
 }

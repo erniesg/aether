@@ -351,6 +351,22 @@ function buildTemplates(input: {
       },
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['export pack', 'canvas drop candidates', 'pack manifest'],
+    },
+    {
+      id: 'interactive-export',
+      label: 'Interactive export',
+      method: 'POST',
+      route: '/api/motion/interactive-export',
+      toolId: 'motion-interactive-export',
+      body: {
+        project: PROJECT_PLACEHOLDER,
+      },
+      inputPlaceholders: [PROJECT_PLACEHOLDER],
+      expectedReceipts: [
+        'interactive manifest',
+        'share metadata',
+        'marker provenance',
+      ],
     }
   );
 

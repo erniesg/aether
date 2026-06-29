@@ -186,6 +186,15 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  'motion-interactive-export': {
+    kind: 'tool',
+    id: 'motion-interactive-export',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Interactive export',
+    outputKind: 'video',
+    status: 'draft',
+  },
   'motion-revise': {
     kind: 'tool',
     id: 'motion-revise',

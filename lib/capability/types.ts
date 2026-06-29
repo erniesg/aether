@@ -25,6 +25,7 @@ export type CapabilityTool =
   | 'motion-render'
   | 'motion-preview-source'
   | 'motion-export-pack'
+  | 'motion-interactive-export'
   | 'motion-revise'
   | 'motion-source-edit'
   | 'motion-agent-handoff'
