@@ -182,8 +182,10 @@ Aether now has the right backbone:
    workflows, permission boundaries, redaction, and receipt review.
 6. **Interactive-demo compatibility.** Preview plans now derive chapters,
    product hotspots, draft branches, CTA links, and export analytics markers
-   from the same motion object. The remaining work is explicit marker authoring
-   and an interactive export adapter, not a separate demo product path.
+   from the same motion object. Explicit marker authoring now persists callouts,
+   hotspots, links, branches, chapters, and analytics markers through revision
+   provenance; the remaining work is an interactive export adapter, not a
+   separate demo product path.
 7. **Executable mode switching.** The preview now shows review vs full-auto as
    mode-control choices. Those choices still need a materialized action path:
    restart from the same source refs in a different mode or switch the current

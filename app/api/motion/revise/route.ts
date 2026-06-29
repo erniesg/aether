@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { WorkflowEngine } from '@/lib/workflow/registry';
-import type { MotionProject } from '@/lib/motion/project';
+import type {
+  MotionInteractiveMarkerInput,
+  MotionInteractiveMarkerKind,
+  MotionProject,
+} from '@/lib/motion/project';
 import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
@@ -17,6 +21,14 @@ export const maxDuration = 300;
 type MotionReviseRequestBody = Record<string, unknown>;
 
 const VALID_ENGINES = new Set<WorkflowEngine>(['remotion', 'hyperframes', 'provider']);
+const VALID_INTERACTIVE_MARKER_KINDS = new Set<MotionInteractiveMarkerKind>([
+  'chapter',
+  'hotspot',
+  'callout',
+  'branch',
+  'link',
+  'analytics',
+]);
 
 function jsonError(status: number, error: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, error, ...extra }, { status });
@@ -142,6 +154,18 @@ function parseOperations(value: unknown): MotionTimelineRevisionOperation[] | nu
       return [{ kind, clipId, keyframes }];
     }
 
+    if (kind === 'upsert-interactive-marker') {
+      const marker = parseInteractiveMarker(candidate.marker);
+      if (!marker) return [];
+      return [{ kind, marker }];
+    }
+
+    if (kind === 'remove-interactive-marker') {
+      const markerId = stringValue(candidate.markerId);
+      if (!markerId) return [];
+      return [{ kind, markerId }];
+    }
+
     if (kind === 'retime-clip') {
       const clipId = stringValue(candidate.clipId);
       if (!clipId) return [];
@@ -177,6 +201,52 @@ function parseOperations(value: unknown): MotionTimelineRevisionOperation[] | nu
   });
 
   return operations.length === value.length ? operations : null;
+}
+
+function parseInteractiveMarker(value: unknown): MotionInteractiveMarkerInput | null {
+  if (!isObject(value)) return null;
+
+  const id = stringValue(value.id);
+  const kind = stringValue(value.kind);
+  const label = stringValue(value.label);
+  const timeSeconds = numericValue(value.timeSeconds);
+  const durationSeconds = numericValue(value.durationSeconds);
+  const metadataLabels = parseStringArray(value.metadataLabels);
+  if (
+    !id ||
+    !kind ||
+    !VALID_INTERACTIVE_MARKER_KINDS.has(kind as MotionInteractiveMarkerKind) ||
+    !label ||
+    timeSeconds === undefined ||
+    durationSeconds === undefined ||
+    !metadataLabels
+  ) {
+    return null;
+  }
+
+  const beatId = stringValue(value.beatId);
+  const clipId = stringValue(value.clipId);
+  const componentLabel = stringValue(value.componentLabel);
+  const targetLabel = stringValue(value.targetLabel);
+  const targetDraftId = stringValue(value.targetDraftId);
+  const targetFormat = stringValue(value.targetFormat);
+  const href = stringValue(value.href);
+
+  return {
+    id,
+    kind: kind as MotionInteractiveMarkerKind,
+    label,
+    timeSeconds,
+    durationSeconds,
+    ...(beatId === undefined ? {} : { beatId }),
+    ...(clipId === undefined ? {} : { clipId }),
+    ...(componentLabel === undefined ? {} : { componentLabel }),
+    ...(targetLabel === undefined ? {} : { targetLabel }),
+    ...(targetDraftId === undefined ? {} : { targetDraftId }),
+    ...(targetFormat === undefined ? {} : { targetFormat }),
+    ...(href === undefined ? {} : { href }),
+    metadataLabels,
+  };
 }
 
 function parseSourceKeyframes(value: unknown): MotionSourceKeyframe[] | null {
@@ -218,6 +288,12 @@ function parseRequestedEngines(value: unknown): WorkflowEngine[] | null {
       typeof engine === 'string' && VALID_ENGINES.has(engine as WorkflowEngine)
   );
   return engines.length === value.length ? engines : null;
+}
+
+function parseStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const strings = value.filter((item): item is string => typeof item === 'string');
+  return strings.length === value.length ? strings : null;
 }
 
 function stringValue(value: unknown): string | undefined {

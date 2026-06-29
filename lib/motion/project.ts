@@ -119,6 +119,35 @@ export interface MotionPlatformTarget {
   seconds: number;
 }
 
+export type MotionInteractiveMarkerKind =
+  | 'chapter'
+  | 'hotspot'
+  | 'callout'
+  | 'branch'
+  | 'link'
+  | 'analytics';
+
+export interface MotionInteractiveMarker {
+  id: string;
+  kind: MotionInteractiveMarkerKind;
+  label: string;
+  timeSeconds: number;
+  durationSeconds: number;
+  beatId?: string;
+  clipId?: string;
+  componentLabel?: string;
+  targetLabel?: string;
+  targetDraftId?: string;
+  targetFormat?: string;
+  href?: string;
+  metadataLabels: string[];
+  provenance: MotionProvenanceRef[];
+}
+
+export type MotionInteractiveMarkerInput = Omit<MotionInteractiveMarker, 'provenance'> & {
+  provenance?: MotionProvenanceRef[];
+};
+
 export interface MotionClaimReceipt {
   text: string;
   source: MotionProvenanceRef;
@@ -274,6 +303,7 @@ export interface MotionProject {
   drafts: MotionDraft[];
   tracks: TimelineTrack[];
   graphNodes: MotionGraphNode[];
+  interactiveMarkers?: MotionInteractiveMarker[];
   exports: MotionExport[];
   executionHistory?: MotionExecutionHistoryEntry[];
   createdAt: number;

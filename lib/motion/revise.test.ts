@@ -245,6 +245,72 @@ describe('applyMotionTimelineRevision', () => {
     expect(draftDemoClip?.props.sourceKeyframes).toEqual(demoClip?.props.sourceKeyframes);
   });
 
+  it('upserts and removes authored interactive demo markers with provenance', () => {
+    const withMarker = applyMotionTimelineRevision(project(), {
+      id: 'revision-demo-hotspot-marker',
+      requestedAt: 109,
+      updatedAt: 110,
+      operations: [
+        {
+          kind: 'upsert-interactive-marker',
+          marker: {
+            id: 'marker-demo-canvas-callout',
+            kind: 'callout',
+            label: 'Canvas edit callout',
+            timeSeconds: 13.2,
+            durationSeconds: 2.5,
+            beatId: 'beat-demo',
+            clipId: 'clip-beat-demo-text',
+            targetLabel: 'Open the canvas controls',
+            metadataLabels: ['manual callout', 'review handle'],
+          },
+        },
+      ],
+    });
+
+    expect(withMarker.interactiveMarkers).toEqual([
+      expect.objectContaining({
+        id: 'marker-demo-canvas-callout',
+        kind: 'callout',
+        label: 'Canvas edit callout',
+        timeSeconds: 13.2,
+        durationSeconds: 2.5,
+        beatId: 'beat-demo',
+        clipId: 'clip-beat-demo-text',
+        targetLabel: 'Open the canvas controls',
+        metadataLabels: ['manual callout', 'review handle'],
+        provenance: expect.arrayContaining([
+          { kind: 'manual', ref: 'revision-demo-hotspot-marker' },
+          { kind: 'revision', ref: 'revision-demo-hotspot-marker' },
+        ]),
+      }),
+    ]);
+    expect(withMarker.graphNodes.find((node) => node.id === 'node-revision-revision-demo-hotspot-marker')).toMatchObject({
+      kind: 'revision',
+      inputRefs: ['marker-demo-canvas-callout'],
+      outputRefs: ['marker-demo-canvas-callout'],
+      status: 'done',
+    });
+
+    const removed = applyMotionTimelineRevision(withMarker, {
+      id: 'revision-remove-demo-marker',
+      requestedAt: 111,
+      updatedAt: 112,
+      operations: [
+        {
+          kind: 'remove-interactive-marker',
+          markerId: 'marker-demo-canvas-callout',
+        },
+      ],
+    });
+
+    expect(removed.interactiveMarkers).toEqual([]);
+    expect(removed.graphNodes.find((node) => node.id === 'node-revision-revision-remove-demo-marker')).toMatchObject({
+      inputRefs: ['marker-demo-canvas-callout'],
+      outputRefs: ['marker-demo-canvas-callout'],
+    });
+  });
+
   it('rejects unsafe edits before mutating the project', () => {
     expect(() =>
       applyMotionTimelineRevision(project(), {
@@ -288,5 +354,26 @@ describe('applyMotionTimelineRevision', () => {
         ],
       })
     ).toThrow(/source keyframe zoom must be positive/);
+
+    expect(() =>
+      applyMotionTimelineRevision(project(), {
+        id: 'revision-bad-interactive-marker',
+        requestedAt: 109,
+        operations: [
+          {
+            kind: 'upsert-interactive-marker',
+            marker: {
+              id: 'marker-unknown-clip',
+              kind: 'callout',
+              label: 'Unknown clip marker',
+              timeSeconds: 1,
+              durationSeconds: 1,
+              clipId: 'clip-missing',
+              metadataLabels: [],
+            },
+          },
+        ],
+      })
+    ).toThrow(/interactive marker clip not found/);
   });
 });

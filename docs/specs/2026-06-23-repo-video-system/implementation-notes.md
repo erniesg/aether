@@ -438,6 +438,11 @@
   CTA links, and export analytics markers. The timeline lens shows these
   markers as creator-facing metadata so a flat video project can later grow an
   interactive export without rebuilding the plan.
+- Interactive-demo markers can also be authored through
+  `upsert-interactive-marker` and `remove-interactive-marker` operations on the
+  existing revision API. These edits persist on `MotionProject` with typed
+  revision provenance, merge with the derived preview markers, and expose
+  callouts in the same timeline lens.
 
 ## Next Slices
 

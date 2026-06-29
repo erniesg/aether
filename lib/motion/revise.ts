@@ -1,5 +1,8 @@
 import { getMotionComponent } from './componentRegistry';
 import type {
+  MotionInteractiveMarker,
+  MotionInteractiveMarkerInput,
+  MotionInteractiveMarkerKind,
   MotionGraphNode,
   MotionProject,
   MotionProvenanceRef,
@@ -51,6 +54,14 @@ export type MotionTimelineRevisionOperation =
       keyframes: MotionSourceKeyframe[];
     }
   | {
+      kind: 'upsert-interactive-marker';
+      marker: MotionInteractiveMarkerInput;
+    }
+  | {
+      kind: 'remove-interactive-marker';
+      markerId: string;
+    }
+  | {
       kind: 'retime-clip';
       clipId: string;
       startFrame?: number;
@@ -88,6 +99,11 @@ export function applyMotionTimelineRevision(
   const refs = revisionProvenance(input.id);
   const clipEdits = clipEditsForOperations(input.operations);
   const revisionNode = buildRevisionNode(input, refs);
+  const interactiveMarkers = applyInteractiveMarkerOperations(
+    project.interactiveMarkers,
+    input.operations,
+    refs
+  );
 
   return {
     ...project,
@@ -99,6 +115,7 @@ export function applyMotionTimelineRevision(
       tracks: applyClipEdits(draft.tracks, clipEdits, refs),
     })),
     graphNodes: upsertRevisionNode(project.graphNodes, revisionNode),
+    ...(interactiveMarkers === undefined ? {} : { interactiveMarkers }),
     updatedAt: input.updatedAt ?? project.updatedAt,
   };
 }
@@ -125,6 +142,8 @@ function validateMotionTimelineRevision(
       .flatMap((tracks) => tracks.flatMap((track) => track.clips))
       .map((clip) => [clip.id, clip] as const)
   );
+  const draftIds = new Set(project.drafts.map((draft) => draft.id));
+  const markerIds = new Set((project.interactiveMarkers ?? []).map((marker) => marker.id));
 
   input.operations.forEach((operation) => {
     if (operation.kind === 'update-story-beat') {
@@ -169,6 +188,19 @@ function validateMotionTimelineRevision(
 
     if (operation.kind === 'update-clip-source-keyframes') {
       validateSourceKeyframes(operation, clipsById.get(operation.clipId));
+    }
+
+    if (operation.kind === 'upsert-interactive-marker') {
+      validateInteractiveMarker(operation.marker, { beatIds, clipIds, draftIds });
+    }
+
+    if (operation.kind === 'remove-interactive-marker') {
+      if (operation.markerId.trim().length === 0) {
+        throw new Error('Motion interactive marker id is required');
+      }
+      if (!markerIds.has(operation.markerId)) {
+        throw new Error(`Motion interactive marker not found: ${operation.markerId}`);
+      }
     }
 
     if (operation.kind === 'replace-component' && !getMotionComponent(operation.componentId)) {
@@ -235,6 +267,12 @@ function clipEditsForOperations(
 
   operations.forEach((operation) => {
     if (operation.kind === 'update-story-beat') return;
+    if (
+      operation.kind === 'upsert-interactive-marker' ||
+      operation.kind === 'remove-interactive-marker'
+    ) {
+      return;
+    }
 
     const current = edits.get(operation.clipId) ?? {};
     if (operation.kind === 'update-clip-props') {
@@ -426,7 +464,114 @@ function upsertRevisionNode(
 
 function operationRef(operation: MotionTimelineRevisionOperation): string {
   if (operation.kind === 'update-story-beat') return operation.beatId;
+  if (operation.kind === 'upsert-interactive-marker') return operation.marker.id;
+  if (operation.kind === 'remove-interactive-marker') return operation.markerId;
   return operation.clipId;
+}
+
+const INTERACTIVE_MARKER_KINDS = new Set<MotionInteractiveMarkerKind>([
+  'chapter',
+  'hotspot',
+  'callout',
+  'branch',
+  'link',
+  'analytics',
+]);
+
+function applyInteractiveMarkerOperations(
+  markers: MotionInteractiveMarker[] | undefined,
+  operations: MotionTimelineRevisionOperation[],
+  provenance: MotionProvenanceRef[]
+): MotionInteractiveMarker[] | undefined {
+  const markerOperations = operations.filter(
+    (operation) =>
+      operation.kind === 'upsert-interactive-marker' ||
+      operation.kind === 'remove-interactive-marker'
+  );
+  if (markerOperations.length === 0) return markers;
+
+  let next = [...(markers ?? [])];
+  markerOperations.forEach((operation) => {
+    if (operation.kind === 'remove-interactive-marker') {
+      next = next.filter((marker) => marker.id !== operation.markerId);
+      return;
+    }
+
+    const existing = next.find((marker) => marker.id === operation.marker.id);
+    const marker = normalizeInteractiveMarker(operation.marker, [
+      ...(existing?.provenance ?? []),
+      ...(operation.marker.provenance ?? []),
+      ...provenance,
+    ]);
+    const existingIndex = next.findIndex((candidate) => candidate.id === marker.id);
+    if (existingIndex === -1) {
+      next.push(marker);
+    } else {
+      next = next.map((candidate, index) => (index === existingIndex ? marker : candidate));
+    }
+  });
+
+  return next;
+}
+
+function validateInteractiveMarker(
+  marker: MotionInteractiveMarkerInput,
+  refs: { beatIds: Set<string>; clipIds: Set<string>; draftIds: Set<string> }
+): void {
+  if (marker.id.trim().length === 0) {
+    throw new Error('Motion interactive marker id is required');
+  }
+  if (!INTERACTIVE_MARKER_KINDS.has(marker.kind)) {
+    throw new Error(`Motion interactive marker kind is invalid: ${marker.id}`);
+  }
+  if (marker.label.trim().length === 0) {
+    throw new Error(`Motion interactive marker label is required: ${marker.id}`);
+  }
+  if (!Number.isFinite(marker.timeSeconds) || marker.timeSeconds < 0) {
+    throw new Error(`Motion interactive marker time must be non-negative: ${marker.id}`);
+  }
+  if (!Number.isFinite(marker.durationSeconds) || marker.durationSeconds < 0) {
+    throw new Error(`Motion interactive marker duration must be non-negative: ${marker.id}`);
+  }
+  if (marker.beatId && !refs.beatIds.has(marker.beatId)) {
+    throw new Error(`Motion interactive marker beat not found: ${marker.beatId}`);
+  }
+  if (marker.clipId && !refs.clipIds.has(marker.clipId)) {
+    throw new Error(`Motion interactive marker clip not found: ${marker.clipId}`);
+  }
+  if (marker.targetDraftId && !refs.draftIds.has(marker.targetDraftId)) {
+    throw new Error(`Motion interactive marker draft not found: ${marker.targetDraftId}`);
+  }
+  if (marker.kind === 'link' && !marker.href?.trim()) {
+    throw new Error(`Motion interactive marker link href is required: ${marker.id}`);
+  }
+  marker.metadataLabels.forEach((label) => {
+    if (label.trim().length === 0) {
+      throw new Error(`Motion interactive marker metadata label must not be blank: ${marker.id}`);
+    }
+  });
+}
+
+function normalizeInteractiveMarker(
+  marker: MotionInteractiveMarkerInput,
+  provenance: MotionProvenanceRef[]
+): MotionInteractiveMarker {
+  return {
+    id: marker.id.trim(),
+    kind: marker.kind,
+    label: marker.label.trim(),
+    timeSeconds: marker.timeSeconds,
+    durationSeconds: marker.durationSeconds,
+    ...(marker.beatId === undefined ? {} : { beatId: marker.beatId.trim() }),
+    ...(marker.clipId === undefined ? {} : { clipId: marker.clipId.trim() }),
+    ...(marker.componentLabel === undefined ? {} : { componentLabel: marker.componentLabel.trim() }),
+    ...(marker.targetLabel === undefined ? {} : { targetLabel: marker.targetLabel.trim() }),
+    ...(marker.targetDraftId === undefined ? {} : { targetDraftId: marker.targetDraftId.trim() }),
+    ...(marker.targetFormat === undefined ? {} : { targetFormat: marker.targetFormat.trim() }),
+    ...(marker.href === undefined ? {} : { href: marker.href.trim() }),
+    metadataLabels: uniqueStrings(marker.metadataLabels.map((label) => label.trim())),
+    provenance: uniqueProvenance(provenance),
+  };
 }
 
 function validateSourceKeyframes(
@@ -495,4 +640,8 @@ function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
     seen.add(key);
     return true;
   });
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.length > 0))];
 }

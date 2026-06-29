@@ -555,9 +555,10 @@ const previewPlan: MotionPreviewPlan = {
   },
   interactiveDemo: {
     status: 'ready',
-    markerCount: 6,
+    markerCount: 7,
     chapterCount: 2,
     hotspotCount: 1,
+    calloutCount: 1,
     branchCount: 1,
     linkCount: 1,
     analyticsCount: 1,
@@ -565,6 +566,7 @@ const previewPlan: MotionPreviewPlan = {
       'Launch chapter',
       'Demo chapter',
       'App frame hotspot',
+      'Show canvas prompt',
       'Branch to Demo-first cut',
       'Open aether',
       'Track x 9:16 completion',
@@ -603,6 +605,18 @@ const previewPlan: MotionPreviewPlan = {
         componentLabel: 'App frame',
         targetLabel: 'Review draft variations before full auto',
         metadataLabels: ['flat video compatible', 'capture'],
+      },
+      {
+        id: 'marker-demo-callout',
+        kind: 'callout',
+        label: 'Show canvas prompt',
+        timeSeconds: 4,
+        durationSeconds: 2,
+        beatId: 'beat-demo',
+        clipId: 'clip-beat-demo-text',
+        componentLabel: 'App frame',
+        targetLabel: 'Prompt composer opens under the canvas',
+        metadataLabels: ['authored', 'manual callout'],
       },
       {
         id: 'interactive-branch-draft-demo-first',
@@ -2293,12 +2307,14 @@ describe('TimelineLens', () => {
     expect(screen.getByText('capability plan')).toBeInTheDocument();
     expect(screen.getAllByText('review mode').length).toBeGreaterThan(0);
     expect(screen.getByText('interactive demo')).toBeInTheDocument();
-    expect(screen.getByText('6 markers')).toBeInTheDocument();
+    expect(screen.getByText('7 markers')).toBeInTheDocument();
     expect(screen.getByText('2 chapters')).toBeInTheDocument();
     expect(screen.getByText('1 hotspot')).toBeInTheDocument();
+    expect(screen.getByText('1 callout')).toBeInTheDocument();
     expect(screen.getByText('1 branch')).toBeInTheDocument();
     expect(screen.getByText('1 link')).toBeInTheDocument();
     expect(screen.getByText('App frame hotspot')).toBeInTheDocument();
+    expect(screen.getByText('Show canvas prompt')).toBeInTheDocument();
     expect(screen.getByText('Branch to Demo-first cut')).toBeInTheDocument();
     expect(screen.getByText('Track x 9:16 completion')).toBeInTheDocument();
     expect(screen.getByText('workflow mode')).toBeInTheDocument();

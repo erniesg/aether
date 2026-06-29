@@ -213,8 +213,11 @@ capture, render, and provenance debugging.
    `app-frame` clips.
 6. **Interactive-demo metadata.** Initial provider-neutral markers now derive
    chapters, product hotspots, draft branches, CTA links, and export analytics
-   from the video plan/timeline. Next, add explicit authoring and an
-   interactive export adapter for Arcade-style demos.
+   from the video plan/timeline. Authored marker revisions can now upsert or
+   remove callouts, hotspots, links, branches, chapters, or analytics markers on
+   the same `MotionProject`, and the timeline lens merges those edits back into
+   creator review. Next, add an interactive export adapter for Arcade-style
+   manifests and share links.
 7. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
    metadata, poster proof, subtitles, transcripts, and manifest checks as first
    class graph nodes before export.
@@ -502,6 +505,11 @@ capture, render, and provenance debugging.
   same motion object: story chapters, product hotspots, alternate-draft
   branches, CTA links, and export analytics markers. The timeline lens surfaces
   those as creator-facing metadata while the first export remains a flat video.
+- Interactive-demo marker metadata is now editable through
+  `upsert-interactive-marker` and `remove-interactive-marker` revision
+  operations on `/api/motion/revise`. Authored markers persist on the
+  `MotionProject` with typed revision provenance, merge with derived markers in
+  preview, and surface callouts inside the same timeline lens.
 - `lib/motion/referencePatterns.ts` now records reusable product-video patterns
   that came out of the launch/demo research pass: launch hooks, real product
   capture, screen zoom callouts, caption-led social cuts, proof receipts,

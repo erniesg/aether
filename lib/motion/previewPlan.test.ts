@@ -10,6 +10,7 @@ import {
 } from './previewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
+import type { MotionProject } from './project';
 import type { AgentMotionWorkflowRunPlan } from './workflowPlan';
 
 function project() {
@@ -810,6 +811,47 @@ describe('buildMotionPreviewPlan', () => {
       toolLabels: ['motion capture'],
       artifactLabels: ['captures', 'cursor targets', 'crop receipts'],
     });
+  });
+
+  it('merges authored interactive markers into the creator preview summary', () => {
+    const markedProject: MotionProject = {
+      ...project(),
+      interactiveMarkers: [
+        {
+          id: 'marker-demo-review-callout',
+          kind: 'callout',
+          label: 'Review the prompt composer',
+          timeSeconds: 13.5,
+          durationSeconds: 2,
+          beatId: 'beat-demo',
+          clipId: 'clip-beat-demo-text',
+          targetLabel: 'Prompt composer edits this scene',
+          metadataLabels: ['manual callout'],
+          provenance: [{ kind: 'manual', ref: 'revision-demo-marker' }],
+        },
+      ],
+    };
+
+    const preview = buildMotionPreviewPlan(markedProject, { requestedAt: 903 });
+
+    expect(preview.interactiveDemo).toMatchObject({
+      status: 'ready',
+      calloutCount: 1,
+      markerLabels: expect.arrayContaining(['Review the prompt composer']),
+    });
+    expect(preview.interactiveDemo.markers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'marker-demo-review-callout',
+          kind: 'callout',
+          label: 'Review the prompt composer',
+          beatId: 'beat-demo',
+          clipId: 'clip-beat-demo-text',
+          targetLabel: 'Prompt composer edits this scene',
+          metadataLabels: expect.arrayContaining(['authored', 'manual callout']),
+        }),
+      ])
+    );
   });
 
   it('adds computer-use capture setup requirements when desktop fallback is available', () => {

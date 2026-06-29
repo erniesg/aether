@@ -312,6 +312,69 @@ describe('POST /api/motion/revise', () => {
     });
   });
 
+  it('applies authored interactive marker edits and returns them in the preview plan', async () => {
+    const { POST } = await import('@/app/api/motion/revise/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/revise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          id: 'revision-demo-callout-marker',
+          requestedAt: 907,
+          updatedAt: 908,
+          operations: [
+            {
+              kind: 'upsert-interactive-marker',
+              marker: {
+                id: 'marker-demo-callout',
+                kind: 'callout',
+                label: 'Show canvas prompt',
+                timeSeconds: 14,
+                durationSeconds: 2,
+                beatId: 'beat-demo',
+                clipId: 'clip-beat-demo-text',
+                targetLabel: 'Prompt composer opens under the canvas',
+                metadataLabels: ['manual callout', 'agent editable'],
+              },
+            },
+          ],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.project.interactiveMarkers).toEqual([
+      expect.objectContaining({
+        id: 'marker-demo-callout',
+        kind: 'callout',
+        label: 'Show canvas prompt',
+        beatId: 'beat-demo',
+        clipId: 'clip-beat-demo-text',
+        provenance: expect.arrayContaining([
+          { kind: 'manual', ref: 'revision-demo-callout-marker' },
+        ]),
+      }),
+    ]);
+    expect(json.previewPlan.interactiveDemo).toMatchObject({
+      status: 'ready',
+      calloutCount: 1,
+      markerLabels: expect.arrayContaining(['Show canvas prompt']),
+    });
+    expect(json.previewPlan.interactiveDemo.markers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'marker-demo-callout',
+          kind: 'callout',
+          label: 'Show canvas prompt',
+          targetLabel: 'Prompt composer opens under the canvas',
+          metadataLabels: expect.arrayContaining(['authored', 'manual callout']),
+        }),
+      ])
+    );
+  });
+
   it('rejects unsafe timeline edits without returning a revised project', async () => {
     const { POST } = await import('@/app/api/motion/revise/route');
     const res = await POST(

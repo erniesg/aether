@@ -85,6 +85,7 @@ import {
   type MotionDraft,
   type MotionExecutionHistoryEntry,
   type MotionExecutionReceipt,
+  type MotionInteractiveMarker,
   type MotionProject,
   type MotionProvenanceRef,
   type MotionSourceProfile,
@@ -818,6 +819,7 @@ export interface MotionPreviewInteractiveDemoSummary {
   markerCount: number;
   chapterCount: number;
   hotspotCount: number;
+  calloutCount: number;
   branchCount: number;
   linkCount: number;
   analyticsCount: number;
@@ -1111,22 +1113,58 @@ function buildInteractiveDemoSummary(
     ...linkInteractiveMarkers(project, reviewPlan, timelineRows),
     ...analyticsInteractiveMarkers(project, reviewPlan.summary.totalSeconds),
   ];
+  const mergedMarkers = mergeInteractiveMarkers(
+    markers,
+    authoredInteractiveMarkers(project.interactiveMarkers ?? [])
+  );
 
   return {
-    status: markers.length > 0 ? 'ready' : 'empty',
-    markerCount: markers.length,
-    chapterCount: markers.filter((marker) => marker.kind === 'chapter').length,
-    hotspotCount: markers.filter((marker) => marker.kind === 'hotspot').length,
-    branchCount: markers.filter((marker) => marker.kind === 'branch').length,
-    linkCount: markers.filter((marker) => marker.kind === 'link').length,
-    analyticsCount: markers.filter((marker) => marker.kind === 'analytics').length,
-    markerLabels: markers.map((marker) => marker.label),
+    status: mergedMarkers.length > 0 ? 'ready' : 'empty',
+    markerCount: mergedMarkers.length,
+    chapterCount: mergedMarkers.filter((marker) => marker.kind === 'chapter').length,
+    hotspotCount: mergedMarkers.filter((marker) => marker.kind === 'hotspot').length,
+    calloutCount: mergedMarkers.filter((marker) => marker.kind === 'callout').length,
+    branchCount: mergedMarkers.filter((marker) => marker.kind === 'branch').length,
+    linkCount: mergedMarkers.filter((marker) => marker.kind === 'link').length,
+    analyticsCount: mergedMarkers.filter((marker) => marker.kind === 'analytics').length,
+    markerLabels: mergedMarkers.map((marker) => marker.label),
     nextActionLabels:
-      markers.length > 0
+      mergedMarkers.length > 0
         ? ['Review interactive markers', 'Export flat video with metadata']
         : ['Add product captures or CTA links'],
-    markers,
+    markers: mergedMarkers,
   };
+}
+
+function authoredInteractiveMarkers(
+  markers: MotionInteractiveMarker[]
+): MotionPreviewInteractiveMarker[] {
+  return markers.map((marker) => ({
+    id: marker.id,
+    kind: marker.kind,
+    label: marker.label,
+    timeSeconds: marker.timeSeconds,
+    durationSeconds: marker.durationSeconds,
+    ...(marker.beatId === undefined ? {} : { beatId: marker.beatId }),
+    ...(marker.clipId === undefined ? {} : { clipId: marker.clipId }),
+    ...(marker.componentLabel === undefined ? {} : { componentLabel: marker.componentLabel }),
+    ...(marker.targetLabel === undefined ? {} : { targetLabel: marker.targetLabel }),
+    ...(marker.targetDraftId === undefined ? {} : { targetDraftId: marker.targetDraftId }),
+    ...(marker.targetFormat === undefined ? {} : { targetFormat: marker.targetFormat }),
+    ...(marker.href === undefined ? {} : { href: marker.href }),
+    metadataLabels: uniqueStrings(['authored', ...marker.metadataLabels]),
+  }));
+}
+
+function mergeInteractiveMarkers(
+  derivedMarkers: MotionPreviewInteractiveMarker[],
+  authoredMarkers: MotionPreviewInteractiveMarker[]
+): MotionPreviewInteractiveMarker[] {
+  const byId = new Map<string, MotionPreviewInteractiveMarker>();
+  [...derivedMarkers, ...authoredMarkers].forEach((marker) => {
+    byId.set(marker.id, marker);
+  });
+  return [...byId.values()];
 }
 
 function chapterInteractiveMarkers(

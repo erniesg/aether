@@ -2626,6 +2626,7 @@ function MotionInteractiveDemoStrip({
     formatCount(summary.markerCount, 'marker'),
     formatCount(summary.chapterCount, 'chapter'),
     formatCount(summary.hotspotCount, 'hotspot'),
+    formatCount(summary.calloutCount, 'callout'),
     formatCount(summary.branchCount, 'branch'),
     formatCount(summary.linkCount, 'link'),
   ].filter((label) => !label.startsWith('0 '));
@@ -2654,7 +2655,7 @@ function MotionInteractiveDemoStrip({
       </div>
       {summary.markers.length > 0 ? (
         <div className="mt-2 grid gap-2 md:grid-cols-3 xl:grid-cols-5">
-          {summary.markers.slice(0, 6).map((marker) => (
+          {summary.markers.slice(0, 8).map((marker) => (
             <div
               key={marker.id}
               className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
