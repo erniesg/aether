@@ -235,6 +235,11 @@
   screenshot, DOM snapshot, interaction-trace, optional recording, local-app
   launch, and computer-use fallback requests with viewport, setup,
   app-launch readiness, and provenance receipts.
+- Reusable `computer-use-capture` workflow skill discovery for guarded app
+  recording lanes. `/api/motion/workflows` now exposes it as a review/full-auto
+  video workflow with browser-first escalation, approval/redaction receipts,
+  editable capture/timing surfaces, handoff templates, render proof, and export
+  pack gates; live desktop-control runner execution remains a follow-up.
 - Browser capture provider boundary that executes capture requests through an
   injected runner and normalizes screenshot, snapshot, trace, or recording
   receipts into typed capture artifacts without hardcoding a default provider.

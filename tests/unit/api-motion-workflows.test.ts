@@ -10,12 +10,13 @@ describe('GET /api/motion/workflows', () => {
     const json = await res.json();
     expect(json).toMatchObject({
       ok: true,
-      workflowCount: 7,
+      workflowCount: 8,
     });
     expect(json.workflows.map((workflow: { id: string }) => workflow.id)).toEqual([
       'repo-launch-video',
       'feature-social-video',
       'website-to-video',
+      'computer-use-capture',
       'pr-to-video',
       'caption-overlay-video',
       'motion-graphic-video',
@@ -221,6 +222,115 @@ describe('GET /api/motion/workflows', () => {
           'provenance-manifest',
         ],
       },
+    });
+  });
+
+  it('exposes computer-use capture as a guarded reusable workflow skill', async () => {
+    const { GET } = await import('@/app/api/motion/workflows/route');
+
+    const res = await GET(
+      new Request('http://localhost/api/motion/workflows?sourceKind=capture&mode=review')
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const workflow = json.workflows.find(
+      (item: { id: string }) => item.id === 'computer-use-capture'
+    );
+
+    expect(workflow).toMatchObject({
+      kind: 'motion-workflow-skill',
+      id: 'computer-use-capture',
+      label: 'Computer-use capture',
+      sourceKinds: ['repo', 'site', 'capture'],
+      engines: ['remotion', 'hyperframes', 'provider'],
+      reviewGates: ['plan', 'capture', 'timeline', 'render', 'export'],
+      startHints: {
+        acceptedShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
+        defaultMode: 'review',
+      },
+      installableSkillDraft: expect.objectContaining({
+        label: 'Computer-use capture',
+        manifestPathRelative: 'lib/agent/skills/computer-use-capture/SKILL.md',
+        startShorthands: ['repoPath', 'repoUrl', 'siteUrl', 'sourceRefs'],
+        toolNames: expect.arrayContaining([
+          'motion_start',
+          'motion_capture',
+          'motion_agent_handoff',
+          'motion_preview_source',
+          'motion_source_edit',
+          'motion_render',
+          'motion_export_pack',
+        ]),
+        draftVariationLabels: [
+          'Browser-first fallback',
+          'Native surface capture',
+          'Auth-gated walkthrough',
+        ],
+        componentSlotLabels: expect.arrayContaining([
+          'App frame',
+          'Cursor callout',
+          'Agent trace',
+          'Contact sheet proof',
+        ]),
+        referencePatternLabels: expect.arrayContaining([
+          'Computer-use capture loop',
+          'Real product capture',
+          'Screen zoom callout',
+        ]),
+        manifest: expect.objectContaining({
+          name: 'computer-use-capture',
+          instructions: expect.stringContaining('computer-use capture requires creator approval'),
+        }),
+      }),
+      workflowRecipe: expect.objectContaining({
+        slug: 'computer-use-capture',
+        generationLanes: ['capture', 'sync', 'render', 'export'],
+        agentTaskLabels: expect.arrayContaining([
+          'Request explicit creator approval, safe target scope, and redaction labels before desktop control',
+          'Use browser capture first; escalate to computer-use only when auth, native UI, simulator, or gesture state blocks it',
+        ]),
+        referencePatterns: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'computer-use-capture-loop',
+            verificationLabels: expect.arrayContaining([
+              'screenshot receipt',
+              'redaction receipt',
+            ]),
+          }),
+        ]),
+      }),
+      skillContract: {
+        runModes: ['review', 'full-auto'],
+        reviewArtifacts: ['video-plan', 'capture-plan', 'sync-plan', 'render-proof', 'export-pack'],
+        regenerationTargets: ['capture', 'timing', 'effect', 'whole-video'],
+        verificationArtifacts: [
+          'contact-sheet',
+          'mp4-probe',
+          'poster',
+          'subtitles',
+          'transcript',
+          'provenance-manifest',
+        ],
+      },
+    });
+    expect(workflow.installableSkillDraft.capabilityPlan).toMatchObject({
+      fullAutoTemplateHints: ['full-auto-run', 'full-auto-computer-use-run'],
+      reviewTemplateHints: expect.arrayContaining([
+        'review-capture',
+        'review-computer-use-capture',
+        'record-product-flow',
+      ]),
+      steps: expect.arrayContaining([
+        expect.objectContaining({
+          gateId: 'capture',
+          agentTemplateHints: expect.arrayContaining([
+            'review-computer-use-capture',
+            'record-product-flow',
+          ]),
+          editSurfaceLabels: expect.arrayContaining(['capture', 'recording', 'cursor path']),
+        }),
+      ]),
     });
   });
 

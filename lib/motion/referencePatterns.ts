@@ -273,6 +273,7 @@ const REFERENCE_PATTERNS = {
     verificationLabels: [
       'screenshot receipt',
       'recording receipt',
+      'redaction receipt',
       'cursor target readable',
       'agent action trace visible',
     ],

@@ -232,7 +232,10 @@ capture, render, and provenance debugging.
   configured. Browser capture handoffs can now also expose an explicit
   `record-product-flow` action for optional screen-recording requests, so an
   agent can record app or site motion through the local runner before visual
-  generation or render.
+  generation or render. The guarded `computer-use-capture` lane is also exposed
+  as a reusable workflow skill through `/api/motion/workflows`, with
+  approval/redaction setup, browser-first escalation, editable capture/timing
+  surfaces, and the same render/export proof gates as other video workflows.
   Component regeneration actions are now also agent handoff templates, so the
   same boundary can stage scoped capture, caption, timing, effect, proof, code,
   or copy revisions from the reviewable draft board.

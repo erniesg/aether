@@ -125,6 +125,19 @@ const PR_VIDEO_SKILL_CONTRACT: WorkflowSkillContract = {
   verificationArtifacts: VIDEO_VERIFICATION_ARTIFACTS,
 };
 
+const COMPUTER_USE_CAPTURE_SKILL_CONTRACT: WorkflowSkillContract = {
+  runModes: ['review', 'full-auto'],
+  reviewArtifacts: [
+    'video-plan',
+    'capture-plan',
+    'sync-plan',
+    'render-proof',
+    'export-pack',
+  ],
+  regenerationTargets: ['capture', 'timing', 'effect', 'whole-video'],
+  verificationArtifacts: VIDEO_VERIFICATION_ARTIFACTS,
+};
+
 const WORKFLOW_REGISTRY = {
   'image-render-basic': {
     kind: 'workflow',
@@ -216,6 +229,31 @@ const WORKFLOW_REGISTRY = {
     engines: ['remotion', 'hyperframes', 'provider'],
     reviewGates: ['plan', 'drafts', 'capture', 'visuals', 'timeline', 'render', 'export'],
     skillContract: LAUNCH_VIDEO_SKILL_CONTRACT,
+    status: 'draft',
+  },
+  'computer-use-capture': {
+    kind: 'workflow',
+    id: 'computer-use-capture',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Computer-use capture',
+    summary:
+      'Safely capture authenticated, native, simulator, or gesture-heavy product flows as editable video material.',
+    toolIds: [
+      'motion-brief',
+      'motion-capture',
+      'motion-sync',
+      'motion-revise',
+      'motion-preview-source',
+      'motion-source-edit',
+      'motion-agent-handoff',
+      'motion-render',
+      'motion-export-pack',
+    ],
+    sourceKinds: ['repo', 'site', 'capture'],
+    engines: ['remotion', 'hyperframes', 'provider'],
+    reviewGates: ['plan', 'capture', 'timeline', 'render', 'export'],
+    skillContract: COMPUTER_USE_CAPTURE_SKILL_CONTRACT,
     status: 'draft',
   },
   'pr-to-video': {

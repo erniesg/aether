@@ -540,6 +540,118 @@ const RECIPE_DEFINITIONS = {
     fullAutoPolicy: 'Auto-advance only after capture receipts and crop targets are saved.',
     reviewPolicy: 'Review capture plan, tour order, readability, and render proof.',
   },
+  'computer-use-capture': {
+    slug: 'computer-use-capture',
+    label: 'Computer-use capture',
+    triggerPhrases: [
+      'record an authenticated app flow',
+      'capture this native or simulator workflow',
+      'use computer-use capture when browser capture is blocked',
+    ],
+    agentTaskLabels: [
+      'Request explicit creator approval, safe target scope, and redaction labels before desktop control',
+      'computer-use capture requires creator approval, an applied redaction manifest, and stop conditions before any receipt is accepted',
+      'Use browser capture first; escalate to computer-use only when auth, native UI, simulator, or gesture state blocks it',
+      'Collect screenshots, screen recordings, cursor targets, typed-action notes, and redaction receipts as source material',
+      'Apply approved receipts through the capture route so app-frame clips stay editable on the timeline',
+      'Render contact-sheet, poster, mp4, subtitle, transcript, and provenance proof before export',
+    ],
+    generationLanes: ['capture', 'sync', 'render', 'export'],
+    draftVariations: [
+      {
+        id: 'computer-use-browser-first',
+        label: 'Browser-first fallback',
+        angle: 'Try Playwright browser capture, then escalate only if the real flow is blocked.',
+        storyRoles: ['hook', 'demo', 'proof', 'cta'],
+        reviewPrompt: 'Check that escalation reason, target scope, and redactions are explicit.',
+      },
+      {
+        id: 'computer-use-native-surface',
+        label: 'Native surface capture',
+        angle: 'Capture a native, desktop, or simulator surface as the product proof insert.',
+        storyRoles: ['hook', 'demo', 'proof', 'payoff'],
+        reviewPrompt: 'Check that no secret or unrelated window appears in the recording.',
+      },
+      {
+        id: 'computer-use-auth-walkthrough',
+        label: 'Auth-gated walkthrough',
+        angle: 'Use approved authenticated receipts to show a short product walkthrough.',
+        storyRoles: ['hook', 'demo', 'proof', 'cta'],
+        reviewPrompt: 'Check that credentials, personal data, and private workspace details are redacted.',
+      },
+    ],
+    componentSlots: [
+      {
+        componentId: 'app-frame',
+        role: 'approved capture',
+        reason: 'Places screenshots or recordings into the same editable product-frame component.',
+      },
+      {
+        componentId: 'cursor-callout',
+        role: 'action trace',
+        reason: 'Makes cursor paths, clicks, typing, and gesture moments editable after capture.',
+      },
+      {
+        componentId: 'agent-trace',
+        role: 'safe automation proof',
+        reason: 'Shows approval, target scope, redaction, and stop-condition receipts.',
+      },
+      {
+        componentId: 'caption-line',
+        role: 'receipt narration',
+        reason: 'Keeps the capture explanation and redaction notes readable in sound-off review.',
+      },
+      {
+        componentId: 'soft-wipe',
+        role: 'receipt transition',
+        reason: 'Separates capture receipts and product moments without jump cuts.',
+      },
+      {
+        componentId: 'contact-sheet-proof',
+        role: 'capture proof',
+        reason: 'Lets creators inspect sampled frames before approving render or export.',
+      },
+    ],
+    referencePatternIds: [
+      'computer-use-capture-loop',
+      'real-product-capture',
+      'screen-zoom-callout',
+      'reviewable-draft-board',
+      'multi-format-pack',
+    ],
+    reviewSurfaces: [
+      {
+        artifact: 'video-plan',
+        label: 'Video plan',
+        purpose: 'Confirm why computer-use capture is needed and which product moment it supports.',
+      },
+      {
+        artifact: 'capture-plan',
+        label: 'Capture plan',
+        purpose: 'Approve target scope, safe actions, redactions, screenshots, recordings, and traces.',
+      },
+      {
+        artifact: 'sync-plan',
+        label: 'Sync plan',
+        purpose: 'Review cursor, caption, effect, and recording timing.',
+      },
+      {
+        artifact: 'render-proof',
+        label: 'Render proof',
+        purpose: 'Check redactions, crop, and frame samples before export.',
+      },
+      {
+        artifact: 'export-pack',
+        label: 'Export pack',
+        purpose: 'Confirm video, subtitles, transcript, and provenance sidecars.',
+      },
+    ],
+    skillPackIds: ['hyperframes-workflow-skills', 'iart-web-animation-skills'],
+    fullAutoPolicy:
+      'Auto-advance only after approval, redaction, and capture receipts are saved; pause before any unsafe desktop action.',
+    reviewPolicy:
+      'Review approval, target scope, redactions, capture receipts, and render proof before export.',
+  },
   'pr-to-video': {
     slug: 'pr-to-video',
     label: 'PR to video',
