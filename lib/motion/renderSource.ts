@@ -85,6 +85,23 @@ interface SourceManifestCommand {
   outputPath?: string;
 }
 
+interface SourceManifestDependencyHint {
+  packageName: string;
+  role: string;
+  required: boolean;
+}
+
+interface SourceManifestSourcePackage {
+  kind: 'editable-motion-source';
+  engine: MotionRenderEngine;
+  projectRoot: string;
+  runtimeRequirement: string;
+  sourceWriteOrder: string[];
+  dependencyHints: SourceManifestDependencyHint[];
+  scaffoldCommands: SourceManifestCommand[];
+  setupCommands: SourceManifestCommand[];
+}
+
 interface RenderDimensions {
   width: number;
   height: number;
@@ -2450,7 +2467,7 @@ function sourceManifestJson(
     editContract,
     syncEffectCues: editContract.syncEffectCues,
     editSurfaces: sourceManifestEditSurfaces(request),
-    execution: sourceManifestExecution(request, entryPoint),
+    execution: sourceManifestExecution(request, entryPoint, sourceFiles),
     proofArtifacts: sourceManifestProofArtifacts(request),
     outputIds: request.outputs.map((output) => output.id),
     sourceFiles: sourceFileSummaries,
@@ -2495,7 +2512,8 @@ function sourceManifestEditSurfaces(request: MotionRenderRequest): Array<{
 
 function sourceManifestExecution(
   request: MotionRenderRequest,
-  entryPoint: string
+  entryPoint: string,
+  sourceFiles: MotionRenderSourceFile[]
 ): {
   mode: string;
   engine: MotionRenderEngine;
@@ -2503,6 +2521,7 @@ function sourceManifestExecution(
   compositionId: string;
   propsPath: string;
   sourceHostRequirement: string;
+  sourcePackage: SourceManifestSourcePackage;
   previewCommand: SourceManifestCommand;
   renderCommands: SourceManifestCommand[];
   verificationCommands: SourceManifestCommand[];
@@ -2516,6 +2535,7 @@ function sourceManifestExecution(
     compositionId: request.compositionId,
     propsPath,
     sourceHostRequirement: sourceHostRequirement(request.engine, entryPoint),
+    sourcePackage: sourceManifestSourcePackage(request.engine, entryPoint, sourceFiles),
     previewCommand: sourceManifestPreviewCommand(request, entryPoint),
     renderCommands: sourceManifestRenderCommands(request, entryPoint, propsPath),
     verificationCommands: sourceManifestVerificationCommands(request, entryPoint, propsPath),
@@ -2534,6 +2554,131 @@ function sourceHostRequirement(engine: MotionRenderEngine, entryPoint: string): 
   }
 
   return `Serve ${entryPoint} from the generated HyperFrames project root.`;
+}
+
+function sourceManifestSourcePackage(
+  engine: MotionRenderEngine,
+  entryPoint: string,
+  sourceFiles: MotionRenderSourceFile[]
+): SourceManifestSourcePackage {
+  return {
+    kind: 'editable-motion-source',
+    engine,
+    projectRoot: '.',
+    runtimeRequirement:
+      engine === 'remotion' ? 'Node.js with Remotion CLI support' : 'Node.js >= 22 and FFmpeg',
+    sourceWriteOrder: sourceWriteOrder(sourceFiles, entryPoint),
+    dependencyHints: sourceManifestDependencyHints(engine),
+    scaffoldCommands: sourceManifestScaffoldCommands(engine),
+    setupCommands: sourceManifestSetupCommands(engine),
+  };
+}
+
+function sourceWriteOrder(
+  sourceFiles: MotionRenderSourceFile[],
+  entryPoint: string
+): string[] {
+  const supportFiles = sourceFiles
+    .filter((file) => file.path !== entryPoint)
+    .map((file) => file.path);
+  const entryFiles = sourceFiles
+    .filter((file) => file.path === entryPoint)
+    .map((file) => file.path);
+
+  return [...supportFiles, ...entryFiles];
+}
+
+function sourceManifestDependencyHints(
+  engine: MotionRenderEngine
+): SourceManifestDependencyHint[] {
+  if (engine === 'remotion') {
+    return [
+      {
+        packageName: 'remotion',
+        role: 'Remotion CLI render and studio preview',
+        required: true,
+      },
+      {
+        packageName: '@remotion/media',
+        role: 'Audio and video primitives used by generated sources',
+        required: true,
+      },
+      {
+        packageName: 'react',
+        role: 'React runtime for Remotion compositions',
+        required: true,
+      },
+      {
+        packageName: 'react-dom',
+        role: 'React DOM renderer used by Remotion',
+        required: true,
+      },
+    ];
+  }
+
+  return [
+    {
+      packageName: 'hyperframes',
+      role: 'HyperFrames CLI preview, lint, validate, snapshot, and render',
+      required: true,
+    },
+    {
+      packageName: 'gsap',
+      role: 'Seekable timeline animation used by generated HTML',
+      required: true,
+    },
+  ];
+}
+
+function sourceManifestScaffoldCommands(engine: MotionRenderEngine): SourceManifestCommand[] {
+  if (engine === 'remotion') {
+    return [
+      commandSpec({
+        id: 'scaffold-remotion-blank',
+        label: 'Create a blank Remotion source workspace',
+        command: 'npx',
+        args: ['create-video@latest', '--yes', '--blank', '--no-tailwind', 'motion-render-source'],
+      }),
+    ];
+  }
+
+  return [
+    commandSpec({
+      id: 'scaffold-hyperframes-product-promo',
+      label: 'Create a HyperFrames product-promo source workspace',
+      command: 'npx',
+      args: [
+        'hyperframes',
+        'init',
+        'motion-render-source',
+        '--example',
+        'product-promo',
+        '--non-interactive',
+      ],
+    }),
+  ];
+}
+
+function sourceManifestSetupCommands(engine: MotionRenderEngine): SourceManifestCommand[] {
+  if (engine === 'remotion') {
+    return [
+      commandSpec({
+        id: 'setup-remotion-dependencies',
+        label: 'Install Remotion render dependencies',
+        command: 'npm',
+        args: ['install', 'remotion', '@remotion/media', 'react', 'react-dom'],
+      }),
+    ];
+  }
+
+  return [
+    commandSpec({
+      id: 'setup-hyperframes-doctor',
+      label: 'Check HyperFrames render environment',
+      command: 'npx',
+      args: ['hyperframes', 'doctor'],
+    }),
+  ];
 }
 
 function sourceManifestPreviewCommand(

@@ -433,6 +433,11 @@
   preference (`remotion-local` or `hyperframes-local`), persists it with the
   other provider choices, and passes it into agent handoff templates as
   `renderProviderId`.
+- Render source manifests now include a source-package contract for editable
+  engine workspaces: source write order, dependency hints, scaffold commands,
+  and setup checks for Remotion and HyperFrames. This lets review-mode agents
+  show a runnable source plan before a render provider is configured, while
+  keeping the creator-facing artifact in the same canvas/timeline flow.
 - Workflow skill launch kits now expose review objects for PR/repo evidence,
   draft variations, component regeneration handles, teaser targets, and export
   packs. The generated `SKILL.md` instructions include those objects, the

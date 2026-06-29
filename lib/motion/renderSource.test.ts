@@ -238,6 +238,42 @@ describe('buildMotionRenderSourceBundle', () => {
       engine: 'remotion',
       entryPoint: 'remotion/index.tsx',
       compositionId: 'motion-aether-launch-draft-primary',
+      sourcePackage: {
+        kind: 'editable-motion-source',
+        engine: 'remotion',
+        projectRoot: '.',
+        sourceWriteOrder: [
+          'DESIGN.md',
+          'SCRIPT.md',
+          'STORYBOARD.md',
+          'timeline/draft-primary.json',
+          'EDIT.md',
+          'remotion/index.tsx',
+        ],
+        dependencyHints: expect.arrayContaining([
+          expect.objectContaining({
+            packageName: 'remotion',
+            role: 'Remotion CLI render and studio preview',
+          }),
+          expect.objectContaining({
+            packageName: '@remotion/media',
+            role: 'Audio and video primitives used by generated sources',
+          }),
+        ]),
+        scaffoldCommands: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'scaffold-remotion-blank',
+            display:
+              'npx create-video@latest --yes --blank --no-tailwind motion-render-source',
+          }),
+        ]),
+        setupCommands: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'setup-remotion-dependencies',
+            display: 'npm install remotion @remotion/media react react-dom',
+          }),
+        ]),
+      },
       propsPath:
         'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.props.json',
       previewCommand: {
@@ -396,6 +432,42 @@ describe('buildMotionRenderSourceBundle', () => {
       mode: 'agent-render-package',
       engine: 'hyperframes',
       entryPoint: 'index.html',
+      sourcePackage: {
+        kind: 'editable-motion-source',
+        engine: 'hyperframes',
+        projectRoot: '.',
+        sourceWriteOrder: [
+          'DESIGN.md',
+          'SCRIPT.md',
+          'STORYBOARD.md',
+          'timeline/draft-primary.json',
+          'EDIT.md',
+          'index.html',
+        ],
+        dependencyHints: expect.arrayContaining([
+          expect.objectContaining({
+            packageName: 'hyperframes',
+            role: 'HyperFrames CLI preview, lint, validate, snapshot, and render',
+          }),
+          expect.objectContaining({
+            packageName: 'gsap',
+            role: 'Seekable timeline animation used by generated HTML',
+          }),
+        ]),
+        scaffoldCommands: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'scaffold-hyperframes-product-promo',
+            display:
+              'npx hyperframes init motion-render-source --example product-promo --non-interactive',
+          }),
+        ]),
+        setupCommands: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'setup-hyperframes-doctor',
+            display: 'npx hyperframes doctor',
+          }),
+        ]),
+      },
       previewCommand: {
         id: 'preview-hyperframes',
         command: 'npx',

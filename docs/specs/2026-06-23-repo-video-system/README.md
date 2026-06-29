@@ -461,7 +461,10 @@ capture, render, and provenance debugging.
   component ids and reusable effect tokens for hook, proof, app-frame, trace,
   CTA, caption, and transition clips. Render execution attaches those source
   files to each request, and command runners write them before invoking the
-  selected engine.
+  selected engine. Source manifests now also include an editable source-package
+  contract with write order, engine dependencies, scaffold commands, and setup
+  checks so agents can turn review-mode source output into a runnable
+  Remotion/HyperFrames project.
 - `lib/motion/revise.ts` now applies structured timeline revisions for
   review-mode and agent-driven tweaks: story copy, clip props, retiming, and
   component replacement update both the editable project and draft timelines,
