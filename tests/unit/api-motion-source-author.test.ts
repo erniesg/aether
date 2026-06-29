@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
@@ -8,10 +8,21 @@ import {
   registerMotionSourceAuthorProvider,
   type MotionSourceAuthorProvider,
 } from '@/lib/providers/source-author/registry';
+import { resetConfiguredMotionSourceAuthorProvidersForTests } from '@/lib/providers/source-author/configured';
 import type {
   MotionSourceAuthorRequest,
   MotionSourceAuthorResult,
 } from '@/lib/providers/source-author/types';
+
+const SOURCE_AUTHOR_ENV_KEYS = [
+  'ANTHROPIC_API_KEY',
+  'AETHER_MOTION_SOURCE_AUTHOR_MODEL',
+  'MOTION_SOURCE_AUTHOR_MODEL',
+  'ANTHROPIC_SOURCE_AUTHOR_MODEL',
+] as const;
+const ORIGINAL_SOURCE_AUTHOR_ENV = Object.fromEntries(
+  SOURCE_AUTHOR_ENV_KEYS.map((key) => [key, process.env[key]])
+);
 
 function project(): MotionProject {
   return materializeMotionTimeline(
@@ -103,8 +114,14 @@ function authoredResultFor(request: MotionSourceAuthorRequest): MotionSourceAuth
 describe('POST /api/motion/source-author', () => {
   const unregister: Array<() => void> = [];
 
+  beforeEach(() => {
+    clearSourceAuthorEnv();
+  });
+
   afterEach(() => {
     while (unregister.length > 0) unregister.pop()?.();
+    resetConfiguredMotionSourceAuthorProvidersForTests();
+    restoreSourceAuthorEnv();
   });
 
   it('returns a provider-required authoring handoff when no source author provider is configured', async () => {
@@ -234,3 +251,17 @@ describe('POST /api/motion/source-author', () => {
     expect(json.previewPlan.executionHistory.savedStepCount).toBeGreaterThan(0);
   });
 });
+
+function clearSourceAuthorEnv(): void {
+  for (const key of SOURCE_AUTHOR_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreSourceAuthorEnv(): void {
+  for (const key of SOURCE_AUTHOR_ENV_KEYS) {
+    const original = ORIGINAL_SOURCE_AUTHOR_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}

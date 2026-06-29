@@ -598,10 +598,12 @@ capture, render, and provenance debugging.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider
   planning/registry, `lib/providers/voice/*` covers voice provider contracts,
-  and `lib/providers/source-author/*` covers provider-neutral source authoring.
-  Text-to-video, TTS execution, image-to-video provider execution, real
-  model-backed source-author adapters, engine dependency/project scaffolding,
-  and higher-fidelity visual component libraries remain future adapter work.
+  and `lib/providers/source-author/*` covers provider-neutral source authoring
+  plus an opt-in Anthropic source-author adapter when `ANTHROPIC_API_KEY` and
+  `AETHER_MOTION_SOURCE_AUTHOR_MODEL` are configured. Text-to-video, TTS
+  execution, image-to-video provider execution, engine dependency/project
+  scaffolding, and higher-fidelity visual component libraries remain future
+  adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.

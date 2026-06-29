@@ -240,6 +240,11 @@
   provider-required handoff when no source author is configured, and applies
   provider-authored files through the existing source-edit contract when an
   opt-in provider is available.
+- `lib/providers/source-author/anthropic.ts` and `configured.ts` provide the
+  first opt-in model-backed author. It registers only when
+  `ANTHROPIC_API_KEY` and `AETHER_MOTION_SOURCE_AUTHOR_MODEL` are configured,
+  uses a tool call to return `{ files }`, and rejects authored paths outside
+  the selected source-patch request.
 - The timeline lens now exposes that source-author path as a creator review
   action on agent-ready source-patch variations. Creators can apply the static
   draft or ask an agent/provider to author the selected variation; authored

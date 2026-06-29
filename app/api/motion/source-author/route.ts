@@ -10,6 +10,7 @@ import {
   MotionSourceAuthorProviderUnavailableError,
   resolveMotionSourceAuthorProvider,
 } from '@/lib/providers/source-author/registry';
+import { ensureConfiguredMotionSourceAuthorProviders } from '@/lib/providers/source-author/configured';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  ensureConfiguredMotionSourceAuthorProviders();
+
   let body: MotionSourceAuthorRequestBody;
   try {
     const parsed = await request.json();

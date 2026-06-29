@@ -175,9 +175,10 @@ Aether now has the right backbone:
    agent-authoring request with source files, guardrails, response schema, and
    source-author execution template. `/api/motion/source-author` can now return
    a provider-required handoff or apply provider-authored files through
-   source-edit. The remaining gap is a real configured model/agent adapter that
-   produces meaningfully different copy, timing, effect, and capture-source
-   edits from that contract.
+   source-edit. An opt-in Anthropic adapter can now author those source files
+   when both `ANTHROPIC_API_KEY` and `AETHER_MOTION_SOURCE_AUTHOR_MODEL` are
+   configured; remaining depth is richer visual/effect recipes, live app-source
+   context, and end-to-end model-backed QA.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source
