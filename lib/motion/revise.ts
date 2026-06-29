@@ -27,6 +27,10 @@ export type MotionTimelineRevisionOperation =
       targetSeconds?: number;
     }
   | {
+      kind: 'reorder-story-beats';
+      beatIds: string[];
+    }
+  | {
       kind: 'update-clip-props';
       clipId: string;
       props: Record<string, unknown>;
@@ -160,6 +164,10 @@ function validateMotionTimelineRevision(
       }
     }
 
+    if (operation.kind === 'reorder-story-beats') {
+      validateStoryBeatOrder(project, operation.beatIds);
+    }
+
     if (
       operation.kind === 'update-clip-props' ||
       operation.kind === 'replace-clip-props' ||
@@ -242,13 +250,33 @@ function validateRetimingDoesNotOverlap(
   });
 }
 
+function validateStoryBeatOrder(project: MotionProject, beatIds: string[]): void {
+  if (beatIds.length === 0) {
+    throw new Error('Motion story beat order is required');
+  }
+
+  const duplicate = firstDuplicate(beatIds);
+  if (duplicate) {
+    throw new Error(`Motion story beat order contains duplicate beat: ${duplicate}`);
+  }
+
+  const projectBeatIds = project.story.map((beat) => beat.id);
+  if (!sameStringSet(projectBeatIds, beatIds)) {
+    throw new Error('Motion story beat order must include every story beat exactly once');
+  }
+}
+
 function applyStoryOperations(
   story: StoryBeat[],
   operations: MotionTimelineRevisionOperation[],
   provenance: MotionProvenanceRef[]
 ): StoryBeat[] {
+  const reorder = operations.findLast((operation) => operation.kind === 'reorder-story-beats');
+  const orderedStory = reorder
+    ? reorderStoryBeats(story, reorder.beatIds, provenance)
+    : story;
   const updates = operations.filter((operation) => operation.kind === 'update-story-beat');
-  if (updates.length === 0) return story;
+  if (updates.length === 0) return orderedStory;
   const updatesByBeat = new Map<string, StoryBeatUpdate>();
 
   updates.forEach((operation) => {
@@ -262,7 +290,7 @@ function applyStoryOperations(
     });
   });
 
-  return story.map((beat) => {
+  return orderedStory.map((beat) => {
     const update = updatesByBeat.get(beat.id);
     if (!update) return beat;
 
@@ -277,6 +305,24 @@ function applyStoryOperations(
   });
 }
 
+function reorderStoryBeats(
+  story: StoryBeat[],
+  beatIds: string[],
+  provenance: MotionProvenanceRef[]
+): StoryBeat[] {
+  if (!sameStringSet(story.map((beat) => beat.id), beatIds)) return story;
+
+  const storyById = new Map(story.map((beat) => [beat.id, beat]));
+  return beatIds.map((beatId) => {
+    const beat = storyById.get(beatId);
+    if (!beat) throw new Error(`Motion story beat not found: ${beatId}`);
+    return {
+      ...beat,
+      provenance: uniqueProvenance([...beat.provenance, ...provenance]),
+    };
+  });
+}
+
 function clipEditsForOperations(
   operations: MotionTimelineRevisionOperation[]
 ): Map<string, ClipEdit> {
@@ -284,6 +330,7 @@ function clipEditsForOperations(
 
   operations.forEach((operation) => {
     if (operation.kind === 'update-story-beat') return;
+    if (operation.kind === 'reorder-story-beats') return;
     if (
       operation.kind === 'upsert-interactive-marker' ||
       operation.kind === 'remove-interactive-marker'
@@ -481,6 +528,9 @@ function upsertRevisionNode(
 
 function operationRef(operation: MotionTimelineRevisionOperation): string {
   if (operation.kind === 'update-story-beat') return operation.beatId;
+  if (operation.kind === 'reorder-story-beats') {
+    return `story-order:${operation.beatIds.join(',')}`;
+  }
   if (operation.kind === 'upsert-interactive-marker') return operation.marker.id;
   if (operation.kind === 'remove-interactive-marker') return operation.markerId;
   return operation.clipId;
@@ -661,4 +711,19 @@ function uniqueProvenance(refs: MotionProvenanceRef[]): MotionProvenanceRef[] {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))];
+}
+
+function firstDuplicate(values: string[]): string | null {
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) return value;
+    seen.add(value);
+  }
+  return null;
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
 }

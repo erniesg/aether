@@ -483,7 +483,40 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
   });
 
   it('timeline regeneration button plans a scoped agent handoff and refreshes motion state', async () => {
-    const start = storedRegeneratableMotionStart();
+    const start = {
+      ...storedRegeneratableMotionStart(),
+      preparedPreviewSource: {
+        id: 'preview-source-render-plan-motion-aether-launch-draft-primary-remotion',
+        projectId: 'motion-aether-launch',
+        draftId: 'draft-primary',
+        engine: 'remotion' as const,
+        runtimeKind: 'remotion-player' as const,
+        label: 'Remotion Player',
+        mountLabel: 'Mount Remotion Player',
+        compositionId: 'motion-aether-launch-draft-primary',
+        entryPoint: 'remotion/index.tsx',
+        durationSeconds: 30,
+        fps: 30,
+        sourceHostRequirement: 'Serve the source bundle to the same-shell preview runtime.',
+        editLinkLabels: ['component props', 'timeline JSON'],
+        runtimeHost: {
+          status: 'source-ready' as const,
+          previewSurface: 'player' as const,
+          dependencyLabels: ['@remotion/player', 'remotion'],
+          adapterRequirement:
+            'aether Player adapter mounts timeline/draft-primary.json through @remotion/player.',
+        },
+        sourcePackage: null,
+        sourceHost: {
+          apiRoute: '/api/motion/preview-source',
+          entryPath: 'remotion/index.tsx',
+          timelinePath: 'timeline/draft-primary.json',
+          manifestPath: 'renders/motion-aether-launch/source-manifest.json',
+          sourceFileCount: 4,
+        },
+        sourceFiles: [],
+      },
+    };
     const sourcePatchDraft = {
       id: 'source-patch-draft-regen-capture',
       status: 'ready',
@@ -579,6 +612,13 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
         body: expect.stringContaining('"id":"source-edit-regen-capture"'),
       })
     );
+    expect(getMotionStartResult('demo-ws')?.preparedPreviewSource).toMatchObject({
+      id: 'preview-source-render-plan-motion-aether-launch-draft-primary-remotion',
+      sourceHost: {
+        timelinePath: 'timeline/draft-primary.json',
+        manifestPath: 'renders/motion-aether-launch/source-manifest.json',
+      },
+    });
   });
 
   it('authors selected source patch variations through the timeline review action', async () => {

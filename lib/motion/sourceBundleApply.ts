@@ -157,6 +157,20 @@ function planSourceFileEdits(
   file: MotionSourceBundleEditFile
 ): TimelineEditPlan {
   const normalizedPath = normalizePath(file.path);
+  if (isUnsafeSourcePath(file.path, normalizedPath)) {
+    return {
+      operations: [],
+      appliedEdits: [],
+      blockers: [
+        {
+          id: 'source-edit-unsafe-path',
+          path: file.path,
+          message: 'Source edit paths must stay inside the editable motion source bundle.',
+        },
+      ],
+    };
+  }
+
   const pathDraftId = draftIdFromTimelinePath(normalizedPath);
   if (pathDraftId) {
     return timelineJsonEdits(project, file, normalizedPath, pathDraftId);
@@ -357,8 +371,18 @@ function storyboardMarkdownEdits(
   const operations: MotionTimelineRevisionOperation[] = [];
   const appliedEdits: MotionSourceBundleAppliedEdit[] = [];
   const blockers: MotionSourceBundleEditBlocker[] = [];
+  const sections = markdownSections(contents);
+  const orderPlan = storyboardOrderEdits(project, {
+    path,
+    draftId,
+    sections,
+    storyById,
+  });
+  operations.push(...orderPlan.operations);
+  appliedEdits.push(...orderPlan.appliedEdits);
+  blockers.push(...orderPlan.blockers);
 
-  markdownSections(contents).forEach((section) => {
+  sections.forEach((section) => {
     const beat = storyById.get(section.heading);
     if (!beat) {
       blockers.push({
@@ -478,6 +502,67 @@ function storyboardMarkdownEdits(
   });
 
   return { operations, appliedEdits, blockers };
+}
+
+function storyboardOrderEdits(
+  project: MotionProject,
+  input: {
+    path: string;
+    draftId: string;
+    sections: MarkdownSection[];
+    storyById: Map<string, StoryBeat>;
+  }
+): TimelineEditPlan {
+  const currentStory = currentStoryForDraft(project, input.draftId);
+  if (currentStory.length === 0 || input.sections.length !== currentStory.length) {
+    return emptyTimelineEditPlan();
+  }
+
+  const beatIds: string[] = [];
+  const blockers: MotionSourceBundleEditBlocker[] = [];
+  input.sections.forEach((section) => {
+    const beat = input.storyById.get(section.heading);
+    if (!beat) return;
+    beatIds.push(beat.id);
+  });
+
+  if (beatIds.length !== input.sections.length) return emptyTimelineEditPlan();
+  const duplicate = firstDuplicate(beatIds);
+  if (duplicate) {
+    blockers.push({
+      id: 'source-edit-story-order-duplicate',
+      path: input.path,
+      message: `STORYBOARD.md contains duplicate story beat: ${duplicate}`,
+    });
+    return { operations: [], appliedEdits: [], blockers };
+  }
+
+  const currentBeatIds = currentStory.map((beat) => beat.id);
+  if (!sameStringSet(currentBeatIds, beatIds)) return emptyTimelineEditPlan();
+  if (currentBeatIds.join('\n') === beatIds.join('\n')) return emptyTimelineEditPlan();
+
+  return {
+    operations: [
+      {
+        kind: 'reorder-story-beats',
+        beatIds,
+      },
+    ],
+    appliedEdits: beatIds.flatMap((beatId, index) =>
+      currentBeatIds[index] === beatId
+        ? []
+        : [
+            {
+              kind: 'story-beat' as const,
+              path: input.path,
+              draftId: input.draftId,
+              beatId,
+              changedFields: ['order'],
+            },
+          ]
+    ),
+    blockers,
+  };
 }
 
 function editMarkdownEdits(
@@ -965,6 +1050,11 @@ function normalizePath(path: string): string {
   return path.replace(/^\.\//, '').replace(/^\/+/, '');
 }
 
+function isUnsafeSourcePath(rawPath: string, normalizedPath: string): boolean {
+  if (rawPath.startsWith('/') || rawPath.includes('\\')) return true;
+  return normalizedPath.split('/').some((segment) => segment === '..');
+}
+
 function changedPropFields(
   before: Record<string, unknown>,
   after: Record<string, unknown>
@@ -1091,6 +1181,11 @@ function storyBeatMap(project: MotionProject): Map<string, StoryBeat> {
     if (!map.has(beat.id)) map.set(beat.id, beat);
   });
   return map;
+}
+
+function currentStoryForDraft(project: MotionProject, draftId: string): StoryBeat[] {
+  const draftStory = project.drafts.find((draft) => draft.id === draftId)?.story ?? [];
+  return draftStory.length > 0 ? draftStory : project.story;
 }
 
 function narrationClipEditsForBeat(
@@ -1324,4 +1419,19 @@ function mergeAppliedEdits(edits: MotionSourceBundleAppliedEdit[]): MotionSource
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
+}
+
+function firstDuplicate(values: string[]): string | null {
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) return value;
+    seen.add(value);
+  }
+  return null;
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
 }

@@ -85,6 +85,30 @@ function editMarkdownSection(
   return contents.slice(0, start) + edit(contents.slice(start, end)) + contents.slice(end);
 }
 
+function reorderMarkdownSections(contents: string, orderedHeadings: string[]): string {
+  const firstSectionStart = contents.indexOf('\n## ');
+  if (firstSectionStart === -1) throw new Error('missing markdown sections');
+
+  const prelude = contents.slice(0, firstSectionStart + 1);
+  const sectionSource = contents.slice(firstSectionStart + 1);
+  const sections = sectionSource.match(/^## [\s\S]*?(?=^## |\s*$)/gm) ?? [];
+  const sectionsByHeading = new Map(
+    sections.map((section) => {
+      const heading = /^##\s+(.+?)\s*$/m.exec(section)?.[1];
+      if (!heading) throw new Error('missing section heading');
+      return [heading, section.trimEnd()] as const;
+    })
+  );
+
+  return `${prelude}${orderedHeadings
+    .map((heading) => {
+      const section = sectionsByHeading.get(heading);
+      if (!section) throw new Error(`missing section ${heading}`);
+      return section;
+    })
+    .join('\n\n')}\n`;
+}
+
 describe('applyMotionSourceBundleEdits', () => {
   it('round-trips edited timeline JSON back into the active motion project', () => {
     const original = project();
@@ -260,6 +284,32 @@ describe('applyMotionSourceBundleEdits', () => {
         }),
       ])
     );
+  });
+
+  it('blocks source bundle path traversal before reading source file intent', () => {
+    const original = project();
+    const scriptFile = editableSourceFile(original, 'SCRIPT.md');
+
+    const result = applyMotionSourceBundleEdits(original, {
+      id: 'source-edit-path-traversal',
+      requestedAt: 203,
+      files: [
+        {
+          path: '../SCRIPT.md',
+          contents: scriptFile.contents,
+        },
+      ],
+    });
+
+    expect(result.status).toBe('blocked');
+    expect(result.project).toBe(original);
+    expect(result.blockers).toEqual([
+      {
+        id: 'source-edit-unsafe-path',
+        path: '../SCRIPT.md',
+        message: 'Source edit paths must stay inside the editable motion source bundle.',
+      },
+    ]);
   });
 
   it('round-trips SCRIPT.md narration edits into story, text, caption, and voice clips', () => {
@@ -441,5 +491,160 @@ describe('applyMotionSourceBundleEdits', () => {
       caption: 'Review drafts before full auto',
       zoom: 1.15,
     });
+  });
+
+  it('round-trips an authored source bundle while preserving source manifest paths', () => {
+    const original = project();
+    const beforeBundle = buildMotionRenderSourceBundle(original, renderRequest(original));
+    const beforeManifestPath = beforeBundle.files.find((file) => file.kind === 'manifest')?.path;
+    const scriptFile = editableSourceFile(original, 'SCRIPT.md');
+    const storyboardFile = editableSourceFile(original, 'STORYBOARD.md');
+    const timelineFile = editableTimelineFile(original);
+    const editFile = editableSourceFile(original, 'EDIT.md');
+    const originalStoryOrder = original.story.map((beat) => beat.id);
+
+    expect(originalStoryOrder.indexOf('beat-proof')).toBeLessThan(
+      originalStoryOrder.indexOf('beat-demo')
+    );
+
+    const editedNarration = 'Open with the live canvas demo before proving the stack.';
+    const editedScript = scriptFile.contents.replace(
+      'Show aether in use, with the product flow framed clearly.',
+      editedNarration
+    );
+    const editedStoryboard = reorderMarkdownSections(storyboardFile.contents, [
+      'beat-hook',
+      'beat-problem',
+      'beat-demo',
+      'beat-proof',
+      'beat-payoff',
+      'beat-cta',
+    ]);
+    const timeline = JSON.parse(timelineFile.contents);
+    const textTrack = timeline.tracks.find((track: { id: string }) => track.id === 'track-text');
+    const demoClip = textTrack.clips.find(
+      (clip: { id: string }) => clip.id === 'clip-beat-demo-text'
+    );
+    demoClip.startFrame = 370;
+    demoClip.durationFrames = 190;
+    demoClip.props = {
+      ...demoClip.props,
+      caption: 'Demo-first canvas walkthrough',
+      zoom: 1.2,
+    };
+    const editedEdit = editFile.contents
+      .replace('- caption: null', '- caption: "Demo-first canvas walkthrough"')
+      .replace('- zoom: null', '- zoom: 1.2');
+
+    const result = applyMotionSourceBundleEdits(original, {
+      id: 'source-edit-agent-round-trip',
+      requestedAt: 210,
+      updatedAt: 211,
+      files: [
+        { path: scriptFile.path, contents: editedScript },
+        { path: storyboardFile.path, contents: editedStoryboard },
+        { path: timelineFile.path, contents: JSON.stringify(timeline, null, 2) },
+        { path: editFile.path, contents: editedEdit },
+      ],
+    });
+
+    expect(result.status).toBe('applied');
+    expect(result.blockers).toEqual([]);
+    expect(result.sourcePaths).toEqual([
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline/draft-primary.json',
+      'EDIT.md',
+    ]);
+    expect(result.appliedEdits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'story-beat',
+          path: 'SCRIPT.md',
+          beatId: 'beat-demo',
+          changedFields: ['narration'],
+        }),
+        expect.objectContaining({
+          kind: 'story-beat',
+          path: 'STORYBOARD.md',
+          beatId: 'beat-demo',
+          changedFields: expect.arrayContaining(['order']),
+        }),
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          path: 'timeline/draft-primary.json',
+          clipId: 'clip-beat-demo-text',
+          changedFields: expect.arrayContaining([
+            'startFrame',
+            'durationFrames',
+            'props.caption',
+            'props.zoom',
+          ]),
+        }),
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          path: 'EDIT.md',
+          clipId: 'clip-beat-demo-text',
+          changedFields: expect.arrayContaining(['props.caption', 'props.zoom']),
+        }),
+      ])
+    );
+    expect(result.project.story.map((beat) => beat.id)).toEqual([
+      'beat-hook',
+      'beat-problem',
+      'beat-demo',
+      'beat-proof',
+      'beat-payoff',
+      'beat-cta',
+    ]);
+    expect(result.project.drafts[0]?.story.map((beat) => beat.id)).toEqual([
+      'beat-hook',
+      'beat-problem',
+      'beat-demo',
+      'beat-proof',
+      'beat-payoff',
+      'beat-cta',
+    ]);
+    expect(result.project.story.find((beat) => beat.id === 'beat-demo')?.narration).toBe(
+      editedNarration
+    );
+    const revisedDemoClip = result.project.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(revisedDemoClip).toMatchObject({
+      startFrame: 370,
+      durationFrames: 190,
+      props: expect.objectContaining({
+        caption: 'Demo-first canvas walkthrough',
+        zoom: 1.2,
+      }),
+    });
+    expect(result.project.executionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Source edit',
+          providerId: 'motion-source-edit',
+          receiptLabels: expect.arrayContaining([
+            'Source files',
+            'Timeline revision',
+            'Updated preview plan',
+          ]),
+        }),
+      ])
+    );
+
+    const afterBundle = buildMotionRenderSourceBundle(
+      result.project,
+      renderRequest(result.project)
+    );
+    expect(afterBundle.files.find((file) => file.kind === 'manifest')?.path).toBe(
+      beforeManifestPath
+    );
+    expect(afterBundle.files.find((file) => file.path === 'SCRIPT.md')?.contents).toContain(
+      editedNarration
+    );
+    expect(afterBundle.files.find((file) => file.path === 'STORYBOARD.md')?.contents).toMatch(
+      /## beat-demo[\s\S]*## beat-proof/
+    );
   });
 });

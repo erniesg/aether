@@ -186,7 +186,7 @@ git commit -m "test: prove repo video full auto golden path"
 - Modify: `tests/unit/api-motion-source-author.test.ts`
 - Modify: `tests/component/view-switcher.focus-mode.test.tsx`
 
-- [ ] **Step 1: Add failing tests for editable source round-trip**
+- [x] **Step 1: Add failing tests for editable source round-trip**
 
 The tests should edit all four source-backed files:
 
@@ -204,7 +204,7 @@ Expected assertions:
 - preview plan exposes updated source labels
 - prepared preview source still has the same engine source manifest paths
 
-- [ ] **Step 2: Run the failing tests**
+- [x] **Step 2: Run the failing tests**
 
 Run:
 
@@ -214,11 +214,11 @@ npx vitest run lib/motion/sourceBundleApply.test.ts tests/unit/api-motion-source
 
 Expected: FAIL on the first missing source-file application or UI receipt.
 
-- [ ] **Step 3: Implement the minimal parser/application fix**
+- [x] **Step 3: Implement the minimal parser/application fix**
 
 Use structured JSON for timeline files and bounded markdown sections for script/storyboard files. Reject unknown clip ids, unknown beat ids, unsafe path traversal, and overlapping timeline edits.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run:
 
@@ -228,7 +228,7 @@ npx vitest run lib/motion/sourceBundleApply.test.ts tests/unit/api-motion-source
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/sourceBundleApply.ts lib/motion/sourceBundleApply.test.ts tests/unit/api-motion-source-author.test.ts tests/component/view-switcher.focus-mode.test.tsx
