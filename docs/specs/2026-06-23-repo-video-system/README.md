@@ -369,7 +369,10 @@ capture, render, and provenance debugging.
   editable source-patch variations for creator selection; in full-auto mode an
   explicit `sourcePatchMode: "apply-default"` request applies the default
   source patch through the same source-edit contract and saves receipts before
-  refreshing the timeline.
+  refreshing the timeline. Each source-patch variation now also carries an
+  agent authoring request with editable source files, guardrails, a response
+  schema, and a `/api/motion/source-edit` submit template, so an AI can author
+  a real copy/timing/effect variation without bypassing provenance.
 - `app/api/motion/revise/route.ts` now exposes structured review edits through
   the same agent-native boundary: callers send an editable `MotionProject` plus
   story, component-prop, retime, or component-replacement operations and receive

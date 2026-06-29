@@ -2650,6 +2650,46 @@ describe('TimelineLens', () => {
           requestedEngines: '$selectedEngines',
           requestedAt: '$now',
         },
+        authoringRequest: {
+          id: 'author-source-patch-source-patch-regen-demo-primary',
+          status: 'ready',
+          route: '/api/motion/source-edit',
+          method: 'POST',
+          sourceEditId: 'source-edit-regen-demo',
+          sourcePatchPlanId: 'source-patch-regen-demo',
+          variantId: 'primary',
+          label: 'Patch current component',
+          prompt: 'Author the current component patch.',
+          sourceFiles: [{ path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' }],
+          targetClipIds: ['clip-beat-demo-text'],
+          requestTemplate: {
+            project: '$motionProject',
+            id: 'source-edit-regen-demo',
+            files: '$authoredSourceFiles',
+            requestedEngines: '$selectedEngines',
+            requestedAt: '$now',
+          },
+          responseSchema: {
+            type: 'object',
+            required: ['files'],
+            properties: {
+              files: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['path', 'contents'],
+                  properties: {
+                    path: { type: 'string' },
+                    contents: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+          guardrails: ['Return edited source files only; do not return prose.'],
+          blockers: [],
+        },
         blockers: [],
       },
       {
@@ -2675,6 +2715,49 @@ describe('TimelineLens', () => {
           requestedEngines: '$selectedEngines',
           requestedAt: '$now',
         },
+        authoringRequest: {
+          id: 'author-source-patch-source-patch-regen-demo-caption-first',
+          status: 'ready',
+          route: '/api/motion/source-edit',
+          method: 'POST',
+          sourceEditId: 'source-edit-regen-demo-caption-first',
+          sourcePatchPlanId: 'source-patch-regen-demo',
+          variantId: 'caption-first',
+          label: 'Caption-led variation',
+          prompt: 'Author the caption-led variation.',
+          sourceFiles: [
+            { path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' },
+            { path: 'STORYBOARD.md', contents: '## beat-demo\nSource patch: Caption-led' },
+          ],
+          targetClipIds: ['clip-beat-demo-text'],
+          requestTemplate: {
+            project: '$motionProject',
+            id: 'source-edit-regen-demo-caption-first',
+            files: '$authoredSourceFiles',
+            requestedEngines: '$selectedEngines',
+            requestedAt: '$now',
+          },
+          responseSchema: {
+            type: 'object',
+            required: ['files'],
+            properties: {
+              files: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['path', 'contents'],
+                  properties: {
+                    path: { type: 'string' },
+                    contents: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+          guardrails: ['Return edited source files only; do not return prose.'],
+          blockers: [],
+        },
         blockers: [],
       },
     ];
@@ -2693,6 +2776,7 @@ describe('TimelineLens', () => {
     expect(screen.getByText('source patch variations')).toBeInTheDocument();
     expect(screen.getByText('Patch current component')).toBeInTheDocument();
     expect(screen.getByText('Caption-led variation')).toBeInTheDocument();
+    expect(screen.getAllByText('agent-ready').length).toBeGreaterThan(0);
     expect(screen.getByText('timeline/draft-primary.json / STORYBOARD.md')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /apply caption-led variation/i }));

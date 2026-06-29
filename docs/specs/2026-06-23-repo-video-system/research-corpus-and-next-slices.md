@@ -171,9 +171,12 @@ Aether now has the right backbone:
    Timed source keyframes now cover crop/zoom/cursor path choreography. The
    source-patch lane can now regenerate a selected component as reviewable
    source variations or apply the default variation in full-auto through the
-   same `MotionProject` source-edit path. The remaining gap is provider-authored
-   variation depth: caption/script/source-bundle round trips with meaningfully
-   different copy, timing, effect, and capture-source edits.
+   same `MotionProject` source-edit path. Each variation now carries an
+   agent-authoring request with source files, guardrails, response schema, and
+   source-edit submit template. The remaining gap is provider execution depth:
+   taking that authoring contract through an actual configured model/agent to
+   produce meaningfully different copy, timing, effect, and capture-source
+   edits.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source

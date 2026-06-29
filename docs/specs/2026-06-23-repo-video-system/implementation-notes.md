@@ -220,7 +220,11 @@
   the timeline lens. Component regeneration now supports reviewable
   source-patch variations and an explicit full-auto default-apply mode that
   reuses `/api/motion/source-edit`, saves source-edit receipts, and clears
-  review drafts from the timeline once the patch is applied.
+  review drafts from the timeline once the patch is applied. Every generated
+  source-patch variation now also includes an agent authoring request with
+  source files, guardrails, expected receipts, response schema, and a
+  source-edit request template for AI-authored copy, timing, effect, or capture
+  changes.
 - Agent-native `/api/motion/revise` route that accepts an editable motion
   project plus scoped story, component, timing, or replacement operations, then
   returns the updated project with refreshed review/preview plans and capture

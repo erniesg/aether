@@ -23,6 +23,51 @@ export interface MotionSourcePatchDraftRequestTemplate {
   requestedAt: '$now';
 }
 
+export interface MotionSourcePatchAuthoringRequestTemplate {
+  project: '$motionProject';
+  id: string;
+  files: '$authoredSourceFiles';
+  requestedEngines: '$selectedEngines';
+  requestedAt: '$now';
+}
+
+export interface MotionSourcePatchAuthoringResponseSchema {
+  type: 'object';
+  required: ['files'];
+  properties: {
+    files: {
+      type: 'array';
+      items: {
+        type: 'object';
+        required: ['path', 'contents'];
+        properties: {
+          path: { type: 'string' };
+          contents: { type: 'string' };
+        };
+      };
+    };
+  };
+}
+
+export interface MotionSourcePatchAuthoringRequest {
+  id: string;
+  status: 'ready' | 'blocked';
+  route: '/api/motion/source-edit';
+  method: 'POST';
+  sourceEditId: string;
+  sourcePatchPlanId: string;
+  variantId: string;
+  label: string;
+  prompt: string;
+  sourceFiles: MotionSourceBundleEditFile[];
+  targetClipIds: string[];
+  requestTemplate: MotionSourcePatchAuthoringRequestTemplate;
+  responseSchema: MotionSourcePatchAuthoringResponseSchema;
+  expectedReceiptLabels: string[];
+  guardrails: string[];
+  blockers: string[];
+}
+
 export type MotionSourcePatchDraft =
   | {
       id: string;
@@ -60,6 +105,7 @@ export type MotionSourcePatchDraftOption = MotionSourcePatchDraft & {
   label: string;
   description: string;
   isDefault: boolean;
+  authoringRequest: MotionSourcePatchAuthoringRequest;
 };
 
 interface TargetClipPatch {
@@ -84,6 +130,37 @@ const SOURCE_PATCH_DRAFT_VARIANTS: MotionSourcePatchDraftVariant[] = [
     description: 'Prioritize timing, pacing, and motion rhythm in the editable source patch.',
   },
 ];
+
+const SOURCE_PATCH_AUTHORING_GUARDRAILS = [
+  'Return edited source files only; do not return prose.',
+  'Preserve existing clip ids, component ids, track ids, and draft ids.',
+  'Edit only the supplied source file paths.',
+  'Keep timeline JSON valid and keep source files compatible with Remotion and HyperFrames adapters.',
+];
+
+const SOURCE_PATCH_EXPECTED_RECEIPTS = [
+  'Source files',
+  'Timeline revision',
+  'Updated preview plan',
+];
+
+const SOURCE_PATCH_AUTHORING_RESPONSE_SCHEMA: MotionSourcePatchAuthoringResponseSchema = {
+  type: 'object',
+  required: ['files'],
+  properties: {
+    files: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['path', 'contents'],
+        properties: {
+          path: { type: 'string' },
+          contents: { type: 'string' },
+        },
+      },
+    },
+  },
+};
 
 export function buildMotionSourcePatchDraft(
   project: MotionProject,
@@ -189,8 +266,75 @@ export function buildMotionSourcePatchDraftOptions(
       label: variant.label,
       description: variant.description,
       isDefault: index === 0,
+      authoringRequest: buildSourcePatchAuthoringRequest(
+        project,
+        variantSourcePatchPlan,
+        draft,
+        variant
+      ),
     };
   });
+}
+
+function buildSourcePatchAuthoringRequest(
+  project: MotionProject,
+  sourcePatchPlan: MotionRegenerationSourcePatchPlan,
+  draft: MotionSourcePatchDraft,
+  variant: MotionSourcePatchDraftVariant
+): MotionSourcePatchAuthoringRequest {
+  return {
+    id: `author-source-patch-${sourcePatchPlan.id}-${variant.id}`,
+    status: draft.status === 'ready' ? 'ready' : 'blocked',
+    route: '/api/motion/source-edit',
+    method: 'POST',
+    sourceEditId: draft.sourceEditId,
+    sourcePatchPlanId: sourcePatchPlan.id,
+    variantId: variant.id,
+    label: variant.label,
+    prompt: sourcePatchAuthoringPrompt(project, sourcePatchPlan, variant),
+    sourceFiles: draft.status === 'ready' ? draft.files : [],
+    targetClipIds: [...draft.targetClipIds],
+    requestTemplate: {
+      project: '$motionProject',
+      id: draft.sourceEditId,
+      files: '$authoredSourceFiles',
+      requestedEngines: '$selectedEngines',
+      requestedAt: '$now',
+    },
+    responseSchema: SOURCE_PATCH_AUTHORING_RESPONSE_SCHEMA,
+    expectedReceiptLabels: SOURCE_PATCH_EXPECTED_RECEIPTS,
+    guardrails: SOURCE_PATCH_AUTHORING_GUARDRAILS,
+    blockers: [...draft.blockers],
+  };
+}
+
+function sourcePatchAuthoringPrompt(
+  project: MotionProject,
+  sourcePatchPlan: MotionRegenerationSourcePatchPlan,
+  variant: MotionSourcePatchDraftVariant
+): string {
+  const instructionLines = sourcePatchPlan.instructions.map((instruction) => {
+    const components = instruction.componentLabels.join(', ');
+    const operations = instruction.operationKinds.join(', ');
+    const guidance = instruction.guidanceRefs.join(', ');
+    return [
+      `Instruction: ${instruction.label}`,
+      `Components: ${components}`,
+      `Operations: ${operations}`,
+      `Guidance refs: ${guidance}`,
+      `Prompt: ${instruction.prompt}`,
+    ].join('\n');
+  });
+
+  return [
+    `Author a source-patch variation for ${project.title}.`,
+    `Variant: ${variant.label}`,
+    `Variant direction: ${variant.description}`,
+    `Source patch plan: ${sourcePatchPlan.id}`,
+    ...instructionLines,
+    'Return JSON that matches the responseSchema: { "files": [{ "path": "...", "contents": "..." }] }.',
+    'The returned files will be submitted to /api/motion/source-edit.',
+  ].join('\n\n');
 }
 
 function editTimelineSource(

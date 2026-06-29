@@ -205,6 +205,30 @@ describe('POST /api/motion/regenerate', () => {
       captionOption.files.find((file: { path: string }) => file.path === 'timeline/draft-primary.json')
         ?.contents
     ).toContain('"sourcePatchVariant"');
+    expect(captionOption.authoringRequest).toMatchObject({
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      sourceEditId: 'source-edit-regen-clip-beat-demo-text-capture-950-caption-first',
+      variantId: 'caption-first',
+      label: 'Caption-led variation',
+      targetClipIds: ['clip-beat-demo-text'],
+      sourceFiles: expect.arrayContaining([
+        expect.objectContaining({ path: 'timeline/draft-primary.json' }),
+        expect.objectContaining({ path: 'STORYBOARD.md' }),
+        expect.objectContaining({ path: 'EDIT.md' }),
+      ]),
+      requestTemplate: {
+        project: '$motionProject',
+        id: 'source-edit-regen-clip-beat-demo-text-capture-950-caption-first',
+        files: '$authoredSourceFiles',
+        requestedEngines: '$selectedEngines',
+        requestedAt: '$now',
+      },
+      expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+    });
+    expect(captionOption.authoringRequest.prompt).toContain('Caption-led variation');
+    expect(captionOption.authoringRequest.responseSchema.required).toEqual(['files']);
 
     const { POST: applySourceEdit } = await import('@/app/api/motion/source-edit/route');
     const applyRes = await applySourceEdit(

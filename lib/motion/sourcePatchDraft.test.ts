@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { applyMotionSourceBundleEdits } from './sourceBundleApply';
-import { buildMotionSourcePatchDraft } from './sourcePatchDraft';
+import {
+  buildMotionSourcePatchDraft,
+  buildMotionSourcePatchDraftOptions,
+} from './sourcePatchDraft';
 import { createMotionTasteReferenceRegenerationRequest } from './reviewPlan';
 import { buildRepoLaunchMotionProject } from './storyboard';
 import { materializeMotionTimeline } from './timeline';
@@ -125,6 +128,67 @@ describe('buildMotionSourcePatchDraft', () => {
           clipId: 'clip-beat-payoff-text',
           changedFields: ['props.sourcePatchDraft'],
         }),
+      ])
+    );
+  });
+
+  it('attaches agent authoring requests to reviewable source patch variations', () => {
+    const original = project();
+    const regenerationRequest = createMotionTasteReferenceRegenerationRequest(original, {
+      tasteReferenceId: 'claude-agent-demo-playback-review',
+      sourceEntryId: 'public-claude-launch-demo-corpus',
+      sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+      scope: 'effect',
+      componentIds: ['hook-card', 'agent-trace'],
+      prompt: 'Use the timestamped agent-demo reference as the effect guide.',
+      requestedAt: 105,
+    });
+
+    const options = buildMotionSourcePatchDraftOptions(
+      original,
+      regenerationRequest.sourcePatchPlan,
+      {
+        engine: 'hyperframes',
+        requestedAt: 106,
+      }
+    );
+    const captionOption = options.find((option) => option.variantId === 'caption-first');
+
+    expect(captionOption?.authoringRequest).toMatchObject({
+      id: 'author-source-patch-source-patch-regen-taste-claude-agent-demo-playback-review-effect-105-caption-first',
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      sourceEditId: 'source-edit-regen-taste-claude-agent-demo-playback-review-effect-105-caption-first',
+      sourcePatchPlanId: 'source-patch-regen-taste-claude-agent-demo-playback-review-effect-105',
+      variantId: 'caption-first',
+      label: 'Caption-led variation',
+      targetClipIds: ['clip-beat-hook-text', 'clip-beat-payoff-text'],
+      sourceFiles: expect.arrayContaining([
+        expect.objectContaining({ path: 'timeline/draft-primary.json' }),
+        expect.objectContaining({ path: 'STORYBOARD.md' }),
+        expect.objectContaining({ path: 'EDIT.md' }),
+      ]),
+      requestTemplate: {
+        project: '$motionProject',
+        id: 'source-edit-regen-taste-claude-agent-demo-playback-review-effect-105-caption-first',
+        files: '$authoredSourceFiles',
+        requestedEngines: '$selectedEngines',
+        requestedAt: '$now',
+      },
+      expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+      responseSchema: expect.objectContaining({
+        required: ['files'],
+      }),
+    });
+    expect(captionOption?.authoringRequest.prompt).toContain('Caption-led variation');
+    expect(captionOption?.authoringRequest.prompt).toContain(
+      'Use the timestamped agent-demo reference as the effect guide.'
+    );
+    expect(captionOption?.authoringRequest.guardrails).toEqual(
+      expect.arrayContaining([
+        'Return edited source files only; do not return prose.',
+        'Preserve existing clip ids, component ids, track ids, and draft ids.',
       ])
     );
   });

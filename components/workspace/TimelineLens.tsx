@@ -2391,6 +2391,13 @@ function MotionSourcePatchDraftOptionsStrip({
                   {draft.isDefault ? 'default' : draft.status}
                 </Chip>
               </div>
+              {draft.authoringRequest?.status === 'ready' ? (
+                <div className="mt-2 flex">
+                  <Chip tone="info" size="sm">
+                    agent-ready
+                  </Chip>
+                </div>
+              ) : null}
               <div className="mt-2 truncate font-caption text-2xs text-ink">
                 {fileLabel}
               </div>
