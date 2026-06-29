@@ -259,6 +259,28 @@ export interface MotionPreviewDraftOption {
   referenceInfluences: MotionPreviewDraftReferenceInfluence[];
 }
 
+export type MotionPreviewDraftComparisonStatus = 'ready' | 'single-draft';
+
+export interface MotionPreviewDraftComparisonItem {
+  draftId: string;
+  label: string;
+  isCurrent: boolean;
+  roleOrderLabel: string;
+  componentStackLabel: string;
+  sourceBasisLabel: string;
+  timingDeltaLabel: string;
+  comparisonLabels: string[];
+  actionLabels: string[];
+}
+
+export interface MotionPreviewDraftComparison {
+  status: MotionPreviewDraftComparisonStatus;
+  currentDraftId: string;
+  currentDraftLabel: string;
+  candidateCount: number;
+  items: MotionPreviewDraftComparisonItem[];
+}
+
 export interface MotionPreviewTimelineClip {
   clipId: string;
   componentId: string | null;
@@ -897,6 +919,7 @@ export interface MotionPreviewPlan {
   designKit: MotionDesignKitPlan;
   storyboard: MotionPreviewStoryBeat[];
   draftOptions: MotionPreviewDraftOption[];
+  draftComparison: MotionPreviewDraftComparison;
   timelineRows: MotionPreviewTimelineRow[];
   editableComponents: MotionPreviewEditableComponent[];
   regenerationActions: MotionPreviewRegenerationAction[];
@@ -981,6 +1004,7 @@ export function buildMotionPreviewPlan(
   const referenceSignals = buildReferenceSignals(project);
   const tasteReferences = buildTasteReferences(project);
   const draftOptions = buildDraftOptions(reviewPlan, tasteReferences);
+  const draftComparison = buildDraftComparison(draftOptions);
   const syncPlan = buildMotionSyncPlan(project, {
     draftId: project.currentDraftId,
     fps,
@@ -1066,6 +1090,7 @@ export function buildMotionPreviewPlan(
       sourceRefs: beat.sourceRefs,
     })),
     draftOptions,
+    draftComparison,
     timelineRows,
     editableComponents,
     regenerationActions,
@@ -1445,6 +1470,76 @@ function draftSourceLabels(sourceRefs: MotionProvenanceRef[]): string[] {
   return uniqueStrings(
     sourceRefs.map((ref) => ref.label ?? `${readableLabel(ref.kind)} source`)
   );
+}
+
+function buildDraftComparison(
+  draftOptions: MotionPreviewDraftOption[]
+): MotionPreviewDraftComparison {
+  const currentDraft = draftOptions.find((draft) => draft.isCurrent) ?? draftOptions[0];
+  const currentDuration = currentDraft?.durationSeconds ?? 0;
+
+  return {
+    status: draftOptions.length > 1 ? 'ready' : 'single-draft',
+    currentDraftId: currentDraft?.draftId ?? '',
+    currentDraftLabel: currentDraft?.label ?? 'Current draft',
+    candidateCount: Math.max(0, draftOptions.length - 1),
+    items: draftOptions.map((draft) =>
+      draftComparisonItem(draft, currentDraft, currentDuration)
+    ),
+  };
+}
+
+function draftComparisonItem(
+  draft: MotionPreviewDraftOption,
+  currentDraft: MotionPreviewDraftOption | undefined,
+  currentDuration: number
+): MotionPreviewDraftComparisonItem {
+  const timingDeltaLabel = draftTimingDeltaLabel(draft.durationSeconds, currentDuration);
+  const roleMovementLabel = draft.isCurrent
+    ? 'current cut'
+    : draftRoleMovementLabel(draft, currentDraft);
+  const startLabel = draft.roles[0] ? `starts ${readableLabel(draft.roles[0])}` : 'no story';
+
+  return {
+    draftId: draft.draftId,
+    label: draft.label,
+    isCurrent: draft.isCurrent,
+    roleOrderLabel: draft.roles.map(readableLabel).join(' -> '),
+    componentStackLabel: draft.componentLabels.slice(0, 4).join(' / '),
+    sourceBasisLabel: draft.sourceLabels.slice(0, 2).join(' / ') || 'source pending',
+    timingDeltaLabel,
+    comparisonLabels: uniqueStrings([roleMovementLabel, startLabel, timingDeltaLabel]),
+    actionLabels: [
+      draft.isCurrent ? 'editing this cut' : 'choose draft',
+      draft.regenerationAction.label,
+    ],
+  };
+}
+
+function draftRoleMovementLabel(
+  draft: MotionPreviewDraftOption,
+  currentDraft: MotionPreviewDraftOption | undefined
+): string {
+  if (!currentDraft) return 'new draft order';
+  const firstChangedIndex = draft.roles.findIndex(
+    (role, index) => currentDraft.roles[index] !== role
+  );
+  if (firstChangedIndex < 0) return 'same story order';
+
+  const movedRole = draft.roles[firstChangedIndex];
+  if (!movedRole) return 'new story order';
+
+  return `${readableLabel(movedRole)} moves to scene ${firstChangedIndex + 1}`;
+}
+
+function draftTimingDeltaLabel(durationSeconds: number, currentDuration: number): string {
+  const delta = durationSeconds - currentDuration;
+  if (delta === 0) return 'same duration';
+  const absoluteDelta = Math.abs(delta);
+  const formatted = Number.isInteger(absoluteDelta)
+    ? String(absoluteDelta)
+    : absoluteDelta.toFixed(1);
+  return `${delta > 0 ? '+' : '-'}${formatted}s vs current`;
 }
 
 function draftReferenceInfluences(

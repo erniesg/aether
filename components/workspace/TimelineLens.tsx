@@ -38,6 +38,7 @@ import type {
   MotionPreviewEditSource,
   MotionPreviewAgentRunbook,
   MotionPreviewCapabilitySetup,
+  MotionPreviewDraftComparison,
   MotionPreviewDraftOption,
   MotionPreviewExecutionHistory,
   MotionPreviewExecutionHistoryEntry,
@@ -423,6 +424,7 @@ function MotionPreviewPlanView({
               ))}
             </div>
           ) : null}
+          <MotionDraftComparisonStrip comparison={previewPlan.draftComparison} />
         </div>
 
         <div className="min-w-0">
@@ -865,6 +867,60 @@ function MotionDraftOptionCard({
         {draft.regenerationAction.label}
       </span>
     </button>
+  );
+}
+
+function MotionDraftComparisonStrip({
+  comparison,
+}: {
+  comparison: MotionPreviewDraftComparison;
+}) {
+  if (comparison.items.length === 0) return null;
+
+  return (
+    <div className="mt-3 rounded-sm border border-border-soft bg-surface-panel-muted px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          draft compare
+        </div>
+        <Chip tone={comparison.status === 'ready' ? 'info' : 'neutral'} size="sm">
+          {comparison.candidateCount} alternatives
+        </Chip>
+      </div>
+      <div className="mt-2 grid gap-2">
+        {comparison.items.map((item) => (
+          <div
+            key={item.draftId}
+            className="rounded-sm border border-border-soft bg-surface-panel px-2 py-2"
+          >
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0 truncate font-caption text-xs text-ink">
+                {item.label} vs current
+              </div>
+              <Chip tone={item.isCurrent ? 'ok' : 'neutral'} size="sm">
+                {item.isCurrent ? 'current' : item.timingDeltaLabel}
+              </Chip>
+            </div>
+            <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {item.roleOrderLabel}
+            </div>
+            <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {item.componentStackLabel}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {item.comparisonLabels.slice(0, 3).map((label) => (
+                <Chip key={label} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
+            </div>
+            <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {item.sourceBasisLabel}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

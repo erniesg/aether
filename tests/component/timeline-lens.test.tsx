@@ -824,6 +824,36 @@ const previewPlan: MotionPreviewPlan = {
       ],
     },
   ],
+  draftComparison: {
+    status: 'ready',
+    currentDraftId: 'draft-primary',
+    currentDraftLabel: 'Primary launch cut',
+    candidateCount: 1,
+    items: [
+      {
+        draftId: 'draft-primary',
+        label: 'Primary launch cut',
+        isCurrent: true,
+        roleOrderLabel: 'hook -> demo',
+        componentStackLabel: 'Hook card / App frame',
+        sourceBasisLabel: 'repo source',
+        timingDeltaLabel: 'same duration',
+        comparisonLabels: ['current cut', 'starts hook', 'same duration'],
+        actionLabels: ['editing this cut', 'Regenerate Primary launch cut'],
+      },
+      {
+        draftId: 'draft-demo',
+        label: 'Demo-first cut',
+        isCurrent: false,
+        roleOrderLabel: 'demo -> hook',
+        componentStackLabel: 'App frame / Hook card',
+        sourceBasisLabel: 'timeline source',
+        timingDeltaLabel: 'same duration',
+        comparisonLabels: ['demo moves to scene 1', 'starts demo', 'same duration'],
+        actionLabels: ['choose draft', 'Regenerate Demo-first cut'],
+      },
+    ],
+  },
   timelineRows: [
     {
       trackId: 'track-text',
@@ -2606,6 +2636,13 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
     expect(screen.getByText('Primary launch cut')).toBeInTheDocument();
     expect(screen.getByText('Demo-first cut')).toBeInTheDocument();
+    expect(screen.getByText('draft compare')).toBeInTheDocument();
+    expect(screen.getByText('Primary launch cut vs current')).toBeInTheDocument();
+    expect(screen.getByText('Demo-first cut vs current')).toBeInTheDocument();
+    expect(screen.getByText('hook -> demo')).toBeInTheDocument();
+    expect(screen.getByText('demo -> hook')).toBeInTheDocument();
+    expect(screen.getByText('demo moves to scene 1')).toBeInTheDocument();
+    expect(screen.getAllByText('same duration').length).toBeGreaterThan(0);
     expect(screen.getByText('editing this cut')).toBeInTheDocument();
     expect(screen.getByText('choose draft')).toBeInTheDocument();
     expect(screen.getAllByText('Turn a repo into a launch video.').length).toBeGreaterThan(0);

@@ -543,6 +543,41 @@ describe('buildMotionPreviewPlan', () => {
         }),
       ])
     );
+    expect(preview.draftComparison).toMatchObject({
+      status: 'ready',
+      currentDraftId: 'draft-primary',
+      currentDraftLabel: 'Primary launch cut',
+      candidateCount: 2,
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          draftId: 'draft-primary',
+          label: 'Primary launch cut',
+          isCurrent: true,
+          roleOrderLabel: 'hook -> problem -> proof -> demo -> payoff -> cta',
+          componentStackLabel: 'Hook card / Proof card / App frame / Agent trace',
+          sourceBasisLabel: 'repo source',
+          timingDeltaLabel: 'same duration',
+          comparisonLabels: ['current cut', 'starts hook', 'same duration'],
+          actionLabels: ['editing this cut', 'Regenerate Primary launch cut'],
+        }),
+        expect.objectContaining({
+          draftId: 'draft-proof-first',
+          label: 'Proof-first cut',
+          isCurrent: false,
+          roleOrderLabel: 'hook -> proof -> demo -> payoff -> problem -> cta',
+          componentStackLabel: 'Hook card / Proof card / App frame / Agent trace',
+          sourceBasisLabel: 'repo source',
+          timingDeltaLabel: 'same duration',
+          comparisonLabels: ['proof moves to scene 2', 'starts hook', 'same duration'],
+          actionLabels: ['choose draft', 'Regenerate Proof-first cut'],
+        }),
+        expect.objectContaining({
+          draftId: 'draft-demo-first',
+          label: 'Demo-first cut',
+          comparisonLabels: ['demo moves to scene 2', 'starts hook', 'same duration'],
+        }),
+      ]),
+    });
     expect(preview.timelineRows.map((row) => row.trackKind)).toEqual([
       'text',
       'caption',
