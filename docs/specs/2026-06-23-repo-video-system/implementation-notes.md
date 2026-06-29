@@ -453,13 +453,18 @@
   execution-history receipts for the manifest, share metadata, and marker
   provenance. It is whitelisted for agent handoffs and deliberately does not
   complete the normal rendered MP4 export-pack gate.
+- Runner setup cards now have a typed preview contract for permission scope,
+  expected setup receipts, and whether full-auto can continue after the setup
+  completes. The timeline lens renders those cards as artifact-first creator
+  actions for local app launch, browser capture, computer-use capture, visual
+  sources, image-to-video, voice, sync, and Remotion/HyperFrames render setup.
 
 ## Next Slices
 
 1. Use `research-corpus-and-next-slices.md` as the next planning anchor:
-   add a typed research corpus fixture, runner setup cards, playable preview,
-   progressive generation node lens, and computer-use capture workflow in that
-   order.
+   continue from playable preview, progressive generation node lens, and
+   computer-use capture workflow; the research corpus and setup-card contract
+   are already in place.
 2. Extend the provider-neutral component registry beyond the current launch,
    proof, code, terminal, caption, social, UI reveal, data, transition, and
    outro set into richer device/avatar/logo/flowchart primitives as concrete

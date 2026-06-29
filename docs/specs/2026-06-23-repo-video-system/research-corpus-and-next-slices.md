@@ -274,6 +274,14 @@ provider, add Remotion/HyperFrames renderer, or choose review-only. Each card
 must show expected receipts, permission scope, and whether full-auto can
 continue after it completes.
 
+Status: implemented for the preview/timeline contract. `capabilitySetup.items`
+now expose a typed `permissionScopeLabel`, `expectedReceiptLabels`,
+`fullAutoCanContinueAfterSetup`, and `fullAutoContinuationLabel`; the timeline
+lens renders those as creator-facing setup cards for local app launch, browser
+capture, computer-use capture, visual sources, image-to-video, voice, sync, and
+Remotion/HyperFrames render setup without exposing route payloads. Real provider
+configuration and runner installation remain part of the provider wiring slice.
+
 Acceptance evidence:
 
 - Timeline tests cover setup cards without exposing raw provider ids or request

@@ -757,6 +757,10 @@ export interface MotionPreviewCapabilitySetupItem {
   label: string;
   status: MotionPreviewCapabilitySetupItemStatus;
   actionLabel: string;
+  permissionScopeLabel: string | null;
+  expectedReceiptLabels: string[];
+  fullAutoCanContinueAfterSetup: boolean;
+  fullAutoContinuationLabel: string;
   routeLabels: string[];
   toolLabels: string[];
   requirementLabels: string[];
@@ -777,6 +781,14 @@ export interface MotionPreviewCapabilitySetup {
   nextActionLabel: string | null;
   items: MotionPreviewCapabilitySetupItem[];
 }
+
+type MotionPreviewCapabilitySetupItemDraft = Omit<
+  MotionPreviewCapabilitySetupItem,
+  | 'permissionScopeLabel'
+  | 'expectedReceiptLabels'
+  | 'fullAutoCanContinueAfterSetup'
+  | 'fullAutoContinuationLabel'
+>;
 
 export interface MotionPreviewReferenceSignal {
   id: string;
@@ -1836,7 +1848,9 @@ function buildCapabilitySetup(
       setupProofs,
     }),
     renderSetupItem(productionPlan, enginePreviews, options, setupProofs),
-  ].filter((item): item is MotionPreviewCapabilitySetupItem => Boolean(item));
+  ]
+    .filter((item): item is MotionPreviewCapabilitySetupItemDraft => Boolean(item))
+    .map(enrichCapabilitySetupItem);
   const readyCount = items.filter((item) => item.status === 'configured').length;
   const missingCount = items.filter(
     (item) => item.status === 'needs-provider' || item.status === 'needs-runner'
@@ -1857,12 +1871,60 @@ function buildCapabilitySetup(
   };
 }
 
+function enrichCapabilitySetupItem(
+  item: MotionPreviewCapabilitySetupItemDraft
+): MotionPreviewCapabilitySetupItem {
+  const expectedReceiptLabels = setupExpectedReceiptLabels(item);
+  const fullAutoCanContinueAfterSetup = item.status !== 'blocked';
+
+  return {
+    ...item,
+    permissionScopeLabel: setupPermissionScopeLabel(item),
+    expectedReceiptLabels,
+    fullAutoCanContinueAfterSetup,
+    fullAutoContinuationLabel: setupContinuationLabel(item, fullAutoCanContinueAfterSetup),
+  };
+}
+
+function setupPermissionScopeLabel(item: MotionPreviewCapabilitySetupItemDraft): string | null {
+  if (item.id === 'computer-use') {
+    const labels = item.requirementLabels
+      .filter((label) => label === 'creator approval' || label === 'redaction manifest')
+      .slice(0, 2);
+    return labels.length > 0 ? labels.join(' + ') : null;
+  }
+
+  return item.requirementLabels[0] ?? item.blockerLabels[0] ?? null;
+}
+
+function setupExpectedReceiptLabels(item: MotionPreviewCapabilitySetupItemDraft): string[] {
+  const labels =
+    item.dryRunLabels && item.dryRunLabels.length > 0
+      ? item.dryRunLabels
+      : item.dryRunPendingLabels && item.dryRunPendingLabels.length > 0
+        ? item.dryRunPendingLabels
+        : item.dryRunCompletedLabels && item.dryRunCompletedLabels.length > 0
+          ? item.dryRunCompletedLabels
+          : [];
+
+  return uniqueStrings(labels);
+}
+
+function setupContinuationLabel(
+  item: MotionPreviewCapabilitySetupItemDraft,
+  canContinue: boolean
+): string {
+  if (item.status === 'configured') return 'full auto can continue';
+  if (canContinue) return 'full auto resumes after receipts';
+  return 'review gate before full auto continues';
+}
+
 function computerUseSetupItems(
   productionPlan: MotionProductionPlan,
   capturePlan: AgentMotionCapturePlan,
   captureProviderLabels: string[],
   setupProofs: MotionSetupDryRunProofMap
-): MotionPreviewCapabilitySetupItem[] {
+): MotionPreviewCapabilitySetupItemDraft[] {
   const captureStep = productionPlan.steps.find((step) => step.id === 'capture');
   const dryRunStatus = dryRunStatusForSetup(
     'computer-use',
@@ -1886,7 +1948,7 @@ function computerUseSetupItems(
 function computerUseSetupItem(
   fallback: AgentMotionCaptureFallback,
   dryRunStatus: MotionSetupDryRunStatus
-): MotionPreviewCapabilitySetupItem {
+): MotionPreviewCapabilitySetupItemDraft {
   return {
     id: 'computer-use',
     label: 'Computer-use capture',
@@ -1920,7 +1982,7 @@ function setupItemForStep(
     preferBlocked?: boolean;
     setupProofs: MotionSetupDryRunProofMap;
   }
-): MotionPreviewCapabilitySetupItem | null {
+): MotionPreviewCapabilitySetupItemDraft | null {
   const step = productionPlan.steps.find((candidate) => candidate.id === stepId);
   if (!step) return null;
 
@@ -1971,7 +2033,7 @@ function renderSetupItem(
     providers?: MotionPreviewCapabilitySetupInventory;
   },
   setupProofs: MotionSetupDryRunProofMap
-): MotionPreviewCapabilitySetupItem | null {
+): MotionPreviewCapabilitySetupItemDraft | null {
   const step = productionPlan.steps.find((candidate) => candidate.id === 'render');
   if (!step) return null;
 
@@ -2032,7 +2094,7 @@ function renderSetupItem(
 function localAppSetupItems(
   project: MotionProject,
   setupProofs: MotionSetupDryRunProofMap
-): MotionPreviewCapabilitySetupItem[] {
+): MotionPreviewCapabilitySetupItemDraft[] {
   const labels = uniqueStrings(
     (project.sourceProfile?.captureCandidates ?? []).flatMap((candidate) => {
       if (candidate.targetKind !== 'local-app' || !candidate.setup || !candidate.targetRef) {

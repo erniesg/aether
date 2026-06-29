@@ -2049,8 +2049,17 @@ function MotionCapabilitySetupCard({
   onSelectCapabilitySetup?: (itemId: string) => void;
 }) {
   const permissionLabel = setupPermissionLabel(item);
-  const proofLabel = setupProofLabel(item);
-  const dryRunLabel = setupDryRunLabel(item);
+  const receiptLabel = setupReceiptLabel(item);
+  const fullAutoContinuationLabel =
+    item.fullAutoContinuationLabel ??
+    (item.status === 'blocked'
+      ? 'review gate before full auto continues'
+      : item.status === 'configured'
+        ? 'full auto can continue'
+        : 'full auto resumes after receipts');
+  const continuationLabel = fullAutoContinuationLabel
+    ? `continue: ${fullAutoContinuationLabel}`
+    : null;
 
   return (
     <article className="min-w-0 rounded-sm border border-border-soft bg-surface-canvas px-3 py-2">
@@ -2067,8 +2076,8 @@ function MotionCapabilitySetupCard({
       </div>
       <div className="mt-2 grid gap-1 font-caption text-2xs text-ink-faint">
         {permissionLabel ? <div>{permissionLabel}</div> : null}
-        {proofLabel ? <div>{proofLabel}</div> : null}
-        {dryRunLabel ? <div>{dryRunLabel}</div> : null}
+        {receiptLabel ? <div>{receiptLabel}</div> : null}
+        {continuationLabel ? <div>{continuationLabel}</div> : null}
         {item.runnerLabels.length > 0 ? (
           <div className="truncate">{item.runnerLabels.slice(0, 2).join(' / ')}</div>
         ) : null}
@@ -2086,38 +2095,13 @@ function MotionCapabilitySetupCard({
 }
 
 function setupPermissionLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
-  if (item.id === 'computer-use') {
-    const labels = item.requirementLabels
-      .filter((label) => label === 'creator approval' || label === 'redaction manifest')
-      .slice(0, 2);
-    return labels.length > 0 ? `permission: ${labels.join(' + ')}` : null;
-  }
-
-  const label =
-    item.requirementLabels[0] ??
-    item.blockerLabels[0] ??
-    item.routeLabels[0] ??
-    null;
+  const label = item.permissionScopeLabel ?? item.requirementLabels[0] ?? item.blockerLabels[0] ?? null;
   return label ? `permission: ${label}` : null;
 }
 
-function setupProofLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
-  if (item.id === 'computer-use' && item.runnerLabels.length > 0) {
-    return `proof: ${item.runnerLabels.join(' / ')}`;
-  }
-
-  const labels =
-    item.toolLabels.length > 0
-      ? item.toolLabels
-      : item.providerLabels.length > 0
-        ? item.providerLabels
-        : item.routeLabels;
-  return labels.length > 0 ? `proof: ${labels.slice(0, 2).join(' / ')}` : null;
-}
-
-function setupDryRunLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
-  const labels = item.dryRunLabels ?? [];
-  return labels.length > 0 ? `dry run: ${labels.slice(0, 4).join(' / ')}` : null;
+function setupReceiptLabel(item: MotionPreviewCapabilitySetup['items'][number]): string | null {
+  const labels = item.expectedReceiptLabels ?? item.dryRunLabels ?? [];
+  return labels.length > 0 ? `receipts: ${labels.slice(0, 4).join(' / ')}` : null;
 }
 
 function MotionCapabilitySetupRow({

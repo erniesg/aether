@@ -1474,6 +1474,14 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Product capture',
         status: 'needs-provider',
         actionLabel: 'Connect browser capture',
+        permissionScopeLabel: 'browser capture',
+        expectedReceiptLabels: [
+          'screenshot receipt',
+          'viewport receipt',
+          'cursor target receipt',
+        ],
+        fullAutoCanContinueAfterSetup: true,
+        fullAutoContinuationLabel: 'full auto resumes after receipts',
         routeLabels: ['/api/motion/capture'],
         toolLabels: ['motion capture'],
         requirementLabels: ['browser capture'],
@@ -1487,6 +1495,10 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Local app runner',
         status: 'needs-runner',
         actionLabel: 'Trust local app launch',
+        permissionScopeLabel: 'trusted local app launch',
+        expectedReceiptLabels: ['HTTP readiness receipt', 'process cleanup receipt'],
+        fullAutoCanContinueAfterSetup: true,
+        fullAutoContinuationLabel: 'full auto resumes after receipts',
         routeLabels: ['/api/motion/capture'],
         toolLabels: ['app launch', 'browser capture'],
         requirementLabels: ['trusted local app launch'],
@@ -1500,6 +1512,10 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Image-to-video',
         status: 'configured',
         actionLabel: 'Generate video clips',
+        permissionScopeLabel: 'image to video',
+        expectedReceiptLabels: ['generated clip receipt', 'timeline update receipt'],
+        fullAutoCanContinueAfterSetup: true,
+        fullAutoContinuationLabel: 'full auto can continue',
         routeLabels: ['/api/motion/image-to-video'],
         toolLabels: ['motion visuals'],
         requirementLabels: ['image to video'],
@@ -1513,6 +1529,10 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Voice and captions',
         status: 'needs-provider',
         actionLabel: 'Connect voice synthesis',
+        permissionScopeLabel: 'voice synthesis',
+        expectedReceiptLabels: ['audio receipt', 'word timing receipt', 'transcript receipt'],
+        fullAutoCanContinueAfterSetup: true,
+        fullAutoContinuationLabel: 'full auto resumes after receipts',
         routeLabels: ['/api/motion/voice'],
         toolLabels: ['motion voice'],
         requirementLabels: ['voice synthesis', 'word timing alignment'],
@@ -1526,6 +1546,10 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Timeline sync',
         status: 'blocked',
         actionLabel: 'Review sync markers',
+        permissionScopeLabel: 'voice synthesis',
+        expectedReceiptLabels: ['beat markers', 'caption links', 'sound cues'],
+        fullAutoCanContinueAfterSetup: false,
+        fullAutoContinuationLabel: 'review gate before full auto continues',
         routeLabels: ['/api/motion/sync', '/api/motion/revise'],
         toolLabels: ['motion sync', 'motion revise'],
         requirementLabels: ['voice synthesis', 'word timing alignment'],
@@ -1539,6 +1563,10 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Render proof',
         status: 'needs-runner',
         actionLabel: 'Connect Remotion or HyperFrames runner',
+        permissionScopeLabel: 'remotion render runner',
+        expectedReceiptLabels: ['source lint', 'contact sheet', 'mp4 probe'],
+        fullAutoCanContinueAfterSetup: true,
+        fullAutoContinuationLabel: 'full auto resumes after receipts',
         routeLabels: ['/api/motion/render'],
         toolLabels: ['motion render'],
         requirementLabels: ['remotion render runner', 'hyperframes render runner'],
@@ -3167,9 +3195,10 @@ describe('TimelineLens', () => {
 
     expect(screen.getByText('setup cards')).toBeInTheDocument();
     expect(screen.getByText('permission: browser capture')).toBeInTheDocument();
-    expect(screen.getByText('proof: motion capture')).toBeInTheDocument();
+    expect(screen.getByText('receipts: screenshot receipt / viewport receipt / cursor target receipt')).toBeInTheDocument();
+    expect(screen.getAllByText('continue: full auto resumes after receipts').length).toBeGreaterThan(0);
     expect(screen.getByText('permission: trusted local app launch')).toBeInTheDocument();
-    expect(screen.getByText('proof: app launch / browser capture')).toBeInTheDocument();
+    expect(screen.getByText('receipts: HTTP readiness receipt / process cleanup receipt')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /set up product capture/i }));
     await userEvent.click(screen.getByRole('button', { name: /set up local app runner/i }));
@@ -3195,6 +3224,14 @@ describe('TimelineLens', () => {
                 label: 'Computer-use capture',
                 status: 'needs-runner',
                 actionLabel: 'Approve computer-use capture',
+                permissionScopeLabel: 'creator approval + redaction manifest',
+                expectedReceiptLabels: [
+                  'approval receipt',
+                  'redaction receipt',
+                  'safe-scope receipt',
+                ],
+                fullAutoCanContinueAfterSetup: true,
+                fullAutoContinuationLabel: 'full auto resumes after receipts',
                 routeLabels: ['/api/motion/capture'],
                 toolLabels: ['computer use'],
                 requirementLabels: [
@@ -3219,8 +3256,8 @@ describe('TimelineLens', () => {
 
     expect(screen.getByText('Computer-use capture')).toBeInTheDocument();
     expect(screen.getByText('permission: creator approval + redaction manifest')).toBeInTheDocument();
-    expect(screen.getByText('proof: screenshot / recording / trace / redaction receipt')).toBeInTheDocument();
-    expect(screen.getByText('dry run: approval receipt / redaction receipt / safe-scope receipt')).toBeInTheDocument();
+    expect(screen.getByText('receipts: approval receipt / redaction receipt / safe-scope receipt')).toBeInTheDocument();
+    expect(screen.getAllByText('continue: full auto resumes after receipts').length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('button', { name: /set up computer-use capture/i }));
     expect(onSelectCapabilitySetup).toHaveBeenCalledWith('computer-use');
