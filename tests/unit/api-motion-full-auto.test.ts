@@ -1069,7 +1069,7 @@ describe('POST /api/motion/full-auto', () => {
         status: 'complete',
         reason: null,
         stepId: null,
-        advancedStepIds: ['visual-generation', 'voice', 'sync', 'render'],
+        advancedStepIds: ['visual-generation', 'voice', 'sync', 'render', 'export'],
       },
       project: {
         exports: [
@@ -1094,6 +1094,12 @@ describe('POST /api/motion/full-auto', () => {
               'render-export-x-9x16-manifest',
             ]),
           }),
+          expect.objectContaining({
+            id: 'node-export-pack-motion-aether-launch-draft-primary',
+            kind: 'export-pack',
+            status: 'done',
+            outputRefs: ['export-pack-motion-aether-launch-draft-primary-manifest'],
+          }),
         ]),
         executionHistory: expect.arrayContaining([
           expect.objectContaining({
@@ -1114,6 +1120,16 @@ describe('POST /api/motion/full-auto', () => {
               'Subtitles artifact check',
               'Transcript artifact check',
               'Manifest artifact check',
+            ],
+          }),
+          expect.objectContaining({
+            id: 'execution-export-pack-motion-aether-launch-draft-primary-743',
+            gateId: 'export',
+            label: 'Export pack',
+            receiptLabels: [
+              'Export pack manifest',
+              'Canvas drop candidates',
+              'Pack provenance',
             ],
           }),
         ]),

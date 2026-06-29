@@ -240,14 +240,7 @@ export function buildMotionProductionPlan(
     projectId: project.id,
     draftId: project.currentDraftId,
     mode: project.workflowMode,
-    status:
-      exportPackPlan.status === 'ready'
-        ? 'complete'
-        : nextStep
-          ? 'ready'
-          : blockedCount > 0
-            ? 'blocked'
-            : 'ready',
+    status: nextStep ? 'ready' : blockedCount > 0 ? 'blocked' : 'complete',
     nextStepId: nextStep?.id ?? null,
     nextActionLabel: nextStep?.actionLabel ?? null,
     readyCount,
@@ -285,6 +278,7 @@ function buildSteps(
   const voiceComplete = isGraphDone(project.graphNodes, 'voice') || plans.syncPlan.status === 'ready';
   const syncComplete = isGraphNodeDone(project.graphNodes, 'node-sync-plan');
   const syncReady = plans.syncPlan.status === 'ready';
+  const exportComplete = isGraphDone(project.graphNodes, 'export-pack');
 
   return [
     step('plan', project, {
@@ -374,7 +368,11 @@ function buildSteps(
     productionGateBlocked
       ? gatedProductionStep('export', project, 'Approve a draft variation before export')
       : step('export', project, {
-          status: plans.exportPackPlan.status === 'ready' ? 'complete' : 'blocked',
+          status: exportComplete
+            ? 'complete'
+            : plans.exportPackPlan.status === 'ready'
+              ? 'ready'
+              : 'blocked',
           blockerLabels: plans.exportPackPlan.blockers.map((blocker) => blocker.label),
           providerRequirementLabels: [],
           verificationReceipts: exportReceipts(plans.exportPackPlan),

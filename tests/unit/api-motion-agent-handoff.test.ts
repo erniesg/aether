@@ -297,6 +297,7 @@ describe('POST /api/motion/agent-handoff', () => {
             'voice',
             'sync',
             'render',
+            'export',
           ],
         },
       },
@@ -396,11 +397,21 @@ describe('POST /api/motion/agent-handoff', () => {
             providerId: 'computer-use-capture',
           }),
           expect.objectContaining({ gateId: 'render' }),
+          expect.objectContaining({
+            gateId: 'export',
+            label: 'Export pack',
+            receiptLabels: ['Export pack manifest', 'Canvas drop candidates', 'Pack provenance'],
+          }),
         ]),
         graphNodes: expect.arrayContaining([
           expect.objectContaining({
             kind: 'capture',
             providerId: 'computer-use-capture',
+            status: 'done',
+          }),
+          expect.objectContaining({
+            kind: 'export-pack',
+            providerId: 'motion-export-pack',
             status: 'done',
           }),
         ]),
@@ -416,6 +427,7 @@ describe('POST /api/motion/agent-handoff', () => {
             'voice',
             'sync',
             'render',
+            'export',
           ],
         },
         captureRunner: expect.objectContaining({

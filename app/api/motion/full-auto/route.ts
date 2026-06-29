@@ -13,6 +13,8 @@ import {
   appendSetupDryRunExecutionHistory,
   type MotionSetupDryRunReceiptInput,
 } from '@/lib/motion/executionHistory';
+import { applyMotionExportPackPlanToMotionProject } from '@/lib/motion/exportPackApply';
+import { buildMotionExportPackPlan } from '@/lib/motion/exportPackPlan';
 import { applyMotionImageToVideoResultToMotionProject } from '@/lib/motion/imageToVideoApply';
 import { buildMotionImageToVideoPlan } from '@/lib/motion/imageToVideoPlan';
 import type { MotionProject } from '@/lib/motion/project';
@@ -300,6 +302,11 @@ function buildProviderHandlers(
       updatedAt: options.updatedAt,
     });
   }
+
+  handlers.export = exportPackHandler({
+    requestedAt: options.requestedAt,
+    updatedAt: options.updatedAt,
+  });
 
   return handlers;
 }
@@ -597,6 +604,22 @@ function renderHandler(input: {
       updatedAt: input.updatedAt ?? input.requestedAt,
     });
     return result.project;
+  };
+}
+
+function exportPackHandler(input: {
+  requestedAt: number;
+  updatedAt?: number;
+}): MotionFullAutoStepHandler {
+  return async ({ project }) => {
+    const plan = buildMotionExportPackPlan(project, {
+      requestedAt: input.requestedAt,
+    });
+    if (plan.status !== 'ready') return project;
+
+    return applyMotionExportPackPlanToMotionProject(project, plan, {
+      updatedAt: input.updatedAt ?? input.requestedAt,
+    });
   };
 }
 

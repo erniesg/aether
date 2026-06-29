@@ -132,6 +132,25 @@ describe('POST /api/motion/export-pack', () => {
     const json = await res.json();
     expect(json).toMatchObject({
       ok: true,
+      project: {
+        id: 'motion-aether-launch',
+        graphNodes: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'node-export-pack-motion-aether-launch-draft-primary',
+            kind: 'export-pack',
+            status: 'done',
+            outputRefs: ['export-pack-motion-aether-launch-draft-primary-manifest'],
+          }),
+        ]),
+        executionHistory: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'execution-export-pack-motion-aether-launch-draft-primary-1002',
+            gateId: 'export',
+            label: 'Export pack',
+            receiptLabels: ['Export pack manifest', 'Canvas drop candidates', 'Pack provenance'],
+          }),
+        ]),
+      },
       exportPackPlan: {
         status: 'ready',
         readyCount: 1,

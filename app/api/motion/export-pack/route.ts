@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { WorkflowEngine } from '@/lib/workflow/registry';
 import type { MotionProject } from '@/lib/motion/project';
+import { applyMotionExportPackPlanToMotionProject } from '@/lib/motion/exportPackApply';
 import { buildMotionExportPackPlan } from '@/lib/motion/exportPackPlan';
 import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
@@ -44,15 +45,20 @@ export async function POST(request: Request): Promise<Response> {
   const project = body.project as unknown as MotionProject;
 
   try {
+    const exportPackPlan = buildMotionExportPackPlan(project, {
+      draftId: stringValue(body.draftId),
+      requestedAt,
+    });
+    const updatedProject = applyMotionExportPackPlanToMotionProject(project, exportPackPlan, {
+      updatedAt: numericValue(body.updatedAt) ?? requestedAt,
+    });
+
     return NextResponse.json({
       ok: true,
-      project,
-      exportPackPlan: buildMotionExportPackPlan(project, {
-        draftId: stringValue(body.draftId),
-        requestedAt,
-      }),
-      reviewPlan: buildMotionReviewPlan(project),
-      previewPlan: buildMotionPreviewPlan(project, {
+      project: updatedProject,
+      exportPackPlan,
+      reviewPlan: buildMotionReviewPlan(updatedProject),
+      previewPlan: buildMotionPreviewPlan(updatedProject, {
         engines: requestedEngines ?? undefined,
         requestedAt,
       }),

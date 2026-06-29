@@ -53,6 +53,7 @@ export interface MotionProvenanceRef {
     | 'provider'
     | 'revision'
     | 'render'
+    | 'export'
     | 'manual';
   ref: string;
   label?: string;
@@ -191,7 +192,8 @@ export interface MotionGraphNode {
     | 'voice'
     | 'sync'
     | 'revision'
-    | 'render';
+    | 'render'
+    | 'export-pack';
   inputRefs: string[];
   outputRefs: string[];
   providerId?: string;

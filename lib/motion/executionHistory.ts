@@ -15,6 +15,7 @@ import type {
   MotionExecutionReceipt,
   MotionProvenanceRef,
 } from './project';
+import type { MotionExportPackPlan } from './exportPackPlan';
 import type {
   MotionComponentRegenerationRequest,
   MotionDraftVariationRequest,
@@ -476,6 +477,31 @@ export function appendSyncExecutionHistory(
   });
 }
 
+export function appendExportPackExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  plan: MotionExportPackPlan,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  if (plan.status !== 'ready' || !plan.manifest) return history ?? [];
+
+  const receipts = exportPackReceipts(plan);
+  return appendExecutionEntry(history, {
+    id: `execution-${plan.id}-${savedAt}`,
+    gateId: 'export',
+    label: 'Export pack',
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      ...plan.provenance,
+      { kind: 'export', ref: plan.manifest.id },
+      { kind: 'export', ref: `${plan.id}:canvas-drops` },
+      { kind: 'export', ref: `${plan.id}:provenance` },
+    ]),
+  });
+}
+
 function appendExecutionEntry(
   history: MotionExecutionHistoryEntry[] | undefined,
   entry: MotionExecutionHistoryEntry
@@ -569,6 +595,33 @@ function regenerationReceipt(input: {
     label: input.label,
     ref: input.ref,
   };
+}
+
+function exportPackReceipts(plan: MotionExportPackPlan): MotionExecutionReceipt[] {
+  if (!plan.manifest) return [];
+
+  return [
+    {
+      id: `receipt-${plan.manifest.id}`,
+      kind: 'export',
+      label: 'Export pack manifest',
+      ref: plan.manifest.id,
+      path: plan.manifest.path,
+      mimeType: plan.manifest.mimeType,
+    },
+    {
+      id: `receipt-${plan.id}-canvas-drops`,
+      kind: 'export',
+      label: 'Canvas drop candidates',
+      ref: `${plan.id}:canvas-drops`,
+    },
+    {
+      id: `receipt-${plan.id}-provenance`,
+      kind: 'export',
+      label: 'Pack provenance',
+      ref: `${plan.id}:provenance`,
+    },
+  ];
 }
 
 function renderReceipt(providerId: string, output: MotionRenderedAsset): MotionExecutionReceipt {
