@@ -838,6 +838,21 @@ const previewPlan: MotionPreviewPlan = {
         componentStackLabel: 'Hook card / App frame',
         sourceBasisLabel: 'repo source',
         timingDeltaLabel: 'same duration',
+        artifactPlan: {
+          status: 'ready',
+          engineLabel: 'remotion',
+          timelinePath: 'timeline/draft-primary.json',
+          sourcePathLabels: [
+            'timeline/draft-primary.json',
+            'SCRIPT.md',
+            'STORYBOARD.md',
+            'EDIT.md',
+          ],
+          previewLabels: ['remotion source bundle', 'same-shell preview'],
+          editableSurfaceLabels: ['script', 'component', 'effect'],
+          expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
+          blockerLabels: [],
+        },
         comparisonLabels: ['current cut', 'starts hook', 'same duration'],
         actionLabels: ['editing this cut', 'Regenerate Primary launch cut'],
       },
@@ -849,6 +864,21 @@ const previewPlan: MotionPreviewPlan = {
         componentStackLabel: 'App frame / Hook card',
         sourceBasisLabel: 'timeline source',
         timingDeltaLabel: 'same duration',
+        artifactPlan: {
+          status: 'ready',
+          engineLabel: 'remotion',
+          timelinePath: 'timeline/draft-demo.json',
+          sourcePathLabels: [
+            'timeline/draft-demo.json',
+            'SCRIPT.md',
+            'STORYBOARD.md',
+            'EDIT.md',
+          ],
+          previewLabels: ['remotion source bundle', 'same-shell preview'],
+          editableSurfaceLabels: ['script', 'component', 'effect'],
+          expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
+          blockerLabels: [],
+        },
         comparisonLabels: ['demo moves to scene 1', 'starts demo', 'same duration'],
         actionLabels: ['choose draft', 'Regenerate Demo-first cut'],
       },
@@ -2642,6 +2672,9 @@ describe('TimelineLens', () => {
     expect(screen.getByText('hook -> demo')).toBeInTheDocument();
     expect(screen.getByText('demo -> hook')).toBeInTheDocument();
     expect(screen.getByText('demo moves to scene 1')).toBeInTheDocument();
+    expect(screen.getByText('timeline/draft-demo.json / SCRIPT.md / STORYBOARD.md')).toBeInTheDocument();
+    expect(screen.getAllByText('remotion source bundle / same-shell preview').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('draft variation / timeline revision').length).toBeGreaterThan(0);
     expect(screen.getAllByText('same duration').length).toBeGreaterThan(0);
     expect(screen.getByText('editing this cut')).toBeInTheDocument();
     expect(screen.getByText('choose draft')).toBeInTheDocument();

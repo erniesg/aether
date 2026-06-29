@@ -917,6 +917,20 @@ function MotionDraftComparisonStrip({
             <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
               {item.sourceBasisLabel}
             </div>
+            <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {item.artifactPlan.sourcePathLabels.slice(0, 3).join(' / ')}
+            </div>
+            <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {item.artifactPlan.previewLabels.slice(0, 2).join(' / ')}
+            </div>
+            <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {item.artifactPlan.expectedReceiptLabels.slice(0, 2).join(' / ')}
+            </div>
+            {item.artifactPlan.blockerLabels[0] ? (
+              <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+                {item.artifactPlan.blockerLabels[0]}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

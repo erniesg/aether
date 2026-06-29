@@ -269,8 +269,22 @@ export interface MotionPreviewDraftComparisonItem {
   componentStackLabel: string;
   sourceBasisLabel: string;
   timingDeltaLabel: string;
+  artifactPlan: MotionPreviewDraftArtifactPlan;
   comparisonLabels: string[];
   actionLabels: string[];
+}
+
+export type MotionPreviewDraftArtifactStatus = 'ready' | 'needs-source';
+
+export interface MotionPreviewDraftArtifactPlan {
+  status: MotionPreviewDraftArtifactStatus;
+  engineLabel: string | null;
+  timelinePath: string;
+  sourcePathLabels: string[];
+  previewLabels: string[];
+  editableSurfaceLabels: string[];
+  expectedReceiptLabels: string[];
+  blockerLabels: string[];
 }
 
 export interface MotionPreviewDraftComparison {
@@ -1004,7 +1018,6 @@ export function buildMotionPreviewPlan(
   const referenceSignals = buildReferenceSignals(project);
   const tasteReferences = buildTasteReferences(project);
   const draftOptions = buildDraftOptions(reviewPlan, tasteReferences);
-  const draftComparison = buildDraftComparison(draftOptions);
   const syncPlan = buildMotionSyncPlan(project, {
     draftId: project.currentDraftId,
     fps,
@@ -1037,6 +1050,7 @@ export function buildMotionPreviewPlan(
     fps,
     requestedAt: options.requestedAt,
   });
+  const draftComparison = buildDraftComparison(draftOptions, editSource, engines);
   const productionPlan = buildMotionProductionPlan(project, {
     engines,
     fps,
@@ -1473,7 +1487,9 @@ function draftSourceLabels(sourceRefs: MotionProvenanceRef[]): string[] {
 }
 
 function buildDraftComparison(
-  draftOptions: MotionPreviewDraftOption[]
+  draftOptions: MotionPreviewDraftOption[],
+  editSource: MotionPreviewEditSource,
+  engines: WorkflowEngine[]
 ): MotionPreviewDraftComparison {
   const currentDraft = draftOptions.find((draft) => draft.isCurrent) ?? draftOptions[0];
   const currentDuration = currentDraft?.durationSeconds ?? 0;
@@ -1484,7 +1500,7 @@ function buildDraftComparison(
     currentDraftLabel: currentDraft?.label ?? 'Current draft',
     candidateCount: Math.max(0, draftOptions.length - 1),
     items: draftOptions.map((draft) =>
-      draftComparisonItem(draft, currentDraft, currentDuration)
+      draftComparisonItem(draft, currentDraft, currentDuration, editSource, engines)
     ),
   };
 }
@@ -1492,7 +1508,9 @@ function buildDraftComparison(
 function draftComparisonItem(
   draft: MotionPreviewDraftOption,
   currentDraft: MotionPreviewDraftOption | undefined,
-  currentDuration: number
+  currentDuration: number,
+  editSource: MotionPreviewEditSource,
+  engines: WorkflowEngine[]
 ): MotionPreviewDraftComparisonItem {
   const timingDeltaLabel = draftTimingDeltaLabel(draft.durationSeconds, currentDuration);
   const roleMovementLabel = draft.isCurrent
@@ -1508,11 +1526,53 @@ function draftComparisonItem(
     componentStackLabel: draft.componentLabels.slice(0, 4).join(' / '),
     sourceBasisLabel: draft.sourceLabels.slice(0, 2).join(' / ') || 'source pending',
     timingDeltaLabel,
+    artifactPlan: draftArtifactPlan(draft, editSource, engines),
     comparisonLabels: uniqueStrings([roleMovementLabel, startLabel, timingDeltaLabel]),
     actionLabels: [
       draft.isCurrent ? 'editing this cut' : 'choose draft',
       draft.regenerationAction.label,
     ],
+  };
+}
+
+function draftArtifactPlan(
+  draft: MotionPreviewDraftOption,
+  editSource: MotionPreviewEditSource,
+  engines: WorkflowEngine[]
+): MotionPreviewDraftArtifactPlan {
+  const timelinePath = `timeline/${draft.draftId}.json`;
+  const engineLabel =
+    editSource.engine ??
+    engines.find((engine): engine is MotionRenderEngine => isMotionRenderEngine(engine)) ??
+    null;
+  const sourcePathLabels = uniqueStrings([
+    timelinePath,
+    editSource.scriptPath ?? 'SCRIPT.md',
+    editSource.storyboardPath ?? 'STORYBOARD.md',
+    'EDIT.md',
+  ]);
+  const editableSurfaceLabels = uniqueStrings([
+    'script',
+    'component',
+    'effect',
+    ...editSource.components.flatMap((component) => component.editSurfaceLabels),
+  ]);
+
+  return {
+    status: editSource.status === 'ready' ? 'ready' : 'needs-source',
+    engineLabel,
+    timelinePath,
+    sourcePathLabels,
+    previewLabels:
+      editSource.status === 'ready'
+        ? [`${engineLabel ?? 'render'} source bundle`, 'same-shell preview']
+        : ['render source required'],
+    editableSurfaceLabels:
+      editableSurfaceLabels.length > 0
+        ? editableSurfaceLabels
+        : ['timeline', 'script', 'storyboard', 'edit contract'],
+    expectedReceiptLabels: [...draft.regenerationAction.expectedReceiptLabels],
+    blockerLabels: [...editSource.blockerLabels],
   };
 }
 
