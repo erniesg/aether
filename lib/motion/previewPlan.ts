@@ -804,6 +804,22 @@ export interface MotionPreviewExecutionHistory {
   entries: MotionPreviewExecutionHistoryEntry[];
 }
 
+export interface MotionPreviewFullAutoReview {
+  kind: 'motion-preview-full-auto-review';
+  status: 'empty' | 'saved' | 'complete';
+  savedStepCount: number;
+  savedStepLabels: string[];
+  savedReceiptCount: number;
+  savedReceiptLabels: string[];
+  editableSurfaceLabels: string[];
+  proofLabels: string[];
+  nextReviewLabel: string | null;
+  nextActionLabel: string | null;
+  nextRouteLabels: string[];
+  nextToolLabels: ToolRegistryId[];
+  instruction: string;
+}
+
 export type MotionPreviewCapabilitySetupStatus = 'ready' | 'needs-setup' | 'blocked';
 export type MotionPreviewCapabilitySetupItemStatus =
   | 'configured'
@@ -956,6 +972,7 @@ export interface MotionPreviewPlan {
   agentRunbook: MotionPreviewAgentRunbook | null;
   productionPlan: MotionProductionPlan;
   executionHistory: MotionPreviewExecutionHistory;
+  fullAutoReview: MotionPreviewFullAutoReview;
   provenance: MotionProvenanceRef[];
   requestedAt: number;
 }
@@ -1137,6 +1154,7 @@ export function buildMotionPreviewPlan(
     agentRunbook: buildAgentRunbook(options.workflowRunPlan),
     productionPlan,
     executionHistory: buildExecutionHistorySummary(project.executionHistory),
+    fullAutoReview: buildFullAutoReviewSummary(project, productionPlan),
     provenance: uniqueProvenance([
       ...project.sourceRefs,
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),
@@ -1439,6 +1457,105 @@ function buildExecutionHistorySummary(
     latestReceiptLabels: latestEntry?.receiptLabels ?? [],
     entries,
   };
+}
+
+function buildFullAutoReviewSummary(
+  project: MotionProject,
+  productionPlan: MotionProductionPlan
+): MotionPreviewFullAutoReview {
+  const nextStep =
+    productionPlan.steps.find((step) => step.id === productionPlan.nextStepId) ?? null;
+  const empty = {
+    kind: 'motion-preview-full-auto-review' as const,
+    status: 'empty' as const,
+    savedStepCount: 0,
+    savedStepLabels: [],
+    savedReceiptCount: 0,
+    savedReceiptLabels: [],
+    editableSurfaceLabels: [],
+    proofLabels: [],
+    nextReviewLabel: nextStep?.label ?? null,
+    nextActionLabel: productionPlan.nextActionLabel,
+    nextRouteLabels: nextStep?.apiRoutes ?? [],
+    nextToolLabels: nextStep?.toolIds ?? [],
+    instruction: 'No saved full-auto receipts yet.',
+  };
+
+  if (project.workflowMode !== 'full-auto') return empty;
+
+  const productionEntries = (project.executionHistory ?? []).filter((entry) =>
+    isFullAutoProductionGate(entry.gateId)
+  );
+  if (productionEntries.length === 0) return empty;
+
+  const stepById = new Map(productionPlan.steps.map((step) => [step.id, step]));
+  const savedStepIds = uniqueStrings(
+    productionEntries
+      .map((entry) => entry.gateId)
+      .filter(isFullAutoProductionGate)
+  );
+  const savedSteps = savedStepIds
+    .map((stepId) => stepById.get(stepId))
+    .filter((step): step is MotionProductionPlan['steps'][number] => Boolean(step));
+  const savedReceiptCount = productionEntries.reduce(
+    (total, entry) => total + entry.receiptCount,
+    0
+  );
+  const savedReceiptLabels = uniqueStrings(
+    productionEntries.flatMap((entry) => entry.receiptLabels)
+  );
+
+  return {
+    kind: 'motion-preview-full-auto-review',
+    status: productionPlan.status === 'complete' ? 'complete' : 'saved',
+    savedStepCount: savedSteps.length,
+    savedStepLabels: savedSteps.map((step) => step.label),
+    savedReceiptCount,
+    savedReceiptLabels,
+    editableSurfaceLabels: uniqueStrings(
+      savedStepIds.flatMap(fullAutoEditableSurfaceLabelsForStep)
+    ),
+    proofLabels: uniqueStrings(savedSteps.flatMap((step) => step.artifactLabels)),
+    nextReviewLabel: nextStep?.label ?? null,
+    nextActionLabel: nextStep?.actionLabel ?? null,
+    nextRouteLabels: nextStep?.apiRoutes ?? [],
+    nextToolLabels: nextStep?.toolIds ?? [],
+    instruction:
+      productionPlan.status === 'complete'
+        ? `Full auto saved ${savedReceiptCount} receipts; review the export pack, render proof, and provenance before publishing.`
+        : `Full auto saved ${savedReceiptCount} receipts; review ${nextStep?.label ?? 'saved artifacts'} before continuing or switch to review gates.`,
+  };
+}
+
+type FullAutoProductionGateId = Exclude<MotionExecutionHistoryEntry['gateId'], 'setup'>;
+
+function isFullAutoProductionGate(
+  gateId: MotionExecutionHistoryEntry['gateId']
+): gateId is FullAutoProductionGateId {
+  return gateId !== 'setup';
+}
+
+function fullAutoEditableSurfaceLabelsForStep(stepId: FullAutoProductionGateId): string[] {
+  switch (stepId) {
+    case 'plan':
+      return ['script', 'brief', 'proof'];
+    case 'drafts':
+      return ['script', 'story beats', 'component'];
+    case 'capture':
+      return ['capture', 'recording', 'crop', 'cursor path'];
+    case 'visual-source':
+      return ['visual', 'reference', 'asset'];
+    case 'visual-generation':
+      return ['visual', 'image-to-video', 'component'];
+    case 'voice':
+      return ['voice', 'caption', 'word timing'];
+    case 'sync':
+      return ['timing', 'effect', 'transition', 'source edit'];
+    case 'render':
+      return ['render', 'contact sheet', 'poster'];
+    case 'export':
+      return ['export', 'pack manifest'];
+  }
 }
 
 function buildReferenceSignals(project: MotionProject): MotionPreviewReferenceSignal[] {

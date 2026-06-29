@@ -1357,6 +1357,43 @@ describe('buildMotionPreviewPlan', () => {
       }
     );
 
+    expect(preview.fullAutoReview).toMatchObject({
+      kind: 'motion-preview-full-auto-review',
+      status: 'saved',
+      savedStepCount: 2,
+      savedStepLabels: ['Product capture', 'Render proof'],
+      savedReceiptCount: 7,
+      savedReceiptLabels: [
+        'Screenshot',
+        'MP4',
+        'Manifest',
+        'Render source manifest',
+        'Lint HyperFrames composition',
+        'Validate HyperFrames frames',
+        'MP4 artifact check',
+      ],
+      editableSurfaceLabels: expect.arrayContaining([
+        'capture',
+        'recording',
+        'crop',
+        'render',
+        'contact sheet',
+        'poster',
+      ]),
+      proofLabels: expect.arrayContaining([
+        'screenshots',
+        'recordings',
+        'MP4',
+        'poster',
+        'subtitles',
+      ]),
+      nextReviewLabel: 'Product capture',
+      nextActionLabel: 'Capture product material',
+      nextRouteLabels: ['/api/motion/capture'],
+      nextToolLabels: ['motion-capture'],
+      instruction:
+        'Full auto saved 7 receipts; review Product capture before continuing or switch to review gates.',
+    });
     expect(preview.executionHistory).toMatchObject({
       status: 'saved',
       savedStepCount: 3,

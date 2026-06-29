@@ -43,6 +43,7 @@ import type {
   MotionPreviewExecutionHistory,
   MotionPreviewExecutionHistoryEntry,
   MotionPreviewExportPackSummary,
+  MotionPreviewFullAutoReview,
   MotionPreviewPlan,
   MotionPreviewRegenerationAction,
   MotionPreviewRenderProofCanvasDropTarget,
@@ -539,6 +540,7 @@ function MotionPreviewPlanView({
         <MotionProductionQueueStrip
           plan={previewPlan.productionPlan}
           executionHistory={previewPlan.executionHistory}
+          fullAutoReview={previewPlan.fullAutoReview}
         />
       </section>
 
@@ -1870,9 +1872,11 @@ function isTimelineCaptureRunnerInput(value: unknown): value is TimelineCaptureR
 function MotionProductionQueueStrip({
   plan,
   executionHistory,
+  fullAutoReview,
 }: {
   plan: MotionProductionPlan;
   executionHistory: MotionPreviewExecutionHistory;
+  fullAutoReview: MotionPreviewFullAutoReview;
 }) {
   const latestReceiptLabels = executionHistory.latestReceiptLabels.slice(0, 2).join(' / ');
 
@@ -1937,8 +1941,63 @@ function MotionProductionQueueStrip({
               ) : null}
             </div>
           ) : null}
+          {fullAutoReview.status !== 'empty' ? (
+            <MotionFullAutoReviewPacket packet={fullAutoReview} />
+          ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MotionFullAutoReviewPacket({
+  packet,
+}: {
+  packet: MotionPreviewFullAutoReview;
+}) {
+  const stepLabels = packet.savedStepLabels.slice(0, 3).join(' / ');
+  const receiptLabels = packet.savedReceiptLabels.slice(0, 3).join(' / ');
+  const editLabels = packet.editableSurfaceLabels.slice(0, 4).join(' / ');
+  const proofLabels = packet.proofLabels.slice(0, 3).join(' / ');
+
+  return (
+    <div className="mt-2 border-t border-border-soft pt-2">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          full-auto review packet
+        </div>
+        <Chip tone={packet.status === 'complete' ? 'ok' : 'info'} size="sm">
+          {packet.savedReceiptCount} saved
+        </Chip>
+      </div>
+      {stepLabels ? (
+        <div className="mt-1 truncate font-caption text-xs text-ink">{stepLabels}</div>
+      ) : null}
+      {receiptLabels ? (
+        <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+          saved: {receiptLabels}
+        </div>
+      ) : null}
+      {editLabels ? (
+        <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+          edit: {editLabels}
+        </div>
+      ) : null}
+      {proofLabels ? (
+        <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+          proof: {proofLabels}
+        </div>
+      ) : null}
+      {packet.nextReviewLabel ? (
+        <div className="mt-1 truncate font-caption text-2xs text-ink-dim">
+          next: {packet.nextReviewLabel}
+        </div>
+      ) : null}
+      {packet.nextActionLabel ? (
+        <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+          {packet.nextActionLabel}
+        </div>
+      ) : null}
     </div>
   );
 }

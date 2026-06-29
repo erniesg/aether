@@ -1817,6 +1817,21 @@ const previewPlan: MotionPreviewPlan = {
     latestReceiptLabels: [],
     entries: [],
   },
+  fullAutoReview: {
+    kind: 'motion-preview-full-auto-review',
+    status: 'empty',
+    savedStepCount: 0,
+    savedStepLabels: [],
+    savedReceiptCount: 0,
+    savedReceiptLabels: [],
+    editableSurfaceLabels: [],
+    proofLabels: [],
+    nextReviewLabel: productionPlan.steps.find((step) => step.id === productionPlan.nextStepId)?.label ?? null,
+    nextActionLabel: productionPlan.nextActionLabel,
+    nextRouteLabels: ['/api/motion/capture'],
+    nextToolLabels: ['motion-capture'],
+    instruction: 'No saved full-auto receipts yet.',
+  },
   provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
   requestedAt: 130,
 };
@@ -3878,6 +3893,22 @@ describe('TimelineLens', () => {
           ...previewPlan,
           workflowMode: 'full-auto',
           productionPlan: { ...productionPlan, mode: 'full-auto' },
+          fullAutoReview: {
+            kind: 'motion-preview-full-auto-review',
+            status: 'saved',
+            savedStepCount: 3,
+            savedStepLabels: ['Product capture', 'Visual sourcing', 'Image-to-video'],
+            savedReceiptCount: 3,
+            savedReceiptLabels: ['Screenshot', 'Selected source asset', 'Generated clip'],
+            editableSurfaceLabels: ['capture', 'visual', 'image-to-video', 'component'],
+            proofLabels: ['screenshots', 'source asset picks', 'generated clips'],
+            nextReviewLabel: 'Voice and captions',
+            nextActionLabel: 'Generate voice and word timings',
+            nextRouteLabels: ['/api/motion/voice'],
+            nextToolLabels: ['motion-voice'],
+            instruction:
+              'Full auto saved 3 receipts; review Voice and captions before continuing or switch to review gates.',
+          },
           executionHistory: {
             status: 'saved',
             savedStepCount: 3,
@@ -4010,6 +4041,13 @@ describe('TimelineLens', () => {
     expect(screen.getByText('saved receipts')).toBeInTheDocument();
     expect(screen.getByText('6 receipts')).toBeInTheDocument();
     expect(screen.getByText('Render source manifest / Validate HyperFrames frames')).toBeInTheDocument();
+    expect(screen.getByText('full-auto review packet')).toBeInTheDocument();
+    expect(screen.getByText('Product capture / Visual sourcing / Image-to-video')).toBeInTheDocument();
+    expect(screen.getByText('saved: Screenshot / Selected source asset / Generated clip')).toBeInTheDocument();
+    expect(screen.getByText('edit: capture / visual / image-to-video / component')).toBeInTheDocument();
+    expect(screen.getByText('proof: screenshots / source asset picks / generated clips')).toBeInTheDocument();
+    expect(screen.getByText('next: Voice and captions')).toBeInTheDocument();
+    expect(screen.getByText('Generate voice and word timings')).toBeInTheDocument();
     expect(screen.getByText('hyperframes output review')).toBeInTheDocument();
     expect(screen.getByText('2 artifacts')).toBeInTheDocument();
     expect(screen.getAllByText('hyperframes local').length).toBeGreaterThan(0);
