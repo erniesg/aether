@@ -381,6 +381,39 @@ describe('startAgentMotionWorkflow', () => {
         { engine: 'provider', status: 'provider-required' },
       ],
     });
+    expect(result.sourcePackage).toMatchObject({
+      kind: 'motion-start-source-package',
+      status: 'needs-visual-source',
+      sourceKind: 'local-repo',
+      sourceRef: repoPath,
+      appName: 'tong',
+      summary: 'tong source material: local repo facts are ready; add a product visual source for demo scenes',
+      factLabels: expect.arrayContaining([
+        'Stack: TypeScript, Next.js 15, React',
+        'Source files: 1',
+        'Receipts: 3 grounded claims',
+      ]),
+      launchCommandLabels: [],
+      captureCandidateLabels: ['Add app URL or running local app'],
+      captureRequestIds: [],
+      editSurfaceLabels: expect.arrayContaining([
+        'script',
+        'story beats',
+        'capture',
+        'image-to-video',
+        'voice',
+        'timing',
+        'effect',
+        'render source files',
+        'export pack',
+      ]),
+      engineLabels: ['Remotion source package', 'HyperFrames source package'],
+      routeActionLabels: expect.arrayContaining([
+        '/api/motion/start',
+        '/api/motion/capture',
+        '/api/motion/render',
+      ]),
+    });
   });
 
   it('starts a PR-to-video workflow when a code-change provider is available', async () => {

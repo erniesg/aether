@@ -145,10 +145,28 @@ export interface AgentMotionStartResult {
   preparedPreviewSource?: MotionPreparedPreviewSource | null;
   sourcePatchDraft?: MotionSourcePatchDraft | null;
   sourcePatchDraftOptions?: MotionSourcePatchDraftOption[];
+  sourcePackage?: MotionStartSourcePackage | null;
   capturePlan: AgentMotionCapturePlan | null;
   agentHandoff: MotionAgentExecutionHandoff | null;
   examples: MotionWorkflowExample[];
   requestedInputs: AgentMotionRequestedInput[];
+}
+
+export interface MotionStartSourcePackage {
+  kind: 'motion-start-source-package';
+  status: 'ready' | 'needs-visual-source';
+  sourceKind: MotionSourceProfile['kind'] | 'none';
+  sourceRef: string | null;
+  appName: string;
+  summary: string;
+  factLabels: string[];
+  launchCommandLabels: string[];
+  routeLabels: string[];
+  captureCandidateLabels: string[];
+  captureRequestIds: string[];
+  editSurfaceLabels: string[];
+  engineLabels: string[];
+  routeActionLabels: string[];
 }
 
 export async function startAgentMotionWorkflow(
@@ -380,6 +398,7 @@ function readyResult(
       workflowRunPlan: workflow.plan.runPlan,
       requestedAt,
     }),
+    sourcePackage: buildMotionStartSourcePackage(project, workflow, capturePlan),
     capturePlan,
     agentHandoff: buildMotionAgentExecutionHandoff({
       workflow,
@@ -389,6 +408,85 @@ function readyResult(
     examples: examplesFor(workflow),
     requestedInputs: [],
   };
+}
+
+function buildMotionStartSourcePackage(
+  project: MotionProject,
+  workflow: RoutedAgentMotionWorkflow,
+  capturePlan: AgentMotionCapturePlan | null
+): MotionStartSourcePackage {
+  const profile = project.sourceProfile ?? null;
+  const readyCaptureCount =
+    profile?.captureCandidates.filter((candidate) => Boolean(candidate.targetRef)).length ?? 0;
+
+  return {
+    kind: 'motion-start-source-package',
+    status: readyCaptureCount > 0 ? 'ready' : 'needs-visual-source',
+    sourceKind: profile?.kind ?? 'none',
+    sourceRef: profile?.sourceRef ?? null,
+    appName: project.brief.appProfile.name,
+    summary: profile
+      ? `${profile.label}: ${profile.summary}`
+      : `${project.brief.appProfile.name} source material`,
+    factLabels: profile?.signals.map((signal) => `${signal.label}: ${signal.value}`) ?? [],
+    launchCommandLabels: launchCommandLabels(profile),
+    routeLabels: routeLabels(profile),
+    captureCandidateLabels: profile?.captureCandidates.map((candidate) => candidate.label) ?? [],
+    captureRequestIds: capturePlan?.requests.map((request) => request.id) ?? [],
+    editSurfaceLabels: [
+      'script',
+      'story beats',
+      'capture',
+      'image-to-video',
+      'voice',
+      'timing',
+      'effect',
+      'render source files',
+      'export pack',
+    ],
+    engineLabels: sourcePackageEngineLabels(workflow.plan.engines),
+    routeActionLabels: sourcePackageRouteActionLabels(workflow),
+  };
+}
+
+function launchCommandLabels(profile: MotionSourceProfile | null): string[] {
+  return profile?.signals
+    .filter((signal) => signal.id === 'signal-app-launch')
+    .map((signal) => signal.value) ?? [];
+}
+
+function routeLabels(profile: MotionSourceProfile | null): string[] {
+  const signal = profile?.signals.find((candidate) => candidate.id === 'signal-routes');
+  if (!signal) return [];
+  return signal.value
+    .split(',')
+    .map((route) => route.trim())
+    .filter(Boolean);
+}
+
+function sourcePackageEngineLabels(engines: WorkflowEngine[]): string[] {
+  return uniqueStrings(
+    engines.flatMap((engine) => {
+      if (engine === 'remotion') return ['Remotion source package'];
+      if (engine === 'hyperframes') return ['HyperFrames source package'];
+      return [];
+    })
+  );
+}
+
+function sourcePackageRouteActionLabels(workflow: RoutedAgentMotionWorkflow): string[] {
+  const routes = workflow.plan.runPlan.steps.flatMap((step) => step.apiRoutes);
+  return uniqueStrings(
+    [
+      '/api/motion/start',
+      '/api/motion/capture',
+      '/api/motion/visuals',
+      '/api/motion/voice',
+      '/api/motion/sync',
+      '/api/motion/render',
+      '/api/motion/export-pack',
+    ].filter((route) => routes.includes(route))
+  );
 }
 
 function examplesFor(workflow: RoutedAgentMotionWorkflow): MotionWorkflowExample[] {
