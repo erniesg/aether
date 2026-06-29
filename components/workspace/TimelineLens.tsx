@@ -94,6 +94,7 @@ export interface TimelineLensProps {
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
   onApplySourcePatchDraft?: (draftId: string) => void;
+  onAuthorSourcePatchDraft?: (draftId: string) => void;
   onApproveDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
   onRunAgentTemplate?: (templateId: string) => void;
@@ -135,6 +136,7 @@ export function TimelineLens({
   onRenderMotion,
   onPreparePreviewSource,
   onApplySourcePatchDraft,
+  onAuthorSourcePatchDraft,
   onApproveDraft,
   onRunFullAuto,
   onRunAgentTemplate,
@@ -202,6 +204,7 @@ export function TimelineLens({
             onRenderMotion={onRenderMotion}
             onPreparePreviewSource={onPreparePreviewSource}
             onApplySourcePatchDraft={onApplySourcePatchDraft}
+            onAuthorSourcePatchDraft={onAuthorSourcePatchDraft}
             onApproveDraft={onApproveDraft}
             onRunFullAuto={onRunFullAuto}
             onRunAgentTemplate={onRunAgentTemplate}
@@ -262,6 +265,7 @@ function MotionPreviewPlanView({
   onRenderMotion,
   onPreparePreviewSource,
   onApplySourcePatchDraft,
+  onAuthorSourcePatchDraft,
   onApproveDraft,
   onRunFullAuto,
   onRunAgentTemplate,
@@ -300,6 +304,7 @@ function MotionPreviewPlanView({
   onRenderMotion?: (engine: MotionRenderEngine) => void;
   onPreparePreviewSource?: (engine: MotionRenderEngine, draftId: string) => void;
   onApplySourcePatchDraft?: (draftId: string) => void;
+  onAuthorSourcePatchDraft?: (draftId: string) => void;
   onApproveDraft?: (draftId: string) => void;
   onRunFullAuto?: () => void;
   onRunAgentTemplate?: (templateId: string) => void;
@@ -545,6 +550,7 @@ function MotionPreviewPlanView({
           <MotionSourcePatchDraftOptionsStrip
             drafts={sourcePatchDraftOptions}
             onApplySourcePatchDraft={onApplySourcePatchDraft}
+            onAuthorSourcePatchDraft={onAuthorSourcePatchDraft}
           />
         </section>
       ) : sourcePatchDraft ? (
@@ -2346,9 +2352,11 @@ function MotionSourcePatchDraftStrip({
 function MotionSourcePatchDraftOptionsStrip({
   drafts,
   onApplySourcePatchDraft,
+  onAuthorSourcePatchDraft,
 }: {
   drafts: MotionSourcePatchDraftOption[];
   onApplySourcePatchDraft?: (draftId: string) => void;
+  onAuthorSourcePatchDraft?: (draftId: string) => void;
 }) {
   return (
     <div className="min-w-0">
@@ -2372,6 +2380,8 @@ function MotionSourcePatchDraftOptionsStrip({
             draft.files.map((file) => file.path).join(' / ') || 'source files pending';
           const clipLabel = draft.targetClipIds.join(' / ') || 'target clips pending';
           const canApply = draft.status === 'ready' && Boolean(onApplySourcePatchDraft);
+          const canAuthor =
+            draft.authoringRequest?.status === 'ready' && Boolean(onAuthorSourcePatchDraft);
 
           return (
             <div
@@ -2417,6 +2427,20 @@ function MotionSourcePatchDraftOptionsStrip({
                 )}
               >
                 apply
+              </button>
+              <button
+                type="button"
+                aria-label={`author ${draft.label}`}
+                disabled={!canAuthor}
+                onClick={() => onAuthorSourcePatchDraft?.(draft.id)}
+                className={cn(
+                  'mt-2 h-8 w-full rounded-sm border px-2 text-left font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+                  canAuthor
+                    ? 'border-signal-info/40 bg-signal-info/10 text-signal-info hover:border-signal-info hover:text-ink'
+                    : 'cursor-default border-border-soft bg-surface-muted text-ink-faint'
+                )}
+              >
+                author with agent
               </button>
             </div>
           );

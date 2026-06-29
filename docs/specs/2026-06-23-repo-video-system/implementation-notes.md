@@ -240,6 +240,11 @@
   provider-required handoff when no source author is configured, and applies
   provider-authored files through the existing source-edit contract when an
   opt-in provider is available.
+- The timeline lens now exposes that source-author path as a creator review
+  action on agent-ready source-patch variations. Creators can apply the static
+  draft or ask an agent/provider to author the selected variation; authored
+  responses update the same motion project, clear the pending variation review,
+  and keep the edit in the source-edit provenance path.
 - Agent-native `/api/motion/render` route that accepts an editable motion
   project plus Remotion/HyperFrames render options, returns source/output
   handoffs when no renderer is configured, returns timeline blockers before

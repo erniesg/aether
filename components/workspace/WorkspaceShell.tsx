@@ -625,6 +625,67 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
     },
     [activeMotionSourcePatchDraft, activeMotionSourcePatchDraftOptions, motionStart, wsId]
   );
+  const handleTimelineAuthorSourcePatchDraft = useCallback(
+    async (draftId: string) => {
+      if (!motionStart?.project) return;
+      const draft = activeMotionSourcePatchDraftOptions.find(
+        (candidate) => candidate.id === draftId
+      );
+      if (!draft?.authoringRequest || draft.authoringRequest.status !== 'ready') {
+        setMotionTimelineActionStatus('source author blocked');
+        return;
+      }
+
+      setMotionTimelineActionStatus('authoring source variation');
+      try {
+        const res = await fetch('/api/motion/source-author', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            authoringRequest: draft.authoringRequest,
+            requestedEngines: motionStart.workflow.plan.engines,
+            requestedAt: Date.now(),
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          status?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error ?? `source author failed: ${res.status}`);
+        }
+
+        const authored = json.status === 'authored';
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project ?? motionStart.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan ?? motionStart.previewPlan,
+          sourcePatchDraft: authored ? null : motionStart.sourcePatchDraft,
+          sourcePatchDraftOptions: authored ? [] : activeMotionSourcePatchDraftOptions,
+        });
+        if (authored) {
+          setMotionSourcePatchDraft(null);
+          setMotionSourcePatchDraftOptions([]);
+        }
+        setMotionTimelineActionStatus(
+          authored
+            ? 'source variation authored'
+            : json.status === 'provider-required'
+              ? 'source author provider required'
+              : `source author ${json.status ?? 'saved'}`
+        );
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [activeMotionSourcePatchDraftOptions, motionStart, wsId]
+  );
   const handleTimelineDraftSelect = useCallback(
     (draftId: string) => {
       if (!motionStart?.project) return;
@@ -3351,6 +3412,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onRenderMotion={handleTimelineRender}
             onPreparePreviewSource={handleTimelinePreparePreviewSource}
             onApplySourcePatchDraft={handleTimelineApplySourcePatchDraft}
+            onAuthorSourcePatchDraft={handleTimelineAuthorSourcePatchDraft}
             onApproveDraft={handleTimelineDraftApprove}
             onRunFullAuto={handleTimelineRunFullAuto}
             onRunAgentTemplate={handleTimelineRunAgentTemplate}

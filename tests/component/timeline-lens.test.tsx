@@ -2786,6 +2786,91 @@ describe('TimelineLens', () => {
     );
   });
 
+  it('lets creators ask an agent to author a selected source patch variation', async () => {
+    const onAuthorSourcePatchDraft = vi.fn<(draftId: string) => void>();
+    const sourcePatchDraftOptions: MotionSourcePatchDraftOption[] = [
+      {
+        id: 'source-patch-draft-source-patch-regen-demo-caption',
+        variantId: 'caption-first',
+        label: 'Caption-led variation',
+        description: 'Prioritize caption, copy, and source-note handles before rendering.',
+        isDefault: false,
+        status: 'ready',
+        route: '/api/motion/source-edit',
+        method: 'POST',
+        sourceEditId: 'source-edit-regen-demo-caption-first',
+        sourcePatchPlanId: 'source-patch-regen-demo',
+        files: [{ path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' }],
+        targetClipIds: ['clip-beat-demo-text'],
+        requestTemplate: {
+          project: '$motionProject',
+          id: 'source-edit-regen-demo-caption-first',
+          files: '$draftSourceFiles',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        authoringRequest: {
+          id: 'author-source-patch-source-patch-regen-demo-caption-first',
+          status: 'ready',
+          route: '/api/motion/source-edit',
+          method: 'POST',
+          sourceEditId: 'source-edit-regen-demo-caption-first',
+          sourcePatchPlanId: 'source-patch-regen-demo',
+          variantId: 'caption-first',
+          label: 'Caption-led variation',
+          prompt: 'Author the caption-led variation.',
+          sourceFiles: [{ path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' }],
+          targetClipIds: ['clip-beat-demo-text'],
+          requestTemplate: {
+            project: '$motionProject',
+            id: 'source-edit-regen-demo-caption-first',
+            files: '$authoredSourceFiles',
+            requestedEngines: '$selectedEngines',
+            requestedAt: '$now',
+          },
+          responseSchema: {
+            type: 'object',
+            required: ['files'],
+            properties: {
+              files: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['path', 'contents'],
+                  properties: {
+                    path: { type: 'string' },
+                    contents: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+          guardrails: ['Return edited source files only; do not return prose.'],
+          blockers: [],
+        },
+        blockers: [],
+      },
+    ];
+
+    render(
+      <TimelineLens
+        tracks={tracks}
+        previewPlan={previewPlan}
+        sourcePatchDraftOptions={sourcePatchDraftOptions}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onAuthorSourcePatchDraft={onAuthorSourcePatchDraft}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /author caption-led variation/i }));
+
+    expect(onAuthorSourcePatchDraft).toHaveBeenCalledWith(
+      'source-patch-draft-source-patch-regen-demo-caption'
+    );
+  });
+
   it('shows reference signals for reviewing and regenerating motion components', async () => {
     const onRegenerateComponent = vi.fn<(actionId: string) => void>();
     const planWithReferenceSignals = {

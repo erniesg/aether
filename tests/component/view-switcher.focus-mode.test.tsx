@@ -17,7 +17,10 @@ import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { buildAgentMotionWorkflowPlan } from '@/lib/motion/workflowPlan';
 import { appendSetupDryRunExecutionHistory } from '@/lib/motion/executionHistory';
-import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
+import type {
+  MotionSourcePatchDraft,
+  MotionSourcePatchDraftOption,
+} from '@/lib/motion/sourcePatchDraft';
 import type { MotionProject, TimelineTrack } from '@/lib/motion/project';
 
 afterEach(() => {
@@ -458,6 +461,137 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
         body: expect.stringContaining('"id":"source-edit-regen-capture"'),
       })
     );
+  });
+
+  it('authors selected source patch variations through the timeline review action', async () => {
+    const start = storedRegeneratableMotionStart();
+    const project = start.project;
+    if (!project) throw new Error('expected motion project');
+    const authoredProject: MotionProject = {
+      ...project,
+      executionHistory: [
+        ...(project.executionHistory ?? []),
+        {
+          id: 'execution-source-edit-source-edit-regen-capture-caption-first-42',
+          gateId: 'sync',
+          providerId: 'motion-source-edit',
+          label: 'Source edit applied',
+          savedAt: 42,
+          receiptCount: 0,
+          receiptLabels: [],
+          receipts: [],
+          provenance: [{ kind: 'provider' as const, ref: 'source-author-test' }],
+        },
+      ],
+    };
+    const sourcePatchDraftOption: MotionSourcePatchDraftOption = {
+      id: 'source-patch-draft-regen-capture-caption',
+      variantId: 'caption-first',
+      label: 'Caption-led variation',
+      description: 'Prioritize caption, copy, and source-note handles before rendering.',
+      isDefault: false,
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      sourceEditId: 'source-edit-regen-capture-caption-first',
+      sourcePatchPlanId: 'source-patch-regen-capture',
+      files: [{ path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' }],
+      targetClipIds: ['clip-beat-demo-text'],
+      requestTemplate: {
+        project: '$motionProject',
+        id: 'source-edit-regen-capture-caption-first',
+        files: '$draftSourceFiles',
+        requestedEngines: '$selectedEngines',
+        requestedAt: '$now',
+      },
+      authoringRequest: {
+        id: 'author-source-patch-regen-capture-caption-first',
+        status: 'ready',
+        route: '/api/motion/source-edit',
+        method: 'POST',
+        sourceEditId: 'source-edit-regen-capture-caption-first',
+        sourcePatchPlanId: 'source-patch-regen-capture',
+        variantId: 'caption-first',
+        label: 'Caption-led variation',
+        prompt: 'Author the caption-led variation.',
+        sourceFiles: [{ path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' }],
+        targetClipIds: ['clip-beat-demo-text'],
+        requestTemplate: {
+          project: '$motionProject',
+          id: 'source-edit-regen-capture-caption-first',
+          files: '$authoredSourceFiles',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        responseSchema: {
+          type: 'object',
+          required: ['files'],
+          properties: {
+            files: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['path', 'contents'],
+                properties: {
+                  path: { type: 'string' },
+                  contents: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        expectedReceiptLabels: ['Source files', 'Timeline revision', 'Updated preview plan'],
+        guardrails: ['Return edited source files only; do not return prose.'],
+        blockers: [],
+      },
+      blockers: [],
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'authored',
+          project: authoredProject,
+          reviewPlan: start.reviewPlan,
+          previewPlan: buildMotionPreviewPlan(authoredProject, {
+            engines: start.workflow.plan.engines,
+            requestedAt: 42,
+          }),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', {
+      ...start,
+      sourcePatchDraftOptions: [sourcePatchDraftOption],
+    });
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    const authorButton = screen.getByRole('button', { name: /author caption-led variation/i });
+    expect(authorButton).toBeEnabled();
+
+    await userEvent.click(authorButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('source variation authored');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/source-author',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"authoringRequest"'),
+      })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/source-author',
+      expect.objectContaining({
+        body: expect.stringContaining('author-source-patch-regen-capture-caption-first'),
+      })
+    );
+    expect(getMotionStartResult('demo-ws')?.project).toEqual(authoredProject);
+    expect(getMotionStartResult('demo-ws')?.sourcePatchDraftOptions).toEqual([]);
   });
 
   it('full-auto timeline regeneration applies the default source patch instead of leaving review drafts', async () => {
