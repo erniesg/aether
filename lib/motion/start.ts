@@ -10,8 +10,12 @@ import {
   buildMotionAgentExecutionHandoff,
   type MotionAgentExecutionHandoff,
 } from './agentHandoff';
-import { buildMotionPreviewPlan, type MotionPreviewPlan } from './previewPlan';
-import type { MotionPreviewRuntimeKind } from './previewPlan';
+import {
+  buildMotionPreviewPlan,
+  type MotionPreviewPlan,
+  type MotionPreviewRuntimeKind,
+  type MotionPreviewSourcePackage,
+} from './previewPlan';
 import { buildMotionReviewPlan, type MotionReviewPlan } from './reviewPlan';
 import {
   listMotionWorkflowExamples,
@@ -114,6 +118,7 @@ export interface MotionPreparedPreviewSource {
   sourceHostRequirement: string;
   editLinkLabels: string[];
   runtimeHost: MotionPreparedPreviewRuntimeHost;
+  sourcePackage?: MotionPreviewSourcePackage | null;
   sourceHost: {
     apiRoute: string;
     entryPath: string | null;

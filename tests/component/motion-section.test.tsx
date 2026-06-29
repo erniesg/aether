@@ -600,6 +600,45 @@ describe('MotionSection', () => {
         adapterRequirement:
           'aether Player adapter mounts timeline/draft-primary.json through @remotion/player.',
       },
+      sourcePackage: {
+        kind: 'editable-motion-source',
+        engine: 'remotion',
+        projectRoot: '.',
+        runtimeRequirement: 'Node.js with Remotion CLI support',
+        sourceWriteOrder: [
+          'DESIGN.md',
+          'SCRIPT.md',
+          'STORYBOARD.md',
+          'timeline/draft-primary.json',
+          'EDIT.md',
+          'remotion/index.tsx',
+        ],
+        dependencyHints: [
+          {
+            packageName: 'remotion',
+            role: 'Remotion CLI render and studio preview',
+            required: true,
+          },
+        ],
+        dependencyLabels: ['remotion', '@remotion/media', 'react', 'react-dom'],
+        scaffoldCommands: [
+          {
+            id: 'scaffold-remotion-blank',
+            label: 'Create a blank Remotion source workspace',
+            display:
+              'npx create-video@latest --yes --blank --no-tailwind motion-render-source',
+          },
+        ],
+        setupCommands: [
+          {
+            id: 'setup-remotion-dependencies',
+            label: 'Install Remotion render dependencies',
+            display: 'npm install remotion @remotion/media react react-dom',
+          },
+        ],
+        scaffoldCommandLabels: ['Create a blank Remotion source workspace'],
+        setupCommandLabels: ['Install Remotion render dependencies'],
+      },
       sourceHost: {
         apiRoute: '/api/motion/preview-source',
         entryPath: 'remotion/index.tsx',
@@ -680,6 +719,11 @@ describe('MotionSection', () => {
         sourceHost: {
           timelinePath: 'timeline/draft-primary.json',
           sourceFileCount: 2,
+        },
+        sourcePackage: {
+          dependencyLabels: ['remotion', '@remotion/media', 'react', 'react-dom'],
+          setupCommandLabels: ['Install Remotion render dependencies'],
+          scaffoldCommandLabels: ['Create a blank Remotion source workspace'],
         },
       });
     });

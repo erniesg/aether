@@ -475,7 +475,8 @@
   source write order, setup commands, and scaffold commands are available
   without asking the creator shell or an agent to parse raw manifest JSON. The
   timeline lens shows the same contract as a compact source-setup block inside
-  render package review.
+  render package review and keeps it visible after `/api/motion/preview-source`
+  prepares the runtime host.
 - The timeline lens now opens a progressive advanced node lens from the
   visual-generation strip while the graph route remains unavailable. The lens
   keeps the surface creator-facing by showing visual source, image-to-video,

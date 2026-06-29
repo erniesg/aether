@@ -1060,6 +1060,11 @@ function MotionPreparedPreviewRuntimeHost({
   const hyperframesHtml = hyperframesPreviewHtml(source);
   const runtimeHost = source.runtimeHost;
   const runtimeStatusLabel = formatPreparedRuntimeStatus(runtimeHost.status);
+  const sourcePackage = source.sourcePackage ?? null;
+  const dependencyLabel =
+    sourcePackage?.dependencyLabels.slice(0, 4).join(' / ') || null;
+  const scaffoldLabel = sourcePackage?.scaffoldCommandLabels[0] ?? null;
+  const setupLabel = sourcePackage?.setupCommandLabels[0] ?? null;
 
   return (
     <div
@@ -1121,6 +1126,19 @@ function MotionPreparedPreviewRuntimeHost({
           </div>
         ) : null}
       </div>
+      {sourcePackage ? (
+        <div className="mt-2 rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-2 font-caption text-2xs text-ink-faint">
+          <div className="flex flex-wrap items-center gap-1">
+            <Chip tone="neutral" size="sm">
+              source setup
+            </Chip>
+            <span className="truncate">{sourcePackage.runtimeRequirement}</span>
+          </div>
+          {dependencyLabel ? <div className="mt-1 truncate">{dependencyLabel}</div> : null}
+          {scaffoldLabel ? <div className="mt-1 truncate">{scaffoldLabel}</div> : null}
+          {setupLabel ? <div className="mt-1 truncate">{setupLabel}</div> : null}
+        </div>
+      ) : null}
       {hyperframesHtml ? (
         <iframe
           title={`${source.label} preview`}

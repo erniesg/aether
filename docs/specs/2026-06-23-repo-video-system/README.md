@@ -467,7 +467,7 @@ capture, render, and provenance debugging.
   Remotion/HyperFrames project. Preview plans and `/api/motion/preview-source`
   now expose that source-package summary directly for the same-shell timeline
   lens and agent handoff; the timeline lens shows dependencies and setup steps
-  in the render package review card.
+  in the render package review card and prepared runtime host.
 - `lib/motion/revise.ts` now applies structured timeline revisions for
   review-mode and agent-driven tweaks: story copy, clip props, retiming, and
   component replacement update both the editable project and draft timelines,

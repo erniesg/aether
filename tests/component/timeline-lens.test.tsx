@@ -1730,6 +1730,49 @@ const preparedPreviewSource: MotionPreparedPreviewSource = {
     adapterRequirement:
       'aether Player adapter mounts timeline/draft-primary.json through @remotion/player.',
   },
+  sourcePackage: {
+    kind: 'editable-motion-source',
+    engine: 'remotion',
+    projectRoot: '.',
+    runtimeRequirement: 'Node.js with Remotion CLI support',
+    sourceWriteOrder: [
+      'DESIGN.md',
+      'SCRIPT.md',
+      'STORYBOARD.md',
+      'timeline/draft-primary.json',
+      'EDIT.md',
+      'remotion/index.tsx',
+    ],
+    dependencyHints: [
+      {
+        packageName: 'remotion',
+        role: 'Remotion CLI render and studio preview',
+        required: true,
+      },
+      {
+        packageName: '@remotion/media',
+        role: 'Audio and video primitives used by generated sources',
+        required: true,
+      },
+    ],
+    dependencyLabels: ['remotion', '@remotion/media', 'react', 'react-dom'],
+    scaffoldCommands: [
+      {
+        id: 'scaffold-remotion-blank',
+        label: 'Create a blank Remotion source workspace',
+        display: 'npx create-video@latest --yes --blank --no-tailwind motion-render-source',
+      },
+    ],
+    setupCommands: [
+      {
+        id: 'setup-remotion-dependencies',
+        label: 'Install Remotion render dependencies',
+        display: 'npm install remotion @remotion/media react react-dom',
+      },
+    ],
+    scaffoldCommandLabels: ['Create a blank Remotion source workspace'],
+    setupCommandLabels: ['Install Remotion render dependencies'],
+  },
   sourceHost: {
     apiRoute: '/api/motion/preview-source',
     entryPath: 'remotion/index.tsx',
@@ -3293,6 +3336,11 @@ describe('TimelineLens', () => {
     expect(
       within(host).getByText('aether Player adapter mounts timeline/draft-primary.json through @remotion/player.')
     ).toBeInTheDocument();
+    expect(within(host).getByText('source setup')).toBeInTheDocument();
+    expect(within(host).getByText('Node.js with Remotion CLI support')).toBeInTheDocument();
+    expect(within(host).getByText('remotion / @remotion/media / react / react-dom')).toBeInTheDocument();
+    expect(within(host).getByText('Create a blank Remotion source workspace')).toBeInTheDocument();
+    expect(within(host).getByText('Install Remotion render dependencies')).toBeInTheDocument();
     expect(screen.queryByText(/registerRoot/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\"tracks\"/)).not.toBeInTheDocument();
   });
