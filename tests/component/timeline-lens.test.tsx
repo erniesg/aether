@@ -4155,6 +4155,7 @@ describe('TimelineLens', () => {
   it('lets creators request draft selection and scoped component regeneration', async () => {
     const onSelectDraft = vi.fn<(draftId: string) => void>();
     const onRegenerateComponent = vi.fn<(actionId: string) => void>();
+    const onRegenerateDraft = vi.fn<(actionId: string) => void>();
     const onApproveDraft = vi.fn<(draftId: string) => void>();
     render(
       <TimelineLens
@@ -4165,11 +4166,12 @@ describe('TimelineLens', () => {
         onSelectDraft={onSelectDraft}
         onApproveDraft={onApproveDraft}
         onRegenerateComponent={onRegenerateComponent}
+        onRegenerateDraft={onRegenerateDraft}
       />
     );
 
-    const primaryDraft = screen.getByRole('button', { name: /primary launch cut/i });
-    const demoDraft = screen.getByRole('button', { name: /demo-first cut/i });
+    const primaryDraft = screen.getByRole('button', { name: /^primary launch cut/i });
+    const demoDraft = screen.getByRole('button', { name: /^demo-first cut/i });
     expect(primaryDraft).toBeDisabled();
     expect(primaryDraft).toHaveTextContent('current');
     expect(within(primaryDraft).getByText('hook / demo')).toBeInTheDocument();
@@ -4191,6 +4193,9 @@ describe('TimelineLens', () => {
 
     await userEvent.click(demoDraft);
     expect(onSelectDraft).toHaveBeenCalledWith('draft-demo');
+
+    await userEvent.click(screen.getByRole('button', { name: /regenerate demo-first cut/i }));
+    expect(onRegenerateDraft).toHaveBeenCalledWith('regen-draft-option-draft-demo');
 
     await userEvent.click(screen.getByRole('button', { name: /approve current draft/i }));
     expect(onApproveDraft).toHaveBeenCalledWith('draft-primary');

@@ -89,6 +89,7 @@ export interface TimelineLensProps {
   onSelectDraft?: (draftId: string) => void;
   onSwitchWorkflowMode?: (mode: MotionWorkflowMode) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  onRegenerateDraft?: (actionId: string) => void;
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
@@ -131,6 +132,7 @@ export function TimelineLens({
   onSelectDraft,
   onSwitchWorkflowMode,
   onRegenerateComponent,
+  onRegenerateDraft,
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
@@ -199,6 +201,7 @@ export function TimelineLens({
             onSelectDraft={onSelectDraft}
             onSwitchWorkflowMode={onSwitchWorkflowMode}
             onRegenerateComponent={onRegenerateComponent}
+            onRegenerateDraft={onRegenerateDraft}
             onGenerateVoice={onGenerateVoice}
             onSyncMotion={onSyncMotion}
             onRenderMotion={onRenderMotion}
@@ -260,6 +263,7 @@ function MotionPreviewPlanView({
   onSelectDraft,
   onSwitchWorkflowMode,
   onRegenerateComponent,
+  onRegenerateDraft,
   onGenerateVoice,
   onSyncMotion,
   onRenderMotion,
@@ -299,6 +303,7 @@ function MotionPreviewPlanView({
   onSelectDraft?: (draftId: string) => void;
   onSwitchWorkflowMode?: (mode: MotionWorkflowMode) => void;
   onRegenerateComponent?: (actionId: string) => void;
+  onRegenerateDraft?: (actionId: string) => void;
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
   onRenderMotion?: (engine: MotionRenderEngine) => void;
@@ -402,6 +407,21 @@ function MotionPreviewPlanView({
             >
               {currentDraft.status === 'approved' ? 'current draft approved' : 'approve current draft'}
             </button>
+          ) : null}
+          {onRegenerateDraft ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {previewPlan.draftOptions.map((draft) => (
+                <button
+                  key={draft.regenerationAction.id}
+                  type="button"
+                  onClick={() => onRegenerateDraft(draft.regenerationAction.id)}
+                  aria-label={`regenerate ${draft.label}`}
+                  className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-mono text-[10px] uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+                >
+                  {draft.regenerationAction.label}
+                </button>
+              ))}
+            </div>
           ) : null}
         </div>
 
@@ -838,7 +858,10 @@ function MotionDraftOptionCard({
       <span className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-dim">
         {draft.isCurrent ? 'editing this cut' : 'choose draft'}
       </span>
-      <span className="mt-1 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+      <span
+        aria-hidden="true"
+        className="mt-1 font-mono text-[10px] uppercase tracking-wide text-ink-faint"
+      >
         {draft.regenerationAction.label}
       </span>
     </button>

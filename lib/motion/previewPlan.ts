@@ -924,6 +924,7 @@ export interface MotionPreviewPlan {
 }
 
 export type MotionPreviewRegenerationRequestAction =
+  | MotionDraftRegenerationAction
   | MotionPreviewRegenerationAction
   | MotionPreviewReferenceSignalAction
   | MotionPreviewTasteReferenceAction;
@@ -931,10 +932,11 @@ export type MotionPreviewRegenerationRequestAction =
 export function listMotionPreviewRegenerationRequestActions(
   previewPlan: Pick<
     MotionPreviewPlan,
-    'regenerationActions' | 'referenceSignals' | 'tasteReferences'
+    'draftOptions' | 'regenerationActions' | 'referenceSignals' | 'tasteReferences'
   >
 ): MotionPreviewRegenerationRequestAction[] {
   return [
+    ...previewPlan.draftOptions.map((draft) => draft.regenerationAction),
     ...previewPlan.regenerationActions,
     ...previewPlan.referenceSignals.flatMap((signal) => signal.actions),
     ...previewPlan.tasteReferences.flatMap((reference) => reference.actions),
@@ -944,7 +946,7 @@ export function listMotionPreviewRegenerationRequestActions(
 export function findMotionPreviewRegenerationAction(
   previewPlan: Pick<
     MotionPreviewPlan,
-    'regenerationActions' | 'referenceSignals' | 'tasteReferences'
+    'draftOptions' | 'regenerationActions' | 'referenceSignals' | 'tasteReferences'
   >,
   actionId: string
 ): MotionPreviewRegenerationRequestAction | null {

@@ -496,35 +496,45 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       const action = findMotionPreviewRegenerationAction(motionStart.previewPlan, actionId);
       if (!action) return;
 
-      setMotionTimelineActionStatus(`planning ${action.scope}`);
+      const requestTemplate = action.requestTemplate;
+      const isDraftRegeneration = 'draftId' in requestTemplate;
+      const actionScope = 'scope' in action ? action.scope : null;
+      setMotionTimelineActionStatus(
+        isDraftRegeneration
+          ? `planning ${action.label.toLowerCase()}`
+          : `planning ${actionScope ?? 'regeneration'}`
+      );
       try {
-        const requestTemplate = action.requestTemplate;
         const requestBody: Record<string, unknown> = {
           project: motionStart.project,
-          scope: requestTemplate.scope,
           prompt: requestTemplate.prompt,
           requestedEngines: motionStart.workflow.plan.engines,
           requestedAt: Date.now(),
         };
-        if ('clipId' in requestTemplate) requestBody.clipId = requestTemplate.clipId;
-        if (
-          'clipId' in requestTemplate &&
-          motionStart.project.workflowMode === 'full-auto'
-        ) {
-          requestBody.sourcePatchMode = 'apply-default';
-        }
-        if ('referenceSignalId' in requestTemplate) {
-          requestBody.referenceSignalId = requestTemplate.referenceSignalId;
-        }
-        if ('tasteReferenceId' in requestTemplate) {
-          requestBody.tasteReferenceId = requestTemplate.tasteReferenceId;
-        }
-        if ('sourceEntryId' in requestTemplate) {
-          requestBody.sourceEntryId = requestTemplate.sourceEntryId;
-        }
-        if ('sourceUrl' in requestTemplate) requestBody.sourceUrl = requestTemplate.sourceUrl;
-        if ('componentIds' in requestTemplate) {
-          requestBody.componentIds = requestTemplate.componentIds;
+        if (isDraftRegeneration) {
+          requestBody.draftId = requestTemplate.draftId;
+        } else {
+          requestBody.scope = requestTemplate.scope;
+          if ('clipId' in requestTemplate) requestBody.clipId = requestTemplate.clipId;
+          if (
+            'clipId' in requestTemplate &&
+            motionStart.project.workflowMode === 'full-auto'
+          ) {
+            requestBody.sourcePatchMode = 'apply-default';
+          }
+          if ('referenceSignalId' in requestTemplate) {
+            requestBody.referenceSignalId = requestTemplate.referenceSignalId;
+          }
+          if ('tasteReferenceId' in requestTemplate) {
+            requestBody.tasteReferenceId = requestTemplate.tasteReferenceId;
+          }
+          if ('sourceEntryId' in requestTemplate) {
+            requestBody.sourceEntryId = requestTemplate.sourceEntryId;
+          }
+          if ('sourceUrl' in requestTemplate) requestBody.sourceUrl = requestTemplate.sourceUrl;
+          if ('componentIds' in requestTemplate) {
+            requestBody.componentIds = requestTemplate.componentIds;
+          }
         }
 
         const res = await fetch(action.route, {
@@ -559,11 +569,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         });
         setMotionSourcePatchDraft(sourcePatchApplied ? null : json.sourcePatchDraft ?? null);
         setMotionSourcePatchDraftOptions(sourcePatchApplied ? [] : json.sourcePatchDraftOptions ?? []);
-        setMotionTimelineActionStatus(
-          sourcePatchApplied
+        const statusLabel = isDraftRegeneration
+          ? `${action.label} planned`
+          : sourcePatchApplied
             ? 'source patch applied'
-            : `${json.regenerationRequest?.scope ?? action.scope} regeneration planned`
-        );
+            : `${json.regenerationRequest?.scope ?? actionScope ?? 'draft'} regeneration planned`;
+        setMotionTimelineActionStatus(statusLabel);
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
@@ -3407,6 +3418,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSelectDraft={handleTimelineDraftSelect}
             onSwitchWorkflowMode={handleTimelineWorkflowModeSwitch}
             onRegenerateComponent={handleTimelineRegenerate}
+            onRegenerateDraft={handleTimelineRegenerate}
             onGenerateVoice={handleTimelineGenerateVoice}
             onSyncMotion={handleTimelineSync}
             onRenderMotion={handleTimelineRender}

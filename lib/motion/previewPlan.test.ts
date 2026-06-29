@@ -1056,7 +1056,7 @@ describe('buildMotionPreviewPlan', () => {
     );
   });
 
-  it('resolves component, reference-signal, and taste-reference regeneration actions', () => {
+  it('resolves component, reference-signal, taste-reference, and draft regeneration actions', () => {
     const preview = buildMotionPreviewPlan(project(), {
       engines: ['remotion', 'hyperframes'],
       requestedAt: 900,
@@ -1102,6 +1102,17 @@ describe('buildMotionPreviewPlan', () => {
         sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
         scope: 'effect',
         componentIds: ['hook-card', 'agent-trace'],
+      },
+    });
+
+    expect(
+      findMotionPreviewRegenerationAction(preview, 'regen-draft-option-draft-demo-first')
+    ).toMatchObject({
+      id: 'regen-draft-option-draft-demo-first',
+      requestTemplate: {
+        draftId: 'draft-demo-first',
+        prompt:
+          'Regenerate Demo-first cut as an editable draft variation while preserving source-backed claims.',
       },
     });
 
