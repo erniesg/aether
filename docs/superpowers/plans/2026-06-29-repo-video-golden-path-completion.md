@@ -48,7 +48,7 @@ Work in proof-bearing milestones. Each milestone must leave a committed artifact
 - Test: `lib/motion/goldenPathFixtures.test.ts`
 - Modify: `tests/unit/api-motion-agent-handoff.test.ts`
 
-- [ ] **Step 1: Write the failing fixture tests**
+- [x] **Step 1: Write the failing fixture tests**
 
 ```ts
 // lib/motion/goldenPathFixtures.test.ts
@@ -102,17 +102,17 @@ describe('repo video golden path fixtures', () => {
 });
 ```
 
-- [ ] **Step 2: Run the failing tests**
+- [x] **Step 2: Run the failing tests**
 
 Run: `npx vitest run lib/motion/goldenPathFixtures.test.ts --pool=forks`
 
 Expected: FAIL because `lib/motion/goldenPathFixtures.ts` does not exist.
 
-- [ ] **Step 3: Implement the fixture helper**
+- [x] **Step 3: Implement the fixture helper**
 
 `buildRepoVideoGoldenPathFixture` should create a temp repo with `package.json`, `README.md`, and one or more route files. It should return a concrete `/api/motion/start` request for full-auto launch video mode. `assertGoldenPathMotionProject` should throw named errors when story beats, timeline rows, source refs, draft variations, render/export slots, or agent handoff templates are missing.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run:
 
@@ -122,7 +122,7 @@ npx vitest run lib/motion/goldenPathFixtures.test.ts tests/unit/api-motion-agent
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/goldenPathFixtures.ts lib/motion/goldenPathFixtures.test.ts tests/unit/api-motion-agent-handoff.test.ts
