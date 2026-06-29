@@ -492,7 +492,32 @@ describe('buildMotionPreviewPlan', () => {
     expect(preview.draftOptions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          draftId: 'draft-primary',
+          hook: 'aether: Canvas-native creative system.',
+          componentLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
+          sourceLabels: ['repo source'],
+          regenerationAction: {
+            id: 'regen-draft-option-draft-primary',
+            label: 'Regenerate Primary launch cut',
+            route: '/api/motion/regenerate',
+            method: 'POST',
+            toolId: 'motion-storyboard',
+            requestTemplate: {
+              project: '$motionProject',
+              draftId: 'draft-primary',
+              prompt:
+                'Regenerate Primary launch cut as an editable draft variation while preserving source-backed claims.',
+              requestedEngines: '$selectedEngines',
+              requestedAt: '$now',
+            },
+            expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
+          },
+        }),
+        expect.objectContaining({
           draftId: 'draft-demo-first',
+          hook: 'aether: Canvas-native creative system.',
+          componentLabels: ['Hook card', 'App frame', 'Proof card', 'Agent trace', 'CTA card'],
+          sourceLabels: ['repo source'],
           referenceInfluences: expect.arrayContaining([
             expect.objectContaining({
               referenceId: 'screen-studio-product-demo-polish',

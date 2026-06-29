@@ -759,8 +759,27 @@ const previewPlan: MotionPreviewPlan = {
       angle: 'direct repo-to-video launch',
       status: 'ready',
       isCurrent: true,
+      hook: 'Turn a repo into a launch video.',
       durationSeconds: 30,
       roles: ['hook', 'demo'],
+      componentLabels: ['Hook card', 'App frame'],
+      sourceLabels: ['repo source'],
+      regenerationAction: {
+        id: 'regen-draft-option-draft-primary',
+        label: 'Regenerate Primary launch cut',
+        route: '/api/motion/regenerate',
+        method: 'POST',
+        toolId: 'motion-storyboard',
+        requestTemplate: {
+          project: '$motionProject',
+          draftId: 'draft-primary',
+          prompt:
+            'Regenerate Primary launch cut as an editable draft variation while preserving source-backed claims.',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
+      },
       referenceInfluences: [],
     },
     {
@@ -769,8 +788,27 @@ const previewPlan: MotionPreviewPlan = {
       angle: 'show output before explanation',
       status: 'ready',
       isCurrent: false,
+      hook: 'Show the generated timeline and capture plan.',
       durationSeconds: 30,
       roles: ['demo', 'hook'],
+      componentLabels: ['App frame', 'Hook card'],
+      sourceLabels: ['timeline source'],
+      regenerationAction: {
+        id: 'regen-draft-option-draft-demo',
+        label: 'Regenerate Demo-first cut',
+        route: '/api/motion/regenerate',
+        method: 'POST',
+        toolId: 'motion-storyboard',
+        requestTemplate: {
+          project: '$motionProject',
+          draftId: 'draft-demo',
+          prompt:
+            'Regenerate Demo-first cut as an editable draft variation while preserving source-backed claims.',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
+      },
       referenceInfluences: [
         {
           referenceId: 'screen-studio-product-demo-polish',
@@ -4135,10 +4173,18 @@ describe('TimelineLens', () => {
     expect(primaryDraft).toBeDisabled();
     expect(primaryDraft).toHaveTextContent('current');
     expect(within(primaryDraft).getByText('hook / demo')).toBeInTheDocument();
+    expect(primaryDraft).toHaveTextContent('Turn a repo into a launch video.');
+    expect(primaryDraft).toHaveTextContent('Hook card / App frame');
+    expect(primaryDraft).toHaveTextContent('repo source');
+    expect(primaryDraft).toHaveTextContent('Regenerate Primary launch cut');
     expect(demoDraft).toBeEnabled();
     expect(demoDraft).toHaveTextContent('ready');
     expect(within(demoDraft).getByText('30s')).toBeInTheDocument();
     expect(within(demoDraft).getByText('demo / hook')).toBeInTheDocument();
+    expect(demoDraft).toHaveTextContent('Show the generated timeline and capture plan.');
+    expect(demoDraft).toHaveTextContent('App frame / Hook card');
+    expect(demoDraft).toHaveTextContent('timeline source');
+    expect(demoDraft).toHaveTextContent('Regenerate Demo-first cut');
     expect(demoDraft).toHaveTextContent('Screen Studio-style polished product demo');
     expect(demoDraft).toHaveTextContent('Product surface first / Cursor-guided action');
     expect(demoDraft).toHaveTextContent('App frame / Cursor callout');

@@ -69,6 +69,31 @@ describe('buildMotionReviewPlan', () => {
       isCurrent: true,
       durationSeconds: 30,
       status: 'ready',
+      hook: 'aether: Canvas-native creative system.',
+      componentLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
+      sourceRefs: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
+      regenerationAction: {
+        id: 'regen-draft-option-draft-primary',
+        label: 'Regenerate Primary launch cut',
+        route: '/api/motion/regenerate',
+        method: 'POST',
+        toolId: 'motion-storyboard',
+        requestTemplate: {
+          project: '$motionProject',
+          draftId: 'draft-primary',
+          prompt:
+            'Regenerate Primary launch cut as an editable draft variation while preserving source-backed claims.',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
+      },
+    });
+    expect(plan.drafts[1]).toMatchObject({
+      draftId: 'draft-proof-first',
+      hook: 'aether: Canvas-native creative system.',
+      componentLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
+      sourceRefs: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
     });
 
     const demoSlot = plan.componentSlots.find(
@@ -82,8 +107,12 @@ describe('buildMotionReviewPlan', () => {
     });
     expect(demoSlot?.editControls.map((control) => control.id)).toEqual([
       'assetId',
+      'assetUrl',
       'caption',
+      'crop',
       'zoom',
+      'cursorPath',
+      'sourceKeyframes',
     ]);
     expect(plan.componentSlots.some((slot) => slot.componentId === 'voice-line')).toBe(true);
     expect(plan.nextActions.map((action) => action.id)).toEqual([

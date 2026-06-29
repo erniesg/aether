@@ -769,6 +769,8 @@ function MotionDraftOptionCard({
   const roleLabel = draft.roles.map(readableLabel).join(' / ');
   const canChoose = Boolean(onSelectDraft) && !draft.isCurrent;
   const referenceInfluence = draft.referenceInfluences[0] ?? null;
+  const componentLabel = draft.componentLabels.slice(0, 3).join(' / ');
+  const sourceLabel = draft.sourceLabels.slice(0, 2).join(' / ');
 
   return (
     <button
@@ -793,6 +795,9 @@ function MotionDraftOptionCard({
       <span className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
         {draft.angle}
       </span>
+      <span className="mt-2 line-clamp-2 font-caption text-2xs text-ink">
+        {draft.hook}
+      </span>
       <span className="mt-2 flex flex-wrap gap-1">
         <Chip tone="neutral" size="sm">
           {formatPreviewDuration(draft.durationSeconds)}
@@ -803,6 +808,20 @@ function MotionDraftOptionCard({
           </Chip>
         ) : null}
       </span>
+      {componentLabel || sourceLabel ? (
+        <span className="mt-2 grid gap-1">
+          {componentLabel ? (
+            <span className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {componentLabel}
+            </span>
+          ) : null}
+          {sourceLabel ? (
+            <span className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+              {sourceLabel}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
       {referenceInfluence ? (
         <span className="mt-2 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1.5">
           <span className="block truncate font-caption text-2xs text-ink-dim">
@@ -818,6 +837,9 @@ function MotionDraftOptionCard({
       ) : null}
       <span className="mt-2 font-mono text-[10px] uppercase tracking-wide text-ink-dim">
         {draft.isCurrent ? 'editing this cut' : 'choose draft'}
+      </span>
+      <span className="mt-1 font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+        {draft.regenerationAction.label}
       </span>
     </button>
   );

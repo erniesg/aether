@@ -11,6 +11,7 @@ import type {
 } from '@/lib/providers/video/types';
 import {
   buildMotionReviewPlan,
+  type MotionDraftRegenerationAction,
   type MotionReviewPlan,
 } from './reviewPlan';
 import {
@@ -249,8 +250,12 @@ export interface MotionPreviewDraftOption {
   angle: string;
   status: MotionDraft['status'];
   isCurrent: boolean;
+  hook: string;
   durationSeconds: number;
   roles: MotionPreviewStoryBeat['role'][];
+  componentLabels: string[];
+  sourceLabels: string[];
+  regenerationAction: MotionDraftRegenerationAction;
   referenceInfluences: MotionPreviewDraftReferenceInfluence[];
 }
 
@@ -1424,10 +1429,20 @@ function buildDraftOptions(
     angle: draft.angle,
     status: draft.status,
     isCurrent: draft.isCurrent,
+    hook: draft.hook,
     durationSeconds: draft.durationSeconds,
     roles: draft.roles,
+    componentLabels: [...draft.componentLabels],
+    sourceLabels: draftSourceLabels(draft.sourceRefs),
+    regenerationAction: draft.regenerationAction,
     referenceInfluences: draftReferenceInfluences(draft.draftId, tasteReferences),
   }));
+}
+
+function draftSourceLabels(sourceRefs: MotionProvenanceRef[]): string[] {
+  return uniqueStrings(
+    sourceRefs.map((ref) => ref.label ?? `${readableLabel(ref.kind)} source`)
+  );
 }
 
 function draftReferenceInfluences(

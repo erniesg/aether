@@ -3,6 +3,7 @@ import {
   type MotionEditControl,
   type MotionRegenerateScope,
 } from './componentRegistry';
+import type { ToolRegistryId } from '@/lib/tool/registry';
 import { listMotionReferenceCorpus } from './referenceCorpus';
 import { listMotionTasteCorpus, type MotionTasteShot } from './tasteCorpus';
 import type {
@@ -52,9 +53,32 @@ export interface MotionReviewDraftCard {
   angle: string;
   status: MotionDraft['status'];
   isCurrent: boolean;
+  hook: string;
   durationSeconds: number;
   roles: StoryBeat['role'][];
+  componentIds: string[];
+  componentLabels: string[];
+  sourceRefs: MotionProvenanceRef[];
+  regenerationAction: MotionDraftRegenerationAction;
   needsTimeline: boolean;
+}
+
+export interface MotionDraftRegenerationRequestTemplate {
+  project: '$motionProject';
+  draftId: string;
+  prompt: string;
+  requestedEngines: '$selectedEngines';
+  requestedAt: '$now';
+}
+
+export interface MotionDraftRegenerationAction {
+  id: string;
+  label: string;
+  route: '/api/motion/regenerate';
+  method: 'POST';
+  toolId: ToolRegistryId;
+  requestTemplate: MotionDraftRegenerationRequestTemplate;
+  expectedReceiptLabels: string[];
 }
 
 export interface MotionReviewComponentSlot {
@@ -268,19 +292,80 @@ export function buildMotionReviewPlan(project: MotionProject): MotionReviewPlan 
       componentId: beat.templateId,
       sourceRefs: beat.provenance,
     })),
-    drafts: project.drafts.map((draft) => ({
-      draftId: draft.id,
-      label: draft.label,
-      angle: draft.angle,
-      status: draft.status,
-      isCurrent: draft.id === project.currentDraftId,
-      durationSeconds: storyDurationSeconds(draft.story),
-      roles: draft.story.map((beat) => beat.role),
-      needsTimeline: draftTracks(project, draft).length === 0,
-    })),
+    drafts: project.drafts.map((draft) => draftCardFor(project, draft)),
     componentSlots: buildComponentSlots(tracks),
     nextActions: actionsForMode(project.workflowMode),
   };
+}
+
+function draftCardFor(project: MotionProject, draft: MotionDraft): MotionReviewDraftCard {
+  const componentIds = uniqueStrings(
+    draft.story
+      .map((beat) => beat.templateId)
+      .filter((componentId): componentId is string => Boolean(componentId))
+  );
+  const componentLabels = componentIds.map(componentLabelFor);
+
+  return {
+    draftId: draft.id,
+    label: draft.label,
+    angle: draft.angle,
+    status: draft.status,
+    isCurrent: draft.id === project.currentDraftId,
+    hook: draft.story[0]?.narration ?? draft.angle,
+    durationSeconds: storyDurationSeconds(draft.story),
+    roles: draft.story.map((beat) => beat.role),
+    componentIds,
+    componentLabels,
+    sourceRefs: draftSourceRefs(draft),
+    regenerationAction: draftRegenerationAction(draft),
+    needsTimeline: draftTracks(project, draft).length === 0,
+  };
+}
+
+function draftRegenerationAction(draft: MotionDraft): MotionDraftRegenerationAction {
+  return {
+    id: `regen-draft-option-${draft.id}`,
+    label: `Regenerate ${draft.label}`,
+    route: '/api/motion/regenerate',
+    method: 'POST',
+    toolId: 'motion-storyboard',
+    requestTemplate: {
+      project: '$motionProject',
+      draftId: draft.id,
+      prompt: `Regenerate ${draft.label} as an editable draft variation while preserving source-backed claims.`,
+      requestedEngines: '$selectedEngines',
+      requestedAt: '$now',
+    },
+    expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
+  };
+}
+
+function componentLabelFor(componentId: string): string {
+  return getMotionComponent(componentId)?.label ?? componentId;
+}
+
+function draftSourceRefs(draft: MotionDraft): MotionProvenanceRef[] {
+  const sourceRefs = uniqueProvenance(draft.story.flatMap((beat) => beat.provenance)).filter(
+    isReviewSourceRef
+  );
+
+  if (sourceRefs.length > 0) return sourceRefs;
+
+  return uniqueProvenance(draft.provenance).filter(isReviewSourceRef);
+}
+
+function isReviewSourceRef(ref: MotionProvenanceRef): boolean {
+  return (
+    ref.kind === 'repo' ||
+    ref.kind === 'code-change' ||
+    ref.kind === 'site' ||
+    ref.kind === 'upload' ||
+    ref.kind === 'reference' ||
+    ref.kind === 'capture' ||
+    ref.kind === 'visual-source' ||
+    ref.kind === 'image-to-video'
+  );
 }
 
 export function createMotionComponentRegenerationRequest(
