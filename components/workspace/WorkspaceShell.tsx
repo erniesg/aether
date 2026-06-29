@@ -3448,6 +3448,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             workflowExamples={motionWorkflowExamples}
             workflowSkillDraft={motionWorkflowSkillDraft}
             preparedPreviewSource={motionStart?.preparedPreviewSource ?? null}
+            sourcePackage={motionStart?.sourcePackage ?? null}
             actionStatus={motionTimelineActionStatus}
           />
         ) : (

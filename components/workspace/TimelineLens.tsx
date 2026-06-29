@@ -22,7 +22,7 @@ import type {
 import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
-import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
+import type { MotionPreparedPreviewSource, MotionStartSourcePackage } from '@/lib/motion/start';
 import type {
   MotionSourcePatchDraft,
   MotionSourcePatchDraftOption,
@@ -84,6 +84,7 @@ export interface TimelineLensProps {
   tracks: TimelineTrack[];
   previewPlan?: MotionPreviewPlan | null;
   preparedPreviewSource?: MotionPreparedPreviewSource | null;
+  sourcePackage?: MotionStartSourcePackage | null;
   sourcePatchDraft?: MotionSourcePatchDraft | null;
   sourcePatchDraftOptions?: MotionSourcePatchDraftOption[];
   selectedClipId: string | null;
@@ -127,6 +128,7 @@ export function TimelineLens({
   tracks,
   previewPlan,
   preparedPreviewSource = null,
+  sourcePackage = null,
   sourcePatchDraft = null,
   sourcePatchDraftOptions = [],
   selectedClipId,
@@ -196,6 +198,7 @@ export function TimelineLens({
           <MotionPreviewPlanView
             previewPlan={previewPlan}
             preparedPreviewSource={preparedPreviewSource}
+            sourcePackage={sourcePackage}
             sourcePatchDraft={sourcePatchDraft}
             sourcePatchDraftOptions={sourcePatchDraftOptions}
             selectedClipId={selectedClipId}
@@ -258,6 +261,7 @@ export function TimelineLens({
 function MotionPreviewPlanView({
   previewPlan,
   preparedPreviewSource,
+  sourcePackage,
   sourcePatchDraft,
   sourcePatchDraftOptions,
   selectedClipId,
@@ -298,6 +302,7 @@ function MotionPreviewPlanView({
 }: {
   previewPlan: MotionPreviewPlan;
   preparedPreviewSource: MotionPreparedPreviewSource | null;
+  sourcePackage: MotionStartSourcePackage | null;
   sourcePatchDraft: MotionSourcePatchDraft | null;
   sourcePatchDraftOptions: MotionSourcePatchDraftOption[];
   selectedClipId: string | null;
@@ -590,6 +595,7 @@ function MotionPreviewPlanView({
         <section className="border-b border-border-soft px-4 py-3">
           <MotionSourceMaterialStrip
             sourceProfile={previewPlan.sourceProfile}
+            sourcePackage={sourcePackage}
             captureRunner={captureRunnerFromAgentHandoff(agentHandoff)}
             onCaptureMotion={onCaptureMotion}
           />
@@ -3176,10 +3182,12 @@ function selectLaunchKitReviewObjects<
 
 function MotionSourceMaterialStrip({
   sourceProfile,
+  sourcePackage,
   captureRunner,
   onCaptureMotion,
 }: {
   sourceProfile: MotionPreviewSourceProfile;
+  sourcePackage?: MotionStartSourcePackage | null;
   captureRunner?: TimelineCaptureRunnerInput;
   onCaptureMotion?: (requestIds?: string[], options?: TimelineCaptureActionOptions) => void;
 }) {
@@ -3259,6 +3267,83 @@ function MotionSourceMaterialStrip({
             {label}
           </Chip>
         ))}
+      </div>
+      {sourcePackage ? <MotionStartSourcePackageStrip sourcePackage={sourcePackage} /> : null}
+    </div>
+  );
+}
+
+function MotionStartSourcePackageStrip({
+  sourcePackage,
+}: {
+  sourcePackage: MotionStartSourcePackage;
+}) {
+  const captureLabel = sourcePackage.captureCandidateLabels.slice(0, 2).join(' / ');
+  const editSurfaceLabel = sourcePackage.editSurfaceLabels.slice(0, 4).join(' / ');
+  const engineLabel = sourcePackage.engineLabels.slice(0, 2).join(' / ');
+  const routeActionLabel = sourcePackage.routeActionLabels.slice(0, 3).join(' / ');
+  const launchLabel = sourcePackage.launchCommandLabels[0] ?? null;
+
+  return (
+    <div className="mt-3 rounded-sm border border-accent/30 bg-surface-panel/70 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          repo source package
+        </div>
+        <Chip tone={sourcePackage.status === 'ready' ? 'ok' : 'warn'} size="sm">
+          {sourcePackage.status === 'ready' ? 'ready source' : 'needs visuals'}
+        </Chip>
+      </div>
+      <div className="mt-1 line-clamp-2 font-caption text-xs text-ink">
+        {sourcePackage.summary}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <Chip tone="neutral" size="sm">
+          {sourcePackage.appName}
+        </Chip>
+        <Chip tone="neutral" size="sm">
+          {sourcePackage.sourceKind.replace(/-/g, ' ')}
+        </Chip>
+        {sourcePackage.captureRequestIds.length > 0 ? (
+          <Chip tone="info" size="sm">
+            {sourcePackage.captureRequestIds.length} capture requests
+          </Chip>
+        ) : null}
+      </div>
+      <div className="mt-2 grid gap-2 lg:grid-cols-2">
+        {sourcePackage.factLabels.slice(0, 4).map((label) => (
+          <div
+            key={label}
+            className="truncate rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-1 font-caption text-2xs text-ink-faint"
+          >
+            {label}
+          </div>
+        ))}
+        {launchLabel ? (
+          <div className="truncate rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-1 font-caption text-2xs text-ink-faint">
+            {launchLabel}
+          </div>
+        ) : null}
+        {captureLabel ? (
+          <div className="truncate rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-1 font-caption text-2xs text-ink-faint">
+            {captureLabel}
+          </div>
+        ) : null}
+        {editSurfaceLabel ? (
+          <div className="truncate rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-1 font-caption text-2xs text-ink-faint">
+            {editSurfaceLabel}
+          </div>
+        ) : null}
+        {engineLabel ? (
+          <div className="truncate rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-1 font-caption text-2xs text-ink-faint">
+            {engineLabel}
+          </div>
+        ) : null}
+        {routeActionLabel ? (
+          <div className="truncate rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-1 font-caption text-2xs text-ink-faint">
+            {routeActionLabel}
+          </div>
+        ) : null}
       </div>
     </div>
   );

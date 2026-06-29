@@ -9,7 +9,7 @@ import type { MotionPreviewPlan } from '@/lib/motion/previewPlan';
 import type { MotionProductionPlan } from '@/lib/motion/productionPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
-import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
+import type { MotionPreparedPreviewSource, MotionStartSourcePackage } from '@/lib/motion/start';
 import type {
   MotionSourcePatchDraft,
   MotionSourcePatchDraftOption,
@@ -2303,6 +2303,27 @@ const graphNodes: MotionGraphNode[] = [
   },
 ];
 
+const motionStartSourcePackage: MotionStartSourcePackage = {
+  kind: 'motion-start-source-package',
+  status: 'ready',
+  sourceKind: 'local-repo',
+  sourceRef: 'file:///Users/erniesg/code/erniesg/tong',
+  appName: 'tong',
+  summary: 'tong source material: local repo with 3 capture candidates',
+  factLabels: ['Stack: TypeScript, Next.js 15, React', 'Routes: /, /memories, /capture'],
+  launchCommandLabels: ['npm run dev -> http://localhost:3000'],
+  routeLabels: ['/', '/memories', '/capture'],
+  captureCandidateLabels: [
+    'Capture local app route /',
+    'Read local app structure /',
+    'Record onboarding flow /',
+  ],
+  captureRequestIds: ['capture-route-home', 'read-app-structure', 'record-onboarding'],
+  editSurfaceLabels: ['script', 'story beats', 'capture', 'image-to-video', 'voice', 'timing'],
+  engineLabels: ['Remotion source package', 'HyperFrames source package'],
+  routeActionLabels: ['/api/motion/start', '/api/motion/capture'],
+};
+
 const capturePlan: AgentMotionCapturePlan = {
   projectId: 'motion-aether-launch',
   status: 'ready',
@@ -2666,6 +2687,7 @@ describe('TimelineLens', () => {
       <TimelineLens
         tracks={[]}
         previewPlan={previewPlan}
+        sourcePackage={motionStartSourcePackage}
         selectedClipId={null}
         onSelectClip={() => {}}
         graphNodes={graphNodes}
@@ -2707,7 +2729,9 @@ describe('TimelineLens', () => {
     expect(screen.getByText('npx skills add iart-ai/motion-design-skills')).toBeInTheDocument();
     expect(screen.getByText('seek-shot.sh')).toBeInTheDocument();
     expect(screen.getByText('editable source package')).toBeInTheDocument();
-    expect(screen.getByText('Remotion source package / HyperFrames source package')).toBeInTheDocument();
+    expect(
+      screen.getAllByText('Remotion source package / HyperFrames source package').length
+    ).toBeGreaterThan(0);
     expect(screen.getByText('DESIGN.md / SCRIPT.md / STORYBOARD.md')).toBeInTheDocument();
     expect(screen.getByText('Preview source files / Runtime mount target')).toBeInTheDocument();
     expect(screen.getByText('review loop')).toBeInTheDocument();
@@ -2818,6 +2842,15 @@ describe('TimelineLens', () => {
     expect(screen.getByText('source material')).toBeInTheDocument();
     expect(screen.getByText('aether source material')).toBeInTheDocument();
     expect(screen.getByText('3 captures')).toBeInTheDocument();
+    expect(screen.getByText('repo source package')).toBeInTheDocument();
+    expect(
+      screen.getByText('tong source material: local repo with 3 capture candidates')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Stack: TypeScript, Next.js 15, React')).toBeInTheDocument();
+    expect(screen.getByText('npm run dev -> http://localhost:3000')).toBeInTheDocument();
+    expect(screen.getByText('Capture local app route / / Read local app structure /')).toBeInTheDocument();
+    expect(screen.getByText('script / story beats / capture / image-to-video')).toBeInTheDocument();
+    expect(screen.queryByText('file:///Users/erniesg/code/erniesg/tong')).not.toBeInTheDocument();
     expect(screen.getByText('Stack: TypeScript, Next.js 15, Convex')).toBeInTheDocument();
     expect(screen.getByText('Routes: /, /canvas')).toBeInTheDocument();
     expect(screen.getAllByText(/Capture local app route/).length).toBeGreaterThan(0);
