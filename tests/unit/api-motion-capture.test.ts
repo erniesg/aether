@@ -499,6 +499,195 @@ describe('POST /api/motion/capture', () => {
     });
   });
 
+  it('rejects computer-use receipts outside the approved target scope', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['capture-home-still'],
+          captureRunner: {
+            kind: 'computer-use-local',
+            approved: true,
+            approvedTarget: {
+              kind: 'desktop-app',
+              ref: 'Simulator: Tong onboarding',
+            },
+            redactionManifest: {
+              labels: ['tokens'],
+              applied: true,
+              receiptRef: 'redactions.json',
+            },
+            receipts: [{ assetUrl: 'asset://capture/wrong-window.png' }],
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({
+      ok: false,
+      error: 'computer-use capture target must match the approved target scope',
+      code: 'motion_capture_failed',
+    });
+  });
+
+  it('applies approved computer-use recording receipts through the capture route', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['capture-screen-recording'],
+          requestedAt: 907,
+          updatedAt: 908,
+          captureRunner: {
+            kind: 'computer-use-local',
+            approved: true,
+            approvedTarget: {
+              kind: 'url',
+              ref: 'https://paillette.app/search',
+            },
+            redactionManifest: {
+              labels: ['tokens'],
+              applied: true,
+              receiptRef: 'outputs/motion-captures/redactions.json',
+            },
+            receipts: [
+              {
+                assetUrl: 'asset://capture/paillette-recording.mp4',
+                durationMs: 5000,
+              },
+            ],
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'captured',
+      captureRunner: {
+        kind: 'computer-use-local',
+        providerId: 'computer-use-capture',
+        approvedTarget: {
+          kind: 'url',
+          ref: 'https://paillette.app/search',
+        },
+      },
+      captureResult: {
+        providerId: 'computer-use-capture',
+        artifacts: [
+          {
+            id: 'capture-computer-use-recording-https-paillette-app-search',
+            kind: 'recording',
+            assetUrl: 'asset://capture/paillette-recording.mp4',
+            durationMs: 5000,
+            mimeType: 'video/mp4',
+          },
+        ],
+      },
+    });
+
+    const appFrameClip = json.project.tracks
+      .flatMap((track: { clips: Array<{ componentId?: string; props: Record<string, unknown> }> }) => track.clips)
+      .find((clip: { componentId?: string }) => clip.componentId === 'app-frame');
+    expect(appFrameClip).toMatchObject({
+      assetId: 'capture-computer-use-recording-https-paillette-app-search',
+      props: {
+        captureArtifactKind: 'recording',
+        durationMs: 5000,
+      },
+    });
+  });
+
+  it('preserves redaction and runner provenance on computer-use trace receipts', async () => {
+    const { POST } = await import('@/app/api/motion/capture/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: await siteProject(),
+          requestIds: ['capture-interaction-trace'],
+          requestedAt: 909,
+          updatedAt: 910,
+          captureRunner: {
+            kind: 'computer-use-local',
+            approved: true,
+            approvedTarget: {
+              kind: 'url',
+              ref: 'https://paillette.app/search',
+            },
+            redactionManifest: {
+              labels: ['tokens'],
+              applied: true,
+              receiptRef: 'outputs/motion-captures/redactions.json',
+            },
+            receipts: [
+              {
+                assetUrl: 'asset://capture/paillette-trace.json',
+                mimeType: 'application/json',
+                provenance: [{ kind: 'manual', ref: 'trace:desktop-run-1' }],
+                redactions: [
+                  {
+                    label: 'tokens',
+                    target: 'browser toolbar',
+                    action: 'mask',
+                    applied: true,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.captureResult.artifacts[0]).toMatchObject({
+      id: 'capture-computer-use-trace-https-paillette-app-search',
+      kind: 'trace',
+      assetUrl: 'asset://capture/paillette-trace.json',
+      provenance: [
+        { kind: 'provider', ref: 'computer-use-capture' },
+        { kind: 'site', ref: 'https://paillette.app/search' },
+        { kind: 'manual', ref: 'redaction:outputs/motion-captures/redactions.json' },
+        { kind: 'manual', ref: 'trace:desktop-run-1' },
+      ],
+    });
+    expect(json.project.executionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          gateId: 'capture',
+          providerId: 'computer-use-capture',
+          receipts: [
+            expect.objectContaining({
+              label: 'Interaction trace',
+              capture: expect.objectContaining({
+                target: expect.objectContaining({
+                  kind: 'url',
+                  ref: 'https://paillette.app/search',
+                }),
+                redactionStatus: expect.objectContaining({
+                  applied: true,
+                  labels: ['tokens'],
+                }),
+              }),
+            }),
+          ],
+        }),
+      ])
+    );
+  });
+
   it('returns source blockers before resolving capture providers', async () => {
     const capture = vi.fn(async (): Promise<CaptureResult> => ({
       providerId: 'browser-test',

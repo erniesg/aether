@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { MotionProject } from './project';
+import type { MotionProject, MotionProvenanceRef } from './project';
 import {
   createComputerUseCaptureProvider,
   type ComputerUseCaptureRunnerArtifact,
@@ -9,6 +9,7 @@ import { createPlaywrightBrowserCaptureProvider } from '@/lib/providers/capture/
 import { listCaptureProviders } from '@/lib/providers/capture/registry';
 import type {
   CaptureProvider,
+  CaptureTarget,
   CaptureRedaction,
   CaptureRedactionAction,
   CaptureRedactionManifest,
@@ -31,6 +32,7 @@ export interface MotionComputerUseCaptureRunnerSummary {
   kind: 'computer-use-local';
   providerId: string;
   approved: true;
+  approvedTarget?: CaptureTarget;
   redactionLabels: string[];
   receiptCount: number;
 }
@@ -91,9 +93,11 @@ function buildComputerUseInlineRunner(
     throw new Error('computer-use capture requires an applied redaction manifest');
   }
 
+  const approvedTarget = parseApprovedTarget(value.approvedTarget);
   const receipts = parseComputerUseReceipts(value.receipts);
   const provider = createComputerUseCaptureProvider({
     approved: true,
+    ...(approvedTarget ? { approvedTarget } : {}),
     redactionManifest,
     runner: {
       available: () => true,
@@ -107,6 +111,7 @@ function buildComputerUseInlineRunner(
       kind: 'computer-use-local',
       providerId: provider.id,
       approved: true,
+      ...(approvedTarget ? { approvedTarget } : {}),
       redactionLabels: redactionManifest.labels,
       receiptCount: receipts.length,
     },
@@ -188,6 +193,20 @@ function parseRedactionManifest(value: unknown): CaptureRedactionManifest | null
   };
 }
 
+function parseApprovedTarget(value: unknown): CaptureTarget | undefined {
+  if (value === undefined) return undefined;
+  if (!isObject(value)) throw new Error('computer-use approvedTarget must be a target object');
+
+  const kind = stringValue(value.kind);
+  const ref = stringValue(value.ref);
+  if (!ref) throw new Error('computer-use approvedTarget.ref is required');
+  if (kind !== 'url' && kind !== 'local-app' && kind !== 'desktop-app') {
+    throw new Error('computer-use approvedTarget.kind must be url, local-app, or desktop-app');
+  }
+
+  return { kind, ref };
+}
+
 function parseComputerUseReceipts(value: unknown): ComputerUseCaptureRunnerArtifact[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error('computer-use capture requires at least one receipt');
@@ -205,6 +224,7 @@ function parseComputerUseReceipts(value: unknown): ComputerUseCaptureRunnerArtif
     );
     const mimeType = stringValue(receipt.mimeType);
     const redactions = parseRedactions(receipt.redactions);
+    const provenance = parseProvenanceRefs(receipt.provenance);
 
     return {
       assetUrl,
@@ -213,6 +233,28 @@ function parseComputerUseReceipts(value: unknown): ComputerUseCaptureRunnerArtif
       ...(durationMs ? { durationMs } : {}),
       ...(mimeType ? { mimeType } : {}),
       ...(redactions.length ? { redactions } : {}),
+      ...(provenance.length ? { provenance } : {}),
+    };
+  });
+}
+
+function parseProvenanceRefs(value: unknown): MotionProvenanceRef[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error('computer-use receipt provenance must be an array');
+
+  return value.map((ref, index) => {
+    if (!isObject(ref)) {
+      throw new Error(`computer-use provenance ${index + 1} must be an object`);
+    }
+    const kind = stringValue(ref.kind);
+    const targetRef = stringValue(ref.ref);
+    if (!kind || !targetRef) {
+      throw new Error(`computer-use provenance ${index + 1} is incomplete`);
+    }
+
+    return {
+      kind: kind as MotionProvenanceRef['kind'],
+      ref: targetRef,
     };
   });
 }

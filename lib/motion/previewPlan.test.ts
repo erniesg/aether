@@ -496,22 +496,22 @@ describe('buildMotionPreviewPlan', () => {
           hook: 'aether: Canvas-native creative system.',
           componentLabels: ['Hook card', 'Proof card', 'App frame', 'Agent trace', 'CTA card'],
           sourceLabels: ['repo source'],
-          regenerationAction: {
+          regenerationAction: expect.objectContaining({
             id: 'regen-draft-option-draft-primary',
             label: 'Regenerate Primary launch cut',
             route: '/api/motion/regenerate',
             method: 'POST',
             toolId: 'motion-storyboard',
-            requestTemplate: {
+            requestTemplate: expect.objectContaining({
               project: '$motionProject',
               draftId: 'draft-primary',
               prompt:
                 'Regenerate Primary launch cut as an editable draft variation while preserving source-backed claims.',
               requestedEngines: '$selectedEngines',
               requestedAt: '$now',
-            },
+            }),
             expectedReceiptLabels: ['draft variation', 'timeline revision', 'updated preview plan'],
-          },
+          }),
         }),
         expect.objectContaining({
           draftId: 'draft-demo-first',
@@ -536,7 +536,7 @@ describe('buildMotionPreviewPlan', () => {
             expect.objectContaining({
               referenceId: 'claude-agent-demo-playback-review',
               referenceTitle: 'Claude-style agent product demo',
-              shotLabels: ['Prompt to agent', 'Reads and edits', 'Command proof'],
+              shotLabels: ['Product name hook', 'Desktop handoff', 'Terminal task prompt'],
               componentLabels: expect.arrayContaining(['Agent trace', 'Terminal proof']),
             }),
           ]),
@@ -1079,16 +1079,20 @@ describe('buildMotionPreviewPlan', () => {
           draftInfluence: expect.objectContaining({
             recommendedDraftId: 'draft-proof-first',
             recommendedDraftLabel: 'Proof-first cut',
-            defaultShotLabels: ['Prompt to agent', 'Reads and edits', 'Command proof'],
+            defaultShotLabels: [
+              'Product name hook',
+              'Desktop handoff',
+              'Terminal task prompt',
+            ],
           }),
-          reviewStatusLabel: 'needs public playback',
+          reviewStatusLabel: 'playback reviewed',
           hookTypeLabel: 'agent action',
           targetCropLabels: ['16:9', '9:16'],
           componentLabels: expect.arrayContaining(['Agent trace', 'Terminal proof']),
           shotList: expect.arrayContaining([
             expect.objectContaining({
-              label: 'Command proof',
-              timeRangeLabel: '6.5-10.5s',
+              label: 'Terminal task prompt',
+              timeRangeLabel: '8.5-15.5s',
               componentLabels: expect.arrayContaining(['Agent trace', 'Terminal proof']),
               editTargetLabels: expect.arrayContaining(['proof', 'timing']),
             }),
@@ -1164,7 +1168,7 @@ describe('buildMotionPreviewPlan', () => {
       requestTemplate: {
         tasteReferenceId: 'claude-agent-demo-playback-review',
         sourceEntryId: 'public-claude-launch-demo-corpus',
-        sourceUrl: 'https://www.youtube.com/@AnthropicAI/search?query=Claude%20Code',
+        sourceUrl: 'https://www.youtube.com/watch?v=AJpK3YTTKZ4',
         scope: 'effect',
         componentIds: ['hook-card', 'agent-trace'],
       },

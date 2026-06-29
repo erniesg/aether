@@ -284,7 +284,7 @@ git commit -m "feat: prove local app capture receipts"
 - Modify: `lib/motion/tasteCorpus.test.ts`
 - Create: `docs/specs/2026-06-23-repo-video-system/evidence/playback-corpus/README.md`
 
-- [ ] **Step 1: Add failing corpus-quality tests**
+- [x] **Step 1: Add failing corpus-quality tests**
 
 Require at least one `playback-reviewed` entry for:
 
@@ -294,7 +294,7 @@ Require at least one `playback-reviewed` entry for:
 
 Each entry must include timestamped shot list, crop target, hook type, component ids, effect tags, caption style, transition notes, CTA, proof boundary, and source URL.
 
-- [ ] **Step 2: Run the failing corpus tests**
+- [x] **Step 2: Run the failing corpus tests**
 
 Run:
 
@@ -304,11 +304,11 @@ npx vitest run lib/motion/tasteCorpus.test.ts tests/unit/api-motion-workflows.te
 
 Expected: FAIL while entries are still marked `needs-public-playback` or `needs-authenticated-playback`.
 
-- [ ] **Step 3: Import reviewed examples**
+- [x] **Step 3: Import reviewed examples**
 
 Use public playback where possible. For X examples, use an authenticated browser pass and save only metadata, timestamps, screenshots/contact sheets, and short compliant summaries. Do not copy entire captions or videos into the repo.
 
-- [ ] **Step 4: Run corpus tests**
+- [x] **Step 4: Run corpus tests**
 
 Run:
 
@@ -318,7 +318,7 @@ npx vitest run lib/motion/tasteCorpus.test.ts tests/unit/api-motion-workflows.te
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/tasteCorpus.ts lib/motion/tasteCorpus.test.ts docs/specs/2026-06-23-repo-video-system/evidence/playback-corpus/README.md tests/unit/api-motion-workflows.test.ts
@@ -333,7 +333,7 @@ git commit -m "docs: add playback reviewed motion taste corpus"
 - Modify: `tests/unit/api-motion-preview-source.test.ts`
 - Modify: `tests/unit/api-motion-render.test.ts`
 
-- [ ] **Step 1: Add failing parity tests**
+- [x] **Step 1: Add failing parity tests**
 
 For the same `MotionProject`, prepare Remotion and HyperFrames source packages. Assert both include:
 
@@ -344,7 +344,7 @@ For the same `MotionProject`, prepare Remotion and HyperFrames source packages. 
 - same render-proof expectations
 - engine-specific entry files
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run:
 
@@ -354,11 +354,11 @@ npx vitest run lib/motion/renderSource.test.ts tests/unit/api-motion-preview-sou
 
 Expected: FAIL on any missing engine parity.
 
-- [ ] **Step 3: Implement parity fixes**
+- [x] **Step 3: Implement parity fixes**
 
 Keep engine-specific source code in adapters. Keep component ids, edit contract, manifests, and verification labels provider-neutral.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run:
 
@@ -368,7 +368,7 @@ npx vitest run lib/motion/renderSource.test.ts tests/unit/api-motion-preview-sou
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/motion/renderSource.ts lib/motion/renderSource.test.ts tests/unit/api-motion-preview-source.test.ts tests/unit/api-motion-render.test.ts
@@ -383,7 +383,7 @@ git commit -m "feat: align remotion and hyperframes source proof"
 - Modify: `app/api/motion/capture/route.ts`
 - Modify: `tests/unit/api-motion-capture.test.ts`
 
-- [ ] **Step 1: Add failing live-runner boundary tests**
+- [x] **Step 1: Add failing live-runner boundary tests**
 
 Tests must cover:
 
@@ -395,7 +395,7 @@ Tests must cover:
 - trace receipt keeps redaction provenance
 - full-auto pauses when computer-use is required but not approved
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run:
 
@@ -405,11 +405,11 @@ npx vitest run lib/providers/capture/computerUse.test.ts tests/unit/api-motion-c
 
 Expected: FAIL until live-runner or receipt-import boundary is complete.
 
-- [ ] **Step 3: Implement the guarded boundary**
+- [x] **Step 3: Implement the guarded boundary**
 
 Start with receipt-import if direct desktop control is not available in the runtime. The contract must still match the eventual live runner: approved scope, stop conditions, redaction manifest, capture receipts, and project application path.
 
-- [ ] **Step 4: Run capture safety tests**
+- [x] **Step 4: Run capture safety tests**
 
 Run:
 
@@ -419,7 +419,7 @@ npx vitest run lib/providers/capture/computerUse.test.ts tests/unit/api-motion-c
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/providers/capture/computerUse.ts lib/providers/capture/computerUse.test.ts app/api/motion/capture/route.ts tests/unit/api-motion-capture.test.ts tests/component/view-switcher.focus-mode.test.tsx

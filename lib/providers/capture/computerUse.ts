@@ -1,6 +1,7 @@
 import type {
   CaptureArtifact,
   CaptureArtifactKind,
+  CaptureTarget,
   CaptureCursorTarget,
   CaptureProvider,
   CaptureRedaction,
@@ -23,6 +24,7 @@ export interface ComputerUseCaptureRunnerArtifact {
 export interface ComputerUseCapturePolicy {
   approved: true;
   redactionManifest: CaptureRedactionManifest;
+  approvedTarget?: CaptureTarget;
 }
 
 export interface ComputerUseCaptureRunner {
@@ -36,11 +38,17 @@ export interface ComputerUseCaptureRunner {
 export interface CreateComputerUseCaptureProviderOptions {
   runner?: ComputerUseCaptureRunner;
   approved?: boolean;
+  approvedTarget?: CaptureTarget;
   redactionManifest?: CaptureRedactionManifest;
 }
 
 const PROVIDER_ID = 'computer-use-capture';
 const PROVIDER_PROVENANCE = { kind: 'provider', ref: PROVIDER_ID } satisfies MotionProvenanceRef;
+const COMPUTER_USE_TARGET_KINDS = new Set<CaptureTarget['kind']>([
+  'url',
+  'local-app',
+  'desktop-app',
+]);
 
 export function createComputerUseCaptureProvider(
   options: CreateComputerUseCaptureProviderOptions = {}
@@ -56,7 +64,7 @@ export function createComputerUseCaptureProvider(
         throw new Error('Computer-use capture requires a runner');
       }
 
-      const policy = capturePolicy(options);
+      const policy = capturePolicy(options, request);
       const runnerArtifacts = await runner.capture(request, policy);
       const provenance = baseProvenance(request, policy.redactionManifest);
 
@@ -72,7 +80,8 @@ export function createComputerUseCaptureProvider(
 }
 
 function capturePolicy(
-  options: CreateComputerUseCaptureProviderOptions
+  options: CreateComputerUseCaptureProviderOptions,
+  request: CaptureRequest
 ): ComputerUseCapturePolicy {
   if (options.approved !== true) {
     throw new Error('Computer-use capture requires creator approval');
@@ -80,11 +89,22 @@ function capturePolicy(
   if (!options.redactionManifest?.applied) {
     throw new Error('Computer-use capture requires an applied redaction manifest');
   }
+  if (!COMPUTER_USE_TARGET_KINDS.has(request.target.kind)) {
+    throw new Error('computer-use capture only supports url, local-app, or desktop-app targets');
+  }
+  if (options.approvedTarget && !sameTarget(options.approvedTarget, request.target)) {
+    throw new Error('computer-use capture target must match the approved target scope');
+  }
 
   return {
     approved: true,
     redactionManifest: options.redactionManifest,
+    ...(options.approvedTarget ? { approvedTarget: options.approvedTarget } : {}),
   };
+}
+
+function sameTarget(left: CaptureTarget, right: CaptureTarget): boolean {
+  return left.kind === right.kind && left.ref === right.ref;
 }
 
 function normalizeArtifact(input: {

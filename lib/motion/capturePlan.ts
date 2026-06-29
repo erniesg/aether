@@ -278,24 +278,35 @@ function buildRequest(input: {
 function buildCaptureRunbook(
   requests: AgentMotionCapturePlanRequest[]
 ): AgentMotionCaptureRunbook {
+  const requiresComputerUse = requests.some(
+    (request) => request.request.target.kind === 'desktop-app'
+  );
+
   return {
-    primaryToolId: 'browser-capture',
-    fallbackToolIds: ['computer-use'],
+    primaryToolId: requiresComputerUse ? 'computer-use' : 'browser-capture',
+    fallbackToolIds: requiresComputerUse ? [] : ['computer-use'],
     applyRoute: '/api/motion/capture',
     setupCommands: uniqueAppLaunches(
       requests.flatMap((request) =>
         request.request.appLaunch ? [request.request.appLaunch] : []
       )
     ),
-    instructions: [
-      'Open each target in browser capture before using generated or stock visuals.',
-      'Use computer-use capture when auth, native UI, simulator, or gesture state blocks browser capture.',
-    ],
+    instructions: requiresComputerUse
+      ? [
+          'Request creator approval, target scope, and redaction labels before controlling the desktop app.',
+          'Capture only the approved native, simulator, or authenticated app state and stop on secrets, login, or payment screens.',
+        ]
+      : [
+          'Open each target in browser capture before using generated or stock visuals.',
+          'Use computer-use capture when auth, native UI, simulator, or gesture state blocks browser capture.',
+        ],
     reviewArtifactLabels: ['capture receipt', 'cursor targets', 'viewport receipt'],
   };
 }
 
 function agentInstructionsFor(request: CaptureRequest): AgentMotionCaptureInstruction[] {
+  const openToolId = request.target.kind === 'desktop-app' ? 'computer-use' : 'browser-capture';
+
   return [
     ...(request.appLaunch
       ? [
@@ -310,21 +321,24 @@ function agentInstructionsFor(request: CaptureRequest): AgentMotionCaptureInstru
       : []),
     {
       id: 'open-target',
-      toolId: 'browser-capture',
+      toolId: openToolId,
       label: 'Open target',
       detail: request.target.ref,
     },
-    modeInstruction(request.mode),
+    modeInstruction(request),
   ];
 }
 
-function modeInstruction(mode: CaptureMode): AgentMotionCaptureInstruction {
+function modeInstruction(request: CaptureRequest): AgentMotionCaptureInstruction {
+  const mode = request.mode;
   const artifactKinds = artifactKindsForMode(mode);
+  const desktopToolId =
+    request.target.kind === 'desktop-app' ? ('computer-use' as const) : undefined;
 
   if (mode === 'screen-recording') {
     return {
       id: 'record-screen',
-      toolId: 'screen-recording',
+      toolId: desktopToolId ?? 'screen-recording',
       label: 'Record screen',
       detail: 'Record the product flow with cursor targets and app-state receipt.',
       expectedArtifactKinds: artifactKinds,
@@ -334,7 +348,7 @@ function modeInstruction(mode: CaptureMode): AgentMotionCaptureInstruction {
   if (mode === 'dom-snapshot') {
     return {
       id: 'capture-dom-snapshot',
-      toolId: 'browser-capture',
+      toolId: desktopToolId ?? 'browser-capture',
       label: 'Capture DOM snapshot',
       detail: 'Save DOM structure, route metadata, and viewport receipt.',
       expectedArtifactKinds: artifactKinds,
@@ -344,7 +358,7 @@ function modeInstruction(mode: CaptureMode): AgentMotionCaptureInstruction {
   if (mode === 'interaction-trace') {
     return {
       id: 'capture-interaction-trace',
-      toolId: 'browser-capture',
+      toolId: desktopToolId ?? 'browser-capture',
       label: 'Capture interaction trace',
       detail: 'Mark interactions, cursor targets, and app-state receipt.',
       expectedArtifactKinds: artifactKinds,
@@ -353,7 +367,7 @@ function modeInstruction(mode: CaptureMode): AgentMotionCaptureInstruction {
 
   return {
     id: 'capture-screenshot',
-    toolId: 'browser-capture',
+    toolId: desktopToolId ?? 'browser-capture',
     label: 'Capture screenshot',
     detail: 'Save screenshot, cursor targets, and viewport receipt.',
     expectedArtifactKinds: artifactKinds,
@@ -425,6 +439,8 @@ function providerRequirementsFor(
   target: CaptureTarget,
   requests: AgentMotionCapturePlanRequest[]
 ): string[] {
+  if (target.kind === 'desktop-app') return ['computer-use'];
+
   const requirements = ['browser-capture'];
   if (target.kind === 'local-app') requirements.push('app-launch');
   if (requests.some((request) => request.request.mode === 'screen-recording')) {

@@ -2175,10 +2175,14 @@ function buildCapabilitySetup(
 ): MotionPreviewCapabilitySetup {
   const captureProviderLabels = availableProviderLabels(options.providers?.capture);
   const setupProofs = setupDryRunProofs(project.executionHistory);
+  const captureStep = productionPlan.steps.find((step) => step.id === 'capture');
+  const captureSetupActionLabel = captureStep?.providerRequirementLabels.includes('computer use')
+    ? 'Approve computer-use capture'
+    : 'Connect browser capture';
   const items = [
     setupItemForStep(productionPlan, 'capture', {
       inventory: options.providers?.capture,
-      defaultActionLabel: 'Connect browser capture',
+      defaultActionLabel: captureSetupActionLabel,
       setupProofs,
     }),
     ...computerUseSetupItems(productionPlan, capturePlan, captureProviderLabels, setupProofs),

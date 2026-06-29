@@ -218,6 +218,54 @@ function localAppProject(): MotionProject {
   );
 }
 
+function desktopAppProject(): MotionProject {
+  return materializeMotionTimeline(
+    buildRepoLaunchMotionProject({
+      id: 'motion-tong-simulator',
+      workspaceId: 'demo-ws',
+      projectKind: 'feature',
+      workflowMode: 'full-auto',
+      audience: 'language learners',
+      tone: 'textural',
+      appProfile: {
+        name: 'tong',
+        repoUrl: '/Users/erniesg/code/erniesg/tong',
+        summary: 'City-specific language learning app.',
+        stack: ['TypeScript'],
+      },
+      sourceProfile: {
+        kind: 'local-repo',
+        label: 'tong simulator material',
+        sourceRef: '/Users/erniesg/code/erniesg/tong',
+        summary: 'desktop simulator capture for authenticated onboarding',
+        signals: [],
+        captureCandidates: [
+          {
+            id: 'capture-simulator-still',
+            label: 'Capture simulator onboarding',
+            mode: 'screenshot',
+            targetKind: 'desktop-app',
+            targetRef: 'Simulator: Tong onboarding',
+            reason: 'Simulator-only onboarding needs guarded computer-use capture.',
+            provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+          },
+        ],
+        storyboardHints: [],
+        provenance: [{ kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' }],
+      },
+      claims: [
+        {
+          text: 'tong local repo has a simulator-only onboarding flow.',
+          source: { kind: 'repo', ref: '/Users/erniesg/code/erniesg/tong' },
+        },
+      ],
+      platformTargets: [{ platform: 'x', aspectRatio: '9:16', seconds: 30 }],
+      createdAt: 92,
+    }),
+    { updatedAt: 93 }
+  );
+}
+
 const screenshotCaptureResult: CaptureResult = {
   providerId: 'browser-test',
   artifacts: [
@@ -592,6 +640,62 @@ describe('POST /api/motion/full-auto', () => {
         targetUrl: 'http://localhost:3000/',
       },
     });
+  });
+
+  it('pauses full-auto when desktop computer-use capture is required but not approved', async () => {
+    const { POST } = await import('@/app/api/motion/full-auto/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/full-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: desktopAppProject(),
+          requestedAt: 756,
+          requestedEngines: ['hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'paused',
+      run: {
+        reason: 'provider-required',
+        stepId: 'capture',
+        providerRequirementLabels: ['computer use'],
+        actionLabel: 'Capture product material',
+      },
+      productionPlan: {
+        nextStepId: 'capture',
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'capture',
+            providerRequirementLabels: ['computer use'],
+          }),
+        ]),
+      },
+      previewPlan: {
+        capabilitySetup: {
+          nextActionLabel: 'Approve computer-use capture',
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'capture',
+              permissionScopeLabel: 'computer use',
+              requirementLabels: ['computer use'],
+            }),
+            expect.objectContaining({
+              id: 'computer-use',
+              actionLabel: 'Approve computer-use capture',
+              permissionScopeLabel: 'creator approval + redaction manifest',
+              runnerLabels: ['screenshot', 'recording', 'trace', 'redaction receipt'],
+            }),
+          ]),
+        },
+      },
+    });
+    expect(json.captureRunner).toBeNull();
   });
 
   it('saves local-app setup dry-run receipts without running the capture gate', async () => {
