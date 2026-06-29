@@ -145,7 +145,9 @@ describe('buildMotionSkillAuthoringPrompt', () => {
     expect(prompt).toContain('Editable objects: story beats, draft variations');
     expect(prompt).toContain('app captures');
     expect(prompt).toContain('Sync cues: beat markers, caption links, voice clips, word timings, transition cues, audio cues, effect cues');
-    expect(prompt).toContain('Source edit routes: /api/motion/preview-source, /api/motion/source-edit');
+    expect(prompt).toContain(
+      'Source edit routes: /api/motion/preview-source, /api/motion/source-author, /api/motion/source-edit'
+    );
     expect(prompt).toContain('pause for creator review');
     expect(prompt).toContain('gather/find/generate visuals');
     expect(prompt).toContain('review vs full-auto behavior');
@@ -173,7 +175,7 @@ describe('buildMotionSkillAuthoringPrompt', () => {
     expect(prompt).toContain('can create an editable PR video without a separate provider');
     expect(prompt).toContain('auto-advance after saving artifacts');
     expect(prompt).toContain(
-      '5. Timeline sync - routes: /api/motion/sync + /api/motion/revise + /api/motion/preview-source + /api/motion/source-edit'
+      '5. Timeline sync - routes: /api/motion/sync + /api/motion/revise + /api/motion/preview-source + /api/motion/source-author + /api/motion/source-edit'
     );
     expect(prompt).toContain('Lanes: code change, visual search, voice, sync, render, export');
     expect(prompt).toContain('Full auto: Auto-advance only after timeline, sync cues, source edits, render proof, and provenance receipts are saved.');

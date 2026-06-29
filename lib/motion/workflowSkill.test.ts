@@ -35,6 +35,7 @@ describe('motion workflow skill drafts', () => {
         'motion_sync',
         'motion_revise',
         'motion_preview_source',
+        'motion_source_author',
         'motion_source_edit',
         'motion_render',
         'motion_export_pack',
@@ -109,7 +110,11 @@ describe('motion workflow skill drafts', () => {
           'effect cues',
         ],
         nodeOutputLabels: expect.arrayContaining(['code change', 'effect markers']),
-        sourceEditRouteLabels: ['/api/motion/preview-source', '/api/motion/source-edit'],
+        sourceEditRouteLabels: [
+          '/api/motion/preview-source',
+          '/api/motion/source-author',
+          '/api/motion/source-edit',
+        ],
         reviewGateLabels: [],
       },
       launchKit: {
@@ -247,6 +252,7 @@ describe('motion workflow skill drafts', () => {
         'motion_sync',
         'motion_revise',
         'motion_preview_source',
+        'motion_source_author',
         'motion_source_edit',
         'motion_render',
         'motion_export_pack',
@@ -269,7 +275,7 @@ describe('motion workflow skill drafts', () => {
       'Sync cues: beat markers, caption links, voice clips, word timings, transition cues, audio cues, effect cues'
     );
     expect(plan.skillDraft.manifest.instructions).toContain(
-      'Source edit routes: /api/motion/preview-source, /api/motion/source-edit'
+      'Source edit routes: /api/motion/preview-source, /api/motion/source-author, /api/motion/source-edit'
     );
     expect(plan.skillDraft.manifest.instructions).toContain('## Skill Packs');
     expect(plan.skillDraft.manifest.instructions).toContain('HyperFrames workflow skills');
@@ -388,7 +394,11 @@ describe('motion workflow skill drafts', () => {
         'render source files',
       ]),
       syncCueLabels: expect.arrayContaining(['audio cues', 'effect cues']),
-      sourceEditRouteLabels: ['/api/motion/preview-source', '/api/motion/source-edit'],
+      sourceEditRouteLabels: [
+        '/api/motion/preview-source',
+        '/api/motion/source-author',
+        '/api/motion/source-edit',
+      ],
       reviewGateLabels: [
         'Video plan',
         'Draft variations',
@@ -413,6 +423,7 @@ describe('motion workflow skill drafts', () => {
         'generate-voice',
         'sync-timeline',
         'prepare-preview-source',
+        'author-source',
         'edit-source',
         'render-proof',
         'export-pack',
@@ -460,6 +471,7 @@ describe('motion workflow skill drafts', () => {
             'sync-timeline',
             'apply-timeline-revision',
             'prepare-preview-source',
+            'author-source',
             'edit-source',
           ]),
         }),

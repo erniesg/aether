@@ -134,9 +134,9 @@ Aether now has the right backbone:
 - Start routes accept repo URL/path, PR, site URL, upload/reference/source-set
   shorthands and return review plans, preview plans, capture plans, handoff
   templates, and requested inputs.
-- Setup dry-run, capture, image-to-video, voice, sync, render, source-edit,
-  export-pack, and full-auto routes are agent-native JSON boundaries over the
-  same project.
+- Setup dry-run, capture, image-to-video, voice, sync, render, source-author,
+  source-edit, export-pack, and full-auto routes are agent-native JSON
+  boundaries over the same project.
 - The timeline lens shows creator-facing plans, drafts, timeline rows,
   production queue, saved receipts, edit source, image-to-video node chain,
   source-backed playable preview controls, component focus, setup cards,
@@ -173,10 +173,11 @@ Aether now has the right backbone:
    source variations or apply the default variation in full-auto through the
    same `MotionProject` source-edit path. Each variation now carries an
    agent-authoring request with source files, guardrails, response schema, and
-   source-edit submit template. The remaining gap is provider execution depth:
-   taking that authoring contract through an actual configured model/agent to
-   produce meaningfully different copy, timing, effect, and capture-source
-   edits.
+   source-author execution template. `/api/motion/source-author` can now return
+   a provider-required handoff or apply provider-authored files through
+   source-edit. The remaining gap is a real configured model/agent adapter that
+   produces meaningfully different copy, timing, effect, and capture-source
+   edits from that contract.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source
@@ -349,9 +350,11 @@ same-beat script/storyboard edits before refreshing review and preview plans.
 Component regeneration now returns reviewable source-patch draft variations
 for the timeline lens: a default patch, a caption-led variant, and a
 timing-tighten variant, each with its own source-edit request and editable
-source files. The next edit-depth slice should focus on richer caption/script
-regeneration from those editable sources and provider-backed component
-variation generation.
+source files. `/api/motion/source-author` now executes a selected authoring
+request through an opt-in provider or returns an explicit provider-required
+handoff, then applies authored files through `/api/motion/source-edit`. The next
+edit-depth slice should focus on a real model-backed provider adapter plus
+richer caption/script regeneration from those editable sources.
 
 Acceptance evidence:
 
@@ -361,6 +364,8 @@ Acceptance evidence:
 - Regeneration and timeline-lens tests prove component regenerate actions
   expose reviewable source-patch variations and apply a selected variant
   through `/api/motion/source-edit`.
+- Source-author route and handoff tests prove a selected authoring request can
+  run through an opt-in provider and return to the same source-edit path.
 
 ### Slice D: Advanced generation node lens
 

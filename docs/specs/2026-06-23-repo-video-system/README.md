@@ -371,8 +371,15 @@ capture, render, and provenance debugging.
   source patch through the same source-edit contract and saves receipts before
   refreshing the timeline. Each source-patch variation now also carries an
   agent authoring request with editable source files, guardrails, a response
-  schema, and a `/api/motion/source-edit` submit template, so an AI can author
-  a real copy/timing/effect variation without bypassing provenance.
+  schema, and a `/api/motion/source-author` execution route that applies
+  returned files through `/api/motion/source-edit`, so an AI can author a real
+  copy/timing/effect variation without bypassing provenance.
+- `app/api/motion/source-author/route.ts` now exposes source-patch authoring
+  through an agent-native JSON boundary: callers send an editable project plus
+  a selected authoring request, receive a provider-required handoff when no
+  source author is configured, or apply provider-authored source files back
+  through the existing source-edit contract with refreshed review and preview
+  plans.
 - `app/api/motion/revise/route.ts` now exposes structured review edits through
   the same agent-native boundary: callers send an editable `MotionProject` plus
   story, component-prop, retime, or component-replacement operations and receive
@@ -544,8 +551,9 @@ capture, render, and provenance debugging.
   code typing. Remotion source emits named renderer functions for each one, and
   HyperFrames source emits stable component classes so review mode can
   regenerate one code visual rather than reworking the full draft.
-- Preview plans now expose a source-edit contract for generated motion projects:
-  the `/api/motion/source-edit` route, editable `EDIT.md`, `SCRIPT.md`,
+- Preview plans now expose source-author and source-edit contracts for
+  generated motion projects: the `/api/motion/source-author` and
+  `/api/motion/source-edit` routes, editable `EDIT.md`, `SCRIPT.md`,
   `STORYBOARD.md`, timeline JSON, file roles, component control labels, source
   file labels, and regeneration scopes. The timeline lens renders this inside
   the creator shell so source-backed edits remain reviewable without exposing
@@ -589,10 +597,11 @@ capture, render, and provenance debugging.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider
-  planning/registry, while `lib/providers/voice/*` covers voice provider
-  contracts. Text-to-video, TTS execution, image-to-video provider execution,
-  engine dependency/project scaffolding, and higher-fidelity visual component
-  libraries remain future adapter work.
+  planning/registry, `lib/providers/voice/*` covers voice provider contracts,
+  and `lib/providers/source-author/*` covers provider-neutral source authoring.
+  Text-to-video, TTS execution, image-to-video provider execution, real
+  model-backed source-author adapters, engine dependency/project scaffolding,
+  and higher-fidelity visual component libraries remain future adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.

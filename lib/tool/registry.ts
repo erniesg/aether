@@ -213,6 +213,15 @@ const TOOL_REGISTRY = {
     outputKind: 'video',
     status: 'draft',
   },
+  'motion-source-author': {
+    kind: 'tool',
+    id: 'motion-source-author',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Source author',
+    outputKind: 'video',
+    status: 'draft',
+  },
   'motion-agent-handoff': {
     kind: 'tool',
     id: 'motion-agent-handoff',

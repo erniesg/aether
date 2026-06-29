@@ -5,6 +5,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildMotionRenderRequest } from '@/lib/motion/renderExecution';
 import { buildMotionRenderPlan } from '@/lib/motion/renderPlan';
+import { createMotionComponentRegenerationRequest } from '@/lib/motion/reviewPlan';
+import { buildMotionSourcePatchDraftOptions } from '@/lib/motion/sourcePatchDraft';
+import {
+  registerMotionSourceAuthorProvider,
+  type MotionSourceAuthorProvider,
+} from '@/lib/providers/source-author/registry';
+import type {
+  MotionSourceAuthorRequest,
+  MotionSourceAuthorResult,
+} from '@/lib/providers/source-author/types';
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
 import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
@@ -193,6 +203,67 @@ function renderResultFor(
       provenance: [{ kind: 'provider', ref: providerId }, ...output.provenance],
     })),
     provenance: [{ kind: 'provider', ref: providerId }],
+  };
+}
+
+function sourceAuthorProvider(
+  author: MotionSourceAuthorProvider['author']
+): MotionSourceAuthorProvider {
+  return {
+    id: 'source-author-test',
+    displayName: 'Source author test provider',
+    available: () => true,
+    author,
+  };
+}
+
+function sourceAuthoringRequestFor(
+  project: Awaited<ReturnType<typeof startLocalRepoProject>>['project']
+) {
+  const regenerationRequest = createMotionComponentRegenerationRequest(project, {
+    clipId: 'clip-beat-demo-text',
+    scope: 'capture',
+    prompt: 'Regenerate this app-frame beat as an agent-authored demo moment.',
+    requestedAt: 850,
+  });
+  const options = buildMotionSourcePatchDraftOptions(
+    project,
+    regenerationRequest.sourcePatchPlan,
+    {
+      engine: 'remotion',
+      requestedAt: 851,
+    }
+  );
+  const captionOption = options.find((option) => option.variantId === 'caption-first');
+  if (!captionOption) throw new Error('missing caption-first source authoring request');
+  return captionOption.authoringRequest;
+}
+
+function authoredSourceResultFor(request: MotionSourceAuthorRequest): MotionSourceAuthorResult {
+  const files = request.sourceFiles.map((file) => {
+    if (file.path !== 'timeline/draft-primary.json') return file;
+
+    const timeline = JSON.parse(file.contents);
+    const textTrack = timeline.tracks.find((track: { id: string }) => track.id === 'track-text');
+    const demoClip = textTrack.clips.find(
+      (clip: { id: string }) => clip.id === 'clip-beat-demo-text'
+    );
+    demoClip.props = {
+      ...demoClip.props,
+      caption: 'Agent-authored source beat',
+      sourcePatchAuthoredBy: 'source-author-test',
+    };
+
+    return {
+      path: file.path,
+      contents: JSON.stringify(timeline),
+    };
+  });
+
+  return {
+    providerId: 'source-author-test',
+    files,
+    provenance: [{ kind: 'provider', ref: 'source-author-test' }],
   };
 }
 
@@ -495,6 +566,74 @@ describe('POST /api/motion/agent-handoff', () => {
         },
       ],
     });
+  });
+
+  it('runs a selected source-author template through the agent-native route', async () => {
+    const author = vi.fn(async (request: MotionSourceAuthorRequest) =>
+      authoredSourceResultFor(request)
+    );
+    unregister.push(
+      registerMotionSourceAuthorProvider('source-author-test', () =>
+        sourceAuthorProvider(author)
+      )
+    );
+
+    const startJson = await startLocalRepoProject();
+    const sourceAuthoringRequest = sourceAuthoringRequestFor(startJson.project);
+
+    const { POST } = await import('@/app/api/motion/agent-handoff/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/agent-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handoff: startJson.agentHandoff,
+          project: startJson.project,
+          templateIds: ['author-source'],
+          input: {
+            sourceAuthorProviderId: 'source-author-test',
+            sourceAuthoringRequest,
+          },
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'complete',
+      steps: [
+        expect.objectContaining({
+          templateId: 'author-source',
+          status: 'complete',
+          responseStatus: 200,
+          responseJson: expect.objectContaining({
+            ok: true,
+            status: 'authored',
+            authoringResult: expect.objectContaining({
+              providerId: 'source-author-test',
+            }),
+          }),
+        }),
+      ],
+    });
+    const authoredClip = json.finalProject.tracks
+      .flatMap((track: { clips: unknown[] }) => track.clips)
+      .find((clip: { id?: string }) => clip.id === 'clip-beat-demo-text');
+    expect(authoredClip).toMatchObject({
+      props: expect.objectContaining({
+        caption: 'Agent-authored source beat',
+        sourcePatchAuthoredBy: 'source-author-test',
+      }),
+    });
+    expect(author).toHaveBeenCalledTimes(1);
+    expect(author).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: sourceAuthoringRequest.id,
+        variantId: 'caption-first',
+      })
+    );
   });
 
   it('runs the guarded computer-use setup template when approval and redaction receipts are supplied', async () => {

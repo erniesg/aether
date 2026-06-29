@@ -129,10 +129,11 @@
 - Agent execution handoffs now sit beside ready start results: they include
   concrete JSON request templates with `project` placeholders for setup
   dry-runs, full-auto, capture, image-to-video, voice, sync, preview-source,
-  source-edit, render, and export-pack gates. Local repo handoffs include
-  required capture request ids, the request-scoped `playwright-local` runner
-  config, and full-auto provider placeholders for image-to-video, voice, and
-  render so agents can reuse the same provider choices after setup dry-runs.
+  source-author, source-edit, render, and export-pack gates. Local repo
+  handoffs include required capture request ids, the request-scoped
+  `playwright-local` runner config, and full-auto provider placeholders for
+  image-to-video, voice, and render so agents can reuse the same provider
+  choices after setup dry-runs.
   Handoff templates can now be materialized into executable request bodies from
   the project, provider choices, and edited source files, with unresolved
   placeholders reported as explicit blockers. A reusable handoff runner can
@@ -223,8 +224,8 @@
   review drafts from the timeline once the patch is applied. Every generated
   source-patch variation now also includes an agent authoring request with
   source files, guardrails, expected receipts, response schema, and a
-  source-edit request template for AI-authored copy, timing, effect, or capture
-  changes.
+  source-author request template for AI-authored copy, timing, effect, or
+  capture changes.
 - Agent-native `/api/motion/revise` route that accepts an editable motion
   project plus scoped story, component, timing, or replacement operations, then
   returns the updated project with refreshed review/preview plans and capture
@@ -234,6 +235,11 @@
   preview package with source file contents, runtime mount target, edit-link
   labels, refreshed preview plan, and timeline blockers without requiring a
   render provider.
+- Agent-native `/api/motion/source-author` route that accepts an editable
+  motion project plus a selected source-patch authoring request, returns a
+  provider-required handoff when no source author is configured, and applies
+  provider-authored files through the existing source-edit contract when an
+  opt-in provider is available.
 - Agent-native `/api/motion/render` route that accepts an editable motion
   project plus Remotion/HyperFrames render options, returns source/output
   handoffs when no renderer is configured, returns timeline blockers before

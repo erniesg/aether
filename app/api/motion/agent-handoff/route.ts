@@ -35,6 +35,8 @@ const ROUTE_HANDLERS: Record<string, MotionRouteHandlerLoader> = {
     (await import('@/app/api/motion/regenerate/route')).POST,
   '/api/motion/render': async () => (await import('@/app/api/motion/render/route')).POST,
   '/api/motion/revise': async () => (await import('@/app/api/motion/revise/route')).POST,
+  '/api/motion/source-author': async () =>
+    (await import('@/app/api/motion/source-author/route')).POST,
   '/api/motion/source-edit': async () =>
     (await import('@/app/api/motion/source-edit/route')).POST,
   '/api/motion/sync': async () => (await import('@/app/api/motion/sync/route')).POST,
@@ -134,6 +136,10 @@ function parseInput(body: MotionAgentHandoffRequestBody) {
     ),
     voiceProviderId: stringValue(input.voiceProviderId ?? body.voiceProviderId),
     renderProviderId: stringValue(input.renderProviderId ?? body.renderProviderId),
+    sourceAuthorProviderId: stringValue(
+      input.sourceAuthorProviderId ?? body.sourceAuthorProviderId
+    ),
+    sourceAuthoringRequest: input.sourceAuthoringRequest ?? body.sourceAuthoringRequest,
     computerUseCaptureRunner:
       input.computerUseCaptureRunner ?? body.computerUseCaptureRunner,
     editedSourceFiles: input.editedSourceFiles ?? body.editedSourceFiles,

@@ -37,6 +37,8 @@ export interface MaterializeMotionAgentRequestTemplateInput {
   imageToVideoProviderId?: string;
   voiceProviderId?: string;
   renderProviderId?: string;
+  sourceAuthorProviderId?: string;
+  sourceAuthoringRequest?: unknown;
   computerUseCaptureRunner?: unknown;
   editedSourceFiles?: unknown;
   timelineRevisionId?: string;
@@ -85,6 +87,8 @@ export function materializeMotionAgentRequestTemplate(
     $imageToVideoProviderId: input.imageToVideoProviderId,
     $voiceProviderId: input.voiceProviderId,
     $renderProviderId: input.renderProviderId,
+    $sourceAuthorProviderId: input.sourceAuthorProviderId,
+    $sourceAuthoringRequest: input.sourceAuthoringRequest,
     $computerUseCaptureRunner: input.computerUseCaptureRunner,
     $editedSourceFiles: input.editedSourceFiles,
     $timelineRevisionId: input.timelineRevisionId,
@@ -307,6 +311,21 @@ function buildTemplates(input: {
       }),
       inputPlaceholders: [PROJECT_PLACEHOLDER],
       expectedReceipts: ['preview source files', 'runtime mount target', 'edit contract'],
+    },
+    {
+      id: 'author-source',
+      label: 'Author source variation',
+      method: 'POST',
+      route: '/api/motion/source-author',
+      toolId: 'motion-source-author',
+      body: cleanBody({
+        project: PROJECT_PLACEHOLDER,
+        authoringRequest: '$sourceAuthoringRequest',
+        providerId: '$sourceAuthorProviderId?',
+        requestedEngines: engines,
+      }),
+      inputPlaceholders: [PROJECT_PLACEHOLDER, '$sourceAuthoringRequest'],
+      expectedReceipts: ['authored source files', 'updated timeline', 'source edit receipts'],
     },
     {
       id: 'edit-source',

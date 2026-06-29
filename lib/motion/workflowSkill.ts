@@ -146,6 +146,7 @@ const ROUTE_TOOL_NAMES: Record<string, string> = {
   '/api/motion/sync': 'motion_sync',
   '/api/motion/revise': 'motion_revise',
   '/api/motion/preview-source': 'motion_preview_source',
+  '/api/motion/source-author': 'motion_source_author',
   '/api/motion/source-edit': 'motion_source_edit',
   '/api/motion/render': 'motion_render',
   '/api/motion/export-pack': 'motion_export_pack',
@@ -334,7 +335,13 @@ function agentTemplateHintsForGate(
     case 'voice':
       return ['generate-voice'];
     case 'timeline':
-      return ['sync-timeline', 'apply-timeline-revision', 'prepare-preview-source', 'edit-source'];
+      return [
+        'sync-timeline',
+        'apply-timeline-revision',
+        'prepare-preview-source',
+        'author-source',
+        'edit-source',
+      ];
     case 'render':
       return ['render-proof'];
     case 'export':
@@ -405,7 +412,7 @@ function buildTimelineContract(
   const routeLabels = uniqueStrings(
     plan.runPlan.steps.flatMap((step) =>
       step.apiRoutes.filter((route) =>
-        ['/api/motion/preview-source', '/api/motion/source-edit'].includes(route)
+        ['/api/motion/preview-source', '/api/motion/source-author', '/api/motion/source-edit'].includes(route)
       )
     )
   );
