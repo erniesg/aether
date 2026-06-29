@@ -107,6 +107,33 @@ function parseOperations(value: unknown): MotionTimelineRevisionOperation[] | nu
       return [{ kind, clipId, props: candidate.props }];
     }
 
+    if (kind === 'replace-clip-asset') {
+      const clipId = stringValue(candidate.clipId);
+      const assetId = stringValue(candidate.assetId);
+      const assetUrl = stringValue(candidate.assetUrl);
+      const captureArtifactKind = stringValue(candidate.captureArtifactKind);
+      const mimeType = stringValue(candidate.mimeType);
+      const crop = stringValue(candidate.crop);
+      const zoom = numericValue(candidate.zoom);
+      const cursorPath = stringValue(candidate.cursorPath);
+      const sourceAssetId = stringValue(candidate.sourceAssetId);
+      if (!clipId || !assetId) return [];
+      return [
+        {
+          kind,
+          clipId,
+          assetId,
+          ...(assetUrl === undefined ? {} : { assetUrl }),
+          ...(captureArtifactKind === undefined ? {} : { captureArtifactKind }),
+          ...(mimeType === undefined ? {} : { mimeType }),
+          ...(crop === undefined ? {} : { crop }),
+          ...(zoom === undefined ? {} : { zoom }),
+          ...(cursorPath === undefined ? {} : { cursorPath }),
+          ...(sourceAssetId === undefined ? {} : { sourceAssetId }),
+        },
+      ];
+    }
+
     if (kind === 'retime-clip') {
       const clipId = stringValue(candidate.clipId);
       if (!clipId) return [];

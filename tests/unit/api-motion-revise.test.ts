@@ -142,6 +142,75 @@ describe('POST /api/motion/revise', () => {
     });
   });
 
+  it('replaces app-frame capture sources for downstream visual generation', async () => {
+    const { POST } = await import('@/app/api/motion/revise/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/revise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          id: 'revision-demo-capture-source',
+          requestedAt: 905,
+          operations: [
+            {
+              kind: 'replace-clip-asset',
+              clipId: 'clip-beat-demo-text',
+              assetId: 'capture-recording-aether-flow',
+              assetUrl: 'asset://capture/aether-flow.webm',
+              captureArtifactKind: 'recording',
+              crop: 'center-safe',
+              zoom: 1.4,
+              cursorPath: '120,420 540,960',
+            },
+          ],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const demoClip = json.project.tracks
+      .flatMap(
+        (track: { clips: Array<{ id: string; assetId?: string; props: Record<string, unknown> }> }) =>
+          track.clips
+      )
+      .find((clip: { id: string }) => clip.id === 'clip-beat-demo-text');
+
+    expect(demoClip).toMatchObject({
+      assetId: 'capture-recording-aether-flow',
+      props: {
+        assetId: 'capture-recording-aether-flow',
+        assetUrl: 'asset://capture/aether-flow.webm',
+        captureArtifactKind: 'recording',
+        crop: 'center-safe',
+        zoom: 1.4,
+        cursorPath: '120,420 540,960',
+      },
+    });
+    const previewClip = json.previewPlan.timelineRows
+      .flatMap(
+        (row: {
+          clips: Array<{
+            clipId: string;
+            editControlIds: string[];
+            editableProps: Record<string, unknown>;
+          }>;
+        }) => row.clips
+      )
+      .find((clip: { clipId: string }) => clip.clipId === 'clip-beat-demo-text');
+    expect(previewClip).toMatchObject({
+      editControlIds: ['assetId', 'assetUrl', 'caption', 'crop', 'zoom', 'cursorPath'],
+      editableProps: {
+        assetId: 'capture-recording-aether-flow',
+        assetUrl: 'asset://capture/aether-flow.webm',
+        crop: 'center-safe',
+        zoom: 1.4,
+        cursorPath: '120,420 540,960',
+      },
+    });
+  });
+
   it('rejects unsafe timeline edits without returning a revised project', async () => {
     const { POST } = await import('@/app/api/motion/revise/route');
     const res = await POST(

@@ -134,6 +134,56 @@ describe('applyMotionTimelineRevision', () => {
     });
   });
 
+  it('replaces captured app-frame source assets with crop and cursor edit metadata', () => {
+    const revised = applyMotionTimelineRevision(project(), {
+      id: 'revision-demo-source-replace',
+      requestedAt: 104,
+      updatedAt: 105,
+      operations: [
+        {
+          kind: 'replace-clip-asset',
+          clipId: 'clip-beat-demo-text',
+          assetId: 'capture-recording-aether-flow',
+          assetUrl: 'asset://capture/aether-flow.webm',
+          captureArtifactKind: 'recording',
+          mimeType: 'video/webm',
+          crop: 'center-safe',
+          zoom: 1.35,
+          cursorPath: '120,420 540,960',
+          sourceAssetId: 'capture-screenshot-aether-before',
+        },
+      ],
+    });
+
+    const demoClip = revised.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(demoClip).toMatchObject({
+      assetId: 'capture-recording-aether-flow',
+      props: {
+        assetId: 'capture-recording-aether-flow',
+        assetUrl: 'asset://capture/aether-flow.webm',
+        captureArtifactKind: 'recording',
+        mimeType: 'video/webm',
+        crop: 'center-safe',
+        zoom: 1.35,
+        cursorPath: '120,420 540,960',
+        sourceAssetId: 'capture-screenshot-aether-before',
+      },
+    });
+    expect(demoClip?.provenance).toContainEqual({
+      kind: 'revision',
+      ref: 'revision-demo-source-replace',
+    });
+
+    const draftDemoClip = revised.drafts
+      .find((draft) => draft.id === revised.currentDraftId)
+      ?.tracks.flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(draftDemoClip?.assetId).toBe('capture-recording-aether-flow');
+    expect(draftDemoClip?.props.cursorPath).toBe('120,420 540,960');
+  });
+
   it('rejects unsafe edits before mutating the project', () => {
     expect(() =>
       applyMotionTimelineRevision(project(), {

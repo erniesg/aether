@@ -86,8 +86,11 @@ const COMPONENTS: MotionComponentDefinition[] = [
     requiredProps: ['assetId', 'caption'],
     editControls: [
       { id: 'assetId', label: 'Capture', kind: 'asset' },
+      { id: 'assetUrl', label: 'Capture URL', kind: 'text' },
       { id: 'caption', label: 'Caption', kind: 'text' },
+      { id: 'crop', label: 'Crop', kind: 'select' },
       { id: 'zoom', label: 'Zoom', kind: 'number' },
+      { id: 'cursorPath', label: 'Cursor path', kind: 'text' },
     ],
     regenerateScopes: ['capture', 'timing', 'caption'],
   },

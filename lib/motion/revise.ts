@@ -26,6 +26,18 @@ export type MotionTimelineRevisionOperation =
       props: Record<string, unknown>;
     }
   | {
+      kind: 'replace-clip-asset';
+      clipId: string;
+      assetId: string;
+      assetUrl?: string;
+      captureArtifactKind?: string;
+      mimeType?: string;
+      crop?: string;
+      zoom?: number;
+      cursorPath?: string;
+      sourceAssetId?: string;
+    }
+  | {
       kind: 'retime-clip';
       clipId: string;
       startFrame?: number;
@@ -46,6 +58,7 @@ export interface ApplyMotionTimelineRevisionInput {
 }
 
 interface ClipEdit {
+  assetId?: string;
   props?: Record<string, unknown>;
   replaceProps?: Record<string, unknown>;
   startFrame?: number;
@@ -108,6 +121,7 @@ function validateMotionTimelineRevision(
     if (
       operation.kind === 'update-clip-props' ||
       operation.kind === 'replace-clip-props' ||
+      operation.kind === 'replace-clip-asset' ||
       operation.kind === 'retime-clip' ||
       operation.kind === 'replace-component'
     ) {
@@ -122,6 +136,15 @@ function validateMotionTimelineRevision(
       }
       if (operation.durationFrames !== undefined && operation.durationFrames <= 0) {
         throw new Error(`Motion clip duration must be positive: ${operation.clipId}`);
+      }
+    }
+
+    if (operation.kind === 'replace-clip-asset') {
+      if (operation.assetId.trim().length === 0) {
+        throw new Error(`Motion clip asset id is required: ${operation.clipId}`);
+      }
+      if (operation.zoom !== undefined && operation.zoom <= 0) {
+        throw new Error(`Motion clip zoom must be positive: ${operation.clipId}`);
       }
     }
 
@@ -210,6 +233,18 @@ function clipEditsForOperations(
       return;
     }
 
+    if (operation.kind === 'replace-clip-asset') {
+      edits.set(operation.clipId, {
+        ...current,
+        assetId: operation.assetId,
+        props: {
+          ...(current.props ?? {}),
+          ...assetReplacementProps(operation),
+        },
+      });
+      return;
+    }
+
     if (operation.kind === 'retime-clip') {
       edits.set(operation.clipId, {
         ...current,
@@ -232,6 +267,23 @@ function clipEditsForOperations(
   });
 
   return edits;
+}
+
+function assetReplacementProps(
+  operation: Extract<MotionTimelineRevisionOperation, { kind: 'replace-clip-asset' }>
+): Record<string, unknown> {
+  return {
+    assetId: operation.assetId,
+    ...(operation.assetUrl === undefined ? {} : { assetUrl: operation.assetUrl }),
+    ...(operation.captureArtifactKind === undefined
+      ? {}
+      : { captureArtifactKind: operation.captureArtifactKind }),
+    ...(operation.mimeType === undefined ? {} : { mimeType: operation.mimeType }),
+    ...(operation.crop === undefined ? {} : { crop: operation.crop }),
+    ...(operation.zoom === undefined ? {} : { zoom: operation.zoom }),
+    ...(operation.cursorPath === undefined ? {} : { cursorPath: operation.cursorPath }),
+    ...(operation.sourceAssetId === undefined ? {} : { sourceAssetId: operation.sourceAssetId }),
+  };
 }
 
 function applyClipEdits(
@@ -257,6 +309,7 @@ function applyClipEdit(
 
   return {
     ...clip,
+    ...(edit.assetId === undefined ? {} : { assetId: edit.assetId }),
     ...(edit.startFrame === undefined ? {} : { startFrame: edit.startFrame }),
     ...(edit.durationFrames === undefined ? {} : { durationFrames: edit.durationFrames }),
     ...(edit.componentId === undefined ? {} : { componentId: edit.componentId }),

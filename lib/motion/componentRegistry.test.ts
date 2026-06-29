@@ -47,6 +47,18 @@ describe('motion component registry', () => {
     expect(hook?.editControls.map((control) => control.id)).toContain('headline');
     expect(hook?.editControls.map((control) => control.id)).toContain('effectPreset');
 
+    const appFrame = getMotionComponent('app-frame');
+    expect(appFrame?.engines).toEqual(['remotion']);
+    expect(appFrame?.requiredProps).toEqual(['assetId', 'caption']);
+    expect(appFrame?.editControls.map((control) => control.id)).toEqual([
+      'assetId',
+      'assetUrl',
+      'caption',
+      'crop',
+      'zoom',
+      'cursorPath',
+    ]);
+
     const codeDiff = getMotionComponent('code-diff-card');
     expect(codeDiff?.requiredProps).toEqual(['filePath', 'lines']);
     expect(codeDiff?.regenerateScopes).toContain('code');
