@@ -945,6 +945,30 @@ describe('POST /api/motion/full-auto', () => {
           advancedStepLabels: ['Product capture', 'Visual sourcing', 'Image-to-video'],
           savedReceiptLabels: ['Screenshot', 'Selected source asset', 'Generated clip'],
           savedReceiptCount: 3,
+          savedArtifacts: [
+            expect.objectContaining({
+              kind: 'capture',
+              label: 'Screenshot',
+              ref: 'capture-aether-homepage',
+              assetUrl: 'asset://captures/aether-homepage.png',
+              mimeType: 'image/png',
+            }),
+            expect.objectContaining({
+              kind: 'visual-source',
+              label: 'Selected source asset',
+              ref: 'capture-aether-homepage',
+              assetUrl: 'asset://captures/aether-homepage.png',
+              mimeType: 'image/png',
+            }),
+            expect.objectContaining({
+              kind: 'image-to-video',
+              label: 'Generated clip',
+              ref: 'generated-clip-beat-demo-text-image-to-video',
+              assetUrl: 'asset://generated/motion-aether-launch/clip-beat-demo-text/image-to-video.mp4',
+              path: 'generated/motion-aether-launch/clip-beat-demo-text/image-to-video.mp4',
+              mimeType: 'video/mp4',
+            }),
+          ],
           editableSurfaceLabels: expect.arrayContaining([
             'capture',
             'visual',

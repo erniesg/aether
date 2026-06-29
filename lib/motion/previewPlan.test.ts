@@ -1372,6 +1372,30 @@ describe('buildMotionPreviewPlan', () => {
         'Validate HyperFrames frames',
         'MP4 artifact check',
       ],
+      savedArtifacts: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'capture',
+          label: 'Screenshot',
+          ref: 'capture-aether-homepage',
+          assetUrl: 'asset://capture/home.png',
+          mimeType: 'image/png',
+        }),
+        expect.objectContaining({
+          kind: 'render',
+          label: 'MP4',
+          ref: 'render-export-x-9x16-video',
+          assetUrl: 'asset://renders/x/video.mp4',
+          path: 'renders/x/video.mp4',
+          mimeType: 'video/mp4',
+        }),
+        expect.objectContaining({
+          kind: 'render',
+          label: 'Render source manifest',
+          ref: 'render-plan-motion-aether-launch-draft-primary-hyperframes:source-manifest',
+          path: 'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-hyperframes.source-manifest.json',
+          mimeType: 'application/json',
+        }),
+      ]),
       editableSurfaceLabels: expect.arrayContaining([
         'capture',
         'recording',

@@ -93,11 +93,13 @@ import {
   type MotionInteractiveMarker,
   type MotionProject,
   type MotionProvenanceRef,
+  type MotionSavedArtifactSummary,
   type MotionSourceProfile,
   type MotionTrackKind,
   type TimelineClip,
   type TimelineTrack,
 } from './project';
+import { summarizeExecutionArtifacts } from './executionArtifacts';
 
 export type MotionPreviewEngineStatus = MotionRenderPlanStatus | 'provider-required';
 
@@ -811,6 +813,7 @@ export interface MotionPreviewFullAutoReview {
   savedStepLabels: string[];
   savedReceiptCount: number;
   savedReceiptLabels: string[];
+  savedArtifacts: MotionSavedArtifactSummary[];
   editableSurfaceLabels: string[];
   proofLabels: string[];
   nextReviewLabel: string | null;
@@ -1472,6 +1475,7 @@ function buildFullAutoReviewSummary(
     savedStepLabels: [],
     savedReceiptCount: 0,
     savedReceiptLabels: [],
+    savedArtifacts: [],
     editableSurfaceLabels: [],
     proofLabels: [],
     nextReviewLabel: nextStep?.label ?? null,
@@ -1512,6 +1516,7 @@ function buildFullAutoReviewSummary(
     savedStepLabels: savedSteps.map((step) => step.label),
     savedReceiptCount,
     savedReceiptLabels,
+    savedArtifacts: summarizeExecutionArtifacts(productionEntries),
     editableSurfaceLabels: uniqueStrings(
       savedStepIds.flatMap(fullAutoEditableSurfaceLabelsForStep)
     ),

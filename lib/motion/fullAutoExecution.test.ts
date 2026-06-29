@@ -156,6 +156,22 @@ describe('runSavedMotionFullAuto', () => {
           advancedStepLabels: ['Product capture'],
           savedReceiptCount: 2,
           savedReceiptLabels: ['Screenshot', 'Recording'],
+          savedArtifacts: [
+            {
+              kind: 'capture',
+              label: 'Screenshot',
+              ref: 'capture-aether-homepage',
+              assetUrl: 'asset://captures/aether-homepage.png',
+              mimeType: 'image/png',
+            },
+            {
+              kind: 'capture',
+              label: 'Recording',
+              ref: 'recording-aether-flow',
+              assetUrl: 'asset://captures/aether-flow.mp4',
+              mimeType: 'video/mp4',
+            },
+          ],
           editableSurfaceLabels: ['capture', 'recording', 'crop', 'cursor path'],
           proofLabels: ['screenshots', 'recordings', 'DOM snapshots', 'cursor targets'],
           nextReviewLabel: 'Visual sourcing',

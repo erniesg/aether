@@ -1963,6 +1963,10 @@ function MotionFullAutoReviewPacket({
 }) {
   const stepLabels = packet.savedStepLabels.slice(0, 3).join(' / ');
   const receiptLabels = packet.savedReceiptLabels.slice(0, 3).join(' / ');
+  const artifactLabels = packet.savedArtifacts
+    .slice(0, 2)
+    .map(savedArtifactLabel)
+    .join(' / ');
   const editLabels = packet.editableSurfaceLabels.slice(0, 4).join(' / ');
   const proofLabels = packet.proofLabels.slice(0, 3).join(' / ');
 
@@ -1982,6 +1986,11 @@ function MotionFullAutoReviewPacket({
       {receiptLabels ? (
         <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
           saved: {receiptLabels}
+        </div>
+      ) : null}
+      {artifactLabels ? (
+        <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+          artifacts: {artifactLabels}
         </div>
       ) : null}
       {editLabels ? (
@@ -2006,6 +2015,10 @@ function MotionFullAutoReviewPacket({
       ) : null}
     </div>
   );
+}
+
+function savedArtifactLabel(artifact: MotionPreviewFullAutoReview['savedArtifacts'][number]): string {
+  return `${artifact.label} -> ${artifact.path ?? artifact.assetUrl ?? artifact.ref}`;
 }
 
 function MotionCanvasMaterialStrip({

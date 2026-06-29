@@ -1824,6 +1824,7 @@ const previewPlan: MotionPreviewPlan = {
     savedStepLabels: [],
     savedReceiptCount: 0,
     savedReceiptLabels: [],
+    savedArtifacts: [],
     editableSurfaceLabels: [],
     proofLabels: [],
     nextReviewLabel: productionPlan.steps.find((step) => step.id === productionPlan.nextStepId)?.label ?? null,
@@ -3933,6 +3934,22 @@ describe('TimelineLens', () => {
             savedStepLabels: ['Product capture', 'Visual sourcing', 'Image-to-video'],
             savedReceiptCount: 3,
             savedReceiptLabels: ['Screenshot', 'Selected source asset', 'Generated clip'],
+            savedArtifacts: [
+              {
+                kind: 'capture',
+                label: 'Screenshot',
+                ref: 'capture-aether-homepage',
+                assetUrl: 'asset://captures/aether-homepage.png',
+                mimeType: 'image/png',
+              },
+              {
+                kind: 'image-to-video',
+                label: 'Generated clip',
+                ref: 'generated-clip-beat-demo-text-image-to-video',
+                assetUrl: 'asset://generated/image-to-video-clip-beat-demo-text.mp4',
+                mimeType: 'video/mp4',
+              },
+            ],
             editableSurfaceLabels: ['capture', 'visual', 'image-to-video', 'component'],
             proofLabels: ['screenshots', 'source asset picks', 'generated clips'],
             nextReviewLabel: 'Voice and captions',
@@ -4077,6 +4094,11 @@ describe('TimelineLens', () => {
     expect(screen.getByText('full-auto review packet')).toBeInTheDocument();
     expect(screen.getByText('Product capture / Visual sourcing / Image-to-video')).toBeInTheDocument();
     expect(screen.getByText('saved: Screenshot / Selected source asset / Generated clip')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'artifacts: Screenshot -> asset://captures/aether-homepage.png / Generated clip -> asset://generated/image-to-video-clip-beat-demo-text.mp4'
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText('edit: capture / visual / image-to-video / component')).toBeInTheDocument();
     expect(screen.getByText('proof: screenshots / source asset picks / generated clips')).toBeInTheDocument();
     expect(screen.getByText('next: Voice and captions')).toBeInTheDocument();

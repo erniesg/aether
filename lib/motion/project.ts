@@ -280,6 +280,16 @@ export interface MotionExecutionReceipt {
   mimeType?: string;
 }
 
+export interface MotionSavedArtifactSummary {
+  kind: MotionExecutionReceiptKind;
+  label: string;
+  ref: string;
+  providerId?: string;
+  assetUrl?: string;
+  path?: string;
+  mimeType?: string;
+}
+
 export interface MotionExecutionHistoryEntry {
   id: string;
   gateId: MotionExecutionGateId;

@@ -1,6 +1,11 @@
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { WorkflowEngine } from '@/lib/workflow/registry';
-import type { MotionExecutionHistoryEntry, MotionProject } from './project';
+import type {
+  MotionExecutionHistoryEntry,
+  MotionProject,
+  MotionSavedArtifactSummary,
+} from './project';
+import { summarizeExecutionArtifacts } from './executionArtifacts';
 import {
   buildMotionProductionPlan,
   type MotionProductionPlan,
@@ -42,6 +47,7 @@ export interface MotionFullAutoReviewPacket {
   advancedStepLabels: string[];
   savedReceiptCount: number;
   savedReceiptLabels: string[];
+  savedArtifacts: MotionSavedArtifactSummary[];
   editableSurfaceLabels: string[];
   proofLabels: string[];
   nextReviewLabel: string | null;
@@ -290,6 +296,7 @@ function buildReviewPacket(input: {
     advancedStepLabels: advancedSteps.map((step) => step.label),
     savedReceiptCount: savedEntries.reduce((total, entry) => total + entry.receiptCount, 0),
     savedReceiptLabels,
+    savedArtifacts: summarizeExecutionArtifacts(savedEntries),
     editableSurfaceLabels,
     proofLabels,
     nextReviewLabel: input.step?.label ?? null,
