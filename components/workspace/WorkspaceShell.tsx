@@ -119,7 +119,11 @@ import { useCreatorContext } from '@/lib/context/creator-store';
 import { setEyesClosedCapture } from '@/lib/voice/eyes-closed-store';
 import type { EyesClosedCaptureRequest } from '@/components/canvas/EyesClosedHandle';
 import type { SemanticCreativeComponent } from '@/lib/types/semantic-component';
-import { motionFrames, type TimelineTrack } from '@/lib/motion/project';
+import {
+  motionFrames,
+  type MotionWorkflowMode,
+  type TimelineTrack,
+} from '@/lib/motion/project';
 import {
   AutoModeToggle,
   DEFAULT_AUTO_MODE_CONFIG,
@@ -614,6 +618,55 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         });
         setMotionTimelineActionStatus(`${draft.label} selected`);
         setMotionSourcePatchDraft(null);
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
+  const handleTimelineWorkflowModeSwitch = useCallback(
+    async (mode: MotionWorkflowMode) => {
+      if (!motionStart?.project) return;
+      if (motionStart.project.workflowMode === mode) return;
+
+      setMotionTimelineActionStatus(mode === 'full-auto' ? 'switching to full auto' : 'switching to review');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            mode,
+            requestedEngines: motionStart.workflow.plan.engines,
+            requestedAt,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          workflow?: typeof motionStart.workflow;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+          agentHandoff?: typeof motionStart.agentHandoff;
+        };
+        if (!res.ok || json.ok === false || !json.project || !json.previewPlan || !json.workflow) {
+          throw new Error(json.error ?? `mode switch failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          workflow: json.workflow,
+          project: json.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+          agentHandoff: json.agentHandoff ?? motionStart.agentHandoff,
+          sourcePatchDraft: null,
+        });
+        setMotionSourcePatchDraft(null);
+        setMotionTimelineActionStatus(mode === 'full-auto' ? 'full auto ready' : 'review gates ready');
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
@@ -3206,6 +3259,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             selectedClipId={selectedTimelineClipId}
             onSelectClip={setSelectedTimelineClipId}
             onSelectDraft={handleTimelineDraftSelect}
+            onSwitchWorkflowMode={handleTimelineWorkflowModeSwitch}
             onRegenerateComponent={handleTimelineRegenerate}
             onGenerateVoice={handleTimelineGenerateVoice}
             onSyncMotion={handleTimelineSync}

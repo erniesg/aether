@@ -683,8 +683,7 @@ export interface MotionPreviewAgentRunbook {
 export type MotionPreviewModeControlOptionStatus = 'active' | 'available';
 
 export interface MotionPreviewModeControlRequestTemplate {
-  workspaceId: string;
-  sourceRefs: '$motionSourceRefs';
+  project: '$motionProject';
   mode: MotionProject['workflowMode'];
   requestedEngines: '$selectedEngines';
   requestedAt: '$now';
@@ -695,7 +694,7 @@ export interface MotionPreviewModeControlOption {
   label: string;
   status: MotionPreviewModeControlOptionStatus;
   actionLabel: string;
-  route: '/api/motion/start';
+  route: '/api/motion/mode';
   method: 'POST';
   requestTemplate: MotionPreviewModeControlRequestTemplate;
   gateLabels: string[];
@@ -1041,11 +1040,10 @@ function modeControlOption(
       : reviewMode
         ? 'Switch to review gates'
         : 'Switch to full auto',
-    route: '/api/motion/start',
+    route: '/api/motion/mode',
     method: 'POST',
     requestTemplate: {
-      workspaceId: project.workspaceId,
-      sourceRefs: '$motionSourceRefs',
+      project: '$motionProject',
       mode,
       requestedEngines: '$selectedEngines',
       requestedAt: '$now',

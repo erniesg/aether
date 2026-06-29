@@ -151,12 +151,14 @@ component ids, review/full-auto behavior, and provider seams.
   requirement: script, B-roll, generated video, captions, layout, transitions,
   and speech regeneration need to remain source-backed so one line edit can
   update voice, captions, timing, and visual inserts.
-- The latest implementation checkpoints now cover two of the earlier gaps:
+- The latest implementation checkpoints now cover three of the earlier gaps:
   `replace-clip-asset` lets an agent replace an `app-frame` capture with source
   URL, crop, zoom, cursor path, and capture metadata while keeping top-level
   clip assets aligned for image-to-video and render; `previewPlan.modeControl`
   now exposes review gates and full-auto as explicit creator choices in the
-  timeline lens.
+  timeline lens; `/api/motion/mode` makes those choices executable on the same
+  `MotionProject` without dropping source refs, selected draft, receipts, or
+  handoff templates.
 
 ## Architecture decision
 
@@ -189,37 +191,32 @@ capture, render, and provenance debugging.
 
 ## Remaining implementation plan
 
-1. **Make mode-control choices executable.** `previewPlan.modeControl` now shows
-   review gates vs full-auto and carries start-route templates. The next slice
-   should materialize those templates from the current project/source refs or
-   add a same-project mode-switch route, then refresh review, preview,
-   handoff, and production plans without losing selected providers or receipts.
-2. **Expand source-backed edit depth.** Capture replacement exists for
+1. **Expand source-backed edit depth.** Capture replacement exists for
    `app-frame` sources. Add crop/zoom keyframe editing, cursor path editing,
    caption line replacement, effect changes, and script/storyboard edits through
    the same structured revision/source-edit path.
-3. **Add workflow-skill launch packaging.** Let `pr-to-video` and future daily
+2. **Add workflow-skill launch packaging.** Let `pr-to-video` and future daily
    skill drops produce a reviewable launch-kit object: sample social copy,
    install command, teaser format, source PR evidence, and export targets.
-4. **Map HyperFrames catalog primitives.** Extend `componentRegistry` and
+3. **Map HyperFrames catalog primitives.** Extend `componentRegistry` and
    reference patterns for code animation, terminal, caption, social overlay,
    shader transition, device/UI reveal, data visual, and logo/outro classes.
    Keep the ids provider-neutral and let engine adapters decide exact source.
-5. **Add source-bundle import/export.** Allow an agent to round-trip a rendered
+4. **Add source-bundle import/export.** Allow an agent to round-trip a rendered
    source bundle: edit `SCRIPT.md`, `STORYBOARD.md`, timeline JSON, or
    `EDIT.md`, then apply structured revisions back into `MotionProject`.
-6. **Provider-backed capture execution.** Wire opt-in Playwright/browser
+5. **Provider-backed capture execution.** Wire opt-in Playwright/browser
    capture through a trusted agent runner so repo/app starts can launch local
    apps, take screenshots, record flows, save DOM/trace receipts, and feed
    `app-frame` clips.
-7. **Interactive-demo metadata.** Add provider-neutral hotspot, callout, branch,
+6. **Interactive-demo metadata.** Add provider-neutral hotspot, callout, branch,
    chapter, link, and analytics marker primitives so Arcade-style interactive
    demos can share the same video plan/timeline before an interactive export
    exists.
-8. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
+7. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
    metadata, poster proof, subtitles, transcripts, and manifest checks as first
    class graph nodes before export.
-9. **Full-auto orchestration.** Add a saved run executor that advances through
+8. **Full-auto orchestration.** Add a saved run executor that advances through
    ready gates, pauses on missing provider/capture/approval, and writes every
    artifact receipt back to the same project instead of returning a transient
    route response.
@@ -291,8 +288,11 @@ capture, render, and provenance debugging.
   or copy revisions from the reviewable draft board.
 - `lib/motion/previewPlan.ts` now exposes `modeControl`, a creator-facing
   review/full-auto choice object with current mode, option status, expected
-  receipts, and action templates. `components/workspace/TimelineLens.tsx`
-  renders this as a compact workflow-mode strip inside the same preview shell.
+  receipts, and action templates targeting `/api/motion/mode`.
+  `components/workspace/TimelineLens.tsx` renders this as a compact
+  workflow-mode strip inside the same preview shell, and the strip can switch
+  the current project between review gates and full-auto without restarting the
+  source ingest flow.
 - `lib/motion/revise.ts` now supports typed capture-source replacement through
   `replace-clip-asset`, keeping clip-level `assetId` and editable component
   props aligned for downstream image-to-video and render. `app-frame` controls

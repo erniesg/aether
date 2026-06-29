@@ -13,7 +13,12 @@ import type { AgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import type { MotionAgentExecutionHandoff } from '@/lib/motion/agentHandoff';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import type { MotionWorkflowExample } from '@/lib/motion/workflowExamples';
-import type { MotionGraphNode, TimelineClip, TimelineTrack } from '@/lib/motion/project';
+import type {
+  MotionGraphNode,
+  MotionWorkflowMode,
+  TimelineClip,
+  TimelineTrack,
+} from '@/lib/motion/project';
 import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
@@ -77,6 +82,7 @@ export interface TimelineLensProps {
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
+  onSwitchWorkflowMode?: (mode: MotionWorkflowMode) => void;
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
@@ -115,6 +121,7 @@ export function TimelineLens({
   selectedClipId,
   onSelectClip,
   onSelectDraft,
+  onSwitchWorkflowMode,
   onRegenerateComponent,
   onGenerateVoice,
   onSyncMotion,
@@ -179,6 +186,7 @@ export function TimelineLens({
             selectedClipId={selectedClipId}
             onSelectClip={onSelectClip}
             onSelectDraft={onSelectDraft}
+            onSwitchWorkflowMode={onSwitchWorkflowMode}
             onRegenerateComponent={onRegenerateComponent}
             onGenerateVoice={onGenerateVoice}
             onSyncMotion={onSyncMotion}
@@ -236,6 +244,7 @@ function MotionPreviewPlanView({
   selectedClipId,
   onSelectClip,
   onSelectDraft,
+  onSwitchWorkflowMode,
   onRegenerateComponent,
   onGenerateVoice,
   onSyncMotion,
@@ -271,6 +280,7 @@ function MotionPreviewPlanView({
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
+  onSwitchWorkflowMode?: (mode: MotionWorkflowMode) => void;
   onRegenerateComponent?: (actionId: string) => void;
   onGenerateVoice?: () => void;
   onSyncMotion?: () => void;
@@ -339,7 +349,10 @@ function MotionPreviewPlanView({
       </section>
 
       <section className="border-b border-border-soft px-4 py-3">
-        <MotionModeControlStrip modeControl={previewPlan.modeControl} />
+        <MotionModeControlStrip
+          modeControl={previewPlan.modeControl}
+          onSwitchWorkflowMode={onSwitchWorkflowMode}
+        />
       </section>
 
       <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
@@ -1305,7 +1318,13 @@ function readableLabel(value: string): string {
   return value.replace(/[-_]/g, ' ');
 }
 
-function MotionModeControlStrip({ modeControl }: { modeControl: MotionPreviewModeControl }) {
+function MotionModeControlStrip({
+  modeControl,
+  onSwitchWorkflowMode,
+}: {
+  modeControl: MotionPreviewModeControl;
+  onSwitchWorkflowMode?: (mode: MotionWorkflowMode) => void;
+}) {
   return (
     <div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
       <div className="min-w-0">
@@ -1321,13 +1340,19 @@ function MotionModeControlStrip({ modeControl }: { modeControl: MotionPreviewMod
 
       <div className="grid gap-2 md:grid-cols-2">
         {modeControl.options.map((option) => (
-          <div
+          <button
             key={option.mode}
+            type="button"
+            disabled={option.status === 'active' || !onSwitchWorkflowMode}
+            onClick={() => onSwitchWorkflowMode?.(option.mode)}
             className={cn(
-              'min-w-0 rounded-sm border px-3 py-2',
+              'min-w-0 rounded-sm border px-3 py-2 text-left transition-colors duration-fast ease-quick',
               option.status === 'active'
                 ? 'border-accent/50 bg-accent/10'
-                : 'border-border-soft bg-surface-panel'
+                : 'border-border-soft bg-surface-panel',
+              option.status === 'available' && onSwitchWorkflowMode
+                ? 'hover:border-accent hover:text-accent'
+                : 'cursor-default'
             )}
           >
             <div className="flex min-w-0 items-start justify-between gap-2">
@@ -1351,7 +1376,7 @@ function MotionModeControlStrip({ modeControl }: { modeControl: MotionPreviewMod
             <div className="mt-2 truncate font-caption text-2xs text-ink-faint">
               {option.route}
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

@@ -183,11 +183,10 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Review gates',
         status: 'active',
         actionLabel: 'Keep review gates',
-        route: '/api/motion/start',
+        route: '/api/motion/mode',
         method: 'POST',
         requestTemplate: {
-          workspaceId: 'demo-ws',
-          sourceRefs: '$motionSourceRefs',
+          project: '$motionProject',
           mode: 'review',
           requestedEngines: '$selectedEngines',
           requestedAt: '$now',
@@ -200,11 +199,10 @@ const previewPlan: MotionPreviewPlan = {
         label: 'Full auto',
         status: 'available',
         actionLabel: 'Switch to full auto',
-        route: '/api/motion/start',
+        route: '/api/motion/mode',
         method: 'POST',
         requestTemplate: {
-          workspaceId: 'demo-ws',
-          sourceRefs: '$motionSourceRefs',
+          project: '$motionProject',
           mode: 'full-auto',
           requestedEngines: '$selectedEngines',
           requestedAt: '$now',
@@ -2191,6 +2189,7 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Review gates')).toBeInTheDocument();
     expect(screen.getByText('Full auto')).toBeInTheDocument();
     expect(screen.getByText('Switch to full auto')).toBeInTheDocument();
+    expect(screen.getAllByText('/api/motion/mode').length).toBeGreaterThan(0);
     expect(screen.getAllByText('/api/motion/start').length).toBeGreaterThan(0);
     expect(screen.getByText('full auto ready')).toBeInTheDocument();
     expect(screen.getByText('motion-start')).toBeInTheDocument();
@@ -2348,6 +2347,23 @@ describe('TimelineLens', () => {
     expect(screen.queryByText('capture-home-still')).not.toBeInTheDocument();
     expect(screen.queryByText('voice-receipts-required')).not.toBeInTheDocument();
     expect(screen.queryByText('export-x-9x16')).not.toBeInTheDocument();
+  });
+
+  it('lets creators switch workflow mode from the timeline strip', async () => {
+    const onSwitchWorkflowMode = vi.fn<(mode: 'review' | 'full-auto') => void>();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={previewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onSwitchWorkflowMode={onSwitchWorkflowMode}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /switch to full auto/i }));
+
+    expect(onSwitchWorkflowMode).toHaveBeenCalledWith('full-auto');
   });
 
   it('shows a source patch draft for review and apply from the timeline', async () => {

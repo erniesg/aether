@@ -60,8 +60,10 @@
   log.
 - Preview plans now include a workflow-mode control object. The timeline lens
   presents review gates and full-auto as explicit creator choices with expected
-  receipts and action templates, keeping mode selection in the same synthesis
-  shell rather than a separate route console.
+  receipts and action templates. `/api/motion/mode` now executes those choices
+  against the same editable project, preserving selected draft, source refs,
+  execution receipts, and agent handoff templates while recomputing review,
+  preview, production, and capture plans.
 - Motion rail video starter for repo, PR, site URL, or local path sources with
   review/full-auto mode and target presets for X vertical, LinkedIn feed,
   website demo, and multi-format launch packs.

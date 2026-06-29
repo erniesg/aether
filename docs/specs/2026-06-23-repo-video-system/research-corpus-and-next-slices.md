@@ -86,10 +86,11 @@ X/video review supplies timestamp-verified cuts.
   policies." Review and full-auto should not fork project shape. They differ
   only in gate policy, receipt requirements, and whether ready steps advance
   automatically.
-- `previewPlan.modeControl` is the first slice of that model. It exposes review
-  gates and full-auto as creator-facing choices with expected receipts and
-  action templates. The next implementation must make those templates executable
-  from current project state instead of only descriptive.
+- `previewPlan.modeControl` is now executable. It exposes review gates and
+  full-auto as creator-facing choices with expected receipts and action
+  templates, and `/api/motion/mode` switches the same project between policies
+  while preserving source refs, selected draft, execution receipts, and handoff
+  templates.
 - Capture-source editing is no longer purely future work. `app-frame` clips now
   expose asset URL, crop, zoom, and cursor path controls, and
   `replace-clip-asset` keeps top-level clip assets synced with editable props.
@@ -275,7 +276,12 @@ Acceptance evidence:
 
 ### Slice B2: Executable mode control
 
-Make the workflow-mode strip actionable. Either materialize
+Status: implemented. The workflow-mode strip now calls a same-project
+`/api/motion/mode` route. The route updates `workflowMode`, infers the
+workflow from the existing project/source refs, and recomputes review, preview,
+production, capture, and handoff plans without rebuilding source evidence.
+
+Original target: make the workflow-mode strip actionable. Either materialize
 `previewPlan.modeControl.options[*].requestTemplate` into a concrete
 `/api/motion/start` request from the current project/source refs, or add a
 same-project `/api/motion/mode` route that updates `workflowMode` and recomputes
