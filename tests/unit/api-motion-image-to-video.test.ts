@@ -1,15 +1,25 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CaptureResult } from '@/lib/providers/capture/types';
 import type { MotionProject } from '@/lib/motion/project';
 import { applyCaptureResultToMotionProject } from '@/lib/motion/captureApply';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
+import { resetConfiguredMotionImageToVideoProvidersForTests } from '@/lib/providers/video/configured-generation';
 import type {
   MotionImageToVideoProvider,
   MotionImageToVideoRequest,
   MotionImageToVideoResult,
 } from '@/lib/providers/video/types';
+
+const IMAGE_TO_VIDEO_ENV_KEYS = [
+  'AETHER_IMAGE_TO_VIDEO_PROJECT_DIR',
+  'AETHER_IMAGE_TO_VIDEO_COMMAND',
+  'AETHER_IMAGE_TO_VIDEO_ARGS',
+] as const;
+const ORIGINAL_IMAGE_TO_VIDEO_ENV = Object.fromEntries(
+  IMAGE_TO_VIDEO_ENV_KEYS.map((key) => [key, process.env[key]])
+);
 
 function baseProject(): MotionProject {
   return buildRepoLaunchMotionProject({
@@ -100,8 +110,14 @@ function resultFor(request: MotionImageToVideoRequest): MotionImageToVideoResult
 describe('POST /api/motion/image-to-video', () => {
   const unregister: Array<() => void> = [];
 
+  beforeEach(() => {
+    clearImageToVideoEnv();
+  });
+
   afterEach(() => {
     while (unregister.length > 0) unregister.pop()?.();
+    resetConfiguredMotionImageToVideoProvidersForTests();
+    restoreImageToVideoEnv();
   });
 
   it('returns provider-required generation handoffs with source asset and prompt', async () => {
@@ -359,6 +375,44 @@ describe('POST /api/motion/image-to-video', () => {
     expect(json.previewPlan.visualGenerationSummary.nodePlan.nextNodeId).toBe('timeline-update');
   });
 
+  it('lists env-configured command image-to-video providers before generation execution', async () => {
+    process.env.AETHER_IMAGE_TO_VIDEO_PROJECT_DIR = '/repo';
+    process.env.AETHER_IMAGE_TO_VIDEO_COMMAND = 'node';
+    process.env.AETHER_IMAGE_TO_VIDEO_ARGS = 'scripts/image-to-video.mjs';
+
+    const { POST } = await import('@/app/api/motion/image-to-video/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/image-to-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: timelineProject(),
+          requestedAt: 911,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'blocked',
+      imageToVideoPlan: {
+        status: 'needs-visual-source',
+        blockers: [{ id: 'visual-source-required' }],
+      },
+      selectedRequests: [],
+      generationResults: [],
+      providers: [
+        {
+          id: 'image-video-command',
+          displayName: 'Command image-to-video generation',
+          available: true,
+        },
+      ],
+    });
+  });
+
   it('returns visual-source blockers before resolving providers', async () => {
     const generate = vi.fn(async (request: MotionImageToVideoRequest) => resultFor(request));
     unregister.push(
@@ -436,3 +490,17 @@ describe('POST /api/motion/image-to-video', () => {
     expect(badJson.status).toBe(400);
   });
 });
+
+function clearImageToVideoEnv(): void {
+  for (const key of IMAGE_TO_VIDEO_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreImageToVideoEnv(): void {
+  for (const key of IMAGE_TO_VIDEO_ENV_KEYS) {
+    const original = ORIGINAL_IMAGE_TO_VIDEO_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}

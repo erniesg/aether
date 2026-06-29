@@ -12,6 +12,7 @@ import {
   MotionImageToVideoProviderUnavailableError,
   resolveMotionImageToVideoProvider,
 } from '@/lib/providers/video/generation-registry';
+import { ensureConfiguredMotionImageToVideoProviders } from '@/lib/providers/video/configured-generation';
 import type {
   MotionImageToVideoRequest,
   MotionImageToVideoResult,
@@ -32,6 +33,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  ensureConfiguredMotionImageToVideoProviders();
+
   let body: MotionImageToVideoRequestBody;
   try {
     const parsed = await request.json();

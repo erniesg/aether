@@ -59,6 +59,7 @@ import {
   MotionImageToVideoProviderUnavailableError,
   resolveMotionImageToVideoProvider,
 } from '@/lib/providers/video/generation-registry';
+import { ensureConfiguredMotionImageToVideoProviders } from '@/lib/providers/video/configured-generation';
 import type {
   MotionImageToVideoProvider,
   MotionImageToVideoRequest,
@@ -85,6 +86,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 export async function POST(request: Request): Promise<Response> {
   ensureConfiguredVoiceProviders();
+  ensureConfiguredMotionImageToVideoProviders();
   ensureConfiguredMotionRenderProviders();
 
   let body: MotionFullAutoRequestBody;

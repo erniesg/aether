@@ -222,7 +222,16 @@
   provider-required image-to-video handoffs when no generation provider is
   configured, returns timeline or visual-source blockers before provider
   resolution, and applies generated video receipts back into the same timeline
-  clips while preserving source visual provenance.
+  clips while preserving source visual provenance. The route now bootstraps
+  env-configured image-to-video providers before planning.
+- `lib/providers/video/command-image-to-video.ts` and
+  `configured-generation.ts` provide the first concrete image-to-video
+  adapter. It registers `image-video-command` only when
+  `AETHER_IMAGE_TO_VIDEO_PROJECT_DIR` and `AETHER_IMAGE_TO_VIDEO_COMMAND` are
+  configured, writes a request payload under
+  `.aether/image-to-video-requests/`, invokes the command with that payload
+  path, accepts structured JSON stdout or verifies the expected MP4 file, and
+  returns a typed generated-video receipt.
 - Agent-native `/api/motion/regenerate` route that accepts an editable motion
   project, clip id, regeneration scope, and prompt, then returns a planned
   scoped regeneration request plus refreshed review/preview state for agents or
@@ -334,7 +343,8 @@
   current draft while rejecting unsafe overlaps or unregistered components.
 - Image-to-video clip planning that turns asset-backed visual timeline clips
   into provider-neutral generation requests with planned graph provenance, plus
-  an opt-in image-to-video provider registry with no default model.
+  an opt-in image-to-video provider registry and command adapter with no
+  default model.
 - Image-to-video result application that updates editable timeline and draft
   visual clips with generated clip receipts while keeping source visual refs
   and completing the image-to-video graph node with provider provenance.

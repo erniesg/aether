@@ -363,7 +363,9 @@ capture, render, and provenance debugging.
   callers send an editable project plus generation request or clip ids and
   receive provider-required generation handoffs, visual-source/timeline
   blockers, or completed generated video receipts applied back into the same
-  timeline clips while preserving source visual asset provenance.
+  timeline clips while preserving source visual asset provenance. It
+  bootstraps configured image-to-video providers before planning so review and
+  full-auto routes share the same provider inventory.
 - `app/api/motion/regenerate/route.ts` now exposes scoped component
   regeneration through an agent-native JSON boundary: callers send an editable
   project, selected clip, scope, and prompt, then receive a planned regeneration
@@ -469,7 +471,11 @@ capture, render, and provenance debugging.
   `lib/providers/video/generation-registry.ts` now cover the first advanced
   generation graph slice: asset-backed visual clips become provider-neutral
   image-to-video requests with a planned graph node and opt-in provider
-  registry.
+  registry. `image-video-command` is the first concrete adapter, configured
+  through `AETHER_IMAGE_TO_VIDEO_PROJECT_DIR`,
+  `AETHER_IMAGE_TO_VIDEO_COMMAND`, and optional `AETHER_IMAGE_TO_VIDEO_ARGS`;
+  it writes a JSON generation payload for any local or vendor-specific
+  image-to-video command and ingests generated MP4 receipts.
 - `lib/motion/imageToVideoApply.ts` now converts completed image-to-video
   receipts back into editable timeline and draft clips, preserving the original
   source visual while completing the image-to-video graph node with provider
@@ -604,14 +610,15 @@ capture, render, and provenance debugging.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider
-  planning/registry, `lib/providers/voice/*` covers voice provider contracts
+  planning/registry plus an opt-in command image-to-video adapter,
+  `lib/providers/voice/*` covers voice provider contracts
   plus an opt-in command voice synthesis adapter,
   and `lib/providers/source-author/*` covers provider-neutral source authoring
   plus an opt-in Anthropic source-author adapter when `ANTHROPIC_API_KEY` and
   `AETHER_MOTION_SOURCE_AUTHOR_MODEL` are configured. Text-to-video,
-  hosted/vendor TTS adapters, image-to-video provider execution, engine
-  dependency/project scaffolding, and higher-fidelity visual component
-  libraries remain future adapter work.
+  hosted/vendor generation/TTS adapters, engine dependency/project
+  scaffolding, and higher-fidelity visual component libraries remain future
+  adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.

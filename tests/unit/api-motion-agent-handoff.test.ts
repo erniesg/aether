@@ -33,6 +33,7 @@ import type {
   MotionRenderRequest,
   MotionRenderResult,
 } from '@/lib/providers/video/types';
+import { resetConfiguredMotionImageToVideoProvidersForTests } from '@/lib/providers/video/configured-generation';
 
 const VOICE_ENV_KEYS = [
   'AETHER_VOICE_SYNTHESIS_PROJECT_DIR',
@@ -41,6 +42,15 @@ const VOICE_ENV_KEYS = [
 ] as const;
 const ORIGINAL_VOICE_ENV = Object.fromEntries(
   VOICE_ENV_KEYS.map((key) => [key, process.env[key]])
+);
+
+const IMAGE_TO_VIDEO_ENV_KEYS = [
+  'AETHER_IMAGE_TO_VIDEO_PROJECT_DIR',
+  'AETHER_IMAGE_TO_VIDEO_COMMAND',
+  'AETHER_IMAGE_TO_VIDEO_ARGS',
+] as const;
+const ORIGINAL_IMAGE_TO_VIDEO_ENV = Object.fromEntries(
+  IMAGE_TO_VIDEO_ENV_KEYS.map((key) => [key, process.env[key]])
 );
 
 const captureRunnerMock = vi.hoisted(() => {
@@ -308,12 +318,15 @@ describe('POST /api/motion/agent-handoff', () => {
 
   beforeEach(() => {
     clearVoiceEnv();
+    clearImageToVideoEnv();
   });
 
   afterEach(async () => {
     while (unregister.length > 0) unregister.pop()?.();
     resetConfiguredVoiceProvidersForTests();
+    resetConfiguredMotionImageToVideoProvidersForTests();
     restoreVoiceEnv();
+    restoreImageToVideoEnv();
     captureRunnerMock.captureCalls.splice(0);
     captureRunnerMock.createLocalAppLauncher.mockClear();
     captureRunnerMock.launchApp.mockClear();
@@ -1564,6 +1577,20 @@ function clearVoiceEnv(): void {
 function restoreVoiceEnv(): void {
   for (const key of VOICE_ENV_KEYS) {
     const original = ORIGINAL_VOICE_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}
+
+function clearImageToVideoEnv(): void {
+  for (const key of IMAGE_TO_VIDEO_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreImageToVideoEnv(): void {
+  for (const key of IMAGE_TO_VIDEO_ENV_KEYS) {
+    const original = ORIGINAL_IMAGE_TO_VIDEO_ENV[key];
     if (original === undefined) delete process.env[key];
     else process.env[key] = original;
   }

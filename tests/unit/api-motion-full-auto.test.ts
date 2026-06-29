@@ -10,6 +10,7 @@ import type {
   CaptureResult,
 } from '@/lib/providers/capture/types';
 import { resetConfiguredMotionRenderProvidersForTests } from '@/lib/providers/video/configured-render';
+import { resetConfiguredMotionImageToVideoProvidersForTests } from '@/lib/providers/video/configured-generation';
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
 import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
@@ -44,6 +45,15 @@ const VOICE_ENV_KEYS = [
 ] as const;
 const ORIGINAL_VOICE_ENV = Object.fromEntries(
   VOICE_ENV_KEYS.map((key) => [key, process.env[key]])
+);
+
+const IMAGE_TO_VIDEO_ENV_KEYS = [
+  'AETHER_IMAGE_TO_VIDEO_PROJECT_DIR',
+  'AETHER_IMAGE_TO_VIDEO_COMMAND',
+  'AETHER_IMAGE_TO_VIDEO_ARGS',
+] as const;
+const ORIGINAL_IMAGE_TO_VIDEO_ENV = Object.fromEntries(
+  IMAGE_TO_VIDEO_ENV_KEYS.map((key) => [key, process.env[key]])
 );
 
 const captureRunnerMock = vi.hoisted(() => {
@@ -340,14 +350,17 @@ describe('POST /api/motion/full-auto', () => {
 
   beforeEach(() => {
     clearVoiceEnv();
+    clearImageToVideoEnv();
   });
 
   afterEach(() => {
     while (unregister.length > 0) unregister.pop()?.();
     resetConfiguredMotionRenderProvidersForTests();
     resetConfiguredVoiceProvidersForTests();
+    resetConfiguredMotionImageToVideoProvidersForTests();
     restoreRenderEnv();
     restoreVoiceEnv();
+    restoreImageToVideoEnv();
   });
 
   it('returns a saved full-auto pause with production, review, and preview plans', async () => {
@@ -1255,6 +1268,20 @@ function clearVoiceEnv(): void {
 function restoreVoiceEnv(): void {
   for (const key of VOICE_ENV_KEYS) {
     const original = ORIGINAL_VOICE_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}
+
+function clearImageToVideoEnv(): void {
+  for (const key of IMAGE_TO_VIDEO_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreImageToVideoEnv(): void {
+  for (const key of IMAGE_TO_VIDEO_ENV_KEYS) {
+    const original = ORIGINAL_IMAGE_TO_VIDEO_ENV[key];
     if (original === undefined) delete process.env[key];
     else process.env[key] = original;
   }

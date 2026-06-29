@@ -164,8 +164,10 @@ Aether now has the right backbone:
    computer-use, visual-source, image-to-video, voice, and render readiness
    without executing the expensive production gate. A command-backed voice
    provider can now execute narration/word-timing/transcript generation when a
-   local TTS command is configured; full end-to-end provider-backed visual and
-   render artifact generation remains follow-up.
+   local TTS command is configured, and a command-backed image-to-video provider
+   can now execute generated visual clips when a local or vendor command is
+   configured; full end-to-end visual-source, render, and export artifact
+   generation remains follow-up.
 3. **Preview editing depth.** The timeline lens now has a source-backed preview
    shell with frame scrubbing, component focus, a same-shell Remotion Player,
    and a sandboxed HyperFrames iframe. Capture-source replacement now works for
