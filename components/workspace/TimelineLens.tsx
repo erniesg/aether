@@ -3895,6 +3895,11 @@ function EnginePreviewRow({
   const proofLabel = renderPackage
     ? renderPackage.proofArtifactLabels.slice(0, 3).join(' / ') || 'proof artifacts pending'
     : null;
+  const sourcePackage = renderPackage?.sourcePackage ?? null;
+  const dependencyLabel =
+    sourcePackage?.dependencyLabels.slice(0, 4).join(' / ') || null;
+  const scaffoldLabel = sourcePackage?.scaffoldCommandLabels[0] ?? null;
+  const setupLabel = sourcePackage?.setupCommandLabels[0] ?? null;
 
   return (
     <div className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2">
@@ -3923,6 +3928,19 @@ function EnginePreviewRow({
           </div>
           <div className="truncate">verify: {verificationLabel}</div>
           <div className="truncate">proof: {proofLabel}</div>
+          {sourcePackage ? (
+            <div className="rounded-sm border border-border-soft bg-surface-canvas/70 px-2 py-2">
+              <div className="flex flex-wrap items-center gap-1">
+                <Chip tone="neutral" size="sm">
+                  source setup
+                </Chip>
+                <span className="truncate">{sourcePackage.runtimeRequirement}</span>
+              </div>
+              {dependencyLabel ? <div className="mt-1 truncate">{dependencyLabel}</div> : null}
+              {scaffoldLabel ? <div className="mt-1 truncate">{scaffoldLabel}</div> : null}
+              {setupLabel ? <div className="mt-1 truncate">{setupLabel}</div> : null}
+            </div>
+          ) : null}
           <div className="truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
             {renderPackage.manifestPath}
           </div>

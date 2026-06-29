@@ -934,7 +934,50 @@ const previewPlan: MotionPreviewPlan = {
           'renders/motion-aether-launch/export-x-9x16/poster.png',
           'renders/motion-aether-launch/export-x-9x16/manifest.json',
         ],
-        sourcePackage: null,
+        sourcePackage: {
+          kind: 'editable-motion-source',
+          engine: 'remotion',
+          projectRoot: '.',
+          runtimeRequirement: 'Node.js with Remotion CLI support',
+          sourceWriteOrder: [
+            'DESIGN.md',
+            'SCRIPT.md',
+            'STORYBOARD.md',
+            'timeline/draft-primary.json',
+            'EDIT.md',
+            'remotion/index.tsx',
+          ],
+          dependencyHints: [
+            {
+              packageName: 'remotion',
+              role: 'Remotion CLI render and studio preview',
+              required: true,
+            },
+            {
+              packageName: '@remotion/media',
+              role: 'Audio and video primitives used by generated sources',
+              required: true,
+            },
+          ],
+          dependencyLabels: ['remotion', '@remotion/media', 'react', 'react-dom'],
+          scaffoldCommands: [
+            {
+              id: 'scaffold-remotion-blank',
+              label: 'Create a blank Remotion source workspace',
+              display:
+                'npx create-video@latest --yes --blank --no-tailwind motion-render-source',
+            },
+          ],
+          setupCommands: [
+            {
+              id: 'setup-remotion-dependencies',
+              label: 'Install Remotion render dependencies',
+              display: 'npm install remotion @remotion/media react react-dom',
+            },
+          ],
+          scaffoldCommandLabels: ['Create a blank Remotion source workspace'],
+          setupCommandLabels: ['Install Remotion render dependencies'],
+        },
         action: {
           id: 'verify-render-package-remotion',
           label: 'Verify Remotion package',
@@ -2491,6 +2534,11 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Open Remotion Studio')).toBeInTheDocument();
     expect(screen.getByText('verify: Render one-frame layout check')).toBeInTheDocument();
     expect(screen.getByText('proof: MP4 / Poster / Manifest')).toBeInTheDocument();
+    expect(screen.getByText('source setup')).toBeInTheDocument();
+    expect(screen.getByText('Node.js with Remotion CLI support')).toBeInTheDocument();
+    expect(screen.getByText('remotion / @remotion/media / react / react-dom')).toBeInTheDocument();
+    expect(screen.getByText('Create a blank Remotion source workspace')).toBeInTheDocument();
+    expect(screen.getByText('Install Remotion render dependencies')).toBeInTheDocument();
     expect(
       screen.getByText(
         'renders/motion-aether-launch/render-plan-motion-aether-launch-draft-primary-remotion.source-manifest.json'
