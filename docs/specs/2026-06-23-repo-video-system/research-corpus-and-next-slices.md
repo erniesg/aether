@@ -162,8 +162,10 @@ Aether now has the right backbone:
    execution history and move the next capability setup action. The saved
    full-auto route can now run setup-only receipt saves for local-app,
    computer-use, visual-source, image-to-video, voice, and render readiness
-   without executing the expensive production gate; end-to-end provider-backed
-   artifact generation remains follow-up.
+   without executing the expensive production gate. A command-backed voice
+   provider can now execute narration/word-timing/transcript generation when a
+   local TTS command is configured; full end-to-end provider-backed visual and
+   render artifact generation remains follow-up.
 3. **Preview editing depth.** The timeline lens now has a source-backed preview
    shell with frame scrubbing, component focus, a same-shell Remotion Player,
    and a sandboxed HyperFrames iframe. Capture-source replacement now works for

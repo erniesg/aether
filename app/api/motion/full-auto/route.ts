@@ -46,6 +46,7 @@ import {
   resolveVoiceProvider,
   VoiceProviderUnavailableError,
 } from '@/lib/providers/voice/registry';
+import { ensureConfiguredVoiceProviders } from '@/lib/providers/voice/configured';
 import type { MotionRenderEngine, MotionRenderProvider } from '@/lib/providers/video/types';
 import {
   listMotionRenderProviders,
@@ -83,6 +84,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  ensureConfiguredVoiceProviders();
   ensureConfiguredMotionRenderProviders();
 
   let body: MotionFullAutoRequestBody;

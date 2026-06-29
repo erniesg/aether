@@ -205,7 +205,15 @@
   narration/word-timing/transcript handoffs when no voice provider is
   configured, returns timeline blockers before provider resolution, and applies
   completed audio/timing receipts back into voice and caption clips when an
-  opt-in provider is available.
+  opt-in provider is available. The route now bootstraps env-configured voice
+  providers before planning.
+- `lib/providers/voice/command.ts` and `configured.ts` provide the first
+  concrete voice adapter. It registers `voice-command` only when
+  `AETHER_VOICE_SYNTHESIS_PROJECT_DIR` and `AETHER_VOICE_SYNTHESIS_COMMAND`
+  are configured, writes a request payload under `.aether/voice-requests/`,
+  invokes the command with that payload path, accepts structured JSON stdout or
+  verifies expected artifact files, and returns typed audio, word-timing, and
+  transcript receipts.
 - Agent-native `/api/motion/sync` route that accepts an editable motion project
   and returns beat markers, caption/voice timing links, transition cues, sound
   cues, blockers, and refreshed review/preview plans for final sync review.
@@ -333,7 +341,8 @@
 - Voiceover handoff planning that converts voice-line timeline clips into
   narration requests with expected audio, word-timing, and transcript receipts.
 - Opt-in motion voice provider registry for TTS and alignment adapters without
-  hardcoding a vendor.
+  hardcoding a vendor, plus a command adapter for local or vendor-specific TTS
+  tools.
 - Voice-result application that turns audio, word-timing, and transcript
   receipts into editable voice/caption timeline props and a completed voice
   graph node.

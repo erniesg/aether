@@ -351,7 +351,9 @@ capture, render, and provenance debugging.
   handoffs through an agent-native JSON boundary: callers send an editable
   project plus voice request or clip ids and receive provider-required
   narration requests, timeline blockers, or completed audio, word-timing, and
-  transcript receipts applied back into voice and caption timeline clips.
+  transcript receipts applied back into voice and caption timeline clips. It
+  bootstraps configured voice providers before planning so review and
+  full-auto routes see the same provider inventory.
 - `app/api/motion/sync/route.ts` now exposes timeline sync planning through an
   agent-native JSON boundary: callers send an editable project and receive beat
   markers, caption/voice timing links, transition cues, sound cues, blockers,
@@ -477,7 +479,12 @@ capture, render, and provenance debugging.
   transcript artifacts so captions and render duration can sync against real
   voice receipts later.
 - `lib/providers/voice/*` now defines an opt-in voice synthesis provider
-  contract and registry without hardcoding a TTS vendor.
+  contract and registry without hardcoding a TTS vendor. The first concrete
+  adapter is `voice-command`, configured through
+  `AETHER_VOICE_SYNTHESIS_PROJECT_DIR`, `AETHER_VOICE_SYNTHESIS_COMMAND`, and
+  optional `AETHER_VOICE_SYNTHESIS_ARGS`; it writes a JSON synthesis payload
+  for any local Kokoro/ElevenLabs/OpenAI/custom TTS command and ingests audio,
+  word timing, and transcript artifacts.
 - `lib/motion/voiceApply.ts` now converts voice synthesis receipts back into
   editable voice and caption timeline clips, attaching audio, word-timing, and
   transcript asset refs for later render/caption sync.
@@ -597,13 +604,14 @@ capture, render, and provenance debugging.
 - `lib/canvas/dropVideo.ts` already drops rendered videos onto the tldraw canvas.
 - `lib/providers/video/*` currently covers video understanding, render
   provider contracts, command render runners, and image-to-video provider
-  planning/registry, `lib/providers/voice/*` covers voice provider contracts,
+  planning/registry, `lib/providers/voice/*` covers voice provider contracts
+  plus an opt-in command voice synthesis adapter,
   and `lib/providers/source-author/*` covers provider-neutral source authoring
   plus an opt-in Anthropic source-author adapter when `ANTHROPIC_API_KEY` and
-  `AETHER_MOTION_SOURCE_AUTHOR_MODEL` are configured. Text-to-video, TTS
-  execution, image-to-video provider execution, engine dependency/project
-  scaffolding, and higher-fidelity visual component libraries remain future
-  adapter work.
+  `AETHER_MOTION_SOURCE_AUTHOR_MODEL` are configured. Text-to-video,
+  hosted/vendor TTS adapters, image-to-video provider execution, engine
+  dependency/project scaffolding, and higher-fidelity visual component
+  libraries remain future adapter work.
 - `convex/schema.ts` already has `sourceItem.kind = repo`, `creatorReference`
   support for video, and `asset` storage, but `asset.kind` lacks first-class
   video, audio, subtitle, poster, and motion-project variants.

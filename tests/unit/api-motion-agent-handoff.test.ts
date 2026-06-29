@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildMotionRenderRequest } from '@/lib/motion/renderExecution';
 import { buildMotionRenderPlan } from '@/lib/motion/renderPlan';
@@ -18,6 +18,7 @@ import type {
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
 import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
+import { resetConfiguredVoiceProvidersForTests } from '@/lib/providers/voice/configured';
 import type { CaptureRequest, CaptureResult } from '@/lib/providers/capture/types';
 import type {
   VoiceProvider,
@@ -32,6 +33,15 @@ import type {
   MotionRenderRequest,
   MotionRenderResult,
 } from '@/lib/providers/video/types';
+
+const VOICE_ENV_KEYS = [
+  'AETHER_VOICE_SYNTHESIS_PROJECT_DIR',
+  'AETHER_VOICE_SYNTHESIS_COMMAND',
+  'AETHER_VOICE_SYNTHESIS_ARGS',
+] as const;
+const ORIGINAL_VOICE_ENV = Object.fromEntries(
+  VOICE_ENV_KEYS.map((key) => [key, process.env[key]])
+);
 
 const captureRunnerMock = vi.hoisted(() => {
   const captureCalls: CaptureRequest[] = [];
@@ -296,8 +306,14 @@ async function startLocalRepoProject(mode: 'review' | 'full-auto' = 'full-auto')
 describe('POST /api/motion/agent-handoff', () => {
   const unregister: Array<() => void> = [];
 
+  beforeEach(() => {
+    clearVoiceEnv();
+  });
+
   afterEach(async () => {
     while (unregister.length > 0) unregister.pop()?.();
+    resetConfiguredVoiceProvidersForTests();
+    restoreVoiceEnv();
     captureRunnerMock.captureCalls.splice(0);
     captureRunnerMock.createLocalAppLauncher.mockClear();
     captureRunnerMock.launchApp.mockClear();
@@ -1538,3 +1554,17 @@ describe('POST /api/motion/agent-handoff', () => {
     });
   });
 });
+
+function clearVoiceEnv(): void {
+  for (const key of VOICE_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreVoiceEnv(): void {
+  for (const key of VOICE_ENV_KEYS) {
+    const original = ORIGINAL_VOICE_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}

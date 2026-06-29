@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyCaptureResultToMotionProject } from '@/lib/motion/captureApply';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
@@ -13,6 +13,7 @@ import { resetConfiguredMotionRenderProvidersForTests } from '@/lib/providers/vi
 import { registerMotionImageToVideoProvider } from '@/lib/providers/video/generation-registry';
 import { registerMotionRenderProvider } from '@/lib/providers/video/render-registry';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
+import { resetConfiguredVoiceProvidersForTests } from '@/lib/providers/voice/configured';
 import type {
   VoiceProvider,
   VoiceSynthesisRequest,
@@ -34,6 +35,15 @@ const RENDER_ENV_KEYS = [
 ] as const;
 const ORIGINAL_RENDER_ENV = Object.fromEntries(
   RENDER_ENV_KEYS.map((key) => [key, process.env[key]])
+);
+
+const VOICE_ENV_KEYS = [
+  'AETHER_VOICE_SYNTHESIS_PROJECT_DIR',
+  'AETHER_VOICE_SYNTHESIS_COMMAND',
+  'AETHER_VOICE_SYNTHESIS_ARGS',
+] as const;
+const ORIGINAL_VOICE_ENV = Object.fromEntries(
+  VOICE_ENV_KEYS.map((key) => [key, process.env[key]])
 );
 
 const captureRunnerMock = vi.hoisted(() => {
@@ -328,10 +338,16 @@ function renderResultFor(request: MotionRenderRequest): MotionRenderResult {
 describe('POST /api/motion/full-auto', () => {
   const unregister: Array<() => void> = [];
 
+  beforeEach(() => {
+    clearVoiceEnv();
+  });
+
   afterEach(() => {
     while (unregister.length > 0) unregister.pop()?.();
     resetConfiguredMotionRenderProvidersForTests();
+    resetConfiguredVoiceProvidersForTests();
     restoreRenderEnv();
+    restoreVoiceEnv();
   });
 
   it('returns a saved full-auto pause with production, review, and preview plans', async () => {
@@ -1225,6 +1241,20 @@ describe('POST /api/motion/full-auto', () => {
 function restoreRenderEnv(): void {
   for (const key of RENDER_ENV_KEYS) {
     const original = ORIGINAL_RENDER_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}
+
+function clearVoiceEnv(): void {
+  for (const key of VOICE_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreVoiceEnv(): void {
+  for (const key of VOICE_ENV_KEYS) {
+    const original = ORIGINAL_VOICE_ENV[key];
     if (original === undefined) delete process.env[key];
     else process.env[key] = original;
   }

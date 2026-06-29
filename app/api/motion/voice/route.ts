@@ -12,6 +12,7 @@ import {
   resolveVoiceProvider,
   VoiceProviderUnavailableError,
 } from '@/lib/providers/voice/registry';
+import { ensureConfiguredVoiceProviders } from '@/lib/providers/voice/configured';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  ensureConfiguredVoiceProviders();
+
   let body: MotionVoiceRequestBody;
   try {
     const parsed = await request.json();

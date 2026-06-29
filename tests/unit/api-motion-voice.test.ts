@@ -1,13 +1,23 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MotionProject } from '@/lib/motion/project';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 import { registerVoiceProvider } from '@/lib/providers/voice/registry';
+import { resetConfiguredVoiceProvidersForTests } from '@/lib/providers/voice/configured';
 import type {
   VoiceProvider,
   VoiceSynthesisRequest,
   VoiceSynthesisResult,
 } from '@/lib/providers/voice/types';
+
+const VOICE_ENV_KEYS = [
+  'AETHER_VOICE_SYNTHESIS_PROJECT_DIR',
+  'AETHER_VOICE_SYNTHESIS_COMMAND',
+  'AETHER_VOICE_SYNTHESIS_ARGS',
+] as const;
+const ORIGINAL_VOICE_ENV = Object.fromEntries(
+  VOICE_ENV_KEYS.map((key) => [key, process.env[key]])
+);
 
 function baseProject(): MotionProject {
   return buildRepoLaunchMotionProject({
@@ -65,8 +75,14 @@ function resultFor(request: VoiceSynthesisRequest): VoiceSynthesisResult {
 describe('POST /api/motion/voice', () => {
   const unregister: Array<() => void> = [];
 
+  beforeEach(() => {
+    clearVoiceEnv();
+  });
+
   afterEach(() => {
     while (unregister.length > 0) unregister.pop()?.();
+    resetConfiguredVoiceProvidersForTests();
+    restoreVoiceEnv();
   });
 
   it('returns provider-required voice handoffs with timing and expected artifacts', async () => {
@@ -217,6 +233,44 @@ describe('POST /api/motion/voice', () => {
     expect(synthesize).not.toHaveBeenCalled();
   });
 
+  it('lists env-configured command voice providers before synthesis execution', async () => {
+    process.env.AETHER_VOICE_SYNTHESIS_PROJECT_DIR = '/repo';
+    process.env.AETHER_VOICE_SYNTHESIS_COMMAND = 'node';
+    process.env.AETHER_VOICE_SYNTHESIS_ARGS = 'scripts/tts.mjs';
+
+    const { POST } = await import('@/app/api/motion/voice/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: baseProject(),
+          requestedAt: 904,
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      status: 'blocked',
+      voicePlan: {
+        status: 'needs-timeline',
+        blockers: [{ id: 'voice-track-required' }],
+      },
+      selectedRequests: [],
+      voiceResults: [],
+      providers: [
+        {
+          id: 'voice-command',
+          displayName: 'Command voice synthesis',
+          available: true,
+        },
+      ],
+    });
+  });
+
   it('rejects malformed voice requests', async () => {
     const { POST } = await import('@/app/api/motion/voice/route');
     const missingProject = await POST(
@@ -260,3 +314,17 @@ describe('POST /api/motion/voice', () => {
     expect(badJson.status).toBe(400);
   });
 });
+
+function clearVoiceEnv(): void {
+  for (const key of VOICE_ENV_KEYS) {
+    delete process.env[key];
+  }
+}
+
+function restoreVoiceEnv(): void {
+  for (const key of VOICE_ENV_KEYS) {
+    const original = ORIGINAL_VOICE_ENV[key];
+    if (original === undefined) delete process.env[key];
+    else process.env[key] = original;
+  }
+}
