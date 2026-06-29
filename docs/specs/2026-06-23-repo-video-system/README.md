@@ -211,10 +211,10 @@ capture, render, and provenance debugging.
    capture through a trusted agent runner so repo/app starts can launch local
    apps, take screenshots, record flows, save DOM/trace receipts, and feed
    `app-frame` clips.
-6. **Interactive-demo metadata.** Add provider-neutral hotspot, callout, branch,
-   chapter, link, and analytics marker primitives so Arcade-style interactive
-   demos can share the same video plan/timeline before an interactive export
-   exists.
+6. **Interactive-demo metadata.** Initial provider-neutral markers now derive
+   chapters, product hotspots, draft branches, CTA links, and export analytics
+   from the video plan/timeline. Next, add explicit authoring and an
+   interactive export adapter for Arcade-style demos.
 7. **Render verification receipts.** Store snapshots/contact sheets, MP4 probe
    metadata, poster proof, subtitles, transcripts, and manifest checks as first
    class graph nodes before export.
@@ -498,6 +498,10 @@ capture, render, and provenance debugging.
   pack proof objects. The timeline lens surfaces those objects inside the same
   creator shell so review mode can pause on them and full-auto mode still
   leaves editable handles after a run.
+- Preview plans now include an interactive-demo marker summary derived from the
+  same motion object: story chapters, product hotspots, alternate-draft
+  branches, CTA links, and export analytics markers. The timeline lens surfaces
+  those as creator-facing metadata while the first export remains a flat video.
 - `lib/motion/referencePatterns.ts` now records reusable product-video patterns
   that came out of the launch/demo research pass: launch hooks, real product
   capture, screen zoom callouts, caption-led social cuts, proof receipts,

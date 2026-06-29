@@ -553,6 +553,89 @@ const previewPlan: MotionPreviewPlan = {
     provenance: [{ kind: 'repo', ref: 'https://github.com/erniesg/aether' }],
     requestedAt: 130,
   },
+  interactiveDemo: {
+    status: 'ready',
+    markerCount: 6,
+    chapterCount: 2,
+    hotspotCount: 1,
+    branchCount: 1,
+    linkCount: 1,
+    analyticsCount: 1,
+    markerLabels: [
+      'Launch chapter',
+      'Demo chapter',
+      'App frame hotspot',
+      'Branch to Demo-first cut',
+      'Open aether',
+      'Track x 9:16 completion',
+    ],
+    nextActionLabels: ['Review interactive markers', 'Export flat video with metadata'],
+    markers: [
+      {
+        id: 'interactive-chapter-beat-hook',
+        kind: 'chapter',
+        label: 'Launch chapter',
+        timeSeconds: 0,
+        durationSeconds: 3,
+        beatId: 'beat-hook',
+        clipId: 'clip-beat-hook-text',
+        componentLabel: 'Hook card',
+        metadataLabels: ['Hook card'],
+      },
+      {
+        id: 'interactive-chapter-beat-demo',
+        kind: 'chapter',
+        label: 'Demo chapter',
+        timeSeconds: 3,
+        durationSeconds: 8,
+        beatId: 'beat-demo',
+        clipId: 'clip-beat-demo-text',
+        componentLabel: 'App frame',
+        metadataLabels: ['App frame'],
+      },
+      {
+        id: 'interactive-hotspot-clip-beat-demo-text',
+        kind: 'hotspot',
+        label: 'App frame hotspot',
+        timeSeconds: 4,
+        durationSeconds: 3,
+        clipId: 'clip-beat-demo-text',
+        componentLabel: 'App frame',
+        targetLabel: 'Review draft variations before full auto',
+        metadataLabels: ['flat video compatible', 'capture'],
+      },
+      {
+        id: 'interactive-branch-draft-demo-first',
+        kind: 'branch',
+        label: 'Branch to Demo-first cut',
+        timeSeconds: 0,
+        durationSeconds: 0,
+        targetDraftId: 'draft-demo-first',
+        targetLabel: 'Demo-first cut',
+        metadataLabels: ['branch option'],
+      },
+      {
+        id: 'interactive-link-beat-cta',
+        kind: 'link',
+        label: 'Open aether',
+        timeSeconds: 24,
+        durationSeconds: 4,
+        beatId: 'beat-cta',
+        href: 'https://aether.local/demo',
+        targetLabel: 'aether',
+        metadataLabels: ['cta'],
+      },
+      {
+        id: 'interactive-analytics-x-9-16-30s',
+        kind: 'analytics',
+        label: 'Track x 9:16 completion',
+        timeSeconds: 30,
+        durationSeconds: 0,
+        targetFormat: 'x 9:16 30s',
+        metadataLabels: ['export analytics'],
+      },
+    ],
+  },
   referenceSignals: [
     {
       id: 'hyperframes-launch-video-gallery',
@@ -2209,6 +2292,15 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
     expect(screen.getByText('capability plan')).toBeInTheDocument();
     expect(screen.getAllByText('review mode').length).toBeGreaterThan(0);
+    expect(screen.getByText('interactive demo')).toBeInTheDocument();
+    expect(screen.getByText('6 markers')).toBeInTheDocument();
+    expect(screen.getByText('2 chapters')).toBeInTheDocument();
+    expect(screen.getByText('1 hotspot')).toBeInTheDocument();
+    expect(screen.getByText('1 branch')).toBeInTheDocument();
+    expect(screen.getByText('1 link')).toBeInTheDocument();
+    expect(screen.getByText('App frame hotspot')).toBeInTheDocument();
+    expect(screen.getByText('Branch to Demo-first cut')).toBeInTheDocument();
+    expect(screen.getByText('Track x 9:16 completion')).toBeInTheDocument();
     expect(screen.getByText('workflow mode')).toBeInTheDocument();
     expect(screen.getAllByText('review gates').length).toBeGreaterThan(0);
     expect(screen.getByText('Review gates')).toBeInTheDocument();

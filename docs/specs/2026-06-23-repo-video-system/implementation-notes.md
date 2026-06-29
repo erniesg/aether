@@ -433,6 +433,11 @@
   adapters/classes for those primitives, and the website-to-video taste corpus
   keeps public playback as an explicit follow-up instead of treating source
   research as finished video review.
+- Preview plans now derive an interactive-demo marker summary from the current
+  motion object: story chapters, product hotspots, alternate-draft branches,
+  CTA links, and export analytics markers. The timeline lens shows these
+  markers as creator-facing metadata so a flat video project can later grow an
+  interactive export without rebuilding the plan.
 
 ## Next Slices
 

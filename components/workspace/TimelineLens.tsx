@@ -480,6 +480,10 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionInteractiveDemoStrip summary={previewPlan.interactiveDemo} />
+      </section>
+
       {previewPlan.agentRunbook ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionAgentPlanStrip runbook={previewPlan.agentRunbook} />
@@ -2607,6 +2611,70 @@ function MotionWorkflowSkillStrip({
               );
             })}
           </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MotionInteractiveDemoStrip({
+  summary,
+}: {
+  summary: MotionPreviewPlan['interactiveDemo'];
+}) {
+  const primaryCounts = [
+    formatCount(summary.markerCount, 'marker'),
+    formatCount(summary.chapterCount, 'chapter'),
+    formatCount(summary.hotspotCount, 'hotspot'),
+    formatCount(summary.branchCount, 'branch'),
+    formatCount(summary.linkCount, 'link'),
+  ].filter((label) => !label.startsWith('0 '));
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            interactive demo
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {summary.nextActionLabels[0] ?? 'Review interactive markers'}
+          </div>
+        </div>
+        <Chip tone={summary.status === 'ready' ? 'ok' : 'neutral'} size="sm">
+          {formatCount(summary.markerCount, 'marker')}
+        </Chip>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {primaryCounts.slice(1).map((label) => (
+          <Chip key={label} tone="neutral" size="sm">
+            {label}
+          </Chip>
+        ))}
+      </div>
+      {summary.markers.length > 0 ? (
+        <div className="mt-2 grid gap-2 md:grid-cols-3 xl:grid-cols-5">
+          {summary.markers.slice(0, 6).map((marker) => (
+            <div
+              key={marker.id}
+              className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
+                {marker.kind}
+              </div>
+              <div className="mt-1 truncate font-caption text-xs text-ink">{marker.label}</div>
+              <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-wide text-ink-dim">
+                {formatPreviewTime(marker.timeSeconds)} / {formatPreviewDuration(marker.durationSeconds)}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {marker.metadataLabels.slice(0, 3).map((label) => (
+                  <Chip key={label} tone="neutral" size="sm">
+                    {label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : null}
     </div>

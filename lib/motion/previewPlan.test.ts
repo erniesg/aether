@@ -358,6 +358,57 @@ describe('buildMotionPreviewPlan', () => {
         'captions align to voice',
       ]),
     });
+    expect(preview.interactiveDemo).toMatchObject({
+      status: 'ready',
+      chapterCount: 6,
+      hotspotCount: 1,
+      branchCount: 2,
+      linkCount: 1,
+      analyticsCount: 1,
+      markerLabels: expect.arrayContaining([
+        'Demo chapter',
+        'App frame hotspot',
+        'Branch to Demo-first cut',
+        'Open aether',
+        'Track x 9:16 completion',
+      ]),
+    });
+    expect(preview.interactiveDemo.markers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'chapter',
+          beatId: 'beat-demo',
+          clipId: 'clip-beat-demo-text',
+          label: 'Demo chapter',
+          timeSeconds: 12,
+          durationSeconds: 8,
+          metadataLabels: expect.arrayContaining(['App frame']),
+        }),
+        expect.objectContaining({
+          kind: 'hotspot',
+          clipId: 'clip-beat-demo-text',
+          label: 'App frame hotspot',
+          targetLabel: 'Show aether in use, with the product flow framed clearly.',
+          metadataLabels: expect.arrayContaining(['flat video compatible']),
+        }),
+        expect.objectContaining({
+          kind: 'branch',
+          targetDraftId: 'draft-demo-first',
+          label: 'Branch to Demo-first cut',
+        }),
+        expect.objectContaining({
+          kind: 'link',
+          beatId: 'beat-cta',
+          label: 'Open aether',
+          href: 'https://github.com/erniesg/aether',
+        }),
+        expect.objectContaining({
+          kind: 'analytics',
+          targetFormat: 'x 9:16 30s',
+          label: 'Track x 9:16 completion',
+        }),
+      ])
+    );
     const referenceSignals: MotionPreviewReferenceSignal[] = preview.referenceSignals;
     expect(referenceSignals?.map((signal) => signal.title).slice(0, 3)).toEqual([
       'HyperFrames launch video source gallery',

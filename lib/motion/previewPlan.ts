@@ -787,6 +787,45 @@ export interface MotionPreviewReferenceSignal {
   actions: MotionPreviewReferenceSignalAction[];
 }
 
+export type MotionPreviewInteractiveMarkerKind =
+  | 'chapter'
+  | 'hotspot'
+  | 'callout'
+  | 'branch'
+  | 'link'
+  | 'analytics';
+
+export type MotionPreviewInteractiveDemoStatus = 'ready' | 'empty';
+
+export interface MotionPreviewInteractiveMarker {
+  id: string;
+  kind: MotionPreviewInteractiveMarkerKind;
+  label: string;
+  timeSeconds: number;
+  durationSeconds: number;
+  beatId?: string;
+  clipId?: string;
+  componentLabel?: string;
+  targetLabel?: string;
+  targetDraftId?: string;
+  targetFormat?: string;
+  href?: string;
+  metadataLabels: string[];
+}
+
+export interface MotionPreviewInteractiveDemoSummary {
+  status: MotionPreviewInteractiveDemoStatus;
+  markerCount: number;
+  chapterCount: number;
+  hotspotCount: number;
+  branchCount: number;
+  linkCount: number;
+  analyticsCount: number;
+  markerLabels: string[];
+  nextActionLabels: string[];
+  markers: MotionPreviewInteractiveMarker[];
+}
+
 export interface MotionPreviewPlan {
   id: string;
   projectId: string;
@@ -814,6 +853,7 @@ export interface MotionPreviewPlan {
   renderProofSummary: MotionPreviewRenderProofSummary;
   canvasMaterialPlan: MotionCanvasMaterialPlan;
   referenceGrammar: MotionReferenceGrammarPlan;
+  interactiveDemo: MotionPreviewInteractiveDemoSummary;
   referenceSignals: MotionPreviewReferenceSignal[];
   tasteReferences: MotionPreviewTasteReference[];
   visualSourcingSummary: MotionPreviewVisualSourcingSummary;
@@ -879,6 +919,15 @@ export function buildMotionPreviewPlan(
   const editableComponents = buildEditableComponents(tracks);
   const regenerationActions = buildRegenerationActions(editableComponents);
   const videoPlan = buildVideoPlan(reviewPlan, timelineRows, regenerationActions);
+  const draftOptions = reviewPlan.drafts.map((draft) => ({
+    draftId: draft.draftId,
+    label: draft.label,
+    angle: draft.angle,
+    status: draft.status,
+    isCurrent: draft.isCurrent,
+    durationSeconds: draft.durationSeconds,
+    roles: draft.roles,
+  }));
   const syncPlan = buildMotionSyncPlan(project, {
     draftId: project.currentDraftId,
     fps,
@@ -965,15 +1014,7 @@ export function buildMotionPreviewPlan(
       componentId: beat.componentId,
       sourceRefs: beat.sourceRefs,
     })),
-    draftOptions: reviewPlan.drafts.map((draft) => ({
-      draftId: draft.draftId,
-      label: draft.label,
-      angle: draft.angle,
-      status: draft.status,
-      isCurrent: draft.isCurrent,
-      durationSeconds: draft.durationSeconds,
-      roles: draft.roles,
-    })),
+    draftOptions,
     timelineRows,
     editableComponents,
     regenerationActions,
@@ -987,6 +1028,7 @@ export function buildMotionPreviewPlan(
     renderProofSummary,
     canvasMaterialPlan,
     referenceGrammar,
+    interactiveDemo: buildInteractiveDemoSummary(project, reviewPlan, tracks, timelineRows, draftOptions),
     referenceSignals,
     tasteReferences,
     visualSourcingSummary: buildVisualSourcingSummary(visualSourcingPlan),
@@ -1053,6 +1095,187 @@ function modeControlOption(
       ? ['review gates', 'draft approval', 'updated preview plan']
       : ['full-auto gates', 'execution receipt', 'updated preview plan'],
   };
+}
+
+function buildInteractiveDemoSummary(
+  project: MotionProject,
+  reviewPlan: MotionReviewPlan,
+  tracks: TimelineTrack[],
+  timelineRows: MotionPreviewTimelineRow[],
+  draftOptions: MotionPreviewDraftOption[]
+): MotionPreviewInteractiveDemoSummary {
+  const markers: MotionPreviewInteractiveMarker[] = [
+    ...chapterInteractiveMarkers(reviewPlan, timelineRows),
+    ...hotspotInteractiveMarkers(tracks),
+    ...branchInteractiveMarkers(draftOptions),
+    ...linkInteractiveMarkers(project, reviewPlan, timelineRows),
+    ...analyticsInteractiveMarkers(project, reviewPlan.summary.totalSeconds),
+  ];
+
+  return {
+    status: markers.length > 0 ? 'ready' : 'empty',
+    markerCount: markers.length,
+    chapterCount: markers.filter((marker) => marker.kind === 'chapter').length,
+    hotspotCount: markers.filter((marker) => marker.kind === 'hotspot').length,
+    branchCount: markers.filter((marker) => marker.kind === 'branch').length,
+    linkCount: markers.filter((marker) => marker.kind === 'link').length,
+    analyticsCount: markers.filter((marker) => marker.kind === 'analytics').length,
+    markerLabels: markers.map((marker) => marker.label),
+    nextActionLabels:
+      markers.length > 0
+        ? ['Review interactive markers', 'Export flat video with metadata']
+        : ['Add product captures or CTA links'],
+    markers,
+  };
+}
+
+function chapterInteractiveMarkers(
+  reviewPlan: MotionReviewPlan,
+  timelineRows: MotionPreviewTimelineRow[]
+): MotionPreviewInteractiveMarker[] {
+  return reviewPlan.storyBeats.flatMap((beat): MotionPreviewInteractiveMarker[] => {
+    const clip = findVisualClipForBeat(timelineRows, beat.beatId);
+    if (!clip) return [];
+
+    return [
+      {
+        id: `interactive-chapter-${beat.beatId}`,
+        kind: 'chapter',
+        label: `${titleReadableLabel(beat.role)} chapter`,
+        timeSeconds: clip.startSeconds,
+        durationSeconds: clip.durationSeconds,
+        beatId: beat.beatId,
+        clipId: clip.clipId,
+        componentLabel: clip.componentLabel,
+        targetLabel: beat.narration,
+        metadataLabels: uniqueStrings([
+          clip.componentLabel,
+          readableLabel(beat.role),
+          ...beat.sourceRefs.map((ref) => readableLabel(ref.kind)),
+        ]),
+      },
+    ];
+  });
+}
+
+function hotspotInteractiveMarkers(tracks: TimelineTrack[]): MotionPreviewInteractiveMarker[] {
+  return tracks.flatMap((track) =>
+    track.clips.flatMap((clip): MotionPreviewInteractiveMarker[] => {
+      if (!clip.componentId || !isProductCaptureComponent(clip.componentId)) return [];
+
+      const componentLabel = componentLabelFor(clip.componentId);
+      const role = stringProp(clip.props.role);
+      return [
+        {
+          id: `interactive-hotspot-${clip.id}`,
+          kind: 'hotspot',
+          label: `${componentLabel} hotspot`,
+          timeSeconds: roundSeconds(
+            clip.startFrame + Math.min(DEFAULT_MOTION_FPS, Math.floor(clip.durationFrames / 3))
+          ),
+          durationSeconds: Math.min(3, Math.max(1, roundSeconds(clip.durationFrames))),
+          beatId: storyBeatIdForClip(clip) ?? undefined,
+          clipId: clip.id,
+          componentLabel,
+          targetLabel: clipSummary(clip) || componentLabel,
+          metadataLabels: uniqueStrings([
+            'flat video compatible',
+            readableLabel(role ?? 'capture'),
+            ...(stringProp(clip.props.cursorPath) ? ['cursor path'] : []),
+            ...(clip.assetId ? ['capture asset'] : []),
+          ]),
+        },
+      ];
+    })
+  );
+}
+
+function branchInteractiveMarkers(
+  draftOptions: MotionPreviewDraftOption[]
+): MotionPreviewInteractiveMarker[] {
+  return draftOptions
+    .filter((draft) => !draft.isCurrent)
+    .map((draft) => ({
+      id: `interactive-branch-${markerSlug(draft.draftId)}`,
+      kind: 'branch' as const,
+      label: `Branch to ${draft.label}`,
+      timeSeconds: 0,
+      durationSeconds: 0,
+      targetDraftId: draft.draftId,
+      targetLabel: draft.label,
+      metadataLabels: uniqueStrings([
+        'branch option',
+        `${draft.durationSeconds}s`,
+        ...draft.roles.map(readableLabel),
+      ]),
+    }));
+}
+
+function linkInteractiveMarkers(
+  project: MotionProject,
+  reviewPlan: MotionReviewPlan,
+  timelineRows: MotionPreviewTimelineRow[]
+): MotionPreviewInteractiveMarker[] {
+  const href = project.brief.appProfile.siteUrl ?? project.brief.appProfile.repoUrl;
+  if (!href) return [];
+
+  const ctaBeat = reviewPlan.storyBeats.find((beat) => beat.role === 'cta') ?? null;
+  const ctaClip = ctaBeat ? findVisualClipForBeat(timelineRows, ctaBeat.beatId) : null;
+
+  return [
+    {
+      id: `interactive-link-${ctaBeat?.beatId ?? markerSlug(project.id)}`,
+      kind: 'link',
+      label: `Open ${project.brief.appProfile.name}`,
+      timeSeconds: ctaClip?.startSeconds ?? Math.max(0, reviewPlan.summary.totalSeconds - 3),
+      durationSeconds: ctaClip?.durationSeconds ?? 3,
+      ...(ctaBeat ? { beatId: ctaBeat.beatId } : {}),
+      ...(ctaClip ? { clipId: ctaClip.clipId, componentLabel: ctaClip.componentLabel } : {}),
+      targetLabel: project.brief.appProfile.name,
+      href,
+      metadataLabels: uniqueStrings(['cta', readableLabel(project.brief.projectKind)]),
+    },
+  ];
+}
+
+function analyticsInteractiveMarkers(
+  project: MotionProject,
+  totalSeconds: number
+): MotionPreviewInteractiveMarker[] {
+  return project.brief.platformTargets.map((target) => {
+    const targetFormat = `${target.platform} ${target.aspectRatio} ${target.seconds}s`;
+    return {
+      id: `interactive-analytics-${markerSlug(targetFormat)}`,
+      kind: 'analytics' as const,
+      label: `Track ${target.platform} ${target.aspectRatio} completion`,
+      timeSeconds: totalSeconds,
+      durationSeconds: 0,
+      targetFormat,
+      metadataLabels: ['export analytics', readableLabel(target.platform), target.aspectRatio],
+    };
+  });
+}
+
+function storyBeatIdForClip(clip: TimelineClip): string | null {
+  return clip.provenance.find((ref) => ref.kind === 'story-beat')?.ref ?? null;
+}
+
+function stringProp(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function markerSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function titleReadableLabel(value: string): string {
+  if (value.toLowerCase() === 'cta') return 'CTA';
+  const label = readableLabel(value);
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function buildExecutionHistorySummary(

@@ -180,9 +180,10 @@ Aether now has the right backbone:
 5. **Computer-use recording lane.** Aether can plan and locally run browser
    capture, but desktop/computer-use recording needs explicit low-risk
    workflows, permission boundaries, redaction, and receipt review.
-6. **Interactive-demo compatibility.** Hotspots, chapters, branches, and share
-   links should be stored now so a video project can later export as an
-   interactive demo without rebuilding the story.
+6. **Interactive-demo compatibility.** Preview plans now derive chapters,
+   product hotspots, draft branches, CTA links, and export analytics markers
+   from the same motion object. The remaining work is explicit marker authoring
+   and an interactive export adapter, not a separate demo product path.
 7. **Executable mode switching.** The preview now shows review vs full-auto as
    mode-control choices. Those choices still need a materialized action path:
    restart from the same source refs in a different mode or switch the current
