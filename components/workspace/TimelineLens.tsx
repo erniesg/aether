@@ -42,6 +42,7 @@ import type {
   MotionPreviewDraftOption,
   MotionPreviewExecutionHistory,
   MotionPreviewExecutionHistoryEntry,
+  MotionPreviewExportPackCanvasDropTarget,
   MotionPreviewExportPackSummary,
   MotionPreviewFullAutoReview,
   MotionPreviewPlan,
@@ -105,6 +106,7 @@ export interface TimelineLensProps {
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
+  onDropExportPackToCanvas?: (target: MotionPreviewExportPackCanvasDropTarget) => void;
   onExportPack?: () => void;
   onPlanVisuals?: (requestIds?: string[]) => void;
   onGenerateVideoClips?: (requestIds?: string[]) => void;
@@ -149,6 +151,7 @@ export function TimelineLens({
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
+  onDropExportPackToCanvas,
   onExportPack,
   onPlanVisuals,
   onGenerateVideoClips,
@@ -219,6 +222,7 @@ export function TimelineLens({
             onSelectCapabilitySetup={onSelectCapabilitySetup}
             onDropMotionPlanToCanvas={onDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={onDropRenderProofToCanvas}
+            onDropExportPackToCanvas={onDropExportPackToCanvas}
             onExportPack={onExportPack}
             onPlanVisuals={onPlanVisuals}
             onGenerateVideoClips={onGenerateVideoClips}
@@ -282,6 +286,7 @@ function MotionPreviewPlanView({
   onSelectCapabilitySetup,
   onDropMotionPlanToCanvas,
   onDropRenderProofToCanvas,
+  onDropExportPackToCanvas,
   onExportPack,
   onPlanVisuals,
   onGenerateVideoClips,
@@ -323,6 +328,7 @@ function MotionPreviewPlanView({
   onSelectCapabilitySetup?: (itemId: string) => void;
   onDropMotionPlanToCanvas?: (plan: MotionCanvasMaterialPlan) => void;
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
+  onDropExportPackToCanvas?: (target: MotionPreviewExportPackCanvasDropTarget) => void;
   onExportPack?: () => void;
   onPlanVisuals?: (requestIds?: string[]) => void;
   onGenerateVideoClips?: (requestIds?: string[]) => void;
@@ -460,7 +466,10 @@ function MotionPreviewPlanView({
                 onSyncMotion={onSyncMotion}
               />
             ) : null}
-            <ExportPackSummaryRow summary={previewPlan.exportPackSummary} />
+            <ExportPackSummaryRow
+              summary={previewPlan.exportPackSummary}
+              onDropExportPackToCanvas={onDropExportPackToCanvas}
+            />
             <VisualSourcingSummaryRow summary={previewPlan.visualSourcingSummary} />
             <VisualGenerationSummaryRow summary={previewPlan.visualGenerationSummary} />
             {onGenerateVoice ? (
@@ -2108,7 +2117,7 @@ function MotionRenderProofStrip({
   onDropRenderProofToCanvas?: (target: MotionPreviewRenderProofCanvasDropTarget) => void;
 }) {
   const visibleArtifacts = summary.proofArtifacts.slice(0, 6);
-  const canvasDropTarget = summary.canvasDropTargets[0] ?? null;
+  const canvasDropTarget = summary.canvasDropTargets?.[0] ?? null;
   const actionLabel =
     summary.actionLabels.slice(0, 2).join(' / ') ||
     summary.blockerLabels[0] ||
@@ -4389,7 +4398,14 @@ function formatCount(count: number, singular: string): string {
   return `${count} ${singular}${count === 1 ? '' : 's'}`;
 }
 
-function ExportPackSummaryRow({ summary }: { summary: MotionPreviewExportPackSummary }) {
+function ExportPackSummaryRow({
+  summary,
+  onDropExportPackToCanvas,
+}: {
+  summary: MotionPreviewExportPackSummary;
+  onDropExportPackToCanvas?: (target: MotionPreviewExportPackCanvasDropTarget) => void;
+}) {
+  const canvasDropTarget = summary.canvasDropTargets?.[0] ?? null;
   const targetDetail =
     summary.targetLabels.length > 0
       ? summary.targetLabels.join(' / ')
@@ -4401,12 +4417,23 @@ function ExportPackSummaryRow({ summary }: { summary: MotionPreviewExportPackSum
       : `${summary.canvasDropCount} canvas drops`);
 
   return (
-    <ReadinessRow
-      label="export pack"
-      status={summary.status}
-      detail={`${summary.readyCount}/${summary.totalCount} ready`}
-      note={`${targetDetail}; ${note}`}
-    />
+    <div className="grid gap-1.5">
+      <ReadinessRow
+        label="export pack"
+        status={summary.status}
+        detail={`${summary.readyCount}/${summary.totalCount} ready`}
+        note={`${targetDetail}; ${note}`}
+      />
+      {canvasDropTarget && onDropExportPackToCanvas ? (
+        <button
+          type="button"
+          onClick={() => onDropExportPackToCanvas(canvasDropTarget)}
+          className="rounded-sm border border-border-soft bg-surface-panel px-3 py-2 text-left font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent"
+        >
+          drop export pack on canvas
+        </button>
+      ) : null}
+    </div>
   );
 }
 

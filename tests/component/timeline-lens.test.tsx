@@ -1299,6 +1299,7 @@ const previewPlan: MotionPreviewPlan = {
     totalCount: 1,
     targetLabels: ['x 9:16 planned'],
     canvasDropCount: 0,
+    canvasDropTargets: [],
     missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
     blockerLabels: ['Render every export target before packaging'],
   },
@@ -4503,6 +4504,73 @@ describe('TimelineLens', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /export pack/i }));
     expect(onExportPack).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets creators drop the ready export pack onto the canvas', async () => {
+    const onDropExportPackToCanvas = vi.fn();
+    const readyExportPackPreviewPlan: MotionPreviewPlan = {
+      ...previewPlan,
+      exportPackSummary: {
+        status: 'ready',
+        readyCount: 1,
+        totalCount: 1,
+        targetLabels: ['x 9:16 ready'],
+        canvasDropCount: 1,
+        missingAssetKinds: [],
+        blockerLabels: [],
+        canvasDropTargets: [
+          {
+            artifactLabel: 'Export pack',
+            label: 'x 9:16 MP4',
+            targetLabel: 'x 9:16',
+            url: 'asset://renders/x/video.mp4',
+            path: 'renders/x/video.mp4',
+            width: 1080,
+            height: 1920,
+            mimeType: 'video/mp4',
+            motionProjectId: 'motion-aether-launch',
+            exportId: 'export-x-9x16',
+            assetId: 'render-export-x-9x16-video',
+            posterAssetId: 'render-export-x-9x16-poster',
+            subtitleAssetId: 'render-export-x-9x16-subtitle',
+            transcriptAssetId: 'render-export-x-9x16-transcript',
+            sourceManifestAssetId: 'render-export-x-9x16-manifest',
+            exportPackManifestId: 'export-pack-motion-aether-launch-draft-primary-manifest',
+          },
+        ],
+      },
+    };
+
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={readyExportPackPreviewPlan}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onDropExportPackToCanvas={onDropExportPackToCanvas}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /drop export pack on canvas/i }));
+    expect(onDropExportPackToCanvas).toHaveBeenCalledWith({
+      artifactLabel: 'Export pack',
+      label: 'x 9:16 MP4',
+      targetLabel: 'x 9:16',
+      url: 'asset://renders/x/video.mp4',
+      path: 'renders/x/video.mp4',
+      width: 1080,
+      height: 1920,
+      mimeType: 'video/mp4',
+      motionProjectId: 'motion-aether-launch',
+      exportId: 'export-x-9x16',
+      assetId: 'render-export-x-9x16-video',
+      posterAssetId: 'render-export-x-9x16-poster',
+      subtitleAssetId: 'render-export-x-9x16-subtitle',
+      transcriptAssetId: 'render-export-x-9x16-transcript',
+      sourceManifestAssetId: 'render-export-x-9x16-manifest',
+      exportPackManifestId: 'export-pack-motion-aether-launch-draft-primary-manifest',
+    });
+    expect(screen.queryByText('render-export-x-9x16-video')).not.toBeInTheDocument();
   });
 
   it('lets creators request image-to-video clip generation from the preview plan', async () => {

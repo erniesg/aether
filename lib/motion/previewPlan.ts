@@ -17,6 +17,7 @@ import {
 import {
   buildMotionExportPackPlan,
   type MotionExportPackAssetKind,
+  type MotionExportPackCanvasDrop,
   type MotionExportPackStatus,
 } from './exportPackPlan';
 import {
@@ -580,6 +581,7 @@ export interface MotionPreviewExportPackSummary {
   totalCount: number;
   targetLabels: string[];
   canvasDropCount: number;
+  canvasDropTargets: MotionPreviewExportPackCanvasDropTarget[];
   missingAssetKinds: MotionExportPackAssetKind[];
   blockerLabels: string[];
 }
@@ -614,6 +616,18 @@ export interface MotionPreviewRenderProofCanvasDropTarget {
   height: number;
   mimeType: string;
   motionProjectId: string;
+}
+
+export interface MotionPreviewExportPackCanvasDropTarget
+  extends MotionPreviewRenderProofCanvasDropTarget {
+  exportId: string;
+  assetId: string;
+  posterAssetId: string | null;
+  subtitleAssetId: string | null;
+  transcriptAssetId: string | null;
+  sourceManifestAssetId: string | null;
+  exportPackManifestId: string | null;
+  path: string | null;
 }
 
 export interface MotionPreviewRenderPackageVerification {
@@ -2793,6 +2807,11 @@ function buildSyncSummary(
 function buildExportPackSummary(
   exportPackPlan: ReturnType<typeof buildMotionExportPackPlan>
 ): MotionPreviewExportPackSummary {
+  const canvasDropTargets = buildExportPackCanvasDropTargets(
+    exportPackPlan.projectId,
+    exportPackPlan.items
+  );
+
   return {
     status: exportPackPlan.status,
     readyCount: exportPackPlan.readyCount,
@@ -2800,12 +2819,40 @@ function buildExportPackSummary(
     targetLabels: exportPackPlan.items.map(
       (item) => `${item.platform} ${item.aspectRatio} ${item.status}`
     ),
-    canvasDropCount: exportPackPlan.items.filter((item) => item.canvasDrop).length,
+    canvasDropCount: canvasDropTargets.length,
+    canvasDropTargets,
     missingAssetKinds: uniqueStrings(
       exportPackPlan.items.flatMap((item) => item.missingAssetKinds)
     ) as MotionExportPackAssetKind[],
     blockerLabels: exportPackPlan.blockers.map((blocker) => blocker.label),
   };
+}
+
+function buildExportPackCanvasDropTargets(
+  motionProjectId: string,
+  items: ReturnType<typeof buildMotionExportPackPlan>['items']
+): MotionPreviewExportPackCanvasDropTarget[] {
+  return items
+    .map((item) => item.canvasDrop)
+    .filter((drop): drop is MotionExportPackCanvasDrop => Boolean(drop))
+    .map((drop) => ({
+      artifactLabel: 'Export pack',
+      label: drop.label,
+      targetLabel: drop.targetLabel,
+      url: drop.url,
+      width: drop.width,
+      height: drop.height,
+      mimeType: drop.mimeType,
+      motionProjectId,
+      exportId: drop.exportId,
+      assetId: drop.assetId,
+      posterAssetId: drop.posterAssetId,
+      subtitleAssetId: drop.subtitleAssetId,
+      transcriptAssetId: drop.transcriptAssetId,
+      sourceManifestAssetId: drop.sourceManifestAssetId,
+      exportPackManifestId: drop.exportPackManifestId,
+      path: drop.path,
+    }));
 }
 
 function buildRenderProofSummary(

@@ -726,6 +726,7 @@ describe('buildMotionPreviewPlan', () => {
       totalCount: 1,
       targetLabels: ['x 9:16 planned'],
       canvasDropCount: 0,
+      canvasDropTargets: [],
       missingAssetKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
       blockerLabels: ['Render every export target before packaging'],
     });

@@ -9,6 +9,15 @@ export interface DropVideoParams {
   label?: string;
   /** MotionBrief id for provenance, when the video came from the motion lane. */
   briefId?: string;
+  motionProjectId?: string;
+  exportId?: string;
+  sourceAssetId?: string;
+  posterAssetId?: string;
+  subtitleAssetId?: string;
+  transcriptAssetId?: string;
+  sourceManifestAssetId?: string;
+  exportPackManifestId?: string;
+  targetLabel?: string;
 }
 
 /**
@@ -17,6 +26,7 @@ export interface DropVideoParams {
  */
 export function dropVideoOnCanvas(editor: Editor, params: DropVideoParams): string {
   const assetId = AssetRecordType.createId();
+  const meta = motionAssetMeta(params);
   editor.createAssets([
     {
       id: assetId,
@@ -30,7 +40,7 @@ export function dropVideoOnCanvas(editor: Editor, params: DropVideoParams): stri
         mimeType: params.mimeType ?? 'video/mp4',
         isAnimated: true,
       },
-      meta: {},
+      meta,
     },
   ]);
 
@@ -49,13 +59,32 @@ export function dropVideoOnCanvas(editor: Editor, params: DropVideoParams): stri
     x,
     y,
     props: { assetId, w, h },
-    meta: {
-      aetherRole: 'motion-asset',
-      ...(params.briefId ? { aetherMotionBriefId: params.briefId } : {}),
-    },
+    meta,
   });
 
   editor.select(shapeId);
   editor.zoomToSelection({ animation: { duration: 240 } });
   return shapeId;
+}
+
+function motionAssetMeta(params: DropVideoParams): Record<string, string> {
+  return compactMeta({
+    aetherRole: 'motion-asset',
+    aetherMotionBriefId: params.briefId,
+    aetherMotionProjectId: params.motionProjectId,
+    aetherMotionExportId: params.exportId,
+    aetherMotionSourceAssetId: params.sourceAssetId,
+    aetherMotionPosterAssetId: params.posterAssetId,
+    aetherMotionSubtitleAssetId: params.subtitleAssetId,
+    aetherMotionTranscriptAssetId: params.transcriptAssetId,
+    aetherMotionSourceManifestAssetId: params.sourceManifestAssetId,
+    aetherMotionExportPackManifestId: params.exportPackManifestId,
+    aetherMotionTargetLabel: params.targetLabel,
+  });
+}
+
+function compactMeta(meta: Record<string, string | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(meta).filter((entry): entry is [string, string] => Boolean(entry[1]))
+  );
 }

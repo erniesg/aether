@@ -137,8 +137,20 @@ describe('buildMotionExportPackPlan', () => {
       missingAssetKinds: [],
       canvasDrop: {
         kind: 'video',
+        exportId: 'export-x-9x16',
+        label: 'x 9:16 MP4',
+        targetLabel: 'x 9:16',
         assetId: 'render-export-x-9x16-video',
+        url: 'asset://renders/export-x-9x16/video.mp4',
+        path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+        width: 1080,
+        height: 1920,
+        mimeType: 'video/mp4',
         posterAssetId: 'render-export-x-9x16-poster',
+        subtitleAssetId: 'render-export-x-9x16-subtitle',
+        transcriptAssetId: 'render-export-x-9x16-transcript',
+        sourceManifestAssetId: 'render-export-x-9x16-manifest',
+        exportPackManifestId: null,
       },
     });
     expect(plan.items[1]).toMatchObject({
@@ -176,6 +188,31 @@ describe('buildMotionExportPackPlan', () => {
     });
     expect(plan.items.every((item) => item.status === 'ready')).toBe(true);
     expect(plan.items.every((item) => item.canvasDrop?.kind === 'video')).toBe(true);
+    expect(plan.items[0]?.canvasDrop).toMatchObject({
+      kind: 'video',
+      exportId: 'export-x-9x16',
+      label: 'x 9:16 MP4',
+      targetLabel: 'x 9:16',
+      assetId: 'render-export-x-9x16-video',
+      url: 'asset://renders/export-x-9x16/video.mp4',
+      path: 'renders/motion-aether-launch/export-x-9x16/video.mp4',
+      width: 1080,
+      height: 1920,
+      mimeType: 'video/mp4',
+      posterAssetId: 'render-export-x-9x16-poster',
+      subtitleAssetId: 'render-export-x-9x16-subtitle',
+      transcriptAssetId: 'render-export-x-9x16-transcript',
+      sourceManifestAssetId: 'render-export-x-9x16-manifest',
+      exportPackManifestId: 'export-pack-motion-aether-launch-draft-primary-manifest',
+    });
+    expect(plan.items[1]?.canvasDrop).toMatchObject({
+      exportId: 'export-youtube-16x9',
+      label: 'youtube 16:9 MP4',
+      targetLabel: 'youtube 16:9',
+      width: 1920,
+      height: 1080,
+      exportPackManifestId: 'export-pack-motion-aether-launch-draft-primary-manifest',
+    });
     expect(plan.provenance).toContainEqual({
       kind: 'render',
       ref: 'render-export-x-9x16-video',

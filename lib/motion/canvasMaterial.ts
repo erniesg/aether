@@ -149,19 +149,35 @@ export function buildMotionCanvasMaterialPlan(
     height: PROJECT_CARD_HEIGHT,
   };
 
+  const exportPackDropTarget = input.exportPackSummary.canvasDropTargets?.[0] ?? null;
   const exportPackCard: MotionCanvasMaterialCard = {
     id: `${input.projectId}-${input.draftId}-export-pack`,
     kind: 'export-pack',
     label: 'export pack',
     body: `${input.exportPackSummary.readyCount}/${input.exportPackSummary.totalCount} formats ready`,
-    detailLabels: boundedLabels(input.exportPackSummary.targetLabels, 5),
+    detailLabels: boundedLabels(
+      exportPackDropTarget
+        ? [...input.exportPackSummary.targetLabels, 'canvas ready']
+        : input.exportPackSummary.targetLabels,
+      5
+    ),
     statusLabel: input.exportPackSummary.status.replace(/-/g, ' '),
     actionLabel:
-      input.exportPackSummary.status === 'ready'
+      input.exportPackSummary.status === 'ready' && exportPackDropTarget
+        ? 'drop export pack on canvas'
+        : input.exportPackSummary.status === 'ready'
         ? 'export pack'
         : input.exportPackSummary.blockerLabels[0] ?? 'review export targets',
     width: PROJECT_CARD_WIDTH,
     height: PROJECT_CARD_HEIGHT,
+    ...(exportPackDropTarget
+      ? {
+          sourceRef: exportPackDropTarget.exportPackManifestId ?? exportPackDropTarget.assetId,
+          assetUrl: exportPackDropTarget.url,
+          path: exportPackDropTarget.path ?? undefined,
+          mimeType: exportPackDropTarget.mimeType,
+        }
+      : {}),
   };
 
   const cards = [

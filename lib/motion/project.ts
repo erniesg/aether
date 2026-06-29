@@ -278,6 +278,8 @@ export interface MotionExecutionReceipt {
   assetUrl?: string;
   path?: string;
   mimeType?: string;
+  width?: number;
+  height?: number;
   capture?: MotionExecutionCaptureReceipt;
 }
 

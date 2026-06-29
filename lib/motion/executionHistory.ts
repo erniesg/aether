@@ -825,6 +825,8 @@ function renderReceipt(providerId: string, output: MotionRenderedAsset): MotionE
     assetUrl: output.assetUrl,
     path: output.path,
     mimeType: output.mimeType,
+    width: output.width,
+    height: output.height,
   };
 }
 

@@ -1,5 +1,7 @@
 import type {
   MotionAspectRatio,
+  MotionExecutionHistoryEntry,
+  MotionExecutionReceipt,
   MotionExport,
   MotionPlatform,
   MotionProject,
@@ -26,8 +28,20 @@ export interface BuildMotionExportPackPlanOptions {
 
 export interface MotionExportPackCanvasDrop {
   kind: 'video';
+  exportId: string;
+  label: string;
+  targetLabel: string;
   assetId: string;
+  url: string;
+  path: string | null;
+  width: number;
+  height: number;
+  mimeType: string;
   posterAssetId: string | null;
+  subtitleAssetId: string | null;
+  transcriptAssetId: string | null;
+  sourceManifestAssetId: string | null;
+  exportPackManifestId: string | null;
 }
 
 export interface MotionExportPackItem {
@@ -82,6 +96,7 @@ export function buildMotionExportPackPlan(
   const draftId = options.draftId ?? project.currentDraftId;
   const id = `export-pack-${project.id}-${draftId}`;
   const exports = project.exports;
+  const receiptsByRef = renderReceiptsByRef(project.executionHistory);
 
   if (exports.length === 0) {
     return {
@@ -104,13 +119,28 @@ export function buildMotionExportPackPlan(
     };
   }
 
-  const items = exports.map(toPackItem);
-  const readyItems = items.filter((item) => item.missingAssetKinds.length === 0);
-  const allReady = readyItems.length === items.length;
+  const baseItems = exports.map((motionExport) =>
+    toPackItem(motionExport, receiptsByRef, null)
+  );
+  const readyItems = baseItems.filter((item) => item.missingAssetKinds.length === 0);
+  const allReady = readyItems.length === baseItems.length;
+  const manifest: MotionExportPackManifest | null = allReady
+    ? {
+        id: `${id}-manifest`,
+        path: `export-packs/${project.id}/${draftId}/manifest.json`,
+        mimeType: 'application/json',
+        exportIds: baseItems.map((item) => item.exportId),
+        provenance: [],
+      }
+    : null;
+  const items = manifest
+    ? exports.map((motionExport) => toPackItem(motionExport, receiptsByRef, manifest.id))
+    : baseItems;
   const provenance = uniqueProvenance([
     ...project.sourceRefs,
     ...items.flatMap((item) => item.provenance),
   ]);
+  const manifestWithProvenance = manifest ? { ...manifest, provenance } : null;
 
   return {
     id,
@@ -120,15 +150,7 @@ export function buildMotionExportPackPlan(
     readyCount: readyItems.length,
     totalCount: items.length,
     items,
-    manifest: allReady
-      ? {
-          id: `${id}-manifest`,
-          path: `export-packs/${project.id}/${draftId}/manifest.json`,
-          mimeType: 'application/json',
-          exportIds: items.map((item) => item.exportId),
-          provenance,
-        }
-      : null,
+    manifest: manifestWithProvenance,
     blockers: allReady
       ? []
       : [
@@ -142,8 +164,18 @@ export function buildMotionExportPackPlan(
   };
 }
 
-function toPackItem(motionExport: MotionExport): MotionExportPackItem {
+function toPackItem(
+  motionExport: MotionExport,
+  receiptsByRef: Map<string, MotionExecutionReceipt>,
+  exportPackManifestId: string | null
+): MotionExportPackItem {
   const missingAssetKinds = missingAssetKindsFor(motionExport);
+  const canvasDrop = canvasDropFor(
+    motionExport,
+    missingAssetKinds,
+    receiptsByRef,
+    exportPackManifestId
+  );
 
   return {
     exportId: motionExport.id,
@@ -158,16 +190,63 @@ function toPackItem(motionExport: MotionExport): MotionExportPackItem {
       : {}),
     ...(motionExport.manifestAssetId ? { manifestAssetId: motionExport.manifestAssetId } : {}),
     missingAssetKinds,
-    canvasDrop:
-      missingAssetKinds.length === 0 && motionExport.assetId
-        ? {
-            kind: 'video',
-            assetId: motionExport.assetId,
-            posterAssetId: motionExport.posterAssetId ?? null,
-          }
-        : null,
+    canvasDrop,
     provenance: motionExport.provenance,
   };
+}
+
+function canvasDropFor(
+  motionExport: MotionExport,
+  missingAssetKinds: MotionExportPackAssetKind[],
+  receiptsByRef: Map<string, MotionExecutionReceipt>,
+  exportPackManifestId: string | null
+): MotionExportPackCanvasDrop | null {
+  if (missingAssetKinds.length > 0 || !motionExport.assetId) return null;
+
+  const receipt = receiptsByRef.get(motionExport.assetId) ?? null;
+  if (!receipt?.assetUrl) return null;
+
+  const targetLabel = `${motionExport.platform} ${motionExport.aspectRatio}`;
+  const dimensions = dimensionsForAspectRatio(motionExport.aspectRatio);
+
+  return {
+    kind: 'video',
+    exportId: motionExport.id,
+    label: `${targetLabel} MP4`,
+    targetLabel,
+    assetId: motionExport.assetId,
+    url: receipt.assetUrl,
+    path: receipt.path ?? null,
+    width: receipt.width ?? dimensions.width,
+    height: receipt.height ?? dimensions.height,
+    mimeType: receipt.mimeType ?? 'video/mp4',
+    posterAssetId: motionExport.posterAssetId ?? null,
+    subtitleAssetId: motionExport.subtitleAssetId ?? null,
+    transcriptAssetId: motionExport.transcriptAssetId ?? null,
+    sourceManifestAssetId: motionExport.manifestAssetId ?? null,
+    exportPackManifestId,
+  };
+}
+
+function renderReceiptsByRef(
+  history: MotionExecutionHistoryEntry[] | undefined
+): Map<string, MotionExecutionReceipt> {
+  const receipts = (history ?? []).flatMap((entry) =>
+    entry.gateId === 'render'
+      ? entry.receipts.filter((receipt) => receipt.kind === 'render')
+      : []
+  );
+
+  return new Map(receipts.map((receipt) => [receipt.ref, receipt]));
+}
+
+function dimensionsForAspectRatio(
+  aspectRatio: MotionAspectRatio
+): { width: number; height: number } {
+  if (aspectRatio === '9:16') return { width: 1080, height: 1920 };
+  if (aspectRatio === '1:1') return { width: 1080, height: 1080 };
+  if (aspectRatio === '4:5') return { width: 1080, height: 1350 };
+  return { width: 1920, height: 1080 };
 }
 
 function missingAssetKindsFor(motionExport: MotionExport): MotionExportPackAssetKind[] {

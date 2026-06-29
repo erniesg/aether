@@ -51,4 +51,39 @@ describe('dropVideoOnCanvas', () => {
     expect(shape.meta.aetherRole).toBe('motion-asset');
     expect(shape.meta.aetherMotionBriefId).toBe('evt-1-quotes');
   });
+
+  it('preserves export pack sidecar metadata on the asset and shape', () => {
+    const editor = makeEditor();
+    dropVideoOnCanvas(editor as never, {
+      url: 'asset://renders/export-x-9x16/video.mp4',
+      width: 1080,
+      height: 1920,
+      label: 'x 9:16 MP4',
+      motionProjectId: 'motion-aether-launch',
+      exportId: 'export-x-9x16',
+      sourceAssetId: 'render-export-x-9x16-video',
+      posterAssetId: 'render-export-x-9x16-poster',
+      subtitleAssetId: 'render-export-x-9x16-subtitle',
+      transcriptAssetId: 'render-export-x-9x16-transcript',
+      sourceManifestAssetId: 'render-export-x-9x16-manifest',
+      exportPackManifestId: 'export-pack-motion-aether-launch-draft-primary-manifest',
+      targetLabel: 'x 9:16',
+    });
+
+    const [[asset]] = editor.createAssets.mock.calls[0]!;
+    const shape = editor.createShape.mock.calls[0]![0];
+    expect(asset.meta).toMatchObject({
+      aetherRole: 'motion-asset',
+      aetherMotionProjectId: 'motion-aether-launch',
+      aetherMotionExportId: 'export-x-9x16',
+      aetherMotionSourceAssetId: 'render-export-x-9x16-video',
+      aetherMotionPosterAssetId: 'render-export-x-9x16-poster',
+      aetherMotionSubtitleAssetId: 'render-export-x-9x16-subtitle',
+      aetherMotionTranscriptAssetId: 'render-export-x-9x16-transcript',
+      aetherMotionSourceManifestAssetId: 'render-export-x-9x16-manifest',
+      aetherMotionExportPackManifestId: 'export-pack-motion-aether-launch-draft-primary-manifest',
+      aetherMotionTargetLabel: 'x 9:16',
+    });
+    expect(shape.meta).toMatchObject(asset.meta);
+  });
 });

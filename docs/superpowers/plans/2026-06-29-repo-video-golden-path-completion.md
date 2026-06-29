@@ -432,10 +432,18 @@ git commit -m "feat: guard computer use capture receipts"
 - Modify: `lib/motion/exportPackPlan.ts`
 - Modify: `lib/motion/exportPackPlan.test.ts`
 - Modify: `lib/canvas/dropVideo.ts`
+- Modify: `lib/canvas/dropVideo.test.ts`
+- Modify: `lib/motion/project.ts`
+- Modify: `lib/motion/executionHistory.ts`
+- Modify: `lib/motion/previewPlan.ts`
+- Modify: `lib/motion/previewPlan.test.ts`
+- Modify: `lib/motion/canvasMaterial.ts`
+- Modify: `lib/motion/canvasMaterial.test.ts`
+- Modify: `components/workspace/TimelineLens.tsx`
 - Modify: `tests/component/timeline-lens.test.tsx`
 - Modify: `tests/unit/api-motion-export-pack.test.ts`
 
-- [ ] **Step 1: Add failing export/canvas tests**
+- [x] **Step 1: Add failing export/canvas tests**
 
 Assert a rendered project produces:
 
@@ -448,34 +456,34 @@ Assert a rendered project produces:
 - canvas drop target
 - timeline action to drop render proof or export pack to canvas
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run:
 
 ```bash
-npx vitest run lib/motion/exportPackPlan.test.ts tests/unit/api-motion-export-pack.test.ts tests/component/timeline-lens.test.tsx --pool=forks
+npx vitest run lib/motion/exportPackPlan.test.ts tests/unit/api-motion-export-pack.test.ts tests/component/timeline-lens.test.tsx lib/canvas/dropVideo.test.ts --pool=forks
 ```
 
 Expected: FAIL on missing export or canvas material linkage.
 
-- [ ] **Step 3: Implement missing export/canvas link**
+- [x] **Step 3: Implement missing export/canvas link**
 
 Use existing canvas material/drop helpers. Keep export pack as artifact-first material, not a separate publish dashboard.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run:
 
 ```bash
-npx vitest run lib/motion/exportPackPlan.test.ts tests/unit/api-motion-export-pack.test.ts tests/component/timeline-lens.test.tsx --pool=forks
+npx vitest run lib/motion/exportPackPlan.test.ts tests/unit/api-motion-export-pack.test.ts tests/component/timeline-lens.test.tsx lib/canvas/dropVideo.test.ts --pool=forks
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-git add lib/motion/exportPackPlan.ts lib/motion/exportPackPlan.test.ts lib/canvas/dropVideo.ts tests/unit/api-motion-export-pack.test.ts tests/component/timeline-lens.test.tsx
+git add lib/motion/exportPackPlan.ts lib/motion/exportPackPlan.test.ts lib/canvas/dropVideo.ts lib/canvas/dropVideo.test.ts lib/motion/project.ts lib/motion/executionHistory.ts lib/motion/previewPlan.ts lib/motion/previewPlan.test.ts lib/motion/canvasMaterial.ts lib/motion/canvasMaterial.test.ts components/workspace/TimelineLens.tsx tests/unit/api-motion-export-pack.test.ts tests/component/timeline-lens.test.tsx
 git commit -m "feat: return motion exports to canvas"
 ```
 
