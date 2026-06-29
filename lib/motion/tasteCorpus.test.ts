@@ -3,6 +3,7 @@ import { getMotionComponent } from './componentRegistry';
 import {
   listMotionTasteCorpus,
   listMotionTasteCorpusForWorkflow,
+  type MotionTasteCorpusEntry,
   validateMotionTasteCorpus,
 } from './tasteCorpus';
 import { getWorkflowRegistryEntry } from '@/lib/workflow/registry';
@@ -40,6 +41,22 @@ describe('motion taste corpus', () => {
     }
   });
 
+  it('keeps playback-reviewed examples for agent demos, skill-launch cuts, and polished product demos', () => {
+    const entries = listMotionTasteCorpus();
+    const requiredExamples = [
+      { id: 'claude-agent-demo-playback-review', label: 'agent product demo' },
+      { id: 'hyperframes-pr-to-video-skill-drop', label: 'skill-launch social cut' },
+      { id: 'screen-studio-product-demo-polish', label: 'polished product demo' },
+    ];
+
+    for (const required of requiredExamples) {
+      const entry = entries.find((candidate) => candidate.id === required.id);
+
+      expect(entry, required.label).toBeDefined();
+      assertPlaybackReviewedTasteEntry(entry as MotionTasteCorpusEntry, required.label);
+    }
+  });
+
   it('pins the HyperFrames PR launch snippet as a reviewable skill-drop cut', () => {
     const prTaste = listMotionTasteCorpusForWorkflow('pr-to-video');
 
@@ -48,8 +65,8 @@ describe('motion taste corpus', () => {
       prTaste.find((entry) => entry.id === 'hyperframes-pr-to-video-skill-drop')
     ).toMatchObject({
       sourceEntryId: 'hyperframes-pr-to-video-launch-note',
-      reviewStatus: 'needs-authenticated-playback',
-      proofBoundary: 'user-supplied-snippet',
+      reviewStatus: 'playback-reviewed',
+      proofBoundary: 'public-video-playback',
       hookType: 'pain-point',
       targetCrops: expect.arrayContaining(['9:16', '4:5']),
       componentIds: expect.arrayContaining(['hook-card', 'command-card', 'code-diff-card']),
@@ -57,7 +74,7 @@ describe('motion taste corpus', () => {
     });
   });
 
-  it('keeps public agent demo videos separate from authenticated X follow-up', () => {
+  it('keeps public agent demo videos playback-reviewed for repo launches', () => {
     const repoLaunchTaste = listMotionTasteCorpusForWorkflow('repo-launch-video');
 
     expect(repoLaunchTaste).toEqual(
@@ -65,8 +82,8 @@ describe('motion taste corpus', () => {
         expect.objectContaining({
           id: 'claude-agent-demo-playback-review',
           platform: 'youtube',
-          reviewStatus: 'needs-public-playback',
-          proofBoundary: 'public-video-review-needed',
+          reviewStatus: 'playback-reviewed',
+          proofBoundary: 'public-video-playback',
           shotList: expect.arrayContaining([
             expect.objectContaining({
               componentIds: expect.arrayContaining(['agent-trace', 'terminal-card']),
@@ -200,3 +217,43 @@ describe('motion taste corpus', () => {
     );
   });
 });
+
+function assertPlaybackReviewedTasteEntry(entry: MotionTasteCorpusEntry, label: string) {
+  expect(entry.reviewStatus, label).toBe('playback-reviewed');
+  expect(entry.sourceUrl, label).toMatch(/^https?:\/\//);
+  expect(entry.proofBoundary, label).toBeTruthy();
+  expect(entry.targetCrops.length, label).toBeGreaterThan(0);
+  expect(entry.hookType, label).toBeTruthy();
+  expect(entry.componentIds.length, label).toBeGreaterThan(0);
+  expect(entry.effectTags.length, label).toBeGreaterThan(0);
+
+  expect(
+    entry.shotList.some((shot) => shot.componentIds.length > 0),
+    `${label} component ids`
+  ).toBe(true);
+  expect(
+    entry.shotList.some((shot) => shot.effectTags.length > 0),
+    `${label} effect tags`
+  ).toBe(true);
+  expect(
+    entry.shotList.some((shot) => shot.captionStyle !== 'none'),
+    `${label} caption style`
+  ).toBe(true);
+  expect(
+    entry.shotList.some((shot) => Boolean(shot.transitionOut)),
+    `${label} transition notes`
+  ).toBe(true);
+  expect(
+    entry.shotList.some(
+      (shot) => shot.componentIds.includes('cta-card') || shot.editTargets.includes('cta')
+    ),
+    `${label} CTA`
+  ).toBe(true);
+
+  let previousEnd = 0;
+  for (const shot of entry.shotList) {
+    expect(shot.startSeconds, `${label} shot order`).toBeGreaterThanOrEqual(previousEnd);
+    expect(shot.endSeconds, `${label} ${shot.id}`).toBeGreaterThan(shot.startSeconds);
+    previousEnd = shot.endSeconds;
+  }
+}

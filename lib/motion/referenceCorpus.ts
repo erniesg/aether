@@ -23,6 +23,7 @@ export type MotionReferenceCorpusSourceKind =
 export type MotionReferenceCorpusProofBoundary =
   | 'accessible-page'
   | 'public-repo'
+  | 'public-video-playback'
   | 'authenticated-video-needed'
   | 'public-video-review-needed'
   | 'user-supplied-snippet';

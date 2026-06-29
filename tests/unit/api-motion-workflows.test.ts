@@ -182,7 +182,7 @@ describe('GET /api/motion/workflows', () => {
       tasteReferences: expect.arrayContaining([
         expect.objectContaining({
           id: 'claude-agent-demo-playback-review',
-          reviewStatus: 'needs-public-playback',
+          reviewStatus: 'playback-reviewed',
           shotList: expect.arrayContaining([
             expect.objectContaining({
               componentIds: expect.arrayContaining(['agent-trace', 'terminal-card']),
@@ -557,7 +557,7 @@ describe('GET /api/motion/workflows', () => {
             id: 'hyperframes-pr-to-video-skill-drop',
             sourceEntryId: 'hyperframes-pr-to-video-launch-note',
             hookType: 'pain-point',
-            reviewStatus: 'needs-authenticated-playback',
+            reviewStatus: 'playback-reviewed',
             componentIds: expect.arrayContaining(['hook-card', 'command-card', 'code-diff-card']),
           }),
         ]),
