@@ -90,6 +90,11 @@ interface ClipEdit {
   componentId?: string;
 }
 
+type StoryBeatUpdate = Pick<
+  Extract<MotionTimelineRevisionOperation, { kind: 'update-story-beat' }>,
+  'narration' | 'targetSeconds'
+>;
+
 export function applyMotionTimelineRevision(
   project: MotionProject,
   input: ApplyMotionTimelineRevisionInput
@@ -244,17 +249,29 @@ function applyStoryOperations(
 ): StoryBeat[] {
   const updates = operations.filter((operation) => operation.kind === 'update-story-beat');
   if (updates.length === 0) return story;
+  const updatesByBeat = new Map<string, StoryBeatUpdate>();
 
-  return story.map((beat) => {
-    const operation = updates.find((candidate) => candidate.beatId === beat.id);
-    if (!operation) return beat;
-
-    return {
-      ...beat,
+  updates.forEach((operation) => {
+    const current = updatesByBeat.get(operation.beatId) ?? {};
+    updatesByBeat.set(operation.beatId, {
+      ...current,
       ...(operation.narration === undefined ? {} : { narration: operation.narration }),
       ...(operation.targetSeconds === undefined
         ? {}
         : { targetSeconds: operation.targetSeconds }),
+    });
+  });
+
+  return story.map((beat) => {
+    const update = updatesByBeat.get(beat.id);
+    if (!update) return beat;
+
+    return {
+      ...beat,
+      ...(update.narration === undefined ? {} : { narration: update.narration }),
+      ...(update.targetSeconds === undefined
+        ? {}
+        : { targetSeconds: update.targetSeconds }),
       provenance: uniqueProvenance([...beat.provenance, ...provenance]),
     };
   });

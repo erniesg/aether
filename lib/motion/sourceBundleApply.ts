@@ -2,6 +2,7 @@ import {
   applyMotionTimelineRevision,
   type MotionTimelineRevisionOperation,
 } from './revise';
+import { appendSourceEditExecutionHistory } from './executionHistory';
 import { getMotionEffectPreset, motionEffectPresetOrDefault } from './effectPresets';
 import { DEFAULT_MOTION_FPS, motionFrames } from './project';
 import type { MotionProject, StoryBeat, TimelineClip, TimelineTrack } from './project';
@@ -111,20 +112,34 @@ export function applyMotionSourceBundleEdits(
 
   const revisionId = input.id ?? `source-edit-${input.requestedAt}`;
   try {
+    const sourcePaths = input.files.map((file) => file.path);
     const revisedProject = applyMotionTimelineRevision(project, {
       id: revisionId,
       requestedAt: input.requestedAt,
       updatedAt: input.updatedAt ?? input.requestedAt,
       operations,
     });
+    const projectWithHistory = {
+      ...revisedProject,
+      executionHistory: appendSourceEditExecutionHistory(
+        revisedProject.executionHistory,
+        {
+          id: revisionId,
+          sourcePaths,
+          operationCount: operations.length,
+          provenance: [{ kind: 'revision', ref: revisionId }],
+        },
+        input.updatedAt ?? input.requestedAt
+      ),
+    };
 
     return {
       status: 'applied',
-      project: revisedProject,
+      project: projectWithHistory,
       appliedEdits,
       blockers: [],
       operationCount: operations.length,
-      sourcePaths: input.files.map((file) => file.path),
+      sourcePaths,
     };
   } catch (error) {
     return blocked(project, input, [

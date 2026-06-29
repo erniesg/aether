@@ -56,6 +56,13 @@ export interface MotionDraftApprovalReceiptInput {
   provenance: MotionProvenanceRef[];
 }
 
+export interface MotionSourceEditReceiptInput {
+  id: string;
+  sourcePaths: string[];
+  operationCount: number;
+  provenance: MotionProvenanceRef[];
+}
+
 export function appendCaptureExecutionHistory(
   history: MotionExecutionHistoryEntry[] | undefined,
   result: CaptureResult,
@@ -424,6 +431,30 @@ export function appendDraftApprovalExecutionHistory(
   });
 }
 
+export function appendSourceEditExecutionHistory(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  input: MotionSourceEditReceiptInput,
+  savedAt: number
+): MotionExecutionHistoryEntry[] {
+  const receipts = sourceEditReceipts(input);
+
+  return appendExecutionEntry(history, {
+    id: `execution-source-edit-${slugifyId(input.id)}-${savedAt}`,
+    gateId: 'sync',
+    label: 'Source edit',
+    providerId: 'motion-source-edit',
+    savedAt,
+    receiptCount: receipts.length,
+    receiptLabels: receipts.map((receipt) => receipt.label),
+    receipts,
+    provenance: uniqueProvenance([
+      ...input.provenance,
+      { kind: 'revision', ref: input.id },
+      { kind: 'manual', ref: `source-edit:${input.operationCount}:operations` },
+    ]),
+  });
+}
+
 export function appendSyncExecutionHistory(
   history: MotionExecutionHistoryEntry[] | undefined,
   plan: MotionSyncPlan,
@@ -622,6 +653,32 @@ function regenerationReceipt(input: {
     label: input.label,
     ref: input.ref,
   };
+}
+
+function sourceEditReceipts(input: MotionSourceEditReceiptInput): MotionExecutionReceipt[] {
+  const sourcePaths = uniqueStrings(input.sourcePaths);
+
+  return [
+    ...sourcePaths.map((path) => ({
+      id: `receipt-source-edit-${slugifyId(input.id)}-${slugifyId(path)}`,
+      kind: 'revision' as const,
+      label: 'Source files',
+      ref: `${input.id}:source-file:${path}`,
+      path,
+    })),
+    {
+      id: `receipt-source-edit-${slugifyId(input.id)}-timeline-revision`,
+      kind: 'revision' as const,
+      label: 'Timeline revision',
+      ref: input.id,
+    },
+    {
+      id: `receipt-source-edit-${slugifyId(input.id)}-preview-plan`,
+      kind: 'revision' as const,
+      label: 'Updated preview plan',
+      ref: `${input.id}:preview-plan`,
+    },
+  ];
 }
 
 function exportPackReceipts(plan: MotionExportPackPlan): MotionExecutionReceipt[] {

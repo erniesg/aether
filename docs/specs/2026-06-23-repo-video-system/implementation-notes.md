@@ -326,7 +326,10 @@
   Script edits update the story and linked text/caption/voice clips; storyboard
   edits update narration, timing, component templates, and effect props; and
   `EDIT.md` now exposes editable control values that can update component props
-  directly.
+  directly. Applied source edits append execution-history receipts for the
+  edited source files, timeline revision, and refreshed preview plan, and
+  timeline revisions now merge separate same-beat story edits so script and
+  storyboard changes can land together.
 - Preview plans now include a capability setup contract for provider-backed
   execution. The timeline lens renders capture, local-app launch, visual source,
   image-to-video, voice/timing, sync, and render readiness as creator-facing

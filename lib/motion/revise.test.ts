@@ -134,6 +134,39 @@ describe('applyMotionTimelineRevision', () => {
     });
   });
 
+  it('merges same-beat story edits from separate source operations', () => {
+    const revised = applyMotionTimelineRevision(project(), {
+      id: 'revision-demo-source-bundle-merge',
+      requestedAt: 102,
+      operations: [
+        {
+          kind: 'update-story-beat',
+          beatId: 'beat-demo',
+          narration: 'Show editable source files driving the rendered timeline.',
+        },
+        {
+          kind: 'update-story-beat',
+          beatId: 'beat-demo',
+          targetSeconds: 7,
+        },
+      ],
+    });
+
+    const demoBeat = revised.story.find((beat) => beat.id === 'beat-demo');
+    expect(demoBeat).toMatchObject({
+      narration: 'Show editable source files driving the rendered timeline.',
+      targetSeconds: 7,
+    });
+    expect(
+      revised.drafts
+        .find((draft) => draft.id === revised.currentDraftId)
+        ?.story.find((beat) => beat.id === 'beat-demo')
+    ).toMatchObject({
+      narration: 'Show editable source files driving the rendered timeline.',
+      targetSeconds: 7,
+    });
+  });
+
   it('replaces captured app-frame source assets with crop and cursor edit metadata', () => {
     const revised = applyMotionTimelineRevision(project(), {
       id: 'revision-demo-source-replace',

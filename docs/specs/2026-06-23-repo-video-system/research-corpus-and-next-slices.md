@@ -336,15 +336,18 @@ Recent continuation: `replace-clip-asset` now handles capture-source
 replacement for app-frame clips, including source URL, crop, zoom, cursor path,
 capture artifact kind, MIME type, and source asset linkage.
 `update-clip-source-keyframes` now adds keyframe-level crop, zoom, and cursor
-edits from the timeline lens and API. The next edit-depth slice should add
-source-bundle import from edited `SCRIPT.md`, `STORYBOARD.md`, timeline JSON,
-or `EDIT.md`, plus caption/script round trips.
+edits from the timeline lens and API. Source-bundle import now applies edited
+`SCRIPT.md`, `STORYBOARD.md`, timeline JSON, and `EDIT.md` through
+`/api/motion/source-edit`, appends source-edit execution receipts, and composes
+same-beat script/storyboard edits before refreshing review and preview plans.
+The next edit-depth slice should focus on richer caption/script regeneration
+from those editable sources and component-level variation drafts.
 
 Acceptance evidence:
 
 - Component tests prove the player is same-shell and rails stay mounted.
 - Source-edit route tests prove `SCRIPT.md`, `STORYBOARD.md`, timeline JSON,
-  and `EDIT.md` round-trip into `MotionProject`.
+  and `EDIT.md` round-trip into `MotionProject` with source-edit receipts.
 
 ### Slice D: Advanced generation node lens
 
