@@ -217,7 +217,10 @@
 - Agent-native `/api/motion/regenerate` route that accepts an editable motion
   project, clip id, regeneration scope, and prompt, then returns a planned
   scoped regeneration request plus refreshed review/preview state for agents or
-  the timeline lens.
+  the timeline lens. Component regeneration now supports reviewable
+  source-patch variations and an explicit full-auto default-apply mode that
+  reuses `/api/motion/source-edit`, saves source-edit receipts, and clears
+  review drafts from the timeline once the patch is applied.
 - Agent-native `/api/motion/revise` route that accepts an editable motion
   project plus scoped story, component, timing, or replacement operations, then
   returns the updated project with refreshed review/preview plans and capture

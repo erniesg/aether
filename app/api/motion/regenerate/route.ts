@@ -25,6 +25,7 @@ import {
   buildMotionSourcePatchDraft,
   buildMotionSourcePatchDraftOptions,
 } from '@/lib/motion/sourcePatchDraft';
+import { applyMotionSourceBundleEdits } from '@/lib/motion/sourceBundleApply';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 
 export const runtime = 'nodejs';
@@ -34,6 +35,8 @@ export const maxDuration = 300;
 type MotionRegenerateRequestBody = Record<string, unknown>;
 
 const VALID_ENGINES = new Set<WorkflowEngine>(['remotion', 'hyperframes', 'provider']);
+const VALID_SOURCE_PATCH_MODES = new Set(['review', 'apply-default']);
+type SourcePatchMode = 'review' | 'apply-default';
 
 function jsonError(status: number, error: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, error, ...extra }, { status });
@@ -94,9 +97,16 @@ export async function POST(request: Request): Promise<Response> {
   if (body.requestedEngines !== undefined && !requestedEngines) {
     return jsonError(400, 'requestedEngines must contain remotion, hyperframes, or provider');
   }
+  const sourcePatchMode = parseSourcePatchMode(body.sourcePatchMode);
+  if (body.sourcePatchMode !== undefined && !sourcePatchMode) {
+    return jsonError(400, 'sourcePatchMode must be review or apply-default');
+  }
 
   const requestedAt = numericValue(body.requestedAt) ?? Date.now();
   const project = body.project as unknown as MotionProject;
+  if (sourcePatchMode === 'apply-default' && project.workflowMode !== 'full-auto') {
+    return jsonError(400, 'sourcePatchMode apply-default requires a full-auto motion project');
+  }
 
   try {
     if (draftId) {
@@ -268,19 +278,28 @@ export async function POST(request: Request): Promise<Response> {
         requestedAt,
       }
     );
+    const sourcePatchApplyResult =
+      sourcePatchMode === 'apply-default'
+        ? applyDefaultSourcePatchOption(updatedProject, sourcePatchDraftOptions, {
+            requestedAt,
+            updatedAt: numericValue(body.updatedAt) ?? requestedAt,
+          })
+        : null;
+    const finalProject = sourcePatchApplyResult?.project ?? updatedProject;
 
     return NextResponse.json({
       ok: true,
       regenerationRequest,
-      project: updatedProject,
-      reviewPlan: buildMotionReviewPlan(updatedProject),
-      previewPlan: buildMotionPreviewPlan(updatedProject, {
+      project: finalProject,
+      reviewPlan: buildMotionReviewPlan(finalProject),
+      previewPlan: buildMotionPreviewPlan(finalProject, {
         engines: requestedEngines ?? undefined,
         requestedAt,
       }),
       capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
       sourcePatchDraft,
       sourcePatchDraftOptions,
+      ...(sourcePatchApplyResult ? { sourcePatchApplyResult } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -288,10 +307,32 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
+function applyDefaultSourcePatchOption(
+  project: MotionProject,
+  sourcePatchDraftOptions: ReturnType<typeof buildMotionSourcePatchDraftOptions>,
+  options: { requestedAt: number; updatedAt: number }
+) {
+  const defaultOption = sourcePatchDraftOptions.find((option) => option.isDefault);
+  if (!defaultOption || defaultOption.status !== 'ready') return null;
+
+  return applyMotionSourceBundleEdits(project, {
+    id: defaultOption.sourceEditId,
+    requestedAt: options.requestedAt,
+    updatedAt: options.updatedAt,
+    files: defaultOption.files,
+  });
+}
+
 function sourcePatchDraftEngine(requestedEngines: WorkflowEngine[] | null): MotionRenderEngine {
   if (requestedEngines?.includes('remotion')) return 'remotion';
   if (requestedEngines?.includes('hyperframes')) return 'hyperframes';
   return 'remotion';
+}
+
+function parseSourcePatchMode(value: unknown): SourcePatchMode | null {
+  if (value === undefined) return 'review';
+  if (typeof value !== 'string') return null;
+  return VALID_SOURCE_PATCH_MODES.has(value) ? (value as SourcePatchMode) : null;
 }
 
 function parseRequestedEngines(value: unknown): WorkflowEngine[] | null {

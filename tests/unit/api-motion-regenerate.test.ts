@@ -3,13 +3,13 @@ import type { MotionProject } from '@/lib/motion/project';
 import { buildRepoLaunchMotionProject } from '@/lib/motion/storyboard';
 import { materializeMotionTimeline } from '@/lib/motion/timeline';
 
-function project(): MotionProject {
+function project(mode: MotionProject['workflowMode'] = 'review'): MotionProject {
   return materializeMotionTimeline(
     buildRepoLaunchMotionProject({
       id: 'motion-aether-launch',
       workspaceId: 'demo-ws',
       projectKind: 'launch',
-      workflowMode: 'review',
+      workflowMode: mode,
       audience: 'creative app builders',
       tone: 'precise',
       appProfile: {
@@ -236,6 +236,88 @@ describe('POST /api/motion/regenerate', () => {
         }),
       ])
     );
+  });
+
+  it('applies the default source patch when full-auto asks for it', async () => {
+    const { POST } = await import('@/app/api/motion/regenerate/route');
+
+    const res = await POST(
+      new Request('http://localhost/api/motion/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project('full-auto'),
+          clipId: 'clip-beat-demo-text',
+          scope: 'capture',
+          prompt: 'Refresh this app-frame capture with the latest canvas flow.',
+          sourcePatchMode: 'apply-default',
+          requestedAt: 952,
+          requestedEngines: ['remotion', 'hyperframes'],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.sourcePatchApplyResult).toMatchObject({
+      status: 'applied',
+      sourcePaths: ['timeline/draft-primary.json', 'STORYBOARD.md', 'EDIT.md'],
+    });
+    expect(json.sourcePatchApplyResult.operationCount).toBeGreaterThan(0);
+    expect(json.sourcePatchApplyResult.appliedEdits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'timeline-clip',
+          clipId: 'clip-beat-demo-text',
+          changedFields: expect.arrayContaining([
+            'props.sourcePatchDraft',
+            'props.sourcePatchVariant',
+          ]),
+        }),
+      ])
+    );
+    expect(json.project.tracks[0].clips).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'clip-beat-demo-text',
+          props: expect.objectContaining({
+            sourcePatchVariant: expect.objectContaining({
+              id: 'primary',
+              label: 'Patch current component',
+            }),
+          }),
+        }),
+      ])
+    );
+    expect(json.project.executionHistory).toEqual([
+      expect.objectContaining({
+        id: 'execution-regeneration-app-frame-capture-952',
+        gateId: 'drafts',
+      }),
+      expect.objectContaining({
+        id: 'execution-source-edit-source-edit-regen-clip-beat-demo-text-capture-952-952',
+        gateId: 'sync',
+        label: 'Source edit',
+        receiptLabels: [
+          'Source files',
+          'Source files',
+          'Source files',
+          'Timeline revision',
+          'Updated preview plan',
+        ],
+      }),
+    ]);
+    expect(json.previewPlan.executionHistory).toMatchObject({
+      status: 'saved',
+      savedStepCount: 2,
+      latestReceiptLabels: [
+        'Source files',
+        'Source files',
+        'Source files',
+        'Timeline revision',
+        'Updated preview plan',
+      ],
+    });
   });
 
   it('creates a reference-backed regeneration request and refreshed preview actions', async () => {

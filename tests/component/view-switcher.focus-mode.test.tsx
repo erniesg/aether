@@ -460,6 +460,85 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     );
   });
 
+  it('full-auto timeline regeneration applies the default source patch instead of leaving review drafts', async () => {
+    const start = storedFullAutoMotionStart();
+    const sourcePatchDraft = {
+      id: 'source-patch-draft-regen-capture',
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      method: 'POST',
+      sourceEditId: 'source-edit-regen-capture',
+      sourcePatchPlanId: 'source-patch-regen-capture',
+      files: [
+        {
+          path: 'timeline/draft-primary.json',
+          contents: '{"tracks":[]}',
+        },
+      ],
+      targetClipIds: ['clip-beat-demo-text'],
+      requestTemplate: {
+        project: '$motionProject',
+        id: 'source-edit-regen-capture',
+        files: '$draftSourceFiles',
+        requestedEngines: '$selectedEngines',
+        requestedAt: '$now',
+      },
+      blockers: [],
+      variantId: 'primary',
+      label: 'Patch current component',
+      description: 'Apply the regeneration prompt to the current editable source files.',
+      isDefault: true,
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes('/api/motion/regenerate')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            project: start.project,
+            reviewPlan: start.reviewPlan,
+            previewPlan: start.previewPlan,
+            capturePlan: start.capturePlan,
+            sourcePatchDraft,
+            sourcePatchDraftOptions: [sourcePatchDraft],
+            sourcePatchApplyResult: {
+              status: 'applied',
+              operationCount: 1,
+              sourcePaths: ['timeline/draft-primary.json'],
+            },
+            regenerationRequest: {
+              scope: 'capture',
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /regenerate capture for app frame/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('source patch applied');
+    });
+    expect(screen.queryByText('source patch draft')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/motion/regenerate',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.stringContaining('"sourcePatchMode":"apply-default"'),
+      })
+    );
+  });
+
   it('timeline draft cards switch and approve the stored motion project variation', async () => {
     setMotionStartResult('demo-ws', storedRegeneratableMotionStart());
     renderShell();

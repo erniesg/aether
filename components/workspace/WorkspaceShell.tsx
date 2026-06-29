@@ -507,6 +507,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           requestedAt: Date.now(),
         };
         if ('clipId' in requestTemplate) requestBody.clipId = requestTemplate.clipId;
+        if (
+          'clipId' in requestTemplate &&
+          motionStart.project.workflowMode === 'full-auto'
+        ) {
+          requestBody.sourcePatchMode = 'apply-default';
+        }
         if ('referenceSignalId' in requestTemplate) {
           requestBody.referenceSignalId = requestTemplate.referenceSignalId;
         }
@@ -536,22 +542,28 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           regenerationRequest?: { scope?: string };
           sourcePatchDraft?: MotionSourcePatchDraft | null;
           sourcePatchDraftOptions?: MotionSourcePatchDraftOption[];
+          sourcePatchApplyResult?: { status?: string };
         };
         if (!res.ok || json.ok === false) {
           throw new Error(json.error ?? `regeneration failed: ${res.status}`);
         }
+        const sourcePatchApplied = json.sourcePatchApplyResult?.status === 'applied';
         setMotionStartResult(wsId, {
           ...motionStart,
           project: json.project ?? motionStart.project,
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan ?? motionStart.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
-          sourcePatchDraft: json.sourcePatchDraft ?? null,
-          sourcePatchDraftOptions: json.sourcePatchDraftOptions ?? [],
+          sourcePatchDraft: sourcePatchApplied ? null : json.sourcePatchDraft ?? null,
+          sourcePatchDraftOptions: sourcePatchApplied ? [] : json.sourcePatchDraftOptions ?? [],
         });
-        setMotionSourcePatchDraft(json.sourcePatchDraft ?? null);
-        setMotionSourcePatchDraftOptions(json.sourcePatchDraftOptions ?? []);
-        setMotionTimelineActionStatus(`${json.regenerationRequest?.scope ?? action.scope} regeneration planned`);
+        setMotionSourcePatchDraft(sourcePatchApplied ? null : json.sourcePatchDraft ?? null);
+        setMotionSourcePatchDraftOptions(sourcePatchApplied ? [] : json.sourcePatchDraftOptions ?? []);
+        setMotionTimelineActionStatus(
+          sourcePatchApplied
+            ? 'source patch applied'
+            : `${json.regenerationRequest?.scope ?? action.scope} regeneration planned`
+        );
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }

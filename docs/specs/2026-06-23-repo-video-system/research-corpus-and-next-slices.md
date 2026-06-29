@@ -169,9 +169,11 @@ Aether now has the right backbone:
    and a sandboxed HyperFrames iframe. Capture-source replacement now works for
    `app-frame` clips with URL, crop, zoom, cursor path, and capture metadata.
    Timed source keyframes now cover crop/zoom/cursor path choreography. The
-   remaining gap is deeper source-backed editing: caption/script/source-bundle
-   round trips, regenerate a selected component, and apply those edits through
-   `MotionProject`.
+   source-patch lane can now regenerate a selected component as reviewable
+   source variations or apply the default variation in full-auto through the
+   same `MotionProject` source-edit path. The remaining gap is provider-authored
+   variation depth: caption/script/source-bundle round trips with meaningfully
+   different copy, timing, effect, and capture-source edits.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source
@@ -189,10 +191,11 @@ Aether now has the right backbone:
    provider-backed hosted/share-page materialization, not a separate demo
    product path.
 7. **Executable mode switching.** The preview now shows review vs full-auto as
-   mode-control choices. Those choices still need a materialized action path:
-   restart from the same source refs in a different mode or switch the current
-   project mode in place, then refresh the review, preview, production, and
-   handoff plans without dropping receipts or provider choices.
+   mode-control choices, `/api/motion/mode` switches the current project mode in
+   place, and component regeneration can either return reviewable source-patch
+   variations or apply the default patch in full-auto. Remaining work is
+   carrying that same review/full-auto policy through provider-authored
+   variation generation and every downstream production gate.
 8. **Corpus-driven component gaps.** Device/avatar/logo/flowchart/social proof
    primitives should be added based on tagged examples, not speculative UI.
 
