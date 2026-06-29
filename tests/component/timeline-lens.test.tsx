@@ -174,6 +174,46 @@ const previewPlan: MotionPreviewPlan = {
   title: 'aether launch video',
   workflowMode: 'review',
   primaryAction: 'request-review',
+  modeControl: {
+    currentMode: 'review',
+    currentLabel: 'review gates',
+    options: [
+      {
+        mode: 'review',
+        label: 'Review gates',
+        status: 'active',
+        actionLabel: 'Keep review gates',
+        route: '/api/motion/start',
+        method: 'POST',
+        requestTemplate: {
+          workspaceId: 'demo-ws',
+          sourceRefs: '$motionSourceRefs',
+          mode: 'review',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        gateLabels: ['Video plan', 'Draft variations', 'Product capture'],
+        expectedReceiptLabels: ['review gates', 'draft approval', 'updated preview plan'],
+      },
+      {
+        mode: 'full-auto',
+        label: 'Full auto',
+        status: 'available',
+        actionLabel: 'Switch to full auto',
+        route: '/api/motion/start',
+        method: 'POST',
+        requestTemplate: {
+          workspaceId: 'demo-ws',
+          sourceRefs: '$motionSourceRefs',
+          mode: 'full-auto',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        gateLabels: ['Video plan', 'Draft variations', 'Product capture'],
+        expectedReceiptLabels: ['full-auto gates', 'execution receipt', 'updated preview plan'],
+      },
+    ],
+  },
   summary: {
     appName: 'aether',
     projectKind: 'launch',
@@ -2146,6 +2186,12 @@ describe('TimelineLens', () => {
     expect(screen.getAllByText('x 9:16 30s').length).toBeGreaterThan(0);
     expect(screen.getByText('capability plan')).toBeInTheDocument();
     expect(screen.getAllByText('review mode').length).toBeGreaterThan(0);
+    expect(screen.getByText('workflow mode')).toBeInTheDocument();
+    expect(screen.getAllByText('review gates').length).toBeGreaterThan(0);
+    expect(screen.getByText('Review gates')).toBeInTheDocument();
+    expect(screen.getByText('Full auto')).toBeInTheDocument();
+    expect(screen.getByText('Switch to full auto')).toBeInTheDocument();
+    expect(screen.getAllByText('/api/motion/start').length).toBeGreaterThan(0);
     expect(screen.getByText('full auto ready')).toBeInTheDocument();
     expect(screen.getByText('motion-start')).toBeInTheDocument();
     expect(screen.getByText('review-capture')).toBeInTheDocument();

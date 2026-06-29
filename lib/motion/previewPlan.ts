@@ -680,6 +680,34 @@ export interface MotionPreviewAgentRunbook {
   steps: MotionPreviewAgentRunbookStep[];
 }
 
+export type MotionPreviewModeControlOptionStatus = 'active' | 'available';
+
+export interface MotionPreviewModeControlRequestTemplate {
+  workspaceId: string;
+  sourceRefs: '$motionSourceRefs';
+  mode: MotionProject['workflowMode'];
+  requestedEngines: '$selectedEngines';
+  requestedAt: '$now';
+}
+
+export interface MotionPreviewModeControlOption {
+  mode: MotionProject['workflowMode'];
+  label: string;
+  status: MotionPreviewModeControlOptionStatus;
+  actionLabel: string;
+  route: '/api/motion/start';
+  method: 'POST';
+  requestTemplate: MotionPreviewModeControlRequestTemplate;
+  gateLabels: string[];
+  expectedReceiptLabels: string[];
+}
+
+export interface MotionPreviewModeControl {
+  currentMode: MotionProject['workflowMode'];
+  currentLabel: string;
+  options: MotionPreviewModeControlOption[];
+}
+
 export interface MotionPreviewExecutionHistoryEntry {
   id: string;
   gateId: MotionExecutionHistoryEntry['gateId'];
@@ -767,6 +795,7 @@ export interface MotionPreviewPlan {
   title: string;
   workflowMode: MotionProject['workflowMode'];
   primaryAction: MotionReviewPlan['primaryAction'];
+  modeControl: MotionPreviewModeControl;
   summary: MotionReviewPlan['summary'];
   sourceProfile: MotionPreviewSourceProfile | null;
   videoPlan: MotionPreviewVideoPlan;
@@ -924,6 +953,7 @@ export function buildMotionPreviewPlan(
     title: project.title,
     workflowMode: project.workflowMode,
     primaryAction: reviewPlan.primaryAction,
+    modeControl: buildModeControl(project, productionPlan),
     summary: reviewPlan.summary,
     sourceProfile: buildSourceProfileSummary(project.sourceProfile),
     videoPlan,
@@ -974,6 +1004,56 @@ export function buildMotionPreviewPlan(
       ...tracks.map((track) => ({ kind: 'timeline' as const, ref: track.id })),
     ]),
     requestedAt: options.requestedAt,
+  };
+}
+
+function buildModeControl(
+  project: MotionProject,
+  productionPlan: MotionProductionPlan
+): MotionPreviewModeControl {
+  const gateLabels = productionPlan.steps.slice(0, 3).map((step) => step.label);
+
+  return {
+    currentMode: project.workflowMode,
+    currentLabel: project.workflowMode === 'full-auto' ? 'full auto' : 'review gates',
+    options: (['review', 'full-auto'] as const).map((mode) =>
+      modeControlOption(project, mode, gateLabels)
+    ),
+  };
+}
+
+function modeControlOption(
+  project: MotionProject,
+  mode: MotionProject['workflowMode'],
+  gateLabels: string[]
+): MotionPreviewModeControlOption {
+  const active = project.workflowMode === mode;
+  const reviewMode = mode === 'review';
+
+  return {
+    mode,
+    label: reviewMode ? 'Review gates' : 'Full auto',
+    status: active ? 'active' : 'available',
+    actionLabel: active
+      ? reviewMode
+        ? 'Keep review gates'
+        : 'Keep full auto'
+      : reviewMode
+        ? 'Switch to review gates'
+        : 'Switch to full auto',
+    route: '/api/motion/start',
+    method: 'POST',
+    requestTemplate: {
+      workspaceId: project.workspaceId,
+      sourceRefs: '$motionSourceRefs',
+      mode,
+      requestedEngines: '$selectedEngines',
+      requestedAt: '$now',
+    },
+    gateLabels,
+    expectedReceiptLabels: reviewMode
+      ? ['review gates', 'draft approval', 'updated preview plan']
+      : ['full-auto gates', 'execution receipt', 'updated preview plan'],
   };
 }
 

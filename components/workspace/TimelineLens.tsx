@@ -39,6 +39,7 @@ import type {
   MotionPreviewRenderProofSummary,
   MotionPreviewSourceCaptureCandidate,
   MotionPreviewRuntimeTarget,
+  MotionPreviewModeControl,
   MotionPreviewSourceProfile,
   MotionPreviewSyncBeat,
   MotionPreviewSyncEffectCue,
@@ -335,6 +336,10 @@ function MotionPreviewPlanView({
             {previewPlan.primaryAction === 'queue-render' ? 'full auto' : 'review'}
           </Chip>
         </div>
+      </section>
+
+      <section className="border-b border-border-soft px-4 py-3">
+        <MotionModeControlStrip modeControl={previewPlan.modeControl} />
       </section>
 
       <section className="grid gap-3 border-b border-border-soft px-4 py-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
@@ -1298,6 +1303,59 @@ function uniqueLabels(labels: string[]): string[] {
 
 function readableLabel(value: string): string {
   return value.replace(/[-_]/g, ' ');
+}
+
+function MotionModeControlStrip({ modeControl }: { modeControl: MotionPreviewModeControl }) {
+  return (
+    <div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
+      <div className="min-w-0">
+        <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+          workflow mode
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <Chip tone={modeControl.currentMode === 'full-auto' ? 'ok' : 'info'} size="sm">
+            {modeControl.currentLabel}
+          </Chip>
+        </div>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2">
+        {modeControl.options.map((option) => (
+          <div
+            key={option.mode}
+            className={cn(
+              'min-w-0 rounded-sm border px-3 py-2',
+              option.status === 'active'
+                ? 'border-accent/50 bg-accent/10'
+                : 'border-border-soft bg-surface-panel'
+            )}
+          >
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-caption text-xs text-ink">{option.label}</div>
+                <div className="mt-0.5 truncate font-caption text-2xs text-ink-faint">
+                  {option.actionLabel}
+                </div>
+              </div>
+              <Chip tone={option.status === 'active' ? 'info' : 'neutral'} size="sm">
+                {option.status === 'active' ? 'selected' : 'available'}
+              </Chip>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {option.gateLabels.slice(0, 3).map((label) => (
+                <Chip key={label} tone="neutral" size="sm">
+                  {label}
+                </Chip>
+              ))}
+            </div>
+            <div className="mt-2 truncate font-caption text-2xs text-ink-faint">
+              {option.route}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function MotionAgentPlanStrip({

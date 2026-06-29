@@ -242,6 +242,44 @@ describe('buildMotionPreviewPlan', () => {
         storyboardHintLabels: ['demo: Capture aether homepage'],
       },
     });
+    expect(preview.modeControl).toMatchObject({
+      currentMode: 'review',
+      currentLabel: 'review gates',
+      options: [
+        {
+          mode: 'review',
+          label: 'Review gates',
+          status: 'active',
+          actionLabel: 'Keep review gates',
+          route: '/api/motion/start',
+          requestTemplate: {
+            workspaceId: 'demo-ws',
+            sourceRefs: '$motionSourceRefs',
+            mode: 'review',
+            requestedEngines: '$selectedEngines',
+            requestedAt: '$now',
+          },
+          gateLabels: ['Video plan', 'Draft variations', 'Product capture'],
+          expectedReceiptLabels: ['review gates', 'draft approval', 'updated preview plan'],
+        },
+        {
+          mode: 'full-auto',
+          label: 'Full auto',
+          status: 'available',
+          actionLabel: 'Switch to full auto',
+          route: '/api/motion/start',
+          requestTemplate: {
+            workspaceId: 'demo-ws',
+            sourceRefs: '$motionSourceRefs',
+            mode: 'full-auto',
+            requestedEngines: '$selectedEngines',
+            requestedAt: '$now',
+          },
+          gateLabels: ['Video plan', 'Draft variations', 'Product capture'],
+          expectedReceiptLabels: ['full-auto gates', 'execution receipt', 'updated preview plan'],
+        },
+      ],
+    });
     expect(preview.storyboard.map((beat) => beat.role)).toEqual([
       'hook',
       'problem',
