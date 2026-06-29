@@ -938,6 +938,29 @@ describe('POST /api/motion/full-auto', () => {
         stepId: 'voice',
         advancedStepIds: ['capture', 'visual-source', 'visual-generation'],
         receiptCount: 3,
+        reviewPacket: {
+          kind: 'motion-full-auto-review-packet',
+          status: 'paused',
+          mode: 'full-auto',
+          advancedStepLabels: ['Product capture', 'Visual sourcing', 'Image-to-video'],
+          savedReceiptLabels: ['Screenshot', 'Selected source asset', 'Generated clip'],
+          savedReceiptCount: 3,
+          editableSurfaceLabels: expect.arrayContaining([
+            'capture',
+            'visual',
+            'image-to-video',
+            'component',
+          ]),
+          proofLabels: expect.arrayContaining([
+            'screenshots',
+            'source asset picks',
+            'generated clips',
+          ]),
+          nextReviewLabel: 'Voice and captions',
+          nextActionLabel: 'Generate voice and word timings',
+          nextRouteLabels: ['/api/motion/voice'],
+          nextToolLabels: ['motion-voice'],
+        },
       },
       project: {
         graphNodes: expect.arrayContaining([

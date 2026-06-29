@@ -1,6 +1,6 @@
 import type { ToolRegistryId } from '@/lib/tool/registry';
 import type { WorkflowEngine } from '@/lib/workflow/registry';
-import type { MotionProject } from './project';
+import type { MotionExecutionHistoryEntry, MotionProject } from './project';
 import {
   buildMotionProductionPlan,
   type MotionProductionPlan,
@@ -31,7 +31,24 @@ export interface MotionFullAutoRun {
   toolIds: ToolRegistryId[];
   apiRoutes: string[];
   receiptCount: number;
+  reviewPacket: MotionFullAutoReviewPacket;
   requestedAt: number;
+}
+
+export interface MotionFullAutoReviewPacket {
+  kind: 'motion-full-auto-review-packet';
+  status: MotionFullAutoRun['status'];
+  mode: MotionProject['workflowMode'];
+  advancedStepLabels: string[];
+  savedReceiptCount: number;
+  savedReceiptLabels: string[];
+  editableSurfaceLabels: string[];
+  proofLabels: string[];
+  nextReviewLabel: string | null;
+  nextActionLabel: string | null;
+  nextRouteLabels: string[];
+  nextToolLabels: ToolRegistryId[];
+  instruction: string;
 }
 
 export interface MotionFullAutoStepHandlerInput {
@@ -240,7 +257,95 @@ function buildResult(input: {
       toolIds: input.step?.toolIds ?? [],
       apiRoutes: input.step?.apiRoutes ?? [],
       receiptCount: input.project.executionHistory?.length ?? 0,
+      reviewPacket: buildReviewPacket(input),
       requestedAt: input.requestedAt,
     },
   };
+}
+
+function buildReviewPacket(input: {
+  status: 'complete' | 'paused';
+  project: MotionProject;
+  productionPlan: MotionProductionPlan;
+  step: MotionProductionStep | null;
+  advancedStepIds: MotionProductionStepId[];
+}): MotionFullAutoReviewPacket {
+  const advancedStepSet = new Set(input.advancedStepIds);
+  const advancedSteps = input.advancedStepIds
+    .map((stepId) => input.productionPlan.steps.find((step) => step.id === stepId))
+    .filter((step): step is MotionProductionStep => Boolean(step));
+  const savedEntries = entriesForAdvancedSteps(input.project.executionHistory, advancedStepSet);
+  const savedReceiptLabels = uniqueStrings(
+    savedEntries.flatMap((entry) => entry.receiptLabels)
+  );
+  const proofLabels = uniqueStrings(advancedSteps.flatMap((step) => step.artifactLabels));
+  const editableSurfaceLabels = uniqueStrings(
+    input.advancedStepIds.flatMap(editableSurfaceLabelsForStep)
+  );
+
+  return {
+    kind: 'motion-full-auto-review-packet',
+    status: input.status,
+    mode: input.project.workflowMode,
+    advancedStepLabels: advancedSteps.map((step) => step.label),
+    savedReceiptCount: savedEntries.reduce((total, entry) => total + entry.receiptCount, 0),
+    savedReceiptLabels,
+    editableSurfaceLabels,
+    proofLabels,
+    nextReviewLabel: input.step?.label ?? null,
+    nextActionLabel: input.step?.actionLabel ?? null,
+    nextRouteLabels: input.step?.apiRoutes ?? [],
+    nextToolLabels: input.step?.toolIds ?? [],
+    instruction: reviewPacketInstruction(input.status, input.step),
+  };
+}
+
+function entriesForAdvancedSteps(
+  history: MotionExecutionHistoryEntry[] | undefined,
+  advancedStepSet: Set<MotionProductionStepId>
+): MotionExecutionHistoryEntry[] {
+  if (!history || advancedStepSet.size === 0) return [];
+  return history.filter((entry) => advancedStepSet.has(entry.gateId as MotionProductionStepId));
+}
+
+function editableSurfaceLabelsForStep(stepId: MotionProductionStepId): string[] {
+  switch (stepId) {
+    case 'plan':
+      return ['script', 'brief', 'proof'];
+    case 'drafts':
+      return ['script', 'story beats', 'component'];
+    case 'capture':
+      return ['capture', 'recording', 'crop', 'cursor path'];
+    case 'visual-source':
+      return ['visual', 'reference', 'asset'];
+    case 'visual-generation':
+      return ['visual', 'image-to-video', 'component'];
+    case 'voice':
+      return ['voice', 'caption', 'word timing'];
+    case 'sync':
+      return ['timing', 'effect', 'transition', 'source edit'];
+    case 'render':
+      return ['render', 'contact sheet', 'poster'];
+    case 'export':
+      return ['export', 'pack manifest'];
+  }
+}
+
+function reviewPacketInstruction(
+  status: 'complete' | 'paused',
+  step: MotionProductionStep | null
+): string {
+  if (status === 'complete') {
+    return 'Full auto completed; review the export pack, render proof, and provenance receipts before publishing.';
+  }
+
+  if (step) {
+    return `Full auto paused at ${step.label}; review saved receipts before continuing or switch to review gates.`;
+  }
+
+  return 'Full auto paused; review saved receipts before continuing or switch to review gates.';
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
 }

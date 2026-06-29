@@ -149,6 +149,22 @@ describe('runSavedMotionFullAuto', () => {
         stepId: 'visual-source',
         advancedStepIds: ['capture'],
         receiptCount: 1,
+        reviewPacket: {
+          kind: 'motion-full-auto-review-packet',
+          status: 'paused',
+          mode: 'full-auto',
+          advancedStepLabels: ['Product capture'],
+          savedReceiptCount: 2,
+          savedReceiptLabels: ['Screenshot', 'Recording'],
+          editableSurfaceLabels: ['capture', 'recording', 'crop', 'cursor path'],
+          proofLabels: ['screenshots', 'recordings', 'DOM snapshots', 'cursor targets'],
+          nextReviewLabel: 'Visual sourcing',
+          nextActionLabel: 'Plan source visuals',
+          nextRouteLabels: ['/api/motion/visuals'],
+          nextToolLabels: ['motion-visuals'],
+          instruction:
+            'Full auto paused at Visual sourcing; review saved receipts before continuing or switch to review gates.',
+        },
       },
       productionPlan: {
         nextStepId: 'visual-source',
