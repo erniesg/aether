@@ -32,6 +32,52 @@ function project(): MotionProject {
 }
 
 describe('POST /api/motion/preview-source', () => {
+  it('returns matching source parity metadata for Remotion and HyperFrames preview packages', async () => {
+    const { POST } = await import('@/app/api/motion/preview-source/route');
+    const remotionRes = await POST(
+      new Request('http://localhost/api/motion/preview-source', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          engine: 'remotion',
+          requestedAt: 929,
+        }),
+      })
+    );
+    const hyperframesRes = await POST(
+      new Request('http://localhost/api/motion/preview-source', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          engine: 'hyperframes',
+          requestedAt: 929,
+        }),
+      })
+    );
+
+    expect(remotionRes.status).toBe(200);
+    expect(hyperframesRes.status).toBe(200);
+    const remotionJson = await remotionRes.json();
+    const hyperframesJson = await hyperframesRes.json();
+    const remotionManifest = sourceManifestFromPreview(remotionJson.previewSource);
+    const hyperframesManifest = sourceManifestFromPreview(hyperframesJson.previewSource);
+
+    expect(remotionManifest.sourceParity).toEqual(hyperframesManifest.sourceParity);
+    expect(remotionManifest.sourceParity.renderProofExpectations.verificationLabels).toEqual([
+      'source manifest',
+      'one-frame layout check',
+      'check video',
+      'check poster',
+      'check subtitle',
+      'check transcript',
+      'check manifest',
+    ]);
+    expect(remotionManifest.engineEntryFile.path).toBe('remotion/index.tsx');
+    expect(hyperframesManifest.engineEntryFile.path).toBe('index.html');
+  });
+
   it('returns a Remotion Player source package without requiring a render provider', async () => {
     const { POST } = await import('@/app/api/motion/preview-source/route');
     const res = await POST(
@@ -282,3 +328,10 @@ describe('POST /api/motion/preview-source', () => {
     });
   });
 });
+
+function sourceManifestFromPreview(previewSource: {
+  sourceFiles: Array<{ kind: string; contents: string }>;
+}) {
+  const manifest = previewSource.sourceFiles.find((file) => file.kind === 'manifest');
+  return JSON.parse(manifest?.contents ?? '{}');
+}

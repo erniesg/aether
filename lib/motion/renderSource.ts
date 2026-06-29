@@ -102,6 +102,36 @@ interface SourceManifestSourcePackage {
   setupCommands: SourceManifestCommand[];
 }
 
+interface SourceManifestEngineEntryFile {
+  engine: MotionRenderEngine;
+  path: string;
+  mimeType: string;
+}
+
+interface SourceManifestSourceParity {
+  kind: 'motion-render-source-parity';
+  sourceManifestConcept: SourceManifestSourcePackage['kind'];
+  timeline: {
+    fps: number;
+    durationFrames: number;
+    durationSeconds: number;
+  };
+  sourceFileKinds: string[];
+  componentIds: string[];
+  editableComponentControls: Array<{
+    componentId: string;
+    componentLabel: string;
+    editControlIds: string[];
+    regenerateScopes: string[];
+  }>;
+  renderProofExpectations: {
+    proofArtifactKinds: string[];
+    proofArtifactLabels: string[];
+    artifactCheckKinds: string[];
+    verificationLabels: string[];
+  };
+}
+
 interface RenderDimensions {
   width: number;
   height: number;
@@ -2464,6 +2494,8 @@ function sourceManifestJson(
       label: preset.label,
       summary: preset.summary,
     })),
+    sourceParity: sourceManifestSourceParity(request, sourceFiles, editContract),
+    engineEntryFile: sourceManifestEngineEntryFile(request.engine, sourceFiles),
     editContract,
     syncEffectCues: editContract.syncEffectCues,
     editSurfaces: sourceManifestEditSurfaces(request),
@@ -2474,6 +2506,68 @@ function sourceManifestJson(
     files: sourceFileSummaries,
     provenance,
   });
+}
+
+function sourceManifestSourceParity(
+  request: MotionRenderRequest,
+  sourceFiles: MotionRenderSourceFile[],
+  editContract: MotionRenderEditContract
+): SourceManifestSourceParity {
+  const outputKinds = request.outputs.map((output) => output.kind);
+  return {
+    kind: 'motion-render-source-parity',
+    sourceManifestConcept: 'editable-motion-source',
+    timeline: {
+      fps: request.fps,
+      durationFrames: request.durationFrames,
+      durationSeconds: request.durationFrames / request.fps,
+    },
+    sourceFileKinds: sourceFiles.map((file) => file.kind),
+    componentIds: componentIdsForTracks(request.tracks),
+    editableComponentControls: sourceManifestEditableComponentControls(editContract),
+    renderProofExpectations: {
+      proofArtifactKinds: outputKinds,
+      proofArtifactLabels: request.outputs.map((output) => renderOutputKindLabel(output.kind)),
+      artifactCheckKinds: outputKinds,
+      verificationLabels: [
+        'source manifest',
+        'one-frame layout check',
+        ...outputKinds.map((kind) => `check ${kind}`),
+      ],
+    },
+  };
+}
+
+function sourceManifestEditableComponentControls(
+  editContract: MotionRenderEditContract
+): SourceManifestSourceParity['editableComponentControls'] {
+  const seen = new Set<string>();
+  return editContract.editableComponents.flatMap((component) => {
+    if (seen.has(component.componentId)) return [];
+    seen.add(component.componentId);
+    return [
+      {
+        componentId: component.componentId,
+        componentLabel: component.componentLabel,
+        editControlIds: component.editControlIds,
+        regenerateScopes: component.regenerateScopes,
+      },
+    ];
+  });
+}
+
+function sourceManifestEngineEntryFile(
+  engine: MotionRenderEngine,
+  sourceFiles: MotionRenderSourceFile[]
+): SourceManifestEngineEntryFile | null {
+  const entryFile = sourceFiles.find((file) => file.kind === 'entry');
+  if (!entryFile) return null;
+
+  return {
+    engine,
+    path: entryFile.path,
+    mimeType: entryFile.mimeType,
+  };
 }
 
 function sourceManifestEditSurfaces(request: MotionRenderRequest): Array<{

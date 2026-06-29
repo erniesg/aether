@@ -122,6 +122,59 @@ describe('POST /api/motion/render', () => {
     ]);
   });
 
+  it('keeps render handoff source parity identical across Remotion and HyperFrames', async () => {
+    const { POST } = await import('@/app/api/motion/render/route');
+    const remotionRes = await POST(
+      new Request('http://localhost/api/motion/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          engine: 'remotion',
+          requestedAt: 905,
+        }),
+      })
+    );
+    const hyperframesRes = await POST(
+      new Request('http://localhost/api/motion/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          engine: 'hyperframes',
+          requestedAt: 905,
+        }),
+      })
+    );
+
+    expect(remotionRes.status).toBe(200);
+    expect(hyperframesRes.status).toBe(200);
+    const remotionJson = await remotionRes.json();
+    const hyperframesJson = await hyperframesRes.json();
+    const remotionManifest = sourceManifestFromRenderRequest(remotionJson.request);
+    const hyperframesManifest = sourceManifestFromRenderRequest(hyperframesJson.request);
+
+    expect(remotionJson.status).toBe('provider-required');
+    expect(hyperframesJson.status).toBe('provider-required');
+    expect(remotionManifest.sourceParity).toEqual(hyperframesManifest.sourceParity);
+    expect(remotionManifest.sourceParity.sourceManifestConcept).toBe('editable-motion-source');
+    expect(remotionManifest.sourceParity.renderProofExpectations.proofArtifactLabels).toEqual([
+      'MP4',
+      'Poster',
+      'Subtitles',
+      'Transcript',
+      'Manifest',
+    ]);
+    expect(remotionManifest.engineEntryFile).toMatchObject({
+      engine: 'remotion',
+      path: 'remotion/index.tsx',
+    });
+    expect(hyperframesManifest.engineEntryFile).toMatchObject({
+      engine: 'hyperframes',
+      path: 'index.html',
+    });
+  });
+
   it('executes a configured render provider and returns updated exports', async () => {
     const render = vi.fn(async (request: MotionRenderRequest): Promise<MotionRenderResult> => ({
       providerId: 'remotion-test',
@@ -337,4 +390,11 @@ function restoreRenderEnv(): void {
     if (original === undefined) delete process.env[key];
     else process.env[key] = original;
   }
+}
+
+function sourceManifestFromRenderRequest(request: {
+  sourceFiles: Array<{ kind: string; contents: string }>;
+}) {
+  const manifest = request.sourceFiles.find((file) => file.kind === 'manifest');
+  return JSON.parse(manifest?.contents ?? '{}');
 }

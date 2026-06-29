@@ -92,6 +92,82 @@ function renderRequest(
 }
 
 describe('buildMotionRenderSourceBundle', () => {
+  it('emits provider-neutral source parity for Remotion and HyperFrames packages', () => {
+    const project = projectWithVisualTimeline();
+    const remotionBundle = buildMotionRenderSourceBundle(
+      project,
+      renderRequest(project, 'remotion')
+    );
+    const hyperframesBundle = buildMotionRenderSourceBundle(
+      project,
+      renderRequest(project, 'hyperframes')
+    );
+    const remotionManifest = manifestFor(remotionBundle);
+    const hyperframesManifest = manifestFor(hyperframesBundle);
+
+    expect(remotionManifest.sourceParity).toEqual(hyperframesManifest.sourceParity);
+    expect(remotionManifest.sourceParity).toMatchObject({
+      kind: 'motion-render-source-parity',
+      sourceManifestConcept: 'editable-motion-source',
+      timeline: {
+        fps: 30,
+        durationFrames: 900,
+        durationSeconds: 30,
+      },
+      sourceFileKinds: ['entry', 'design', 'script', 'storyboard', 'timeline', 'edit'],
+      componentIds: [
+        'hook-card',
+        'proof-card',
+        'app-frame',
+        'agent-trace',
+        'cta-card',
+        'caption-line',
+        'voice-line',
+        'soft-wipe',
+      ],
+      editableComponentControls: expect.arrayContaining([
+        {
+          componentId: 'app-frame',
+          componentLabel: 'App frame',
+          editControlIds: [
+            'assetId',
+            'assetUrl',
+            'caption',
+            'crop',
+            'zoom',
+            'cursorPath',
+            'sourceKeyframes',
+          ],
+          regenerateScopes: ['capture', 'timing', 'caption'],
+        },
+      ]),
+      renderProofExpectations: {
+        proofArtifactKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
+        proofArtifactLabels: ['MP4', 'Poster', 'Subtitles', 'Transcript', 'Manifest'],
+        artifactCheckKinds: ['video', 'poster', 'subtitle', 'transcript', 'manifest'],
+        verificationLabels: [
+          'source manifest',
+          'one-frame layout check',
+          'check video',
+          'check poster',
+          'check subtitle',
+          'check transcript',
+          'check manifest',
+        ],
+      },
+    });
+    expect(remotionManifest.engineEntryFile).toEqual({
+      engine: 'remotion',
+      path: 'remotion/index.tsx',
+      mimeType: 'text/typescript',
+    });
+    expect(hyperframesManifest.engineEntryFile).toEqual({
+      engine: 'hyperframes',
+      path: 'index.html',
+      mimeType: 'text/html',
+    });
+  });
+
   it('compiles an editable motion timeline into a Remotion entry source file', () => {
     const project = projectWithVisualTimeline();
     const request = renderRequest(project, 'remotion');
@@ -1049,3 +1125,7 @@ describe('buildMotionRenderSourceBundle', () => {
     );
   });
 });
+
+function manifestFor(bundle: ReturnType<typeof buildMotionRenderSourceBundle>) {
+  return JSON.parse(bundle.files.find((file) => file.kind === 'manifest')?.contents ?? '{}');
+}
