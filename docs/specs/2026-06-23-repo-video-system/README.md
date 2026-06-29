@@ -89,6 +89,16 @@ Anthropic/Claude agent surfaces, Remotion, and the remaining X/YouTube video
 corpus pass into workflow-specific observed formats, shot notes, style tags,
 component ids, review/full-auto behavior, and provider seams.
 
+## Completion roadmap: 2026-06-29
+
+The current completion plan is
+`docs/superpowers/plans/2026-06-29-repo-video-golden-path-completion.md`.
+It audits which parts of the repo-to-video goal are already implemented and
+which evidence is still required before the full objective can be called done:
+golden-path repo starts, editable Remotion and HyperFrames source packages,
+full-auto provider receipts, live app capture, playback-reviewed taste corpus,
+computer-use capture safety, render/export proof, and canvas return.
+
 ## Reference refresh: 2026-06-27
 
 - The user's HyperFrames `pr-to-video` launch snippet is now represented as a
