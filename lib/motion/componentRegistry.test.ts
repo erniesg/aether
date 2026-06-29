@@ -57,6 +57,7 @@ describe('motion component registry', () => {
       'crop',
       'zoom',
       'cursorPath',
+      'sourceKeyframes',
     ]);
 
     const codeDiff = getMotionComponent('code-diff-card');

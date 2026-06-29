@@ -94,8 +94,9 @@ X/video review supplies timestamp-verified cuts.
 - Capture-source editing is no longer purely future work. `app-frame` clips now
   expose asset URL, crop, zoom, and cursor path controls, and
   `replace-clip-asset` keeps top-level clip assets synced with editable props.
-  Remaining capture-edit work should focus on keyframes, cursor path editing,
-  and multi-source source-bundle round trips.
+  Timed source keyframes now store crop, zoom, and cursor choreography through
+  the same revision path. Remaining capture-edit work should focus on
+  caption/script edits and multi-source source-bundle round trips.
 
 ## Component taxonomy to support
 
@@ -167,9 +168,10 @@ Aether now has the right backbone:
    shell with frame scrubbing, component focus, a same-shell Remotion Player,
    and a sandboxed HyperFrames iframe. Capture-source replacement now works for
    `app-frame` clips with URL, crop, zoom, cursor path, and capture metadata.
-   The remaining gap is deeper source-backed editing: crop/zoom keyframes,
-   cursor path editing, caption/script/source-bundle round trips, regenerate a
-   selected component, and apply those edits through `MotionProject`.
+   Timed source keyframes now cover crop/zoom/cursor path choreography. The
+   remaining gap is deeper source-backed editing: caption/script/source-bundle
+   round trips, regenerate a selected component, and apply those edits through
+   `MotionProject`.
 4. **Node graph for generation lanes.** The timeline now opens a progressive
    generation node lens for visual sources, image-to-video, voice, sync,
    render, and export dependencies. It still needs richer replace-source
@@ -319,9 +321,11 @@ material.
 
 Recent continuation: `replace-clip-asset` now handles capture-source
 replacement for app-frame clips, including source URL, crop, zoom, cursor path,
-capture artifact kind, MIME type, and source asset linkage. The next edit-depth
-slice should add keyframe-level crop/zoom/cursor edits and source-bundle import
-from edited `SCRIPT.md`, `STORYBOARD.md`, timeline JSON, or `EDIT.md`.
+capture artifact kind, MIME type, and source asset linkage.
+`update-clip-source-keyframes` now adds keyframe-level crop, zoom, and cursor
+edits from the timeline lens and API. The next edit-depth slice should add
+source-bundle import from edited `SCRIPT.md`, `STORYBOARD.md`, timeline JSON,
+or `EDIT.md`, plus caption/script round trips.
 
 Acceptance evidence:
 

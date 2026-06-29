@@ -105,6 +105,7 @@ import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
 import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
 import { appendDraftApprovalExecutionHistory } from '@/lib/motion/executionHistory';
 import type { MotionEffectPresetId } from '@/lib/motion/effectPresets';
+import type { MotionSourceKeyframe } from '@/lib/motion/revise';
 import {
   buildExportRequestBody,
   downloadExportPack,
@@ -831,6 +832,56 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
         });
         setMotionTimelineActionStatus('clip source updated');
+      } catch (error) {
+        setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [motionStart, wsId]
+  );
+  const handleTimelineClipSourceKeyframesEdit = useCallback(
+    async (clipId: string, keyframes: MotionSourceKeyframe[]) => {
+      if (!motionStart?.project) return;
+
+      setMotionTimelineActionStatus('applying source keyframes');
+      try {
+        const requestedAt = Date.now();
+        const res = await fetch('/api/motion/revise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: motionStart.project,
+            id: `source-keyframes-${clipId}-${requestedAt}`,
+            requestedAt,
+            updatedAt: requestedAt,
+            requestedEngines: motionStart.workflow.plan.engines,
+            operations: [
+              {
+                kind: 'update-clip-source-keyframes',
+                clipId,
+                keyframes,
+              },
+            ],
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          project?: typeof motionStart.project;
+          reviewPlan?: typeof motionStart.reviewPlan;
+          previewPlan?: typeof motionStart.previewPlan;
+          capturePlan?: typeof motionStart.capturePlan;
+        };
+        if (!res.ok || json.ok === false || !json.project || !json.previewPlan) {
+          throw new Error(json.error ?? `source keyframe edit failed: ${res.status}`);
+        }
+        setMotionStartResult(wsId, {
+          ...motionStart,
+          project: json.project,
+          reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
+          previewPlan: json.previewPlan,
+          capturePlan: json.capturePlan ?? motionStart.capturePlan,
+        });
+        setMotionTimelineActionStatus('source keyframes updated');
       } catch (error) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
@@ -3280,6 +3331,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onSelectCapabilitySetup={handleTimelineCapabilitySetupSelect}
             onEditClipSummary={handleTimelineClipSummaryEdit}
             onEditClipProps={handleTimelineClipPropsEdit}
+            onEditClipSourceKeyframes={handleTimelineClipSourceKeyframesEdit}
             onEditClipEffect={handleTimelineClipEffectEdit}
             onEditClipTiming={handleTimelineClipTimingEdit}
             capturePlan={motionStart?.capturePlan ?? null}

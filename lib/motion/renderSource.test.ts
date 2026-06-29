@@ -188,7 +188,15 @@ describe('buildMotionRenderSourceBundle', () => {
           clipId: 'clip-beat-demo-text',
           componentId: 'app-frame',
           componentLabel: 'App frame',
-          editControlIds: ['assetId', 'assetUrl', 'caption', 'crop', 'zoom', 'cursorPath'],
+          editControlIds: [
+            'assetId',
+            'assetUrl',
+            'caption',
+            'crop',
+            'zoom',
+            'cursorPath',
+            'sourceKeyframes',
+          ],
           regenerateScopes: ['capture', 'timing', 'caption'],
           sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
         }),
@@ -305,7 +313,9 @@ describe('buildMotionRenderSourceBundle', () => {
     expect(edit).toContain('# aether Edit Contract');
     expect(edit).toContain('## clip-beat-demo-text');
     expect(edit).toContain('Component: App frame');
-    expect(edit).toContain('Edit controls: assetId, assetUrl, caption, crop, zoom, cursorPath');
+    expect(edit).toContain(
+      'Edit controls: assetId, assetUrl, caption, crop, zoom, cursorPath, sourceKeyframes'
+    );
     expect(edit).toContain('Regenerate: capture, timing, caption');
     expect(edit).toContain('Files: timeline/draft-primary.json, STORYBOARD.md');
     expect(edit).toContain('Use SCRIPT.md for narration copy changes.');

@@ -43,6 +43,11 @@
   source props together, preserving source URL, crop, zoom, cursor path, capture
   artifact kind, MIME type, and source asset linkage for image-to-video and
   render.
+- App-frame source choreography can now be edited through
+  `update-clip-source-keyframes`. The revision stores sorted keyframes for
+  crop, zoom, cursor path, and optional labels, mirrors the first keyframe into
+  editable app-frame props, and exposes a selected-clip source-keyframes control
+  in the same timeline lens.
 - Preview plans now include a creator-facing visual generation summary for
   image-to-video: ready clip requests show component, prompt, duration, and
   output shape, while missing key visuals appear as reviewable blockers.

@@ -200,13 +200,114 @@ describe('POST /api/motion/revise', () => {
       )
       .find((clip: { clipId: string }) => clip.clipId === 'clip-beat-demo-text');
     expect(previewClip).toMatchObject({
-      editControlIds: ['assetId', 'assetUrl', 'caption', 'crop', 'zoom', 'cursorPath'],
+      editControlIds: [
+        'assetId',
+        'assetUrl',
+        'caption',
+        'crop',
+        'zoom',
+        'cursorPath',
+        'sourceKeyframes',
+      ],
       editableProps: {
         assetId: 'capture-recording-aether-flow',
         assetUrl: 'asset://capture/aether-flow.webm',
         crop: 'center-safe',
         zoom: 1.4,
         cursorPath: '120,420 540,960',
+      },
+    });
+  });
+
+  it('applies source keyframes for app-frame crop, zoom, and cursor timing', async () => {
+    const { POST } = await import('@/app/api/motion/revise/route');
+    const res = await POST(
+      new Request('http://localhost/api/motion/revise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: project(),
+          id: 'revision-demo-source-keyframes',
+          requestedAt: 906,
+          operations: [
+            {
+              kind: 'update-clip-source-keyframes',
+              clipId: 'clip-beat-demo-text',
+              keyframes: [
+                {
+                  atFrame: 0,
+                  crop: 'wide-context',
+                  zoom: 1,
+                  cursorPath: '120,420',
+                },
+                {
+                  atFrame: 72,
+                  crop: 'center-safe',
+                  zoom: 1.45,
+                  cursorPath: '120,420 540,960',
+                },
+              ],
+            },
+          ],
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const demoClip = json.project.tracks
+      .flatMap(
+        (track: { clips: Array<{ id: string; assetId?: string; props: Record<string, unknown> }> }) =>
+          track.clips
+      )
+      .find((clip: { id: string }) => clip.id === 'clip-beat-demo-text');
+
+    expect(demoClip.props).toMatchObject({
+      crop: 'wide-context',
+      zoom: 1,
+      cursorPath: '120,420',
+      sourceKeyframes: [
+        {
+          atFrame: 0,
+          crop: 'wide-context',
+          zoom: 1,
+          cursorPath: '120,420',
+        },
+        {
+          atFrame: 72,
+          crop: 'center-safe',
+          zoom: 1.45,
+          cursorPath: '120,420 540,960',
+        },
+      ],
+    });
+    const previewClip = json.previewPlan.timelineRows
+      .flatMap(
+        (row: {
+          clips: Array<{
+            clipId: string;
+            editControlIds: string[];
+            editableProps: Record<string, unknown>;
+          }>;
+        }) => row.clips
+      )
+      .find((clip: { clipId: string }) => clip.clipId === 'clip-beat-demo-text');
+    expect(previewClip).toMatchObject({
+      editControlIds: [
+        'assetId',
+        'assetUrl',
+        'caption',
+        'crop',
+        'zoom',
+        'cursorPath',
+        'sourceKeyframes',
+      ],
+      editableProps: {
+        crop: 'wide-context',
+        zoom: 1,
+        cursorPath: '120,420',
+        sourceKeyframes:
+          '[{"atFrame":0,"crop":"wide-context","zoom":1,"cursorPath":"120,420"},{"atFrame":72,"crop":"center-safe","zoom":1.45,"cursorPath":"120,420 540,960"}]',
       },
     });
   });

@@ -8,6 +8,14 @@ import type {
   TimelineTrack,
 } from './project';
 
+export interface MotionSourceKeyframe {
+  atFrame: number;
+  crop?: string;
+  zoom?: number;
+  cursorPath?: string;
+  label?: string;
+}
+
 export type MotionTimelineRevisionOperation =
   | {
       kind: 'update-story-beat';
@@ -36,6 +44,11 @@ export type MotionTimelineRevisionOperation =
       zoom?: number;
       cursorPath?: string;
       sourceAssetId?: string;
+    }
+  | {
+      kind: 'update-clip-source-keyframes';
+      clipId: string;
+      keyframes: MotionSourceKeyframe[];
     }
   | {
       kind: 'retime-clip';
@@ -107,6 +120,11 @@ function validateMotionTimelineRevision(
       .flatMap((tracks) => tracks.flatMap((track) => track.clips))
       .map((clip) => clip.id)
   );
+  const clipsById = new Map(
+    allTrackSets(project)
+      .flatMap((tracks) => tracks.flatMap((track) => track.clips))
+      .map((clip) => [clip.id, clip] as const)
+  );
 
   input.operations.forEach((operation) => {
     if (operation.kind === 'update-story-beat') {
@@ -122,6 +140,7 @@ function validateMotionTimelineRevision(
       operation.kind === 'update-clip-props' ||
       operation.kind === 'replace-clip-props' ||
       operation.kind === 'replace-clip-asset' ||
+      operation.kind === 'update-clip-source-keyframes' ||
       operation.kind === 'retime-clip' ||
       operation.kind === 'replace-component'
     ) {
@@ -146,6 +165,10 @@ function validateMotionTimelineRevision(
       if (operation.zoom !== undefined && operation.zoom <= 0) {
         throw new Error(`Motion clip zoom must be positive: ${operation.clipId}`);
       }
+    }
+
+    if (operation.kind === 'update-clip-source-keyframes') {
+      validateSourceKeyframes(operation, clipsById.get(operation.clipId));
     }
 
     if (operation.kind === 'replace-component' && !getMotionComponent(operation.componentId)) {
@@ -245,6 +268,17 @@ function clipEditsForOperations(
       return;
     }
 
+    if (operation.kind === 'update-clip-source-keyframes') {
+      edits.set(operation.clipId, {
+        ...current,
+        props: {
+          ...(current.props ?? {}),
+          ...sourceKeyframeProps(operation.keyframes),
+        },
+      });
+      return;
+    }
+
     if (operation.kind === 'retime-clip') {
       edits.set(operation.clipId, {
         ...current,
@@ -283,6 +317,18 @@ function assetReplacementProps(
     ...(operation.zoom === undefined ? {} : { zoom: operation.zoom }),
     ...(operation.cursorPath === undefined ? {} : { cursorPath: operation.cursorPath }),
     ...(operation.sourceAssetId === undefined ? {} : { sourceAssetId: operation.sourceAssetId }),
+  };
+}
+
+function sourceKeyframeProps(keyframes: MotionSourceKeyframe[]): Record<string, unknown> {
+  const normalized = normalizeSourceKeyframes(keyframes);
+  const first = normalized[0];
+
+  return {
+    sourceKeyframes: normalized,
+    ...(first.crop === undefined ? {} : { crop: first.crop }),
+    ...(first.zoom === undefined ? {} : { zoom: first.zoom }),
+    ...(first.cursorPath === undefined ? {} : { cursorPath: first.cursorPath }),
   };
 }
 
@@ -381,6 +427,50 @@ function upsertRevisionNode(
 function operationRef(operation: MotionTimelineRevisionOperation): string {
   if (operation.kind === 'update-story-beat') return operation.beatId;
   return operation.clipId;
+}
+
+function validateSourceKeyframes(
+  operation: Extract<MotionTimelineRevisionOperation, { kind: 'update-clip-source-keyframes' }>,
+  clip: TimelineClip | undefined
+): void {
+  if (operation.keyframes.length === 0) {
+    throw new Error(`Motion clip source keyframes are required: ${operation.clipId}`);
+  }
+
+  const seenFrames = new Set<number>();
+  operation.keyframes.forEach((keyframe) => {
+    if (!Number.isFinite(keyframe.atFrame) || keyframe.atFrame < 0) {
+      throw new Error(`Motion clip source keyframe frame must be non-negative: ${operation.clipId}`);
+    }
+    if (clip && keyframe.atFrame > clip.durationFrames) {
+      throw new Error(`Motion clip source keyframe frame exceeds duration: ${operation.clipId}`);
+    }
+    if (seenFrames.has(keyframe.atFrame)) {
+      throw new Error(`Motion clip source keyframe frames must be unique: ${operation.clipId}`);
+    }
+    seenFrames.add(keyframe.atFrame);
+    if (keyframe.zoom !== undefined && keyframe.zoom <= 0) {
+      throw new Error(`Motion clip source keyframe zoom must be positive: ${operation.clipId}`);
+    }
+    if (keyframe.crop !== undefined && keyframe.crop.trim().length === 0) {
+      throw new Error(`Motion clip source keyframe crop must not be blank: ${operation.clipId}`);
+    }
+    if (keyframe.cursorPath !== undefined && keyframe.cursorPath.trim().length === 0) {
+      throw new Error(`Motion clip source keyframe cursor path must not be blank: ${operation.clipId}`);
+    }
+  });
+}
+
+function normalizeSourceKeyframes(keyframes: MotionSourceKeyframe[]): MotionSourceKeyframe[] {
+  return [...keyframes]
+    .sort((left, right) => left.atFrame - right.atFrame)
+    .map((keyframe) => ({
+      atFrame: keyframe.atFrame,
+      ...(keyframe.crop === undefined ? {} : { crop: keyframe.crop.trim() }),
+      ...(keyframe.zoom === undefined ? {} : { zoom: keyframe.zoom }),
+      ...(keyframe.cursorPath === undefined ? {} : { cursorPath: keyframe.cursorPath.trim() }),
+      ...(keyframe.label === undefined ? {} : { label: keyframe.label.trim() }),
+    }));
 }
 
 function revisionProvenance(id: string): MotionProvenanceRef[] {

@@ -665,7 +665,15 @@ const previewPlan: MotionPreviewPlan = {
       clipId: 'clip-beat-demo-text',
       componentId: 'app-frame',
       componentLabel: 'App frame',
-      editControlIds: ['assetId', 'assetUrl', 'caption', 'crop', 'zoom', 'cursorPath'],
+      editControlIds: [
+        'assetId',
+        'assetUrl',
+        'caption',
+        'crop',
+        'zoom',
+        'cursorPath',
+        'sourceKeyframes',
+      ],
       regenerateScopes: ['capture', 'timing', 'caption'],
     },
   ],
@@ -888,8 +896,24 @@ const previewPlan: MotionPreviewPlan = {
         clipId: 'clip-beat-demo-text',
         componentId: 'app-frame',
         componentLabel: 'App frame',
-        editControlIds: ['assetId', 'assetUrl', 'caption', 'crop', 'zoom', 'cursorPath'],
-        editControlLabels: ['Capture', 'Capture URL', 'Caption', 'Crop', 'Zoom', 'Cursor path'],
+        editControlIds: [
+          'assetId',
+          'assetUrl',
+          'caption',
+          'crop',
+          'zoom',
+          'cursorPath',
+          'sourceKeyframes',
+        ],
+        editControlLabels: [
+          'Capture',
+          'Capture URL',
+          'Caption',
+          'Crop',
+          'Zoom',
+          'Cursor path',
+          'Source keyframes',
+        ],
         regenerateScopes: ['capture', 'timing', 'caption'],
         sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
         sourceFileLabels: ['Timeline JSON', 'Storyboard'],
@@ -900,6 +924,7 @@ const previewPlan: MotionPreviewPlan = {
           'Crop',
           'Zoom',
           'Cursor path',
+          'Source keyframes',
           'capture',
           'timing',
           'caption',
@@ -2240,9 +2265,11 @@ describe('TimelineLens', () => {
     expect(screen.getByText('SCRIPT.md')).toBeInTheDocument();
     expect(screen.getByText('STORYBOARD.md')).toBeInTheDocument();
     expect(screen.getByText('capture / timing / caption / copy / effect')).toBeInTheDocument();
-    expect(screen.getAllByText('Capture / Capture URL / Caption / Crop / Zoom / Cursor path').length).toBeGreaterThan(
-      0
-    );
+    expect(
+      screen.getAllByText(
+        'Capture / Capture URL / Caption / Crop / Zoom / Cursor path / Source keyframes'
+      ).length
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText('Timeline JSON / Storyboard').length).toBeGreaterThan(0);
     expect(screen.getByText('agent plan')).toBeInTheDocument();
     expect(screen.getByText('5 review gates')).toBeInTheDocument();
@@ -2274,7 +2301,11 @@ describe('TimelineLens', () => {
     expect(screen.getByText('Reviewable draft board')).toBeInTheDocument();
     expect(screen.getAllByText('App frame').length).toBeGreaterThan(0);
     expect(screen.getAllByText('1 source').length).toBeGreaterThan(0);
-    expect(screen.getByText('assetId / assetUrl / caption / crop / zoom / cursorPath')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'assetId / assetUrl / caption / crop / zoom / cursorPath / sourceKeyframes'
+      )
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /regenerate capture for app frame/i })).toBeInTheDocument();
     expect(screen.getByText('remotion')).toBeInTheDocument();
     expect(screen.getAllByText('ready').length).toBeGreaterThan(0);

@@ -3292,6 +3292,10 @@ function editablePropsForClip(
   const props: Record<string, string | number | boolean | null> = {};
   for (const id of editControlIds) {
     const value = clip.props[id];
+    if (id === 'sourceKeyframes' && Array.isArray(value)) {
+      props[id] = JSON.stringify(value);
+      continue;
+    }
     if (
       typeof value === 'string' ||
       typeof value === 'number' ||

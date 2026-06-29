@@ -6,6 +6,7 @@ import { buildMotionPreviewPlan } from '@/lib/motion/previewPlan';
 import { buildMotionReviewPlan } from '@/lib/motion/reviewPlan';
 import {
   applyMotionTimelineRevision,
+  type MotionSourceKeyframe,
   type MotionTimelineRevisionOperation,
 } from '@/lib/motion/revise';
 
@@ -134,6 +135,13 @@ function parseOperations(value: unknown): MotionTimelineRevisionOperation[] | nu
       ];
     }
 
+    if (kind === 'update-clip-source-keyframes') {
+      const clipId = stringValue(candidate.clipId);
+      const keyframes = parseSourceKeyframes(candidate.keyframes);
+      if (!clipId || !keyframes) return [];
+      return [{ kind, clipId, keyframes }];
+    }
+
     if (kind === 'retime-clip') {
       const clipId = stringValue(candidate.clipId);
       if (!clipId) return [];
@@ -169,6 +177,37 @@ function parseOperations(value: unknown): MotionTimelineRevisionOperation[] | nu
   });
 
   return operations.length === value.length ? operations : null;
+}
+
+function parseSourceKeyframes(value: unknown): MotionSourceKeyframe[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+
+  const keyframes = value.flatMap((candidate): MotionSourceKeyframe[] => {
+    if (!isObject(candidate)) return [];
+    const atFrame = numericValue(candidate.atFrame);
+    if (atFrame === undefined) return [];
+
+    const crop = stringValue(candidate.crop);
+    const zoom = numericValue(candidate.zoom);
+    const cursorPath = stringValue(candidate.cursorPath);
+    const label = stringValue(candidate.label);
+    if (candidate.crop !== undefined && crop === undefined) return [];
+    if (candidate.zoom !== undefined && zoom === undefined) return [];
+    if (candidate.cursorPath !== undefined && cursorPath === undefined) return [];
+    if (candidate.label !== undefined && label === undefined) return [];
+
+    return [
+      {
+        atFrame,
+        ...(crop === undefined ? {} : { crop }),
+        ...(zoom === undefined ? {} : { zoom }),
+        ...(cursorPath === undefined ? {} : { cursorPath }),
+        ...(label === undefined ? {} : { label }),
+      },
+    ];
+  });
+
+  return keyframes.length === value.length ? keyframes : null;
 }
 
 function parseRequestedEngines(value: unknown): WorkflowEngine[] | null {

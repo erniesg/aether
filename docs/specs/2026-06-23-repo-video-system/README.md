@@ -151,14 +151,15 @@ component ids, review/full-auto behavior, and provider seams.
   requirement: script, B-roll, generated video, captions, layout, transitions,
   and speech regeneration need to remain source-backed so one line edit can
   update voice, captions, timing, and visual inserts.
-- The latest implementation checkpoints now cover three of the earlier gaps:
+- The latest implementation checkpoints now cover four of the earlier gaps:
   `replace-clip-asset` lets an agent replace an `app-frame` capture with source
   URL, crop, zoom, cursor path, and capture metadata while keeping top-level
-  clip assets aligned for image-to-video and render; `previewPlan.modeControl`
-  now exposes review gates and full-auto as explicit creator choices in the
-  timeline lens; `/api/motion/mode` makes those choices executable on the same
-  `MotionProject` without dropping source refs, selected draft, receipts, or
-  handoff templates.
+  clip assets aligned for image-to-video and render;
+  `update-clip-source-keyframes` adds timed crop, zoom, and cursor choreography
+  for capture-backed app-frame clips; `previewPlan.modeControl` now exposes
+  review gates and full-auto as explicit creator choices in the timeline lens;
+  `/api/motion/mode` makes those choices executable on the same `MotionProject`
+  without dropping source refs, selected draft, receipts, or handoff templates.
 
 ## Architecture decision
 
@@ -192,9 +193,10 @@ capture, render, and provenance debugging.
 ## Remaining implementation plan
 
 1. **Expand source-backed edit depth.** Capture replacement exists for
-   `app-frame` sources. Add crop/zoom keyframe editing, cursor path editing,
-   caption line replacement, effect changes, and script/storyboard edits through
-   the same structured revision/source-edit path.
+   `app-frame` sources, and timed source keyframes now cover crop, zoom, and
+   cursor path choreography. Add caption line replacement, effect changes,
+   script/storyboard edits, and source-bundle import through the same structured
+   revision/source-edit path.
 2. **Add workflow-skill launch packaging.** Let `pr-to-video` and future daily
    skill drops produce a reviewable launch-kit object: sample social copy,
    install command, teaser format, source PR evidence, and export targets.
@@ -295,8 +297,11 @@ capture, render, and provenance debugging.
   source ingest flow.
 - `lib/motion/revise.ts` now supports typed capture-source replacement through
   `replace-clip-asset`, keeping clip-level `assetId` and editable component
-  props aligned for downstream image-to-video and render. `app-frame` controls
-  now include capture URL, crop, zoom, and cursor path.
+  props aligned for downstream image-to-video and render. It also supports
+  `update-clip-source-keyframes`, storing sorted crop, zoom, and cursor path
+  keyframes while keeping the first keyframe reflected in editable app-frame
+  props. `app-frame` controls now include capture URL, crop, zoom, cursor path,
+  and source keyframes.
 - `lib/motion/productionPlan.ts` now derives a concrete production queue from an
   editable motion project: plan, drafts, capture, image-to-video, voice, sync,
   render, and export steps are marked complete, ready, blocked, review, or

@@ -184,6 +184,67 @@ describe('applyMotionTimelineRevision', () => {
     expect(draftDemoClip?.props.cursorPath).toBe('120,420 540,960');
   });
 
+  it('stores keyframed crop, zoom, and cursor choreography on app-frame clips', () => {
+    const revised = applyMotionTimelineRevision(project(), {
+      id: 'revision-demo-source-keyframes',
+      requestedAt: 106,
+      updatedAt: 107,
+      operations: [
+        {
+          kind: 'update-clip-source-keyframes',
+          clipId: 'clip-beat-demo-text',
+          keyframes: [
+            {
+              atFrame: 0,
+              crop: 'wide-context',
+              zoom: 1,
+              cursorPath: '120,420',
+            },
+            {
+              atFrame: 72,
+              crop: 'center-safe',
+              zoom: 1.45,
+              cursorPath: '120,420 540,960',
+            },
+          ],
+        },
+      ],
+    });
+
+    const demoClip = revised.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(demoClip?.props).toMatchObject({
+      crop: 'wide-context',
+      zoom: 1,
+      cursorPath: '120,420',
+      sourceKeyframes: [
+        {
+          atFrame: 0,
+          crop: 'wide-context',
+          zoom: 1,
+          cursorPath: '120,420',
+        },
+        {
+          atFrame: 72,
+          crop: 'center-safe',
+          zoom: 1.45,
+          cursorPath: '120,420 540,960',
+        },
+      ],
+    });
+    expect(demoClip?.provenance).toContainEqual({
+      kind: 'revision',
+      ref: 'revision-demo-source-keyframes',
+    });
+
+    const draftDemoClip = revised.drafts
+      .find((draft) => draft.id === revised.currentDraftId)
+      ?.tracks.flatMap((track) => track.clips)
+      .find((clip) => clip.id === 'clip-beat-demo-text');
+    expect(draftDemoClip?.props.sourceKeyframes).toEqual(demoClip?.props.sourceKeyframes);
+  });
+
   it('rejects unsafe edits before mutating the project', () => {
     expect(() =>
       applyMotionTimelineRevision(project(), {
@@ -213,5 +274,19 @@ describe('applyMotionTimelineRevision', () => {
         ],
       })
     ).toThrow(/not registered/);
+
+    expect(() =>
+      applyMotionTimelineRevision(project(), {
+        id: 'revision-bad-source-keyframes',
+        requestedAt: 108,
+        operations: [
+          {
+            kind: 'update-clip-source-keyframes',
+            clipId: 'clip-beat-demo-text',
+            keyframes: [{ atFrame: 0, zoom: 0 }],
+          },
+        ],
+      })
+    ).toThrow(/source keyframe zoom must be positive/);
   });
 });

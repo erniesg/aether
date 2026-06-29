@@ -727,6 +727,53 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
     ]);
   });
 
+  it('timeline selected app frame applies keyframed crop zoom and cursor edits', async () => {
+    const start = storedRegeneratableMotionStart();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          project: start.project,
+          reviewPlan: start.reviewPlan,
+          previewPlan: start.previewPlan,
+          capturePlan: start.capturePlan,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    setMotionStartResult('demo-ws', start);
+    renderShell();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /app frame clip/i }));
+    fireEvent.change(screen.getByLabelText(/clip source keyframes/i), {
+      target: {
+        value: JSON.stringify([
+        { atFrame: 0, crop: 'wide-context', zoom: 1, cursorPath: '120,420' },
+        { atFrame: 72, crop: 'center-safe', zoom: 1.45, cursorPath: '120,420 540,960' },
+        ]),
+      },
+    });
+    await userEvent.click(screen.getByRole('button', { name: /apply source keyframes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('source keyframes updated');
+    });
+
+    const reviseCall = fetchMock.mock.calls.find((call) => call[0] === '/api/motion/revise');
+    const body = JSON.parse(String(reviseCall?.[1]?.body));
+    expect(body.operations).toEqual([
+      {
+        kind: 'update-clip-source-keyframes',
+        clipId: 'clip-beat-demo-text',
+        keyframes: [
+          { atFrame: 0, crop: 'wide-context', zoom: 1, cursorPath: '120,420' },
+          { atFrame: 72, crop: 'center-safe', zoom: 1.45, cursorPath: '120,420 540,960' },
+        ],
+      },
+    ]);
+  });
+
   it('advanced node lens scopes visual-source regeneration to one request', async () => {
     const start = storedRegeneratableMotionStart();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(

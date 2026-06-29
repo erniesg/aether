@@ -24,6 +24,7 @@ import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
 import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
 import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
+import type { MotionSourceKeyframe } from '@/lib/motion/revise';
 import type {
   MotionProductionPlan,
   MotionProductionStep,
@@ -103,6 +104,7 @@ export interface TimelineLensProps {
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipProps?: (clipId: string, props: Record<string, EditableClipPropValue>) => void;
+  onEditClipSourceKeyframes?: (clipId: string, keyframes: MotionSourceKeyframe[]) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan?: AgentMotionCapturePlan | null;
@@ -142,6 +144,7 @@ export function TimelineLens({
   onPinMotionSkill,
   onEditClipSummary,
   onEditClipProps,
+  onEditClipSourceKeyframes,
   onEditClipEffect,
   onEditClipTiming,
   capturePlan = null,
@@ -207,6 +210,7 @@ export function TimelineLens({
             onPinMotionSkill={onPinMotionSkill}
             onEditClipSummary={onEditClipSummary}
             onEditClipProps={onEditClipProps}
+            onEditClipSourceKeyframes={onEditClipSourceKeyframes}
             onEditClipEffect={onEditClipEffect}
             onEditClipTiming={onEditClipTiming}
             capturePlan={capturePlan}
@@ -265,6 +269,7 @@ function MotionPreviewPlanView({
   onPinMotionSkill,
   onEditClipSummary,
   onEditClipProps,
+  onEditClipSourceKeyframes,
   onEditClipEffect,
   onEditClipTiming,
   capturePlan,
@@ -301,6 +306,7 @@ function MotionPreviewPlanView({
   onPinMotionSkill?: () => void;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipProps?: (clipId: string, props: Record<string, EditableClipPropValue>) => void;
+  onEditClipSourceKeyframes?: (clipId: string, keyframes: MotionSourceKeyframe[]) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
   capturePlan: AgentMotionCapturePlan | null;
@@ -697,6 +703,7 @@ function MotionPreviewPlanView({
           clip={selectedClip}
           onEditClipSummary={onEditClipSummary}
           onEditClipProps={onEditClipProps}
+          onEditClipSourceKeyframes={onEditClipSourceKeyframes}
           onEditClipEffect={onEditClipEffect}
           onEditClipTiming={onEditClipTiming}
         />
@@ -3247,19 +3254,26 @@ function SelectedClipEditor({
   clip,
   onEditClipSummary,
   onEditClipProps,
+  onEditClipSourceKeyframes,
   onEditClipEffect,
   onEditClipTiming,
 }: {
   clip: MotionPreviewTimelineClip;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipProps?: (clipId: string, props: Record<string, EditableClipPropValue>) => void;
+  onEditClipSourceKeyframes?: (clipId: string, keyframes: MotionSourceKeyframe[]) => void;
   onEditClipEffect?: (clipId: string, effectPreset: MotionEffectPresetId) => void;
   onEditClipTiming?: (clipId: string, startSeconds: number, durationSeconds: number) => void;
 }) {
   const [summary, setSummary] = useState(clip.summary);
   const [assetId, setAssetId] = useState(editableStringValue(clip, 'assetId'));
   const [caption, setCaption] = useState(editableStringValue(clip, 'caption', clip.summary));
+  const [crop, setCrop] = useState(editableStringValue(clip, 'crop'));
   const [zoom, setZoom] = useState(editableNumberInputValue(clip, 'zoom', 1));
+  const [cursorPath, setCursorPath] = useState(editableStringValue(clip, 'cursorPath'));
+  const [sourceKeyframes, setSourceKeyframes] = useState(
+    editableSourceKeyframesInputValue(clip)
+  );
   const [startSeconds, setStartSeconds] = useState(formatSecondsInput(clip.startSeconds));
   const [durationSeconds, setDurationSeconds] = useState(
     formatSecondsInput(clip.durationSeconds)
@@ -3269,7 +3283,10 @@ function SelectedClipEditor({
     setSummary(clip.summary);
     setAssetId(editableStringValue(clip, 'assetId'));
     setCaption(editableStringValue(clip, 'caption', clip.summary));
+    setCrop(editableStringValue(clip, 'crop'));
     setZoom(editableNumberInputValue(clip, 'zoom', 1));
+    setCursorPath(editableStringValue(clip, 'cursorPath'));
+    setSourceKeyframes(editableSourceKeyframesInputValue(clip));
     setStartSeconds(formatSecondsInput(clip.startSeconds));
     setDurationSeconds(formatSecondsInput(clip.durationSeconds));
   }, [clip]);
@@ -3277,17 +3294,29 @@ function SelectedClipEditor({
   const canApply = summary.trim().length > 0 && summary.trim() !== clip.summary.trim();
   const hasAssetControl = clip.editControlIds.includes('assetId');
   const hasCaptionControl = clip.editControlIds.includes('caption');
+  const hasCropControl = clip.editControlIds.includes('crop');
   const hasZoomControl = clip.editControlIds.includes('zoom');
-  const hasSourceControls = hasAssetControl || hasCaptionControl || hasZoomControl;
+  const hasCursorPathControl = clip.editControlIds.includes('cursorPath');
+  const hasSourceKeyframesControl = clip.editControlIds.includes('sourceKeyframes');
+  const hasSourceControls =
+    hasAssetControl || hasCaptionControl || hasCropControl || hasZoomControl || hasCursorPathControl;
   const parsedZoom = Number(zoom);
   const zoomIsValid = !hasZoomControl || (Number.isFinite(parsedZoom) && parsedZoom > 0);
+  const parsedSourceKeyframes = parseSourceKeyframesInput(sourceKeyframes);
   const sourceControlsChanged =
     (hasAssetControl && assetId.trim() !== editableStringValue(clip, 'assetId')) ||
     (hasCaptionControl && caption.trim() !== editableStringValue(clip, 'caption', clip.summary)) ||
+    (hasCropControl && crop.trim() !== editableStringValue(clip, 'crop')) ||
+    (hasCursorPathControl && cursorPath.trim() !== editableStringValue(clip, 'cursorPath')) ||
     (hasZoomControl &&
       Math.abs(parsedZoom - editableNumberValue(clip, 'zoom', 1)) > 0.001);
   const canApplySourceControls =
     Boolean(onEditClipProps) && hasSourceControls && zoomIsValid && sourceControlsChanged;
+  const canApplySourceKeyframes =
+    Boolean(onEditClipSourceKeyframes) &&
+    hasSourceKeyframesControl &&
+    parsedSourceKeyframes !== null &&
+    sourceKeyframes.trim() !== editableSourceKeyframesInputValue(clip).trim();
   const canEditEffects = clip.regenerateScopes.includes('effect') && Boolean(onEditClipEffect);
   const parsedStartSeconds = Number(startSeconds);
   const parsedDurationSeconds = Number(durationSeconds);
@@ -3364,7 +3393,7 @@ function SelectedClipEditor({
           </button>
         </div>
         {hasSourceControls ? (
-          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,96px)_auto]">
+          <div className="grid gap-2 md:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
             {hasAssetControl ? (
               <label className="grid gap-1 font-caption text-2xs text-ink-dim">
                 capture
@@ -3389,6 +3418,18 @@ function SelectedClipEditor({
                 />
               </label>
             ) : null}
+            {hasCropControl ? (
+              <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+                crop
+                <input
+                  type="text"
+                  aria-label="clip crop"
+                  value={crop}
+                  onChange={(event) => setCrop(event.target.value)}
+                  className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+                />
+              </label>
+            ) : null}
             {hasZoomControl ? (
               <label className="grid gap-1 font-caption text-2xs text-ink-dim">
                 zoom
@@ -3403,19 +3444,77 @@ function SelectedClipEditor({
                 />
               </label>
             ) : null}
+            {hasCursorPathControl ? (
+              <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+                cursor
+                <input
+                  type="text"
+                  aria-label="clip cursor path"
+                  value={cursorPath}
+                  onChange={(event) => setCursorPath(event.target.value)}
+                  className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink outline-none focus:border-accent"
+                />
+              </label>
+            ) : null}
             <button
               type="button"
               disabled={!canApplySourceControls}
               onClick={() => {
                 const props: Record<string, EditableClipPropValue> = {};
-                if (hasAssetControl) props.assetId = assetId.trim();
-                if (hasCaptionControl) props.caption = caption.trim();
-                if (hasZoomControl) props.zoom = parsedZoom;
+                if (hasAssetControl && assetId.trim() !== editableStringValue(clip, 'assetId')) {
+                  props.assetId = assetId.trim();
+                }
+                if (
+                  hasCaptionControl &&
+                  caption.trim() !== editableStringValue(clip, 'caption', clip.summary)
+                ) {
+                  props.caption = caption.trim();
+                }
+                if (hasCropControl && crop.trim() !== editableStringValue(clip, 'crop')) {
+                  props.crop = crop.trim();
+                }
+                if (
+                  hasZoomControl &&
+                  Math.abs(parsedZoom - editableNumberValue(clip, 'zoom', 1)) > 0.001
+                ) {
+                  props.zoom = parsedZoom;
+                }
+                if (
+                  hasCursorPathControl &&
+                  cursorPath.trim() !== editableStringValue(clip, 'cursorPath')
+                ) {
+                  props.cursorPath = cursorPath.trim();
+                }
                 onEditClipProps?.(clip.clipId, props);
               }}
               className="self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
             >
               apply source controls
+            </button>
+          </div>
+        ) : null}
+        {hasSourceKeyframesControl ? (
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+            <label className="grid gap-1 font-caption text-2xs text-ink-dim">
+              source keyframes
+              <textarea
+                aria-label="clip source keyframes"
+                value={sourceKeyframes}
+                onChange={(event) => setSourceKeyframes(event.target.value)}
+                rows={3}
+                className="min-h-20 min-w-0 resize-y rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-mono text-2xs text-ink outline-none focus:border-accent"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!canApplySourceKeyframes}
+              onClick={() => {
+                if (!parsedSourceKeyframes) return;
+                onEditClipSourceKeyframes?.(clip.clipId, parsedSourceKeyframes);
+              }}
+              className="self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              apply source keyframes
             </button>
           </div>
         ) : null}
@@ -3476,6 +3575,57 @@ function editableNumberInputValue(
   fallback: number
 ): string {
   return formatSecondsInput(editableNumberValue(clip, key, fallback));
+}
+
+function editableSourceKeyframesInputValue(clip: MotionPreviewTimelineClip): string {
+  const value = clip.editableProps?.sourceKeyframes;
+  return typeof value === 'string' ? value : '[]';
+}
+
+function parseSourceKeyframesInput(value: string): MotionSourceKeyframe[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+  const keyframes = parsed.flatMap((candidate): MotionSourceKeyframe[] => {
+    if (!isRecordValue(candidate)) return [];
+    const atFrame = candidate.atFrame;
+    if (typeof atFrame !== 'number' || !Number.isFinite(atFrame) || atFrame < 0) return [];
+
+    const crop = optionalSourceKeyframeText(candidate.crop);
+    const zoom =
+      typeof candidate.zoom === 'number' && Number.isFinite(candidate.zoom) && candidate.zoom > 0
+        ? candidate.zoom
+        : undefined;
+    const cursorPath = optionalSourceKeyframeText(candidate.cursorPath);
+    const label = optionalSourceKeyframeText(candidate.label);
+    if (candidate.zoom !== undefined && zoom === undefined) return [];
+
+    return [
+      {
+        atFrame,
+        ...(crop === undefined ? {} : { crop }),
+        ...(zoom === undefined ? {} : { zoom }),
+        ...(cursorPath === undefined ? {} : { cursorPath }),
+        ...(label === undefined ? {} : { label }),
+      },
+    ];
+  });
+
+  return keyframes.length === parsed.length ? keyframes : null;
+}
+
+function optionalSourceKeyframeText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 function WorkflowExamplesView({ examples }: { examples: MotionWorkflowExample[] }) {

@@ -91,6 +91,7 @@ const COMPONENTS: MotionComponentDefinition[] = [
       { id: 'crop', label: 'Crop', kind: 'select' },
       { id: 'zoom', label: 'Zoom', kind: 'number' },
       { id: 'cursorPath', label: 'Cursor path', kind: 'text' },
+      { id: 'sourceKeyframes', label: 'Source keyframes', kind: 'text' },
     ],
     regenerateScopes: ['capture', 'timing', 'caption'],
   },

@@ -442,7 +442,15 @@ describe('buildMotionPreviewPlan', () => {
     expect(appFrame).toMatchObject({
       componentId: 'app-frame',
       componentLabel: 'App frame',
-      editControlIds: ['assetId', 'assetUrl', 'caption', 'crop', 'zoom', 'cursorPath'],
+      editControlIds: [
+        'assetId',
+        'assetUrl',
+        'caption',
+        'crop',
+        'zoom',
+        'cursorPath',
+        'sourceKeyframes',
+      ],
       regenerateScopes: ['capture', 'timing', 'caption'],
     });
     expect(preview.regenerationActions).toEqual(
@@ -1425,7 +1433,15 @@ describe('buildMotionPreviewPlan', () => {
           clipId: 'clip-beat-demo-text',
           componentId: 'app-frame',
           componentLabel: 'App frame',
-          editControlIds: ['assetId', 'assetUrl', 'caption', 'crop', 'zoom', 'cursorPath'],
+          editControlIds: [
+            'assetId',
+            'assetUrl',
+            'caption',
+            'crop',
+            'zoom',
+            'cursorPath',
+            'sourceKeyframes',
+          ],
           regenerateScopes: ['capture', 'timing', 'caption'],
           sourceFiles: ['timeline/draft-primary.json', 'STORYBOARD.md'],
           sourceFileLabels: ['Timeline JSON', 'Storyboard'],
@@ -1436,6 +1452,7 @@ describe('buildMotionPreviewPlan', () => {
             'Crop',
             'Zoom',
             'Cursor path',
+            'Source keyframes',
             'capture',
             'timing',
             'caption',
