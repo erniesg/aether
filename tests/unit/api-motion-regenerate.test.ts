@@ -157,6 +157,85 @@ describe('POST /api/motion/regenerate', () => {
       kind: 'timeline',
       ref: 'clip-beat-demo-text',
     });
+    expect(json.sourcePatchDraft).toMatchObject({
+      status: 'ready',
+      route: '/api/motion/source-edit',
+      sourceEditId: 'source-edit-regen-clip-beat-demo-text-capture-950',
+      targetClipIds: ['clip-beat-demo-text'],
+    });
+    expect(json.sourcePatchDraftOptions.map((option: { variantId: string }) => option.variantId)).toEqual([
+      'primary',
+      'caption-first',
+      'timing-tighten',
+    ]);
+    expect(
+      new Set(
+        json.sourcePatchDraftOptions.map((option: { sourceEditId: string }) => option.sourceEditId)
+      ).size
+    ).toBe(3);
+    expect(json.sourcePatchDraftOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          variantId: 'primary',
+          label: 'Patch current component',
+          isDefault: true,
+          sourceEditId: 'source-edit-regen-clip-beat-demo-text-capture-950',
+        }),
+        expect.objectContaining({
+          variantId: 'caption-first',
+          label: 'Caption-led variation',
+          sourceEditId: 'source-edit-regen-clip-beat-demo-text-capture-950-caption-first',
+        }),
+        expect.objectContaining({
+          variantId: 'timing-tighten',
+          label: 'Tighter timing variation',
+          sourceEditId: 'source-edit-regen-clip-beat-demo-text-capture-950-timing-tighten',
+        }),
+      ])
+    );
+    const captionOption = json.sourcePatchDraftOptions.find(
+      (option: { variantId: string }) => option.variantId === 'caption-first'
+    );
+    expect(captionOption.files.map((file: { path: string }) => file.path)).toEqual([
+      'timeline/draft-primary.json',
+      'STORYBOARD.md',
+      'EDIT.md',
+    ]);
+    expect(
+      captionOption.files.find((file: { path: string }) => file.path === 'timeline/draft-primary.json')
+        ?.contents
+    ).toContain('"sourcePatchVariant"');
+
+    const { POST: applySourceEdit } = await import('@/app/api/motion/source-edit/route');
+    const applyRes = await applySourceEdit(
+      new Request('http://localhost/api/motion/source-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: json.project,
+          id: captionOption.sourceEditId,
+          files: captionOption.files,
+          requestedAt: 951,
+          requestedEngines: ['remotion', 'hyperframes'],
+        }),
+      })
+    );
+    expect(applyRes.status).toBe(200);
+    const applied = await applyRes.json();
+    expect(applied.status).toBe('applied');
+    expect(applied.project.tracks[0].clips).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'clip-beat-demo-text',
+          props: expect.objectContaining({
+            sourcePatchVariant: expect.objectContaining({
+              id: 'caption-first',
+              label: 'Caption-led variation',
+            }),
+          }),
+        }),
+      ])
+    );
   });
 
   it('creates a reference-backed regeneration request and refreshed preview actions', async () => {

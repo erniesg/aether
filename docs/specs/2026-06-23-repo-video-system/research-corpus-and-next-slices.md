@@ -340,14 +340,21 @@ edits from the timeline lens and API. Source-bundle import now applies edited
 `SCRIPT.md`, `STORYBOARD.md`, timeline JSON, and `EDIT.md` through
 `/api/motion/source-edit`, appends source-edit execution receipts, and composes
 same-beat script/storyboard edits before refreshing review and preview plans.
-The next edit-depth slice should focus on richer caption/script regeneration
-from those editable sources and component-level variation drafts.
+Component regeneration now returns reviewable source-patch draft variations
+for the timeline lens: a default patch, a caption-led variant, and a
+timing-tighten variant, each with its own source-edit request and editable
+source files. The next edit-depth slice should focus on richer caption/script
+regeneration from those editable sources and provider-backed component
+variation generation.
 
 Acceptance evidence:
 
 - Component tests prove the player is same-shell and rails stay mounted.
 - Source-edit route tests prove `SCRIPT.md`, `STORYBOARD.md`, timeline JSON,
   and `EDIT.md` round-trip into `MotionProject` with source-edit receipts.
+- Regeneration and timeline-lens tests prove component regenerate actions
+  expose reviewable source-patch variations and apply a selected variant
+  through `/api/motion/source-edit`.
 
 ### Slice D: Advanced generation node lens
 

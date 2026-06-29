@@ -10,7 +10,10 @@ import type { MotionProductionPlan } from '@/lib/motion/productionPlan';
 import { listMotionWorkflowExamples } from '@/lib/motion/workflowExamples';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
-import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
+import type {
+  MotionSourcePatchDraft,
+  MotionSourcePatchDraftOption,
+} from '@/lib/motion/sourcePatchDraft';
 
 afterEach(cleanup);
 
@@ -2621,6 +2624,81 @@ describe('TimelineLens', () => {
 
     expect(onApplySourcePatchDraft).toHaveBeenCalledWith(
       'source-patch-draft-source-patch-regen-taste-demo'
+    );
+  });
+
+  it('shows source patch draft variations for review and apply from the timeline', async () => {
+    const onApplySourcePatchDraft = vi.fn<(draftId: string) => void>();
+    const sourcePatchDraftOptions: MotionSourcePatchDraftOption[] = [
+      {
+        id: 'source-patch-draft-source-patch-regen-demo-primary',
+        variantId: 'primary',
+        label: 'Patch current component',
+        description: 'Apply the regeneration prompt to the current editable source files.',
+        isDefault: true,
+        status: 'ready',
+        route: '/api/motion/source-edit',
+        method: 'POST',
+        sourceEditId: 'source-edit-regen-demo',
+        sourcePatchPlanId: 'source-patch-regen-demo',
+        files: [{ path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' }],
+        targetClipIds: ['clip-beat-demo-text'],
+        requestTemplate: {
+          project: '$motionProject',
+          id: 'source-edit-regen-demo',
+          files: '$draftSourceFiles',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        blockers: [],
+      },
+      {
+        id: 'source-patch-draft-source-patch-regen-demo-caption',
+        variantId: 'caption-first',
+        label: 'Caption-led variation',
+        description: 'Prioritize caption, copy, and source-note handles before rendering.',
+        isDefault: false,
+        status: 'ready',
+        route: '/api/motion/source-edit',
+        method: 'POST',
+        sourceEditId: 'source-edit-regen-demo-caption-first',
+        sourcePatchPlanId: 'source-patch-regen-demo',
+        files: [
+          { path: 'timeline/draft-primary.json', contents: '{"tracks":[]}' },
+          { path: 'STORYBOARD.md', contents: '## beat-demo\nSource patch: Caption-led' },
+        ],
+        targetClipIds: ['clip-beat-demo-text'],
+        requestTemplate: {
+          project: '$motionProject',
+          id: 'source-edit-regen-demo-caption-first',
+          files: '$draftSourceFiles',
+          requestedEngines: '$selectedEngines',
+          requestedAt: '$now',
+        },
+        blockers: [],
+      },
+    ];
+
+    render(
+      <TimelineLens
+        tracks={tracks}
+        previewPlan={previewPlan}
+        sourcePatchDraftOptions={sourcePatchDraftOptions}
+        selectedClipId={null}
+        onSelectClip={() => {}}
+        onApplySourcePatchDraft={onApplySourcePatchDraft}
+      />
+    );
+
+    expect(screen.getByText('source patch variations')).toBeInTheDocument();
+    expect(screen.getByText('Patch current component')).toBeInTheDocument();
+    expect(screen.getByText('Caption-led variation')).toBeInTheDocument();
+    expect(screen.getByText('timeline/draft-primary.json / STORYBOARD.md')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /apply caption-led variation/i }));
+
+    expect(onApplySourcePatchDraft).toHaveBeenCalledWith(
+      'source-patch-draft-source-patch-regen-demo-caption'
     );
   });
 

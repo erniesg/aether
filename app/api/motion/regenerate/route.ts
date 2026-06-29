@@ -21,7 +21,10 @@ import {
   stageMotionReferenceSignalRegeneration,
   stageMotionTasteReferenceRegeneration,
 } from '@/lib/motion/reviewPlan';
-import { buildMotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
+import {
+  buildMotionSourcePatchDraft,
+  buildMotionSourcePatchDraftOptions,
+} from '@/lib/motion/sourcePatchDraft';
 import type { MotionRenderEngine } from '@/lib/providers/video/types';
 
 export const runtime = 'nodejs';
@@ -257,6 +260,14 @@ export async function POST(request: Request): Promise<Response> {
         requestedAt,
       }
     );
+    const sourcePatchDraftOptions = buildMotionSourcePatchDraftOptions(
+      updatedProject,
+      regenerationRequest.sourcePatchPlan,
+      {
+        engine: sourcePatchDraftEngine(requestedEngines),
+        requestedAt,
+      }
+    );
 
     return NextResponse.json({
       ok: true,
@@ -269,6 +280,7 @@ export async function POST(request: Request): Promise<Response> {
       }),
       capturePlan: capturePlan.status === 'not-needed' ? null : capturePlan,
       sourcePatchDraft,
+      sourcePatchDraftOptions,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

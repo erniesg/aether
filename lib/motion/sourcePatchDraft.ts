@@ -12,6 +12,7 @@ export interface BuildMotionSourcePatchDraftOptions {
   engine?: MotionRenderEngine;
   fps?: number;
   requestedAt: number;
+  variant?: MotionSourcePatchDraftVariant;
 }
 
 export interface MotionSourcePatchDraftRequestTemplate {
@@ -48,10 +49,41 @@ export type MotionSourcePatchDraft =
       blockers: string[];
     };
 
+export interface MotionSourcePatchDraftVariant {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export type MotionSourcePatchDraftOption = MotionSourcePatchDraft & {
+  variantId: string;
+  label: string;
+  description: string;
+  isDefault: boolean;
+};
+
 interface TargetClipPatch {
   clipId: string;
   instruction: MotionRegenerationSourcePatchInstruction;
 }
+
+const SOURCE_PATCH_DRAFT_VARIANTS: MotionSourcePatchDraftVariant[] = [
+  {
+    id: 'primary',
+    label: 'Patch current component',
+    description: 'Apply the regeneration prompt to the current editable source files.',
+  },
+  {
+    id: 'caption-first',
+    label: 'Caption-led variation',
+    description: 'Prioritize caption, copy, and source-note handles before rendering.',
+  },
+  {
+    id: 'timing-tighten',
+    label: 'Tighter timing variation',
+    description: 'Prioritize timing, pacing, and motion rhythm in the editable source patch.',
+  },
+];
 
 export function buildMotionSourcePatchDraft(
   project: MotionProject,
@@ -81,17 +113,32 @@ export function buildMotionSourcePatchDraft(
     if (!file) return [];
 
     if (path.startsWith('timeline/') && path.endsWith('.json')) {
-      const edited = editTimelineSource(file.contents, sourcePatchPlan, options.requestedAt);
+      const edited = editTimelineSource(
+        file.contents,
+        sourcePatchPlan,
+        options.requestedAt,
+        options.variant
+      );
       targetClipPatches.push(...edited.targetClipPatches);
       return [{ path, contents: edited.contents }];
     }
 
     if (path === 'STORYBOARD.md') {
-      return [{ path, contents: editSectionNoteSource(file.contents, targetClipPatches) }];
+      return [
+        {
+          path,
+          contents: editSectionNoteSource(file.contents, targetClipPatches, options.variant),
+        },
+      ];
     }
 
     if (path === 'EDIT.md') {
-      return [{ path, contents: editSectionNoteSource(file.contents, targetClipPatches) }];
+      return [
+        {
+          path,
+          contents: editSectionNoteSource(file.contents, targetClipPatches, options.variant),
+        },
+      ];
     }
 
     return [{ path, contents: file.contents }];
@@ -118,10 +165,39 @@ export function buildMotionSourcePatchDraft(
   };
 }
 
+export function buildMotionSourcePatchDraftOptions(
+  project: MotionProject,
+  sourcePatchPlan: MotionRegenerationSourcePatchPlan,
+  options: Omit<BuildMotionSourcePatchDraftOptions, 'variant'>
+): MotionSourcePatchDraftOption[] {
+  return SOURCE_PATCH_DRAFT_VARIANTS.map((variant, index) => {
+    const variantSourcePatchPlan =
+      index === 0
+        ? sourcePatchPlan
+        : {
+            ...sourcePatchPlan,
+            sourceEditId: `${sourcePatchPlan.sourceEditId}-${variant.id}`,
+          };
+    const draft = buildMotionSourcePatchDraft(project, variantSourcePatchPlan, {
+      ...options,
+      variant,
+    });
+
+    return {
+      ...draft,
+      variantId: variant.id,
+      label: variant.label,
+      description: variant.description,
+      isDefault: index === 0,
+    };
+  });
+}
+
 function editTimelineSource(
   contents: string,
   sourcePatchPlan: MotionRegenerationSourcePatchPlan,
-  requestedAt: number
+  requestedAt: number,
+  variant?: MotionSourcePatchDraftVariant
 ): { contents: string; targetClipPatches: TargetClipPatch[] } {
   const timeline = JSON.parse(contents) as {
     tracks?: Array<{
@@ -158,7 +234,23 @@ function editTimelineSource(
           operationKinds: [...instruction.operationKinds],
           guidanceRefs: [...instruction.guidanceRefs],
           requestedAt,
+          ...(variant
+            ? {
+                variantId: variant.id,
+                variantLabel: variant.label,
+                variantDescription: variant.description,
+              }
+            : {}),
         },
+        ...(variant
+          ? {
+              sourcePatchVariant: {
+                id: variant.id,
+                label: variant.label,
+                description: variant.description,
+              },
+            }
+          : {}),
       };
       targetClipPatches.push({ clipId: clip.id, instruction });
     }
@@ -170,13 +262,18 @@ function editTimelineSource(
   };
 }
 
-function editSectionNoteSource(contents: string, patches: TargetClipPatch[]): string {
+function editSectionNoteSource(
+  contents: string,
+  patches: TargetClipPatch[],
+  variant?: MotionSourcePatchDraftVariant
+): string {
   let next = contents;
   for (const patch of patches) {
+    const variantSuffix = variant ? ` (${variant.label})` : '';
     next = upsertSectionSourcePatchNote(
       next,
       patch.clipId,
-      `Source patch: ${patch.instruction.label}`
+      `Source patch: ${patch.instruction.label}${variantSuffix}`
     );
   }
   return next;

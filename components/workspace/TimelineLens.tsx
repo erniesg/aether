@@ -23,7 +23,10 @@ import type { MotionDesignKitPlan } from '@/lib/motion/designKit';
 import type { MotionWorkflowSkillDraft } from '@/lib/motion/workflowSkill';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
 import type { MotionPreparedPreviewSource } from '@/lib/motion/start';
-import type { MotionSourcePatchDraft } from '@/lib/motion/sourcePatchDraft';
+import type {
+  MotionSourcePatchDraft,
+  MotionSourcePatchDraftOption,
+} from '@/lib/motion/sourcePatchDraft';
 import type { MotionSourceKeyframe } from '@/lib/motion/revise';
 import type {
   MotionProductionPlan,
@@ -80,6 +83,7 @@ export interface TimelineLensProps {
   previewPlan?: MotionPreviewPlan | null;
   preparedPreviewSource?: MotionPreparedPreviewSource | null;
   sourcePatchDraft?: MotionSourcePatchDraft | null;
+  sourcePatchDraftOptions?: MotionSourcePatchDraftOption[];
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
@@ -120,6 +124,7 @@ export function TimelineLens({
   previewPlan,
   preparedPreviewSource = null,
   sourcePatchDraft = null,
+  sourcePatchDraftOptions = [],
   selectedClipId,
   onSelectClip,
   onSelectDraft,
@@ -186,6 +191,7 @@ export function TimelineLens({
             previewPlan={previewPlan}
             preparedPreviewSource={preparedPreviewSource}
             sourcePatchDraft={sourcePatchDraft}
+            sourcePatchDraftOptions={sourcePatchDraftOptions}
             selectedClipId={selectedClipId}
             onSelectClip={onSelectClip}
             onSelectDraft={onSelectDraft}
@@ -245,6 +251,7 @@ function MotionPreviewPlanView({
   previewPlan,
   preparedPreviewSource,
   sourcePatchDraft,
+  sourcePatchDraftOptions,
   selectedClipId,
   onSelectClip,
   onSelectDraft,
@@ -282,6 +289,7 @@ function MotionPreviewPlanView({
   previewPlan: MotionPreviewPlan;
   preparedPreviewSource: MotionPreparedPreviewSource | null;
   sourcePatchDraft: MotionSourcePatchDraft | null;
+  sourcePatchDraftOptions: MotionSourcePatchDraftOption[];
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onSelectDraft?: (draftId: string) => void;
@@ -532,7 +540,14 @@ function MotionPreviewPlanView({
         <MotionEditSourceStrip editSource={previewPlan.editSource} />
       </section>
 
-      {sourcePatchDraft ? (
+      {sourcePatchDraftOptions.length > 0 ? (
+        <section className="border-b border-border-soft px-4 py-3">
+          <MotionSourcePatchDraftOptionsStrip
+            drafts={sourcePatchDraftOptions}
+            onApplySourcePatchDraft={onApplySourcePatchDraft}
+          />
+        </section>
+      ) : sourcePatchDraft ? (
         <section className="border-b border-border-soft px-4 py-3">
           <MotionSourcePatchDraftStrip
             draft={sourcePatchDraft}
@@ -2323,6 +2338,82 @@ function MotionSourcePatchDraftStrip({
         >
           apply source patch draft
         </button>
+      </div>
+    </div>
+  );
+}
+
+function MotionSourcePatchDraftOptionsStrip({
+  drafts,
+  onApplySourcePatchDraft,
+}: {
+  drafts: MotionSourcePatchDraftOption[];
+  onApplySourcePatchDraft?: (draftId: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-2xs uppercase tracking-wide text-ink-dim">
+            source patch variations
+          </div>
+          <div className="mt-1 truncate font-caption text-xs text-ink-faint">
+            {drafts.length} editable drafts
+          </div>
+        </div>
+        <Chip tone="info" size="sm">
+          review
+        </Chip>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-3">
+        {drafts.map((draft) => {
+          const fileLabel =
+            draft.files.map((file) => file.path).join(' / ') || 'source files pending';
+          const clipLabel = draft.targetClipIds.join(' / ') || 'target clips pending';
+          const canApply = draft.status === 'ready' && Boolean(onApplySourcePatchDraft);
+
+          return (
+            <div
+              key={draft.id}
+              className="min-w-0 rounded-sm border border-border-soft bg-surface-panel px-3 py-2"
+            >
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate font-caption text-xs text-ink">
+                    {draft.label}
+                  </div>
+                  <div className="mt-1 line-clamp-2 font-caption text-2xs text-ink-faint">
+                    {draft.description}
+                  </div>
+                </div>
+                <Chip tone={draft.status === 'ready' ? 'ok' : 'warn'} size="sm">
+                  {draft.isDefault ? 'default' : draft.status}
+                </Chip>
+              </div>
+              <div className="mt-2 truncate font-caption text-2xs text-ink">
+                {fileLabel}
+              </div>
+              <div className="mt-1 truncate font-caption text-2xs text-ink-faint">
+                {clipLabel}
+              </div>
+              <button
+                type="button"
+                aria-label={`apply ${draft.label}`}
+                disabled={!canApply}
+                onClick={() => onApplySourcePatchDraft?.(draft.id)}
+                className={cn(
+                  'mt-2 h-8 w-full rounded-sm border px-2 text-left font-mono text-2xs uppercase tracking-wide transition-colors duration-fast ease-quick',
+                  canApply
+                    ? 'border-accent/50 bg-accent/10 text-accent hover:border-accent hover:text-ink'
+                    : 'cursor-default border-border-soft bg-surface-muted text-ink-faint'
+                )}
+              >
+                apply
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

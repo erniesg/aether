@@ -330,6 +330,11 @@
   edited source files, timeline revision, and refreshed preview plan, and
   timeline revisions now merge separate same-beat story edits so script and
   storyboard changes can land together.
+- Component regeneration now returns source-patch draft variations for review:
+  the default patch, a caption-led variant, and a timing-tighten variant. Each
+  option has its own source-edit request id, editable source files, and
+  timeline-lens apply action, so review mode can compare alternatives while
+  full-auto can still choose the default path.
 - Preview plans now include a capability setup contract for provider-backed
   execution. The timeline lens renders capture, local-app launch, visual source,
   image-to-video, voice/timing, sync, and render readiness as creator-facing
