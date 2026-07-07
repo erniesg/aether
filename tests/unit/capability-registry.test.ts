@@ -4,7 +4,11 @@ import {
   getToolRegistryEntry,
   listPublishedToolRegistryEntries,
 } from '@/lib/tool/registry';
-import { getWorkflowRegistryEntry } from '@/lib/workflow/registry';
+import {
+  getWorkflowRegistryEntry,
+  listPublishedWorkflowRegistryEntries,
+  listWorkflowRegistryEntries,
+} from '@/lib/workflow/registry';
 import { getSkillRegistryEntry } from '@/lib/skill/registry';
 
 describe('typed capability registries', () => {
@@ -36,6 +40,46 @@ describe('typed capability registries', () => {
       toolIds: ['image-gen'],
       status: 'published',
     });
+  });
+
+  it('lists and resolves the repo-to-deck planning workflow contract', () => {
+    expect(listWorkflowRegistryEntries().map((entry) => entry.id)).toContain('repo-to-deck');
+
+    expect(getWorkflowRegistryEntry('repo-to-deck')).toEqual({
+      kind: 'workflow',
+      id: 'repo-to-deck',
+      version: 1,
+      artifactKind: 'deck',
+      label: 'Repo to deck',
+      description:
+        'Plan an editable deck on the canvas from repo, site, capture, upload, and references, with slides, live demo, code references, render proof, and export pack review.',
+      toolIds: [],
+      acceptedSourceKinds: ['repo', 'site', 'capture', 'upload', 'reference'],
+      reviewArtifacts: [
+        'outline',
+        'style-previews',
+        'slide-draft',
+        'live-demo-config',
+        'code-references',
+        'render-proof',
+        'export-pack',
+      ],
+      status: 'draft',
+    });
+  });
+
+  it('keeps the published image workflow registry unchanged', () => {
+    expect(listPublishedWorkflowRegistryEntries()).toEqual([
+      {
+        kind: 'workflow',
+        id: 'image-render-basic',
+        version: 1,
+        artifactKind: 'image',
+        label: 'Basic image render',
+        toolIds: ['image-gen'],
+        status: 'published',
+      },
+    ]);
   });
 
   it('exposes a creator-facing skill over a registered base entry', () => {

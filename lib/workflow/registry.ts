@@ -1,10 +1,24 @@
 import type { CapabilityEntryRef } from '@/lib/capability/entry';
 import type { ToolRegistryId } from '@/lib/tool/registry';
 
+export type WorkflowArtifactKind = 'image' | 'deck';
+export type WorkflowSourceKind = 'repo' | 'site' | 'capture' | 'upload' | 'reference';
+export type WorkflowReviewArtifactKind =
+  | 'outline'
+  | 'style-previews'
+  | 'slide-draft'
+  | 'live-demo-config'
+  | 'code-references'
+  | 'render-proof'
+  | 'export-pack';
+
 export interface WorkflowRegistryEntry extends CapabilityEntryRef<'workflow'> {
-  artifactKind: string;
+  artifactKind: WorkflowArtifactKind;
   label: string;
-  toolIds: ToolRegistryId[];
+  description?: string;
+  toolIds: readonly ToolRegistryId[];
+  acceptedSourceKinds?: readonly WorkflowSourceKind[];
+  reviewArtifacts?: readonly WorkflowReviewArtifactKind[];
   status: 'draft' | 'published' | 'archived';
 }
 
@@ -17,6 +31,27 @@ const WORKFLOW_REGISTRY = {
     label: 'Basic image render',
     toolIds: ['image-gen'],
     status: 'published',
+  },
+  'repo-to-deck': {
+    kind: 'workflow',
+    id: 'repo-to-deck',
+    version: 1,
+    artifactKind: 'deck',
+    label: 'Repo to deck',
+    description:
+      'Plan an editable deck on the canvas from repo, site, capture, upload, and references, with slides, live demo, code references, render proof, and export pack review.',
+    toolIds: [],
+    acceptedSourceKinds: ['repo', 'site', 'capture', 'upload', 'reference'],
+    reviewArtifacts: [
+      'outline',
+      'style-previews',
+      'slide-draft',
+      'live-demo-config',
+      'code-references',
+      'render-proof',
+      'export-pack',
+    ],
+    status: 'draft',
   },
 } as const satisfies Record<string, WorkflowRegistryEntry>;
 
