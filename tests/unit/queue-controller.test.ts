@@ -258,9 +258,8 @@ describe('queue-controller workflow contract', () => {
     expect(workflow).toContain('pull-requests: read');
     expect(workflow).toContain('actions: write');
     expect(workflow).not.toContain('contents: write');
-    expect(workflow).toContain('github.event.pull_request.head.repo.full_name == github.repository');
-    expect(workflow).toContain('github.event.pull_request.head.ref');
-    expect(workflow).toContain("github.event.repository.default_branch || 'main'");
+    expect(workflow).toContain("ref: ${{ github.event.repository.default_branch || 'main' }}");
+    expect(workflow).not.toContain('github.event.pull_request.head.ref');
     expect(workflow).toContain('AETHER_PUBLIC_WRITE_POLICY');
   });
 

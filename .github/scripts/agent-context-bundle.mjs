@@ -48,6 +48,10 @@ function normalizePath(value) {
   return String(value ?? '').trim().replace(/^\.\/+/, '');
 }
 
+function isMissingContextComment(text) {
+  return normalizeText(text).includes(MISSING_CONTEXT_MARKER);
+}
+
 function uniq(values) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -152,6 +156,8 @@ function extractReferencedPaths(texts = [], trackedFiles = []) {
     for (const pattern of patterns) {
       pattern.lastIndex = 0;
       for (const match of body.matchAll(pattern)) {
+        const previousChar = match.index > 0 ? body[match.index - 1] : '';
+        if (previousChar === '/') continue;
         const referencedPath = normalizePath(match[1]).replace(/[),.;:]+$/, '');
         if (/\.[A-Za-z0-9]+$/.test(referencedPath)) refs.push(referencedPath);
       }
@@ -284,11 +290,14 @@ function buildContextBundle({
   const normalizedMode = mode === 'reviewer' ? 'reviewer' : 'author';
   const truncation = { truncated: false, sections: [] };
   const tracked = trackedFiles.map(normalizePath);
+  const untrustedCommentBodies = [
+    ...(Array.isArray(issue?.comments) ? issue.comments.map((comment) => comment.body || comment) : []),
+    ...(Array.isArray(pr?.comments) ? pr.comments.map((comment) => comment.body || comment) : []),
+  ];
   const textSources = [
     issue?.body,
-    ...(Array.isArray(issue?.comments) ? issue.comments.map((comment) => comment.body || comment) : []),
+    ...untrustedCommentBodies.filter((body) => !isMissingContextComment(body)),
     pr?.body,
-    ...(Array.isArray(pr?.comments) ? pr.comments.map((comment) => comment.body || comment) : []),
   ].filter(Boolean);
 
   const trustedDocs = TRUSTED_BASE_DOCS.map((path) =>
