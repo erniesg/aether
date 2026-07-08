@@ -41,7 +41,11 @@ describe('route-review-verdict harness contract', () => {
   it('posts issue handoff context before refreshing claude-run', () => {
     expect(routeScript).toContain('function buildRedispatchHandoff');
     expect(routeScript).toContain('### Automated reviewer handoff');
+    expect(routeScript).toContain("const REVIEWER_HANDOFF_MARKER_PREFIX = '<!-- aether-reviewer-handoff'");
+    expect(routeScript).toContain('${REVIEWER_HANDOFF_MARKER_PREFIX}:pr-${pr.number} -->');
+    expect(routeScript).toContain('PR: [#${pr.number}](${pr.url})');
     expect(routeScript).toContain("gh(['issue', 'comment'");
+    expect(routeScript).toContain("repos/${REPO}/issues/comments/${existing.id}");
     expect(routeScript).toContain('The router is refreshing `claude-run`');
     expect(routeScript).toContain("dispatchWorkflow('claude.yml'");
     expect(routeScript).toContain('dispatchClaude(issueTarget.number)');

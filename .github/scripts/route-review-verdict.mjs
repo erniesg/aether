@@ -24,6 +24,7 @@ const PR_HEAD_REF = process.env.PR_HEAD_REF ?? '';
 const REPO = process.env.GITHUB_REPOSITORY;
 const REVIEWER_STRUCTURED_OUTPUT = process.env.REVIEWER_STRUCTURED_OUTPUT ?? '';
 const HUMAN_CHOICE_PREFIX = 'human_choice';
+const REVIEWER_HANDOFF_MARKER_PREFIX = '<!-- aether-reviewer-handoff';
 
 if (!PR_NUMBER) {
   console.error('PR_NUMBER env var is required');
@@ -522,7 +523,25 @@ function dispatchClaude(issueNumber) {
   dispatchWorkflow('claude.yml', { issue_number: issueNumber });
 }
 
+function markerFromBody(body) {
+  const match = String(body || '').match(/<!--\s*aether-reviewer-handoff:[^>]+-->/);
+  return match ? match[0] : '';
+}
+
 function addIssueComment(issueTarget, body) {
+  const marker = markerFromBody(body);
+  if (marker) {
+    const comments = gh(
+      ['api', `repos/${REPO}/issues/${issueTarget.number}/comments`, '--paginate'],
+      { parseJson: true }
+    );
+    const existing = comments.find((comment) => String(comment.body || '').includes(marker));
+    if (existing?.id) {
+      gh(['api', `repos/${REPO}/issues/comments/${existing.id}`, '-X', 'PATCH', '-f', `body=${body}`]);
+      console.log(`updated handoff comment on issue #${issueTarget.number}`);
+      return;
+    }
+  }
   gh(['issue', 'comment', String(issueTarget.number), '--body', body]);
   console.log(`posted handoff comment on issue #${issueTarget.number}`);
 }
@@ -726,9 +745,10 @@ function quoteMarkdown(value) {
 
 function buildRedispatchHandoff({ pr, verdict, reason, reviewBody }) {
   const lines = [
+    `${REVIEWER_HANDOFF_MARKER_PREFIX}:pr-${pr.number} -->`,
     '### Automated reviewer handoff',
     '',
-    `PR: #${pr.number} ${pr.url}`,
+    `PR: [#${pr.number}](${pr.url})`,
     `Reviewer verdict: ${verdict ?? 'none'}`,
     `Repair instruction: ${reason}`,
     '',
