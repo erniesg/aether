@@ -11,8 +11,9 @@
 //   BLOCK           → send a human decision packet only when the reviewer supplied
 //                     reason + options, and visual/product blocks include artifacts.
 //
-// No verdict found → refresh `claude-run` on the source issue when possible. Only
-// route to human if automation cannot identify a source issue to continue from.
+// No verdict found → retry the reviewer workflow once, then mark the harness
+// blocked. Do not refresh `claude-run`; the author agent cannot repair a
+// missing reviewer output contract without an actionable review body.
 //
 // This script is intentionally dependency-free Node (uses the GH_TOKEN via
 // `gh` CLI + native fetch for Discord) so it runs without an npm install.
@@ -24,6 +25,9 @@ const PR_HEAD_REF = process.env.PR_HEAD_REF ?? '';
 const REPO = process.env.GITHUB_REPOSITORY;
 const REVIEWER_STRUCTURED_OUTPUT = process.env.REVIEWER_STRUCTURED_OUTPUT ?? '';
 const HUMAN_CHOICE_PREFIX = 'human_choice';
+const REVIEWER_HANDOFF_MARKER_PREFIX = '<!-- aether-reviewer-handoff';
+const REVIEWER_HARNESS_MARKER_PREFIX = '<!-- aether-reviewer-harness';
+const REVIEWER_NONE_RETRY_LIMIT = Number(process.env.REVIEWER_NONE_RETRY_LIMIT || '1');
 
 if (!PR_NUMBER) {
   console.error('PR_NUMBER env var is required');
@@ -522,7 +526,43 @@ function dispatchClaude(issueNumber) {
   dispatchWorkflow('claude.yml', { issue_number: issueNumber });
 }
 
+function dispatchReviewer(prNumber) {
+  dispatchWorkflow('claude-review.yml', { pr_number: prNumber });
+}
+
+function markerFromBody(body, prefix) {
+  const firstLine = (body || '').split('\n')[0]?.trim() || '';
+  return firstLine.startsWith(prefix) ? firstLine : '';
+}
+
+function loadTargetComments(issueTarget) {
+  return gh(['api', `repos/${REPO}/issues/${issueTarget.number}/comments`, '--paginate'], {
+    parseJson: true,
+  });
+}
+
 function addIssueComment(issueTarget, body) {
+  const marker =
+    markerFromBody(body, REVIEWER_HANDOFF_MARKER_PREFIX) ||
+    markerFromBody(body, REVIEWER_HARNESS_MARKER_PREFIX);
+  if (marker) {
+    const existing = loadTargetComments(issueTarget).find((comment) =>
+      markerFromBody(comment.body, marker.split(':')[0]) === marker
+    );
+    if (existing) {
+      gh([
+        'api',
+        `repos/${REPO}/issues/comments/${existing.id}`,
+        '-X',
+        'PATCH',
+        '-f',
+        `body=${body}`,
+      ]);
+      console.log(`updated stable handoff comment on issue #${issueTarget.number}`);
+      return;
+    }
+  }
+
   gh(['issue', 'comment', String(issueTarget.number), '--body', body]);
   console.log(`posted handoff comment on issue #${issueTarget.number}`);
 }
@@ -724,11 +764,17 @@ function quoteMarkdown(value) {
     .join('\n');
 }
 
+function prHeadMarker(pr) {
+  const sha = pr.headRefOid || 'unknown';
+  return `pr-${pr.number}:sha-${sha}`;
+}
+
 function buildRedispatchHandoff({ pr, verdict, reason, reviewBody }) {
   const lines = [
+    `<!-- aether-reviewer-handoff:${prHeadMarker(pr)} -->`,
     '### Automated reviewer handoff',
     '',
-    `PR: #${pr.number} ${pr.url}`,
+    `PR: [#${pr.number}](${pr.url})`,
     `Reviewer verdict: ${verdict ?? 'none'}`,
     `Repair instruction: ${reason}`,
     '',
@@ -743,11 +789,66 @@ function buildRedispatchHandoff({ pr, verdict, reason, reviewBody }) {
   return lines.join('\n');
 }
 
+function buildReviewerHarnessComment({ pr, issueNumber, retrying, attemptCount }) {
+  const status = retrying ? 'retrying reviewer workflow' : 'blocked reviewer harness';
+  const lines = [
+    `<!-- aether-reviewer-harness:${prHeadMarker(pr)} -->`,
+    '### Reviewer harness stalled',
+    '',
+    `PR: [#${pr.number}](${pr.url})`,
+    `PR head: \`${pr.headRefOid || 'unknown'}\``,
+    `Linked issue: ${issueNumber ? `#${issueNumber}` : '(none)'}`,
+    'Reviewer verdict: none',
+    `Router status: ${status}`,
+    `Missing-verdict attempts seen for this PR/head: ${attemptCount}`,
+    '',
+    'The reviewer workflow did not produce a structured verdict. This is a reviewer harness/output-contract failure, not an author-code repair packet.',
+    'The router is not refreshing `claude-run` because the author agent has no actionable review body to fix.',
+  ];
+
+  if (retrying) {
+    lines.push('', 'The router is dispatching one reviewer-only retry. If that retry also returns no verdict, the harness will be marked blocked.');
+  } else {
+    lines.push('', 'The retry budget is exhausted. Repair `claude-review` or rerun the reviewer after the harness is fixed.');
+  }
+
+  return lines.join('\n');
+}
+
+function countMissingReviewerAttempts(comments, pr) {
+  if (!Array.isArray(comments)) return 0;
+  const currentMarker = `<!-- aether-reviewer-harness:${prHeadMarker(pr)} -->`;
+  return comments.filter((comment) => {
+    const body = comment.body || '';
+    if (body.includes(currentMarker)) return true;
+    const mentionsPr =
+      body.includes(`PR: #${pr.number}`) ||
+      body.includes(`PR: [#${pr.number}]`) ||
+      body.includes(`/pull/${pr.number}`);
+    return (
+      mentionsPr &&
+      /### Automated reviewer handoff|### Reviewer harness stalled/.test(body) &&
+      /Reviewer verdict:\s*none/i.test(body)
+    );
+  }).length;
+}
+
 function redispatchIssue(issueTarget, reason, handoffBody) {
   console.log(`${reason} — refreshing \`claude-run\` on issue #${issueTarget.number}`);
   if (handoffBody) addIssueComment(issueTarget, handoffBody);
   refreshLabel(issueTarget, 'claude-run');
   dispatchClaude(issueTarget.number);
+}
+
+function blockReviewerHarness({ prTarget, issueTarget }) {
+  removeLabel(prTarget, 'route-human');
+  removeLabel(prTarget, 'ready-for-ernie');
+  addLabels(prTarget, ['blocked', 'queue-blocked']);
+  if (issueTarget) {
+    removeLabel(issueTarget, 'claude-run');
+    removeLabel(issueTarget, 'route-human');
+    addLabels(issueTarget, ['blocked', 'queue-blocked']);
+  }
 }
 
 async function routeUnrecoverableHuman({ prTarget, pr, commonFields, description }) {
@@ -763,7 +864,7 @@ async function routeUnrecoverableHuman({ prTarget, pr, commonFields, description
 
 async function main() {
   const pr = gh(
-    ['pr', 'view', PR_NUMBER, '--json', 'number,title,url,body,headRefName,author'],
+    ['pr', 'view', PR_NUMBER, '--json', 'number,title,url,body,headRefName,headRefOid,author'],
     { parseJson: true }
   );
 
@@ -949,20 +1050,29 @@ async function main() {
   console.warn('no parseable VERDICT in reviewer comment.');
   removeLabel(prTarget, 'ready-for-ernie');
   if (issueTarget) {
-    removeLabel(prTarget, 'route-human');
-    redispatchIssue(
-      issueTarget,
-      'No parseable reviewer verdict',
-      buildRedispatchHandoff({
+    const issueComments = loadTargetComments(issueTarget);
+    const attemptCount = countMissingReviewerAttempts(issueComments, pr);
+    if (attemptCount < REVIEWER_NONE_RETRY_LIMIT) {
+      removeLabel(prTarget, 'route-human');
+      addIssueComment(issueTarget, buildReviewerHarnessComment({
         pr,
-        verdict: null,
-        reason:
-          'Reviewer did not produce a parseable verdict. Repair the review output or rerun review; do not involve Ernie unless a concrete product/visual decision packet is needed.',
-        reviewBody: activeReview?.body,
-      })
-    );
-    console.log('missing verdict re-dispatched without Discord notification');
-    return;
+        issueNumber,
+        retrying: true,
+        attemptCount: attemptCount + 1,
+      }));
+      dispatchReviewer(pr.number);
+      console.log('missing verdict triggered reviewer-only retry without author re-dispatch');
+      throw new Error('Reviewer did not produce a parseable verdict; reviewer-only retry dispatched.');
+    }
+
+    blockReviewerHarness({ prTarget, issueTarget });
+    addIssueComment(issueTarget, buildReviewerHarnessComment({
+      pr,
+      issueNumber,
+      retrying: false,
+      attemptCount,
+    }));
+    throw new Error('Reviewer did not produce a parseable verdict; retry budget exhausted and harness blocked.');
   }
 
   await routeUnrecoverableHuman({
