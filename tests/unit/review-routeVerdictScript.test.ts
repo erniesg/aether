@@ -137,6 +137,12 @@ describe('claude-review structured output contract', () => {
     expect(workflow).toContain("if: always() && steps.review_workflow_guard.outputs.skip != 'true'");
   });
 
+  it('routes verdicts with the default-branch router, not stale PR-head code', () => {
+    expect(workflow).toContain('Load default-branch verdict router');
+    expect(workflow).toContain('git fetch origin "${default_branch}" --quiet');
+    expect(workflow).toContain('git show "origin/${default_branch}:.github/scripts/route-review-verdict.mjs" > .github/scripts/route-review-verdict.mjs');
+  });
+
   it('grounds the reviewer in the rubric + personas + parent issue QA plan', () => {
     // The reviewer agent should not improvise. Make sure the prompt
     // names the three load-bearing inputs and tells the agent to fetch
