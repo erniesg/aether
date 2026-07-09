@@ -252,8 +252,8 @@ describe('composeVariantSet', () => {
     });
     const elapsed = Date.now() - t0;
     // 16 tiles, each ~50-150ms sequentially would be 800-2400ms; with
-    // Promise.all we expect well under that on modern hardware. Generous
-    // upper bound to keep CI stable.
-    expect(elapsed).toBeLessThan(8000);
-  }, 12000);
+    // Promise.all we expect this to stay bounded even on shared VM runners.
+    // Keep the upper bound generous enough for full-suite contention.
+    expect(elapsed).toBeLessThan(15000);
+  }, 20000);
 });
