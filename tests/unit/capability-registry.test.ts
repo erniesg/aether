@@ -4,7 +4,10 @@ import {
   getToolEntryRef,
   listPublishedToolRegistryEntries,
 } from '@/lib/tool/registry';
-import { getWorkflowRegistryEntry } from '@/lib/workflow/registry';
+import {
+  getWorkflowRegistryEntry,
+  listPublishedWorkflowRegistryEntries,
+} from '@/lib/workflow/registry';
 import { getSkillRegistryEntry } from '@/lib/skill/registry';
 import type { CapabilityTool } from '@/lib/capability/types';
 
@@ -34,6 +37,38 @@ describe('typed capability registries', () => {
       version: 1,
       artifactKind: 'image',
       label: 'Basic image render',
+      toolIds: ['image-gen'],
+      status: 'published',
+    });
+  });
+
+  it('publishes the repo product deck workflow without changing image generation', () => {
+    expect(getWorkflowRegistryEntry('repo-product-deck')).toMatchObject({
+      kind: 'workflow',
+      id: 'repo-product-deck',
+      artifactKind: 'deck',
+      sourceKinds: ['repo', 'site', 'capture', 'upload', 'reference'],
+      deckContract: {
+        stage: { width: 1920, height: 1080 },
+        interactionReference: 'hyperframes:/slideshow',
+        semantics: ['slides', 'fragments', 'branches', 'hotspots', 'presenter-mode', 'speaker-notes'],
+        reviewArtifacts: [
+          'outline',
+          'style-previews',
+          'slide-draft',
+          'live-demo-config',
+          'code-references',
+          'render-proof',
+          'export-pack',
+        ],
+      },
+      status: 'published',
+    });
+    expect(listPublishedWorkflowRegistryEntries().map((entry) => entry.id)).toContain(
+      'repo-product-deck'
+    );
+    expect(getWorkflowRegistryEntry('image-render-basic')).toMatchObject({
+      artifactKind: 'image',
       toolIds: ['image-gen'],
       status: 'published',
     });

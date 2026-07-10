@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils/cn';
 
-export type ViewId = 'canvas' | 'focus' | 'timeline' | 'graph' | 'mood' | 'chat';
+export type ViewId = 'canvas' | 'focus' | 'timeline' | 'deck' | 'graph' | 'mood' | 'chat';
 
 type ViewDef = {
   id: ViewId;
@@ -15,6 +15,7 @@ const VIEWS: ReadonlyArray<ViewDef> = [
   { id: 'canvas', label: 'canvas', live: true },
   { id: 'focus', label: 'focus', live: true },
   { id: 'timeline', label: 'timeline', live: true },
+  { id: 'deck', label: 'deck', live: true },
   { id: 'graph', label: 'graph', live: false },
   { id: 'mood', label: 'mood', live: false },
   { id: 'chat', label: 'chat', live: false },
@@ -27,7 +28,7 @@ export interface ViewSwitcherProps {
 }
 
 /**
- * Lens toggle for the single synthesis shell. Six views, canvas/focus/timeline
+ * Lens toggle for the single synthesis shell. Canvas, focus, timeline, and deck
  * are live today — the rest carry a "soon" affordance so the architectural
  * promise is visible without blowing scope. No route splits; the switch is a
  * state change on the shell.

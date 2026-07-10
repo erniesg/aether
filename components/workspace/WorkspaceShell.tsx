@@ -5,6 +5,7 @@ import { Chip } from '@/components/ui/Chip';
 import { Surface } from '@/components/ui/Surface';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { ViewSwitcher, type ViewId } from '@/components/header/ViewSwitcher';
+import { DeckLens } from '@/components/deck/DeckLens';
 import { LeftRail } from '@/components/rail/LeftRail';
 import { RightRail } from '@/components/rail/RightRail';
 import { CanvasSubstrate } from '@/components/canvas/CanvasSubstrate';
@@ -468,6 +469,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const droppedVariationIndices = useRef<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('view') === 'deck') {
+      setView('deck');
+    }
+  }, []);
   const [pendingMotionCanvasDrop, setPendingMotionCanvasDrop] =
     useState<PendingMotionCanvasDrop | null>(null);
   const [selectedTimelineClipId, setSelectedTimelineClipId] = useState<string | null>(null);
@@ -3478,7 +3485,9 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
 
       <div className="flex flex-1 overflow-hidden">
         <LeftRail workspaceId={wsId} />
-        {view === 'timeline' ? (
+        {view === 'deck' ? (
+          <DeckLens />
+        ) : view === 'timeline' ? (
           <TimelineLens
             tracks={motionTimelineTracks}
             previewPlan={motionPreviewPlan}

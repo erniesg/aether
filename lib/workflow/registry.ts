@@ -55,6 +55,30 @@ export interface WorkflowSkillContract {
   verificationArtifacts: WorkflowVerificationArtifact[];
 }
 
+export type DeckReviewArtifact =
+  | 'outline'
+  | 'style-previews'
+  | 'slide-draft'
+  | 'live-demo-config'
+  | 'code-references'
+  | 'render-proof'
+  | 'export-pack';
+
+export type DeckInteractionSemantic =
+  | 'slides'
+  | 'fragments'
+  | 'branches'
+  | 'hotspots'
+  | 'presenter-mode'
+  | 'speaker-notes';
+
+export interface DeckWorkflowContract {
+  stage: { width: 1920; height: 1080 };
+  interactionReference: 'hyperframes:/slideshow';
+  semantics: DeckInteractionSemantic[];
+  reviewArtifacts: DeckReviewArtifact[];
+}
+
 export interface WorkflowRegistryEntry extends CapabilityEntryRef<'workflow'> {
   artifactKind: string;
   label: string;
@@ -64,6 +88,7 @@ export interface WorkflowRegistryEntry extends CapabilityEntryRef<'workflow'> {
   engines?: WorkflowEngine[];
   reviewGates?: WorkflowReviewGate[];
   skillContract?: WorkflowSkillContract;
+  deckContract?: DeckWorkflowContract;
   status: 'draft' | 'published' | 'archived';
 }
 
@@ -146,6 +171,32 @@ const WORKFLOW_REGISTRY = {
     artifactKind: 'image',
     label: 'Basic image render',
     toolIds: ['image-gen'],
+    status: 'published',
+  },
+  'repo-product-deck': {
+    kind: 'workflow',
+    id: 'repo-product-deck',
+    version: 1,
+    artifactKind: 'deck',
+    label: 'Repo product deck',
+    summary:
+      'Compose repo, site, capture, upload, and reference material into an editable graph-backed deck on the canvas.',
+    toolIds: [],
+    sourceKinds: ['repo', 'site', 'capture', 'upload', 'reference'],
+    deckContract: {
+      stage: { width: 1920, height: 1080 },
+      interactionReference: 'hyperframes:/slideshow',
+      semantics: ['slides', 'fragments', 'branches', 'hotspots', 'presenter-mode', 'speaker-notes'],
+      reviewArtifacts: [
+        'outline',
+        'style-previews',
+        'slide-draft',
+        'live-demo-config',
+        'code-references',
+        'render-proof',
+        'export-pack',
+      ],
+    },
     status: 'published',
   },
   'repo-launch-video': {

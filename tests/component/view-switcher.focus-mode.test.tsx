@@ -38,6 +38,14 @@ function renderShell() {
   );
 }
 
+it('opens the editable deck fixture as a lens without leaving the workspace shell', async () => {
+  renderShell();
+  await userEvent.click(screen.getByRole('tab', { name: /^deck/i }));
+  expect(screen.getByRole('heading', { name: /art should be searchable by more than words/i })).toBeInTheDocument();
+  expect(screen.getByTestId('deck-navigation')).toBeInTheDocument();
+  expect(screen.getByText('workspace · demo-ws')).toBeInTheDocument();
+});
+
 function storedMotionStart(): AgentMotionStartResult {
   return {
     status: 'ready',
