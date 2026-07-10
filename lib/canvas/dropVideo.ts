@@ -20,6 +20,11 @@ export interface DropVideoParams {
   targetLabel?: string;
 }
 
+export interface DropVideoArtboardResult {
+  frameId: string;
+  shapeId: string;
+}
+
 /**
  * Drop a rendered video onto the tldraw canvas as a native video shape.
  * Mirrors dropImageOnCanvas: centered in the viewport, scaled to fit.
@@ -65,6 +70,73 @@ export function dropVideoOnCanvas(editor: Editor, params: DropVideoParams): stri
   editor.select(shapeId);
   editor.zoomToSelection({ animation: { duration: 240 } });
   return shapeId;
+}
+
+/**
+ * Place a rendered video in its own native frame so the export returns as an
+ * inspectable canvas artifact instead of floating over an unrelated format.
+ */
+export function dropVideoArtboardOnCanvas(
+  editor: Editor,
+  params: DropVideoParams
+): DropVideoArtboardResult {
+  const meta = motionAssetMeta(params);
+  const frames = editor
+    .getCurrentPageShapes()
+    .filter((shape) => shape.type === 'frame') as Array<{
+    id: string;
+    x: number;
+    y: number;
+    props: { w: number; h: number };
+  }>;
+  const rightEdge = Math.max(0, ...frames.map((frame) => frame.x + frame.props.w));
+  const frameId = createShapeId();
+  const frameX = rightEdge + (frames.length > 0 ? 160 : 0);
+  const frameY = frames[0]?.y ?? 0;
+  editor.createShape({
+    id: frameId,
+    type: 'frame',
+    x: frameX,
+    y: frameY,
+    props: {
+      w: params.width,
+      h: params.height,
+      name: params.label ?? params.targetLabel ?? 'Video export',
+    },
+    meta,
+  });
+
+  const assetId = AssetRecordType.createId();
+  editor.createAssets([
+    {
+      id: assetId,
+      type: 'video',
+      typeName: 'asset',
+      props: {
+        name: params.label ?? 'motion',
+        src: params.url,
+        w: params.width,
+        h: params.height,
+        mimeType: params.mimeType ?? 'video/mp4',
+        isAnimated: true,
+      },
+      meta,
+    },
+  ]);
+
+  const shapeId = createShapeId();
+  editor.createShape({
+    id: shapeId,
+    type: 'video',
+    parentId: frameId,
+    x: 0,
+    y: 0,
+    props: { assetId, w: params.width, h: params.height },
+    meta,
+  });
+  editor.select(shapeId);
+  editor.zoomToSelection({ animation: { duration: 240 } });
+  return { frameId, shapeId };
 }
 
 function motionAssetMeta(params: DropVideoParams): Record<string, string> {

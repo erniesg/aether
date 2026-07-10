@@ -56,6 +56,7 @@ describe('createBrowserCaptureProvider', () => {
       {
         id: 'capture-screenshot-paillette-app-search',
         kind: 'screenshot',
+        target: screenshotRequest.target,
         assetUrl: 'asset://capture/home.png',
         width: 1080,
         height: 1920,

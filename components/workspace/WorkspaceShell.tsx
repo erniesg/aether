@@ -33,7 +33,7 @@ import { useScheduledPosts, getPreviewPublisher } from '@/lib/publisher/store';
 import { useReferences } from '@/lib/references/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
-import { dropVideoOnCanvas } from '@/lib/canvas/dropVideo';
+import { dropVideoArtboardOnCanvas } from '@/lib/canvas/dropVideo';
 import { dropMotionCanvasMaterialPlanOnCanvas } from '@/lib/canvas/dropMotionCanvasPlan';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
 import { DEFAULT_ARTBOARDS } from '@/lib/canvas/seedArtboards';
@@ -95,6 +95,7 @@ import { buildAgentMotionCapturePlan } from '@/lib/motion/capturePlan';
 import {
   buildMotionPreviewPlan,
   findMotionPreviewRegenerationAction,
+  type MotionPreviewExportPackCanvasDropTarget,
   type MotionPreviewRenderProofCanvasDropTarget,
 } from '@/lib/motion/previewPlan';
 import type { MotionCanvasMaterialPlan } from '@/lib/motion/canvasMaterial';
@@ -109,6 +110,11 @@ import type {
 import { appendDraftApprovalExecutionHistory } from '@/lib/motion/executionHistory';
 import type { MotionEffectPresetId } from '@/lib/motion/effectPresets';
 import type { MotionSourceKeyframe } from '@/lib/motion/revise';
+import {
+  buildLinkedSceneCopyOperations,
+  buildLinkedSceneTimingOperations,
+} from '@/lib/motion/linkedSceneEdit';
+import { DRAFT_RENDER_PROVIDER_ID } from '@/lib/motion/repoVideoProviderIds';
 import {
   buildExportRequestBody,
   downloadExportPack,
@@ -385,6 +391,10 @@ interface RunCompletedEvent {
   error?: string;
 }
 
+type PendingMotionCanvasDrop =
+  | { kind: 'render'; target: MotionPreviewRenderProofCanvasDropTarget }
+  | { kind: 'export'; target: MotionPreviewExportPackCanvasDropTarget };
+
 function compactFrameLabel(value?: string): string | undefined {
   if (!value) return undefined;
   const [head] = value.split(' · ');
@@ -458,6 +468,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const droppedVariationIndices = useRef<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
+  const [pendingMotionCanvasDrop, setPendingMotionCanvasDrop] =
+    useState<PendingMotionCanvasDrop | null>(null);
   const [selectedTimelineClipId, setSelectedTimelineClipId] = useState<string | null>(null);
   const [motionTimelineActionStatus, setMotionTimelineActionStatus] = useState<string | null>(null);
   const [motionSourcePatchDraft, setMotionSourcePatchDraft] =
@@ -855,17 +867,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             requestedAt,
             updatedAt: requestedAt,
             requestedEngines: motionStart.workflow.plan.engines,
-            operations: [
-              {
-                kind: 'update-clip-props',
-                clipId,
-                props: {
-                  text: summary,
-                  caption: summary,
-                  narration: summary,
-                },
-              },
-            ],
+            operations: buildLinkedSceneCopyOperations(motionStart.project, clipId, summary),
           }),
         });
         const json = (await res.json()) as {
@@ -885,6 +887,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
+          preparedPreviewSource: null,
         });
         setMotionTimelineActionStatus('clip updated');
       } catch (error) {
@@ -935,6 +938,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
+          preparedPreviewSource: null,
         });
         setMotionTimelineActionStatus('clip source updated');
       } catch (error) {
@@ -985,6 +989,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
+          preparedPreviewSource: null,
         });
         setMotionTimelineActionStatus('source keyframes updated');
       } catch (error) {
@@ -1039,6 +1044,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
+          preparedPreviewSource: null,
         });
         setMotionTimelineActionStatus('effect updated');
       } catch (error) {
@@ -1063,14 +1069,12 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             requestedAt,
             updatedAt: requestedAt,
             requestedEngines: motionStart.workflow.plan.engines,
-            operations: [
-              {
-                kind: 'retime-clip',
-                clipId,
-                startFrame: motionFrames(startSeconds),
-                durationFrames: motionFrames(durationSeconds),
-              },
-            ],
+            operations: buildLinkedSceneTimingOperations(
+              motionStart.project,
+              clipId,
+              motionFrames(startSeconds),
+              motionFrames(durationSeconds)
+            ),
           }),
         });
         const json = (await res.json()) as {
@@ -1090,6 +1094,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
           reviewPlan: json.reviewPlan ?? motionStart.reviewPlan,
           previewPlan: json.previewPlan,
           capturePlan: json.capturePlan ?? motionStart.capturePlan,
+          preparedPreviewSource: null,
         });
         setMotionTimelineActionStatus('timing updated');
       } catch (error) {
@@ -1300,6 +1305,8 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             project: motionStart.project,
             draftId: motionStart.project.currentDraftId,
             engine,
+            providerId: providerPrefs?.renderProviderId ?? DRAFT_RENDER_PROVIDER_ID,
+            allowDraftRender: !providerPrefs?.renderProviderId,
             requestedAt,
             updatedAt: requestedAt,
           }),
@@ -1335,7 +1342,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         setMotionTimelineActionStatus(error instanceof Error ? error.message : String(error));
       }
     },
-    [motionStart, wsId]
+    [motionStart, providerPrefs?.renderProviderId, wsId]
   );
   const handleTimelinePreparePreviewSource = useCallback(
     async (engine: MotionRenderEngine, draftId: string) => {
@@ -1351,6 +1358,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             project: motionStart.project,
             draftId,
             engine,
+            requestedEngines: motionStart.workflow.plan.engines,
             requestedAt,
           }),
         });
@@ -1401,22 +1409,83 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const handleTimelineDropRenderProofToCanvas = useCallback(
     (target: MotionPreviewRenderProofCanvasDropTarget) => {
       if (!editor) {
-        setMotionTimelineActionStatus('canvas not ready');
+        setPendingMotionCanvasDrop({ kind: 'render', target });
+        setMotionTimelineActionStatus('opening canvas');
+        setView('canvas');
         return;
       }
 
-      dropVideoOnCanvas(editor, {
-        url: target.url,
-        width: target.width,
-        height: target.height,
-        mimeType: target.mimeType,
-        label: target.label,
-        briefId: target.motionProjectId,
-      });
-      setMotionTimelineActionStatus(`${target.label} on canvas`);
+      try {
+        dropVideoArtboardOnCanvas(editor, {
+          url: target.url,
+          width: target.width,
+          height: target.height,
+          mimeType: target.mimeType,
+          label: target.label,
+          motionProjectId: target.motionProjectId,
+          targetLabel: target.targetLabel,
+        });
+        setMotionTimelineActionStatus(`${target.label} on canvas`);
+        setView('canvas');
+      } catch (error) {
+        setMotionTimelineActionStatus(
+          `canvas placement failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     },
     [editor]
   );
+  const handleTimelineDropExportPackToCanvas = useCallback(
+    (target: MotionPreviewExportPackCanvasDropTarget) => {
+      if (!editor) {
+        setPendingMotionCanvasDrop({ kind: 'export', target });
+        setMotionTimelineActionStatus('opening canvas');
+        setView('canvas');
+        return;
+      }
+
+      try {
+        dropVideoArtboardOnCanvas(editor, {
+          url: target.url,
+          width: target.width,
+          height: target.height,
+          mimeType: target.mimeType,
+          label: target.label,
+          motionProjectId: target.motionProjectId,
+          exportId: target.exportId,
+          sourceAssetId: target.assetId,
+          posterAssetId: target.posterAssetId ?? undefined,
+          subtitleAssetId: target.subtitleAssetId ?? undefined,
+          transcriptAssetId: target.transcriptAssetId ?? undefined,
+          sourceManifestAssetId: target.sourceManifestAssetId ?? undefined,
+          exportPackManifestId: target.exportPackManifestId ?? undefined,
+          targetLabel: target.targetLabel,
+        });
+        setMotionTimelineActionStatus(`${target.label} on canvas`);
+        setView('canvas');
+      } catch (error) {
+        setMotionTimelineActionStatus(
+          `canvas placement failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    },
+    [editor]
+  );
+  useEffect(() => {
+    if (!editor || !pendingMotionCanvasDrop) return;
+    const pending = pendingMotionCanvasDrop;
+    setPendingMotionCanvasDrop(null);
+    if (pending.kind === 'export') {
+      handleTimelineDropExportPackToCanvas(pending.target);
+    } else {
+      handleTimelineDropRenderProofToCanvas(pending.target);
+    }
+  }, [
+    editor,
+    handleTimelineDropExportPackToCanvas,
+    handleTimelineDropRenderProofToCanvas,
+    pendingMotionCanvasDrop,
+  ]);
   const handleTimelineDropMotionPlanToCanvas = useCallback(
     (plan: MotionCanvasMaterialPlan) => {
       if (!editor) {
@@ -3432,6 +3501,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
             onRunAgentTemplate={handleTimelineRunAgentTemplate}
             onDropMotionPlanToCanvas={handleTimelineDropMotionPlanToCanvas}
             onDropRenderProofToCanvas={handleTimelineDropRenderProofToCanvas}
+            onDropExportPackToCanvas={handleTimelineDropExportPackToCanvas}
             onExportPack={handleTimelineExportPack}
             onPlanVisuals={handleTimelinePlanVisuals}
             onGenerateVideoClips={handleTimelineGenerateVideoClips}

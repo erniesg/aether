@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { dropVideoOnCanvas } from './dropVideo';
+import { dropVideoArtboardOnCanvas, dropVideoOnCanvas } from './dropVideo';
 
 function makeEditor() {
   return {
@@ -8,6 +8,7 @@ function makeEditor() {
     createShape: vi.fn(),
     select: vi.fn(),
     zoomToSelection: vi.fn(),
+    getCurrentPageShapes: vi.fn<() => Array<Record<string, unknown>>>(() => []),
   };
 }
 
@@ -85,5 +86,40 @@ describe('dropVideoOnCanvas', () => {
       aetherMotionTargetLabel: 'x 9:16',
     });
     expect(shape.meta).toMatchObject(asset.meta);
+  });
+
+  it('returns an export as a focused native video artboard', () => {
+    const editor = makeEditor();
+    editor.getCurrentPageShapes.mockReturnValue([
+      { id: 'frame-existing', type: 'frame', x: 0, y: 0, props: { w: 1080, h: 1350 } },
+    ]);
+
+    const result = dropVideoArtboardOnCanvas(editor as never, {
+      url: '/api/motion/artifacts?path=renders%2Fvideo.mp4',
+      width: 1080,
+      height: 1920,
+      label: 'x 9:16 MP4',
+      targetLabel: 'x 9:16',
+      motionProjectId: 'motion-pr-175',
+    });
+
+    const frame = editor.createShape.mock.calls[0]![0];
+    const video = editor.createShape.mock.calls[1]![0];
+    expect(frame).toMatchObject({
+      id: result.frameId,
+      type: 'frame',
+      x: 1240,
+      props: { w: 1080, h: 1920, name: 'x 9:16 MP4' },
+    });
+    expect(video).toMatchObject({
+      id: result.shapeId,
+      type: 'video',
+      parentId: result.frameId,
+      x: 0,
+      y: 0,
+      props: { w: 1080, h: 1920 },
+    });
+    expect(editor.select).toHaveBeenCalledWith(result.shapeId);
+    expect(editor.zoomToSelection).toHaveBeenCalled();
   });
 });

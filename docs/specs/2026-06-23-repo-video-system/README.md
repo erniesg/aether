@@ -1019,14 +1019,20 @@ parallax stills. The `frame.md` direction is especially relevant: translate a
 web design system into video-frame rules before the agent composes.
 
 The current `pr-to-video` skill also confirms the product boundary for PR
-explainers. It accepts a PR URL, `owner/repo#N`, or "this PR"; ingests PR facts
-and a full diff through `gh`; produces `capture/pr.json`, `diff.patch`,
-`tokens.json`, `visible-text.txt`, `people.json`, and optional contributor
-avatars; then gates narrator scripts, audio, visual section planning, grouped
-timeline specs, captions, scene HTML, contact-sheet review, and final MP4
-render. That is the evidence model Aether should mirror behind
-`CodeChangeProvider`, while still exposing the creator-facing review as a
-video plan, drafts, timeline rows, regeneration controls, and export pack.
+explainers. It accepts a PR URL, `owner/repo#N`, or "this PR"; peeks at PR
+size to recommend angle, audience, destination, and length; ingests PR facts
+and a full diff through `gh`; completes large file lists through the paginated
+GitHub files API; and bakes that author-time evidence into a synthetic
+`capture/extracted/` package (`tokens.json`, `visible-text.txt`, `people.json`).
+The craft rule is narrative-first: explain the change rather than read the diff,
+choose one PR archetype, land value by the second beat, feature 2-4 real hunks,
+and alternate code evidence with `mechanism` beats that animate runtime
+behavior. Its source pack then gates storyboard/script approval, audio and
+caption metadata, per-frame HTML, transitions, lint/validate/inspect/snapshot,
+contact-sheet review, and final MP4 render. That is the evidence model Aether
+should mirror behind `CodeChangeProvider`, while still exposing the
+creator-facing review as a video plan, drafts, timeline rows, regeneration
+controls, and export pack.
 
 For aether, the important import is not the exact HyperFrames file layout. It
 is the workflow and verification boundary: PR/code-change videos, product

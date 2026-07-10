@@ -467,8 +467,8 @@ describe('GET /api/motion/workflows', () => {
           triggerPhrases: expect.arrayContaining(['make a PR explainer']),
           generationLanes: ['code-change', 'visual-search', 'voice', 'sync', 'render', 'export'],
           agentTaskLabels: expect.arrayContaining([
-            'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status',
-            'Select code-proof visuals from the diff, file tree, review, and CI receipts',
+            'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status at author time',
+            'Select 2-4 readable hunks, proof receipts, and optional contributor-credit avatars',
           ]),
           draftVariations: expect.arrayContaining([
             expect.objectContaining({

@@ -41,6 +41,7 @@ describe('POST /api/motion/preview-source', () => {
         body: JSON.stringify({
           project: project(),
           engine: 'remotion',
+          requestedEngines: ['remotion', 'hyperframes', 'provider'],
           requestedAt: 929,
         }),
       })
@@ -76,6 +77,9 @@ describe('POST /api/motion/preview-source', () => {
     ]);
     expect(remotionManifest.engineEntryFile.path).toBe('remotion/index.tsx');
     expect(hyperframesManifest.engineEntryFile.path).toBe('index.html');
+    expect(
+      remotionJson.previewPlan.enginePreviews.map((preview: { engine: string }) => preview.engine)
+    ).toEqual(['remotion', 'hyperframes', 'provider']);
   });
 
   it('returns a Remotion Player source package without requiring a render provider', async () => {

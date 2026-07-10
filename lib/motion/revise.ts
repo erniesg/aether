@@ -123,10 +123,34 @@ export function applyMotionTimelineRevision(
       story: applyStoryOperations(draft.story, input.operations, refs),
       tracks: applyClipEdits(draft.tracks, clipEdits, refs),
     })),
-    graphNodes: upsertRevisionNode(project.graphNodes, revisionNode),
+    graphNodes: invalidateRevisionOutputs(
+      upsertRevisionNode(project.graphNodes, revisionNode)
+    ),
+    exports: project.exports.map(invalidateMotionExport),
     ...(interactiveMarkers === undefined ? {} : { interactiveMarkers }),
     updatedAt: input.updatedAt ?? project.updatedAt,
   };
+}
+
+function invalidateRevisionOutputs(nodes: MotionGraphNode[]): MotionGraphNode[] {
+  return nodes.map((node) =>
+    node.kind === 'sync' ||
+    node.kind === 'render' ||
+    node.kind === 'export-pack' ||
+    node.kind === 'interactive-export'
+      ? { ...node, status: 'planned', outputRefs: [] }
+      : node
+  );
+}
+
+function invalidateMotionExport(motionExport: MotionProject['exports'][number]) {
+  const next = { ...motionExport };
+  delete next.assetId;
+  delete next.posterAssetId;
+  delete next.subtitleAssetId;
+  delete next.transcriptAssetId;
+  delete next.manifestAssetId;
+  return { ...next, status: 'planned' as const };
 }
 
 function validateMotionTimelineRevision(

@@ -710,6 +710,7 @@ describe('POST /api/motion/regenerate', () => {
                 'agent-demo-files',
                 'agent-demo-terminal',
                 'agent-demo-preview',
+                'agent-demo-app-result',
                 'agent-demo-cta',
               ],
             },
@@ -718,10 +719,10 @@ describe('POST /api/motion/regenerate', () => {
         timestampedShotPlan: expect.arrayContaining([
           {
             id: 'agent-demo-terminal',
-            startSeconds: 6.5,
-            endSeconds: 10.5,
-            label: 'Command proof',
-            visual: 'Show tests, render, or local command output as proof of work.',
+            startSeconds: 8.5,
+            endSeconds: 15.5,
+            label: 'Terminal task prompt',
+            visual: 'Show the terminal prompt and command surface where the agent receives the coding task.',
             componentIds: ['agent-trace', 'terminal-card', 'proof-card'],
             effectTags: ['terminal-scan', 'proof-flash'],
             editTargets: ['proof', 'timing'],

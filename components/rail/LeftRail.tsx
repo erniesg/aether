@@ -109,7 +109,7 @@ function LeftRailInner({
   className?: string;
   workspaceId?: string;
 }) {
-  const { railRef } = useRail();
+  const { railRef, close } = useRail();
   const signals = useSignals(workspaceId);
   const references = useReferences(workspaceId);
   const context = useCreatorContext(workspaceId);
@@ -148,7 +148,7 @@ function LeftRailInner({
       icon: Video,
       summary: motionSectionSummary(motionStart),
       hasContent: Boolean(motionStart),
-      body: <MotionSection workspaceId={workspaceId} />,
+      body: <MotionSection workspaceId={workspaceId} onStarted={close} />,
     },
     {
       id: 'presence',

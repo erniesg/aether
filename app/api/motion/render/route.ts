@@ -11,9 +11,12 @@ import type { MotionRenderEngine } from '@/lib/providers/video/types';
 import {
   listMotionRenderProviders,
   MotionRenderProviderUnavailableError,
+  registerMotionRenderProvider,
   resolveMotionRenderProvider,
 } from '@/lib/providers/video/render-registry';
 import { ensureConfiguredMotionRenderProviders } from '@/lib/providers/video/configured-render';
+import { DRAFT_RENDER_PROVIDER_ID } from '@/lib/motion/repoVideoProviderIds';
+import { createDraftMotionRenderProvider } from '@/lib/providers/video/draft-render';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -59,6 +62,7 @@ export async function POST(request: Request): Promise<Response> {
   const requestedAt = numericValue(body.requestedAt) ?? Date.now();
   const draftId = stringValue(body.draftId);
   const providerId = stringValue(body.providerId);
+  const allowDraftRender = body.allowDraftRender === true;
 
   const plan = buildMotionRenderPlan(project, {
     engine,
@@ -85,6 +89,13 @@ export async function POST(request: Request): Promise<Response> {
       providers: listMotionRenderProviders(),
     });
   }
+
+  const unregisterDraftProvider =
+    allowDraftRender && providerId === DRAFT_RENDER_PROVIDER_ID && engine === 'remotion'
+      ? registerMotionRenderProvider(DRAFT_RENDER_PROVIDER_ID, () =>
+          createDraftMotionRenderProvider()
+        )
+      : () => undefined;
 
   try {
     const provider = resolveMotionRenderProvider({ engine, preferredId: providerId });
@@ -135,6 +146,8 @@ export async function POST(request: Request): Promise<Response> {
 
     const message = error instanceof Error ? error.message : String(error);
     return jsonError(502, message, { code: 'motion_render_failed' });
+  } finally {
+    unregisterDraftProvider();
   }
 }
 

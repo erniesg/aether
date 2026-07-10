@@ -98,6 +98,60 @@ X/video review supplies timestamp-verified cuts.
   the same revision path. Remaining capture-edit work should focus on
   caption/script edits and multi-source source-bundle round trips.
 
+## Reference refresh: 2026-07-09
+
+- HyperFrames now treats `/hyperframes` as the router for a larger workflow
+  family and installs concrete workflows on demand with
+  `npx hyperframes skills update <workflow-name>`. Aether should capture that
+  as workflow-router provenance in source bundles: which external workflow was
+  referenced, whether the skill was refreshed, and which validation loop was
+  expected.
+- `/pr-to-video` is the strongest current social/workflow signal, but the actual
+  workflow is more specific than "diff highlights." It takes a PR URL,
+  `owner/repo#N`, or "this PR"; peeks at `title`, `additions`, `deletions`, and
+  `changedFiles` to recommend angle, audience, destination, and a length tier;
+  then fetches PR facts through `gh`, completing large file lists through the
+  paginated GitHub files API. It writes `capture/pr.json` and
+  `capture/diff.patch`, then folds them offline into a synthetic
+  `capture/extracted/` package with `tokens.json`, `visible-text.txt`, and
+  `people.json`.
+- The PR video story model is narrative-first: choose one archetype
+  (`changelog`, `feature-reveal`, `fix-explainer`, or
+  `refactor-walkthrough`), land viewer value by the second beat, feature 2-4
+  real hunks, and alternate `diff` frames with `mechanism` frames that animate
+  runtime behavior. Aether's PR explainer surface should therefore store code
+  evidence and behavior diagrams as editable linked beats, not flatten the PR
+  into a file-by-file walkthrough.
+- The real `/pr-to-video` source pack is `videos/<project>/` with
+  `hyperframes.json`, `frame.md` using the fixed `claude` preset, `STORYBOARD.md`,
+  `SCRIPT.md`, `audio_meta.json`, `caption_groups.json`, per-frame HTML under
+  `compositions/frames/`, `index.html`, `snapshots/contact-sheet.jpg`, and
+  `renders/video.mp4`. User gates are setup brief, storyboard/script approval,
+  and final preview/render approval; checks are transitions verify, lint,
+  validate, inspect, and snapshot before render.
+- Aether should preserve those contracts as provider-neutral motion planning:
+  author-time PR evidence, source-backed script/storyboard, avatars only for a
+  credits close, code blocks for changed code, invented mechanism diagrams for
+  behavior, caption/voice timing receipts, contact-sheet proof, and final render
+  proof. It should not add a website capture step or live at-render-time PR
+  fetches to PR-to-video.
+- Public X indexing around HyperFrames is pushing the market framing that teams
+  can review PRs by watching short PR explainer videos. Those snippets are useful
+  as social signal, but still need authenticated playback capture before they
+  become taste-corpus examples with timing, crop, and transition tags.
+- `/slideshow` is the better reference for Aether's product deck work than
+  `/pr-to-video`: it authors discrete slides, fragments, branching, hotspots,
+  presenter mode, and speaker notes, and the output is a navigable deck rather
+  than an MP4. The Paillette deck issue pack should reuse HyperFrames-style
+  source-bundle and validation semantics while keeping the deck as a graph-backed
+  Aether artifact.
+- The public `hyperframes-launch-video` source project is a useful export-pack
+  shape reference: `index.html`, `compositions/`, `assets/`, `meta.json`,
+  `HANDOFF.md`, `SCRIPT.md`, `STORYBOARD.md`, preview/render/lint commands, and
+  documented punch-list warnings. Aether export packs should preserve analogous
+  source files and receipts instead of shipping only a flat MP4 or standalone
+  HTML file.
+
 ## Component taxonomy to support
 
 The current registry already covers many launch and PR primitives. The research

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Chip } from '@/components/ui/Chip';
+import { MotionCanvasVideoEditor } from '@/components/workspace/MotionCanvasVideoEditor';
 import { MotionRemotionPlayerPreview } from '@/components/workspace/MotionRemotionPlayerPreview';
 import { Surface } from '@/components/ui/Surface';
 import { getMotionComponent } from '@/lib/motion/componentRegistry';
@@ -199,6 +200,7 @@ export function TimelineLens({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {previewPlan ? (
           <MotionPreviewPlanView
+            tracks={tracks}
             previewPlan={previewPlan}
             preparedPreviewSource={preparedPreviewSource}
             sourcePackage={sourcePackage}
@@ -263,6 +265,7 @@ export function TimelineLens({
 }
 
 function MotionPreviewPlanView({
+  tracks,
   previewPlan,
   preparedPreviewSource,
   sourcePackage,
@@ -305,6 +308,7 @@ function MotionPreviewPlanView({
   workflowSkillDraft,
   actionStatus,
 }: {
+  tracks: TimelineTrack[];
   previewPlan: MotionPreviewPlan;
   preparedPreviewSource: MotionPreparedPreviewSource | null;
   sourcePackage: MotionStartSourcePackage | null;
@@ -356,6 +360,14 @@ function MotionPreviewPlanView({
     setAdvancedNodeLensOpen(false);
   }, [previewPlan.id]);
 
+  useEffect(() => {
+    if (selectedClipId) return;
+    const firstClip = previewPlan.timelineRows
+      .find((row) => ['screen', 'broll', 'text'].includes(row.trackKind))
+      ?.clips.at(0) ?? previewPlan.timelineRows.at(0)?.clips.at(0);
+    if (firstClip) onSelectClip(firstClip.clipId);
+  }, [onSelectClip, previewPlan.id, previewPlan.timelineRows, selectedClipId]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <section className="border-b border-border-soft px-4 py-3">
@@ -384,6 +396,35 @@ function MotionPreviewPlanView({
           </Chip>
         </div>
       </section>
+
+      <MotionCanvasVideoEditor
+        previewPlan={previewPlan}
+        tracks={tracks}
+        selectedClipId={selectedClipId}
+        onSelectClip={onSelectClip}
+        onSelectDraft={onSelectDraft}
+        onApproveDraft={onApproveDraft}
+        onRegenerateComponent={onRegenerateComponent}
+        onRenderMotion={onRenderMotion}
+        onExportPack={onExportPack}
+        onEditClipTiming={onEditClipTiming}
+        onDropRenderProofToCanvas={onDropRenderProofToCanvas}
+        onDropExportPackToCanvas={onDropExportPackToCanvas}
+        actionStatus={actionStatus}
+        inspector={
+          selectedClip ? (
+            <SelectedClipEditor
+              compact
+              clip={selectedClip}
+              onEditClipSummary={onEditClipSummary}
+              onEditClipProps={onEditClipProps}
+              onEditClipSourceKeyframes={onEditClipSourceKeyframes}
+              onEditClipEffect={onEditClipEffect}
+              onEditClipTiming={onEditClipTiming}
+            />
+          ) : null
+        }
+      />
 
       <section className="border-b border-border-soft px-4 py-3">
         <MotionModeControlStrip
@@ -762,17 +803,6 @@ function MotionPreviewPlanView({
         )}
       </div>
 
-      {selectedClip ? (
-        <SelectedClipEditor
-          clip={selectedClip}
-          onEditClipSummary={onEditClipSummary}
-          onEditClipProps={onEditClipProps}
-          onEditClipSourceKeyframes={onEditClipSourceKeyframes}
-          onEditClipEffect={onEditClipEffect}
-          onEditClipTiming={onEditClipTiming}
-        />
-      ) : null}
-
       {previewPlan.regenerationActions.length > 0 ? (
         <section className="flex flex-wrap gap-2 border-t border-border-soft px-4 py-3">
           {previewPlan.regenerationActions.map((action) => (
@@ -786,14 +816,6 @@ function MotionPreviewPlanView({
         </section>
       ) : null}
 
-      {actionStatus ? (
-        <div
-          role="status"
-          className="border-t border-border-soft px-4 py-2 font-caption text-xs text-ink-dim"
-        >
-          {actionStatus}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -972,8 +994,24 @@ function MotionPlayablePreviewStrip({
   onApplyGeneratedVideoTake?: (clipId: string, takeId: string) => void;
   onRegenerateComponent?: (actionId: string) => void;
 }) {
-  const sourcePreview = buildSourcePreview(previewPlan);
+  const availablePreviewEngines = previewPlan.enginePreviews.filter(
+    (preview): preview is typeof preview & { engine: MotionRenderEngine } =>
+      preview.engine === 'remotion' || preview.engine === 'hyperframes'
+  );
+  const availableEngineKey = availablePreviewEngines
+    .map((preview) => preview.engine)
+    .join(':');
+  const [previewEngine, setPreviewEngine] = useState<MotionRenderEngine>(() =>
+    preferredRenderEngine(previewPlan.enginePreviews)?.engine ?? 'remotion'
+  );
+  const sourcePreview = buildSourcePreview(previewPlan, previewEngine);
   const [previewSeconds, setPreviewSeconds] = useState(0);
+
+  useEffect(() => {
+    if (availablePreviewEngines.some((preview) => preview.engine === previewEngine)) return;
+    const preferred = preferredRenderEngine(previewPlan.enginePreviews)?.engine;
+    if (preferred) setPreviewEngine(preferred);
+  }, [availableEngineKey, availablePreviewEngines, previewEngine, previewPlan.enginePreviews]);
 
   useEffect(() => {
     setPreviewSeconds(0);
@@ -1022,9 +1060,28 @@ function MotionPlayablePreviewStrip({
               {sourcePreview.engine} source preview
             </div>
           </div>
-          <Chip tone="info" size="sm">
-            source-backed edits
-          </Chip>
+          <div
+            role="group"
+            aria-label="preview engine"
+            className="flex items-center rounded-sm border border-border-soft bg-surface-canvas p-0.5"
+          >
+            {availablePreviewEngines.map((engine) => (
+              <button
+                key={engine.engine}
+                type="button"
+                aria-pressed={previewEngine === engine.engine}
+                onClick={() => setPreviewEngine(engine.engine)}
+                className={cn(
+                  'rounded-xs px-2 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors',
+                  previewEngine === engine.engine
+                    ? 'bg-surface-panel text-ink shadow-xs'
+                    : 'text-ink-faint hover:text-ink'
+                )}
+              >
+                {engine.engine}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div
@@ -1355,8 +1412,19 @@ interface MotionSourcePreview {
   components: MotionSourcePreviewComponent[];
 }
 
-function buildSourcePreview(previewPlan: MotionPreviewPlan): MotionSourcePreview | null {
-  const engine = preferredRenderEngine(previewPlan.enginePreviews);
+function buildSourcePreview(
+  previewPlan: MotionPreviewPlan,
+  selectedEngine?: MotionRenderEngine
+): MotionSourcePreview | null {
+  const engine =
+    previewPlan.enginePreviews.find(
+      (
+        preview
+      ): preview is MotionPreviewEnginePlan & { engine: MotionRenderEngine } =>
+        (preview.engine === 'remotion' || preview.engine === 'hyperframes') &&
+        preview.engine === selectedEngine &&
+        preview.status === 'ready'
+    ) ?? preferredRenderEngine(previewPlan.enginePreviews);
   const editSource = previewPlan.editSource;
   if (
     !engine ||
@@ -3867,6 +3935,7 @@ function preferredRenderEngine(
 }
 
 function SelectedClipEditor({
+  compact = false,
   clip,
   onEditClipSummary,
   onEditClipProps,
@@ -3874,6 +3943,7 @@ function SelectedClipEditor({
   onEditClipEffect,
   onEditClipTiming,
 }: {
+  compact?: boolean;
   clip: MotionPreviewTimelineClip;
   onEditClipSummary?: (clipId: string, summary: string) => void;
   onEditClipProps?: (clipId: string, props: Record<string, EditableClipPropValue>) => void;
@@ -3947,7 +4017,12 @@ function SelectedClipEditor({
   const canApplyTiming = Boolean(onEditClipTiming) && timingIsValid && timingChanged;
 
   return (
-    <section className="grid gap-3 border-t border-border-soft px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)]">
+    <section
+      className={cn(
+        'grid gap-3 px-3 py-3',
+        compact ? '' : 'border-t border-border-soft md:grid-cols-[180px_minmax(0,1fr)]'
+      )}
+    >
       <div className="min-w-0">
         <div className="font-caption text-xs text-ink">{clip.componentLabel}</div>
         <div className="mt-1 font-mono text-2xs uppercase tracking-wide text-ink-faint">
@@ -3955,7 +4030,12 @@ function SelectedClipEditor({
         </div>
       </div>
       <div className="grid min-w-0 gap-2">
-        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+        <div
+          className={cn(
+            'grid gap-2',
+            compact ? '' : 'md:grid-cols-[minmax(0,1fr)_auto]'
+          )}
+        >
           <input
             type="text"
             aria-label="selected clip summary"
@@ -3972,7 +4052,12 @@ function SelectedClipEditor({
             apply
           </button>
         </div>
-        <div className="grid gap-2 md:grid-cols-[minmax(0,120px)_minmax(0,120px)_auto]">
+        <div
+          className={cn(
+            'grid gap-2',
+            compact ? 'grid-cols-2' : 'md:grid-cols-[minmax(0,120px)_minmax(0,120px)_auto]'
+          )}
+        >
           <label className="grid gap-1 font-caption text-2xs text-ink-dim">
             start
             <input
@@ -4003,13 +4088,21 @@ function SelectedClipEditor({
             onClick={() =>
               onEditClipTiming?.(clip.clipId, parsedStartSeconds, parsedDurationSeconds)
             }
-            className="self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            className={cn(
+              'self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40',
+              compact && 'col-span-2'
+            )}
           >
             apply timing
           </button>
         </div>
         {hasSourceControls ? (
-          <div className="grid gap-2 md:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+          <div
+            className={cn(
+              'grid gap-2',
+              compact ? 'grid-cols-2' : 'md:grid-cols-[repeat(5,minmax(0,1fr))_auto]'
+            )}
+          >
             {hasAssetControl ? (
               <label className="grid gap-1 font-caption text-2xs text-ink-dim">
                 capture
@@ -4103,14 +4196,22 @@ function SelectedClipEditor({
                 }
                 onEditClipProps?.(clip.clipId, props);
               }}
-              className="self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+              className={cn(
+                'self-end rounded-sm border border-border-soft bg-surface-panel px-3 py-1.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40',
+                compact && 'col-span-2'
+              )}
             >
               apply source controls
             </button>
           </div>
         ) : null}
         {hasSourceKeyframesControl ? (
-          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+          <div
+            className={cn(
+              'grid gap-2',
+              compact ? '' : 'md:grid-cols-[minmax(0,1fr)_auto]'
+            )}
+          >
             <label className="grid gap-1 font-caption text-2xs text-ink-dim">
               source keyframes
               <textarea

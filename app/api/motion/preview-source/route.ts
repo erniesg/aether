@@ -13,6 +13,7 @@ import type {
   MotionRenderEngine,
   MotionRenderSourceFile,
 } from '@/lib/providers/video/types';
+import type { WorkflowEngine } from '@/lib/workflow/registry';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,11 @@ export const maxDuration = 300;
 type MotionPreviewSourceRequestBody = Record<string, unknown>;
 
 const VALID_RENDER_ENGINES = new Set<MotionRenderEngine>(['remotion', 'hyperframes']);
+const VALID_WORKFLOW_ENGINES = new Set<WorkflowEngine>([
+  'remotion',
+  'hyperframes',
+  'provider',
+]);
 
 function jsonError(status: number, error: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ ok: false, error, ...extra }, { status });
@@ -55,6 +61,7 @@ export async function POST(request: Request): Promise<Response> {
   const project = body.project as unknown as MotionProject;
   const requestedAt = numericValue(body.requestedAt) ?? Date.now();
   const draftId = stringValue(body.draftId);
+  const previewEngines = parseRequestedEngines(body.requestedEngines, engine);
   const plan = buildMotionRenderPlan(project, {
     engine,
     draftId,
@@ -62,7 +69,7 @@ export async function POST(request: Request): Promise<Response> {
     requestedAt,
   });
   const previewPlan = buildMotionPreviewPlan(project, {
-    engines: [engine],
+    engines: previewEngines,
     fps,
     requestedAt,
   });
@@ -138,7 +145,7 @@ export async function POST(request: Request): Promise<Response> {
     previewSource,
     reviewPlan: buildMotionReviewPlan(projectWithExecutionHistory),
     previewPlan: buildMotionPreviewPlan(projectWithExecutionHistory, {
-      engines: [engine],
+      engines: previewEngines,
       fps,
       requestedAt,
     }),
@@ -170,6 +177,18 @@ function parseEngine(value: unknown): MotionRenderEngine | null {
     return value as MotionRenderEngine;
   }
   return null;
+}
+
+function parseRequestedEngines(
+  value: unknown,
+  selectedEngine: MotionRenderEngine
+): WorkflowEngine[] {
+  if (!Array.isArray(value)) return [selectedEngine];
+  const engines = value.filter(
+    (candidate): candidate is WorkflowEngine =>
+      typeof candidate === 'string' && VALID_WORKFLOW_ENGINES.has(candidate as WorkflowEngine)
+  );
+  return Array.from(new Set([...engines, selectedEngine]));
 }
 
 function findSourceFile(

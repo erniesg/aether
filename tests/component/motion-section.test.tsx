@@ -23,6 +23,7 @@ afterEach(() => {
   cleanup();
   resetMotionStartResultsForTests();
   window.localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 function readyResult(appName = 'aether'): AgentMotionStartResult {
@@ -326,6 +327,61 @@ describe('MotionSection', () => {
         mode: 'full-auto',
       })
     );
+  });
+
+  it('uses the one-call repo-video route for full-auto starts', async () => {
+    const start = readyResult('aether');
+    const onStarted = vi.fn();
+    const fetch = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'ready',
+          start,
+          project: start.project,
+          run: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    render(
+      <MotionSection
+        workspaceId="demo-ws"
+        onStarted={onStarted}
+        providerPrefs={{
+          imageProviderId: 'image-video-test',
+          voiceProviderId: 'voice-test' as never,
+          renderProviderId: 'remotion-test',
+        }}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /full-auto/i }));
+    await userEvent.type(
+      screen.getByLabelText(/motion source/i),
+      'https://github.com/erniesg/aether'
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start video/i }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/motion/repo-video',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+    const fetchCalls = fetch.mock.calls as unknown as Array<[string, RequestInit]>;
+    const requestBody = JSON.parse(fetchCalls[0][1].body as string);
+    expect(requestBody).toMatchObject({
+      repoUrl: 'https://github.com/erniesg/aether',
+      mode: 'full-auto',
+      runFullAuto: true,
+      imageToVideoProviderId: 'image-video-test',
+      voiceProviderId: 'voice-test',
+      renderProviderId: 'remotion-test',
+    });
+    expect(onStarted).toHaveBeenCalledTimes(1);
   });
 
   it('can start from a composed source set for a repo app video', async () => {

@@ -84,10 +84,15 @@ export interface MotionStartClientRequest {
   tone: string;
   platformTargets: MotionPlatformTarget[];
   requestedEngines: ['remotion', 'hyperframes', 'provider'];
+  runFullAuto?: boolean;
+  imageToVideoProviderId?: string;
+  voiceProviderId?: string;
+  renderProviderId?: string;
 }
 
 export interface MotionSectionProps {
   workspaceId?: string;
+  onStarted?: () => void;
   startMotion?: (request: MotionStartClientRequest) => Promise<AgentMotionStartResult>;
   regenerateMotion?: (
     result: AgentMotionStartResult,
@@ -180,17 +185,30 @@ const RECENT_SOURCE_LIMIT = 6;
 async function defaultStartMotion(
   request: MotionStartClientRequest
 ): Promise<AgentMotionStartResult> {
-  const res = await fetch('/api/motion/start', {
+  const route = request.mode === 'full-auto' ? '/api/motion/repo-video' : '/api/motion/start';
+  const res = await fetch(route, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
-  const json = (await res.json()) as AgentMotionStartResult & {
+  const json = (await res.json()) as (AgentMotionStartResult & {
     ok?: boolean;
     error?: string;
+  }) & {
+    start?: AgentMotionStartResult;
+    run?: MotionAgentHandoffClientResult | null;
+    project?: AgentMotionStartResult['project'];
   };
   if (!res.ok || json.ok === false) {
     throw new Error(json.error ?? `motion start failed: ${res.status}`);
+  }
+  if (request.mode === 'full-auto' && json.start) {
+    return json.run
+      ? applyMotionAgentHandoffResult(json.start, json.run)
+      : {
+          ...json.start,
+          project: json.project ?? json.start.project,
+        };
   }
   return json;
 }
@@ -271,6 +289,7 @@ export function motionSectionSummary(result: AgentMotionStartResult | undefined)
 
 export function MotionSection({
   workspaceId,
+  onStarted,
   startMotion = defaultStartMotion,
   regenerateMotion = defaultRegenerateMotion,
   applySourcePatch = defaultApplySourcePatch,
@@ -313,6 +332,9 @@ export function MotionSection({
         tone: 'clear, visual, product-led',
         platformTargets: selectedTargetPreset.targets.map((target) => ({ ...target })),
         requestedEngines: ['remotion', 'hyperframes', 'provider'],
+        ...(mode === 'full-auto'
+          ? motionRepoVideoProviderInput(activeProviderPrefs)
+          : {}),
       });
       setMotionStartResult(workspaceId, result);
       setRecentSources(
@@ -330,6 +352,7 @@ export function MotionSection({
       setHandoffStatus({ kind: 'idle' });
       setRegenerateStatus({ kind: 'idle' });
       setSourcePatchDraft(null);
+      onStarted?.();
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
     }
@@ -572,6 +595,20 @@ export function MotionSection({
       ) : null}
     </div>
   );
+}
+
+function motionRepoVideoProviderInput(
+  prefs: WorkspaceProviderPrefs | null | undefined
+): Pick<
+  MotionStartClientRequest,
+  'runFullAuto' | 'imageToVideoProviderId' | 'voiceProviderId' | 'renderProviderId'
+> {
+  return {
+    runFullAuto: true,
+    ...(prefs?.imageProviderId ? { imageToVideoProviderId: prefs.imageProviderId } : {}),
+    ...(prefs?.voiceProviderId ? { voiceProviderId: prefs.voiceProviderId } : {}),
+    ...(prefs?.renderProviderId ? { renderProviderId: prefs.renderProviderId } : {}),
+  };
 }
 
 function MotionAppRepoShortcuts({

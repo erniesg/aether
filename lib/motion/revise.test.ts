@@ -134,6 +134,68 @@ describe('applyMotionTimelineRevision', () => {
     });
   });
 
+  it('invalidates stale sync, render, and export artifacts after an edit', () => {
+    const readyProject = project();
+    readyProject.exports = readyProject.exports.map((motionExport) => ({
+      ...motionExport,
+      status: 'ready',
+      assetId: `${motionExport.id}-video`,
+      posterAssetId: `${motionExport.id}-poster`,
+      manifestAssetId: `${motionExport.id}-manifest`,
+    }));
+    readyProject.graphNodes.push(
+      {
+        id: 'node-render-ready',
+        kind: 'render',
+        inputRefs: readyProject.exports.map((motionExport) => motionExport.id),
+        outputRefs: readyProject.exports.map((motionExport) => motionExport.assetId ?? ''),
+        status: 'done',
+        provenance: [{ kind: 'render', ref: 'render-ready' }],
+      },
+      {
+        id: 'node-export-pack-ready',
+        kind: 'export-pack',
+        inputRefs: ['render-ready'],
+        outputRefs: ['export-pack-ready'],
+        status: 'done',
+        provenance: [{ kind: 'export', ref: 'export-pack-ready' }],
+      }
+    );
+
+    const revised = applyMotionTimelineRevision(readyProject, {
+      id: 'revision-after-render',
+      requestedAt: 120,
+      operations: [
+        {
+          kind: 'update-clip-props',
+          clipId: 'clip-beat-hook-text',
+          props: { headline: 'A revised hook' },
+        },
+      ],
+    });
+
+    expect(revised.exports.every((motionExport) => motionExport.status === 'planned')).toBe(true);
+    expect(
+      revised.exports.every(
+        (motionExport) =>
+          !('assetId' in motionExport) &&
+          !('posterAssetId' in motionExport) &&
+          !('manifestAssetId' in motionExport)
+      )
+    ).toBe(true);
+    expect(
+      revised.graphNodes
+        .filter((node) => ['sync', 'render', 'export-pack'].includes(node.kind))
+        .map((node) => ({ kind: node.kind, status: node.status, outputRefs: node.outputRefs }))
+    ).toEqual(
+      expect.arrayContaining([
+        { kind: 'sync', status: 'planned', outputRefs: [] },
+        { kind: 'render', status: 'planned', outputRefs: [] },
+        { kind: 'export-pack', status: 'planned', outputRefs: [] },
+      ])
+    );
+  });
+
   it('merges same-beat story edits from separate source operations', () => {
     const revised = applyMotionTimelineRevision(project(), {
       id: 'revision-demo-source-bundle-merge',

@@ -49,7 +49,7 @@ describe('motion workflow skill drafts', () => {
         'provenance manifest',
       ],
       agentTaskLabels: expect.arrayContaining([
-        'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status',
+        'Collect PR title, summary, changed files, hunks, commits, reviews, and CI status at author time',
       ]),
       draftVariationLabels: [
         'Daily skill launch',

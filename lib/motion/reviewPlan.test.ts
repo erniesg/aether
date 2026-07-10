@@ -374,6 +374,7 @@ describe('createMotionTasteReferenceRegenerationRequest', () => {
               'agent-demo-files',
               'agent-demo-terminal',
               'agent-demo-preview',
+              'agent-demo-app-result',
               'agent-demo-cta',
             ],
           },

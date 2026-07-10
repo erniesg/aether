@@ -86,6 +86,43 @@
   product launch, website/app capture, captions, overlays, and motion graphics
   each need their own trigger, artifact contract, verification loop, and
   review/full-auto policy.
+- 2026-07-09 HyperFrames refresh: the actual `/pr-to-video` workflow is a
+  code-change pipeline, not a generic repo or website video. It peeks at PR
+  size to propose angle/audience/length/destination, fetches complete PR facts
+  through `gh` plus paginated files, writes `capture/pr.json` and
+  `capture/diff.patch`, folds them offline into `capture/extracted/tokens.json`,
+  `visible-text.txt`, and `people.json`, and only uses contributor avatars as
+  optional credits assets. Aether should mirror this as author-time PR evidence
+  over the existing `MotionProject`; do not add website capture or live
+  at-render-time PR fetches to the PR explainer path.
+- 2026-07-09 PR story implication: the skill's core craft rule is to explain
+  the change, not narrate files. It chooses one archetype (`changelog`,
+  `feature-reveal`, `fix-explainer`, or `refactor-walkthrough`), lands viewer
+  value by the second beat, features 2-4 real diff hunks, alternates `diff`
+  frames with `mechanism` frames that animate runtime behavior, and closes with
+  proof/credits/CTA. Aether's PR workflow metadata and draft variations should
+  preserve that diff-plus-mechanism rhythm instead of treating `code-diff` as
+  the only visual primitive.
+- 2026-07-09 PR source-pack implication: the workflow's real output shape is
+  `videos/<project>/hyperframes.json`, fixed `claude` `frame.md`,
+  `STORYBOARD.md`, `SCRIPT.md`, `audio_meta.json`, `caption_groups.json`,
+  per-frame `compositions/frames/NN-*.html`, assembled `index.html`,
+  `snapshots/contact-sheet.jpg`, and `renders/video.mp4`. Validation is
+  transitions verify, `npx hyperframes lint`, `validate`, `inspect`, `snapshot`,
+  then render only after preview/render approval. Aether should model those as
+  source, timing, and proof receipts in the export pack.
+- 2026-07-09 deck implication: HyperFrames `/slideshow` is now the closer match
+  for repo/product deck work than `/pr-to-video`. It expects discrete slides,
+  fragments, branching, hotspot navigation, presenter mode, and speaker notes,
+  and returns a navigable deck rather than a rendered video. The Aether deck
+  issue pack should mirror those semantics while keeping the source of truth as
+  the graph-backed deck artifact in the creator shell.
+- 2026-07-09 source-pack implication: the public HyperFrames launch-video
+  project reinforces an export shape with `index.html`, `compositions/`,
+  `assets/`, `meta.json`, `HANDOFF.md`, `SCRIPT.md`, `STORYBOARD.md`, plus
+  preview/render/lint commands and known-warning notes. Aether video and deck
+  export packs should keep equivalent manifests and receipts instead of only
+  preserving the final render.
 - Agent motion workflow planner that turns a workflow id, mode, and source refs
   into gated tool/artifact plans for review mode or saved full-auto execution.
 - Agent workflow plans now include an executable run plan: ordered review or

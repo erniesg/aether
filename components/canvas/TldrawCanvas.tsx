@@ -88,6 +88,18 @@ export function TldrawCanvas({ safeZonesVisible = false }: TldrawCanvasProps) {
     editor.user.updateUserPreferences({ colorScheme: theme === 'light' ? 'light' : 'dark' });
   }, [theme]);
 
+  useEffect(
+    () => () => {
+      editorRef.current = null;
+      setEditor(null);
+      if (typeof window !== 'undefined') {
+        const globalShim = window as unknown as { editor?: Editor };
+        delete globalShim.editor;
+      }
+    },
+    [setEditor]
+  );
+
   return (
     <Tldraw
       className="absolute inset-0"

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TimelineLens } from '@/components/workspace/TimelineLens';
 import type { MotionGraphNode, TimelineTrack } from '@/lib/motion/project';
@@ -2684,6 +2684,64 @@ describe('TimelineLens', () => {
     expect(onSelectClip).toHaveBeenCalledWith('clip-hook');
   });
 
+  it('uses the timeline lens as a scene-first video editor', async () => {
+    const onSelectClip = vi.fn<(clipId: string) => void>();
+    const onEditClipTiming = vi.fn<
+      (clipId: string, startSeconds: number, durationSeconds: number) => void
+    >();
+    render(
+      <TimelineLens
+        tracks={[]}
+        previewPlan={{
+          ...previewPlan,
+          timelineRows: previewPlan.timelineRows.map((row) => ({
+            ...row,
+            clips: [
+              ...row.clips,
+              {
+                clipId: 'clip-beat-demo-text',
+                componentId: 'app-frame',
+                componentLabel: 'App frame',
+                startSeconds: 3,
+                durationSeconds: 6,
+                summary: 'Show the generated timeline and capture plan.',
+                linkedVariantScope: 'global',
+                editControlIds: ['assetId', 'caption'],
+                regenerateScopes: ['capture', 'timing', 'caption'],
+                effectPreset: null,
+                effectLabel: null,
+              },
+            ],
+          })),
+        }}
+        selectedClipId={null}
+        onSelectClip={onSelectClip}
+        onEditClipTiming={onEditClipTiming}
+      />
+    );
+
+    const editor = screen.getByRole('region', { name: /video editor/i });
+    expect(editor).toBeInTheDocument();
+    expect(within(editor).getByRole('button', { name: /play editable timeline/i })).toBeInTheDocument();
+    expect(within(editor).getByRole('region', { name: /editable tracks/i })).toBeInTheDocument();
+
+    await userEvent.click(within(editor).getByRole('button', { name: /select demo scene/i }));
+    expect(onSelectClip).toHaveBeenCalledWith('clip-beat-demo-text');
+
+    const demoTimelineClip = within(editor).getByRole('button', {
+      name: /select app frame timeline clip/i,
+    });
+    fireEvent.keyDown(demoTimelineClip, { key: 'ArrowRight' });
+    expect(onEditClipTiming).toHaveBeenCalledWith('clip-beat-demo-text', 3.1, 6);
+    fireEvent.keyDown(demoTimelineClip, { key: 'ArrowLeft', shiftKey: true });
+    expect(onEditClipTiming).toHaveBeenCalledWith('clip-beat-demo-text', 3, 5.9);
+    expect(within(editor).getByRole('slider', { name: /video playhead/i })).toBeInTheDocument();
+
+    const wide = within(editor).getByRole('button', { name: '16:9' });
+    await userEvent.click(wide);
+    expect(wide).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('renders a creator-facing preview plan with drafts, edit controls, and engine readiness', () => {
     render(
       <TimelineLens
@@ -2878,7 +2936,7 @@ describe('TimelineLens', () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /regenerate capture for app frame/i })).toBeInTheDocument();
-    expect(screen.getByText('remotion')).toBeInTheDocument();
+    expect(screen.getAllByText('remotion').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ready').length).toBeGreaterThan(0);
     expect(screen.getByText('render package')).toBeInTheDocument();
     expect(screen.getByText('Open Remotion Studio')).toBeInTheDocument();
@@ -3585,10 +3643,32 @@ describe('TimelineLens', () => {
   it('mounts a source-backed playable preview and focuses editable components', async () => {
     const onSelectClip = vi.fn<(clipId: string) => void>();
     const onPreparePreviewSource = vi.fn<(engine: 'remotion' | 'hyperframes', draftId: string) => void>();
+    const remotionEngine = previewPlan.enginePreviews[0]!;
+    const dualEnginePreviewPlan = {
+      ...previewPlan,
+      enginePreviews: [
+        remotionEngine,
+        {
+          ...remotionEngine,
+          engine: 'hyperframes' as const,
+          entryPoint: 'index.html',
+          sourceFiles: [{ kind: 'entry' as const, path: 'index.html', mimeType: 'text/html' }],
+          runtimePreview: {
+            kind: 'hyperframes-iframe' as const,
+            label: 'HyperFrames iframe',
+            status: 'needs-source-host' as const,
+            mountLabel: 'Mount HyperFrames iframe',
+            sourceHostRequirement:
+              'Serve index.html and timeline/draft-primary.json to the preview runtime.',
+            editLinkLabels: ['component props', 'timeline JSON', 'SCRIPT.md', 'STORYBOARD.md'],
+          },
+        },
+      ],
+    };
     render(
       <TimelineLens
         tracks={[]}
-        previewPlan={previewPlan}
+        previewPlan={dualEnginePreviewPlan}
         selectedClipId={null}
         onSelectClip={onSelectClip}
         onPreparePreviewSource={onPreparePreviewSource}
@@ -3605,9 +3685,19 @@ describe('TimelineLens', () => {
     expect(screen.getByText(/Serve remotion\/index\.tsx and timeline\/draft-primary\.json/)).toBeInTheDocument();
     expect(screen.getByLabelText('preview frame scrubber')).toHaveValue('0');
     expect(screen.getByText('0.0s / 30s')).toBeInTheDocument();
-    expect(screen.getByText('source-backed edits')).toBeInTheDocument();
+    const previewEngine = screen.getByRole('group', { name: /preview engine/i });
+    expect(previewEngine).toBeInTheDocument();
+    await userEvent.click(within(previewEngine).getByRole('button', { name: 'hyperframes' }));
+    expect(
+      screen.getByRole('button', { name: /prepare hyperframes preview source/i })
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: /prepare hyperframes preview source/i })
+    );
+    expect(onPreparePreviewSource).toHaveBeenCalledWith('hyperframes', 'draft-primary');
     expect(screen.getByText('SCRIPT.md / STORYBOARD.md')).toBeInTheDocument();
 
+    await userEvent.click(within(previewEngine).getByRole('button', { name: 'remotion' }));
     await userEvent.click(screen.getByRole('button', { name: /prepare remotion preview source/i }));
     expect(onPreparePreviewSource).toHaveBeenCalledWith('remotion', 'draft-primary');
 

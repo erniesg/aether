@@ -163,13 +163,15 @@ const CORPUS: MotionReferenceCorpusEntry[] = [
     proofBoundary: 'public-repo',
     observedFormat: 'pr-explainer-source',
     observedPrimitives: [
-      'PR evidence fetched through gh',
-      'frame-by-frame storyboard and script gates',
-      'code diff blocks, captions, contact sheets, lint, validate, and final MP4',
+      'complete PR evidence fetched through gh plus paginated GitHub files',
+      'synthetic capture package with pr.json, diff.patch, tokens, visible text, and people',
+      'frame-by-frame storyboard/script gates with diff and mechanism beats',
+      'fixed claude frame preset, captions, contact sheet, lint, validate, inspect, and final MP4',
     ],
     shotNotes: [
-      'The story comes from code-change evidence, not live product capture.',
-      'Diff, mechanism, proof, and CTA scenes need code-readable components and render proof.',
+      'The story comes from author-time code-change evidence, not live product capture or at-render-time PR fetches.',
+      'Strong PR cuts alternate real diff hunks with invented mechanism diagrams that show runtime behavior.',
+      'Contributor avatars are only credits-close assets; the body is code, diagrams, numbers, captions, and proof.',
     ],
     styleTags: ['agent-native', 'high-contrast-code', 'caption-forward', 'verification-led'],
     componentIds: [
@@ -186,7 +188,7 @@ const CORPUS: MotionReferenceCorpusEntry[] = [
     workflowIds: ['pr-to-video'],
     tags: ['script', 'storyboard', 'proof', 'code', 'caption', 'voice', 'render', 'full-auto'],
     aetherImplication:
-      'Keep PR videos evidence-driven with code-change providers, source-backed scripts, and readable diff/mechanism components.',
+      'Keep PR videos evidence-driven with code-change providers, source-backed scripts, readable diff components, mechanism diagrams, and contact-sheet proof.',
   },
   {
     id: 'hyperframes-pr-to-video-launch-note',
