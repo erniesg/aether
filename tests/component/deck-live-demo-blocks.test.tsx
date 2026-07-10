@@ -17,6 +17,10 @@ const accountUsage = PAILLETTE_SHARE_DECK.slides
   .flatMap((slide) => slide.blocks)
   .find((block) => block.id === 'api-usage-call')!;
 
+const imageSearch = PAILLETTE_SHARE_DECK.slides
+  .flatMap((slide) => slide.blocks)
+  .find((block) => block.id === 'api-image-search')!;
+
 describe('creator-facing deck live demo blocks', () => {
   it('starts idle, shows running state, and renders a successful response', async () => {
     let resolveResponse: ((value: Response) => void) | undefined;
@@ -55,5 +59,25 @@ describe('creator-facing deck live demo blocks', () => {
     rerender(<ProductFrameBlock block={{ id: 'external', kind: 'product-frame', productUrl: 'https://example.test/search', title: 'External product' }} />);
     expect(screen.queryByTitle('External product')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open/i })).toHaveAttribute('target', '_blank');
+  });
+
+  it('requires an image and submits the live image demo as multipart data', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: { results: [] } }), { status: 200 })
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(<LiveApiCallBlock block={imageSearch} deck={PAILLETTE_SHARE_DECK} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'run' }));
+    expect(await screen.findByText(/choose an image/i)).toBeInTheDocument();
+    expect(fetcher).not.toHaveBeenCalled();
+
+    const file = new File(['image-bytes'], 'query.png', { type: 'image/png' });
+    await userEvent.upload(screen.getByLabelText('Image search file'), file);
+    await userEvent.click(screen.getByRole('button', { name: 'run' }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+
+    const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+    expect(init.body).toBeInstanceOf(FormData);
   });
 });

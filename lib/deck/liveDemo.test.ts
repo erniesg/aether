@@ -16,6 +16,13 @@ const config: DeckLiveDemoConfig = {
       path: '/api/search',
       authModes: ['public', 'signed-in', 'presenter-provided'],
     },
+    {
+      id: 'image-search',
+      label: 'Image search',
+      method: 'POST',
+      path: '/api/search/image',
+      authModes: ['public'],
+    },
   ],
 };
 
@@ -124,5 +131,35 @@ describe('deck live demo guard', () => {
 
     expect(result.responseSummary).toBe('1 results');
     expect(result.metrics.resultCount).toBe(1);
+  });
+
+  it('sends image-search requests as multipart form data without a JSON content type', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: { results: [] } }), { status: 200 })
+    );
+    const file = new File(['image-bytes'], 'query.png', { type: 'image/png' });
+    const request = {
+      endpointId: 'image-search',
+      method: 'POST' as const,
+      path: '/api/search/image',
+      authMode: 'public' as const,
+      formData: {
+        fileField: 'image',
+        file,
+        fields: { topK: 8, minScore: 0.3 },
+      },
+    };
+
+    const result = await executeDeckRequest(config, request, { fetcher });
+    const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+    const body = init.body as FormData;
+
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get('image')).toBe(file);
+    expect(body.get('topK')).toBe('8');
+    expect(body.get('minScore')).toBe('0.3');
+    expect(init.headers).not.toHaveProperty('Content-Type');
+    expect(result.provenance.requestShape).toEqual(['image', 'minScore', 'topK']);
+    expect(buildRequestSnippets(config, request).curl).toContain("-F 'image=@/path/to/image.jpg'");
   });
 });

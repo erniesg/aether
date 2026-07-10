@@ -24,7 +24,7 @@ describe('deck primitives', () => {
     });
     render(<DeckStage><div>fixed slide</div></DeckStage>);
     fireEvent(window, new Event('resize'));
-    expect(screen.getByTestId('deck-stage')).toHaveStyle({ width: '1920px', height: '1080px', transform: 'translate(-50%, -50%) scale(0.5)' });
+    expect(screen.getByTestId('deck-stage')).toHaveStyle({ width: '1920px', height: '1080px', top: 'calc(50% - 28px)', transform: 'translate(-50%, -50%) scale(0.5)' });
   });
 
   it('navigates with keys, wheel, touch, and URL-addressable state', () => {

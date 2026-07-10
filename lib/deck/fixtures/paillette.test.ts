@@ -23,6 +23,14 @@ describe('Paillette share deck fixture', () => {
       ])
     );
     expect(PAILLETTE_SHARE_DECK.drawerTabs).toEqual(['Product', 'API', 'Code']);
+    expect(PAILLETTE_SHARE_DECK.slides.find((slide) => slide.id === 'image-search-api')).toEqual(
+      expect.objectContaining({
+        layout: 'live-demo',
+        blocks: expect.arrayContaining([
+          expect.objectContaining({ id: 'api-image-search', requestMode: 'image' }),
+        ]),
+      })
+    );
   });
 
   it('uses allowlisted mocks, auth metadata, code references, and presenter semantics', () => {

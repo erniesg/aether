@@ -6,6 +6,7 @@ import { CodeReferenceBlock, LiveApiCallBlock, MetricsStripBlock, ProductFrameBl
 
 const STAGE_WIDTH = 1920;
 const STAGE_HEIGHT = 1080;
+const CONTROL_CLEARANCE = 56;
 type LiveDemoFocus = DeckArtifact['drawerTabs'][number];
 
 export function DeckStage({ children }: { children: ReactNode }) {
@@ -14,7 +15,7 @@ export function DeckStage({ children }: { children: ReactNode }) {
   const updateScale = useCallback(() => {
     const bounds = viewportRef.current?.getBoundingClientRect();
     if (!bounds?.width || !bounds.height) return;
-    setScale(Math.min(bounds.width / STAGE_WIDTH, bounds.height / STAGE_HEIGHT));
+    setScale(Math.min(bounds.width / STAGE_WIDTH, Math.max(0, bounds.height - CONTROL_CLEARANCE) / STAGE_HEIGHT));
   }, []);
   useEffect(() => {
     updateScale();
@@ -32,7 +33,7 @@ export function DeckStage({ children }: { children: ReactNode }) {
 
   return (
     <div ref={viewportRef} data-testid="deck-stage-viewport" className="relative h-full min-h-0 w-full min-w-0 overflow-hidden">
-      <div data-testid="deck-stage" className="absolute left-1/2 top-1/2 origin-center overflow-hidden" style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT, transform: `translate(-50%, -50%) scale(${scale})` }}>
+      <div data-testid="deck-stage" className="absolute left-1/2 origin-center overflow-hidden" style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT, top: `calc(50% - ${CONTROL_CLEARANCE / 2}px)`, transform: `translate(-50%, -50%) scale(${scale})` }}>
         {children}
       </div>
     </div>

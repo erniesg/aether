@@ -54,6 +54,7 @@ export interface DeckBlock {
     institution: string;
   };
   requestBody?: Record<string, unknown>;
+  requestMode?: 'json' | 'image';
   mockResponse?: unknown;
   authMode?: DeckRequestAuthMode;
 }

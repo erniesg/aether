@@ -78,7 +78,11 @@ function endpointFor(deck: DeckArtifact, endpointId?: string) {
 
 export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: DeckArtifact }) {
   const endpoint = endpointFor(deck, block.endpointId);
+  const isImageRequest = block.requestMode === 'image';
   const [bodyText, setBodyText] = useState(() => JSON.stringify(block.requestBody ?? { query: 'batik or songket textile pattern', topK: 10, minScore: 0.2 }, null, 2));
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [topK, setTopK] = useState(8);
+  const [minScore, setMinScore] = useState(0.3);
   const [authMode, setAuthMode] = useState<DeckRequestAuthMode>(block.authMode ?? 'public');
   const [credential, setCredential] = useState('');
   const [result, setResult] = useState<DeckRequestResult | null>(null);
@@ -94,7 +98,14 @@ export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: Deck
     method: endpoint.method,
     path: endpoint.path,
     authMode,
-    body: endpoint.method === 'POST' ? safeBody(bodyText) : undefined,
+    body: endpoint.method === 'POST' && !isImageRequest ? safeBody(bodyText) : undefined,
+    formData: isImageRequest
+      ? {
+          fileField: 'image',
+          file: imageFile ?? undefined,
+          fields: { topK, minScore },
+        }
+      : undefined,
     signedIn: false,
     presenterCredential: credential || undefined,
   };
@@ -132,7 +143,32 @@ export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: Deck
         <p className="break-all font-mono text-[18px] uppercase tracking-[0.08em]">{endpoint.method} · {endpoint.path}</p>
       </div>
       <div className="col-span-7 row-span-4 flex min-h-0 flex-col bg-[#101014] p-7 text-white">
-          {endpoint.method === 'POST' ? (
+          {endpoint.method === 'POST' && isImageRequest ? (
+            <div className="grid min-h-0 flex-1 grid-cols-[1fr_180px] gap-4 border-2 border-white/20 p-6">
+              <label className="flex min-h-0 cursor-pointer flex-col justify-between border border-dashed border-white/30 p-5 hover:border-[#D946EF]">
+                <input
+                  aria-label="Image search file"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
+                />
+                <span className="font-mono text-[14px] uppercase tracking-[0.1em] text-[#F0ABFC]">Query image</span>
+                <span className="break-all text-[24px] leading-tight">{imageFile?.name ?? 'Choose JPEG, PNG, or WebP'}</span>
+                <span className="font-mono text-[12px] uppercase tracking-[0.08em] text-white/45">10 MB maximum</span>
+              </label>
+              <div className="grid content-start gap-5 font-mono text-[13px] uppercase tracking-[0.08em]">
+                <label className="grid gap-2">
+                  <span className="text-white/50">Top K</span>
+                  <input aria-label="Image search top K" type="number" min={1} max={100} value={topK} onChange={(event) => setTopK(Number(event.target.value))} className="h-12 border border-white/30 bg-transparent px-3" />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-white/50">Min score</span>
+                  <input aria-label="Image search minimum score" type="number" min={0} max={1} step={0.05} value={minScore} onChange={(event) => setMinScore(Number(event.target.value))} className="h-12 border border-white/30 bg-transparent px-3" />
+                </label>
+              </div>
+            </div>
+          ) : endpoint.method === 'POST' ? (
             <textarea aria-label={`${endpoint.label} JSON body`} value={bodyText} onChange={(event) => setBodyText(event.target.value)} className="min-h-0 flex-1 resize-none border-2 border-white/20 bg-transparent p-6 font-mono text-[19px] leading-relaxed outline-none focus:border-[#D946EF]" />
           ) : null}
           <div className="mt-4 flex items-center gap-3 font-mono text-[15px] uppercase tracking-[0.06em]">

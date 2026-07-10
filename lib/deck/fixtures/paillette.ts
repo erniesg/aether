@@ -131,25 +131,32 @@ const slides: DeckSlide[] = [
         title: 'Public text search',
         endpointId: 'text-search',
         authMode: 'public',
-        requestBody: { query: CHUNG_CHENG_QUERY, topK: 10, minScore: 0.2 },
+        requestBody: { query: 'batik textile pattern', topK: 8, minScore: 0.2 },
         mockResponse: { success: true, data: { results: [CHUNG_CHENG_RESULT], count: 1 } },
       },
       { id: 'code-text-search', kind: 'code-reference', codeReferenceIds: ['search-route', 'hybrid-ranker'] },
-      { id: 'metrics-text-search', kind: 'metrics', title: 'Response contract', items: ['rank', 'score', 'source URL', 'institution', 'query time'] },
     ],
     'Edit the JSON query, run the allowlisted request, and disclose raw JSON only if the audience asks.',
     { presenterLabel: 'Demo · text search API' }
   ),
   slide(
     'image-search-api',
-    'Image search uses the same source-labelled result contract',
+    'Search visually from an uploaded image',
     'live-demo',
-    'code-reference',
+    'live-demo',
     [
+      {
+        id: 'api-image-search',
+        kind: 'api-call',
+        title: 'Public image search',
+        endpointId: 'image-search',
+        authMode: 'public',
+        requestMode: 'image',
+        mockResponse: { success: true, data: { results: [CHUNG_CHENG_RESULT], count: 1 } },
+      },
       { id: 'code-image-search', kind: 'code-reference', codeReferenceIds: ['image-embedding', 'hybrid-ranker'] },
-      copy('image-search-contract', 'Multipart image search', 'The public route accepts an image up to 10 MB and returns the same source-labelled artwork shape.', ['JPEG, PNG, or WebP', 'Top K: 1–100', 'Similarity floor: 0–1']),
     ],
-    'Show the checked-in route contract; this deck never uploads to or modifies Paillette.',
+    'Choose an audience-safe image, run the public multipart request, and compare the returned source-labelled results.',
     { presenterLabel: 'Demo · image search API' }
   ),
   slide(

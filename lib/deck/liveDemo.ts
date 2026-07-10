@@ -21,6 +21,11 @@ export interface DeckRequestInput {
   path: string;
   authMode: DeckRequestAuthMode;
   body?: Record<string, unknown>;
+  formData?: {
+    fileField: string;
+    file?: File;
+    fields: Record<string, string | number>;
+  };
   signedIn?: boolean;
   presenterCredential?: string;
 }
@@ -75,6 +80,25 @@ export function buildRequestSnippets(config: DeckLiveDemoConfig, request: DeckRe
   const url = new URL(request.path, config.baseUrl).toString();
   const authHeader =
     request.authMode === 'public' ? '' : " -H 'Authorization: Bearer $PRESENTER_TOKEN'";
+  if (request.formData) {
+    const fields = Object.entries(request.formData.fields)
+      .map(([key, value]) => ` -F '${key}=${String(value)}'`)
+      .join('');
+    const fetchHeaders = request.authMode === 'public'
+      ? '{}'
+      : "{ Authorization: 'Bearer ' + presenterToken }";
+    const formLines = [
+      'const form = new FormData();',
+      `form.set(${JSON.stringify(request.formData.fileField)}, imageFile);`,
+      ...Object.entries(request.formData.fields).map(([key, value]) =>
+        `form.set(${JSON.stringify(key)}, ${JSON.stringify(String(value))});`
+      ),
+    ].join('\n');
+    return {
+      curl: `curl -X ${request.method} '${url}'${authHeader} -F '${request.formData.fileField}=@/path/to/image.jpg'${fields}`,
+      fetch: `${formLines}\nfetch(${JSON.stringify(url)}, { method: ${JSON.stringify(request.method)}, headers: ${fetchHeaders}, body: form })`,
+    };
+  }
   const body = request.body ? ` --data '${JSON.stringify(request.body)}'` : '';
   return {
     curl: `curl -X ${request.method} '${url}' -H 'Content-Type: application/json'${authHeader}${body}`,
@@ -113,15 +137,25 @@ export async function executeDeckRequest(
   } = {}
 ): Promise<DeckRequestResult> {
   validateDeckRequest(config, request);
+  if (request.formData && !request.formData.file) {
+    throw new Error('Choose an image before running this demo');
+  }
   const startedAt = performance.now();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = request.formData ? {} : { 'Content-Type': 'application/json' };
   if (request.authMode === 'presenter-provided' && request.presenterCredential) {
     headers.Authorization = `Bearer ${request.presenterCredential}`;
+  }
+  const formData = request.formData ? new FormData() : null;
+  if (formData && request.formData?.file) {
+    formData.set(request.formData.fileField, request.formData.file);
+    for (const [key, value] of Object.entries(request.formData.fields)) {
+      formData.set(key, String(value));
+    }
   }
   const response = await (options.fetcher ?? fetch)(new URL(request.path, config.baseUrl), {
     method: request.method,
     headers,
-    body: request.body ? JSON.stringify(request.body) : undefined,
+    body: formData ?? (request.body ? JSON.stringify(request.body) : undefined),
     credentials: request.authMode === 'signed-in' ? 'include' : 'same-origin',
   });
   const responseText = await response.text();
@@ -146,7 +180,9 @@ export async function executeDeckRequest(
     },
     provenance: {
       sourceEndpoint: request.path,
-      requestShape: Object.keys(request.body ?? {}).sort(),
+      requestShape: request.formData
+        ? [request.formData.fileField, ...Object.keys(request.formData.fields)].sort()
+        : Object.keys(request.body ?? {}).sort(),
       responseSummary: summary,
       timestamp: options.now?.() ?? Date.now(),
       authMode: request.authMode,
