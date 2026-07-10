@@ -48,6 +48,17 @@ describe('deck live-demo composition', () => {
       'text-[88px]',
       'uppercase'
     );
+    expect(within(activeSlide).getByTestId('live-demo-title').closest('header')).toHaveClass(
+      'bg-[#F7F4EF]',
+      'text-[#171717]'
+    );
+    expect(within(activeSlide).getByTestId('live-demo-source-strip')).toHaveClass(
+      'bg-[#151519]'
+    );
+    expect(within(activeSlide).getByText('Featured public record').closest('article')).toHaveClass(
+      'bg-[#FFFAF2]',
+      'text-[#171717]'
+    );
     expect(screen.getByTestId('live-demo-focus-nav')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Product' })).toHaveClass('bg-[#D946EF]');
     expect(screen.getByTestId('deck-navigation')).toHaveClass('py-1');

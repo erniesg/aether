@@ -288,11 +288,11 @@ function Shell({
 }) {
   return (
     <div data-testid="neo-grid-frame" className="absolute inset-[40px] grid grid-cols-12 grid-rows-8 gap-3">
-      <header className="relative col-span-8 row-span-3 flex items-end bg-[#101014] p-9 text-white">
+      <header className="relative col-span-8 row-span-3 flex items-end bg-[#F7F4EF] p-9 text-[#171717]">
         <h2 className="max-w-[1100px] text-[88px] font-bold uppercase leading-[0.9] tracking-[-0.035em]">{title}</h2>
         <BlockMark className="absolute right-6 top-6 h-9 w-9" />
       </header>
-      <div className="col-span-4 row-span-2 flex items-end bg-[#9333EA] p-8 font-mono text-[20px] uppercase tracking-[0.1em] text-white">
+      <div className="col-span-4 row-span-2 flex items-end bg-[#151519] p-8 font-mono text-[20px] uppercase tracking-[0.1em] text-white">
         Paillette / public evidence
       </div>
       <div className="col-span-4 row-span-1 bg-[#151519] p-6 text-white">
@@ -313,7 +313,7 @@ export function DiagramSlideShell(props: SlideShellProps) { return <Shell {...pr
 export function LiveDemoSlideShell({ title, children, nav, pageNumber, totalPages }: SlideShellProps & { nav: ReactNode }) {
   return (
     <div data-testid="neo-grid-frame" className="absolute inset-[40px] grid grid-cols-12 grid-rows-8 gap-3">
-      <header className="relative col-span-8 row-span-2 flex items-center bg-[#101014] px-9 py-7 text-white">
+      <header className="relative col-span-8 row-span-2 flex items-center bg-[#F7F4EF] px-9 py-7 text-[#171717]">
         <div>
           <p className="font-mono text-[16px] uppercase tracking-[0.12em]">Paillette / live evidence</p>
           <h2 data-testid="live-demo-title" className="mt-3 max-w-[1160px] text-[88px] font-bold uppercase leading-[0.86] tracking-[-0.04em]">{title}</h2>
@@ -321,7 +321,7 @@ export function LiveDemoSlideShell({ title, children, nav, pageNumber, totalPage
         <BlockMark className="absolute right-6 top-6 h-9 w-9" />
       </header>
       <div className="col-span-4 row-span-1 min-h-0">{nav}</div>
-      <div className="col-span-4 row-span-1 flex items-center justify-between bg-[#9333EA] px-7 font-mono text-[15px] uppercase tracking-[0.1em] text-white">
+      <div data-testid="live-demo-source-strip" className="col-span-4 row-span-1 flex items-center justify-between bg-[#151519] px-7 font-mono text-[15px] uppercase tracking-[0.1em] text-white">
         <span>Verified public source</span>
         <span>NGS / source</span>
       </div>
@@ -340,7 +340,7 @@ function DeckBlockView({ block, deck }: { block: DeckBlock; deck: DeckArtifact }
   if (block.kind === 'code-reference') return <CodeReferenceBlock block={block} deck={deck} />;
   if (block.kind === 'metrics') return <MetricsStripBlock block={block} />;
   if (block.kind === 'links') return <div className="h-full bg-[#101014] p-9 text-white"><h3 className="text-[44px] font-bold uppercase leading-none">{block.title}</h3><div className="mt-8 grid gap-4 break-all font-mono text-[18px] uppercase tracking-[0.06em] text-[#F0ABFC]">{block.items?.map((item) => <p key={item}>{item}</p>)}</div></div>;
-  return <article className="h-full bg-[#151519] p-9 text-white"><p className="font-mono text-[16px] uppercase tracking-[0.12em] text-[#F0ABFC]">{block.eyebrow ?? 'Paillette'}</p>{block.title ? <h3 className="mt-4 text-[44px] font-bold uppercase leading-[0.95] tracking-[-0.02em]">{block.title}</h3> : null}{block.body ? <p className="mt-6 max-w-[800px] text-[25px] leading-[1.35] text-white/70">{block.body}</p> : null}{block.items ? <ul className="mt-7 grid gap-3 text-[21px]">{block.items.map((item, itemIndex) => <li key={item} className="flex items-baseline gap-4 border-t border-white/20 pt-3"><span className="font-mono text-[14px] text-[#F0ABFC]">{String(itemIndex + 1).padStart(2, '0')}</span><span>{item}</span></li>)}</ul> : null}</article>;
+  return <article className="h-full bg-[#FFFAF2] p-9 text-[#171717]"><p className="font-mono text-[16px] uppercase tracking-[0.12em] text-[#A21CAF]">{block.eyebrow ?? 'Paillette'}</p>{block.title ? <h3 className="mt-4 text-[44px] font-bold uppercase leading-[0.95] tracking-[-0.02em]">{block.title}</h3> : null}{block.body ? <p className="mt-6 max-w-[800px] text-[25px] leading-[1.35] text-black/65">{block.body}</p> : null}{block.items ? <ul className="mt-7 grid gap-3 text-[21px]">{block.items.map((item, itemIndex) => <li key={item} className="flex items-baseline gap-4 border-t border-black/20 pt-3"><span className="font-mono text-[14px] text-[#A21CAF]">{String(itemIndex + 1).padStart(2, '0')}</span><span>{item}</span></li>)}</ul> : null}</article>;
 }
 
 function focusForBlock(block: DeckBlock): LiveDemoFocus | null {

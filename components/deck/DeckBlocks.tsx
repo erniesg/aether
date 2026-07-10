@@ -22,7 +22,7 @@ export function ProductFrameBlock({ block }: { block: DeckBlock }) {
       <section className="grid h-full min-h-0 grid-rows-[72px_1fr] bg-[#151519] text-white">
         <div className="flex items-center justify-between border-b-2 border-white/20 px-7 font-mono text-[17px] uppercase tracking-[0.1em]">
           <span>{block.title ?? 'Product'}</span>
-          <a href={url} target="_blank" rel="noreferrer" className="bg-[#9333EA] px-4 py-2 text-white">open ↗</a>
+          <a href={url} target="_blank" rel="noreferrer" className="bg-[#D946EF] px-4 py-2 text-white">open ↗</a>
         </div>
         <iframe title={block.title ?? 'Product frame'} src={url} className="min-h-0 w-full border-0 bg-white" />
       </section>
@@ -48,15 +48,15 @@ export function ProductFrameBlock({ block }: { block: DeckBlock }) {
           <p className="max-w-[640px] text-[48px] font-bold uppercase leading-[0.95]">{block.title ?? 'External product surface'}</p>
         </div>
       )}
-      <article className="col-span-5 row-span-4 min-h-0 overflow-hidden bg-[#151519] p-8 text-white">
-        <p className="font-mono text-[15px] uppercase tracking-[0.12em] text-[#F0ABFC]">Featured public record</p>
+      <article className="col-span-5 row-span-4 min-h-0 overflow-hidden bg-[#FFFAF2] p-8 text-[#171717]">
+        <p className="font-mono text-[15px] uppercase tracking-[0.12em] text-[#A21CAF]">Featured public record</p>
         <h3 className="mt-5 text-[52px] font-bold uppercase leading-[0.92] tracking-[-0.025em]">{artwork?.title ?? block.title ?? 'Product surface'}</h3>
         {artwork ? <p className="mt-6 text-[25px]">{artwork.artist} · {artwork.year}</p> : null}
         {artwork ? (
-          <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 border-t-2 border-white/20 pt-5 font-mono text-[14px] uppercase tracking-[0.08em]">
-            <div><dt className="text-white/45">Accession</dt><dd className="mt-1">{artwork.accessionNumber}</dd></div>
-            <div><dt className="text-white/45">Medium</dt><dd className="mt-1">{artwork.medium}</dd></div>
-            <div className="col-span-2"><dt className="text-white/45">Dimensions</dt><dd className="mt-1">{artwork.dimensions}</dd></div>
+          <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 border-t-2 border-black/20 pt-5 font-mono text-[14px] uppercase tracking-[0.08em]">
+            <div><dt className="text-black/45">Accession</dt><dd className="mt-1">{artwork.accessionNumber}</dd></div>
+            <div><dt className="text-black/45">Medium</dt><dd className="mt-1">{artwork.medium}</dd></div>
+            <div className="col-span-2"><dt className="text-black/45">Dimensions</dt><dd className="mt-1">{artwork.dimensions}</dd></div>
           </dl>
         ) : null}
       </article>
@@ -64,7 +64,7 @@ export function ProductFrameBlock({ block }: { block: DeckBlock }) {
         <span>Source record</span>
         <span>Roots ↗</span>
       </a>
-      <a href={url} target="_blank" rel="noreferrer" className="col-span-2 row-span-2 flex flex-col justify-between bg-[#9333EA] p-7 font-mono text-[16px] uppercase tracking-[0.1em] text-white">
+      <a href={url} target="_blank" rel="noreferrer" className="col-span-2 row-span-2 flex flex-col justify-between bg-[#151519] p-7 font-mono text-[16px] uppercase tracking-[0.1em] text-white">
         <span>Product</span>
         <span>Open ↗</span>
       </a>
@@ -124,7 +124,7 @@ export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: Deck
 
   return (
     <section className="grid h-full min-h-0 grid-cols-12 grid-rows-6 gap-3">
-      <header className="col-span-4 row-span-2 flex flex-col justify-between bg-[#9333EA] p-8 text-white">
+      <header className="col-span-4 row-span-2 flex flex-col justify-between bg-[#F7F4EF] p-8 text-[#171717]">
         <p className="font-mono text-[15px] uppercase tracking-[0.12em]">Allowlisted live route</p>
         <h3 className="text-[44px] font-bold uppercase leading-[0.92] tracking-[-0.02em]">{endpoint.label}</h3>
       </header>
@@ -143,11 +143,11 @@ export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: Deck
             <button type="button" onClick={() => void run()} disabled={status === 'running'} className="ml-auto h-12 bg-[#D946EF] px-8 font-bold text-white disabled:opacity-50">{status === 'running' ? 'running…' : 'run'}</button>
           </div>
       </div>
-      <div className="col-span-5 row-span-4 min-h-0 overflow-auto bg-[#151519] p-7 text-white">
+      <div className="col-span-5 row-span-4 min-h-0 overflow-auto bg-[#FFFAF2] p-7 text-[#171717]">
           <p className="font-mono text-[15px] uppercase tracking-[0.12em]">Response</p>
           <p className="mt-4 text-[25px] leading-tight">{error ?? result?.responseSummary ?? 'Ready to run. Checked-in public evidence remains available offline.'}</p>
           {result ? <MetricsInline result={result} /> : null}
-          <details className="mt-6 border-t-2 border-white/20 pt-5 font-mono text-[14px]"><summary className="cursor-pointer uppercase tracking-[0.08em]">raw JSON</summary><pre className="mt-3 whitespace-pre-wrap">{JSON.stringify(result?.response ?? block.mockResponse ?? endpoint.staticFallback, null, 2)}</pre></details>
+          <details className="mt-6 border-t-2 border-black/20 pt-5 font-mono text-[14px]"><summary className="cursor-pointer uppercase tracking-[0.08em]">raw JSON</summary><pre className="mt-3 whitespace-pre-wrap">{JSON.stringify(result?.response ?? block.mockResponse ?? endpoint.staticFallback, null, 2)}</pre></details>
           <div className="mt-5 flex gap-5 font-mono text-[14px] uppercase tracking-[0.08em] text-[#F0ABFC]"><button type="button" onClick={() => copy('curl')} className="border-b-2 border-[#D946EF]">copy curl</button><button type="button" onClick={() => copy('fetch')} className="border-b-2 border-[#D946EF]">copy fetch</button></div>
       </div>
     </section>
@@ -171,14 +171,14 @@ function MetricsInline({ result }: { result: DeckRequestResult }) {
     result.metrics.rateLimit ? `rate ${result.metrics.rateLimit}` : null,
     result.metrics.serverTiming ?? null,
   ].filter(Boolean);
-  return <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[14px] uppercase tracking-[0.08em]">{metrics.map((metric) => <span key={metric} className="bg-[#A855F7] px-2 py-1 text-white">{metric}</span>)}</div>;
+  return <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[14px] uppercase tracking-[0.08em]">{metrics.map((metric) => <span key={metric} className="bg-[#D946EF] px-2 py-1 text-white">{metric}</span>)}</div>;
 }
 
 export function CodeReferenceBlock({ block, deck }: { block: DeckBlock; deck: DeckArtifact }) {
   const references = deck.codeReferences.filter((reference) => block.codeReferenceIds?.includes(reference.id));
-  return <section className="grid h-full min-h-0 grid-cols-2 gap-3 overflow-auto [&>*:only-child]:col-span-2">{references.map((reference, index) => <div key={reference.id} className={`relative overflow-hidden p-8 text-white ${index % 2 === 0 ? 'bg-[#101014]' : 'bg-[#1B1B21]'}`}><p className="break-all font-mono text-[15px] uppercase tracking-[0.08em] text-[#F0ABFC]">{reference.filePath}</p><h3 className="mt-7 max-w-[620px] text-[38px] font-bold uppercase leading-[0.95]">{reference.label}</h3><p className="mt-5 max-w-[620px] text-[21px] leading-snug opacity-70">{reference.whyItMatters}</p><span aria-hidden="true" className={`absolute bottom-3 right-7 text-[156px] font-bold leading-none tracking-[-0.06em] ${index % 2 === 0 ? 'text-[#D946EF]' : 'text-[#A855F7]'}`}>{String(index + 1).padStart(2, '0')}</span></div>)}</section>;
+  return <section className="grid h-full min-h-0 grid-cols-2 gap-3 overflow-auto [&>*:only-child]:col-span-2">{references.map((reference, index) => <div key={reference.id} className={`relative overflow-hidden p-8 ${index % 2 === 0 ? 'bg-[#101014] text-white' : 'bg-[#F7F4EF] text-[#171717]'}`}><p className={`break-all font-mono text-[15px] uppercase tracking-[0.08em] ${index % 2 === 0 ? 'text-[#F0ABFC]' : 'text-[#A21CAF]'}`}>{reference.filePath}</p><h3 className="mt-7 max-w-[620px] text-[38px] font-bold uppercase leading-[0.95]">{reference.label}</h3><p className="mt-5 max-w-[620px] text-[21px] leading-snug opacity-70">{reference.whyItMatters}</p><span aria-hidden="true" className={`absolute bottom-3 right-7 text-[156px] font-bold leading-none tracking-[-0.06em] ${index % 2 === 0 ? 'text-[#D946EF]' : 'text-[#A855F7]'}`}>{String(index + 1).padStart(2, '0')}</span></div>)}</section>;
 }
 
 export function MetricsStripBlock({ block }: { block: DeckBlock }) {
-  return <div className="grid h-full grid-cols-5 gap-3">{(block.items ?? []).map((item, index) => <div key={item} className={`flex items-end p-6 text-white ${index === 1 ? 'bg-[#9333EA]' : index % 2 === 0 ? 'bg-[#101014]' : 'bg-[#1B1B21]'}`}><p className="text-[32px] font-bold uppercase leading-[0.95]">{item}</p></div>)}</div>;
+  return <div className="grid h-full grid-cols-5 gap-3">{(block.items ?? []).map((item, index) => <div key={item} className={`flex items-end p-6 ${index % 2 === 0 ? 'bg-[#101014] text-white' : 'bg-[#F7F4EF] text-[#171717]'}`}><p className="text-[32px] font-bold uppercase leading-[0.95]">{item}</p></div>)}</div>;
 }
