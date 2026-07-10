@@ -45,12 +45,20 @@ describe('creator-facing deck live demo blocks', () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);
     render(<LiveApiCallBlock block={accountUsage} deck={PAILLETTE_SHARE_DECK} />);
+    fireEvent.change(screen.getByLabelText('Demo endpoint'), { target: { value: 'api-usage' } });
     await userEvent.click(screen.getByRole('button', { name: 'run' }));
     expect(await screen.findByText(/please sign in/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Demo auth mode'), { target: { value: 'presenter-provided' } });
     await userEvent.click(screen.getByRole('button', { name: 'run' }));
     expect(await screen.findByText(/presenter credential is required/i)).toBeInTheDocument();
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('starts API access on the public source-list endpoint', () => {
+    render(<LiveApiCallBlock block={accountUsage} deck={PAILLETTE_SHARE_DECK} />);
+    expect(screen.getByLabelText('Demo endpoint')).toHaveValue('list-sources');
+    expect(screen.getByText(/get · \/api\/docs\/orgs/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Demo auth mode')).toHaveValue('public');
   });
 
   it('embeds only same-origin product routes and keeps a new-tab fallback', () => {

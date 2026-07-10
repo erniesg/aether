@@ -40,6 +40,7 @@ export interface DeckBlock {
   body?: string;
   items?: string[];
   endpointId?: string;
+  endpointIds?: string[];
   codeReferenceIds?: string[];
   productUrl?: string;
   artwork?: {

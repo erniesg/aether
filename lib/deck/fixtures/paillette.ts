@@ -161,15 +161,14 @@ const slides: DeckSlide[] = [
   ),
   slide(
     'api-access',
-    'API access respects the user’s existing auth boundary',
+    'Public discovery; signed-in keys when needed',
     'live-demo',
-    'code-reference',
+    'live-demo',
     [
-      { id: 'api-usage-call', kind: 'api-call', title: 'Today’s API usage', endpointId: 'api-usage', authMode: 'signed-in', mockResponse: { success: true, data: { date: 'session date', used: 0, quota: 1000 } } },
+      { id: 'api-usage-call', kind: 'api-call', title: 'API access', endpointId: 'list-sources', endpointIds: ['list-sources', 'api-keys', 'api-usage'], authMode: 'public', mockResponse: { success: true, data: [] } },
       { id: 'api-access-code', kind: 'code-reference', codeReferenceIds: ['auth-middleware', 'api-key-model'] },
-      copy('api-access-copy', 'Three explicit modes', 'Public search proxy, signed-in Logto calls, and existing persistent API keys. Ephemeral demo tokens remain future Paillette work.'),
     ],
-    'Do not paste a key. Explain the signed-in gate and the checked-in usage response shape.',
+    'Run the public source list first, then show how key and usage reads become available only through the existing signed-in or presenter-provided auth paths.',
     { presenterLabel: 'Demo · API access' }
   ),
   slide(
@@ -256,6 +255,8 @@ export const PAILLETTE_SHARE_DECK: DeckArtifact = {
       { id: 'text-search', label: 'Public text search', method: 'POST', path: '/api/public-search/ngs/text', authModes: ['public'], staticFallback: { success: true, data: { results: [CHUNG_CHENG_RESULT], count: 1 } } },
       { id: 'image-search', label: 'Public image search', method: 'POST', path: '/api/public-search/ngs/image', authModes: ['public'], staticFallback: { success: true, data: { results: [CHUNG_CHENG_RESULT], count: 1 } } },
       { id: 'browse', label: 'Public collection browse', method: 'GET', path: '/api/public-search/ngs/browse?limit=12&offset=0', authModes: ['public'], staticFallback: { success: true, data: { results: [CHUNG_CHENG_RESULT], count: 1 } } },
+      { id: 'list-sources', label: 'List public sources', method: 'GET', path: '/api/docs/orgs', authModes: ['public'], staticFallback: { success: true, data: [{ id: 'ngs', name: 'National Gallery Singapore' }] } },
+      { id: 'api-keys', label: 'Personal API keys', method: 'GET', path: 'https://paillette-api-stg.berlayar.ai/api/v1/me/api-keys', authModes: ['signed-in', 'presenter-provided'], staticFallback: { success: true, data: { keys: [] } } },
       { id: 'api-usage', label: 'Today’s API usage', method: 'GET', path: 'https://paillette-api-stg.berlayar.ai/api/v1/me/usage/today', authModes: ['signed-in', 'presenter-provided'], staticFallback: { success: true, data: { date: 'session date', used: 0, quota: 1000 } } },
     ],
   },

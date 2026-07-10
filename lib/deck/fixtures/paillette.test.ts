@@ -35,7 +35,7 @@ describe('Paillette share deck fixture', () => {
 
   it('uses allowlisted mocks, auth metadata, code references, and presenter semantics', () => {
     expect(PAILLETTE_SHARE_DECK.liveDemo.endpoints.map((endpoint) => endpoint.id)).toEqual(
-      expect.arrayContaining(['product-search', 'text-search', 'image-search', 'api-usage'])
+      expect.arrayContaining(['product-search', 'text-search', 'image-search', 'list-sources', 'api-keys', 'api-usage'])
     );
     expect(PAILLETTE_SHARE_DECK.liveDemo.endpoints.map((endpoint) => endpoint.authModes).flat()).toEqual(
       expect.arrayContaining(['public', 'signed-in', 'presenter-provided'])
@@ -47,6 +47,18 @@ describe('Paillette share deck fixture', () => {
     expect(PAILLETTE_SHARE_DECK.slides.some((slide) => slide.fragments?.length)).toBe(true);
     expect(PAILLETTE_SHARE_DECK.slides.some((slide) => slide.hotspots?.length)).toBe(true);
     expect(PAILLETTE_SHARE_DECK.slides.every((slide) => slide.speakerNotes)).toBe(true);
+    expect(PAILLETTE_SHARE_DECK.slides.find((slide) => slide.id === 'api-access')).toEqual(
+      expect.objectContaining({
+        layout: 'live-demo',
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'api-usage-call',
+            endpointId: 'list-sources',
+            endpointIds: ['list-sources', 'api-keys', 'api-usage'],
+          }),
+        ]),
+      })
+    );
     expect(JSON.stringify(PAILLETTE_SHARE_DECK)).not.toMatch(/sk-[a-z0-9]|bearer\s+[a-z0-9._-]+/i);
   });
 });

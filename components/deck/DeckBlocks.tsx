@@ -77,13 +77,19 @@ function endpointFor(deck: DeckArtifact, endpointId?: string) {
 }
 
 export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: DeckArtifact }) {
-  const endpoint = endpointFor(deck, block.endpointId);
+  const endpointIds = block.endpointIds?.length
+    ? block.endpointIds
+    : block.endpointId
+      ? [block.endpointId]
+      : [];
+  const [activeEndpointId, setActiveEndpointId] = useState(endpointIds[0] ?? '');
+  const endpoint = endpointFor(deck, activeEndpointId);
   const isImageRequest = block.requestMode === 'image';
   const [bodyText, setBodyText] = useState(() => JSON.stringify(block.requestBody ?? { query: 'batik or songket textile pattern', topK: 10, minScore: 0.2 }, null, 2));
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [topK, setTopK] = useState(8);
   const [minScore, setMinScore] = useState(0.3);
-  const [authMode, setAuthMode] = useState<DeckRequestAuthMode>(block.authMode ?? 'public');
+  const [authMode, setAuthMode] = useState<DeckRequestAuthMode>(block.authMode ?? endpoint?.authModes[0] ?? 'public');
   const [credential, setCredential] = useState('');
   const [result, setResult] = useState<DeckRequestResult | null>(null);
   const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
@@ -133,13 +139,30 @@ export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: Deck
     }
   }
 
+  function selectEndpoint(endpointId: string) {
+    const nextEndpoint = endpointFor(deck, endpointId);
+    setActiveEndpointId(endpointId);
+    setAuthMode(nextEndpoint?.authModes[0] ?? 'public');
+    setResult(null);
+    setError(null);
+    setStatus('idle');
+  }
+
   return (
     <section className="grid h-full min-h-0 grid-cols-12 grid-rows-6 gap-3">
       <header className="col-span-4 row-span-2 flex flex-col justify-between bg-[#F7F4EF] p-8 text-[#171717]">
         <p className="font-mono text-[15px] uppercase tracking-[0.12em]">Allowlisted live route</p>
         <h3 className="text-[44px] font-bold uppercase leading-[0.92] tracking-[-0.02em]">{endpoint.label}</h3>
       </header>
-      <div className="col-span-8 row-span-2 flex items-end bg-[#0B0B0E] p-8 text-white">
+      <div className="col-span-8 row-span-2 flex flex-col justify-between bg-[#0B0B0E] p-8 text-white">
+        {endpointIds.length > 1 ? (
+          <select aria-label="Demo endpoint" value={activeEndpointId} onChange={(event) => selectEndpoint(event.target.value)} className="w-fit border border-white/25 bg-[#101014] px-4 py-2 font-mono text-[14px] uppercase tracking-[0.08em]">
+            {endpointIds.map((endpointId) => {
+              const option = endpointFor(deck, endpointId);
+              return option ? <option key={endpointId} value={endpointId}>{option.label}</option> : null;
+            })}
+          </select>
+        ) : null}
         <p className="break-all font-mono text-[18px] uppercase tracking-[0.08em]">{endpoint.method} · {endpoint.path}</p>
       </div>
       <div className="col-span-7 row-span-4 flex min-h-0 flex-col bg-[#101014] p-7 text-white">
@@ -170,7 +193,12 @@ export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: Deck
             </div>
           ) : endpoint.method === 'POST' ? (
             <textarea aria-label={`${endpoint.label} JSON body`} value={bodyText} onChange={(event) => setBodyText(event.target.value)} className="min-h-0 flex-1 resize-none border-2 border-white/20 bg-transparent p-6 font-mono text-[19px] leading-relaxed outline-none focus:border-[#D946EF]" />
-          ) : null}
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col justify-between border border-white/15 p-6">
+              <p className="font-mono text-[14px] uppercase tracking-[0.1em] text-[#F0ABFC]">Auth boundary</p>
+              <p className="max-w-[640px] text-[28px] leading-tight">{endpoint.authModes.includes('public') ? 'Public route—safe to run without a viewer account.' : 'Private route—requires the existing Logto session or a presenter-provided Paillette key.'}</p>
+            </div>
+          )}
           <div className="mt-4 flex items-center gap-3 font-mono text-[15px] uppercase tracking-[0.06em]">
             <select aria-label="Demo auth mode" value={authMode} onChange={(event) => setAuthMode(event.target.value as DeckRequestAuthMode)} className="h-12 border-2 border-white/30 bg-[#0B0B0E] px-4">
               {endpoint.authModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
