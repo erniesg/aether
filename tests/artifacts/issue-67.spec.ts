@@ -50,7 +50,7 @@ test.describe('#67 — text-overlay foundation artifact', () => {
     });
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'aether' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Make on the canvas.' })).toBeVisible();
     const screenshot = await page.screenshot();
     await testInfo.attach('landing.png', {
       body: screenshot,
