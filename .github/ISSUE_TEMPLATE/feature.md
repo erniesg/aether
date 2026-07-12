@@ -26,7 +26,7 @@ labels: feature
   - **Verification**: <e2e test path or recorded manual procedure>
   - **Proof**: <video, screenshots, convex-snapshot-diff id>
 
-> If this PR doesn't affect any user-visible journey (pure refactor, dependency bump, doc fix), replace this section with `Critical journeys: none affected — this is a <kind> change`. The reviewer will reject that declaration if the diff touches files in the demo path.
+> If this work does not affect a user-visible journey (pure refactor, dependency bump, doc fix), replace this section with `Critical journeys: none affected — this is a <kind> change`. Reviewers must challenge that declaration if the diff touches the creator loop.
 
 ### Surfaces touched
 
@@ -39,7 +39,7 @@ labels: feature
 - [ ] <artifact 1 — describe and say where it must land (PR description, attached file, log)>
 - [ ] <artifact 2>
 
-> Common artifacts: before/after screenshots for visual changes, curl + 200 response for new endpoints, Playwright trace + final screenshot for demo-arc changes, ToolRef/SkillRef record dump for new mutations.
+> Common artifacts: before/after screenshots for visual changes, curl + 200 response for new endpoints, Playwright trace + final screenshot for creator-loop changes, and a `capabilityRun`/entry-ref record for new mutations.
 
 ## Acceptance criteria
 
@@ -54,4 +54,4 @@ labels: feature
 
 ---
 
-> The reviewer agent enforces [`docs/qa-rubric.md`](../../docs/qa-rubric.md) against the `## QA Plan` section above. Phrases like *should*, *looks good*, *feels right*, or *manual review* are auto-rejected as unfalsifiable. See [`docs/reviewer-personas.md`](../../docs/reviewer-personas.md) for which assertions fire for which touched paths.
+> Human or Codex reviewers apply [`docs/qa-rubric.md`](../../docs/qa-rubric.md) to the `## QA Plan` above. Replace unfalsifiable phrases such as *should*, *looks good*, or *feels right* with observable outcomes. See [`docs/reviewer-personas.md`](../../docs/reviewer-personas.md) for the risk surfaces to check.
