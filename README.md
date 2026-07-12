@@ -1,196 +1,102 @@
 # aether
 
-> A canvas-native creative system for SG creators and SMEs.
-> Drop a URL, watch it fan out into 16 ready-to-post variants across 4 aspect ratios × 4 SG locales, all live-traceable, all editable.
-> Built for the **Built with Opus 4.7** hackathon (2026-04-21 → 2026-04-27).
+aether is a creator-first canvas for turning references, a brief, and product constraints into editable key visuals and linked multiformat variants.
 
----
+The canvas is the product surface. Rails feed material into it; the bottom composer acts on an explicit scope; generated artifacts return to the canvas for review, editing, propagation, and export. Research, automation, and provenance support that loop rather than becoming separate dashboards.
 
-## What it does in one screen
+## Creator loop
 
-```
-1.  paste eightsleep.com  →  agent loop (Opus 4.7 + tools)
-2.  → vision-describe with brand context  ("Pod 4 Ultra Hub", not "air purifier")
-3.  → 1 hero render @ 1024² (gpt-image-2)
-4.  → 3 NATIVE per-format renders @ 4:5 / 9:16 / 16:9, fired in PARALLEL
-5.  → 16 SG-locale text overlays composed onto each format (en-SG · zh-Hans-SG · ms-SG · ta-SG)
-6.  → 4×4 atlas uploaded to Convex storage
-7.  → Discord embed with the atlas, ready to review
-8.  → /inspect/<campaignId> for the full ledger
-9.  → auto-post (X / IG / TikTok / Pinterest via direct adapters or Postiz)
-```
+1. Gather references, brand material, product facts, a brief, and output targets in the left rail.
+2. Compose a multimodal input set from the selected material and constraints.
+3. Generate through the prompt composer at the bottom of the canvas.
+4. Promote a result into a key visual and make precise canvas edits.
+5. Pin useful Claude-driven actions as reusable capabilities.
+6. Fan the key visual out to linked format variants; global edits propagate while local overrides remain scoped.
+7. Approve and export the pack with provenance.
 
-[`docs/handoffs/auto-mode-evidence/auto-post-smoke-2026-04-26-night/atlas-3-native.png`](./docs/handoffs/auto-mode-evidence/auto-post-smoke-2026-04-26-night/atlas-3-native.png) — real lap output. 16 cells, 4 aspect ratios, 4 SG locales, every locale's typography and copy adapted (not just translated).
+See [AGENTS.md](./AGENTS.md) for the product and interaction contract.
 
----
+## Primary surfaces
 
-## Why this exists — built from what we know
+- `/workspace/<wsId>` — the single synthesis-shell workspace and primary creator surface.
+- `/auto-mode` — a supporting automation entry point, not the product shell.
+- `/inspect/<campaignId>` — a disclosed run/provenance view for diagnosis and review.
 
-Singapore creators and SMEs sit in a particular squeeze:
-- They have to ship in **4 SG locales** (en-SG, zh-Hans-SG, ms-SG, ta-SG) — not "translate" but render in each script with locale-correct rhythm.
-- They have to ship across **every social aspect ratio** at once — IG feed (4:5), Story / Reel (9:16), banners (16:9), plus the 1:1 default.
-- Most have **no design team** — the creator IS the designer, AND the writer, AND the brand strategist, AND the social manager.
+Raw identifiers, payloads, traces, and health information belong in diagnostic surfaces or `?debug=1`, not in the default creator experience.
 
-What takes a Singapore SME 4–8 hours per campaign launch (gather refs, brief copy, brief design, brief translation, brief social, schedule four times) collapses here into one trigger and ~7 minutes. Domain we know, problem we've felt.
+## Stack
 
----
+- Next.js 15.5, React 19, TypeScript, and Tailwind
+- tldraw 4.5 for the canvas
+- Convex for canonical graph state, actions, and file storage
+- Provider adapters under `lib/providers/` for image, video, reference, segmentation, clustering, spatial, and publishing capabilities
+- OpenNext on Cloudflare Workers
+- Vitest, React Testing Library, and Playwright
 
-## Why this is "for what's next"
+Provider selection belongs in configuration or a request hint. Do not hardcode a default image or video model in product code.
 
-The interface itself is the demo. Three things that don't fit the old toolchain:
-
-1. **The brief IS the URL.** No spec doc, no shot list. Drop the brand site, the agent reads page text + JSON-LD products, runs vision-describe **with brand context piped in** so it labels the actual product line ("Pod 4 Ultra Hub") instead of guessing by silhouette ("air purifier"). The bug → fix arc on this is in the trace evidence; the architectural lesson is that vision models are great when you tell them what they're looking at, brittle when you don't.
-
-2. **One hero, N native variants — in parallel.** When `AUTO_MODE_NATIVE_PER_FORMAT=1`, the lap fires `Promise.allSettled` over `gpt-image-2.generate(aspectRatio: '4:5' | '9:16' | '16:9')`. Three image generations finish in roughly the wall time of one. No human sequences renders.
-
-3. **Every action is a typed capability run.** `entryRef → capabilityRun` rows persist in Convex per tool call. `/inspect/<campaignId>` renders the lap as a readable timeline: each step's prompt, provider, model, latency, started/finished. Nothing is opaque. Re-rendering from any step is a single mutation.
-
----
-
-## Where to trigger and inspect — locally
-
-Everything runs in `npm run dev` (defaults to `http://localhost:3000`; on this dev box port 3002).
-
-| | |
-|---|---|
-| **Trigger UI** | `/auto-mode` — form with kind, payload, variation count, notifyMode, forcePostNow |
-| **Inspect a run** | `/inspect/<campaignId>` — readable timeline of agent steps, prompts, latencies |
-| **Workspace canvas** | `/workspace/<wsId>` — synthesis-shell canvas (lens-switched) |
-| **Trigger via curl** | `POST /api/auto-mode/run` — body: `{trigger,variationCount,notifyMode,workspaceId,forcePostNow}` |
-| **Trace endpoint** | `GET /api/campaigns/<id>/trace` — JSON of campaign + variations + agent steps |
-
-Discord lap-end pings carry the `campaignId` in the embed footer — click into `/inspect/<id>` to see the run.
-
----
-
-## Demo arc (3 minutes)
-
-1. **Show the gap** (20s) — open `eightsleep.com`. "An SG creator launching this brand needs 4 aspect ratios × 4 SG locales = 16 finished variants. Today that's a week."
-2. **Trigger the lap** (10s) — `/auto-mode`, paste URL, hit fire.
-3. **While it runs, narrate the architecture** (90s) — pull up `/inspect/<earlier-campaignId>` from a prior run. Walk: `signals-search` → vision-describe with brand context → `generate_image` (1:1) → 3 parallel native renders → text-overlay planner across 4 locales → atlas. "Every step is a `capabilityRun` row. Every output is reproducible from its inputs."
-4. **Show the atlas** (40s) — 4×4 grid, point out: native portrait composition for 9:16 (not a crop), Tamil typography that respects the script, Mandarin tonal voice (not literal translation).
-5. **Auto-post** (20s) — Discord embed; click into the scheduled-posts row. "One trigger. Twelve scheduled platform-aware posts ready to go."
-
-Live screenshot evidence: [`docs/handoffs/auto-mode-evidence/auto-post-smoke-2026-04-26-night/`](./docs/handoffs/auto-mode-evidence/auto-post-smoke-2026-04-26-night/).
-
----
-
-## Architecture (skim)
-
-```
-URL trigger
-  ├─ ingest: fetch+parse → title/description/products[]/images[]/brandPalette/fonts
-  │
-  ├─ vision-describe (Opus 4.7 vision)         ← brand context piped in here
-  │  → products: [{name: "Pod 4 Ultra Hub", description: "..."}]
-  │  → brands:   [{name: "Eight Sleep", ...}]
-  │
-  ├─ agent loop (Opus 4.7 tool use)
-  │  ├─ get_current_datetime    (local)
-  │  ├─ search_signals          (multi-platform research)
-  │  └─ generate_image @ 1:1    (gpt-image-2)
-  │
-  ├─ post-hero pipeline (parallel)
-  │  ├─ SAM3 segmentation A/B   (one-shot + vision-guided)
-  │  ├─ text-overlay planner    (4 SG locales, smart-placement aware of forbidden regions)
-  │  └─ native-per-format render: Promise.allSettled([4:5, 9:16, 16:9])  (gpt-image-2 × 3)
-  │
-  ├─ compose: 16 (format × locale) tiles + 4×4 atlas (sharp)
-  ├─ persist to Convex File Storage  (heroes, atlas, masks)
-  ├─ persist to Convex DB            (campaign, variations, capabilityRun ledger)
-  │
-  ├─ scheduleVariationPosts (notifyMode=auto-post)
-  │  └─ resolvePublisherForPost: x → instagram → postiz → preview (platform-aware)
-  │
-  └─ Discord lap-end ping with atlas embed + campaignId
-```
-
-Provider-agnostic by contract: `lib/providers/image/{openai,gemini,replicate,volcengine}` and `lib/providers/publisher/{x,instagram,postiz,preview,social-auto-upload}`. No model is hardcoded; route via env or per-request hint.
-
----
-
-## Judging-criteria-aligned answers
-
-**Impact (30%).** Singapore SMEs and creators are the audience we know — they ship multilingual, multi-aspect, on a budget, and currently lose days per campaign to mechanical work. Aether collapses that to minutes. Beyond SG: any small brand with a website and a content calendar is in scope. Multilingual + multi-aspect + provenance is the missing surface, not "another AI image generator."
-
-**Demo (25%).** Concrete: paste `eightsleep.com`, watch a real lap, click `/inspect/<id>` to see every step. Real captures in `docs/handoffs/auto-mode-evidence/`. The atlas in `auto-post-smoke-2026-04-26-night/atlas-3-native.png` is one real lap's output, not a mockup.
-
-**Opus 4.7 use (25%).** Five non-trivial places it's the engine, not a wrapper:
-1. **Brand-context piped vision-describe** — `lib/agent/describe-image.ts:buildSystemPrompt(brandContext)`. Without this, vision misidentifies products by silhouette; with it, products are named correctly. This is a small architectural fix that's only obvious once you've seen the failure.
-2. **Multilingual copy planner** — `lib/agent/text-apply.ts:applyTextOverlay`. Tool-use call to Opus 4.7 that emits `{ overlays: [{purpose, content: [{locale, text}], textAlign}] }`. Idiomatic per locale, not literal.
-3. **Agent loop with the real tool surface** — `lib/agent/multi.ts` runs Claude with `get_current_datetime`, `search_signals`, `generate_image`, `analyze_video`, `cluster_references`. Each tool's input/output is a typed `capabilityRun` row. Provenance ships for free.
-4. **Anthropic Managed Agents** — three native wrappers in `lib/agent/managed/`: `research.ts` (competitive signals + locale insights via `web_search_20250305`), `cluster.ts` (visual similarity grouping via vision), `signoff.ts` (brand guardrail + schedule decision). Each uses `client.beta.sessions` when `ANTHROPIC_{RESEARCH,CLUSTER,SIGNOFF}_{AGENT,ENVIRONMENT}_ID` are set; falls back to standard `messages.create` otherwise. Provenance written to `capabilityRun` on every run.
-5. **Research agent wired into the lap** — `runAutoMode` runs `runResearchAgent` once per URL-triggered lap (before variation fan-out) so every variation's system note includes real competitor signals, recent campaign context, and locale-specific insights. Fail-soft: any error leaves `researchBundle` undefined and the lap continues.
-
-**Depth & execution (20%).** Typed provenance on every action (`entryRef → capabilityRun`). Provider-agnostic adapters with contract tests. Fail-soft per stage (vision-describe failure ≠ lap failure; SAM3 failure ≠ text-overlay failure; per-aspect render failure ≠ atlas failure). Vitest 1188 passing across 160 files at the time of this README. `tsc --noEmit` clean. Worktrees for parallel slices.
-
----
-
-## What's NOT done (intentional gaps)
-
-| | status | next |
-|---|---|---|
-| Posting to X | blocked at X portal — dev app `32833731` not enrolled in a Project, v2 rejects | upgrade to pay-per-use on developer.x.com OR route via Postiz |
-| Posting to IG direct | needs `IG_ACCESS_TOKEN` + `IG_USER_ID` in `.env.local` (long-lived page token via Graph API Explorer) | paste creds, smoke fires |
-| Posting to TikTok direct | needs OAuth user token (Client Key + Secret alone insufficient) | OAuth flow build OR route via Postiz |
-| **Editable text on canvas** | text overlays exist as data (`textOverlays` field), atlas tiles bake them as PNG | wire `lib/canvas/dropVariantSet.ts` → tldraw text shapes per locale |
-| WorkspaceShell AutoModePanel right-rail | trace endpoint live, `/inspect` page works as standalone | wire `components/rail/sections/AutoModePanel.tsx` into `WorkspaceShell.tsx` |
-| Brand/product mask consumption | code path complete, SAM3 GPUs freed; current laps return 0 masks | rerun smoke; fallback to vision-derived face/brand bboxes already wired |
-
-These are explicit on the [project board](./docs/handoffs/) and the trade-offs are documented in the corresponding handoff under `docs/handoffs/HANDOFF-2026-04-26-NIGHT-POWER-THROUGH-POSTING-AND-REVIEW.md`.
-
----
-
-## Tech stack
-
-Next.js 15 · tldraw 3 · Convex (DB + File Storage) · Claude Opus 4.7 (Anthropic SDK + tool use) · OpenNext on Cloudflare Workers · Tailwind · Radix · Vitest + Playwright · sharp · twitter-api-v2.
-
-Image generation: `lib/providers/image/{openai,gemini,replicate,volcengine}.ts` (no hardcoded default).
-Publishing: `lib/providers/publisher/{x,instagram,postiz,preview,social-auto-upload}.ts` with platform-aware resolution.
-Segmentation: SAM3 over Modal (`SAM3_MODAL_URL`) with vision-guided prompts.
-
----
-
-## Live
-
-- Staging: `aether-stg.berlayar.ai`
-- Production: `aether.berlayar.ai`
-
-## Development
+## Local development
 
 ```bash
 npm install
-cp .env.local.example .env.local        # fill keys (OPENAI/ANTHROPIC/CONVEX/DISCORD/SAM3 minimum)
-npm run dev                              # http://localhost:3000
-
-# trigger a lap
-open http://localhost:3000/auto-mode
-
-# inspect a run
-open http://localhost:3000/inspect/<campaignId>
-
-# tests
-npm test                                 # vitest (unit + component)
-npm run test:e2e                         # playwright
-npm run typecheck && npm run lint
+cp .dev.vars.example .dev.vars
+npm run convex:dev
+npm run dev
 ```
 
-Smoke scripts (offline-friendly): `scripts/smoke-compose-atlas.mjs`, `scripts/smoke-auto-post-x.mjs`, `scripts/probe-per-format.mjs`.
+Open `http://localhost:3000/workspace/demo-ws`. Configure only the external providers needed for the flow you are exercising; `.dev.vars.example` documents the available settings.
 
-## Read these to grok the codebase
+`next.config.ts` loads `.dev.vars` for local Next.js processes. Keep secrets out of commits and generated artifacts.
 
-- [`AGENTS.md`](./AGENTS.md) — product identity + UI direction
-- [`CLAUDE.md`](./CLAUDE.md) — agent guardrails + hard rules
-- [`docs/PRD.md`](./docs/PRD.md) — MVP scope, non-goals, success criteria
-- [`docs/DEMO.md`](./docs/DEMO.md) — 3-min demo beat sheet
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system diagram, schema, provider contracts
-- [`docs/handoffs/`](./docs/handoffs/) — every meaningful working session, with smoke evidence
-- [Issues](https://github.com/erniesg/aether/issues) — task graph
+## Validation
+
+```bash
+npm run typecheck
+npm test
+npm run build
+npm run test:e2e
+```
+
+Use the narrowest relevant gate while iterating, then run the broader gate appropriate to the change before merge. Provider adapters should have contract tests; creator-loop changes should include human validation of the visible workspace.
+
+## Deployment
+
+```bash
+npm run preview
+npm run deploy:stg
+npm run deploy:prod
+```
+
+Deployment uses `open-next.config.ts`, `wrangler.jsonc`, and Convex. The staging and production commands also enforce the required tldraw license configuration.
+
+## Repository map
+
+```text
+app/                    Next.js routes and API handlers
+components/canvas/      canvas, lenses, and custom shapes
+components/rail/        compact and expanded input surfaces
+components/composer/    scoped bottom prompt composer
+components/workspace/   synthesis-shell composition
+lib/providers/          provider-agnostic capability adapters
+lib/capability/         capability contracts and registry
+lib/agent/              agent tools and orchestration
+convex/                 canonical schema, queries, mutations, and actions
+tests/                  unit, component, contract, and end-to-end tests
+docs/                   current design, architecture, testing, and operations guidance
+```
+
+Useful starting points:
+
+- [AGENTS.md](./AGENTS.md) — canonical product identity and UI rules
+- [CLAUDE.md](./CLAUDE.md) — implementation guardrails and commands
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — system boundaries and data flow
+- [docs/TESTING.md](./docs/TESTING.md) — test strategy and workflows
+- [docs/agent-routing.md](./docs/agent-routing.md) — issue and agent routing policy
+
+## Generated artifacts
+
+`outputs/` is ignored. It may contain large renders, browser profiles, traces, or credentials and is never a source directory. Put small, intentional test fixtures under the relevant test or documentation path and review them before committing.
 
 ## License
 
 MIT
-
----
-
-_Built with Claude Opus 4.7 (1M context). Hackathon kickoff 2026-04-21 12:30 PM EDT — every commit on `main` is post-kickoff._
