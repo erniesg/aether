@@ -114,21 +114,18 @@ After deploy, copy the endpoint URL into `.dev.vars` as `CLIP_MODAL_URL`.
 
 ## Cost guidance
 
-- CPU container idle is cheap; Modal scales to zero after
-  `scaledown_window=300`s.
-- Weight download is a one-time cost baked into the image build; not paid
-  per-request.
-- Per-invocation cost on CPU: call it pennies for batches under 20. If the
-  backend ever needs to cluster thousands of refs in one call, move to
-  `gpu="T4"` and expect ~10× the per-second rate with ~20× the throughput.
+- The current CPU function scales down after `scaledown_window=300`s.
+- Weight download is baked into the image build rather than repeated by each
+  request.
+- Runtime pricing and free-tier limits change. Check Modal's current pricing
+  and the app dashboard before increasing batch size or moving to a GPU.
 
 ## Verify in aether
 
 1. Deploy the Modal endpoint and put the URL + token in `.dev.vars`.
 2. Start `aether` locally (`npm run dev`).
-3. Exercise the clustering adapter from a server route or Convex action
-   that depends on it (cluster lens, research agent — see issue #26 and
-   the research agent tracking issue for the first consumers).
+3. Exercise the clustering adapter through the current cluster lens or
+   research flow and verify that labelled artifacts return to the canvas.
 
 Quick end-to-end sanity check against the real endpoint:
 

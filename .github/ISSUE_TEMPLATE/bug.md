@@ -2,7 +2,7 @@
 name: Bug
 about: Regression, broken behavior, or wrong output
 title: '[bug] '
-labels: bug, claude-run, queue-queued
+labels: bug
 ---
 
 ## Summary
@@ -60,4 +60,4 @@ labels: bug, claude-run, queue-queued
 
 ---
 
-> The reviewer agent enforces [`docs/qa-rubric.md`](../../docs/qa-rubric.md). Bug fixes without a red→green test pair are auto-rejected — the missing test is the first defect.
+> Human or Codex reviewers apply [`docs/qa-rubric.md`](../../docs/qa-rubric.md). A bug fix needs a red→green regression test unless the issue explains why an automated reproduction is impossible and names the required human evidence.

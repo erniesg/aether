@@ -7,7 +7,7 @@ Covers Western platforms: Instagram, Facebook, X (Twitter), LinkedIn, TikTok, Pi
 
 - `gcloud` CLI installed and authenticated (`gcloud auth login`)
 - A GCP project with billing enabled
-- An [Upstash](https://upstash.com/) account for Redis (free tier is enough for hackathon scale)
+- An [Upstash](https://upstash.com/) account for Redis (size the plan for the expected workload)
 
 ## Quickstart
 
@@ -36,7 +36,10 @@ After deploy, run the database migration job (printed by the script) and connect
 | `cloudbuild.yaml` | Optional Cloud Build trigger for weekly Postiz upstream upgrades |
 | `.env.postiz.example` | Template for secrets — copy to `.env.postiz` and fill in |
 
-## Cost estimate (hackathon scale)
+## Example low-volume cost estimate
+
+This is an old planning estimate, not a current quote. Verify provider pricing
+and production sizing before deployment.
 
 | Component | Monthly cost |
 |---|---|

@@ -26,7 +26,7 @@ const localCodexAction = readFileSync(
 const localCodexIntakePath = resolve(process.cwd(), '.github/scripts/local-codex-intake.mjs');
 const localCodexIntake = readFileSync(localCodexIntakePath, 'utf8');
 
-describe('codex.yml dual-agent mirror', () => {
+describe('codex.yml local branch intake', () => {
   it('declares the codex/issue-* branch convention and codex-run label trigger', () => {
     expect(codexWorkflow).toContain('codex/issue-<n>-*');
     expect(localCodexIntake).toContain('codex/issue-${issueNumber}-');
@@ -45,18 +45,18 @@ describe('codex.yml dual-agent mirror', () => {
     expect(localCodexAction).not.toContain('openai/' + 'codex-action');
   });
 
-  it('mirrors claude.yml structural pieces (refresh, PR creation, dispatch)', () => {
+  it('handles refresh, PR creation, and explicit CI dispatch', () => {
     expect(codexWorkflow).toContain('Resolve agent target branch');
     expect(codexWorkflow).toContain('./.github/actions/local-codex-intake');
     expect(codexWorkflow).toContain('Refresh existing PR branch from main');
     expect(codexWorkflow).toContain('Open PR for queued codex branch');
-    expect(codexWorkflow).toContain('Dispatch CI + reviewer for fresh codex PRs');
+    expect(codexWorkflow).toContain('Dispatch CI for fresh Codex PRs');
 
     expect(localCodexIntake).toContain("git(['merge', '--no-edit', 'origin/main'])");
     expect(localCodexIntake).toContain("'pr',");
     expect(localCodexIntake).toContain("'create',");
     expect(localCodexIntake).toContain("'workflow', 'run', 'ci.yml'");
-    expect(localCodexIntake).toContain("'workflow', 'run', 'claude-review.yml'");
+    expect(localCodexIntake).not.toContain("'workflow', 'run', 'claude-review.yml'");
   });
 
   it('triggers on the same events as claude.yml', () => {
@@ -88,16 +88,31 @@ describe('codex.yml dual-agent mirror', () => {
     expect(codexWorkflow).toContain('mode: drain');
   });
 
-  it('drains queued branches from trusted default-branch workflow code', () => {
+  it('drains queued branches only from an explicit default-branch dispatch', () => {
     expect(codexWorkflow).not.toMatch(/push:\s*\n\s*branches:\s*\n\s*-\s*'codex\/issue-\*'/);
     expect(codexWorkflow).toContain('workflow_dispatch');
-    expect(codexWorkflow).toContain('schedule:');
-    expect(codexWorkflow).toContain("github.event_name == 'schedule'");
+    expect(codexWorkflow).not.toContain('schedule:');
+    expect(codexWorkflow).not.toContain("github.event_name == 'schedule'");
     expect(codexWorkflow).toContain("github.event_name == 'workflow_dispatch'");
     expect(codexWorkflow).toContain("github.ref_name == github.event.repository.default_branch");
     expect(codexWorkflow).toContain("ref: ${{ github.event.repository.default_branch || 'main' }}");
     expect(localCodexIntake).toContain('drainQueuedCodexBranches');
     expect(localCodexIntake).toContain('remoteCodexIssueNumbers');
+  });
+
+  it('excludes Rucksack-owned branches from local Codex intake', async () => {
+    const { selectIssueNumbersFromCodexBranches, selectLatestCodexBranch } = await import(
+      pathToFileURL(localCodexIntakePath).href
+    );
+    const branches = [
+      'origin/codex/issue-170-local',
+      'origin/codex/issue-170-rucksack',
+      'origin/codex/issue-171-rucksack',
+      'origin/codex/issue-172-follow-up',
+    ];
+
+    expect(selectLatestCodexBranch(branches, '170')).toBe('codex/issue-170-local');
+    expect(selectIssueNumbersFromCodexBranches(branches)).toEqual(['170', '172']);
   });
 
   it('pauses public GitHub writes during Singapore working hours by default', async () => {
@@ -115,14 +130,15 @@ describe('codex.yml dual-agent mirror', () => {
     );
   });
 
-  it('only fires on codex-relevant events (label / @codex / codex branch)', () => {
+  it('only fires on explicit Codex events', () => {
     // Without this guard, the token-missing fail-fast exits 1 on every PR
     // opened against main, polluting the check list. The job-level if
     // filter keeps the runner cold for non-codex events.
     expect(codexWorkflow).toContain("contains(github.event.issue.labels.*.name, 'codex-run')");
     expect(codexWorkflow).toContain("contains(github.event.comment.body, '@codex')");
     expect(codexWorkflow).toContain("startsWith(github.event.pull_request.head.ref, 'codex/issue-')");
-    expect(codexWorkflow).toContain("github.event_name == 'schedule'");
+    expect(codexWorkflow).toContain("github.event_name == 'workflow_dispatch'");
+    expect(codexWorkflow).not.toContain("github.event_name == 'schedule'");
   });
 });
 

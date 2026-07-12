@@ -5,7 +5,7 @@
  * useful.
  *
  * Override via NEXT_PUBLIC_DEFAULT_WORKSPACE_ID (set per-deployment).
- * Default for the hackathon is `demo-ws` to match `app/page.tsx`'s CTA.
+ * The local/default workspace is `demo-ws` to match `app/page.tsx`'s CTA.
  */
 
 import { redirect } from 'next/navigation';

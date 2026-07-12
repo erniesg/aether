@@ -2,8 +2,8 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
- * v0.1 hackathon schema. Matches docs/ARCHITECTURE.md § Data model.
- * Keep the sections ordered: inputs → canvas → capability → observations → export.
+ * Canonical aether graph schema. Keep sections ordered by product domain so
+ * related indexes and provenance tables remain reviewable together.
  */
 export default defineSchema({
   // ─── root ──────────────────────────────────────────────────────────────

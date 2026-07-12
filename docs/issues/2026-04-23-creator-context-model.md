@@ -28,4 +28,4 @@ The left rail previously flattened brief, references, signals, and brand into a 
 - assemble a typed input set from real pinned refs and signals instead of demo seed data
 - keep research separate from brand / offer ingest; research is the market / competitor / taste loop that feeds references, clusters, and moodboards
 
-See [2026-04-23-creator-context-model.md](/Users/erniesg/code/erniesg/aether-integration/docs/decisions/2026-04-23-creator-context-model.md).
+See [Creator context decision](../decisions/2026-04-23-creator-context-model.md).

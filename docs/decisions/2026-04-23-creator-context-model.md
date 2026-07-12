@@ -90,8 +90,8 @@ The loop stays the same in both cases. What changes is the currently selected br
 
 ## Shipped in this scaffold
 
-- typed demo context model in [lib/context/model.ts](/Users/erniesg/code/erniesg/aether-integration/lib/context/model.ts)
-- left-rail hierarchy in [components/rail/LeftRail.tsx](/Users/erniesg/code/erniesg/aether-integration/components/rail/LeftRail.tsx)
+- typed demo context model in [`lib/context/model.ts`](../../lib/context/model.ts)
+- left-rail hierarchy in [`components/rail/LeftRail.tsx`](../../components/rail/LeftRail.tsx)
 - tests covering the new hierarchy and context separation
 
 ## Deferred

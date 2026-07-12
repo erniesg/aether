@@ -1,52 +1,48 @@
 <!--
-The reviewer agent reads this template against `docs/qa-rubric.md` and
-`docs/reviewer-personas.md`. Empty sections are flagged. Phrases like
-"should", "looks good", or "feels right" are auto-rejected as unfalsifiable.
+Use docs/qa-rubric.md and docs/reviewer-personas.md to make each claim
+falsifiable. Remove placeholders. Mark non-applicable gates as N/A with a
+concrete reason rather than inventing evidence.
 -->
 
 ## Summary
 
-<One-line description of the change. User-facing — what changes for the creator.>
+<One-line description of the observable change.>
 
-Closes #<issue>
+Related: <#issue, PR, or `none`>
 
 ## QA Plan compliance
 
-- [ ] The linked issue's `## QA Plan` section is filled in (no placeholders).
-- [ ] Every `Falsifiable` claim has corresponding evidence in this PR or as a linked artifact.
-- [ ] Every `Proof artifacts required` checkbox is satisfied.
-- [ ] Phrases banned by `docs/qa-rubric.md` (should / looks good / feels right / manual review / TBD) do not appear in this PR description or the issue body.
+- [ ] The linked issue's `## QA Plan` is complete, or this PR explains why no issue is required.
+- [ ] Every falsifiable claim has corresponding evidence in this PR or a linked artifact.
+- [ ] Every required proof artifact is present.
+- [ ] Claims use observable outcomes rather than phrases such as *looks good* or *feels right*.
 
-## Personas firing (auto-detected — reference only)
+## Risk surfaces
 
-Read-only reference list. The reviewer determines which personas fire based on the touched paths in the diff; ticking these boxes does not change which assertions get applied.
+List the personas that apply based on touched paths. This is a review aid; it does not trigger automation.
 
-- `correctness` — fires on every PR
-- `demo-arc` — fires when the diff touches `app/workspace/**`, `components/canvas/**`, or `lib/agent/auto-mode*`
-- `provenance` — fires when the diff touches `lib/agent/**`, `lib/capability/**`, or `convex/**`
-- `ux-restraint` — fires when the diff touches `components/**` or `app/**` (non-API)
-- `security-cost` — fires when the diff touches `lib/providers/**`, `convex/**`, `app/api/**`, `.env*`, or adds an LLM/image/video adapter
+- `correctness` — every PR
+- `demo-arc` — creator-loop routes, canvas, or auto-mode behavior
+- `provenance` — agents, capabilities, tools, or Convex state
+- `ux-restraint` — creator-facing components and routes
+- `security-cost` — providers, APIs, environment settings, or paid calls
 
 ## Verification
 
-- [ ] `npm run typecheck` exits 0 — proof: <actions run URL or local terminal output>
-- [ ] `npm test` exits 0 — proof: <actions run URL or local terminal output>
-- [ ] E2E test for the affected journey passes — proof: <test id + actions run URL>
-- [ ] Visual proof attached for any UI change — proof: <screenshot path or comment URL>
-- [ ] Rich media proof attached for any key route or multi-step interaction — proof: <video/trace path + timestamp range>
+- [ ] `npm run typecheck` exits 0, or N/A with reason — proof: <output or Actions URL>
+- [ ] Relevant focused tests exit 0 — proof: <test id and output or Actions URL>
+- [ ] Broader unit/build gate appropriate to the diff exits 0 — proof: <output or Actions URL>
+- [ ] Affected browser journey passes, or N/A with reason — proof: <test/trace/URL>
+- [ ] Visible behavior has human evidence, or N/A with reason — proof: <screenshot/video/trace>
 
 ## Media proof
 
-List every route and interaction that changed. Static visual changes need screenshots; multi-step canvas, rail, composer, generation, fan-out, export, or approval flows need video or Playwright trace proof.
+Name every changed route or interaction. A screenshot proves static state; use a recording or Playwright trace for sequencing, drag/drop, generation, fan-out, editing, approval, or export.
 
-- route / surface: </workspace/... or api/job name>
-- media: <screenshot, video, trace, JSON dump>
-- proof: <path/comment URL + timestamp range when video>
+- route / surface: <path, API, workflow, or `none`>
+- interaction: <changed behavior or `none`>
+- proof: <path, comment URL, timestamp range, JSON, or Actions URL>
 
 ## Notes for reviewer
 
-<Anything the reviewer should know but won't infer from the diff. Keep brief.>
-
----
-
-If this PR was opened by Claude Code, the agent's TDD log lives on the linked issue as a sticky comment.
+<Constraints, known non-goals, or follow-up work that is not obvious from the diff.>

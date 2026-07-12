@@ -1,12 +1,16 @@
 # QA rubric
 
-How to write a falsifiable QA plan that the reviewer agent can enforce.
+How to write a falsifiable QA plan that a human or Codex reviewer can enforce.
 
-This rubric is the **single source of truth** for what "good enough to merge" means in this repo. The reviewer agent reads this file at the start of each run; the personas in `docs/reviewer-personas.md` use it to structure their verdicts. If you want a different bar applied to your PR, change this file in the same PR — don't argue with the reviewer.
+> **Current status:** this remains the review/evidence contract, but the legacy
+> Claude reviewer workflow is disabled. Apply it during human or Codex review;
+> see [`agent-routing.md`](./agent-routing.md) for live routing.
+
+This rubric is the **single source of truth** for what "good enough to merge" means in this repo. Reviewers use it with the personas in `docs/reviewer-personas.md` to structure verdicts. If a different bar is needed, change this file in the same PR and explain why.
 
 ## Where the QA plan lives
 
-In the **issue body**, under a top-level heading `## QA Plan`. The author agent and the reviewer agent both parse this section. Issues without a QA Plan section are auto-rejected by the harness with a request to add one before the agent fires.
+In the **issue body**, under a top-level heading `## QA Plan`. The section must travel with the issue so any author or reviewer can apply the same criteria. An issue without a QA Plan is not ready for autonomous implementation or merge review.
 
 The reason it lives in the issue (not a separate file) is that the spec must travel with the work. Splitting it into `docs/qa/<issue>.md` invites drift — issue gets edited, file gets stale, reviewer enforces the wrong thing.
 
@@ -51,7 +55,7 @@ The reason it lives in the issue (not a separate file) is that the spec must tra
 These are the same rules the personas enforce. They are repeated here because authors write the plan, reviewers check it, and both need to apply the same standard.
 
 1. Every assertion must answer **"what file/line/output proves this?"** Without that, it cannot be falsified, and the reviewer marks it `UNVERIFIABLE`.
-2. Phrasing the reviewer auto-rejects:
+2. Phrasing reviewers reject as unfalsifiable:
    - `should`, `might`, `could`
    - `looks good`, `feels right`, `is intuitive`, `is performant`, `is clean`
    - `improves UX`, `is more responsive`, `handles edge cases gracefully`
@@ -69,17 +73,17 @@ These are the same rules the personas enforce. They are repeated here because au
    - Structured log line (`auto-mode.lap.duration_ms=<n>`)
    - Video timestamp range (`video.mp4 @ 0:12–0:34`)
    - GitHub Actions run URL
-5. **Human-only proof is allowed** but flagged: tag the assertion `human-only` and the reviewer will request the artifact in a PR comment instead of trying to auto-verify. PR blocks until the artifact lands.
+5. **Human-only proof is allowed** but must be flagged: tag the assertion `human-only`, attach the artifact or decision, and do not merge until the required proof lands.
 
 ## What "critical journey" means
 
-A critical journey is a sequence of user actions that, if broken, makes the product unusable for the use case the PR claims to address. For aether the load-bearing journey is the demo arc described in `docs/DEMO.md`. For tickets that touch peripheral surfaces (admin tools, observability, etc.) the journey is the surface-specific golden path.
+A critical journey is a sequence of user actions that, if broken, makes the product unusable for the use case the PR claims to address. For aether the load-bearing journey is the creator loop in `AGENTS.md`, with browser coverage rooted at `tests/e2e/creator-loop.spec.ts`. Supporting diagnostic or automation surfaces use their own golden path without replacing the canvas-first product journey.
 
 If a PR adds a feature with no critical journey impact (pure refactor, doc fix, dependency bump), the QA plan can declare `### Critical journeys: none affected — this is a <kind> change` and the reviewer skips J-assertions for that PR. The reviewer rejects this declaration if the diff touches files in the demo path.
 
 ## What "proof artifacts required" means
 
-Authors list every artifact the reviewer agent expects to see attached to the PR before merge. The reviewer fails the PR if a listed artifact is missing.
+Authors list every artifact a reviewer expects to see attached to the PR before merge. A listed artifact that is missing leaves the claim unverifiable.
 
 Common artifacts:
 
@@ -101,16 +105,16 @@ The reviewer rejects media proof when:
 3. The final state is hidden behind a debug drawer, devtools pane, loading spinner, or raw payload view.
 4. The media only covers an API response while the PR claims a creator-facing route or canvas behavior changed.
 
-## How the reviewer enforces this
+## Review procedure
 
-For each PR, the reviewer:
+For each PR, the reviewer should:
 
-1. Reads the parent issue's `## QA Plan` section. Missing → rejects with `REQUEST_CHANGES`.
-2. Routes personas by touched paths (see `docs/reviewer-personas.md`).
-3. For each persona, walks its falsifiable assertions and emits PASS / FAIL / UNVERIFIABLE.
-4. Cross-checks the QA plan's claims against the diff: every listed `Falsifiable` claim must have a corresponding piece of evidence in the diff or a linked artifact.
-5. Confirms every "Proof artifacts required" checkbox is satisfied.
-6. Merges persona verdicts into a single `verdict` (BLOCK > REQUEST_CHANGES > APPROVE).
+1. Read the parent issue's `## QA Plan` section. If it is missing, return `REQUEST_CHANGES`.
+2. Route personas by touched paths (see `docs/reviewer-personas.md`).
+3. Walk each persona's falsifiable assertions and emit PASS / FAIL / UNVERIFIABLE.
+4. Cross-check the QA plan's claims against the diff: every listed `Falsifiable` claim must have a corresponding piece of evidence in the diff or a linked artifact.
+5. Confirm every "Proof artifacts required" checkbox is satisfied.
+6. Merge persona verdicts into a single `verdict` (BLOCK > REQUEST_CHANGES > APPROVE).
 
 ## Examples
 
@@ -148,7 +152,7 @@ For each PR, the reviewer:
   - **Proof**: User feedback.
 ```
 
-The reviewer rejects this with `REQUEST_CHANGES` and a comment naming the unfalsifiable phrasing (`feels more intuitive`, `manual review`, `user feedback`).
+This warrants `REQUEST_CHANGES` with the unfalsifiable phrasing named explicitly (`feels more intuitive`, `manual review`, `user feedback`).
 
 ### Bad: missing proof
 
@@ -159,10 +163,10 @@ The reviewer rejects this with `REQUEST_CHANGES` and a comment naming the unfals
   - **Proof**: TBD.
 ```
 
-`Proof: TBD` triggers `UNVERIFIABLE`. The reviewer comments asking for either the curl-test transcript or a contract test id, and blocks merge until provided.
+`Proof: TBD` is `UNVERIFIABLE`. Request either the curl-test transcript or a contract test id and do not merge until it is provided.
 
 ## When this rubric is wrong
 
-If you hit a case where the rubric blocks a legitimate change, **edit the rubric in the same PR** that includes the change. Don't argue with the reviewer — change the rule. The PR description must include a `Rubric change` section explaining what rule changed and why.
+If the rubric blocks a legitimate change, **edit the rubric in the same PR** that includes the change. The PR description must include a `Rubric change` section explaining what changed and why.
 
-The reviewer treats rubric edits with extra scrutiny (the `correctness` persona reads `docs/qa-rubric.md` and `docs/reviewer-personas.md` as load-bearing files, same as `AGENTS.md`).
+Rubric edits require extra scrutiny because `docs/qa-rubric.md`, `docs/reviewer-personas.md`, and `AGENTS.md` are load-bearing review inputs.
