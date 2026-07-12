@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 test.describe('A1 — workspace smoke', () => {
   test('landing page renders and links to workspace', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'aether' })).toBeVisible();
-    await expect(page.getByRole('link', { name: /open demo workspace/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Make on the canvas.' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /open canvas/i })).toBeVisible();
   });
 
   test('workspace route renders the four shell slots (taxonomy-tagged)', async ({ page }) => {
