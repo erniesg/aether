@@ -38,4 +38,4 @@ Research has three product forms:
 - canvas lens: review artifacts, clusters, and moodboards
 - canvas artifact / composer scope: make from the chosen direction
 
-See [Research To Moodboard Surface](/Users/erniesg/code/erniesg/aether-reference-research-loop/docs/decisions/2026-04-25-research-to-moodboard.md).
+See [Research-to-moodboard decision](../decisions/2026-04-25-research-to-moodboard.md).

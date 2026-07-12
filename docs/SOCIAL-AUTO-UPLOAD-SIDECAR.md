@@ -1,6 +1,6 @@
 # Social Auto Upload Sidecar
 
-Issue #57 adds a provider seam for CJK/browser-automation publishing. The Next.js app talks HTTP to this sidecar; the sidecar runs `dreammis/social-auto-upload` / `sau` in a Python process where Playwright can own a browser profile.
+aether's CJK/browser-automation publisher seam talks HTTP to this sidecar. The sidecar runs `dreammis/social-auto-upload` / `sau` in a Python process where Playwright can own a browser profile. The implementation originated in historical issue #57.
 
 ## HTTP contract
 

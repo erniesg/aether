@@ -1,5 +1,9 @@
 # Aether — demo recording handoff
 
+> **Historical handoff (2026-04-27).** This preserves the original recording
+> instructions and fixed provider/model claims. It is not current setup or
+> product guidance; start with [`AGENTS.md`](../AGENTS.md) and the root README.
+
 Self-contained briefing. Copy-paste the section below into a fresh Claude Code
 session at the repo root (`/Users/erniesg/code/erniesg/aether`). The session
 that wrote this just shipped the toggle, cluster wiring, and full lap

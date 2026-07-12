@@ -7,7 +7,7 @@
 
 Five risk-surface personas. Each fires by touched-paths routing (see the auto-routing table at the bottom). Each persona emits structured verdicts with PASS / FAIL / UNVERIFIABLE per falsifiable assertion, every assertion backed by locatable proof.
 
-Personas exist for the reviewer agent, not for humans. They map to **risk surfaces**, not to job titles or process roles. Adding a sixth persona requires identifying a concrete failure mode the existing five cannot catch.
+Personas are for any human or Codex reviewer. They map to **risk surfaces**, not to job titles or process roles. Adding a sixth persona requires identifying a concrete failure mode the existing five cannot catch.
 
 ## Falsifiability rules (apply to every persona)
 
@@ -39,17 +39,17 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 
 ## demo-arc
 
-**Risk surface**: the hero flow described in `docs/DEMO.md` continues to complete end-to-end without manual steps. The demo is the product; if it breaks, nothing else matters.
+**Risk surface**: the creator loop described in `AGENTS.md` continues to complete end-to-end. The canvas is the product; supporting automation or diagnostics do not replace this journey.
 **Auto-fire**: when `app/workspace/**`, `components/canvas/**`, `lib/agent/auto-mode*`, or anything imported by the demo path changes.
 **Author obligation**: if a demo step now requires manual intervention, surface it as a `BLOCK` decision packet — do not silently weaken the assertion.
 
 | ID | Assertion | Verification | Proof format |
 |----|-----------|--------------|--------------|
-| D1 | The demo path in `docs/DEMO.md` continues to run end-to-end on staging without manual intervention | Manual rehearsal on `aether-stg.berlayar.ai` recorded as a video; or `tests/e2e/demo-arc.spec.ts` if the e2e fixture exists. **Note: the e2e is the goal — until it lands (tracked in tech-debt), recorded manual rehearsal is acceptable proof.** | video path + final screenshot path; or playwright run id once the e2e exists |
-| D2 | Demo final canvas state matches the reference described in `docs/DEMO.md` (hero + variants present, brand tokens applied) | Visual diff against reference screenshot; or convex snapshot diff once the e2e lands | screenshot path or `convex-snapshot:<id>` |
+| D1 | The affected creator path in `AGENTS.md` completes on the exact surface named by the PR | `tests/e2e/creator-loop.spec.ts` plus the narrower relevant Playwright spec; use a recorded rehearsal when live-provider behavior is part of the claim | Playwright run/trace or video path + final screenshot |
+| D2 | The final canvas state satisfies the issue's falsifiable acceptance criteria (expected artifact, format variants, and context are present) | Visual assertion and, when persistence changed, a Convex snapshot/query check | screenshot path and optional `convex-snapshot:<id>` |
 | D3 | No unexpected prompts, modals, or system dialogs appear during the arc | Manual rehearsal observation, or Playwright `expect(page).not.toHaveDialog()` once e2e exists | screenshot path |
-| D4 | Cold-start demo completes within 3 minutes wall-clock | Stopwatched manual rehearsal; or timing assertion in e2e | rehearsal log entry or `demo.duration_ms=<n>` |
-| D5 | Every fan-out variant (4:5, 9:16, 16:9) renders without manual re-prompt | Visual snapshot per format (manual or e2e) | screenshot paths |
+| D4 | The changed journey completes within the explicit budget in its QA Plan | Timed Playwright assertion or recorded rehearsal | structured duration log or trace |
+| D5 | Every output target named in the issue is produced without an unplanned manual re-prompt | Visual assertion per target (manual or e2e) | screenshot paths |
 | D6 | Any changed key route or multi-step creator interaction is visible in a recording or Playwright trace, not inferred from static screenshots | inspect attached media for route name, timestamp range, and final canvas state | video path + timestamp range, or Playwright trace URL |
 
 ---
@@ -60,7 +60,7 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 **Auto-fire**: when any file in `lib/agent/**`, `lib/capability/**`, or `convex/**` changes; or when a new tool/skill is added under `lib/agent/skills/**`.
 **Author obligation**: any new mutation MUST emit a `capabilityRun` row through the existing capability factory path (`lib/capability/`). Mutations that bypass it are blocked.
 
-> **v1 status — read this before applying P1–P5**: CLAUDE.md describes a typed `ToolRef` / `SkillRef` / `WorkflowRef` abstraction with `beforeSnapshotRef` / `afterSnapshotRef` fields. That abstraction is **aspirational** — the implementation today calls these `capabilityRun` rows and the snapshot-diff fields aren't typed. Assertions below reference the real paths (`lib/capability/factory.ts`, `lib/agent/skills/`). When the typed `ToolRef` form lands (tracked in tech-debt), this persona will be updated to require the typed shape.
+> **Current implementation note:** `CLAUDE.md` requires typed provenance. The implementation uses `CapabilityEntryRef`/`entryRef` with `capabilityRun` records; some flows also carry before/after snapshot references. Assertions below target the real paths (`lib/capability/factory.ts`, `lib/capability/entry.ts`, and `lib/agent/skills/`) rather than an aspirational type name.
 
 | ID | Assertion | Verification | Proof format |
 |----|-----------|--------------|--------------|
@@ -122,13 +122,13 @@ Personas exist for the reviewer agent, not for humans. They map to **risk surfac
 | `components/**`, `app/**` (non-API) | + `ux-restraint` |
 | `lib/providers/**`, `convex/**`, `app/api/**`, `.env*`, new LLM/image/video adapter | + `security-cost` |
 
-Multiple personas can fire on the same PR. Each emits its own structured verdict; the `route-verdict` step merges them with this priority:
+Multiple personas can apply to the same PR. Merge their verdicts with this priority:
 
 ```
 BLOCK > REQUEST_CHANGES > APPROVE
 ```
 
-If any persona returns `BLOCK`, the merged verdict is `BLOCK` and the human-review packet is forwarded to Discord with all flagged assertions.
+If any persona returns `BLOCK`, the merged verdict is `BLOCK`. When an automation consumes this output, it may forward the human-review packet to Discord; that delivery is not guaranteed while reviewer automation is disabled.
 
 ## Output contract per persona
 
