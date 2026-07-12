@@ -207,11 +207,11 @@ export function LiveApiCallBlock({ block, deck }: { block: DeckBlock; deck: Deck
             <button type="button" onClick={() => void run()} disabled={status === 'running'} className="ml-auto h-12 bg-[#D946EF] px-8 font-bold text-white disabled:opacity-50">{status === 'running' ? 'running…' : 'run'}</button>
           </div>
       </div>
-      <div className="col-span-5 row-span-4 min-h-0 overflow-auto bg-[#FFFAF2] p-7 text-[#171717]">
+      <div data-testid="deck-api-response" className="col-span-5 row-span-4 min-h-0 overflow-hidden bg-[#FFFAF2] p-7 text-[#171717]">
           <p className="font-mono text-[15px] uppercase tracking-[0.12em]">Response</p>
           <p className="mt-4 text-[25px] leading-tight">{error ?? result?.responseSummary ?? 'Ready to run. Checked-in public evidence remains available offline.'}</p>
           {result ? <MetricsInline result={result} /> : null}
-          <details className="mt-6 border-t-2 border-black/20 pt-5 font-mono text-[14px]"><summary className="cursor-pointer uppercase tracking-[0.08em]">raw JSON</summary><pre className="mt-3 whitespace-pre-wrap">{JSON.stringify(result?.response ?? block.mockResponse ?? endpoint.staticFallback, null, 2)}</pre></details>
+          <details className="mt-6 border-t-2 border-black/20 pt-5 font-mono text-[14px]"><summary className="cursor-pointer uppercase tracking-[0.08em]">raw JSON</summary><pre className="mt-3 max-h-[180px] overflow-hidden whitespace-pre-wrap">{JSON.stringify(result?.response ?? block.mockResponse ?? endpoint.staticFallback, null, 2)}</pre></details>
           <div className="mt-5 flex gap-5 font-mono text-[14px] uppercase tracking-[0.08em] text-[#F0ABFC]"><button type="button" onClick={() => copy('curl')} className="border-b-2 border-[#D946EF]">copy curl</button><button type="button" onClick={() => copy('fetch')} className="border-b-2 border-[#D946EF]">copy fetch</button></div>
       </div>
     </section>
@@ -240,7 +240,7 @@ function MetricsInline({ result }: { result: DeckRequestResult }) {
 
 export function CodeReferenceBlock({ block, deck }: { block: DeckBlock; deck: DeckArtifact }) {
   const references = deck.codeReferences.filter((reference) => block.codeReferenceIds?.includes(reference.id));
-  return <section className="grid h-full min-h-0 grid-cols-2 gap-3 overflow-auto [&>*:only-child]:col-span-2">{references.map((reference, index) => <div key={reference.id} className={`relative overflow-hidden p-8 ${index % 2 === 0 ? 'bg-[#101014] text-white' : 'bg-[#F7F4EF] text-[#171717]'}`}><p className={`break-all font-mono text-[15px] uppercase tracking-[0.08em] ${index % 2 === 0 ? 'text-[#F0ABFC]' : 'text-[#A21CAF]'}`}>{reference.filePath}</p><h3 className="mt-7 max-w-[620px] text-[38px] font-bold uppercase leading-[0.95]">{reference.label}</h3><p className="mt-5 max-w-[620px] text-[21px] leading-snug opacity-70">{reference.whyItMatters}</p><span aria-hidden="true" className={`absolute bottom-3 right-7 text-[156px] font-bold leading-none tracking-[-0.06em] ${index % 2 === 0 ? 'text-[#D946EF]' : 'text-[#A855F7]'}`}>{String(index + 1).padStart(2, '0')}</span></div>)}</section>;
+  return <section data-testid="deck-code-references" className="grid h-full min-h-0 grid-cols-2 gap-3 overflow-hidden [&>*:only-child]:col-span-2">{references.map((reference, index) => <div key={reference.id} className={`relative overflow-hidden p-8 ${index % 2 === 0 ? 'bg-[#101014] text-white' : 'bg-[#F7F4EF] text-[#171717]'}`}><p className={`break-all font-mono text-[15px] uppercase tracking-[0.08em] ${index % 2 === 0 ? 'text-[#F0ABFC]' : 'text-[#A21CAF]'}`}>{reference.filePath}</p><h3 className="mt-7 max-w-[620px] text-[38px] font-bold uppercase leading-[0.95]">{reference.label}</h3><p className="mt-5 max-w-[620px] text-[21px] leading-snug opacity-70">{reference.whyItMatters}</p><span aria-hidden="true" className={`absolute bottom-3 right-7 text-[156px] font-bold leading-none tracking-[-0.06em] ${index % 2 === 0 ? 'text-[#D946EF]' : 'text-[#A855F7]'}`}>{String(index + 1).padStart(2, '0')}</span></div>)}</section>;
 }
 
 export function MetricsStripBlock({ block }: { block: DeckBlock }) {

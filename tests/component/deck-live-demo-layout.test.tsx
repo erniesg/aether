@@ -63,4 +63,18 @@ describe('deck live-demo composition', () => {
     expect(screen.getByRole('button', { name: 'Product' })).toHaveClass('bg-[#D946EF]');
     expect(screen.getByTestId('deck-navigation')).toHaveClass('py-1');
   });
+
+  it('keeps API and code proof inside the fixed stage without nested scrolling', async () => {
+    window.history.replaceState({}, '', '/workspace/demo-ws?view=deck&slide=product-search');
+    const { container } = render(<DeckLens />);
+    const activeSlide = container.querySelector('[data-slide-id="product-search"]') as HTMLElement;
+
+    await userEvent.click(screen.getByRole('button', { name: 'API' }));
+    expect(within(activeSlide).getByTestId('deck-api-response')).toHaveClass('overflow-hidden');
+    expect(within(activeSlide).getByTestId('deck-api-response')).not.toHaveClass('overflow-auto');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Code' }));
+    expect(within(activeSlide).getByTestId('deck-code-references')).toHaveClass('overflow-hidden');
+    expect(within(activeSlide).getByTestId('deck-code-references')).not.toHaveClass('overflow-auto');
+  });
 });
