@@ -43,6 +43,9 @@ infra/postiz/.env.postiz
 # cloudflare
 .cloudflare
 
+# generated run artifacts (curated fixtures belong outside this directory)
+outputs/
+
 # misc
 .DS_Store
 *.pem
