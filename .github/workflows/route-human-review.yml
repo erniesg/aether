@@ -48,7 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HUMAN_REVIEW_TARGET_TYPE: ${{ github.event.inputs.target_type || '' }}
           HUMAN_REVIEW_TARGET_NUMBER: ${{ github.event.inputs.target_number || '' }}
-          CAPABILITY_LABEL: capability authoring
-          HUMAN_REVIEW_ACTION: review the capability authoring result and decide whether to merge
+          HUMAN_REVIEW_CONTEXT: maintainer decision
+          HUMAN_REVIEW_ACTION: review the linked item and record the next decision
           HUMAN_REVIEW_REASON: ${{ github.event.inputs.reason || 'aether item was explicitly labeled route-human' }}
         run: node .github/scripts/notify-discord-human-review.mjs

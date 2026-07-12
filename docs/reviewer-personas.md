@@ -105,7 +105,7 @@ Personas are for any human or Codex reviewer. They map to **risk surfaces**, not
 |----|-----------|--------------|--------------|
 | S1 | No secret-looking strings in diff (GitGuardian + internal regex) | grep `(?i)(api[_-]?key\|secret\|token\|password)\s*=\s*['\"][^'\"]{16,}` | grep output |
 | S2 | New `app/api/**` endpoints are auth-gated | grep `requireAuth\|getSession\|verifyToken` in handler | handler file:line |
-| S3 | New LLM / image / video calls go through `ImageGenProvider`, `VideoGenProvider`, `getAgentClient()` — not direct SDK | grep direct SDK imports (`from '@anthropic-ai/sdk'`, `from 'openai'`, `from '@google/generative-ai'`) in diff | grep output |
+| S3 | New image and video-understanding calls use the current `ImageGenProvider` / `VideoUnderstandingProvider` contracts; new agent calls follow an existing `lib/agent/` client seam instead of instantiating SDKs in UI or route code | inspect direct SDK imports (`@anthropic-ai/sdk`, `openai`, `@google/genai`) in the diff and require an owned, tested seam | file:line plus contract test |
 | S4 | Autopilot agent invocations use OAuth/subscription token paths, not pay-per-token API keys | grep `OPENAI_API_KEY\|ANTHROPIC_API_KEY\|GOOGLE_GEMINI_API_KEY` in autopilot code | grep output + path |
 | S5 | Any retry loop has explicit `maxAttempts` and `timeoutMs` | grep `while\|for\|setInterval` in retry-shaped code | file:line |
 | S6 | Default model / provider choice lives in env or config, never inline | grep diff for hardcoded model strings (`gpt-4`, `claude-`, `gemini-`, `seedream-`, etc.) | grep output |

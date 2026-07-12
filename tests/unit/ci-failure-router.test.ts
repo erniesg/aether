@@ -199,8 +199,12 @@ describe('CI failure router contract', () => {
     expect(routeHumanWorkflow).toContain('target_type:');
     expect(routeHumanWorkflow).toContain('target_number:');
     expect(routeHumanWorkflow).toContain('HUMAN_REVIEW_TARGET_TYPE');
+    expect(routeHumanWorkflow).toContain('HUMAN_REVIEW_CONTEXT: maintainer decision');
+    expect(routeHumanWorkflow).not.toContain('CAPABILITY_LABEL: capability authoring');
     expect(routeHumanWorkflow).toContain('GH_TOKEN: ${{ github.token }}');
     expect(notifyDiscordSource).toContain('function loadManualTarget');
+    expect(notifyDiscordSource).toContain('process.env.HUMAN_REVIEW_CONTEXT');
+    expect(notifyDiscordSource).toContain('review the linked item and record the next decision');
     expect(notifyDiscordSource).toContain("gh(['pr', 'view'");
     expect(notifyDiscordSource).toContain("gh(['issue', 'view'");
   });
