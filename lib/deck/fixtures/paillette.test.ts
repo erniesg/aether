@@ -10,6 +10,7 @@ describe('Paillette share deck fixture', () => {
         'solution',
         'architecture',
         'product-search',
+        'product-search-editorial',
         'text-search-api',
         'image-search-api',
         'api-access',
@@ -23,6 +24,13 @@ describe('Paillette share deck fixture', () => {
       ])
     );
     expect(PAILLETTE_SHARE_DECK.drawerTabs).toEqual(['Product', 'API', 'Code']);
+    expect(PAILLETTE_SHARE_DECK.slides.find((slide) => slide.id === 'product-search-editorial')).toEqual(
+      expect.objectContaining({
+        layout: 'live-demo',
+        visualVariant: 'editorial-evidence',
+        presenterLabel: 'Variant · editorial evidence',
+      })
+    );
     expect(PAILLETTE_SHARE_DECK.slides.find((slide) => slide.id === 'image-search-api')).toEqual(
       expect.objectContaining({
         layout: 'live-demo',

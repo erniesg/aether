@@ -10,6 +10,8 @@ export type DeckSlideLayout =
   | 'metric-strip'
   | 'closing';
 
+export type DeckSlideVisualVariant = 'neo-grid-bold' | 'editorial-evidence';
+
 export interface DeckStyleTokens {
   background: string;
   foreground: string;
@@ -64,6 +66,7 @@ export interface DeckSlide {
   id: string;
   title: string;
   layout: DeckSlideLayout;
+  visualVariant?: DeckSlideVisualVariant;
   section: 'intro' | 'live-demo' | 'deep-dive' | 'closing';
   blocks: DeckBlock[];
   fragments?: DeckFragment[];

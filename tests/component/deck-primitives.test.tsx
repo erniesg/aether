@@ -37,8 +37,8 @@ describe('deck primitives', () => {
     expect(container.querySelector('[data-slide-id="product-search"]')).toHaveAttribute('data-active', 'true');
     fireEvent.touchStart(screen.getByTestId('deck-viewport'), { touches: [{ clientX: 200 }] });
     fireEvent.touchEnd(screen.getByTestId('deck-viewport'), { changedTouches: [{ clientX: 80 }] });
-    expect(container.querySelector('[data-slide-id="text-search-api"]')).toHaveAttribute('data-active', 'true');
-    expect(window.location.search).toContain('slide=text-search-api');
+    expect(container.querySelector('[data-slide-id="product-search-editorial"]')).toHaveAttribute('data-active', 'true');
+    expect(window.location.search).toContain('slide=product-search-editorial');
   });
 
   it('makes inactive slides noninteractive without display toggling', () => {

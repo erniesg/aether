@@ -77,4 +77,26 @@ describe('deck live-demo composition', () => {
     expect(within(activeSlide).getByTestId('deck-code-references')).toHaveClass('overflow-hidden');
     expect(within(activeSlide).getByTestId('deck-code-references')).not.toHaveClass('overflow-auto');
   });
+
+  it('renders the frontend-slides editorial evidence variant as a distinct fixed-stage composition', () => {
+    window.history.replaceState({}, '', '/workspace/demo-ws?view=deck&slide=product-search-editorial');
+    const { container } = render(<DeckLens />);
+    const activeSlide = container.querySelector('[data-slide-id="product-search-editorial"]') as HTMLElement;
+
+    expect(activeSlide).toHaveAttribute('data-style', 'editorial-evidence');
+    expect(within(activeSlide).getByTestId('editorial-evidence-frame')).toHaveClass(
+      'inset-[40px]',
+      'grid-cols-12',
+      'grid-rows-8'
+    );
+    expect(within(activeSlide).getByTestId('editorial-evidence-title')).toHaveClass(
+      'text-[76px]',
+      'uppercase'
+    );
+    expect(within(activeSlide).getByRole('img', { name: /zhong zheng ren/i })).toHaveClass(
+      'bg-contain',
+      'bg-center',
+      'bg-no-repeat'
+    );
+  });
 });

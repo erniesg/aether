@@ -115,7 +115,42 @@ const slides: DeckSlide[] = [
       ],
       hotspots: [
         { id: 'focus-api', label: 'API', targetSlideId: 'product-search', targetBlockId: 'api-product-search' },
+        { id: 'compare-editorial', label: 'Editorial variant', targetSlideId: 'product-search-editorial' },
         { id: 'next-text-api', label: 'Text API', targetSlideId: 'text-search-api' },
+      ],
+    }
+  ),
+  slide(
+    'product-search-editorial',
+    'One artwork, three layers of proof',
+    'live-demo',
+    'live-demo',
+    [
+      {
+        id: 'product-frame-search-editorial',
+        kind: 'product-frame',
+        title: 'Paillette · NGS search',
+        productUrl: PAILLETTE_PRODUCT_URL,
+        artwork: CHUNG_CHENG_ARTWORK,
+      },
+      {
+        id: 'api-product-search-editorial',
+        kind: 'api-call',
+        title: 'Public text search',
+        endpointId: 'product-search',
+        authMode: 'public',
+        requestBody: { query: CHUNG_CHENG_QUERY, topK: 10, minScore: 0.2 },
+        mockResponse: { success: true, data: { results: [CHUNG_CHENG_RESULT], count: 1 } },
+      },
+      { id: 'code-product-search-editorial', kind: 'code-reference', title: 'Code', codeReferenceIds: ['search-route', 'hybrid-ranker'] },
+    ],
+    'Use this alternate composition when the audience needs a quieter, editorial comparison of the same three proof layers.',
+    {
+      visualVariant: 'editorial-evidence',
+      presenterLabel: 'Variant · editorial evidence',
+      fragments: [
+        { id: 'editorial-show-api', order: 1, targetBlockId: 'api-product-search-editorial' },
+        { id: 'editorial-show-code', order: 2, targetBlockId: 'code-product-search-editorial' },
       ],
     }
   ),
@@ -281,6 +316,7 @@ export const PAILLETTE_SHARE_DECK: DeckArtifact = {
         { kind: 'repo', ref: PAILLETTE_REPOSITORY_URL },
         { kind: 'site', ref: PAILLETTE_PRODUCT_URL },
         { kind: 'reference', ref: 'frontend-slides:neo-grid-bold' },
+        { kind: 'reference', ref: 'frontend-slides:editorial-evidence' },
         { kind: 'reference', ref: 'hyperframes:/slideshow' },
       ],
       inputs: ['public repo facts', 'public product surface', 'checked-in response evidence'],

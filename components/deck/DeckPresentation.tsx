@@ -214,7 +214,7 @@ function DeckSlideFrame({
       data-active={active}
       data-slide-id={slide.id}
       data-layout={slide.layout}
-      data-style="neo-grid-bold"
+      data-style={slide.visualVariant ?? 'neo-grid-bold'}
       className="absolute inset-0 overflow-hidden"
       style={style}
     >
@@ -249,6 +249,7 @@ function SlideShell({
   if (slide.layout === 'section') return <SectionSlideShell {...shellProps}>{content}</SectionSlideShell>;
   if (slide.layout === 'split-proof') return <SplitProofSlideShell {...shellProps}>{content}</SplitProofSlideShell>;
   if (slide.layout === 'diagram') return <DiagramSlideShell {...shellProps}>{content}</DiagramSlideShell>;
+  if (slide.layout === 'live-demo' && slide.visualVariant === 'editorial-evidence') return <EditorialEvidenceSlideShell {...shellProps} nav={liveDemoNav}>{content}</EditorialEvidenceSlideShell>;
   if (slide.layout === 'live-demo') return <LiveDemoSlideShell {...shellProps} nav={liveDemoNav}>{content}</LiveDemoSlideShell>;
   if (slide.layout === 'code-reference') return <CodeReferenceSlideShell {...shellProps}>{content}</CodeReferenceSlideShell>;
   if (slide.layout === 'metric-strip') return <MetricStripSlideShell {...shellProps}>{content}</MetricStripSlideShell>;
@@ -328,6 +329,34 @@ export function LiveDemoSlideShell({ title, children, nav, pageNumber, totalPage
       </div>
       <div className="col-span-12 row-span-6 min-h-0">{children}</div>
       <PageNumber pageNumber={pageNumber} totalPages={totalPages} />
+    </div>
+  );
+}
+export function EditorialEvidenceSlideShell({ title, children, nav, pageNumber, totalPages }: SlideShellProps & { nav: ReactNode }) {
+  return (
+    <div data-testid="editorial-evidence-frame" className="absolute inset-[40px] grid grid-cols-12 grid-rows-8 gap-3">
+      <header className="col-span-4 row-span-7 flex min-h-0 flex-col justify-between bg-[#FFFAF2] p-10 text-[#171717]">
+        <div>
+          <div className="flex items-center justify-between font-mono text-[15px] uppercase tracking-[0.12em] text-[#A21CAF]">
+            <span>Paillette / evidence study</span>
+            <span>{String(pageNumber).padStart(2, '0')} / {String(totalPages).padStart(2, '0')}</span>
+          </div>
+          <h2 data-testid="editorial-evidence-title" className="mt-16 text-[76px] font-bold uppercase leading-[0.88] tracking-[-0.04em]">{title}</h2>
+        </div>
+        <div className="border-t-2 border-black/20 pt-7">
+          <p className="max-w-[470px] text-[26px] leading-tight text-black/65">One public artwork, read through the product, request, and source code.</p>
+          <div className="mt-8 flex items-center gap-4 font-mono text-[14px] uppercase tracking-[0.1em]">
+            <span className="h-3 w-3 bg-[#D946EF]" />
+            <span>Product · API · Code</span>
+          </div>
+        </div>
+      </header>
+      <div className="col-span-8 row-span-1 flex items-center justify-between bg-[#151519] px-8 font-mono text-[15px] uppercase tracking-[0.1em] text-white">
+        <span>Verified public collection record</span>
+        <span>National Gallery Singapore / Roots</span>
+      </div>
+      <div className="col-span-8 row-span-7 min-h-0 overflow-hidden">{children}</div>
+      <div className="col-span-4 row-span-1 min-h-0">{nav}</div>
     </div>
   );
 }
