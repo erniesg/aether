@@ -1,6 +1,13 @@
 # AGENT-BRIEFING.md
 
-**Read this before starting any `claude-run` issue.** It is the contract every autonomous agent operates under. Supplements `CLAUDE.md` (technical constraints) and `AGENTS.md` (product identity); does not replace them.
+> **Historical reference.** This briefing documents the retired Claude author
+> and reviewer loop. Both workflows are disabled. Do not use its routing,
+> worktree, co-author, or queue instructions for new work. Follow
+> [`docs/agent-routing.md`](./agent-routing.md), [`AGENTS.md`](../AGENTS.md), and
+> [`CLAUDE.md`](../CLAUDE.md) instead.
+
+This file is retained only to explain historical `claude-run` issues and
+comments. It is not an active agent contract.
 
 Last updated: 2026-05-07. Changes require a PR + Ernie ack.
 
