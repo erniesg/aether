@@ -1,35 +1,24 @@
 name: codex
 
-# Local Codex intake — sister workflow to claude.yml.
+# Local Codex intake for explicitly routed work.
 #
-# Routing convention (the dual-agent arbiter):
-#   - Issue labeled `claude-run` → claude.yml fires, branches at `claude/issue-<n>-*`.
-#   - Issue labeled `codex-run`  → THIS workflow watches for local Codex work,
-#     branches at `codex/issue-<n>-*`, and opens/refreshes PRs.
-#   - Both labels on the same issue: explicit user choice; both can run in
-#     parallel. The first to ship a PR wins; the other's branch is left for
-#     human review.
-#   - Default routing rule (when neither label is set by the user):
-#       The harness adds `claude-run` for primary work and `codex-run` only for
-#       local Codex pickup, cross-review, or specific skills.
+# An issue labeled `codex-run` may be implemented locally on a
+# `codex/issue-<n>-*` branch. This workflow handles branch intake and CI; it
+# never runs Codex remotely. Rucksack-owned `codex/issue-*-rucksack` branches
+# are intentionally excluded and stay under the Rucksack queue.
 #
 # Cost discipline:
 #   - This workflow does NOT invoke Codex remotely and does NOT use an OpenAI
 #     API key. Codex work happens locally, then a human/local agent pushes a
 #     `codex/issue-<n>-*` branch.
 #   - The repo-owned `.github/actions/local-codex-intake` action only handles
-#     branch intake: refresh, PR creation fallback, and explicit CI/reviewer
-#     dispatch for pushed Codex branches.
+#     branch intake: refresh, PR creation fallback, and explicit CI dispatch
+#     for pushed Codex branches.
 #   - The intake harness is always checked out from the default branch. Codex
 #     branches never get to supply the workflow/action code that has write
 #     permissions.
 #   - Public GitHub writes are quiet during Singapore working hours by default:
 #     set `AETHER_PUBLIC_WRITE_POLICY=always` only when public timestamps are OK.
-#
-# Cross-review pairing:
-#   - claude-review.yml's branch regex matches both `claude/issue-*` AND
-#     `codex/issue-*`, so a Codex-authored PR is reviewed by Claude and vice
-#     versa. Mutual second-opinion without re-implementing the reviewer.
 
 on:
   issues:
@@ -43,13 +32,9 @@ on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: Optional issue number to drain; omit to scan all queued codex/issue-* branches.
+        description: Optional non-Rucksack issue number to drain; omit to scan local Codex branches.
         required: false
         type: string
-  schedule:
-    # Runs from the default branch after Singapore working hours.
-    - cron: '5,20,35,50 10-15 * * 1-5'
-    - cron: '5,35 * * * 0,6'
 
 jobs:
   codex:
@@ -64,7 +49,6 @@ jobs:
         contains(github.event.comment.body, '@codex')) ||
       (github.event_name == 'pull_request' &&
         startsWith(github.event.pull_request.head.ref, 'codex/issue-')) ||
-      github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' &&
         github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
@@ -145,10 +129,9 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           AETHER_PUBLIC_WRITE_POLICY: ${{ env.AETHER_PUBLIC_WRITE_POLICY }}
 
-      # GitHub does NOT trigger workflows when GITHUB_TOKEN-authored events
-      # create PRs (anti-recursion guard). Mirror of the claude.yml dispatch
-      # step so codex PRs get the same first-PR signal.
-      - name: Dispatch CI + reviewer for fresh codex PRs
+      # GitHub does not trigger workflows when GITHUB_TOKEN-authored events
+      # create PRs, so explicitly dispatch CI for a newly created PR.
+      - name: Dispatch CI for fresh Codex PRs
         if: |
           always() &&
           github.event_name == 'issues' &&
@@ -165,7 +148,7 @@ jobs:
       - name: Drain queued local Codex branches
         if: |
           always() &&
-          (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          github.event_name == 'workflow_dispatch'
         uses: ./.github/actions/local-codex-intake
         with:
           mode: drain
