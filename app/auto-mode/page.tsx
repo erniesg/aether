@@ -2,9 +2,9 @@
  * Trigger UI for Auto Mode laps — `/auto-mode`.
  *
  * Minimal form that POSTs to /api/auto-mode/run, then redirects to
- * /inspect/<campaignId> once the response lands. Built for the hackathon
- * demo: paste a URL or product description, watch the lap run, click into
- * the trace.
+ * /inspect/<campaignId> once the response lands. This is a supporting
+ * automation/diagnostic surface: paste a URL or product description, let the
+ * lap run, then inspect its artifacts and provenance.
  *
  * The lap takes 6-8 minutes (per-format renders + vision-describe + atlas
  * compose), so the form shows a streaming status line while the request
