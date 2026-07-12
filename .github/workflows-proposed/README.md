@@ -1,4 +1,4 @@
-# workflows-proposed
+# Workflow proposals
 
 Workflow files landed here by autonomous agents. The GitHub App that authors
 agent PRs cannot modify `.github/workflows/*`, so new workflows are proposed
@@ -12,12 +12,14 @@ git commit -m "chore(ci): promote <name> workflow"
 git push
 ```
 
-Every file in this directory is expected to end up in `.github/workflows/`
-verbatim — the two are kept structurally identical so a diff review before
-promotion is a one-liner.
+Proposals are temporary. After promotion, remove the proposed copy and update
+this index so it cannot be mistaken for a second active workflow.
 
 ## Current proposals
 
-- `claude-review.yml` — fresh-context reviewer agent for `claude/issue-*` PRs
-  (issue #55). Requires `.github/scripts/route-review-verdict.mjs` (already
-  landed alongside the proposal).
+None.
+
+The previous `claude-review.yml` proposal was promoted to
+`.github/workflows/claude-review.yml` and is currently disabled. See
+[`docs/agent-routing.md`](../../docs/agent-routing.md) for the active routing
+policy before proposing or enabling agent automation.

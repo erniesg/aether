@@ -1,5 +1,10 @@
 # Reviewer personas
 
+> **Review policy, not an active bot guarantee.** The persona checklists remain
+> the evidence bar for human or Codex review. The legacy Claude reviewer
+> workflow is disabled; see [`agent-routing.md`](./agent-routing.md) for the
+> live ownership and dispatch paths.
+
 Five risk-surface personas. Each fires by touched-paths routing (see the auto-routing table at the bottom). Each persona emits structured verdicts with PASS / FAIL / UNVERIFIABLE per falsifiable assertion, every assertion backed by locatable proof.
 
 Personas exist for the reviewer agent, not for humans. They map to **risk surfaces**, not to job titles or process roles. Adding a sixth persona requires identifying a concrete failure mode the existing five cannot catch.
@@ -143,7 +148,8 @@ If any persona returns `BLOCK`, the merged verdict is `BLOCK` and the human-revi
 }
 ```
 
-When `verdict` is `BLOCK`, `humanReview` follows the schema in `.github/workflows/claude-review.yml`:
+When `verdict` is `BLOCK`, `humanReview` follows the schema consumed by
+`.github/scripts/route-review-verdict.mjs`:
 
 ```json
 {

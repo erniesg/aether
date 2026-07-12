@@ -2,6 +2,10 @@
 
 How to write a falsifiable QA plan that the reviewer agent can enforce.
 
+> **Current status:** this remains the review/evidence contract, but the legacy
+> Claude reviewer workflow is disabled. Apply it during human or Codex review;
+> see [`agent-routing.md`](./agent-routing.md) for live routing.
+
 This rubric is the **single source of truth** for what "good enough to merge" means in this repo. The reviewer agent reads this file at the start of each run; the personas in `docs/reviewer-personas.md` use it to structure their verdicts. If you want a different bar applied to your PR, change this file in the same PR — don't argue with the reviewer.
 
 ## Where the QA plan lives
@@ -73,7 +77,7 @@ These are the same rules the personas enforce. They are repeated here because au
 
 ## What "critical journey" means
 
-A critical journey is a sequence of user actions that, if broken, makes the product unusable for the use case the PR claims to address. For aether the load-bearing journey is the demo arc described in `docs/DEMO.md`. For tickets that touch peripheral surfaces (admin tools, observability, etc.) the journey is the surface-specific golden path.
+A critical journey is a sequence of user actions that, if broken, makes the product unusable for the use case the PR claims to address. For aether the load-bearing journey is the creator loop in `AGENTS.md`, with browser coverage rooted at `tests/e2e/creator-loop.spec.ts`. Supporting diagnostic or automation surfaces use their own golden path without replacing the canvas-first product journey.
 
 If a PR adds a feature with no critical journey impact (pure refactor, doc fix, dependency bump), the QA plan can declare `### Critical journeys: none affected — this is a <kind> change` and the reviewer skips J-assertions for that PR. The reviewer rejects this declaration if the diff touches files in the demo path.
 

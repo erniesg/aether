@@ -1,100 +1,92 @@
-# TESTING.md
+# Testing
 
-Red/green strategy + the acceptance checklist the demo must pass.
+aether uses layered validation: fast static and unit gates while iterating, browser coverage for creator journeys, and human review for visible canvas behavior. Tests prove the surface they exercise; a mocked provider test does not prove a live provider, and a build does not prove a deployed runtime.
 
-## Strategy
+## Standard gates
 
-| Layer | Framework | What it covers |
+| Gate | Command | Covers |
 |---|---|---|
-| Unit | Vitest | pure logic: provenance stamping, capability-definition synthesis, rail taxonomy rules, provider-router routing |
-| Contract | Vitest | each `ImageGenProvider` / `VideoGenProvider` adapter: same request in → same `ImageGenResult` shape out. Mocked HTTP; one live test gated by env var |
-| Component | Vitest + React Testing Library | rail sections, floating toolbar, prompt composer, right-rail action log, canvas shape definitions |
-| Convex | Convex test harness | schema invariants, mutations, query projections |
-| E2E | Playwright | the demo arc — workspace loads, generate → canvas, pin → reuse, multiformat fan-out, export pack |
+| Type safety | `npm run typecheck` | TypeScript across application, tests, scripts, and Convex code |
+| Unit/component/integration | `npm test` | Vitest suites selected by `vitest.config.ts` |
+| Focused Vitest | `npm test -- <path>` | One changed module or behavior while iterating |
+| Next.js build | `npm run build` | Application compilation and route generation |
+| Cloudflare build | `npm run cf-build` | OpenNext Worker packaging used by CI/deployment |
+| Creator journeys | `npm run test:e2e` | Playwright specs under `tests/e2e/` and `tests/artifacts/` |
+| Evidence capture | `npm run test:artifacts` | Deterministic artifact specs using `playwright.artifacts.config.ts` |
 
-## Red/green loop
+CI runs typecheck and Vitest first, then the Cloudflare build. Pull requests and manual dispatches also run Playwright. The live definition is [.github/workflows/ci.yml](../.github/workflows/ci.yml).
 
-1. Write the failing test for the next slice of behavior. Commit with `test:` prefix.
-2. Write the minimal code to turn it green. Commit with `feat:` / `fix:` prefix.
-3. Refactor if needed. Commit with `refactor:` if structural.
-4. Repeat.
+## Test ownership
 
-Keep commits small enough that any one could be reverted without cascading breakage.
+```text
+tests/unit/          pure logic, route contracts, scripts, registries
+tests/component/     React behavior and UI taxonomy
+tests/integration/   boundaries spanning more than one domain
+tests/e2e/           creator journeys in a browser
+tests/artifacts/     reproducible screenshots and review evidence
+lib/**/*.test.*      tests colocated with domain helpers/adapters
+app/**/*.test.*      route-level tests colocated with handlers
+```
 
-## Acceptance checklist (the demo must pass every one of these)
+Provider adapters should prove normalization, routing, availability, and failure behavior without making paid calls by default. Live-provider checks must be explicit, bounded, and gated by environment variables.
 
-### A1 — Workspace loads
+## Change loop
 
-- [ ] `aether.berlayar.ai/workspace/demo-ws` returns 200 under 2s cold, under 500ms warm.
-- [ ] Synthesis shell renders with left rail (8 icons in lifecycle order), floating canvas toolbar, prompt composer (with scope + input-set chips), right rail (focus + versions + observations + sync).
-- [ ] No `input`/`output`/`tool`/`nav`/`metadata` category is mixed inside a single panel.
-- [ ] Rail sections default to icon + summary chip; expand on click.
+1. State the observable acceptance criterion.
+2. Add or identify the narrow test that fails for the missing behavior.
+3. Implement the smallest change that makes it pass.
+4. Run the focused test and typecheck.
+5. Run the broader gate appropriate to the touched surface.
+6. For visible or interaction-heavy changes, inspect the real workspace and capture evidence.
 
-### A2 — Input composition
+Commit coherent red/green slices when they help review. Never leave the branch head intentionally failing.
 
-- [ ] Pinning a reference in the Refs section marks it visible in the Input-set chip in the composer.
-- [ ] Brand swatches in the Brand section drive a live brand preview in the Input-set chip when expanded.
+## Gate by change type
 
-### A3 — Generate → canvas
+| Change | Minimum proof before merge |
+|---|---|
+| Docs or workflow metadata | link/path checks, `git diff --check`, and the affected script test when applicable |
+| Pure library logic | focused Vitest plus typecheck |
+| Provider adapter | contract tests, typecheck, and a bounded live check when the claim requires it |
+| Convex schema/mutation | focused persistence tests, typecheck, and migration/compatibility reasoning |
+| API route | route contract tests plus representative request/response evidence |
+| Component | component test, typecheck, and visual inspection |
+| Canvas interaction | component/unit coverage plus the relevant Playwright journey and human inspection |
+| Deployment/runtime | Cloudflare build plus a real staging smoke against the deployed revision |
 
-- [ ] Typing a prompt and pressing Enter routes the request to Claude Opus 4.7.
-- [ ] Claude calls the `generate_image` tool; the provider router picks the env-configured adapter.
-- [ ] Result lands as a tldraw-native shape within 15s for the primary provider.
-- [ ] A `capabilityRun` record is persisted with `tool='image-gen'`, `provider=...`, inputs, outputs, before/after snapshot refs.
-- [ ] A provenance card appears in the right rail with the provider, model, latency.
-- [ ] Switching provider via `?provider=<id>` URL override re-routes without code change.
+## Creator-loop expectations
 
-### A4 — Pin as capability (hero)
+Creator-facing changes should preserve the canonical loop from [AGENTS.md](../AGENTS.md):
 
-- [ ] The generation card in the right rail has a visible `pin as skill` affordance.
-- [ ] Clicking pin opens a dialog with Claude's proposed `CapabilityDefinition` (name, natural-language trigger, param schema).
-- [ ] Accepting persists a `capabilityDefinition`; a new chip appears on the floating canvas toolbar.
-- [ ] Clicking the pinned-skill chip with a different layer selected re-runs the same tool-chain against that layer.
-- [ ] The re-run writes a new `capabilityRun` referencing the same `definitionId`.
+- References and constraints feed the canvas rather than a separate dashboard.
+- The composer stays at the bottom and displays its scope.
+- Generated artifacts land on the canvas.
+- Key visuals can fan out to linked formats with global/local semantics.
+- Actions retain provenance.
+- Export stays inside the single synthesis shell or a dedicated lens.
 
-### A5 — Multiformat fan-out
+The broad browser anchor is `tests/e2e/creator-loop.spec.ts`. Use the more specific specs in `tests/e2e/` for generation, capability pinning, export, research, text propagation, publishing, or voice changes.
 
-- [ ] Switching the lens to `multiformat` re-frames the canvas to show 3 linked artboards (IG post, IG story, reel cover).
-- [ ] Editing the hero headline in the composer at global scope propagates to all 3 artboards within 500ms of Convex round-trip.
-- [ ] Toggling `local` scope on the story artboard and nudging the CTA keeps that nudge scoped when the global copy is next edited.
-- [ ] Safe-zone overlays render correctly per platform spec.
+## Playwright usage
 
-### A6 — Export pack
+By default Playwright starts `npm run dev` at `http://localhost:3000`. To test an already-running or deployed surface:
 
-- [ ] Clicking `export pack` opens the sidecar preview.
-- [ ] Preview lists 3 PNGs + `manifest.json`.
-- [ ] Downloaded pack contains the 3 rendered PNGs at the correct dimensions + a manifest with inputs, brand tokens, capability runs (with provenance), and pinned-skill names used.
+```bash
+AETHER_BASE_URL=https://example.invalid npm run test:e2e
+```
 
-### A7 — Cross-provider proof
+Replace the example URL with the exact deployment under test. A local pass is not evidence that staging credentials, bindings, storage, or provider access work.
 
-- [ ] The demo runs successfully with at least two providers selected at different points (e.g. Gemini for the first generate, Seedream via Volcengine for the second). Proves the abstraction is real.
+Artifact capture uses the same `AETHER_BASE_URL` convention:
 
-### A8 — Taxonomy + restraint holding under use
+```bash
+AETHER_BASE_URL=https://example.invalid npm run test:artifacts
+```
 
-- [ ] Throughout the full demo, no new text paragraph has been introduced into any rail panel. Labels stay short; expansion is the primary disclosure mechanism.
-- [ ] No tool verb appears in the left or right rail.
-- [ ] No lens button appears in the shell header; it lives on the canvas.
+Name evidence by issue or behavior and keep only intentional, reviewed artifacts. Do not put browser profiles, auth state, secrets, or bulk generated media in `outputs/` or Git.
 
-### A9 — Deploy pipeline
+## Human validation
 
-- [ ] `npm run deploy:stg` publishes to `aether-stg.berlayar.ai` with zero manual DNS steps.
-- [ ] `npm run deploy:prod` publishes to `aether.berlayar.ai`.
-- [ ] Observability logs are accessible via `wrangler tail --env <stg|prod>`.
+Human validation is required when correctness depends on composition, interaction, timing, readability, or creative judgment. Record the exact route/workspace, viewport, action sequence, and observed result. A screenshot proves a static state; use a Playwright trace or recording for drag/drop, generation progress, fan-out, editing, approval, and export sequences.
 
-### A10 (stretch) — Video on canvas
-
-- [ ] `animate` prompts route to `VideoGenProvider`; the chosen adapter produces a clip.
-- [ ] The clip lands as a canvas-native `MotionAsset` with the same provenance contract as image layers.
-- [ ] Plays inline on the canvas; exports into the same pack.
-
-## Human-gate checklist
-
-Gates are called out in the task tracker and in commit messages. At each gate the user opens the stg URL and verifies the relevant A-section. I do not mark the preceding phase as complete until the user confirms.
-
-| Gate | Phase | Confirms |
-|---|---|---|
-| G-2b | after scaffold | stg URL resolves; Convex connects; Anthropic health-check passes |
-| G-3b | after shell + rails | A1, A2, A8 |
-| G-4b | after generate loop | A3, A7 |
-| G-5b | after pin-as-capability | A4 |
-| G-7 | after polish + prod deploy | A1–A9 on prod |
+Use [qa-rubric.md](./qa-rubric.md) and [reviewer-personas.md](./reviewer-personas.md) to shape falsifiable issue/PR evidence. Automated reviewer workflows are currently dormant; the evidence bar still applies during human or Codex review.
