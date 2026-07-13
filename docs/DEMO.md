@@ -1,5 +1,10 @@
 # DEMO.md — 3-minute arc
 
+> **Historical demo script (2026-04).** Provider/model names, timings, seeded
+> content, and UI positions below describe the hackathon recording target and
+> may no longer match the product. For current behavior, start with
+> [`AGENTS.md`](../AGENTS.md) and `tests/e2e/creator-loop.spec.ts`.
+
 **Target URL:** `aether.berlayar.ai`
 **Duration:** 3:00, with ~20s buffer for live jitter
 **Seed data:** one workspace `demo-ws` preloaded with 3 product references, a brand token set (terra + deep-blue palette, Inter + Fraunces type pair), and a one-line brief ("launch hero for Q2 product drop").

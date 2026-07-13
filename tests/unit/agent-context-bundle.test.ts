@@ -149,6 +149,46 @@ describe('agent context bundle assembly', () => {
     expect(bundle.buildMissingContextComment(result.bundle)).toContain('clarification');
   });
 
+  it('does not invent missing script paths from .github/script references or prior missing-context comments', async () => {
+    const bundle = await loadBundle();
+    const result = bundle.buildContextBundle({
+      mode: 'author',
+      generatedAt: '2026-05-07T00:00:00.000Z',
+      pr: {
+        number: 177,
+        title: 'fix: stop reviewer none self-heal loop',
+        body: 'Touched `.github/scripts/route-review-verdict.mjs`.',
+        comments: [
+          {
+            author: { login: 'github-actions[bot]' },
+            body: [
+              '<!-- aether-agent-context-missing:v1 -->',
+              '### Missing context clarification needed',
+              '- `scripts/route-review-verdict.mjs` (referenced-by-issue-or-comment)',
+            ].join('\n'),
+          },
+        ],
+      },
+      trackedFiles: [
+        'AGENTS.md',
+        'CLAUDE.md',
+        'docs/AGENT-BRIEFING.md',
+        '.github/scripts/route-review-verdict.mjs',
+      ],
+      readFile: (path: string) => `${path} content`,
+      fileExists: (path: string) => path !== 'scripts/route-review-verdict.mjs',
+    });
+
+    expect(result.bundle.selectedDocs.map((doc: { path: string }) => doc.path)).toContain(
+      '.github/scripts/route-review-verdict.mjs'
+    );
+    expect(result.bundle.missingReferences).not.toContainEqual({
+      path: 'scripts/route-review-verdict.mjs',
+      reason: 'referenced-by-issue-or-comment',
+    });
+    expect(bundle.buildMissingContextComment(result.bundle)).toBe('');
+  });
+
   it('keeps bundle output bounded with deterministic truncation metadata', async () => {
     const bundle = await loadBundle();
     const result = bundle.buildContextBundle({

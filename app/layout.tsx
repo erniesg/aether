@@ -5,7 +5,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'aether',
-  description: 'A canvas-native creative system. Built with Claude Opus 4.7.',
+  description: 'A creator-first canvas for key visuals and linked multiformat variants.',
 };
 
 export const viewport: Viewport = {

@@ -1,5 +1,10 @@
 # PRD — aether (hackathon slice)
 
+> **Historical planning record (2026-04-21).** This document captures the
+> original hackathon MVP and is not the current product backlog or behavior
+> contract. Use [`AGENTS.md`](../AGENTS.md) for current product direction and
+> GitHub issues for active work.
+
 **Version:** 0.1 · hackathon MVP
 **Window:** overnight build, demo by morning of 2026-04-22 SGT
 **Context:** _Built with Opus 4.7_ hackathon. Repo: https://github.com/erniesg/aether. All code authored after kickoff 2026-04-21 12:30 PM EDT.

@@ -31,7 +31,7 @@ The toolbar already exposes `cutout`, `unmask`, and `removebg`, but the repo has
 - `cutout` and `unmask` should target a dedicated segmentation provider seam, not `/api/generate`.
 - SAM 3 is the strategic long-term path for open-vocabulary segmentation, but not the first demo dependency.
 
-See [2026-04-23-segmentation-capability.md](/Users/erniesg/code/erniesg/aether-integration/docs/decisions/2026-04-23-segmentation-capability.md).
+See [Segmentation capability decision](../decisions/2026-04-23-segmentation-capability.md).
 
 ## Acceptance completed in this slice
 

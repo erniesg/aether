@@ -26,26 +26,40 @@ describe('route-review-verdict harness contract', () => {
     expect(branch).not.toContain('sendDiscordEmbed');
   });
 
-  it('treats missing reviewer verdicts as automation repair when a source issue exists', () => {
+  it('treats missing reviewer verdicts as reviewer-harness failures, not author repairs', () => {
     const branch = routeScript.match(
       /\/\/ No verdict: this is a harness\/reviewer failure[\s\S]*?\n}/
     )?.[0];
 
     expect(branch).toBeTruthy();
-    expect(branch).toMatch(/redispatchIssue\(\s*issueTarget/);
-    expect(branch).toContain('buildRedispatchHandoff');
-    expect(branch).toContain('missing verdict re-dispatched without Discord notification');
+    expect(branch).toContain('countMissingReviewerAttempts');
+    expect(branch).toContain('buildReviewerHarnessComment');
+    expect(branch).toContain('dispatchReviewer(pr.number)');
+    expect(branch).toContain('blockReviewerHarness');
+    expect(branch).toContain('reviewer-only retry without author re-dispatch');
+    expect(branch).not.toMatch(/redispatchIssue\(\s*issueTarget/);
     expect(branch).toContain('routeUnrecoverableHuman');
   });
 
-  it('posts issue handoff context before refreshing claude-run', () => {
+  it('posts stable issue handoff context before refreshing claude-run for actionable reviews', () => {
     expect(routeScript).toContain('function buildRedispatchHandoff');
+    expect(routeScript).toContain('<!-- aether-reviewer-handoff:${prHeadMarker(pr)} -->');
     expect(routeScript).toContain('### Automated reviewer handoff');
-    expect(routeScript).toContain("gh(['issue', 'comment'");
+    expect(routeScript).toContain('updated stable handoff comment');
     expect(routeScript).toContain('The router is refreshing `claude-run`');
     expect(routeScript).toContain("dispatchWorkflow('claude.yml'");
     expect(routeScript).toContain('dispatchClaude(issueTarget.number)');
     expect(workflow).toContain('actions: write');
+  });
+
+  it('uses a stable reviewer-harness comment and retry budget for missing verdicts', () => {
+    expect(routeScript).toContain('REVIEWER_NONE_RETRY_LIMIT');
+    expect(routeScript).toContain('function dispatchReviewer');
+    expect(routeScript).toContain("dispatchWorkflow('claude-review.yml'");
+    expect(routeScript).toContain('function countMissingReviewerAttempts');
+    expect(routeScript).toContain('<!-- aether-reviewer-harness:${prHeadMarker(pr)} -->');
+    expect(routeScript).toContain('The router is not refreshing `claude-run`');
+    expect(routeScript).toContain("addLabels(prTarget, ['blocked', 'queue-blocked'])");
   });
 
   it('requires a decision packet before sending BLOCK to a human', () => {
@@ -121,6 +135,12 @@ describe('claude-review structured output contract', () => {
     expect(workflow).toContain("claude-code-action requires the workflow to match the default branch");
     expect(workflow).toContain("if: steps.review_workflow_guard.outputs.skip != 'true'");
     expect(workflow).toContain("if: always() && steps.review_workflow_guard.outputs.skip != 'true'");
+  });
+
+  it('routes verdicts with the default-branch router, not stale PR-head code', () => {
+    expect(workflow).toContain('Load default-branch verdict router');
+    expect(workflow).toContain('git fetch origin "${default_branch}" --quiet');
+    expect(workflow).toContain('git show "origin/${default_branch}:.github/scripts/route-review-verdict.mjs" > .github/scripts/route-review-verdict.mjs');
   });
 
   it('grounds the reviewer in the rubric + personas + parent issue QA plan', () => {

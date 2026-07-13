@@ -1,8 +1,8 @@
 /**
  * Capability-definition types. Mirrors the `capabilityDefinition` table in
  * `convex/schema.ts`; we ship an in-memory version first (see
- * `lib/store/runs.ts` for the same pattern) so the hackathon hero flow works
- * before the Convex project is provisioned. Swap-in is one file per store.
+ * `lib/store/runs.ts` for the same pattern) so the creator flow can work when
+ * Convex is unavailable. Swap-in remains one file per store.
  */
 
 import type { CapabilityEntryRef } from './entry';

@@ -8,7 +8,7 @@ The publisher seam ships with three adapters:
 | `postiz` | uploads media + creates scheduled posts via the Postiz public API | when `POSTIZ_API_KEY` and at least one `POSTIZ_INTEGRATION_<PLATFORM>` are present |
 | `social-auto-upload` | schedules CJK/browser-automation publish jobs through the Modal sidecar | when `SOCIAL_AUTO_UPLOAD_URL` and `SOCIAL_AUTO_UPLOAD_TOKEN` are present |
 
-Adapter code ships in PR #84 (`codex/finish-expansion-wave`). This document covers the manual hosting steps needed to make those adapters reach real platforms.
+The adapters live under `lib/providers/publisher/`; this document covers the manual hosting steps needed to make them reach real platforms. Historical PR #84 introduced the initial seam.
 
 **Time estimate: 3–4 hours for a first-time setup. Each platform OAuth app adds ~15 min.**
 
@@ -47,7 +47,7 @@ same integration path will exercise the live service.
 - [ ] GCP project with billing enabled
 - [ ] [Upstash](https://upstash.com/) account (free tier)
 - [ ] Modal account: `modal token new` (authenticates your terminal)
-- [ ] Existing Anthropic + Cloudflare accounts (aether infra already live)
+- [ ] Cloudflare account for the existing aether deployment
 
 ---
 

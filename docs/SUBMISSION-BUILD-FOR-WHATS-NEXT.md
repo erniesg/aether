@@ -1,5 +1,10 @@
 # aether — _Built with Opus 4.7_ submission
 
+> **Historical submission record (2026-04).** Fixed model claims, versions,
+> links, and implementation status below describe the hackathon entry, not the
+> current product or operating contract. Use [`AGENTS.md`](../AGENTS.md), the
+> root README, and live GitHub issues for current state.
+
 **Track:** What's next.
 **Live:** [aether-stg.berlayar.ai/workspace/demo-ws](https://aether-stg.berlayar.ai/workspace/demo-ws)
 **Repo:** [github.com/erniesg/aether](https://github.com/erniesg/aether)

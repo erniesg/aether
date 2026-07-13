@@ -1,36 +1,89 @@
-# SAM3 via Modal
+# SAM3 on Modal
 
-This repo already supports a promptable segmentation provider named `sam3`.
-What is missing is the external service it calls.
+aether includes a working SAM3 Modal service at [`modal/sam3_app.py`](../modal/sam3_app.py) and a provider adapter at [`lib/providers/segmentation/modal.ts`](../lib/providers/segmentation/modal.ts). This runbook covers provisioning, deployment, connection, and verification.
 
-`aether` expects that service to be an HTTP endpoint exposed at `SAM3_MODAL_URL`.
-If you want to run it on Modal, the shortest path is a single `@modal.fastapi_endpoint`
-handler.
+## What is deployed
 
-## Local wiring
+The Modal app:
 
-Add these to `.dev.vars`:
+- builds SAM3 from a pinned upstream commit;
+- runs inference on an L40S GPU;
+- caches model and framework data in the `aether-models` and `aether-cache` volumes;
+- accepts public URLs and data URLs;
+- supports text, box, and foreground/background point prompts;
+- returns a PNG mask as a data URL plus its bounding box;
+- optionally requires a bearer token.
+
+The web endpoint delegates GPU work to `Sam3Runner`. Its function timeout is 15 minutes and warm containers scale down after 15 idle minutes, so the first request after an idle period may include image/model startup latency.
+
+## Prerequisites
+
+1. Install and authenticate the Modal CLI.
+2. Obtain access to the `facebook/sam3` model on Hugging Face when the repository requires it.
+3. Create a long random bearer token for aether-to-Modal calls.
+
+The code expects one Modal secret named `aether-sam3-secrets`:
 
 ```bash
-SAM3_MODAL_URL=https://<workspace>--<label>.modal.run
-SAM3_MODAL_TOKEN=<optional-bearer-token>
+modal secret create aether-sam3-secrets \
+  HF_TOKEN=<hugging-face-token> \
+  SAM3_BEARER_TOKEN=<long-random-token>
+```
+
+`SAM3_BEARER_TOKEN` is strongly recommended for any deployed endpoint. When it is absent, the endpoint accepts unauthenticated requests.
+
+The two Modal volumes use `create_if_missing=True`; no separate volume command is required.
+
+## Verify model access
+
+Before allocating the GPU service, verify that the Modal secret can read the model repository:
+
+```bash
+modal run modal/sam3_app.py::debug_hf_access
+```
+
+The returned JSON should include `"token_present": true` and `"repo_access": "ok"`. Fix Hugging Face access before continuing if either check fails.
+
+## Serve and deploy
+
+Use an ephemeral development endpoint while changing the service:
+
+```bash
+modal serve modal/sam3_app.py
+```
+
+Deploy the persistent endpoint:
+
+```bash
+modal deploy modal/sam3_app.py
+```
+
+Modal prints the endpoint URL. Use that exact URL; do not guess it from the app or function label.
+
+## Connect aether
+
+Add the endpoint and the same bearer value to local `.dev.vars`:
+
+```bash
+SAM3_MODAL_URL=https://<printed-modal-endpoint>
+SAM3_MODAL_TOKEN=<same-value-as-SAM3_BEARER_TOKEN>
 SEGMENTATION_PROVIDER=sam3
 ```
 
-Notes:
+- `SAM3_MODAL_URL` makes the `sam3` provider available.
+- `SAM3_MODAL_TOKEN` becomes `Authorization: Bearer <token>`.
+- `SEGMENTATION_PROVIDER=sam3` selects it when more than one segmentation provider is available.
 
-- `SAM3_MODAL_TOKEN` is optional. If set, `aether` sends it as `Authorization: Bearer ...`.
-- `SEGMENTATION_PROVIDER=sam3` is optional, but useful when both `sam2` and `sam3` are connected.
-- `REPLICATE_API_TOKEN` is already enough for the current `sam2` path.
+For staging/production, store the endpoint and token in the deployment's secret/config system. Never put the real token in `.dev.vars.example`, `wrangler.jsonc`, logs, or committed output.
 
 ## Endpoint contract
 
-`aether` sends `POST` JSON shaped like:
+The adapter sends `POST` JSON in this form:
 
 ```json
 {
   "model": "sam3.1",
-  "image_url": "https://... or data:image/...",
+  "image_url": "https://example.invalid/image.png",
   "mode": "removebg",
   "text_prompt": "person holding the bottle",
   "box": { "x": 40, "y": 60, "w": 320, "h": 400 },
@@ -43,147 +96,58 @@ Notes:
 }
 ```
 
-Rules:
+`mode` is `removebg`, `cutout`, or `unmask`. Text, box, and points are optional, but a useful prompt is required for meaningful grounding when no interactive points are supplied. Point label `1` means foreground and `0` means background.
 
-- `image_url` may be a public URL or a data URL. Your Modal handler should accept both.
-- `mode` is one of `removebg | cutout | unmask`.
-- `label: 1` means foreground, `label: 0` means background.
-- `box` and `points` are optional.
-
-Your endpoint should return JSON shaped like:
+The deployed service currently returns:
 
 ```json
 {
-  "mask_url": "https://.../mask.png",
-  "alpha_cutout_url": "https://.../cutout.png",
+  "mask_url": "data:image/png;base64,...",
+  "alpha_cutout_url": null,
   "bbox": { "x": 10, "y": 20, "w": 300, "h": 420 },
   "width": 1024,
   "height": 1280,
-  "model": "sam3.1"
+  "model": "sam3"
 }
 ```
 
-Notes:
+`mask_url` is required. aether composes the alpha cutout when `alpha_cutout_url` is absent.
 
-- `mask_url` is required.
-- `alpha_cutout_url` is optional. If omitted, `aether` will compose the cutout preview itself.
-- `bbox`, `width`, `height`, and `model` are optional but recommended.
+## Verify through aether
 
-## Minimal Modal shape
-
-Modal's current docs recommend `@modal.fastapi_endpoint` for a simple HTTP handler,
-and `modal serve` / `modal deploy` for development and deployment.
-
-References:
-
-- https://modal.com/docs/reference/modal.fastapi_endpoint
-- https://modal.com/docs/guide/webhooks
-- https://modal.com/docs/guide/secrets
-- https://modal.com/docs/reference/cli/secret
-
-Skeleton:
-
-```python
-import modal
-from pydantic import BaseModel
-
-app = modal.App("aether-sam3")
-
-image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .pip_install("fastapi[standard]", "pydantic")
-)
-
-
-class Point(BaseModel):
-    x: float
-    y: float
-    label: int
-
-
-class Box(BaseModel):
-    x: float
-    y: float
-    w: float
-    h: float
-
-
-class SegmentRequest(BaseModel):
-    model: str = "sam3.1"
-    image_url: str
-    mode: str
-    text_prompt: str | None = None
-    box: Box | None = None
-    points: list[Point] | None = None
-    width: int | None = None
-    height: int | None = None
-
-
-class SegmentResponse(BaseModel):
-    mask_url: str
-    alpha_cutout_url: str | None = None
-    bbox: dict | None = None
-    width: int | None = None
-    height: int | None = None
-    model: str | None = None
-
-
-@app.function(
-    image=image,
-    # gpu="L40S",
-    # secrets=[modal.Secret.from_name("aether-sam3")],
-)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def segment(req: SegmentRequest) -> SegmentResponse:
-    # Replace this block with your actual SAM3 inference path.
-    # The repo does not care how you compute the mask as long as you return
-    # the contract above.
-    raise NotImplementedError("wire your SAM3 inference here")
-```
-
-## Secrets on Modal
-
-If your Modal app needs private model credentials, create a secret and inject it
-into the function:
+Run the focused contract and route tests:
 
 ```bash
-modal secret create aether-sam3 KEY=value
+npm test -- lib/providers/segmentation/modal.contract.test.ts \
+  tests/unit/api-segment.test.ts
 ```
 
-Then attach it in the decorator:
-
-```python
-secrets=[modal.Secret.from_name("aether-sam3")]
-```
-
-## Dev and deploy
-
-Use Modal's dev server while iterating:
+Start aether, then verify provider availability:
 
 ```bash
-modal serve path/to/your_sam3_app.py
-```
-
-Deploy a persistent endpoint:
-
-```bash
-modal deploy path/to/your_sam3_app.py
-```
-
-After deploy, copy the endpoint URL into `.dev.vars` as `SAM3_MODAL_URL`.
-
-## Verify in aether
-
-1. Start `aether` locally.
-2. Hit `GET /api/segment`.
-3. Confirm `sam3` reports `available: true`.
-4. Open `/workspace/demo-ws`.
-5. Select an image.
-6. Open `cutout` or `remove bg`.
-7. Confirm the `sam3` chip is enabled and preview generation succeeds.
-
-If you want a quick API check without opening the UI:
-
-```bash
+npm run dev
 curl http://localhost:3000/api/segment
 ```
+
+The `sam3` provider should report `available: true`. Then open `/workspace/demo-ws`, select an image, run `cutout` or `remove bg`, and verify that:
+
+1. the SAM3 provider is selected;
+2. preview generation returns a non-empty mask;
+3. the cutout aligns with the source image;
+4. point/box refinement changes the result;
+5. the action retains provider/model provenance.
+
+## Operations and troubleshooting
+
+- `401 unauthorized`: `SAM3_MODAL_TOKEN` does not match the Modal secret's `SAM3_BEARER_TOKEN`.
+- Model access error: run `debug_hf_access` and confirm access to `facebook/sam3`.
+- Empty mask: provide a more concrete text prompt or add a box/foreground point.
+- First request is slow: inspect Modal startup/model-loading logs; a cold GPU container is expected after scale-down.
+- `sam3` unavailable in aether: confirm `SAM3_MODAL_URL` is loaded by the running Next.js process, then restart it.
+- `502 segmentation_failed`: inspect the Modal endpoint logs and the response body; the adapter preserves the upstream HTTP status/text.
+
+Relevant Modal documentation:
+
+- [Web endpoints](https://modal.com/docs/guide/webhooks)
+- [Secrets](https://modal.com/docs/guide/secrets)
+- [Volumes](https://modal.com/docs/guide/volumes)

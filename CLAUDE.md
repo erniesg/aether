@@ -1,118 +1,104 @@
 # CLAUDE.md
 
-Agent guardrails for the aether repo.
+Implementation guardrails for agents working in aether. Read [AGENTS.md](./AGENTS.md) first; it is the canonical product identity and behavior contract.
 
-## What this repo is
+## Product boundary
 
-**aether** — a canvas-native creative system. Creators generate and edit assets directly on the canvas; natural-language actions get pinned as reusable capabilities; one hero scene fans out to linked multiformat variants. Built for the _Built with Opus 4.7_ hackathon (kickoff Tue 2026-04-21 12:30 PM EDT). All code in this repo was authored after that kickoff.
+aether is a creator-first canvas. References, research, generation, editing, linked variants, and export all serve one creative loop inside a single synthesis shell. Do not turn supporting automation or provenance into an operator dashboard, run console, wizard, or separate product surface.
 
-For product identity and UI philosophy, read `AGENTS.md` first.
+## Hard rules
 
-## Hard rules — do not break these
+Keep this list in sync with `AGENTS.md`.
 
-1. **Single synthesis-shell workspace.** Never split into per-step wizard routes. The workspace is one route with lens switches.
-2. **Canvas is the substrate.** Other views are camera modes or overlays over the same underlying project, not separate products. References, generations, variants, and provenance all belong on the canvas where they participate in making.
-3. **Strict UI taxonomy — no mixing inside one panel.**
-   - Left rail = `input` (brand, offer, campaign, signals, research, references)
-   - Right rail = `output` + `metadata` (active focus artifact, versions, observations, sync/provenance)
-   - Canvas chrome = `tool` (floating draggable toolbar; one primary palette)
-   - Header = `navigation`
-   - State labels / timestamps / counts = `metadata`
-4. **Prompt composer stays at the bottom** with an explicit scope chip (`global` / `local`) and an active-input-set chip.
-5. **Progressive disclosure.** Default state of any rail section is a single icon + short chip; body expands on click. Density by default = product failure.
-6. **Restraint over labels.** Layout, mono font, and paper texture carry meaning. One-line panel hint maximum. No subtitles, no per-item descriptions. If a panel feels empty, the layout is the problem; do not fill it with paragraphs.
-7. **Provider-agnostic AI.** No default image or video model is hardcoded. The `ImageGenProvider` / `VideoGenProvider` interfaces route requests to any adapter (OpenAI, Gemini, Replicate, Volcengine Ark for Seedream/Seedance, HeyGen, Remotion). The choice of model lives in env/config, never in code paths.
-8. **Typed provenance on every action.** Every mutation that touches canvas state records a versioned `ToolRef` / `SkillRef` / `WorkflowRef` with `inputs`, `outputs`, `beforeSnapshotRef`, `afterSnapshotRef`.
-9. **Graph-first persistence.** Convex persists the canonical truth. Derived and session-only state never appear in the payload.
-10. **Red/green TDD.** Every feature slice has acceptance criteria in its issue. Ship a failing test first, then the minimal code to make it green.
+1. Single synthesis-shell workspace; never route-split the creator loop.
+2. Canvas is the substrate.
+3. Strict UI taxonomy: `input | output | tool | navigation | metadata` — do not mix roles within one surface.
+4. Keep the prompt composer at the bottom with an explicit scope.
+5. Use progressive disclosure by default: icon plus short chip, expanded on click.
+6. Prefer restraint over explanatory labels; layout carries meaning.
+7. Keep AI provider-agnostic. Do not hardcode a default image or video model.
+8. Record typed provenance on every action.
+9. Persist canonical truth as a graph in Convex.
+10. Use red/green TDD with human validation gates.
 
-## Tech stack
+## Architecture and versions
 
-| Layer | Choice | Notes |
-|---|---|---|
-| Framework | Next.js 15 App Router + TypeScript | |
-| Canvas | tldraw 3.x | local store, debounced snapshot to Convex |
-| App state | Convex | reactive subscriptions keep rails/canvas/right rail coherent |
-| Agent | Anthropic Claude Opus 4.7 | tool use + prompt caching |
-| Image gen | `ImageGenProvider` with adapters | no hardcoded default |
-| Video gen | `VideoGenProvider` with adapters | Remotion programmatic + AI adapters |
-| Deploy | Cloudflare Workers via `@opennextjs/cloudflare` | `aether-stg.berlayar.ai` and `aether.berlayar.ai` |
-| Styling | Tailwind + Radix + lucide | |
-| Testing | Vitest + React Testing Library + Playwright | contract tests per provider; E2E for the full demo arc |
+| Layer | Current choice |
+|---|---|
+| Web | Next.js 15.5 App Router, React 19, TypeScript |
+| Canvas | tldraw 4.5 |
+| State and storage | Convex |
+| AI and media | Provider contracts and adapters under `lib/providers/` |
+| Deployment | OpenNext on Cloudflare Workers via `wrangler.jsonc` |
+| Testing | Vitest, React Testing Library, Playwright |
+
+Provider and capability modules must have clear contracts, unit or contract tests, and no cross-adapter dependencies. Model choice belongs in environment/configuration or an explicit request hint.
 
 ## Commands
 
 ```bash
-# dev
-npm run dev                       # next dev on :3000
+# local development
+cp .dev.vars.example .dev.vars
+npm install
+npm run convex:dev
+npm run dev
 
-# typecheck + lint
+# validation
 npm run typecheck
-npm run lint
+npm test
+npm run build
+npm run test:e2e
 
-# test
-npm test                          # vitest unit + component
-npm run test:e2e                  # playwright
-
-# build
-npm run build                     # next build via opennextjs-cloudflare
-
-# deploy
-npm run deploy:stg                # wrangler deploy --env staging
-npm run deploy:prod               # wrangler deploy --env production
-
-# cloudflare
-npm run preview                   # opennextjs-cloudflare preview locally
-npm run cf-typegen                # regenerate cloudflare-env.d.ts
-
-# convex
-npx convex dev                    # live-sync functions + schema
+# Cloudflare preview and deployment
+npm run preview
+npm run cf-typegen
+npm run deploy:stg
+npm run deploy:prod
 ```
 
-## Repo structure
+Use focused tests while iterating and run the appropriate broad gate before merge. A creator-facing change also needs a human check of the real workspace interaction.
 
-```
-aether/
-├── app/                          # Next.js app router
-│   ├── (marketing)/              # future: landing, docs
-│   └── workspace/[wsId]/         # the synthesis shell — single route, lens-switched
-├── components/
-│   ├── rail/                     # input-category rail sections
-│   ├── canvas/                   # tldraw shapes + floating toolbar + lenses
-│   ├── composer/                 # prompt composer
-│   ├── right-rail/               # output + metadata
-│   └── ui/                       # primitives
-├── lib/
-│   ├── providers/
-│   │   ├── image/                # OpenAI / Gemini / Replicate / Volcengine adapters
-│   │   └── video/                # Remotion / Seedance / HeyGen adapters
-│   ├── agent/                    # Claude Opus 4.7 tool-use loop
-│   ├── capability/               # CapabilityDefinition, pinning, registry
-│   └── provenance/               # typed action records
-├── convex/                       # schema + queries + mutations + actions
-├── docs/                         # PRD, DEMO, ARCHITECTURE, TESTING
-├── tests/
-│   ├── unit/                     # vitest
-│   ├── component/                # RTL
-│   └── e2e/                      # playwright
-├── public/
-├── wrangler.toml                 # CF Workers config (staging + production envs)
-├── open-next.config.ts
-├── next.config.ts
-├── package.json
-├── CLAUDE.md
-├── AGENTS.md
-└── README.md
+## Repository structure
+
+```text
+app/
+  workspace/[wsId]/     primary synthesis shell
+  auto-mode/            supporting automation entry point
+  inspect/[campaignId]/ disclosed run/provenance view
+  api/                   server-side capability routes
+components/
+  canvas/               tldraw canvas, lenses, and shapes
+  rail/                 creator input sections
+  composer/             scoped prompt composer
+  workspace/            shell composition
+  capability/           capability UI
+lib/
+  providers/            image, video, reference, segmentation, spatial,
+                        clustering, and publisher adapters
+  capability/           capability contracts and registry
+  agent/                tool-use orchestration
+  canvas/               canvas helpers
+convex/                 schema, graph persistence, actions, and storage
+tests/                  unit, component, contract, and end-to-end coverage
+docs/                   maintained guidance plus clearly marked historical records
 ```
 
-## Git workflow
+`open-next.config.ts`, `wrangler.jsonc`, and `next.config.ts` are the live deployment/runtime configuration. Do not document nonexistent paths or duplicate fast-changing schema details; link to the source instead.
 
-- Commit frequently with conventional-commit prefixes: `feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:`.
-- Every commit from Claude includes `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
-- Use red/green: a failing test is a valid intermediate commit (prefix `test:`), followed by a `feat:` commit that turns it green.
-- Don't force-push `main`. Use worktrees for parallel work (`git worktree add ../aether-<slice> <branch>`).
+## Implementation discipline
 
-## File policy
+- Start from explicit acceptance criteria and the smallest verifiable change.
+- Preserve the single shell and product vocabulary in creator-facing copy.
+- Keep raw payloads, IDs, traces, and health checks behind `?debug=1` or a disclosed diagnostic view.
+- Every workspace object should have a compact rail form, a focused shell form, and a canvas form. If it cannot have a canvas form, use a lens in the same shell.
+- Add provenance when adding a mutation; do not bolt it on later.
+- Keep provider adapters isolated so separate slices can land without cross-dependency conflicts.
+- Commit coherent slices with conventional prefixes such as `feat:`, `fix:`, `test:`, `docs:`, and `chore:`. Do not add automated attribution trailers.
+- Do not force-push `main`. Use isolated worktrees for parallel or risky work.
 
-- Never delete files without user approval.
-- Legacy references live in `/Users/erniesg/code/erniesg/aether-prehack/` — read them for product framing and visual essence only. Do not copy code.
+## Secrets and generated files
+
+- Local settings live in `.dev.vars`; never commit credentials.
+- `outputs/` is generated and ignored. It can contain large media, traces, browser profiles, or tokens and must not be used as a source directory.
+- Commit only small, intentional fixtures under the relevant test or documentation path.
+- Treat historical handoffs as evidence, not as current operating instructions. Current behavior belongs in the root docs and maintained files under `docs/`.

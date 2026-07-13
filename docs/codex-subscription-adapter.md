@@ -95,7 +95,7 @@ Use the adapter on a developer machine:
 3. Run Codex locally through the adapter or ChatGPT subscription UI and ask for a unified diff.
 4. Apply the diff with `npm run codex:apply-patch -- --issue-number <n> --patch-file <path>`.
 5. Push after public timestamps are acceptable.
-6. Let `.github/workflows/codex.yml` intake the branch, open or refresh the PR, and dispatch CI/reviewer checks.
+6. Let `.github/workflows/codex.yml` intake the branch, open or refresh the PR, and dispatch CI. Review is a separate human or Codex step; the legacy Claude reviewer workflow is disabled.
 
 Do not add `CODEGRAFF_CODEX_CREDENTIALS_B64`, `OPENAI_CODEX_OAUTH_CREDENTIALS_B64`, ChatGPT cookies, or subscription OAuth tokens to GitHub Actions secrets for remote coding. That would turn subscription auth into a third-party data-export path from CI.
 

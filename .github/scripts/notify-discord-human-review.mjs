@@ -154,14 +154,16 @@ async function main() {
     process.env.GITHUB_REF_NAME ||
     '';
 
-  const capabilityLabel =
-    process.env.CAPABILITY_LABEL || 'capability authoring';
+  const reviewContext =
+    process.env.HUMAN_REVIEW_CONTEXT ||
+    process.env.CAPABILITY_LABEL ||
+    'maintainer decision';
   const requestedAction =
     process.env.HUMAN_REVIEW_ACTION ||
-    'review the capability authoring result and decide whether to merge';
+    'review the linked item and record the next decision';
   const reason =
     process.env.HUMAN_REVIEW_REASON ||
-    'A capability-authoring branch or issue was explicitly routed to human review.';
+    'An aether issue or pull request was explicitly routed to human review.';
 
   const primaryTarget = pullRequest ?? issue;
   const title = primaryTarget
@@ -173,8 +175,8 @@ async function main() {
     { name: 'action', value: requestedAction, inline: false },
     { name: 'reason', value: reason, inline: false },
   ];
-  if (capabilityLabel) {
-    fields.unshift({ name: 'capability', value: capabilityLabel, inline: true });
+  if (reviewContext) {
+    fields.unshift({ name: 'context', value: reviewContext, inline: true });
   }
   if (branch) fields.push({ name: 'branch', value: `\`${branch}\``, inline: true });
   if (pullRequest?.number) {
@@ -215,7 +217,7 @@ async function main() {
         color: COLOR_ROUTE_HUMAN,
         title,
         description: [
-          `**${capabilityLabel}** — needs human review`,
+          `**${reviewContext}** — needs human review`,
           reason,
         ].join('\n\n'),
         url: primaryUrl,
