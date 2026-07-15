@@ -760,6 +760,12 @@ function dedupeQueryPlan(plans: XQueryPlan[]): XQueryPlan[] {
   return out;
 }
 
+export function isRecentSearchWindowReachable(windowEnd: string, now = new Date()): boolean {
+  const end = Date.parse(windowEnd);
+  if (!Number.isFinite(end)) return true;
+  return end >= now.getTime() - 6.9 * 24 * 60 * 60 * 1000;
+}
+
 export function recentSearchWindow(
   windowStart: string,
   windowEnd: string,

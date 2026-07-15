@@ -83,6 +83,72 @@ describe('/api/vibes/estimate', () => {
       })
     );
   });
+
+  it('anchors the estimate window to explicit windowStart/windowEnd for past events', async () => {
+    mocks.estimateEventCounts.mockResolvedValueOnce({
+      eventName: 'AI Engineer World’s Fair 2025',
+      querySet: ['AI Engineer World’s Fair'],
+      windowStart: '2025-06-02T00:00:00.000Z',
+      windowEnd: '2025-06-08T00:00:00.000Z',
+      estimates: [],
+      warnings: [],
+    });
+
+    const res = await withDailyLimit('5', async () => {
+      const { POST } = await import('@/app/api/vibes/estimate/route');
+      return POST(
+        new Request('http://localhost/api/vibes/estimate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-vibes-dev-user': 'user-vibes-estimate-past',
+          },
+          body: JSON.stringify({
+            brief: 'Recap AI Engineer World’s Fair 2025 across X and LinkedIn.',
+            platforms: ['x', 'linkedin'],
+            windowStart: '2025-06-02T00:00:00.000Z',
+            windowEnd: '2025-06-08T00:00:00.000Z',
+          }),
+        })
+      );
+    });
+
+    expect(res.status).toBe(200);
+    expect(mocks.estimateEventCounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        windowStart: '2025-06-02T00:00:00.000Z',
+        windowEnd: '2025-06-08T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('clamps an explicit windowEnd in the future back to now', async () => {
+    mocks.estimateEventCounts.mockResolvedValueOnce({ estimates: [], warnings: [] });
+
+    const res = await withDailyLimit('5', async () => {
+      const { POST } = await import('@/app/api/vibes/estimate/route');
+      return POST(
+        new Request('http://localhost/api/vibes/estimate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-vibes-dev-user': 'user-vibes-estimate-clamp',
+          },
+          body: JSON.stringify({
+            brief: 'Track an upcoming event.',
+            windowStart: '2020-01-01T00:00:00.000Z',
+            windowEnd: '2999-01-01T00:00:00.000Z',
+          }),
+        })
+      );
+    });
+
+    expect(res.status).toBe(200);
+    const call = mocks.estimateEventCounts.mock.calls.at(-1)![0] as {
+      windowEnd: string;
+    };
+    expect(Date.parse(call.windowEnd)).toBeLessThanOrEqual(Date.now());
+  });
 });
 
 async function withDailyLimit<T>(

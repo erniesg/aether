@@ -63,13 +63,15 @@ export async function POST(
       linkedinMode:
         input.linkedinMode === 'browser-direct' ||
         input.linkedinMode === 'search-fetch' ||
-        input.linkedinMode === 'apify'
+        input.linkedinMode === 'apify' ||
+        input.linkedinMode === 'contextdev'
           ? input.linkedinMode
           : undefined,
       xProvider:
         input.xProvider === 'official' ||
         input.xProvider === 'apify' ||
-        input.xProvider === 'xquik'
+        input.xProvider === 'xquik' ||
+        input.xProvider === 'contextdev'
           ? input.xProvider
           : undefined,
       apifyActorId: typeof input.apifyActorId === 'string' ? input.apifyActorId : undefined,

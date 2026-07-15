@@ -8,6 +8,7 @@ import {
   type ApifyXSort,
 } from './apify';
 import { isXquikConfigured, searchXViaXquik } from './xquik';
+import { isContextDevConfigured, searchPlatformViaContextDev } from './contextdev';
 import { enrichPostConversationTags } from './conversation';
 import { deriveExpansionPlan } from './expand';
 import { deriveSeedFrontier } from './frontier';
@@ -28,7 +29,11 @@ import {
   scrapePlatformViaTinyFish,
   searchPlatformFallbackViaTinyFish,
 } from './tinyfish';
-import { isXSearchConfigured, searchXViaOfficialApi } from './x-api';
+import {
+  isRecentSearchWindowReachable,
+  isXSearchConfigured,
+  searchXViaOfficialApi,
+} from './x-api';
 import {
   EVENT_PLATFORMS,
   emptyEventPlatformCounts,
@@ -48,8 +53,8 @@ import { searchYouTubeVideos } from './youtube';
 
 const PLATFORMS: EventPlatform[] = [...EVENT_PLATFORMS];
 
-type LinkedInRefreshMode = 'search-fetch' | 'browser-direct' | 'apify';
-type XRefreshProvider = 'official' | 'apify' | 'xquik';
+type LinkedInRefreshMode = 'search-fetch' | 'browser-direct' | 'apify' | 'contextdev';
+type XRefreshProvider = 'official' | 'apify' | 'xquik' | 'contextdev';
 
 interface RefreshEventRecapInput extends Partial<EventRecapConfig> {
   name?: string;
@@ -418,6 +423,17 @@ export async function refreshEventRecap(
                   seenPostUrls,
                 });
               }
+              if (platform === 'x' && input.xProvider === 'contextdev') {
+                return searchPlatformViaContextDev({
+                  platform: 'x',
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  seenPostUrls,
+                });
+              }
               if (platform === 'x' && input.xProvider === 'apify') {
                 return searchXViaApify({
                   querySet: activeQuerySet,
@@ -431,7 +447,13 @@ export async function refreshEventRecap(
                   seenPostUrls,
                 });
               }
-              if (platform === 'x' && isXSearchConfigured()) {
+              // Official X recent search only covers ~7 days; for past-event
+              // backfill windows it would silently return wrong-window posts.
+              if (
+                platform === 'x' &&
+                isXSearchConfigured() &&
+                isRecentSearchWindowReachable(windowEnd)
+              ) {
                 const official = await searchXViaOfficialApi({
                   querySet: activeQuerySet,
                   windowStart,
@@ -466,6 +488,29 @@ export async function refreshEventRecap(
                   seenPostUrls,
                 });
                 if (xquik.posts.length > 0) return xquik;
+              }
+              if (platform === 'x' && isContextDevConfigured()) {
+                const contextdev = await searchPlatformViaContextDev({
+                  platform: 'x',
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  seenPostUrls,
+                });
+                if (contextdev.posts.length > 0) return contextdev;
+              }
+              if (platform === 'linkedin' && input.linkedinMode === 'contextdev') {
+                return searchPlatformViaContextDev({
+                  platform: 'linkedin',
+                  querySet: activeQuerySet,
+                  windowStart,
+                  windowEnd,
+                  maxItems,
+                  maxQueries: input.maxQueries,
+                  seenPostUrls,
+                });
               }
               if (platform === 'linkedin' && input.linkedinMode === 'apify') {
                 return searchLinkedInViaApify({

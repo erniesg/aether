@@ -98,11 +98,15 @@ export async function POST(request: Request) {
       linkedinMode:
         body.linkedinMode === 'browser-direct' ||
         body.linkedinMode === 'search-fetch' ||
-        body.linkedinMode === 'apify'
+        body.linkedinMode === 'apify' ||
+        body.linkedinMode === 'contextdev'
           ? body.linkedinMode
           : undefined,
       xProvider:
-        body.xProvider === 'official' || body.xProvider === 'apify'
+        body.xProvider === 'official' ||
+        body.xProvider === 'apify' ||
+        body.xProvider === 'xquik' ||
+        body.xProvider === 'contextdev'
           ? body.xProvider
           : undefined,
       apifyActorId: typeof body.apifyActorId === 'string' ? body.apifyActorId : undefined,
