@@ -213,6 +213,7 @@ export interface MotionGraphNode {
   kind:
     | 'repo-ingest'
     | 'pr-ingest'
+    | 'recap-ingest'
     | 'script'
     | 'storyboard'
     | 'capture'

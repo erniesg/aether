@@ -780,6 +780,109 @@ const RECIPE_DEFINITIONS = {
     reviewPolicy:
       'Review PR claims, diff selection, proof receipts, and first render before export.',
   },
+  'event-recap-video': {
+    slug: 'event-recap-video',
+    label: 'Event recap video',
+    triggerPhrases: [
+      'turn this event recap into a video',
+      'make a multi-format recap video for the event',
+      'cut a by-the-numbers event recap',
+    ],
+    agentTaskLabels: [
+      'Ingest recap stats, story clusters, verbatim quotes, and media receipts',
+      'Write a recap script where every stat and quote links to a source post',
+      'Build hook, by-the-numbers, story, quote, and outro beats',
+      'Sync captions and voice, then render proof frames',
+      'Export the multi-platform format pack from one timeline',
+    ],
+    generationLanes: ['visual-search', 'voice', 'sync', 'render', 'export'],
+    draftVariations: [
+      {
+        id: 'recap-primary',
+        label: 'Primary recap cut',
+        angle: 'Event headline, numbers, top stories, one community voice, and a closing action.',
+        storyRoles: ['hook', 'proof', 'evidence', 'payoff', 'cta'],
+        reviewPrompt: 'Check that every stat and quote traces to a source post.',
+      },
+      {
+        id: 'recap-numbers-first',
+        label: 'Numbers-first cut',
+        angle: 'Lead with the by-the-numbers proof, then the top story and a community voice.',
+        storyRoles: ['hook', 'proof', 'evidence', 'cta'],
+        reviewPrompt: 'Check that the numbers match the recap corpus exactly.',
+      },
+    ],
+    componentSlots: [
+      {
+        componentId: 'hook-card',
+        role: 'event headline',
+        reason: 'Opens with the event name and headline stat.',
+      },
+      {
+        componentId: 'data-visual-card',
+        role: 'by the numbers',
+        reason: 'Shows post, view, and platform counts as editable data visuals.',
+      },
+      {
+        componentId: 'evidence-card',
+        role: 'story receipt',
+        reason: 'Ties each story beat to its top source posts.',
+      },
+      {
+        componentId: 'proof-card',
+        role: 'verbatim quote',
+        reason: 'Keeps community quotes verbatim with source attribution.',
+      },
+      {
+        componentId: 'contact-sheet-proof',
+        role: 'render proof',
+        reason: 'Confirms recap frames before the multi-format export.',
+      },
+      {
+        componentId: 'outro-slate',
+        role: 'closing slate',
+        reason: 'Closes with the event mark and a follow-up action.',
+      },
+    ],
+    referencePatternIds: [
+      'proof-receipt-card',
+      'caption-led-social',
+      'voice-caption-sync',
+      'multi-format-pack',
+    ],
+    reviewSurfaces: [
+      {
+        artifact: 'video-plan',
+        label: 'Video plan',
+        purpose: 'Approve the recap arc, stats, and quote attribution.',
+      },
+      {
+        artifact: 'draft-variations',
+        label: 'Draft variations',
+        purpose: 'Choose the primary or numbers-first cut.',
+      },
+      {
+        artifact: 'sync-plan',
+        label: 'Sync plan',
+        purpose: 'Review caption and voice timing across beats.',
+      },
+      {
+        artifact: 'render-proof',
+        label: 'Render proof',
+        purpose: 'Check numbers, quotes, and readability before export.',
+      },
+      {
+        artifact: 'export-pack',
+        label: 'Export pack',
+        purpose: 'Confirm the multi-platform recap formats from one edit.',
+      },
+    ],
+    skillPackIds: ['hyperframes-workflow-skills', 'iart-data-animation-skills'],
+    fullAutoPolicy:
+      'Auto-advance only when every stat and quote is tied to a recap source receipt.',
+    reviewPolicy:
+      'Review recap stats, quote attribution, draft cut, and render proof before export.',
+  },
   'caption-overlay-video': {
     slug: 'caption-overlay-video',
     label: 'Caption overlay video',

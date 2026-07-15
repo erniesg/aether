@@ -10,7 +10,7 @@ describe('GET /api/motion/workflows', () => {
     const json = await res.json();
     expect(json).toMatchObject({
       ok: true,
-      workflowCount: 8,
+      workflowCount: 9,
     });
     expect(json.workflows.map((workflow: { id: string }) => workflow.id)).toEqual([
       'repo-launch-video',
@@ -18,6 +18,7 @@ describe('GET /api/motion/workflows', () => {
       'website-to-video',
       'computer-use-capture',
       'pr-to-video',
+      'event-recap-video',
       'caption-overlay-video',
       'motion-graphic-video',
       'remotion-hyperframes-port',

@@ -255,4 +255,53 @@ describe('typed capability registries', () => {
       status: 'draft',
     });
   });
+
+  it('registers the event recap video workflow with multi-format fanout', () => {
+    expect(getWorkflowRegistryEntry('event-recap-video')).toMatchObject({
+      kind: 'workflow',
+      id: 'event-recap-video',
+      artifactKind: 'video',
+      label: 'Event recap video',
+      toolIds: [
+        'motion-brief',
+        'motion-storyboard',
+        'motion-visuals',
+        'motion-voice',
+        'motion-sync',
+        'motion-revise',
+        'motion-preview-source',
+        'motion-source-author',
+        'motion-source-edit',
+        'motion-agent-handoff',
+        'motion-render',
+        'motion-export-pack',
+        'motion-interactive-export',
+      ],
+      sourceKinds: ['recap', 'reference', 'upload'],
+      engines: ['remotion', 'hyperframes'],
+      reviewGates: ['plan', 'drafts', 'visuals', 'voice', 'timeline', 'render', 'export'],
+      skillContract: {
+        runModes: ['review', 'full-auto'],
+        reviewArtifacts: [
+          'video-plan',
+          'draft-variations',
+          'component-plan',
+          'visual-source-plan',
+          'sync-plan',
+          'render-proof',
+          'export-pack',
+        ],
+        regenerationTargets: [
+          'story-beat',
+          'component',
+          'caption',
+          'voice-line',
+          'timing',
+          'effect',
+          'whole-video',
+        ],
+      },
+      status: 'draft',
+    });
+  });
 });

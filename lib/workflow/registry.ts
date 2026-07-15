@@ -8,6 +8,7 @@ export type WorkflowSourceKind =
   | 'capture'
   | 'upload'
   | 'reference'
+  | 'recap'
   | 'remotion'
   | 'hyperframes';
 export type WorkflowEngine = 'remotion' | 'hyperframes' | 'provider';
@@ -342,6 +343,55 @@ const WORKFLOW_REGISTRY = {
     engines: ['remotion', 'hyperframes'],
     reviewGates: ['plan', 'drafts', 'visuals', 'voice', 'timeline', 'render', 'export'],
     skillContract: PR_VIDEO_SKILL_CONTRACT,
+    status: 'draft',
+  },
+  'event-recap-video': {
+    kind: 'workflow',
+    id: 'event-recap-video',
+    version: 1,
+    artifactKind: 'video',
+    label: 'Event recap video',
+    summary:
+      'Turn an event recap corpus into a multi-format social video with stats, story, quote, and outro beats.',
+    toolIds: [
+      'motion-brief',
+      'motion-storyboard',
+      'motion-visuals',
+      'motion-voice',
+      'motion-sync',
+      'motion-revise',
+      'motion-preview-source',
+      'motion-source-author',
+      'motion-source-edit',
+      'motion-agent-handoff',
+      'motion-render',
+      'motion-export-pack',
+      'motion-interactive-export',
+    ],
+    sourceKinds: ['recap', 'reference', 'upload'],
+    engines: ['remotion', 'hyperframes'],
+    reviewGates: ['plan', 'drafts', 'visuals', 'voice', 'timeline', 'render', 'export'],
+    skillContract: {
+      ...LAUNCH_VIDEO_SKILL_CONTRACT,
+      reviewArtifacts: [
+        'video-plan',
+        'draft-variations',
+        'component-plan',
+        'visual-source-plan',
+        'sync-plan',
+        'render-proof',
+        'export-pack',
+      ],
+      regenerationTargets: [
+        'story-beat',
+        'component',
+        'caption',
+        'voice-line',
+        'timing',
+        'effect',
+        'whole-video',
+      ],
+    },
     status: 'draft',
   },
   'caption-overlay-video': {
