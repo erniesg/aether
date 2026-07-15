@@ -1,13 +1,33 @@
 'use client';
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DeckArtifact, DeckBlock, DeckSlide } from '@/lib/deck/types';
+import type { DeckArtifact, DeckBlock, DeckFragment, DeckSlide } from '@/lib/deck/types';
 import { CodeReferenceBlock, LiveApiCallBlock, MetricsStripBlock, ProductFrameBlock } from './DeckBlocks';
 
 const STAGE_WIDTH = 1920;
 const STAGE_HEIGHT = 1080;
 const CONTROL_CLEARANCE = 56;
+const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const SLIDE_MS = 400;
+const BLOCK_MS = 320;
+const STAGGER_BASE_MS = 100;
+const STAGGER_STEP_MS = 80;
 type LiveDemoFocus = DeckArtifact['drawerTabs'][number];
+
+// Live-demo slides delegate progressive disclosure to the Product/API/Code
+// focus nav (one proof surface at a time), so their fragments stay inert here.
+function orderedFragments(slide: DeckSlide): DeckFragment[] {
+  if (slide.layout === 'live-demo' || !slide.fragments?.length) return [];
+  return [...slide.fragments].sort((a, b) => a.order - b.order);
+}
+
+// Entrance choreography: copy leads, the primary artifact follows, supporting
+// panels settle last.
+function staggerRank(kind: DeckBlock['kind']): number {
+  if (kind === 'copy') return 0;
+  if (kind === 'product-frame' || kind === 'api-call') return 1;
+  return 2;
+}
 
 export function DeckStage({ children }: { children: ReactNode }) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -59,9 +79,70 @@ export function DeckPresentation({
   onLiveDemoFocusChange?: (focus: LiveDemoFocus) => void;
 }) {
   const [index, setIndex] = useState(() => slideIndexFromUrl(deck));
+  // Fragment reveal counts per slide id. A direct jump (deep link, hotspot,
+  // branch chip, Home/End) lands fully revealed; stepping forward starts at 0.
+  const [revealed, setRevealed] = useState<Record<string, number>>(() => {
+    const entry = deck.slides[slideIndexFromUrl(deck)];
+    return entry ? { [entry.id]: orderedFragments(entry).length } : {};
+  });
   const touchStartX = useRef<number | null>(null);
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const go = useCallback((next: number) => setIndex(Math.max(0, Math.min(deck.slides.length - 1, next))), [deck.slides.length]);
+
+  const revealedCountFor = useCallback(
+    (slide: DeckSlide) => Math.min(revealed[slide.id] ?? 0, orderedFragments(slide).length),
+    [revealed]
+  );
+
+  const advance = useCallback(() => {
+    const slide = deck.slides[index];
+    if (!slide) return;
+    const count = revealedCountFor(slide);
+    if (count < orderedFragments(slide).length) {
+      setRevealed((prev) => ({ ...prev, [slide.id]: count + 1 }));
+      return;
+    }
+    if (index >= deck.slides.length - 1) return;
+    const next = deck.slides[index + 1];
+    setRevealed((prev) => ({ ...prev, [next.id]: 0 }));
+    setIndex(index + 1);
+  }, [deck.slides, index, revealedCountFor]);
+
+  const retreat = useCallback(() => {
+    const slide = deck.slides[index];
+    if (!slide) return;
+    const count = revealedCountFor(slide);
+    if (count > 0) {
+      setRevealed((prev) => ({ ...prev, [slide.id]: count - 1 }));
+      return;
+    }
+    if (index <= 0) return;
+    const previous = deck.slides[index - 1];
+    setRevealed((prev) => ({ ...prev, [previous.id]: orderedFragments(previous).length }));
+    setIndex(index - 1);
+  }, [deck.slides, index, revealedCountFor]);
+
+  const jump = useCallback(
+    (targetSlideId: string, targetBlockId?: string) => {
+      const targetIndex = deck.slides.findIndex((slide) => slide.id === targetSlideId);
+      if (targetIndex < 0) return;
+      const target = deck.slides[targetIndex];
+      const fragments = orderedFragments(target);
+      const fragmentPosition = targetBlockId
+        ? fragments.findIndex((fragment) => fragment.targetBlockId === targetBlockId)
+        : -1;
+      setRevealed((prev) => ({
+        ...prev,
+        [target.id]: fragmentPosition >= 0 ? fragmentPosition + 1 : fragments.length,
+      }));
+      setIndex(targetIndex);
+      if (targetBlockId && target.layout === 'live-demo') {
+        const block = target.blocks.find((candidate) => candidate.id === targetBlockId);
+        const focus = block ? focusForBlock(block) : null;
+        if (focus) onLiveDemoFocusChange?.(focus);
+      }
+    },
+    [deck.slides, onLiveDemoFocusChange]
+  );
 
   useEffect(() => {
     const slide = deck.slides[index];
@@ -74,14 +155,14 @@ export function DeckPresentation({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement | null)?.tagName ?? '')) return;
-      if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(event.key)) { event.preventDefault(); go(index + 1); }
-      if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) { event.preventDefault(); go(index - 1); }
-      if (event.key === 'Home') go(0);
-      if (event.key === 'End') go(deck.slides.length - 1);
+      if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(event.key)) { event.preventDefault(); advance(); }
+      if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) { event.preventDefault(); retreat(); }
+      if (event.key === 'Home') jump(deck.slides[0]?.id ?? '');
+      if (event.key === 'End') jump(deck.slides[deck.slides.length - 1]?.id ?? '');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [deck.slides.length, go, index]);
+  }, [advance, deck.slides, jump, retreat]);
 
   const activeSlide = deck.slides[index];
   const activeFocuses = useMemo(
@@ -96,14 +177,17 @@ export function DeckPresentation({
     }
   }, [activeFocuses, activeSlide, liveDemoFocus, onLiveDemoFocusChange]);
 
+  const activeRevealed = activeSlide ? revealedCountFor(activeSlide) : 0;
+  const activeFragmentTotal = activeSlide ? orderedFragments(activeSlide).length : 0;
+
   return (
     <div
       data-testid="deck-viewport"
       data-reduced-motion={reducedMotion}
       className="relative h-full min-h-0 flex-1 bg-[#0B0B0E]"
-      onWheel={(event) => { if (Math.abs(event.deltaY) >= 20) go(index + (event.deltaY > 0 ? 1 : -1)); }}
+      onWheel={(event) => { if (Math.abs(event.deltaY) >= 20) { if (event.deltaY > 0) advance(); else retreat(); } }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
-      onTouchEnd={(event) => { const end = event.changedTouches[0]?.clientX; if (touchStartX.current !== null && end !== undefined && Math.abs(end - touchStartX.current) > 40) go(index + (end < touchStartX.current ? 1 : -1)); touchStartX.current = null; }}
+      onTouchEnd={(event) => { const end = event.changedTouches[0]?.clientX; if (touchStartX.current !== null && end !== undefined && Math.abs(end - touchStartX.current) > 40) { if (end < touchStartX.current) advance(); else retreat(); } touchStartX.current = null; }}
     >
       <DeckStage>
         {deck.slides.map((slide, slideIndex) => (
@@ -112,6 +196,9 @@ export function DeckPresentation({
             slide={slide}
             deck={deck}
             active={slideIndex === index}
+            offset={slideIndex - index}
+            revealedCount={Math.min(revealed[slide.id] ?? 0, orderedFragments(slide).length)}
+            onNavigate={jump}
             reducedMotion={reducedMotion}
             liveDemoFocus={liveDemoFocus}
             pageNumber={slideIndex + 1}
@@ -127,9 +214,9 @@ export function DeckPresentation({
         ))}
       </DeckStage>
       <nav aria-label="deck navigation" data-taxonomy="navigation" data-testid="deck-navigation" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-[#151519]/95 px-1.5 py-1 text-white shadow-sm">
-        <button type="button" aria-label="Previous slide" onClick={() => go(index - 1)} disabled={index === 0} className="grid h-8 w-8 place-items-center rounded-full text-sm disabled:opacity-25">←</button>
+        <button type="button" aria-label="Previous slide" onClick={retreat} disabled={index === 0 && activeRevealed === 0} className="grid h-8 w-8 place-items-center rounded-full text-sm disabled:opacity-25">←</button>
         <span className="min-w-16 text-center font-mono text-[10px] uppercase tracking-[0.12em] text-white/60">{index + 1} / {deck.slides.length}</span>
-        <button type="button" aria-label="Next slide" onClick={() => go(index + 1)} disabled={index === deck.slides.length - 1} className="grid h-8 w-8 place-items-center rounded-full text-sm disabled:opacity-25">→</button>
+        <button type="button" aria-label="Next slide" onClick={advance} disabled={index === deck.slides.length - 1 && activeRevealed >= activeFragmentTotal} className="grid h-8 w-8 place-items-center rounded-full text-sm disabled:opacity-25">→</button>
       </nav>
       {presenterMode && activeSlide ? <aside data-testid="deck-presenter-notes" data-taxonomy="metadata" className="absolute bottom-5 right-5 max-w-sm rounded-2xl border border-white/10 bg-[#101014]/95 px-5 py-4 text-sm text-white shadow-xl"><p className="font-mono text-[10px] uppercase tracking-widest text-white/45">presenter · {activeSlide.presenterLabel ?? activeSlide.title}</p><p className="mt-2 leading-relaxed text-white/75">{activeSlide.speakerNotes}</p></aside> : null}
     </div>
@@ -184,6 +271,9 @@ function DeckSlideFrame({
   slide,
   deck,
   active,
+  offset,
+  revealedCount,
+  onNavigate,
   reducedMotion,
   liveDemoFocus,
   liveDemoNav,
@@ -192,20 +282,37 @@ function DeckSlideFrame({
   slide: DeckSlide;
   deck: DeckArtifact;
   active: boolean;
+  offset: number;
+  revealedCount: number;
+  onNavigate: (targetSlideId: string, targetBlockId?: string) => void;
   reducedMotion: boolean;
   liveDemoFocus: LiveDemoFocus;
   liveDemoNav: ReactNode;
   pageNumber: number;
 }) {
+  const fragmentTotal = orderedFragments(slide).length;
+  // Slides rest slightly toward their side of the active slide, so movement
+  // in either direction eases in from that direction. Transform only — the
+  // fixed stage never reflows. Inactive slides keep visibility for the fade
+  // duration so the outgoing slide can ease out.
   const style = {
     opacity: active ? 1 : 0,
     visibility: active ? 'visible' as const : 'hidden' as const,
     pointerEvents: active ? 'auto' as const : 'none' as const,
-    transition: reducedMotion ? 'none' : 'opacity 240ms ease',
+    transform: active ? 'none' : `translateX(${offset < 0 ? -48 : 48}px) scale(0.985)`,
+    transition: reducedMotion
+      ? 'none'
+      : active
+        ? `opacity ${SLIDE_MS}ms ${EASE}, transform ${SLIDE_MS}ms ${EASE}`
+        : `opacity ${BLOCK_MS}ms ${EASE}, transform ${BLOCK_MS}ms ${EASE}, visibility 0s linear ${BLOCK_MS}ms`,
     background: deck.styleTokens.background,
     color: deck.styleTokens.foreground,
     fontFamily: deck.styleTokens.bodyFont,
   };
+  const branchChips = [
+    ...(slide.branchTargets ?? []).map((targetSlideId) => ({ key: `branch-${targetSlideId}`, label: targetSlideId, targetSlideId, targetBlockId: undefined as string | undefined })),
+    ...(slide.hotspots ?? []).filter((hotspot) => !hotspot.region).map((hotspot) => ({ key: `hotspot-${hotspot.id}`, label: hotspot.label, targetSlideId: hotspot.targetSlideId, targetBlockId: hotspot.targetBlockId })),
+  ];
   return (
     <section
       role="group"
@@ -215,16 +322,61 @@ function DeckSlideFrame({
       data-slide-id={slide.id}
       data-layout={slide.layout}
       data-style={slide.visualVariant ?? 'neo-grid-bold'}
+      data-fragments-revealed={revealedCount}
+      data-fragments-total={fragmentTotal}
       className="absolute inset-0 overflow-hidden"
       style={style}
     >
       <SlideShell
         slide={slide}
         deck={deck}
+        active={active}
+        revealedCount={revealedCount}
+        reducedMotion={reducedMotion}
         liveDemoFocus={liveDemoFocus}
         liveDemoNav={liveDemoNav}
         pageNumber={pageNumber}
       />
+      {(slide.hotspots ?? []).map((hotspot) =>
+        hotspot.region ? (
+          <button
+            key={hotspot.id}
+            type="button"
+            aria-label={`Go to ${hotspot.label}`}
+            data-testid={`deck-hotspot-${hotspot.id}`}
+            data-taxonomy="tool"
+            onClick={() => onNavigate(hotspot.targetSlideId, hotspot.targetBlockId)}
+            className="group absolute z-20 border border-transparent bg-transparent p-0 hover:border-[#D946EF]/60 focus-visible:border-[#D946EF] focus-visible:outline-none"
+            style={{
+              left: hotspot.region.x,
+              top: hotspot.region.y,
+              width: hotspot.region.width,
+              height: hotspot.region.height,
+              transition: reducedMotion ? 'none' : `border-color 200ms ${EASE}`,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              className="absolute left-2 top-2 h-3 w-3 bg-[#D946EF]/35 group-hover:bg-[#D946EF] group-focus-visible:bg-[#D946EF]"
+              style={{ transition: reducedMotion ? 'none' : `background-color 200ms ${EASE}` }}
+            />
+          </button>
+        ) : null
+      )}
+      {branchChips.length > 0 ? (
+        <nav aria-label="branch jumps" data-testid="deck-branch-jumps" data-taxonomy="tool" className="absolute bottom-[52px] right-[52px] z-20 flex items-center gap-2">
+          {branchChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => onNavigate(chip.targetSlideId, chip.targetBlockId)}
+              className="border border-white/25 bg-[#151519]/95 px-4 py-2 font-mono text-[15px] uppercase tracking-[0.12em] text-white/70 hover:border-[#D946EF] hover:text-white focus-visible:border-[#D946EF] focus-visible:outline-none"
+            >
+              ↳ {chip.label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
     </section>
   );
 }
@@ -232,18 +384,59 @@ function DeckSlideFrame({
 function SlideShell({
   slide,
   deck,
+  active,
+  revealedCount,
+  reducedMotion,
   liveDemoFocus,
   liveDemoNav,
   pageNumber,
 }: {
   slide: DeckSlide;
   deck: DeckArtifact;
+  active: boolean;
+  revealedCount: number;
+  reducedMotion: boolean;
   liveDemoFocus: LiveDemoFocus;
   liveDemoNav: ReactNode;
   pageNumber: number;
 }) {
   const visibleBlocks = blocksForLiveDemoFocus(slide, liveDemoFocus);
-  const content = <>{visibleBlocks.map((block) => <div key={block.id} data-block-id={block.id} className="min-h-0 h-full"><DeckBlockView block={block} deck={deck} /></div>)}</>;
+  const fragments = orderedFragments(slide);
+  const fragmentPositions = new Map(fragments.map((fragment, position) => [fragment.targetBlockId, position + 1] as const));
+  const blockStyle = (block: DeckBlock) => {
+    const fragmentPosition = fragmentPositions.get(block.id);
+    const isFragment = fragmentPosition !== undefined;
+    const shown = active && (!isFragment || fragmentPosition <= revealedCount);
+    // Fragments reveal on demand (no stagger lag); non-fragment blocks enter
+    // with a copy -> artifact -> supporting-panel stagger when the slide lands.
+    const delay = isFragment ? 0 : STAGGER_BASE_MS + staggerRank(block.kind) * STAGGER_STEP_MS;
+    return {
+      opacity: shown ? 1 : 0,
+      transform: shown ? 'none' : 'translateY(14px)',
+      pointerEvents: shown ? 'auto' as const : 'none' as const,
+      transition: reducedMotion
+        ? 'none'
+        : `opacity ${BLOCK_MS}ms ${EASE} ${delay}ms, transform ${BLOCK_MS}ms ${EASE} ${delay}ms`,
+    };
+  };
+  const content = (
+    <>
+      {visibleBlocks.map((block) => {
+        const fragmentPosition = fragmentPositions.get(block.id);
+        return (
+          <div
+            key={block.id}
+            data-block-id={block.id}
+            data-fragment-revealed={fragmentPosition === undefined ? undefined : fragmentPosition <= revealedCount}
+            className="min-h-0 h-full"
+            style={blockStyle(block)}
+          >
+            <DeckBlockView block={block} deck={deck} />
+          </div>
+        );
+      })}
+    </>
+  );
   const shellProps = { title: slide.title, pageNumber, totalPages: deck.slides.length };
   if (slide.layout === 'title') return <TitleSlideShell {...shellProps}>{content}</TitleSlideShell>;
   if (slide.layout === 'section') return <SectionSlideShell {...shellProps}>{content}</SectionSlideShell>;

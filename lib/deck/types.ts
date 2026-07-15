@@ -27,11 +27,20 @@ export interface DeckFragment {
   targetBlockId: string;
 }
 
+export interface DeckHotspotRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface DeckHotspot {
   id: string;
   label: string;
   targetSlideId: string;
   targetBlockId?: string;
+  /** Stage-coordinate region (1920x1080) the hotspot occupies on the slide. */
+  region?: DeckHotspotRegion;
 }
 
 export interface DeckBlock {

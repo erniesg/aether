@@ -114,9 +114,9 @@ const slides: DeckSlide[] = [
         { id: 'show-code', order: 2, targetBlockId: 'code-product-search' },
       ],
       hotspots: [
-        { id: 'focus-api', label: 'API', targetSlideId: 'product-search', targetBlockId: 'api-product-search' },
-        { id: 'compare-editorial', label: 'Editorial variant', targetSlideId: 'product-search-editorial' },
-        { id: 'next-text-api', label: 'Text API', targetSlideId: 'text-search-api' },
+        { id: 'focus-api', label: 'API', targetSlideId: 'product-search', targetBlockId: 'api-product-search', region: { x: 1275, y: 167, width: 605, height: 114 } },
+        { id: 'compare-editorial', label: 'Editorial variant', targetSlideId: 'product-search-editorial', region: { x: 1140, y: 52, width: 112, height: 112 } },
+        { id: 'next-text-api', label: 'Text API', targetSlideId: 'text-search-api', region: { x: 1808, y: 293, width: 72, height: 747 } },
       ],
     }
   ),
@@ -256,7 +256,13 @@ const slides: DeckSlide[] = [
     'closing',
     'section',
     [copy('ready-copy', 'Ready now', 'Text, image, and product search with public provenance and existing auth.', ['Live product search', 'Allowlisted APIs', 'Code references']), copy('next-copy', 'Next', 'Ephemeral demo tokens, production sharing, and broader performance validation.')],
-    'Separate what this fixture proves today from the Paillette-side work intentionally left for later.'
+    'Separate what this fixture proves today from the Paillette-side work intentionally left for later.',
+    {
+      fragments: [
+        { id: 'reveal-ready', order: 1, targetBlockId: 'ready-copy' },
+        { id: 'reveal-next', order: 2, targetBlockId: 'next-copy' },
+      ],
+    }
   ),
   slide(
     'closing',
