@@ -22,7 +22,7 @@ The five stories are mapped one-to-one to the five green windows in visual readi
 
 ## Chosen Design
 
-Use headline-led crops with cover scaling into each window. The original green is removed with a narrowly tuned chroma key, revealing the story composite below. A small expansion beneath the keyed edges prevents green seams. The foreground animation and its original AAC stereo track remain unchanged.
+Use headline-led crops with cover scaling into each window. The original green is removed with a narrowly tuned chroma key, revealing the story composite below. A six-pixel erosion of the keyed alpha expands the revealed story crops beneath the inner edges and removes compressed green fringes. The foreground animation and its original AAC stereo track remain unchanged.
 
 ## Output
 

@@ -39,7 +39,7 @@ Create five aspect-filling headline crops matching these midpoint green-window b
 
 - [ ] **Step 3: Render the chroma composite**
 
-Loop the background plate for the source duration and use FFmpeg `chromakey` against pure green with `similarity=0.18` and `blend=0.04`. Overlay the original foreground and map its original audio stream. Encode H.264 with `libx264`, `-crf 16`, `-preset slow`, and `-pix_fmt yuv420p`; copy the existing AAC stream into the MP4.
+Loop the background plate for the source duration and use FFmpeg `chromakey` against pure green with `similarity=0.22` and `blend=0.00`. Erode the keyed alpha six times to remove compressed green fringes, overlay the cleaned foreground, and map its original audio stream. Encode H.264 with `libx264`, `-crf 16`, `-preset slow`, and `-pix_fmt yuv420p`; copy the existing AAC stream into the MP4.
 
 - [ ] **Step 4: Verify media properties**
 
