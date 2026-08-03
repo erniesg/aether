@@ -1,0 +1,10 @@
+{
+  "input": {
+    "image": "https://api.replicate.com/v1/files/ZjU5NmU3M2MtZDA5Ny00ZTY4LWIzZWMtZjA4NDQzNjhhY2Mz.png",
+    "prompt": "Animate the supplied first-frame layered paper-cutout newsroom composition as a six-second 16:9 motion plate. Keep the camera completely locked and preserve the exact framing, paper textures, palette, lighting, shadows, black rails, and four bright green rectangular insertion windows. The four green windows must remain perfectly flat, uniformly #00FF00, sharply bounded, rigid, unobstructed, and fixed in the same screen coordinates for the entire shot; do not warp, resize, rotate, cover, replace, shade, spill, or animate them. Animate only the surrounding red, cream, teal, and black paper strips with restrained horizontal printing-press choreography: staggered paper slides, slight cardstock flex, overlapping layers, and clean mechanical settling. Begin with immediate newsroom energy, create a brief coordinated change around the spoken pause near 1.4-2.9 seconds, then let the arrangement settle confidently after 4.3 seconds and hold through the end. Maintain temporal consistency and the handcrafted fibrous paper-cutout look. No camera movement, zoom, pan, tilt, parallax, perspective change, scene cut, added text, logos, people, extra windows, new objects, liquid motion, melting, tearing, flicker, or texture crawl. Audio: synchronized effects only - layered paper swishes, soft cardstock scrapes, restrained printing-press movement, and light mechanical settling impacts. No dialogue, voiceover, speech, words, music, score, beat, singing, crowd, newsroom ambience, or hum.",
+    "duration": 6,
+    "resolution": "720p",
+    "aspect_ratio": "16:9",
+    "generate_audio": true
+  }
+}
