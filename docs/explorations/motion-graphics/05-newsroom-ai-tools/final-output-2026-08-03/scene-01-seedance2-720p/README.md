@@ -3,6 +3,7 @@
 ## Selected output
 
 - `S01-paper-rails-sfx-seedance2-720p.mp4`
+- `S01-paper-rails-sfx-upscaled-1080p.mp4` (1920 x 1080 Lanczos upscale, original AAC audio preserved)
 - Visual review: `contact-sheet.png`
 - Audio review: `audio-analysis.txt` and `spectrogram.png`
 
