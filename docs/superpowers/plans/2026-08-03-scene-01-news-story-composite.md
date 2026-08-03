@@ -35,7 +35,7 @@ Run `pdftoppm -f 1 -singlefile -png -r 200` for each PDF and name outputs `01-za
 
 - [ ] **Step 2: Build the background plate**
 
-Create five aspect-filling headline crops matching these midpoint green-window bounds: `514x243+368+153`, `491x233+1084+193`, `506x230+310+426`, `520x221+1150+468`, and `528x212+666+700`. Place them on a black 1920×1080 canvas in reading order.
+Create five aspect-filling headline crops matching these midpoint green-window bounds: `514x243+368+153`, `491x233+1084+193`, `506x230+310+426`, `520x221+1150+468`, and `528x212+666+700`. Place them on a black 1920×1080 canvas in reading order. For the Straits Times page, resize the page to 520 pixels wide and take a 520×221 crop beginning near y=560 so the lower-page “Only 1 in 10 young Singapore workers is engaged at work” headline and chart replace the front-page masthead crop.
 
 - [ ] **Step 3: Render the chroma composite**
 

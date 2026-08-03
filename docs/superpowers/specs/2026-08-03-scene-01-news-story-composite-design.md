@@ -11,7 +11,7 @@ The five stories are mapped one-to-one to the five green windows in visual readi
 1. Zaobao qiaopi memory
 2. Tamil Murasu flourishing Tamil
 3. Berita Harian missing student in Cambodia
-4. The Straits Times young workers
+4. The Straits Times “Only 1 in 10 young Singapore workers is engaged at work” story, cropped from the lower page to include its headline and chart
 5. The Business Times Big Four STI audits
 
 ## Considered Treatments
