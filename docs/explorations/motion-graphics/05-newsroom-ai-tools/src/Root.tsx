@@ -16,6 +16,12 @@ import {
   BRAND_FILM_FPS,
   BrandFilmPlaceholder,
 } from './BrandFilmPlaceholder';
+import {
+  STYLE_PREVIEW_DURATION,
+  STYLE_PREVIEW_FPS,
+  StylePreview,
+  type StylePreviewVariant,
+} from './StylePreview';
 
 const styles: Array<{id: string; label: string; visualStyle: VisualStyle}> = [
   {
@@ -39,11 +45,34 @@ const styleboards: Array<{id: string; variant: StyleboardVariant}> = [
   {id: 'Styleboard-A-PaperCollage', variant: 'paper-collage'},
   {id: 'Styleboard-B-NewsprintProof', variant: 'newsprint-proof'},
   {id: 'Styleboard-C-BroadcastSlate', variant: 'broadcast-slate'},
+  {id: 'Styleboard-D-WireTerminal', variant: 'wire-terminal'},
+  {id: 'Styleboard-E-ProductKeynote', variant: 'product-keynote'},
+  {id: 'Styleboard-F-RedlineEdit', variant: 'redline-edit'},
+];
+
+const previewStyles: Array<{id: string; variant: StylePreviewVariant}> = [
+  {id: 'NewsroomStylePreview-EditorialPaper', variant: 'editorial'},
+  {id: 'NewsroomStylePreview-MinimalCinematic', variant: 'minimal'},
+  {id: 'NewsroomStylePreview-DataStory', variant: 'data'},
 ];
 
 export const RemotionRoot = () => {
   return (
     <Folder name="Newsroom-AI-Tools">
+      <Folder name="Style-Previews">
+        {previewStyles.map(({id, variant}) => (
+          <Composition
+            key={id}
+            id={id}
+            component={StylePreview}
+            width={1920}
+            height={1080}
+            fps={STYLE_PREVIEW_FPS}
+            durationInFrames={STYLE_PREVIEW_DURATION}
+            defaultProps={{variant}}
+          />
+        ))}
+      </Folder>
       {styleboards.map(({id, variant}) => (
         <Still
           key={id}

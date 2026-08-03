@@ -7,7 +7,10 @@ import {THEMES} from './theme';
 export type StyleboardVariant =
   | 'paper-collage'
   | 'newsprint-proof'
-  | 'broadcast-slate';
+  | 'broadcast-slate'
+  | 'wire-terminal'
+  | 'product-keynote'
+  | 'redline-edit';
 
 export const STYLEBOARD_WIDTH = 1920;
 export const STYLEBOARD_HEIGHT = 1200;
@@ -922,6 +925,1127 @@ const SlateCredits = () => (
 );
 
 /* ------------------------------------------------------------------ */
+/* Variant D — Wire Terminal (the machine's-eye view)                  */
+/* ------------------------------------------------------------------ */
+
+const WIRE = {
+  bg: '#04090a',
+  panel: '#081113',
+  green: '#3dffa0',
+  greenDim: 'rgba(61, 255, 160, 0.5)',
+  amber: '#ffb340',
+  white: '#e8f5ee',
+  quiet: 'rgba(232, 245, 238, 0.45)',
+  line: 'rgba(61, 255, 160, 0.22)',
+  mono: '"Courier New", Courier, monospace',
+};
+
+const WireScanlines = () => (
+  <AbsoluteFill
+    style={{
+      background:
+        'repeating-linear-gradient(0deg, rgba(61,255,160,0.045) 0px, rgba(61,255,160,0.045) 1px, transparent 1px, transparent 4px)',
+      pointerEvents: 'none',
+    }}
+  />
+);
+
+const WireTicker = ({css}: {css?: CSSProperties}) => (
+  <div
+    style={{
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: WIRE.panel,
+      borderTop: `2px solid ${WIRE.line}`,
+      color: WIRE.amber,
+      fontFamily: WIRE.mono,
+      fontSize: 22,
+      fontWeight: 700,
+      letterSpacing: '0.1em',
+      overflow: 'hidden',
+      padding: '16px 40px 14px',
+      whiteSpace: 'nowrap',
+      ...css,
+    }}
+  >
+    STI 3,412.18 <span style={{color: WIRE.green}}>▲ 0.6%</span>
+    {'   ·   '}S&P 500 5,881.02 <span style={{color: WIRE.green}}>▲ 0.3%</span>
+    {'   ·   '}CPI 2.1%{'   ·   '}EARNINGS: 14 FILINGS TODAY{'   ·   '}SGX CLOSE
+    17:04 SGT{'   ·   '}DAILY SUMMARY: <span style={{color: WIRE.green}}>READY</span>
+  </div>
+);
+
+const WireLog = ({lines, css}: {lines: string[]; css?: CSSProperties}) => (
+  <div
+    style={{
+      color: WIRE.greenDim,
+      display: 'grid',
+      fontFamily: WIRE.mono,
+      fontSize: 22,
+      fontWeight: 700,
+      gap: 10,
+      letterSpacing: '0.04em',
+      ...css,
+    }}
+  >
+    {lines.map((line) => (
+      <div key={line}>{line}</div>
+    ))}
+  </div>
+);
+
+const WireIntro = () => (
+  <AbsoluteFill style={{background: WIRE.bg, overflow: 'hidden'}}>
+    <WireScanlines />
+    <div
+      style={{
+        position: 'absolute',
+        right: 88,
+        top: 62,
+        color: WIRE.amber,
+        fontFamily: WIRE.mono,
+        fontSize: 20,
+        fontWeight: 700,
+        letterSpacing: '0.22em',
+      }}
+    >
+      SPH STAFF AWARDS // INNOVATION AWARD
+    </div>
+    <WireLog
+      lines={[
+        '> sgx.market_close detected · 17:04:12 SGT',
+        '> summary.draft generated in 4.2s',
+        '> charts.render (print + digital) … ok',
+        '> handoff → journalist review',
+      ]}
+      css={{position: 'absolute', left: 88, top: 62}}
+    />
+    <div
+      style={{
+        position: 'absolute',
+        left: 88,
+        top: 380,
+        color: WIRE.green,
+        fontFamily: WIRE.mono,
+        fontSize: 120,
+        fontWeight: 700,
+        letterSpacing: '-0.02em',
+        lineHeight: 1.02,
+        textShadow: `0 0 34px rgba(61, 255, 160, 0.45)`,
+      }}
+    >
+      $ NEWSROOM
+      <br />
+      &nbsp;&nbsp;AI_TOOLS
+      <span
+        style={{
+          background: WIRE.green,
+          boxShadow: `0 0 26px rgba(61,255,160,.8)`,
+          display: 'inline-block',
+          height: 96,
+          marginLeft: 30,
+          width: 52,
+        }}
+      />
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 92,
+        bottom: 120,
+        color: WIRE.white,
+        fontFamily: WIRE.mono,
+        fontSize: 25,
+        fontWeight: 700,
+        letterSpacing: '0.14em',
+      }}
+    >
+      BT / THE BUSINESS TIMES · STORY ENGINE ONLINE
+    </div>
+    <WireTicker />
+  </AbsoluteFill>
+);
+
+const WireProgressBar = ({filled, total}: {filled: number; total: number}) => (
+  <div style={{display: 'flex', gap: 7}}>
+    {Array.from({length: total}, (_, i) => (
+      <div
+        key={i}
+        style={{
+          background: i < filled ? WIRE.green : 'transparent',
+          border: `2px solid ${i < filled ? WIRE.green : WIRE.line}`,
+          height: 26,
+          width: 30,
+        }}
+      />
+    ))}
+  </div>
+);
+
+const WirePlaceholder = () => (
+  <AbsoluteFill style={{background: WIRE.bg, overflow: 'hidden'}}>
+    <WireScanlines />
+    <div
+      style={{
+        position: 'absolute',
+        inset: 76,
+        border: `2px solid ${WIRE.line}`,
+      }}
+    />
+    <div
+      style={{
+        position: 'absolute',
+        left: 132,
+        top: 132,
+        color: WIRE.amber,
+        fontFamily: WIRE.mono,
+        fontSize: 26,
+        fontWeight: 700,
+        letterSpacing: '0.16em',
+      }}
+    >
+      [ S03 · MARKET CLOSE ]
+    </div>
+    <div style={{position: 'absolute', left: 132, top: 210}}>
+      <div
+        style={{
+          color: WIRE.quiet,
+          fontFamily: WIRE.mono,
+          fontSize: 21,
+          fontWeight: 700,
+          letterSpacing: '0.14em',
+          marginBottom: 16,
+        }}
+      >
+        STATUS: AWAITING FINAL FOOTAGE
+      </div>
+      <WireProgressBar filled={13} total={21} />
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 132,
+        bottom: 330,
+        color: WIRE.white,
+        fontFamily: WIRE.mono,
+        fontSize: 52,
+        fontWeight: 700,
+        lineHeight: 1.16,
+        maxWidth: 1500,
+        textShadow: '0 0 24px rgba(232,245,238,.25)',
+      }}
+    >
+      <span style={{color: WIRE.green}}>VO ▸</span> “When the market closes,
+      the routine begins.”
+    </div>
+    <WireLog
+      lines={[
+        '> scene_03.mp4 — pending upload',
+        '> placeholder.render … ok',
+      ]}
+      css={{position: 'absolute', left: 132, bottom: 170}}
+    />
+    <WireTicker />
+  </AbsoluteFill>
+);
+
+const WireScene06 = () => (
+  <AbsoluteFill style={{background: WIRE.bg, overflow: 'hidden'}}>
+    <Scene06Frame filter="saturate(.95) contrast(1.05)" />
+    <div
+      style={{
+        position: 'absolute',
+        inset: 34,
+        border: `2px solid rgba(61, 255, 160, 0.55)`,
+        boxShadow: 'inset 0 0 60px rgba(4,9,10,.35)',
+      }}
+    />
+    <div
+      style={{
+        position: 'absolute',
+        left: 70,
+        top: 66,
+        alignItems: 'center',
+        background: 'rgba(4, 9, 10, 0.82)',
+        border: `2px solid ${WIRE.line}`,
+        color: WIRE.white,
+        display: 'flex',
+        fontFamily: WIRE.mono,
+        fontSize: 21,
+        fontWeight: 700,
+        gap: 14,
+        letterSpacing: '0.16em',
+        padding: '12px 18px 10px',
+      }}
+    >
+      <span
+        style={{
+          background: '#ff4545',
+          borderRadius: '50%',
+          boxShadow: '0 0 14px rgba(255,69,69,.9)',
+          display: 'inline-block',
+          height: 16,
+          width: 16,
+        }}
+      />
+      S06 · NATIVE DIALOGUE · SEEDANCE
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 70,
+        right: 70,
+        bottom: 66,
+        background: 'rgba(4, 9, 10, 0.88)',
+        borderLeft: `8px solid ${WIRE.green}`,
+        color: WIRE.white,
+        fontFamily: WIRE.mono,
+        fontSize: 34,
+        fontWeight: 700,
+        lineHeight: 1.24,
+        padding: '24px 32px 22px',
+      }}
+    >
+      <span style={{color: WIRE.green, letterSpacing: '0.12em'}}>
+        LIVE TRANSCRIPT ▸
+      </span>{' '}
+      “{SCENE_06_LINE}”
+      <span
+        style={{
+          color: WIRE.quiet,
+          float: 'right',
+          fontSize: 21,
+          marginTop: 12,
+        }}
+      >
+        00:26:44
+      </span>
+    </div>
+  </AbsoluteFill>
+);
+
+const WireCredits = () => (
+  <AbsoluteFill style={{background: WIRE.bg, overflow: 'hidden'}}>
+    <WireScanlines />
+    <div style={{position: 'absolute', left: 132, top: 96}}>
+      <div
+        style={{
+          color: WIRE.amber,
+          fontFamily: WIRE.mono,
+          fontSize: 27,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+        }}
+      >
+        $ credits --team newsroom-ai-tools
+      </div>
+      <div
+        style={{
+          color: WIRE.quiet,
+          fontFamily: WIRE.mono,
+          fontSize: 21,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          marginTop: 16,
+        }}
+      >
+        11 CONTRIBUTORS · BT / THE BUSINESS TIMES
+      </div>
+      <div
+        style={{
+          columnGap: 130,
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          marginTop: 56,
+        }}
+      >
+        {[CREDITS.slice(0, 6), CREDITS.slice(6)].map((column, i) => (
+          <div key={i} style={{display: 'grid', gap: 24}}>
+            {column.map((name) => (
+              <div
+                key={name}
+                style={{
+                  color: WIRE.green,
+                  fontFamily: WIRE.mono,
+                  fontSize: 33,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  textShadow: '0 0 18px rgba(61,255,160,.3)',
+                }}
+              >
+                <span style={{color: WIRE.quiet}}>ok&nbsp;&nbsp;</span>
+                {name}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          color: WIRE.quiet,
+          fontFamily: WIRE.mono,
+          fontSize: 22,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          marginTop: 60,
+        }}
+      >
+        made with codex + seedance · exit 0
+      </div>
+    </div>
+  </AbsoluteFill>
+);
+
+/* ------------------------------------------------------------------ */
+/* Variant E — Product Keynote (light, launch-film language)           */
+/* ------------------------------------------------------------------ */
+
+const KEYNOTE = {
+  bg: '#f6f7f9',
+  ink: '#171a20',
+  sub: '#6b7180',
+  card: '#ffffff',
+  hairline: '#e3e6ec',
+  gradient: 'linear-gradient(94deg, #4f5dff 0%, #00b8d9 100%)',
+  shadow: '0 40px 90px rgba(23, 26, 32, 0.14)',
+  sans: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+};
+
+const KeynoteGround = () => (
+  <AbsoluteFill
+    style={{
+      background: `radial-gradient(900px 600px at 18% 8%, rgba(79, 93, 255, 0.09), transparent 60%), radial-gradient(900px 620px at 85% 92%, rgba(0, 184, 217, 0.1), transparent 60%), ${KEYNOTE.bg}`,
+    }}
+  />
+);
+
+const KeynotePill = ({children, css}: {children: ReactNode; css?: CSSProperties}) => (
+  <div
+    style={{
+      background: KEYNOTE.card,
+      border: `1px solid ${KEYNOTE.hairline}`,
+      borderRadius: 999,
+      boxShadow: '0 8px 24px rgba(23,26,32,.06)',
+      color: KEYNOTE.sub,
+      display: 'inline-block',
+      fontFamily: KEYNOTE.sans,
+      fontSize: 20,
+      fontWeight: 600,
+      letterSpacing: '0.14em',
+      padding: '13px 26px 11px',
+      textTransform: 'uppercase',
+      ...css,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const KeynoteGradientWord = ({children}: {children: ReactNode}) => (
+  <span
+    style={{
+      backgroundImage: KEYNOTE.gradient,
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      color: 'transparent',
+    }}
+  >
+    {children}
+  </span>
+);
+
+const KeynoteIntro = () => (
+  <AbsoluteFill style={{overflow: 'hidden'}}>
+    <KeynoteGround />
+    <div
+      style={{
+        position: 'absolute',
+        left: 210,
+        top: 210,
+        width: 480,
+        height: 300,
+        background: KEYNOTE.card,
+        border: `1px solid ${KEYNOTE.hairline}`,
+        borderRadius: 24,
+        boxShadow: KEYNOTE.shadow,
+        opacity: 0.55,
+        padding: 30,
+        transform: 'rotate(-7deg)',
+      }}
+    >
+      <div style={{background: '#eef0f4', borderRadius: 8, height: 18, width: 200}} />
+      <svg width="410" height="180" viewBox="0 0 410 180" style={{marginTop: 28}}>
+        <path
+          d="M 8 150 C 60 140, 90 152, 130 122 S 200 96, 240 108 S 320 46, 402 24"
+          fill="none"
+          stroke="#4f5dff"
+          strokeWidth="7"
+          strokeLinecap="round"
+        />
+      </svg>
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        right: 190,
+        bottom: 190,
+        width: 430,
+        height: 260,
+        background: KEYNOTE.card,
+        border: `1px solid ${KEYNOTE.hairline}`,
+        borderRadius: 24,
+        boxShadow: KEYNOTE.shadow,
+        display: 'grid',
+        gap: 20,
+        opacity: 0.55,
+        padding: 34,
+        transform: 'rotate(6deg)',
+      }}
+    >
+      {[340, 360, 300, 210].map((w, i) => (
+        <div key={i} style={{background: '#eef0f4', borderRadius: 8, height: 20, width: w}} />
+      ))}
+    </div>
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+      }}
+    >
+      <KeynotePill>SPH Staff Awards · Innovation Award</KeynotePill>
+      <div
+        style={{
+          color: KEYNOTE.ink,
+          fontFamily: KEYNOTE.sans,
+          fontSize: 128,
+          fontWeight: 800,
+          letterSpacing: '-0.045em',
+          lineHeight: 1.02,
+          marginTop: 44,
+          textAlign: 'center',
+        }}
+      >
+        Newsroom <KeynoteGradientWord>AI</KeynoteGradientWord> Tools.
+      </div>
+      <div
+        style={{
+          color: KEYNOTE.sub,
+          fontFamily: KEYNOTE.sans,
+          fontSize: 34,
+          fontWeight: 500,
+          letterSpacing: '-0.01em',
+          marginTop: 30,
+        }}
+      >
+        Less grunt work. More journalism.
+      </div>
+    </AbsoluteFill>
+  </AbsoluteFill>
+);
+
+const KeynotePlaceholder = () => (
+  <AbsoluteFill style={{overflow: 'hidden'}}>
+    <KeynoteGround />
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        display: 'flex',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          background: KEYNOTE.card,
+          border: `1px solid ${KEYNOTE.hairline}`,
+          borderRadius: 32,
+          boxShadow: KEYNOTE.shadow,
+          padding: '56px 72px 52px',
+          textAlign: 'center',
+          width: 1160,
+        }}
+      >
+        <KeynotePill>Scene 03 · Market close</KeynotePill>
+        <div
+          style={{
+            color: KEYNOTE.ink,
+            fontFamily: KEYNOTE.sans,
+            fontSize: 58,
+            fontWeight: 800,
+            letterSpacing: '-0.03em',
+            lineHeight: 1.12,
+            margin: '38px auto 0',
+            maxWidth: 900,
+          }}
+        >
+          {SCENE_03_LINE}
+        </div>
+        <div
+          style={{
+            border: `2px dashed ${KEYNOTE.hairline}`,
+            borderRadius: 18,
+            color: KEYNOTE.sub,
+            fontFamily: KEYNOTE.sans,
+            fontSize: 23,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            margin: '44px auto 0',
+            padding: '20px 30px 18px',
+            textTransform: 'uppercase',
+            width: 640,
+          }}
+        >
+          Placeholder — final footage in production
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: 12,
+            justifyContent: 'center',
+            marginTop: 40,
+          }}
+        >
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <div
+              key={i}
+              style={{
+                background: i < 3 ? '#4f5dff' : KEYNOTE.hairline,
+                borderRadius: 999,
+                height: 10,
+                width: i === 2 ? 44 : 10,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </AbsoluteFill>
+  </AbsoluteFill>
+);
+
+const KeynoteScene06 = () => (
+  <AbsoluteFill style={{overflow: 'hidden'}}>
+    <KeynoteGround />
+    <div
+      style={{
+        position: 'absolute',
+        left: '50%',
+        top: 64,
+        transform: 'translateX(-50%)',
+        width: 1360,
+        background: KEYNOTE.card,
+        border: `1px solid ${KEYNOTE.hairline}`,
+        borderRadius: 26,
+        boxShadow: KEYNOTE.shadow,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          alignItems: 'center',
+          borderBottom: `1px solid ${KEYNOTE.hairline}`,
+          display: 'flex',
+          gap: 10,
+          padding: '16px 24px',
+        }}
+      >
+        {['#ff5f57', '#febc2e', '#28c840'].map((c) => (
+          <div key={c} style={{background: c, borderRadius: '50%', height: 15, width: 15}} />
+        ))}
+        <div
+          style={{
+            color: KEYNOTE.sub,
+            fontFamily: KEYNOTE.sans,
+            fontSize: 19,
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+            marginLeft: 16,
+            textTransform: 'uppercase',
+          }}
+        >
+          S06 · Live footage · Native VO
+        </div>
+      </div>
+      <div style={{height: 700, position: 'relative'}}>
+        <Scene06Frame filter="saturate(.98)" />
+      </div>
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: '50%',
+        bottom: 74,
+        transform: 'translateX(-50%)',
+        color: KEYNOTE.ink,
+        fontFamily: KEYNOTE.sans,
+        fontSize: 40,
+        fontWeight: 700,
+        letterSpacing: '-0.02em',
+        lineHeight: 1.2,
+        maxWidth: 1280,
+        textAlign: 'center',
+        width: 1280,
+      }}
+    >
+      {SCENE_06_LINE}
+      <div
+        style={{
+          backgroundImage: KEYNOTE.gradient,
+          borderRadius: 999,
+          height: 6,
+          margin: '26px auto 0',
+          width: 200,
+        }}
+      />
+    </div>
+  </AbsoluteFill>
+);
+
+const KeynoteCredits = () => (
+  <AbsoluteFill style={{overflow: 'hidden'}}>
+    <KeynoteGround />
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+      }}
+    >
+      <KeynotePill>Credits</KeynotePill>
+      <div
+        style={{
+          color: KEYNOTE.ink,
+          fontFamily: KEYNOTE.sans,
+          fontSize: 54,
+          fontWeight: 800,
+          letterSpacing: '-0.03em',
+          marginTop: 34,
+        }}
+      >
+        The team behind BT · Newsroom AI Tools
+      </div>
+      <div
+        style={{
+          backgroundImage: KEYNOTE.gradient,
+          borderRadius: 999,
+          height: 5,
+          marginTop: 30,
+          width: 160,
+        }}
+      />
+      <div
+        style={{
+          columnGap: 140,
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          marginTop: 52,
+        }}
+      >
+        {[CREDITS.slice(0, 6), CREDITS.slice(6)].map((column, i) => (
+          <div key={i} style={{display: 'grid', gap: 22}}>
+            {column.map((name) => (
+              <div
+                key={name}
+                style={{
+                  color: KEYNOTE.ink,
+                  fontFamily: KEYNOTE.sans,
+                  fontSize: 30,
+                  fontWeight: 600,
+                  letterSpacing: '-0.01em',
+                  textAlign: 'center',
+                }}
+              >
+                {name}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <KeynotePill css={{marginTop: 56}}>
+        Video made with Codex and Seedance
+      </KeynotePill>
+    </AbsoluteFill>
+  </AbsoluteFill>
+);
+
+/* ------------------------------------------------------------------ */
+/* Variant F — Redline Edit (editor's markup, human in the loop)       */
+/* ------------------------------------------------------------------ */
+
+const REDLINE = {
+  paper: '#f9f4ea',
+  rule: 'rgba(32, 29, 24, 0.09)',
+  ink: '#201d18',
+  red: '#d92f1e',
+  blue: '#2a52c9',
+  highlight: '#ffe25a',
+  type: '"Courier New", Courier, monospace',
+};
+
+const RedlineGround = () => (
+  <AbsoluteFill
+    style={{
+      background: `repeating-linear-gradient(0deg, transparent 0px, transparent 53px, ${REDLINE.rule} 53px, ${REDLINE.rule} 55px), ${REDLINE.paper}`,
+    }}
+  />
+);
+
+const RedlineStamp = ({
+  children,
+  css,
+}: {
+  children: ReactNode;
+  css?: CSSProperties;
+}) => (
+  <div
+    style={{
+      position: 'absolute',
+      border: `5px solid ${REDLINE.red}`,
+      borderRadius: 14,
+      color: REDLINE.red,
+      fontFamily: REDLINE.type,
+      fontSize: 30,
+      fontWeight: 700,
+      letterSpacing: '0.14em',
+      opacity: 0.85,
+      padding: '16px 26px 12px',
+      textTransform: 'uppercase',
+      transform: 'rotate(-7deg)',
+      ...css,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const RedlineIntro = () => (
+  <AbsoluteFill style={{overflow: 'hidden'}}>
+    <RedlineGround />
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        top: 118,
+        color: REDLINE.ink,
+        fontFamily: REDLINE.type,
+        fontSize: 24,
+        fontWeight: 700,
+        letterSpacing: '0.1em',
+      }}
+    >
+      SPH STAFF AWARDS — INNOVATION AWARD ENTRY, DRAFT 03
+    </div>
+    <div style={{position: 'absolute', left: 150, top: 300}}>
+      <div
+        style={{
+          color: REDLINE.ink,
+          fontFamily: REDLINE.type,
+          fontSize: 108,
+          fontWeight: 700,
+          letterSpacing: '-0.02em',
+          lineHeight: 1.08,
+        }}
+      >
+        Newsroom{' '}
+        <span style={{position: 'relative', whiteSpace: 'nowrap'}}>
+          AI Tools
+          <span
+            style={{
+              position: 'absolute',
+              inset: '-26px -40px -18px -34px',
+              border: `6px solid ${REDLINE.red}`,
+              borderRadius: '50%',
+              transform: 'rotate(-3deg)',
+            }}
+          />
+        </span>
+      </div>
+      <div
+        style={{
+          color: REDLINE.ink,
+          fontFamily: REDLINE.type,
+          fontSize: 44,
+          fontWeight: 700,
+          marginTop: 84,
+        }}
+      >
+        the{' '}
+        <span
+          style={{
+            color: REDLINE.red,
+            textDecorationColor: REDLINE.red,
+            textDecorationLine: 'line-through',
+            textDecorationThickness: 5,
+          }}
+        >
+          <span style={{color: REDLINE.ink}}>daily grunt work</span>
+        </span>{' '}
+        <span style={{color: REDLINE.blue, position: 'relative'}}>
+          work that matters
+          <span
+            style={{
+              position: 'absolute',
+              left: '50%',
+              bottom: -40,
+              color: REDLINE.blue,
+              fontSize: 46,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            ^
+          </span>
+        </span>
+      </div>
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        right: 210,
+        top: 250,
+        color: REDLINE.red,
+        fontFamily: REDLINE.type,
+        fontSize: 27,
+        fontStyle: 'italic',
+        fontWeight: 700,
+        transform: 'rotate(4deg)',
+        width: 300,
+      }}
+    >
+      this is our story ✓
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        bottom: 96,
+        color: REDLINE.ink,
+        fontFamily: REDLINE.type,
+        fontSize: 23,
+        fontWeight: 700,
+        letterSpacing: '0.1em',
+        opacity: 0.65,
+      }}
+    >
+      BT / THE BUSINESS TIMES
+    </div>
+  </AbsoluteFill>
+);
+
+const RedlinePlaceholder = () => (
+  <AbsoluteFill style={{overflow: 'hidden'}}>
+    <RedlineGround />
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        top: 112,
+        color: REDLINE.ink,
+        fontFamily: REDLINE.type,
+        fontSize: 25,
+        fontWeight: 700,
+        letterSpacing: '0.1em',
+      }}
+    >
+      [SCENE 03 — MARKET CLOSE]
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        top: 216,
+        color: REDLINE.ink,
+        display: 'flex',
+        fontFamily: REDLINE.type,
+        fontSize: 56,
+        fontWeight: 700,
+        gap: 44,
+      }}
+    >
+      {['OPEN.', 'FIND.', 'COPY.', 'PASTE.'].map((word) => (
+        <span
+          key={word}
+          style={{
+            textDecorationColor: REDLINE.red,
+            textDecorationLine: 'line-through',
+            textDecorationThickness: 6,
+          }}
+        >
+          {word}
+        </span>
+      ))}
+      <span style={{color: REDLINE.blue}}>→ ONE CLICK.</span>
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        top: 430,
+        color: REDLINE.ink,
+        fontFamily: REDLINE.type,
+        fontSize: 62,
+        fontWeight: 700,
+        lineHeight: 1.3,
+        maxWidth: 1480,
+        textDecorationColor: REDLINE.red,
+        textDecorationLine: 'underline',
+        textDecorationStyle: 'wavy',
+        textDecorationThickness: 4,
+        textUnderlineOffset: 14,
+      }}
+    >
+      {SCENE_03_LINE}
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        bottom: 150,
+        background: REDLINE.highlight,
+        color: REDLINE.ink,
+        fontFamily: REDLINE.type,
+        fontSize: 30,
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        padding: '14px 26px 10px',
+        transform: 'rotate(-1.2deg)',
+      }}
+    >
+      PLACEHOLDER — FOOTAGE TO COME
+    </div>
+    <RedlineStamp css={{right: 170, top: 130}}>Not final</RedlineStamp>
+  </AbsoluteFill>
+);
+
+const RedlineScene06 = () => (
+  <AbsoluteFill style={{background: REDLINE.ink, overflow: 'hidden'}}>
+    <Scene06Frame filter="saturate(.94) contrast(1.04)" />
+    <AbsoluteFill
+      style={{
+        background:
+          'linear-gradient(0deg, rgba(32,29,24,.78) 0%, rgba(32,29,24,.14) 32%, rgba(32,29,24,0) 50%)',
+      }}
+    />
+    <div
+      style={{
+        position: 'absolute',
+        left: 84,
+        top: 66,
+        background: REDLINE.paper,
+        color: REDLINE.ink,
+        fontFamily: REDLINE.type,
+        fontSize: 23,
+        fontWeight: 700,
+        letterSpacing: '0.1em',
+        padding: '12px 18px 10px',
+        transform: 'rotate(-1deg)',
+      }}
+    >
+      S06 — KEEP AS IS <span style={{color: REDLINE.red}}>✓</span>
+    </div>
+    <RedlineStamp css={{right: 96, top: 92, borderRadius: '50%', padding: '30px 34px 26px', textAlign: 'center', fontSize: 25}}>
+      HUMAN
+      <br />
+      IN THE LOOP
+    </RedlineStamp>
+    <div
+      style={{
+        position: 'absolute',
+        left: 84,
+        bottom: 92,
+        color: REDLINE.paper,
+        fontFamily: REDLINE.type,
+        fontSize: 46,
+        fontWeight: 700,
+        lineHeight: 1.24,
+        maxWidth: 1500,
+        textShadow: '0 4px 22px rgba(0,0,0,.55)',
+      }}
+    >
+      {SCENE_06_LINE}
+      <div
+        style={{
+          background: REDLINE.red,
+          borderRadius: 3,
+          height: 7,
+          marginTop: 20,
+          transform: 'rotate(-0.4deg)',
+          width: 620,
+        }}
+      />
+    </div>
+  </AbsoluteFill>
+);
+
+const RedlineCredits = () => (
+  <AbsoluteFill style={{overflow: 'hidden'}}>
+    <RedlineGround />
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        top: 104,
+        color: REDLINE.ink,
+        fontFamily: REDLINE.type,
+        fontSize: 44,
+        fontWeight: 700,
+      }}
+    >
+      CREDITS — the team behind BT / Newsroom AI Tools
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        top: 240,
+        columnGap: 150,
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+      }}
+    >
+      {[CREDITS.slice(0, 6), CREDITS.slice(6)].map((column, i) => (
+        <div key={i} style={{display: 'grid', gap: 26}}>
+          {column.map((name) => (
+            <div
+              key={name}
+              style={{
+                color: REDLINE.ink,
+                fontFamily: REDLINE.type,
+                fontSize: 37,
+                fontWeight: 700,
+              }}
+            >
+              <span style={{color: REDLINE.red, marginRight: 22}}>✓</span>
+              {name}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+    <RedlineStamp css={{right: 170, bottom: 150, transform: 'rotate(-9deg)'}}>
+      Approved for press
+    </RedlineStamp>
+    <div
+      style={{
+        position: 'absolute',
+        left: 150,
+        bottom: 100,
+        color: REDLINE.blue,
+        fontFamily: REDLINE.type,
+        fontSize: 27,
+        fontStyle: 'italic',
+        fontWeight: 700,
+      }}
+    >
+      Video made with Codex and Seedance
+    </div>
+  </AbsoluteFill>
+);
+
+/* ------------------------------------------------------------------ */
 /* Preview grid                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -954,6 +2078,33 @@ const VARIANT_PANELS: Record<
       {label: 'PLACEHOLDER SCENE', node: <SlatePlaceholder />},
       {label: 'SCENE 06 OVERLAY', node: <SlateScene06 />},
       {label: 'CREDITS', node: <SlateCredits />},
+    ],
+  },
+  'wire-terminal': {
+    title: 'D — WIRE TERMINAL',
+    panels: [
+      {label: 'INTRO', node: <WireIntro />},
+      {label: 'PLACEHOLDER SCENE', node: <WirePlaceholder />},
+      {label: 'SCENE 06 OVERLAY', node: <WireScene06 />},
+      {label: 'CREDITS', node: <WireCredits />},
+    ],
+  },
+  'product-keynote': {
+    title: 'E — PRODUCT KEYNOTE',
+    panels: [
+      {label: 'INTRO', node: <KeynoteIntro />},
+      {label: 'PLACEHOLDER SCENE', node: <KeynotePlaceholder />},
+      {label: 'SCENE 06 OVERLAY', node: <KeynoteScene06 />},
+      {label: 'CREDITS', node: <KeynoteCredits />},
+    ],
+  },
+  'redline-edit': {
+    title: 'F — REDLINE EDIT',
+    panels: [
+      {label: 'INTRO', node: <RedlineIntro />},
+      {label: 'PLACEHOLDER SCENE', node: <RedlinePlaceholder />},
+      {label: 'SCENE 06 OVERLAY', node: <RedlineScene06 />},
+      {label: 'CREDITS', node: <RedlineCredits />},
     ],
   },
 };
