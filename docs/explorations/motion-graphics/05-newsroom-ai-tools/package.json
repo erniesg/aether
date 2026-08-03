@@ -1,0 +1,30 @@
+{
+  "name": "newsroom-ai-tools-award-video",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "list": "remotion compositions src/index.ts",
+    "still:scrapbook": "remotion still src/index.ts NewsroomAI-Scrapbook snapshots/scrapbook.png --frame=393",
+    "still:newsprint": "remotion still src/index.ts NewsroomAI-Newsprint snapshots/newsprint.png --frame=393",
+    "still:kirigami": "remotion still src/index.ts NewsroomAI-Kirigami snapshots/kirigami.png --frame=393",
+    "render:scrapbook": "remotion render src/index.ts NewsroomAI-Scrapbook renders/scrapbook.mp4",
+    "render:newsprint": "remotion render src/index.ts NewsroomAI-Newsprint renders/newsprint.mp4",
+    "render:kirigami": "remotion render src/index.ts NewsroomAI-Kirigami renders/kirigami.mp4",
+    "render:brand-film": "remotion render src/index.ts NewsroomAI-BrandFilm-Placeholder renders/newsroom-ai-brand-film-placeholder.mp4",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.483",
+    "@remotion/media": "4.0.483",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.483"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
