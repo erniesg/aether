@@ -6,20 +6,25 @@ Implementation guardrails for agents working in aether. Read [AGENTS.md](./AGENT
 
 aether is a creator-first canvas. References, research, generation, editing, linked variants, and export all serve one creative loop inside a single synthesis shell. Do not turn supporting automation or provenance into an operator dashboard, run console, wizard, or separate product surface.
 
+Aether is an optional downstream visual-composition consumer of approved Ernie.SG output through a verified, exact-pinned public Struct boundary. It does not own source acquisition or reconstruction, canonical text or semantics, editorial approval, deterministic XHTML/reflowable EPUB, or public research delivery. The current prototype does not implement that import/release boundary; target prose must remain explicitly future-facing.
+
 ## Hard rules
 
 Keep this list in sync with `AGENTS.md`.
 
-1. Single synthesis-shell workspace; never route-split the creator loop.
+1. Single synthesis-shell workspace; never route-split.
 2. Canvas is the substrate.
-3. Strict UI taxonomy: `input | output | tool | navigation | metadata` — do not mix roles within one surface.
-4. Keep the prompt composer at the bottom with an explicit scope.
-5. Use progressive disclosure by default: icon plus short chip, expanded on click.
-6. Prefer restraint over explanatory labels; layout carries meaning.
-7. Keep AI provider-agnostic. Do not hardcode a default image or video model.
-8. Record typed provenance on every action.
-9. Persist canonical truth as a graph in Convex.
-10. Use red/green TDD with human validation gates.
+3. Strict UI taxonomy: `input | output | tool | navigation | metadata` — no mixing.
+4. Prompt composer stays at the bottom with explicit scope.
+5. Progressive disclosure default (icon + short chip, expand on click).
+6. Restraint over labels — layout carries meaning, not walls of text.
+7. Provider-agnostic AI. No default image or video model hardcoded.
+8. Typed provenance on every action.
+9. Graph-first persistence.
+10. Red/green TDD with human validation gates.
+11. Aether is optional and downstream; it owns visual composition and derivatives, not source semantics, editorial approval, or public delivery.
+12. Canonical Struct text is read-only in Aether; semantic corrections return upstream as a new approved revision.
+13. A-REQ and A-ACT stay inactive and fail closed; planning approval never authorizes outreach, activation, deployment, or printer submission.
 
 ## Architecture and versions
 
@@ -93,6 +98,8 @@ docs/                   maintained guidance plus clearly marked historical recor
 - Every workspace object should have a compact rail form, a focused shell form, and a canvas form. If it cannot have a canvas form, use a lens in the same shell.
 - Add provenance when adding a mutation; do not bolt it on later.
 - Keep provider adapters isolated so separate slices can land without cross-dependency conflicts.
+- Keep future Struct imports behind authenticated actor/session/workspace authorization. Import, read, edit, release, and asset access are separate permissions; unauthorized and cross-workspace access must fail before domain or storage access.
+- Do not silently migrate current `asset`, `exportPack`, `manifest.json`, workspace, or PNG-ZIP data into future import, `CreativeGraph`, or derivative-manifest types.
 - Commit coherent slices with conventional prefixes such as `feat:`, `fix:`, `test:`, `docs:`, and `chore:`. Do not add automated attribution trailers.
 - Do not force-push `main`. Use isolated worktrees for parallel or risky work.
 

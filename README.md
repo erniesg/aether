@@ -24,6 +24,27 @@ See [AGENTS.md](./AGENTS.md) for the product and interaction contract.
 
 Raw identifiers, payloads, traces, and health information belong in diagnostic surfaces or `?debug=1`, not in the default creator experience.
 
+## Cross-repository publication boundary
+
+Aether is an optional downstream visual-composition product. The owner-first publication path starts in Ernie.SG, which owns PDF/DOCX/source acquisition, source-specific reconstruction, editorial decisions and approved revisions, authenticated export/release records, validation, public routes, and delivery. Struct owns source-neutral semantic structure, integrity, stable IDs, recovery facts, and deterministic XHTML/reflowable EPUB packaging. Aether may consume a future verified, exact-pinned Struct bundle, but owns only visual composition, explicit visual overrides, paged/print/social/motion derivatives, renderer profiles, preflight, and derivative manifests.
+
+The upstream target is born-digital academic PDF/DOCX to private reconstruction, review/edit/approve, `/research/:slug`, deterministic XHTML, and accessible reflowable EPUB. Scans and unsupported structures fail closed to `needs-manual-reconstruction`; there is no OCR-quality promise. `StructBundle`, its bytes decoder/verifier, package publication, and consumer migration are documented targets, not current exports from the private Struct `0.0.0` package.
+
+Canonical Struct text may not be copied, mutated, or silently forked in Aether. A semantic correction returns to Ernie.SG as a new approved revision. Rucksack may orchestrate target-owned commands and collect evidence, but has no Aether, Struct, or Ernie.SG domain, content, credential, or target-mutation authority.
+
+State labels are evidence claims:
+
+| State | Meaning for Aether |
+|---|---|
+| Current | Creator-workspace prototype with Convex state/run records and PNG-ZIP export |
+| Documented target | Verified downstream import, `CreativeGraph`, bounded print/social proof, preflight, and complete derivative manifest |
+| Implemented but unreleased | Exact-head authenticated import and local proof pass behind an inactive route/feature gate; no printer submission |
+| Released | A separately authorized exact deployment or printer action has target-specific acceptance evidence |
+
+The fixed documented proof is one image-led A5, 24-page, saddle-stitched booklet with cover, one printer-accepted PDF, three linked social cutdowns, and a complete derivative manifest. The real printer, its versioned acceptance requirements/profile, and the production renderer remain open. Nothing in the current repository implements or releases that proof.
+
+Printer-requirements outreach (`A-REQ`) and route/deployment/printer actions (`A-ACT`) are inactive, fail-closed action-time gates. They require a newly authenticated immutable explicit-user authorization, its immutable authorization ID and evidence SHA-256, and exact action, target, actor, issue time, expiry, disclosure, and cost bindings. Prior planning approval cannot satisfy either gate.
+
 ## Stack
 
 - Next.js 15.5, React 19, TypeScript, and Tailwind
@@ -68,6 +89,8 @@ npm run deploy:prod
 ```
 
 Deployment uses `open-next.config.ts`, `wrangler.jsonc`, and Convex. The staging and production commands also enforce the required tldraw license configuration.
+
+These commands document existing repository behavior; they do not authorize or prove a deployment. A future Aether route or deployment requires its own accepted `A-ACT` record.
 
 ## Repository map
 
