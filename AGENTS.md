@@ -8,6 +8,10 @@ aether is a **creator-first canvas tool**. The primary product surface is a canv
 
 aether is **not** an operator workbench, admin dashboard, pipeline inspector, or run-history console. Signals and references are _material for creation_, not the product destination. If a view looks like it could double as an internal ops dashboard, it is in the wrong repo.
 
+Aether is also an **optional downstream visual-composition consumer** of the Ernie.SG and Struct publication path. Struct owns source-neutral semantic structure, stable IDs, integrity, recovery, and deterministic XHTML/reflowable EPUB packaging. Ernie.SG owns source acquisition and reconstruction, editorial revisions and approval, authenticated export/release records, validation, public delivery, and source-specific recovery wording. Aether owns only visual composition, explicit visual overrides, print/social/motion derivatives, renderer profiles, preflight, and derivative manifests.
+
+This downstream boundary is a documented target, not current runtime behavior. The current prototype has Convex workspace/run state and PNG-ZIP export; it has no Struct import, `CreativeGraph`, print profile/preflight, or durable target derivative manifest. Never describe documentation, a branch, or local validation as an implementation or release.
+
 ## UI direction
 
 - **Creator-facing, not admin-facing.** Show creators what they need when they need it — not every control, diagnostic, and endpoint at once.
@@ -53,6 +57,9 @@ Research is the market / competitor / taste-discovery loop. It is not brand inge
 8. Typed provenance on every action.
 9. Graph-first persistence.
 10. Red/green TDD with human validation gates.
+11. Aether is optional and downstream; it owns visual composition and derivatives, not source semantics, editorial approval, or public delivery.
+12. Canonical Struct text is read-only in Aether; semantic corrections return upstream as a new approved revision.
+13. A-REQ and A-ACT stay inactive and fail closed; planning approval never authorizes outreach, activation, deployment, or printer submission.
 
 ## Implementation notes
 
@@ -60,3 +67,4 @@ Research is the market / competitor / taste-discovery loop. It is not brand inge
 - When asked to "expose" or "inspect" a pipeline, default to artifact-first review, not a generic dashboard.
 - Every workspace object has three forms: _compact rail_ (idle), _expanded in shell_ (focus), _canvas form_ (making). If a concept has no canvas form (e.g. an export pack preview), its expansion is a dedicated lens inside the same shell, not a new route.
 - Provider adapters and capability definitions are modules with clear contracts, unit tests, and zero cross-dependencies — so they can be worked on in parallel without stomping each other.
+- A future Struct consumer must use only an exact-pinned public bytes decoder and verified stable-ID references. Do not copy canonical text into Aether state, expose editable composition before authenticated import and actor/workspace authorization complete, or silently promote prototype `asset`, `exportPack`, or `manifest.json` data into target contract types.

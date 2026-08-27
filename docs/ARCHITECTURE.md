@@ -33,6 +33,70 @@ object storage.
 
 The creator workspace is one synthesis shell at `/workspace/[wsId]`. Research, generation, inspection, and export may use lenses or disclosed supporting views, but they must not split the creator loop into a wizard or an operator dashboard.
 
+## State and ownership boundary
+
+Architecture claims use four states:
+
+- **Current:** behavior observed in executable code on the repository default.
+- **Documented target:** accepted design intent, not an implementation claim.
+- **Implemented but unreleased:** code and exact-head evidence exist, but no external release is proven.
+- **Released:** an exact deployment or submitted artifact and target-specific acceptance evidence are recorded.
+
+At the current head, Aether is a creator-workspace prototype with Convex state and run records. `POST /api/export` produces one PNG per supplied artboard plus the prototype `manifest.json` in a ZIP. The client skips an artboard whose completed PNG cannot be resolved, so its current export can be partial. Current research and provider paths also retain their source-defined unavailable-provider and deterministic development fallbacks. Aether currently has no Struct import or exact package pin, `CreativeGraph`, printer profile or preflight, PDF proof renderer, authenticated immutable import receipt, or durable target derivative release manifest. The existing `asset`, `exportPack`, workspace, `manifest.json`, and PNG-ZIP types remain prototype-only unless a later migration names and proves them explicitly.
+
+The upstream owner-first target covers born-digital academic PDF/DOCX acquisition, private reconstruction, review/edit/approve, `/research/:slug`, deterministic XHTML, and accessible reflowable EPUB. Scans and unsupported structures fail closed to `needs-manual-reconstruction`; no OCR-quality promise is made. Struct's `StructBundle`, public bytes decoder/verifier, publication, and consumer migration remain documented targets rather than current exports from its private `0.0.0` package.
+
+The cross-repository ownership boundary is one-way:
+
+| Concern | Owner | Aether boundary |
+|---|---|---|
+| PDF/DOCX/source acquisition, reconstruction, source-specific recovery wording | Ernie.SG | Never imported as Aether internals |
+| Editorial decisions, canonical revisions, approval, authenticated export/release records, public delivery | Ernie.SG | Aether consumes only an authenticated approved export |
+| Semantic schema, stable IDs, integrity, recovery facts, bundle verification, deterministic XHTML/reflowable EPUB | Struct | Future exact-pinned public bytes-decoder boundary only |
+| Visual composition, explicit visual overrides, print/social/motion derivatives, profiles, preflight, derivative manifests | Aether | References verified stable IDs; owns no canonical text |
+| Generic orchestration, policy, and evidence collection | Rucksack | May invoke target-owned commands; has no domain, content, credential, or mutation authority |
+
+Aether must not copy, mutate, or silently fork canonical Struct text. A `CreativeGraph` is a downstream projection that references stable block and asset IDs and owns visual choices only. Missing or changed upstream references fail closed. A semantic correction returns to Ernie.SG and arrives only as a newly approved, authenticated, and verified revision.
+
+## Documented downstream target
+
+Aether is optional and is not required for the first Ernie.SG and Struct publication MVP. Its fixed owner-first proof is one image-led A5, 24-page, saddle-stitched booklet with cover, one printer-accepted PDF, and three linked social cutdowns. The real printer, versioned PDF/X and ICC requirements, font/bleed/resolution/imposition/binding acceptance profile, and production renderer remain open.
+
+The target import and composition path is inactive and ordered:
+
+```text
+authenticated actor/session/workspace import authorization
+  -> size-cap and hash the unparsed serialized bundle
+  -> authenticate and freshness-check the Ernie.SG producer record
+  -> exact-pinned Struct bytes decoder with expected bundle digest
+  -> atomically persist canonical bundle bytes and content-addressed assets
+  -> immutable import metadata and Aether import receipt
+  -> stable-ID references
+  -> CreativeGraph
+  -> renderer/profile
+  -> preflight
+  -> complete derivative manifest
+```
+
+Struct integrity verification is not producer authentication. Before parsing or resolver execution, the target must bind the raw bundle digest to a current authenticated Ernie.SG producer record, approved revision, producer trust, audience/target, status/supersession policy, and replay/idempotency policy. Forged, absent, stale, revoked, superseded, replayed, wrong-audience, or mismatched evidence fails with zero resolver starts. Editable composition becomes reachable only after authenticated import, atomic content-addressed persistence, immutable pinning, and actor/workspace authorization complete.
+
+The inactive authorization contract grants import, read, edit, release, and asset access separately. Unauthorized and cross-workspace reads, writes, imports, ID enumeration, and direct Convex/API mutations fail before domain or storage access.
+
+The target derivative manifest is separate from the prototype export manifest. It binds the authenticated import and upstream revision, `CreativeGraph`, renderer and versioned profile, supplied printer and preflight rules/results, approval, the booklet and three social artifacts, lineage among them, and every artifact digest.
+
+## External-action gates
+
+`A-REQ` and `A-ACT` are inactive and fail closed. Neither documentation, prior planning approval, a branch, nor a passing test activates them. Each future receipt requires newly authenticated immutable explicit-user authorization, an immutable authorization ID and evidence SHA-256, and bindings for the exact canonical action, target, execution actor, issue time, expiry, disclosures, and cost/billing scope.
+
+The only canonical action literals are:
+
+- `send printer-requirements inquiry`
+- `activate Aether route`
+- `deploy Aether`
+- `submit Aether printer proof`
+
+`A-REQ` can authorize only its named printer/contact/channel inquiry and disclosed questions or metadata. It cannot authorize implementation, artifact submission, ordering, purchase, deployment, or any `A-ACT` action. `A-ACT` authorizes only one named action and exact route/environment or printer/contact target; route activation cannot authorize deployment or printer submission. No current route is an activated Struct import/composition route, and this documentation performs no outreach, deployment, activation, or submission.
+
 ## Client composition
 
 The visible workspace is assembled in `components/workspace/` from five UI roles:

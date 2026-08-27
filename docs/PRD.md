@@ -1,5 +1,19 @@
 # PRD — aether (hackathon slice)
 
+## Current cross-repository product contract
+
+The historical hackathon body below remains a record of the prototype. The accepted documented target adds an optional owner-first visual-publication path without replacing the creator-first canvas or claiming current implementation.
+
+Ernie.SG owns source acquisition and reconstruction, editorial decisions, canonical approved revisions, authenticated export/release records, validation, public routes, and delivery. Struct owns source-neutral semantic structure, integrity, stable IDs, recovery facts, and deterministic XHTML/reflowable EPUB packaging. Aether may eventually consume an authenticated, verified, exact-pinned Struct bundle and owns only downstream `CreativeGraph` composition, explicit visual overrides, print/social/motion derivatives, renderer profiles, preflight, and derivative manifests. Canonical text remains read-only; semantic changes return upstream as a new approved revision.
+
+The selected proof is fixed: one image-led A5, 24-page, saddle-stitched booklet with cover, one printer-accepted PDF, three linked social cutdowns, and a complete derivative manifest. The real printer, versioned requirements/profile, and production renderer remain open. The current Convex workspace/run records and PNG-ZIP export are prototype behavior; there is no current Struct import, `CreativeGraph`, printer preflight/profile, or durable target manifest.
+
+Any future import path remains inactive until it authenticates the actor/session/workspace, authenticates and freshness-checks the upstream producer record before parsing or resolver execution, uses Struct's exact-pinned public bytes decoder, atomically pins canonical bundle and asset bytes, and records immutable import metadata. Import, read, edit, release, and asset access are separate permissions. Aether may compose by stable IDs but may not copy or mutate canonical Struct text.
+
+The complete target derivative manifest binds the authenticated import, `CreativeGraph`, renderer/profile, supplied printer and preflight rules/results, approval, booklet and three linked social artifacts, their lineage, and artifact digests.
+
+`A-REQ` and `A-ACT` remain inactive fail-closed action-time gates. Future receipts require newly authenticated immutable explicit-user authorization, an immutable authorization ID and evidence SHA-256, and exact action, target, actor, issue time, expiry, disclosure, and cost bindings. Their four canonical actions are `send printer-requirements inquiry`, `activate Aether route`, `deploy Aether`, and `submit Aether printer proof`. Prior planning approval is ineligible; this contract authorizes no outreach, route activation, deployment, purchase, or printer submission.
+
 > **Historical planning record (2026-04-21).** This document captures the
 > original hackathon MVP and is not the current product backlog or behavior
 > contract. Use [`AGENTS.md`](../AGENTS.md) for current product direction and
