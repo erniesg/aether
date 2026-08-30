@@ -12,6 +12,15 @@ describe('listAgentTools', () => {
     expect(names).toContain('generate_image');
     expect(names).toContain('analyze_video');
     expect(names).toContain('get_current_datetime');
+    expect(names).toContain('query_event_posts');
+    expect(names).toContain('get_event_theme_summary');
+    expect(names).toContain('get_event_top_voices');
+    expect(names).toContain('get_event_expansion_plan');
+    expect(names).toContain('generate_event_search_frontier');
+    expect(names).toContain('estimate_event_counts');
+    expect(names).toContain('refresh_event_recap');
+    expect(names).toContain('warm_linkedin_session');
+    expect(names).toContain('capture_event_posts');
   });
 
   it('every tool exposes a non-empty Anthropic SDK Tool shape', () => {

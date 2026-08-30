@@ -16,6 +16,15 @@ import { clusterReferences } from './cluster-references';
 import { generateImage } from './generate-image';
 import { analyzeVideo } from './analyze-video';
 import { getCurrentDatetime } from './get-current-datetime';
+import { queryEventPosts } from './query-event-posts';
+import { getEventThemeSummary } from './get-event-theme-summary';
+import { getEventTopVoices } from './get-event-top-voices';
+import { getEventExpansionPlan } from './get-event-expansion-plan';
+import { generateEventSearchFrontier } from './generate-event-search-frontier';
+import { estimateEventCounts } from './estimate-event-counts';
+import { refreshEventRecap } from './refresh-event-recap';
+import { warmLinkedInSession } from './warm-linkedin-session';
+import { captureEventPosts } from './capture-event-posts';
 import type { AgentTool } from './types';
 
 export type { AgentTool, ToolDispatchSpec } from './types';
@@ -27,5 +36,14 @@ export function listAgentTools(): AgentTool[] {
     generateImage,
     analyzeVideo,
     getCurrentDatetime,
+    queryEventPosts,
+    getEventThemeSummary,
+    getEventTopVoices,
+    getEventExpansionPlan,
+    generateEventSearchFrontier,
+    estimateEventCounts,
+    refreshEventRecap,
+    warmLinkedInSession,
+    captureEventPosts,
   ];
 }

@@ -1,0 +1,79 @@
+import { NextResponse } from 'next/server';
+import { authorizeEventApiRequest } from '@/lib/research/event-recap/api-auth';
+import { getEventBundle } from '@/lib/research/event-recap/store';
+import { isEventPlatform, type EventPlatform } from '@/lib/research/event-recap/types';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function platform(value: unknown): EventPlatform | undefined {
+  return isEventPlatform(value) ? value : undefined;
+}
+
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => null);
+  if (!isObject(body) || typeof body.eventId !== 'string') {
+    return NextResponse.json({ ok: false, error: 'eventId is required' }, { status: 400 });
+  }
+  const authResponse = await authorizeEventApiRequest(request, {
+    route: '/api/events/query',
+    action: 'query-posts',
+    metadata: {
+      eventId: body.eventId,
+      platform: platform(body.platform),
+      hasQuery: typeof body.query === 'string' && Boolean(body.query.trim()),
+    },
+  });
+  if (authResponse) return authResponse;
+
+  const bundle = await getEventBundle(body.eventId);
+  if (!bundle) {
+    return NextResponse.json({ ok: false, error: 'event not found' }, { status: 404 });
+  }
+
+  const q = typeof body.query === 'string' ? body.query.trim().toLowerCase() : '';
+  const p = platform(body.platform);
+  const limit =
+    typeof body.limit === 'number' && Number.isFinite(body.limit)
+      ? Math.max(1, Math.min(50, Math.round(body.limit)))
+      : 12;
+  const posts = bundle.posts
+    .filter((post) => !p || post.platform === p)
+    .filter((post) => {
+      if (!q) return true;
+      return (
+        post.text.toLowerCase().includes(q) ||
+        post.authorName.toLowerCase().includes(q) ||
+        (post.authorHandle ?? '').toLowerCase().includes(q) ||
+        post.tags.some((tag) => tag.toLowerCase().includes(q))
+      );
+    })
+    .sort((a, b) => b.reachScore - a.reachScore)
+    .slice(0, limit);
+
+  return NextResponse.json({
+    ok: true,
+    event: bundle.event,
+    count: posts.length,
+    posts: posts.map((post) => ({
+      postId: post.postId,
+      platform: post.platform,
+      url: post.url,
+      authorName: post.authorName,
+      authorHandle: post.authorHandle,
+      authorMeta: post.authorMeta,
+      text: post.text,
+      postedAt: post.postedAt,
+      capturedAt: post.capturedAt,
+      updatedAt: post.updatedAt,
+      metrics: post.metrics,
+      media: post.media,
+      reachScore: post.reachScore,
+      tags: post.tags,
+    })),
+  });
+}

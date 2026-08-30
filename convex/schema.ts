@@ -1,6 +1,18 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+const EVENT_PLATFORM = v.union(v.literal('x'), v.literal('linkedin'), v.literal('youtube'));
+const EVENT_POST_MEDIA = v.object({
+  url: v.string(),
+  type: v.union(v.literal('image'), v.literal('video'), v.literal('gif'), v.literal('unknown')),
+  source: v.optional(v.string()),
+  previewUrl: v.optional(v.string()),
+  altText: v.optional(v.string()),
+  width: v.optional(v.number()),
+  height: v.optional(v.number()),
+  localPath: v.optional(v.string()),
+});
+
 /**
  * Canonical aether graph schema. Keep sections ordered by product domain so
  * related indexes and provenance tables remain reviewable together.
@@ -323,6 +335,245 @@ export default defineSchema({
   })
     .index('by_ws', ['wsId'])
     .index('by_workspace', ['workspaceId']),
+
+  // Event recap research targets. These are creator-facing research lenses:
+  // an event name + context becomes a dated scrape window, a stored corpus,
+  // topic clusters, and top voices that can feed the canvas as references.
+  eventRecap: defineTable({
+    eventId: v.string(),
+    workspaceId: v.optional(v.string()),
+    name: v.string(),
+    contextHint: v.optional(v.string()),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('resolving'),
+      v.literal('ready'),
+      v.literal('refreshing'),
+      v.literal('error')
+    ),
+    canonicalName: v.optional(v.string()),
+    officialUrl: v.optional(v.string()),
+    location: v.optional(v.string()),
+    startsAt: v.optional(v.string()),
+    endsAt: v.optional(v.string()),
+    daysBefore: v.number(),
+    daysAfter: v.number(),
+    refreshIntervalHours: v.number(),
+    maxItemsPerPlatform: v.number(),
+    monthlyCreditBudget: v.number(),
+    usedCredits: v.number(),
+    querySet: v.array(v.string()),
+    sourceUrls: v.array(v.string()),
+    liveMode: v.union(v.literal('mock'), v.literal('tinyfish')),
+    lastRunAt: v.optional(v.number()),
+    nextRefreshAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_event_id', ['eventId'])
+    .index('by_workspace', ['workspaceId']),
+
+  eventScrapeRun: defineTable({
+    runId: v.string(),
+    eventId: v.string(),
+    status: v.union(
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('skipped')
+    ),
+    mode: v.union(v.literal('mock'), v.literal('tinyfish')),
+    provider: v.string(),
+    platforms: v.array(EVENT_PLATFORM),
+    querySet: v.array(v.string()),
+    windowStart: v.string(),
+    windowEnd: v.string(),
+    maxItemsPerPlatform: v.number(),
+    estimatedCredits: v.number(),
+    actualCredits: v.optional(v.number()),
+    streamingUrls: v.array(
+      v.object({
+        platform: EVENT_PLATFORM,
+        url: v.string(),
+      })
+    ),
+    warnings: v.array(v.string()),
+    error: v.optional(v.string()),
+    inputs: v.any(),
+    outputs: v.any(),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  })
+    .index('by_run_id', ['runId'])
+    .index('by_event', ['eventId']),
+
+  eventPost: defineTable({
+    postId: v.string(),
+    eventId: v.string(),
+    runId: v.string(),
+    platform: EVENT_PLATFORM,
+    url: v.string(),
+    authorName: v.string(),
+    authorHandle: v.optional(v.string()),
+    authorUrl: v.optional(v.string()),
+    authorMeta: v.optional(
+      v.object({
+        description: v.optional(v.string()),
+        headline: v.optional(v.string()),
+        location: v.optional(v.string()),
+        followers: v.optional(v.number()),
+        following: v.optional(v.number()),
+        posts: v.optional(v.number()),
+        listed: v.optional(v.number()),
+        verified: v.optional(v.boolean()),
+        verifiedType: v.optional(v.string()),
+        profileImageUrl: v.optional(v.string()),
+      })
+    ),
+    text: v.string(),
+    postedAt: v.optional(v.string()),
+    capturedAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    metrics: v.object({
+      likes: v.optional(v.number()),
+      reposts: v.optional(v.number()),
+      replies: v.optional(v.number()),
+      comments: v.optional(v.number()),
+      reactions: v.optional(v.number()),
+      impressions: v.optional(v.number()),
+      views: v.optional(v.number()),
+    }),
+    media: v.optional(v.array(EVENT_POST_MEDIA)),
+    reachScore: v.number(),
+    tags: v.array(v.string()),
+    raw: v.any(),
+  })
+    .index('by_event', ['eventId'])
+    .index('by_event_platform', ['eventId', 'platform'])
+    .index('by_event_url', ['eventId', 'url']),
+
+  eventTheme: defineTable({
+    themeId: v.string(),
+    eventId: v.string(),
+    label: v.string(),
+    summary: v.string(),
+    keywords: v.array(v.string()),
+    postIds: v.array(v.string()),
+    score: v.number(),
+    updatedAt: v.number(),
+  }).index('by_event', ['eventId']),
+
+  eventVoice: defineTable({
+    voiceId: v.string(),
+    eventId: v.string(),
+    platform: EVENT_PLATFORM,
+    name: v.string(),
+    handle: v.optional(v.string()),
+    profileUrl: v.optional(v.string()),
+    postCount: v.number(),
+    totalEngagement: v.number(),
+    reachScore: v.number(),
+    samplePostUrls: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index('by_event', ['eventId']),
+
+  eventRawAccess: defineTable({
+    accessId: v.string(),
+    eventId: v.string(),
+    action: v.union(v.literal('download'), v.literal('inspect')),
+    format: v.union(v.literal('json'), v.literal('csv')),
+    scope: v.union(v.literal('raw'), v.literal('posts')),
+    postCount: v.number(),
+    mediaCount: v.number(),
+    schemaVersion: v.optional(v.string()),
+    latestRunId: v.optional(v.string()),
+    requestPath: v.optional(v.string()),
+    requestQuery: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    acceptLanguage: v.optional(v.string()),
+    browserPlatform: v.optional(v.string()),
+    browserBrands: v.optional(v.string()),
+    referer: v.optional(v.string()),
+    ipHash: v.optional(v.string()),
+    visitorHash: v.optional(v.string()),
+    cfCountry: v.optional(v.string()),
+    cfColo: v.optional(v.string()),
+    cfRay: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_access_id', ['accessId'])
+    .index('by_event', ['eventId'])
+    .index('by_event_created', ['eventId', 'createdAt']),
+
+  // Phased run-event log for event recap refreshes. One row per pipeline
+  // stage (resolve, budget, per-platform collection, clustering, finish) so
+  // the report page can render a timeline instead of raw run JSON. `tag` is
+  // hierarchical (e.g. "collect.x.ok", "run.done"); `data` holds only safe
+  // counts / ids — never raw provider payloads.
+  eventRecapRunEvent: defineTable({
+    eventId: v.string(),
+    runId: v.string(),
+    tag: v.string(),
+    level: v.union(
+      v.literal('debug'),
+      v.literal('info'),
+      v.literal('warn'),
+      v.literal('error')
+    ),
+    message: v.string(),
+    platform: v.optional(EVENT_PLATFORM),
+    data: v.optional(v.any()),
+    ts: v.number(),
+  })
+    .index('by_event', ['eventId'])
+    .index('by_event_ts', ['eventId', 'ts'])
+    .index('by_run', ['runId']),
+
+  // Vibes product API access. Logto authenticates the human user; Aether issues
+  // app API keys for managed research agents and stores only hashed key values.
+  vibesApiKey: defineTable({
+    keyId: v.string(),
+    userId: v.string(),
+    userEmail: v.optional(v.string()),
+    name: v.string(),
+    keyHash: v.string(),
+    keyPrefix: v.string(),
+    status: v.union(v.literal('active'), v.literal('revoked')),
+    dailyLimit: v.number(),
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index('by_key_id', ['keyId'])
+    .index('by_key_hash', ['keyHash'])
+    .index('by_user', ['userId']),
+
+  vibesDailyUsage: defineTable({
+    userId: v.string(),
+    day: v.string(),
+    used: v.number(),
+    dailyLimit: v.number(),
+    updatedAt: v.number(),
+  }).index('by_user_day', ['userId', 'day']),
+
+  vibesUsageEvent: defineTable({
+    eventId: v.string(),
+    userId: v.optional(v.string()),
+    userEmail: v.optional(v.string()),
+    keyId: v.optional(v.string()),
+    source: v.union(v.literal('logto'), v.literal('api-key'), v.literal('dev')),
+    route: v.string(),
+    action: v.string(),
+    day: v.string(),
+    status: v.union(v.literal('accepted'), v.literal('rejected')),
+    reason: v.optional(v.union(v.literal('invalid_api_key'), v.literal('quota_exceeded'))),
+    metadata: v.any(),
+    createdAt: v.number(),
+  })
+    .index('by_event_id', ['eventId'])
+    .index('by_user_day', ['userId', 'day'])
+    .index('by_key_day', ['keyId', 'day']),
 
   // ─── canvas ────────────────────────────────────────────────────────────
   // wsId is optional for the same reason it is on capabilityRun / clusterCard /

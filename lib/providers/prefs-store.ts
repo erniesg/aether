@@ -5,9 +5,9 @@
  * Follows the same conditional-hook pattern as lib/context/creator-store.ts:
  *   if (isConvexEnabled()) { useQuery(...) } else { fallback }
  *
- * When Convex is not provisioned (NEXT_PUBLIC_CONVEX_URL unset) or no
- * ConvexProvider is in the React tree, returns null / no-op — the shell
- * gracefully falls back to env-var defaults.
+ * Broad live reads require NEXT_PUBLIC_AETHER_LIVE_MODE=all. The save callback
+ * can still use the configured Convex client as an explicit write-on-change
+ * path when the app has a Convex URL but broad live mode is off.
  */
 
 import { useQuery, useMutation } from 'convex/react';
@@ -44,8 +44,9 @@ export function useWorkspaceProviderPrefs(
 }
 
 /**
- * Returns a save callback. When Convex is not provisioned the callback is a
- * no-op (still safe to call without a ConvexProvider in the tree).
+ * Returns a save callback. With broad live mode off, this uses the configured
+ * Convex client directly so saves happen only on explicit preference changes.
+ * Without a Convex URL, the callback is a no-op.
  */
 export function useSaveWorkspaceProviderPrefs(): (
   workspaceId: string,
@@ -58,7 +59,8 @@ export function useSaveWorkspaceProviderPrefs(): (
       await mutate({ workspaceId, prefs } as never);
     };
   }
-  // Convex not provisioned: use the imperative HTTP client as a fallback.
+  // Broad live mode is off: use the imperative Convex client as a write-only
+  // fallback without mounting a reactive query.
   return async (workspaceId, prefs) => {
     const client = getConvexClient();
     if (!client) return;
