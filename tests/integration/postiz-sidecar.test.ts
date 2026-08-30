@@ -171,4 +171,58 @@ describe('postiz sidecar · mock-server integration', () => {
     const res = await fetch(`${mock.url}/posts`, { method: 'GET' });
     expect(res.status).toBe(401);
   });
+
+  // Track 5A: cancel-from-aether end-to-end. The UI's cancel button calls
+  // DELETE `/api/publish` (see lib/publisher/server-client.ts). That route in
+  // turn drives the Postiz adapter's `cancel()` which DELETEs against the
+  // live Postiz API. We prove the whole chain hits the mock fixture by
+  // scheduling, then cancelling via the route, then asserting the mock
+  // recorded a DELETE for that post id.
+  it('cancel-from-aether: DELETE /api/publish drives DELETE on the Postiz mock', async () => {
+    const { POST: schedule } = await import('@/app/api/publish/schedule/route');
+    const { DELETE: cancel } = await import('@/app/api/publish/route');
+
+    const post = postPayload('instagram', 99);
+    const scheduleRes = await schedule(
+      request({ workspaceId: 'ws_demo', posts: [post], providerId: 'postiz' })
+    );
+    expect(scheduleRes.status).toBe(200);
+    const scheduleBody = (await scheduleRes.json()) as {
+      results: Array<{ externalId?: string }>;
+    };
+    const externalId = scheduleBody.results[0]?.externalId;
+    expect(externalId, 'schedule must return externalId for cancel chain').toBeTruthy();
+
+    mock.state.requests.length = 0;
+
+    const cancelRes = await cancel(
+      new Request('http://localhost/api/publish', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: 'ws_demo',
+          providerId: 'postiz',
+          id: post.id,
+          externalId,
+        }),
+      })
+    );
+    expect(cancelRes.status).toBe(200);
+    const cancelBody = (await cancelRes.json()) as { ok: boolean };
+    expect(cancelBody.ok).toBe(true);
+
+    expect(
+      mock.state.requests.some(
+        (r) => r.method === 'DELETE' && r.path === `/posts/${externalId}`
+      ),
+      'mock fixture must record DELETE on the externalId'
+    ).toBe(true);
+    expect(mock.state.deleted).toContain(externalId);
+
+    const listRes = await fetch(`${mock.url}/posts`, {
+      headers: { Authorization: TEST_API_KEY },
+    });
+    const listBody = (await listRes.json()) as Array<{ id: string }>;
+    expect(listBody.map((p) => p.id)).not.toContain(externalId);
+  });
 });
