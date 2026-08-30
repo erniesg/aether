@@ -1,0 +1,38 @@
+{
+  "data": {
+    "items": [
+      {
+        "id": "note_001",
+        "note_card": {
+          "id": "note_001",
+          "display_title": "晨间护肤 shelf reset",
+          "cover": {
+            "url_default": "https://sns-img-qc.xhscdn.com/cover-1.jpg"
+          },
+          "user": { "nickname": "晨光设计室", "user_id": "user_aaa" },
+          "interact_info": {
+            "liked_count": "1.2万",
+            "comment_count": "318",
+            "collected_count": "5021",
+            "share_count": "210"
+          }
+        },
+        "share_url": "https://www.xiaohongshu.com/explore/note_001"
+      },
+      {
+        "id": "note_002",
+        "note_card": {
+          "id": "note_002",
+          "display_title": "barrierglow 屏障护肤",
+          "image_list": [{ "url": "https://sns-img-qc.xhscdn.com/cover-2.jpg" }],
+          "user": { "nickname": "ritual studio", "user_id": "user_bbb" },
+          "interact_info": {
+            "liked_count": 482,
+            "comment_count": 15,
+            "collected_count": 110
+          }
+        }
+      }
+    ]
+  }
+}

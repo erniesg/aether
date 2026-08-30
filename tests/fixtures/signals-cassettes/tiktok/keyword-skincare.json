@@ -1,0 +1,36 @@
+{
+  "data": {
+    "videos": [
+      {
+        "aweme_id": "7234567890",
+        "desc": "skincare shelf reset routine",
+        "video": {
+          "cover": { "url_list": ["https://p16-sign.tiktokcdn-us.com/cover-1.jpg"] }
+        },
+        "author": { "unique_id": "ritualstudio", "nickname": "Ritual Studio" },
+        "share_url": "https://www.tiktok.com/@ritualstudio/video/7234567890",
+        "statistics": {
+          "digg_count": 8421,
+          "comment_count": 142,
+          "share_count": 200,
+          "play_count": 95231
+        }
+      },
+      {
+        "aweme_id": "7234567891",
+        "desc": "barrierglow morning steps",
+        "video": {
+          "cover": { "url_list": ["https://p16-sign.tiktokcdn-us.com/cover-2.jpg"] }
+        },
+        "author": { "unique_id": "solsticestudio" },
+        "share_url": "https://www.tiktok.com/@solsticestudio/video/7234567891",
+        "statistics": {
+          "digg_count": 1300,
+          "comment_count": 22,
+          "share_count": 41,
+          "play_count": 18000
+        }
+      }
+    ]
+  }
+}

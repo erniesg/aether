@@ -1,0 +1,29 @@
+{
+  "data": {
+    "pins": [
+      {
+        "id": "pin_001",
+        "title": "warm shelf editorial",
+        "description": "soft-light retail product still",
+        "link": "https://www.pinterest.com/pin/12345/",
+        "images": {
+          "orig": { "url": "https://i.pinimg.com/originals/aa/bb/cc/warmshelf.jpg" },
+          "736x": { "url": "https://i.pinimg.com/736x/aa/bb/cc/warmshelf.jpg" }
+        },
+        "pinner": { "username": "ritualstudio", "full_name": "Ritual Studio" },
+        "repin_count": 421,
+        "comment_count": 12
+      },
+      {
+        "id": "pin_002",
+        "grid_title": "barrierglow shelf",
+        "link": "https://www.pinterest.com/pin/67890/",
+        "images": {
+          "orig": { "url": "https://i.pinimg.com/originals/dd/ee/ff/barrier.jpg" }
+        },
+        "board": { "owner": { "username": "skinlab" } },
+        "repin_count": 87
+      }
+    ]
+  }
+}
