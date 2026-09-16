@@ -420,8 +420,8 @@ describe('useTextOverlayBridge scoped text edits', () => {
     });
 
     await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
-    const overlayCall = fetchImpl.mock.calls.find(
-      ([input]) => String(input) === '/api/campaigns/overlay'
+    const overlayCall = vi.mocked(fetchImpl).mock.calls.find(
+      ([input]: [unknown, ...unknown[]]) => String(input) === '/api/campaigns/overlay'
     );
     expect(overlayCall).toBeDefined();
     const body = JSON.parse(

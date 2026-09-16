@@ -131,9 +131,11 @@ async function maybeStageForMeta(
 
   // Lazy-resolve the R2 adapter — caller can override via opts.storage
   // (tests do this). Production reads R2_* env vars.
-  const storage =
-    opts.storage ??
-    (await import('../storage/r2').then((m) => m.getR2Storage()));
+  let storage = opts.storage;
+  if (!storage) {
+    const m = await import('../storage/r2');
+    storage = m.getR2Storage();
+  }
 
   if (!storage.isAvailable()) {
     // Fail-soft: we'd rather let Meta produce its own error than throw

@@ -6,16 +6,17 @@
  * single immediate post with a sample image + caption. Used to validate
  * platform credentials end-to-end without a full lap kickoff.
  *
- * Usage:
- *   node scripts/test-immediate-post.mjs --platform=x
- *   node scripts/test-immediate-post.mjs --platform=instagram
- *   node scripts/test-immediate-post.mjs --platform=linkedin
- *   node scripts/test-immediate-post.mjs --platform=x --image=https://...
- *   node scripts/test-immediate-post.mjs --platform=x --caption='hello aether'
+ * Usage (run via tsx):
+ *   tsx scripts/test-immediate-post.ts --platform=x
+ *   tsx scripts/test-immediate-post.ts --platform=instagram
+ *   tsx scripts/test-immediate-post.ts --platform=linkedin
+ *   tsx scripts/test-immediate-post.ts --platform=x --image=https://...
+ *   tsx scripts/test-immediate-post.ts --platform=x --caption='hello aether'
  */
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { PublishPlatform, ScheduledPost } from '../lib/providers/publisher/types';
 
 function readEnvLocal() {
   const path = resolve(process.cwd(), '.env.local');
@@ -23,14 +24,14 @@ function readEnvLocal() {
   for (const line of raw.split('\n')) {
     const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (!m) continue;
-    if (!process.env[m[1]]) process.env[m[1]] = m[2];
+    if (!process.env[m[1]!]) process.env[m[1]!] = m[2];
   }
 }
 readEnvLocal();
 
 const argv = process.argv.slice(2);
-const arg = (k) => argv.find((a) => a.startsWith(`--${k}=`))?.split('=').slice(1).join('=');
-const platform = arg('platform') ?? 'x';
+const arg = (k: string) => argv.find((a) => a.startsWith(`--${k}=`))?.split('=').slice(1).join('=');
+const platform = (arg('platform') ?? 'x') as PublishPlatform;
 const image =
   arg('image') ??
   // Default: a 1024×1024 from one of the cached completed campaigns. Public via Convex.
@@ -38,20 +39,17 @@ const image =
 const caption = arg('caption') ?? 'aether — testing immediate post path · ' + new Date().toISOString();
 
 async function loadPublisher() {
-  // Use the registry so we get the same wiring the lap uses.
-  const { resolvePublisher } = await import('../lib/providers/publisher/registry.ts');
-  // Alternatively call platform-specific factory for surgical test:
   if (platform === 'x') {
-    const { createXPublisherFromEnv } = await import('../lib/providers/publisher/x.ts');
-    return createXPublisherFromEnv(process.env);
+    const { createXPublisherFromEnv } = await import('../lib/providers/publisher/x');
+    return createXPublisherFromEnv({}, process.env);
   }
   if (platform === 'instagram') {
-    const { createInstagramPublisherFromEnv } = await import('../lib/providers/publisher/instagram.ts');
-    return createInstagramPublisherFromEnv(process.env);
+    const { createInstagramPublisherFromEnv } = await import('../lib/providers/publisher/instagram');
+    return createInstagramPublisherFromEnv({}, process.env);
   }
   if (platform === 'linkedin') {
-    const { createLinkedInPublisherFromEnv } = await import('../lib/providers/publisher/linkedin.ts');
-    return createLinkedInPublisherFromEnv(process.env);
+    const { createLinkedInPublisherFromEnv } = await import('../lib/providers/publisher/linkedin');
+    return createLinkedInPublisherFromEnv({}, process.env);
   }
   throw new Error(`unsupported platform: ${platform}`);
 }
@@ -67,7 +65,7 @@ async function main() {
     process.exit(2);
   }
 
-  const post = {
+  const post: ScheduledPost = {
     id: `test_${platform}_${Date.now()}`,
     platform,
     mediaUrls: [image],

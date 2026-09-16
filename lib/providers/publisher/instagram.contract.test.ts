@@ -124,11 +124,11 @@ describe('InstagramPublisher · contract', () => {
     // URLs ("media URI doesn't meet our requirements"). The publisher
     // now detects *.convex.cloud / *.convex.dev hostnames, fetches the
     // bytes, stages them on R2, and passes the public R2 URL to /media.
-    const stageSpy = vi.fn(async () => ({
+    const stageSpy = vi.fn(async (_input: { bytes: Buffer | Uint8Array; mimeType: string; key?: string }) => ({
       publicUrl: 'https://pub-test.r2.dev/staged/hero.png',
       key: 'staged/hero.png',
       size: 8,
-      provider: 'r2',
+      provider: 'r2' as const,
       latencyMs: 12,
     }));
     const fakeStorage = {

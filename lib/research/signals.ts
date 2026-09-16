@@ -44,6 +44,12 @@ export interface SignalSearchOptions {
   limit?: number;
   /** Override for the global `fetch`. Tests inject a fake. */
   fetcher?: typeof fetch;
+  /**
+   * Deterministic "now" for tests. ISO-8601 string. Adapters that timestamp
+   * records (e.g. createdAt fields) read this when present, falling back to
+   * `new Date()`.
+   */
+  now?: string;
 }
 
 export interface SignalSearchOutcome {

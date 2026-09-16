@@ -129,10 +129,12 @@ export function createR2Storage(
 
       const t0 = Date.now();
       const fetchImpl = opts.fetch ?? globalThis.fetch;
-      const body =
-        bytes instanceof Uint8Array && !(bytes instanceof Buffer)
-          ? bytes
-          : new Uint8Array(bytes);
+      // Copy into a fresh-allocated Uint8Array so the underlying buffer is
+      // unambiguously ArrayBuffer (not SharedArrayBuffer). Buffer.buffer is
+      // ArrayBufferLike, which TS won't accept as BodyInit on fetch() /
+      // aws.sign(). new Uint8Array(byteLength) always allocates ArrayBuffer.
+      const body = new Uint8Array(bytes.byteLength);
+      body.set(bytes);
 
       const signed = await aws.sign(endpoint, {
         method: 'PUT',
