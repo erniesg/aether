@@ -1,0 +1,135 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: postiz
+  # Region is set by gcloud run deploy --region; this file is the template.
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+    # Allow unauthenticated external traffic so Postiz can serve its own UI
+    # and receive OAuth callbacks.  The API key gate is inside Postiz itself.
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale to 0 between bursts — reduces cost at hackathon scale.
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+        # Cloud SQL sidecar proxy — replace PROJECT:REGION:INSTANCE.
+        run.googleapis.com/cloudsql-instances: "PROJECT_ID:REGION:postiz-pg"
+    spec:
+      # Cold-start budget.  Postiz + Next.js needs ~30 s on first boot.
+      timeoutSeconds: 120
+      serviceAccountName: postiz-runner@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: ghcr.io/gitroomhq/postiz-app:latest
+          ports:
+            - containerPort: 3000
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          env:
+            # Injected at deploy time by deploy.sh from .env.postiz.
+            # Never put real values here — this file is checked in.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-database-url
+                  key: latest
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-redis-url
+                  key: latest
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-jwt-secret
+                  key: latest
+            - name: BACKEND_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-backend-url
+                  key: latest
+            - name: NEXT_PUBLIC_BACKEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-backend-url
+                  key: latest
+            - name: FRONTEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-backend-url
+                  key: latest
+            # OAuth pairs — one secret per platform pair.
+            - name: INSTAGRAM_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-instagram-client-id
+                  key: latest
+            - name: INSTAGRAM_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-instagram-client-secret
+                  key: latest
+            - name: FACEBOOK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-facebook-client-id
+                  key: latest
+            - name: FACEBOOK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-facebook-client-secret
+                  key: latest
+            - name: X_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-x-client-id
+                  key: latest
+            - name: X_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-x-client-secret
+                  key: latest
+            - name: LINKEDIN_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-linkedin-client-id
+                  key: latest
+            - name: LINKEDIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-linkedin-client-secret
+                  key: latest
+            - name: TIKTOK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-tiktok-client-id
+                  key: latest
+            - name: TIKTOK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-tiktok-client-secret
+                  key: latest
+            - name: PINTEREST_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-pinterest-client-id
+                  key: latest
+            - name: PINTEREST_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-pinterest-client-secret
+                  key: latest
+            - name: YOUTUBE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-youtube-client-id
+                  key: latest
+            - name: YOUTUBE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-youtube-client-secret
+                  key: latest

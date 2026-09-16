@@ -82,20 +82,33 @@ export function SignalsSection({ workspaceId }: { workspaceId?: string }) {
     account: [],
   };
   for (const s of signals) grouped[s.kind].push(s);
+  const addSuggestion = (suggestion: (typeof suggestions)[number]) => {
+    addSignal(suggestion.kind, suggestion.value, workspaceId);
+  };
+  const addAllSuggestions = () => {
+    for (const suggestion of suggestions) addSuggestion(suggestion);
+  };
 
   return (
     <div className="flex flex-col gap-4" data-testid="signals-section">
       {suggestions.length > 0 ? (
         <section aria-label="suggested signals" className="flex flex-col gap-1.5">
-          <span className="font-caption text-ink-dim">suggested</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-caption text-ink-dim">suggested</span>
+            <button
+              type="button"
+              onClick={addAllSuggestions}
+              className="rounded-sm border border-border-soft px-1.5 py-0.5 font-mono text-2xs uppercase tracking-wide text-ink-dim transition-colors hover:text-ink"
+            >
+              track all
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1">
             {suggestions.map((suggestion) => (
               <button
                 key={suggestion.id}
                 type="button"
-                onClick={() =>
-                  addSignal(suggestion.kind, suggestion.value, workspaceId)
-                }
+                onClick={() => addSuggestion(suggestion)}
                 className="rounded-pill border border-border-soft bg-surface-panel-muted px-2 py-0.5 text-left font-caption text-xs text-ink transition-colors hover:border-accent hover:text-accent"
                 title={suggestion.reason}
               >

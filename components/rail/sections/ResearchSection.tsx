@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Search, Sparkles } from 'lucide-react';
 import { runAndLabelClusters } from '@/lib/clusters/client';
 import { useCreatorContext } from '@/lib/context/creator-store';
@@ -27,7 +27,13 @@ const PLATFORM_LABEL: Record<ResearchPlatform, string> = {
 type ResearchStatus =
   | { kind: 'idle' }
   | { kind: 'running' }
-  | { kind: 'done'; refs: number; clusters: number; materialized: number }
+  | {
+      kind: 'done';
+      refs: number;
+      clusters: number;
+      signals: number;
+      materialized: number;
+    }
   | { kind: 'error'; message: string };
 
 export function researchSectionSummary(referenceCount: number): string {
@@ -38,6 +44,7 @@ export function ResearchSection({ workspaceId }: { workspaceId?: string }) {
   const context = useCreatorContext(workspaceId);
   const references = useReferences(workspaceId);
   const [seedText, setSeedText] = useState('');
+  const [seedEdited, setSeedEdited] = useState(false);
   const [platforms, setPlatforms] = useState<ResearchPlatform[]>(DEFAULT_PLATFORMS);
   const [status, setStatus] = useState<ResearchStatus>({ kind: 'idle' });
 
@@ -45,7 +52,10 @@ export function ResearchSection({ workspaceId }: { workspaceId?: string }) {
     () => defaultResearchSeedText(context, references),
     [context, references]
   );
-  const resolvedSeed = seedText.trim() || suggestedSeed;
+  useEffect(() => {
+    if (!seedEdited) setSeedText(suggestedSeed);
+  }, [seedEdited, suggestedSeed]);
+  const resolvedSeed = seedText.trim();
   const plan = useMemo(
     () =>
       planResearch({
@@ -88,6 +98,7 @@ export function ResearchSection({ workspaceId }: { workspaceId?: string }) {
         kind: 'done',
         refs: result.records.length,
         clusters: clusterCount,
+        signals: result.signalCount,
         materialized: result.materializedCount,
       });
       if (typeof window !== 'undefined') {
@@ -106,11 +117,26 @@ export function ResearchSection({ workspaceId }: { workspaceId?: string }) {
   return (
     <div className="flex flex-col gap-3" data-testid="research-section">
       <section className="flex flex-col gap-1.5">
-        <span className="font-caption text-ink-dim">research seeds</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-caption text-ink-dim">research seeds</span>
+          <button
+            type="button"
+            onClick={() => {
+              setSeedText(suggestedSeed);
+              setSeedEdited(false);
+            }}
+            className="rounded-sm border border-border-soft px-1.5 py-0.5 font-caption text-2xs text-ink-dim transition-colors hover:text-ink"
+          >
+            refresh
+          </button>
+        </div>
         <textarea
           aria-label="research seeds"
           value={seedText}
-          onChange={(event) => setSeedText(event.target.value)}
+          onChange={(event) => {
+            setSeedEdited(true);
+            setSeedText(event.target.value);
+          }}
           placeholder={suggestedSeed || 'keywords, #hashtags, @accounts, source URLs'}
           rows={3}
           className="min-h-20 resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5 font-caption text-xs text-ink placeholder:text-ink-faint outline-none focus:border-accent"
@@ -203,6 +229,7 @@ export function ResearchSection({ workspaceId }: { workspaceId?: string }) {
         >
           <Sparkles className="h-3 w-3 text-accent" aria-hidden="true" />
           {status.refs} refs · {status.clusters} clusters
+          {status.signals > 0 ? ` · ${status.signals} signals` : ''}
           {status.materialized > 0 ? ` · ${status.materialized} source targets` : ''}
         </div>
       ) : status.kind === 'error' ? (

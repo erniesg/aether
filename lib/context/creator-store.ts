@@ -32,6 +32,12 @@ const brandCache = new Map<string, BrandContext>();
 const offerCache = new Map<string, OfferContext>();
 const campaignCache = new Map<string, CampaignContext>();
 const inputSetCache = new Map<string, InputSetDraft>();
+const optimisticWrites: Record<SliceName, Set<string>> = {
+  brand: new Set(),
+  offer: new Set(),
+  campaign: new Set(),
+  inputSet: new Set(),
+};
 
 const creatorContextApi = (anyApi as unknown as {
   creatorContext: {
@@ -265,16 +271,54 @@ function saveMemory<T>(
   return normalized;
 }
 
+function saveOptimistic<T>(
+  slice: SliceName,
+  workspaceId: string | undefined,
+  value: T,
+  coerce: (value: unknown) => T | null,
+  fallback: T,
+  cache: Map<string, T>
+): T {
+  const key = workspaceKey(workspaceId);
+  const normalized = coerce(value) ?? fallback;
+  cache.set(key, normalized);
+  optimisticWrites[slice].add(key);
+  notify();
+  return normalized;
+}
+
+function settleOptimisticWrite(
+  slice: SliceName,
+  workspaceId: string | undefined,
+  failed = false
+) {
+  const key = workspaceKey(workspaceId);
+  window.setTimeout(() => {
+    optimisticWrites[slice].delete(key);
+    if (failed) {
+      if (slice === 'brand') brandCache.delete(key);
+      if (slice === 'offer') offerCache.delete(key);
+      if (slice === 'campaign') campaignCache.delete(key);
+      if (slice === 'inputSet') inputSetCache.delete(key);
+    }
+    notify();
+  }, failed ? 0 : 3000);
+}
+
 export function useBrandContext(workspaceId?: string): BrandContext {
   /* eslint-disable react-hooks/rules-of-hooks */
   if (isConvexEnabled()) {
+    const key = workspaceKey(workspaceId);
     const data = useQuery(creatorContextApi.getBrand as never, {
-      workspaceId: workspaceKey(workspaceId),
+      workspaceId: key,
     } as never) as BrandContext | null | undefined;
-    return useMemo(
-      () => coerceBrandContext(data) ?? DEMO_CREATOR_CONTEXT.brand,
-      [data]
+    const optimistic = useSyncExternalStore(
+      subscribe,
+      () => loadBrand(workspaceId),
+      getServerBrand
     );
+    const server = coerceBrandContext(data);
+    return optimisticWrites.brand.has(key) ? optimistic : server ?? optimistic;
   }
   return useSyncExternalStore(
     subscribe,
@@ -290,14 +334,24 @@ export function saveBrandContext(
   onError?: (err: unknown) => void
 ): void {
   if (isConvexEnabled()) {
+    const normalized = saveOptimistic(
+      'brand',
+      workspaceId,
+      context,
+      coerceBrandContext,
+      DEMO_CREATOR_CONTEXT.brand,
+      brandCache
+    );
     const client = getConvexClient();
     if (client) {
       client
         .mutation(creatorContextApi.saveBrand as never, {
           workspaceId: workspaceKey(workspaceId),
-          brand: coerceBrandContext(context) ?? DEMO_CREATOR_CONTEXT.brand,
+          brand: normalized,
         } as never)
+        .then(() => settleOptimisticWrite('brand', workspaceId))
         .catch((err: unknown) => {
+          settleOptimisticWrite('brand', workspaceId, true);
           if (
             typeof window !== 'undefined' &&
             new URLSearchParams(window.location.search).get('debug') === '1'
@@ -323,13 +377,17 @@ export function saveBrandContext(
 export function useOfferContext(workspaceId?: string): OfferContext {
   /* eslint-disable react-hooks/rules-of-hooks */
   if (isConvexEnabled()) {
+    const key = workspaceKey(workspaceId);
     const data = useQuery(creatorContextApi.getOffer as never, {
-      workspaceId: workspaceKey(workspaceId),
+      workspaceId: key,
     } as never) as OfferContext | null | undefined;
-    return useMemo(
-      () => coerceOfferContext(data) ?? DEMO_CREATOR_CONTEXT.offer,
-      [data]
+    const optimistic = useSyncExternalStore(
+      subscribe,
+      () => loadOffer(workspaceId),
+      getServerOffer
     );
+    const server = coerceOfferContext(data);
+    return optimisticWrites.offer.has(key) ? optimistic : server ?? optimistic;
   }
   return useSyncExternalStore(
     subscribe,
@@ -345,14 +403,24 @@ export function saveOfferContext(
   onError?: (err: unknown) => void
 ): void {
   if (isConvexEnabled()) {
+    const normalized = saveOptimistic(
+      'offer',
+      workspaceId,
+      context,
+      coerceOfferContext,
+      DEMO_CREATOR_CONTEXT.offer,
+      offerCache
+    );
     const client = getConvexClient();
     if (client) {
       client
         .mutation(creatorContextApi.saveOffer as never, {
           workspaceId: workspaceKey(workspaceId),
-          offer: coerceOfferContext(context) ?? DEMO_CREATOR_CONTEXT.offer,
+          offer: normalized,
         } as never)
+        .then(() => settleOptimisticWrite('offer', workspaceId))
         .catch((err: unknown) => {
+          settleOptimisticWrite('offer', workspaceId, true);
           if (
             typeof window !== 'undefined' &&
             new URLSearchParams(window.location.search).get('debug') === '1'
@@ -378,13 +446,17 @@ export function saveOfferContext(
 export function useCampaignContext(workspaceId?: string): CampaignContext {
   /* eslint-disable react-hooks/rules-of-hooks */
   if (isConvexEnabled()) {
+    const key = workspaceKey(workspaceId);
     const data = useQuery(creatorContextApi.getCampaign as never, {
-      workspaceId: workspaceKey(workspaceId),
+      workspaceId: key,
     } as never) as CampaignContext | null | undefined;
-    return useMemo(
-      () => coerceCampaignContext(data) ?? DEMO_CREATOR_CONTEXT.campaign,
-      [data]
+    const optimistic = useSyncExternalStore(
+      subscribe,
+      () => loadCampaign(workspaceId),
+      getServerCampaign
     );
+    const server = coerceCampaignContext(data);
+    return optimisticWrites.campaign.has(key) ? optimistic : server ?? optimistic;
   }
   return useSyncExternalStore(
     subscribe,
@@ -400,14 +472,24 @@ export function saveCampaignContext(
   onError?: (err: unknown) => void
 ): void {
   if (isConvexEnabled()) {
+    const normalized = saveOptimistic(
+      'campaign',
+      workspaceId,
+      context,
+      coerceCampaignContext,
+      DEMO_CREATOR_CONTEXT.campaign,
+      campaignCache
+    );
     const client = getConvexClient();
     if (client) {
       client
         .mutation(creatorContextApi.saveCampaign as never, {
           workspaceId: workspaceKey(workspaceId),
-          campaign: coerceCampaignContext(context) ?? DEMO_CREATOR_CONTEXT.campaign,
+          campaign: normalized,
         } as never)
+        .then(() => settleOptimisticWrite('campaign', workspaceId))
         .catch((err: unknown) => {
+          settleOptimisticWrite('campaign', workspaceId, true);
           if (
             typeof window !== 'undefined' &&
             new URLSearchParams(window.location.search).get('debug') === '1'
@@ -433,13 +515,17 @@ export function saveCampaignContext(
 export function useWorkspaceInputSet(workspaceId?: string): InputSetDraft {
   /* eslint-disable react-hooks/rules-of-hooks */
   if (isConvexEnabled()) {
+    const key = workspaceKey(workspaceId);
     const data = useQuery(creatorContextApi.getInputSet as never, {
-      workspaceId: workspaceKey(workspaceId),
+      workspaceId: key,
     } as never) as InputSetDraft | null | undefined;
-    return useMemo(
-      () => coerceInputSet(data) ?? DEMO_CREATOR_CONTEXT.inputSet,
-      [data]
+    const optimistic = useSyncExternalStore(
+      subscribe,
+      () => loadInputSet(workspaceId),
+      getServerInputSet
     );
+    const server = coerceInputSet(data);
+    return optimisticWrites.inputSet.has(key) ? optimistic : server ?? optimistic;
   }
   return useSyncExternalStore(
     subscribe,
@@ -452,12 +538,23 @@ export function useWorkspaceInputSet(workspaceId?: string): InputSetDraft {
 export function saveWorkspaceInputSet(inputSet: InputSetDraft, workspaceId?: string): void {
   const normalized = coerceInputSet(inputSet) ?? DEMO_CREATOR_CONTEXT.inputSet;
   if (isConvexEnabled()) {
+    saveOptimistic(
+      'inputSet',
+      workspaceId,
+      normalized,
+      coerceInputSet,
+      DEMO_CREATOR_CONTEXT.inputSet,
+      inputSetCache
+    );
     const client = getConvexClient();
     if (client) {
-      void client.mutation(creatorContextApi.saveWorkspaceContext as never, {
-        workspaceId: workspaceKey(workspaceId),
-        inputSet: normalized,
-      } as never);
+      void client
+        .mutation(creatorContextApi.saveWorkspaceContext as never, {
+          workspaceId: workspaceKey(workspaceId),
+          inputSet: normalized,
+        } as never)
+        .then(() => settleOptimisticWrite('inputSet', workspaceId))
+        .catch(() => settleOptimisticWrite('inputSet', workspaceId, true));
     }
     return;
   }

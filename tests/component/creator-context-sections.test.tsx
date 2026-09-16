@@ -8,6 +8,7 @@ import {
   ReferencesManualTab,
 } from '@/components/rail/sections/ReferencesImagesTab';
 import { SignalsSection } from '@/components/rail/sections/SignalsSection';
+import { ResearchSection } from '@/components/rail/sections/ResearchSection';
 import {
   CAMPAIGN_CONTEXT_STORAGE_KEY,
   OFFER_CONTEXT_STORAGE_KEY,
@@ -144,5 +145,17 @@ describe('creator context rail sections', () => {
 
     const saved = readStorage<Array<{ value: string }>>(SIGNAL_STORAGE_KEY);
     expect(saved[0].value).toBe('ceramide ritual');
+  });
+
+  it('renders suggested research seeds as editable text and can refresh them', async () => {
+    render(<ResearchSection />);
+
+    const seeds = screen.getByLabelText(/research seeds/i);
+    expect((seeds as HTMLTextAreaElement).value).toContain('solstice skin');
+    await userEvent.clear(seeds);
+    await userEvent.type(seeds, 'folding bike, weekend trail');
+    expect(seeds).toHaveValue('folding bike, weekend trail');
+    await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    expect((seeds as HTMLTextAreaElement).value).toContain('solstice skin');
   });
 });

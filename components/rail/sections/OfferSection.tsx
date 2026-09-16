@@ -11,6 +11,17 @@ import { useReferences } from '@/lib/references/store';
 
 type SaveState = 'idle' | 'saved';
 
+function offerContextSignature(context: OfferContext): string {
+  return JSON.stringify({
+    id: context.id,
+    name: context.name,
+    summary: context.summary,
+    claims: context.claims,
+    heroAsset: context.heroAsset,
+    heroAssetReferenceId: context.heroAssetReferenceId,
+  });
+}
+
 export function OfferSection({ workspaceId }: { workspaceId?: string }) {
   const saved = useOfferContext(workspaceId);
   const references = useReferences(workspaceId);
@@ -24,17 +35,23 @@ export function OfferSection({ workspaceId }: { workspaceId?: string }) {
   // user input this session) is sticky to the local draft.
   const hasEdited = useRef(false);
   const lastWorkspaceId = useRef<string | undefined>(workspaceId);
+  const savedSignature = useMemo(() => offerContextSignature(saved), [saved]);
+  const lastAppliedSavedSignature = useRef(savedSignature);
   useEffect(() => {
     if (lastWorkspaceId.current !== workspaceId) {
       lastWorkspaceId.current = workspaceId;
       hasEdited.current = false;
+      lastAppliedSavedSignature.current = savedSignature;
       setDraft(saved);
       setDirty(false);
+      setSaveState('idle');
       return;
     }
     if (hasEdited.current) return;
+    if (lastAppliedSavedSignature.current === savedSignature) return;
+    lastAppliedSavedSignature.current = savedSignature;
     setDraft(saved);
-  }, [workspaceId, saved]);
+  }, [workspaceId, saved, savedSignature]);
 
   const validationMessage = useMemo(() => {
     if (!draft.name.trim()) return 'offer name required';

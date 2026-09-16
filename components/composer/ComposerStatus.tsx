@@ -112,14 +112,15 @@ function summarizeFrames(
 export function ComposerStatus() {
   const runs = useRuns();
   const mountedAt = useRef(Date.now());
+  const mountedCutoff = mountedAt.current - 1000;
   const top = useMemo(
     () =>
       runs.find((run) => {
         if (run.status === 'running') return true;
         if (run.error === STALE_ABORT_ERROR) return false;
-        return (run.finishedAt ?? run.startedAt) >= mountedAt.current;
+        return (run.finishedAt ?? run.startedAt) >= mountedCutoff;
       }),
-    [runs]
+    [runs, mountedCutoff]
   );
   const details = useRunDetails(top?.id);
   const voice = useVoiceCaption();

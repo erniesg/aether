@@ -20,9 +20,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL } from '@/lib/agent/generate';
 import type { OfferContext, CampaignContext } from '@/lib/context/model';
 import type { BrandSnapshot } from '@/lib/brand/types';
+import { normalizeSignalValue, type SignalKind } from '@/lib/signals/types';
 import {
   OFFER_PROPOSER_SYSTEM,
   CAMPAIGN_PROPOSER_SYSTEM,
+  SIGNAL_PROPOSER_SYSTEM,
   COVERAGE_REVIEWER_SYSTEM,
 } from './proposePrompts';
 
@@ -33,7 +35,15 @@ import {
 export interface BrandFollowups {
   offers: OfferContext[];
   campaigns: CampaignContext[];
+  signals: SignalProposal[];
   coverage: { ok: boolean; notes: string[] };
+}
+
+export interface SignalProposal {
+  id: string;
+  kind: SignalKind;
+  value: string;
+  reason: string;
 }
 
 export interface ProposeBrandFollowupsOptions {
@@ -97,6 +107,30 @@ const CAMPAIGN_TOOL: Anthropic.Tool = {
   } as unknown as Anthropic.Tool['input_schema'],
 };
 
+const SIGNAL_TOOL: Anthropic.Tool = {
+  name: 'propose_signals',
+  description: 'Emit 0–8 signal seeds for creator research. Call exactly once.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      signals: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id:     { type: 'string' },
+            kind:   { type: 'string', enum: ['keyword', 'hashtag', 'account'] },
+            value:  { type: 'string' },
+            reason: { type: 'string' },
+          },
+          required: ['id', 'kind', 'value', 'reason'],
+        },
+      },
+    },
+    required: ['signals'],
+  } as unknown as Anthropic.Tool['input_schema'],
+};
+
 const COVERAGE_TOOL: Anthropic.Tool = {
   name: 'coverage_review',
   description: 'Emit a coverage verdict for the brand proposals. Call exactly once.',
@@ -118,7 +152,7 @@ const COVERAGE_TOOL: Anthropic.Tool = {
 // ---------------------------------------------------------------------------
 
 interface WorkerParams {
-  name: 'offerProposer' | 'campaignProposer' | 'coverageReviewer';
+  name: 'offerProposer' | 'campaignProposer' | 'signalProposer' | 'coverageReviewer';
   systemPrompt: string;
   tool: Anthropic.Tool;
   userMessage: string;
@@ -250,6 +284,29 @@ function parseCoverage(raw: Record<string, unknown>): { ok: boolean; notes: stri
   };
 }
 
+function parseSignals(raw: Record<string, unknown>): SignalProposal[] {
+  if (!Array.isArray(raw.signals)) return [];
+  const seen = new Set<string>();
+  return (raw.signals as unknown[]).flatMap((item): SignalProposal[] => {
+    if (!item || typeof item !== 'object') return [];
+    const s = item as Record<string, unknown>;
+    const kind = s.kind;
+    if (kind !== 'keyword' && kind !== 'hashtag' && kind !== 'account') return [];
+    if (typeof s.value !== 'string') return [];
+    const value = normalizeSignalValue(kind, s.value);
+    if (!value) return [];
+    const key = `${kind}:${value.toLowerCase()}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{
+      id: typeof s.id === 'string' && s.id.trim() ? s.id : `signal-${key.replace(/[^a-z0-9]+/gi, '-')}`,
+      kind,
+      value,
+      reason: typeof s.reason === 'string' ? s.reason : 'brand signal',
+    }];
+  }).slice(0, 8);
+}
+
 // ---------------------------------------------------------------------------
 // Orchestrator
 // ---------------------------------------------------------------------------
@@ -262,9 +319,9 @@ export async function proposeBrandFollowups(
 
   const snapshotMsg = buildSnapshotMessage(snapshot);
 
-  // Fan out all three workers concurrently via Promise.all.
+  // Fan out all workers concurrently via Promise.all.
   // Each is wrapped in try/catch so one failure does not block the others.
-  const [offerResult, campaignResult, coverageInput] = await Promise.all([
+  const [offerResult, campaignResult, signalResult, coverageInput] = await Promise.all([
     runWorker({
       name: 'offerProposer',
       systemPrompt: OFFER_PROPOSER_SYSTEM,
@@ -285,6 +342,17 @@ export async function proposeBrandFollowups(
     }).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       return { campaigns: [], _error: msg } as Record<string, unknown>;
+    }),
+
+    runWorker({
+      name: 'signalProposer',
+      systemPrompt: SIGNAL_PROPOSER_SYSTEM,
+      tool: SIGNAL_TOOL,
+      userMessage: `Propose research signals for this brand.\n\n${snapshotMsg}`,
+      client,
+    }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { signals: [], _error: msg } as Record<string, unknown>;
     }),
 
     // Coverage reviewer runs in parallel — we'll feed it the offers/campaigns
@@ -310,7 +378,8 @@ export async function proposeBrandFollowups(
 
   const offers = parseOffers(offerResult);
   const campaigns = parseCampaigns(campaignResult);
+  const signals = parseSignals(signalResult);
   const coverage = parseCoverage(coverageInput);
 
-  return { offers, campaigns, coverage };
+  return { offers, campaigns, signals, coverage };
 }

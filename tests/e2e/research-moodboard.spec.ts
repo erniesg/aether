@@ -208,7 +208,7 @@ test.describe('research to moodboard', () => {
     const generateRequests: Array<Record<string, unknown>> = [];
     await installMocks(page, generateRequests);
 
-    await page.goto('/workspace/demo-ws?provider=openai&model=gpt-image-1&bypass=1');
+    await page.goto('/workspace/e2e-research-ws?provider=openai&model=gpt-image-1&bypass=1');
     await expect(page.locator('.tl-container')).toBeVisible();
 
     await page.locator('[data-rail-section="research"]').click();

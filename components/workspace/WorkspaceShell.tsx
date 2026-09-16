@@ -24,7 +24,15 @@ import {
 } from '@/lib/providers/prefs-store';
 import type { WorkspaceProviderPrefs } from '@/lib/providers/prefs';
 import { useScheduledPosts, getPreviewPublisher } from '@/lib/publisher/store';
-import { useReferences } from '@/lib/references/store';
+import { useReferences, updateReference } from '@/lib/references/store';
+import {
+  displaySignalValue,
+  normalizeSignalValue,
+  updateSignal,
+  useSignals,
+  type SignalKind,
+  type SignalRecord,
+} from '@/lib/signals/store';
 import { EditorRefProvider, useEditorRef } from '@/lib/store/editor-ref';
 import { dropImageOnCanvas } from '@/lib/canvas/dropImage';
 import { getSelectedImageInfo, type SelectedImageInfo } from '@/lib/canvas/selectedImage';
@@ -79,8 +87,687 @@ import {
   countCreatorInputs,
   mergeReferenceUrls,
   visualReferenceUrls,
+  type BrandContext,
+  type CampaignContext,
+  type CreatorContextModel,
+  type OfferContext,
 } from '@/lib/context/model';
-import { useCreatorContext } from '@/lib/context/creator-store';
+import {
+  saveBrandContext,
+  saveCampaignContext,
+  saveOfferContext,
+  saveWorkspaceInputSet,
+  useCreatorContext,
+} from '@/lib/context/creator-store';
+import type { ReferenceRecord } from '@/lib/providers/reference/types';
+import { cn } from '@/lib/utils/cn';
+
+type InputSyncKey = 'brand' | 'offer' | 'campaign' | 'signals' | 'references' | 'constraints';
+
+interface InputSetSignalDraft {
+  id: string;
+  kind: SignalKind;
+  value: string;
+  label: string;
+  syncable: boolean;
+}
+
+interface InputSetReferenceDraft {
+  id: string;
+  title: string;
+  usageIntent: string;
+  notes: string;
+  source: string;
+}
+
+interface InputSetPanelDraft {
+  brandName: string;
+  brandVoice: string;
+  offerName: string;
+  offerSummary: string;
+  offerClaims: string;
+  offerHeroAsset: string;
+  campaignName: string;
+  campaignGoal: string;
+  campaignAudience: string;
+  campaignChannels: string;
+  campaignCta: string;
+  signals: InputSetSignalDraft[];
+  references: InputSetReferenceDraft[];
+  constraints: string;
+}
+
+type InputSyncState = Record<InputSyncKey, boolean>;
+
+const DEFAULT_INPUT_SYNC: InputSyncState = {
+  brand: true,
+  offer: true,
+  campaign: true,
+  signals: true,
+  references: true,
+  constraints: true,
+};
+
+function splitInputList(value: string): string[] {
+  return value
+    .split(/[\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function inputSetSourceSignature(
+  context: CreatorContextModel,
+  references: ReadonlyArray<ReferenceRecord>,
+  signalRecords: ReadonlyArray<SignalRecord>
+): string {
+  return JSON.stringify({
+    brand: context.brand,
+    offer: context.offer,
+    campaign: context.campaign,
+    inputSet: context.inputSet,
+    references: references.map((ref) => ({
+      id: ref.id,
+      title: ref.title,
+      usageIntent: ref.usageIntent,
+      notes: ref.notes,
+    })),
+    signals: signalRecords.map((signal) => ({
+      id: signal.id,
+      kind: signal.kind,
+      value: signal.value,
+    })),
+  });
+}
+
+function buildSignalDrafts(
+  context: CreatorContextModel,
+  signalRecords: ReadonlyArray<SignalRecord>
+): InputSetSignalDraft[] {
+  const byId = new Map(signalRecords.map((signal) => [signal.id, signal]));
+  const ids = context.inputSet.signalIds.length
+    ? context.inputSet.signalIds
+    : signalRecords.map((signal) => signal.id);
+  const seen = new Set<string>();
+  const drafts: InputSetSignalDraft[] = [];
+
+  for (const id of ids) {
+    const record = byId.get(id);
+    if (record) {
+      seen.add(id);
+      drafts.push({
+        id,
+        kind: record.kind,
+        value: displaySignalValue(record),
+        label: record.kind,
+        syncable: true,
+      });
+      continue;
+    }
+    const contextual = context.signals.find((signal) => signal.id === id);
+    drafts.push({
+      id,
+      kind: 'keyword',
+      value: contextual?.title ?? id,
+      label: contextual?.platform ?? 'signal',
+      syncable: false,
+    });
+  }
+
+  for (const record of signalRecords) {
+    if (seen.has(record.id)) continue;
+    drafts.push({
+      id: record.id,
+      kind: record.kind,
+      value: displaySignalValue(record),
+      label: record.kind,
+      syncable: true,
+    });
+  }
+
+  return drafts;
+}
+
+function buildInputSetDraft(
+  context: CreatorContextModel,
+  references: ReadonlyArray<ReferenceRecord>,
+  signalRecords: ReadonlyArray<SignalRecord>
+): InputSetPanelDraft {
+  return {
+    brandName: context.brand.name,
+    brandVoice: context.brand.voice,
+    offerName: context.offer.name,
+    offerSummary: context.offer.summary,
+    offerClaims: context.offer.claims.join(', '),
+    offerHeroAsset: context.offer.heroAsset,
+    campaignName: context.campaign.name,
+    campaignGoal: context.campaign.goal,
+    campaignAudience: context.campaign.audience,
+    campaignChannels: context.campaign.channels.join(', '),
+    campaignCta: context.campaign.cta,
+    signals: buildSignalDrafts(context, signalRecords),
+    references: references.map((ref, index) => ({
+      id: ref.id,
+      title: ref.title ?? `reference ${index + 1}`,
+      usageIntent: ref.usageIntent ?? '',
+      notes: ref.notes ?? '',
+      source: ref.attribution.source,
+    })),
+    constraints: context.inputSet.constraints.join(', '),
+  };
+}
+
+function inputSetBreakdownText(
+  context: CreatorContextModel,
+  references: ReadonlyArray<ReferenceRecord>
+): string {
+  return `3 context + ${context.inputSet.signalIds.length} signals + ${references.length} refs`;
+}
+
+function openRailSection(id: string) {
+  document.querySelector<HTMLButtonElement>(`[data-rail-section="${id}"]`)?.click();
+}
+
+function syncBrandDraft(base: BrandContext, draft: InputSetPanelDraft): BrandContext {
+  return {
+    ...base,
+    name: draft.brandName.trim() || base.name,
+    voice: draft.brandVoice.trim(),
+  };
+}
+
+function syncOfferDraft(base: OfferContext, draft: InputSetPanelDraft): OfferContext {
+  return {
+    ...base,
+    name: draft.offerName.trim() || base.name,
+    summary: draft.offerSummary.trim(),
+    claims: splitInputList(draft.offerClaims),
+    heroAsset: draft.offerHeroAsset.trim(),
+  };
+}
+
+function syncCampaignDraft(base: CampaignContext, draft: InputSetPanelDraft): CampaignContext {
+  return {
+    ...base,
+    name: draft.campaignName.trim() || base.name,
+    goal: draft.campaignGoal.trim(),
+    audience: draft.campaignAudience.trim(),
+    channels: splitInputList(draft.campaignChannels),
+    cta: draft.campaignCta.trim(),
+  };
+}
+
+function InputSetPanel({
+  context,
+  references,
+  signalRecords,
+  workspaceId,
+  inputCount,
+  onClose,
+}: {
+  context: CreatorContextModel;
+  references: ReadonlyArray<ReferenceRecord>;
+  signalRecords: ReadonlyArray<SignalRecord>;
+  workspaceId: string;
+  inputCount: number;
+  onClose: () => void;
+}) {
+  const sourceSignature = useMemo(
+    () => inputSetSourceSignature(context, references, signalRecords),
+    [context, references, signalRecords]
+  );
+  const [draft, setDraft] = useState<InputSetPanelDraft>(() =>
+    buildInputSetDraft(context, references, signalRecords)
+  );
+  const [sync, setSync] = useState<InputSyncState>(DEFAULT_INPUT_SYNC);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setDraft(buildInputSetDraft(context, references, signalRecords));
+    setSaved(false);
+  }, [context, references, signalRecords, sourceSignature]);
+
+  const syncableSignalCount = draft.signals.filter((signal) => signal.syncable).length;
+
+  const toggleSync = (key: InputSyncKey) => {
+    setSync((current) => ({ ...current, [key]: !current[key] }));
+    setSaved(false);
+  };
+
+  const saveSelected = () => {
+    if (sync.brand) saveBrandContext(syncBrandDraft(context.brand, draft), workspaceId);
+    if (sync.offer) saveOfferContext(syncOfferDraft(context.offer, draft), workspaceId);
+    if (sync.campaign) saveCampaignContext(syncCampaignDraft(context.campaign, draft), workspaceId);
+    if (sync.signals) {
+      for (const signal of draft.signals) {
+        if (!signal.syncable) continue;
+        updateSignal(signal.id, signal.kind, normalizeSignalValue(signal.kind, signal.value));
+      }
+    }
+    if (sync.references) {
+      for (const ref of draft.references) {
+        updateReference(ref.id, {
+          title: ref.title.trim(),
+          usageIntent: ref.usageIntent.trim(),
+          notes: ref.notes.trim(),
+        });
+      }
+    }
+    if (sync.constraints) {
+      saveWorkspaceInputSet(
+        {
+          ...context.inputSet,
+          referenceIds: references.map((ref) => ref.id),
+          referenceCount: references.length,
+          constraints: splitInputList(draft.constraints),
+        },
+        workspaceId
+      );
+    }
+    setSaved(true);
+  };
+
+  const syncToggle = (key: InputSyncKey, label = 'sync') => (
+    <button
+      type="button"
+      aria-pressed={sync[key]}
+      onClick={() => toggleSync(key)}
+      className={cn(
+        'inline-flex items-center rounded-pill border px-2 py-0.5 font-caption text-2xs transition-colors',
+        sync[key]
+          ? 'border-accent/40 bg-accent/10 text-accent'
+          : 'border-border-soft bg-surface-panel-muted text-ink-faint hover:text-ink'
+      )}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div
+      role="dialog"
+      aria-label="input set"
+      data-testid="input-set-panel"
+      className="fixed bottom-20 left-1/2 z-[22000] flex max-h-[min(78vh,720px)] w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-hidden rounded-md border border-border bg-surface-panel shadow-md"
+    >
+      <header className="flex items-center justify-between gap-3 border-b border-border-soft px-3 py-2">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className="font-caption text-sm text-ink">input set</span>
+            <span className="font-caption text-2xs text-ink-faint">
+              {inputCount} inputs · {inputSetBreakdownText(context, references)}
+            </span>
+          </div>
+          <span className="block truncate font-caption text-2xs text-ink-dim">
+            active generation context: {context.campaign.name}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="close input set"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-sm text-ink-dim transition-colors hover:bg-surface-panel-muted hover:text-ink"
+        >
+          x
+        </button>
+      </header>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto px-3 py-3 md:grid-cols-2">
+        <section className="flex flex-col gap-2" aria-label="context inputs">
+          <div className="flex items-center justify-between border-b border-border-soft pb-1">
+            <span className="font-caption text-xs text-ink">context</span>
+            <span className="font-caption text-2xs text-ink-faint">3 inputs</span>
+          </div>
+
+          <div className="flex flex-col gap-1.5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-caption text-2xs uppercase tracking-wide text-ink-faint">
+                brand
+              </span>
+              <div className="flex items-center gap-1">
+                {syncToggle('brand')}
+                <button
+                  type="button"
+                  onClick={() => openRailSection('brand')}
+                  className="font-caption text-2xs text-ink-dim hover:text-ink"
+                >
+                  rail
+                </button>
+              </div>
+            </div>
+            <input
+              aria-label="input set brand name"
+              value={draft.brandName}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, brandName: event.target.value }));
+                setSaved(false);
+              }}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink outline-none focus:border-accent"
+            />
+            <textarea
+              aria-label="input set brand voice"
+              rows={2}
+              value={draft.brandVoice}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, brandVoice: event.target.value }));
+                setSaved(false);
+              }}
+              className="resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-caption text-2xs uppercase tracking-wide text-ink-faint">
+                offer
+              </span>
+              <div className="flex items-center gap-1">
+                {syncToggle('offer')}
+                <button
+                  type="button"
+                  onClick={() => openRailSection('offer')}
+                  className="font-caption text-2xs text-ink-dim hover:text-ink"
+                >
+                  rail
+                </button>
+              </div>
+            </div>
+            <input
+              aria-label="input set offer name"
+              value={draft.offerName}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, offerName: event.target.value }));
+                setSaved(false);
+              }}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink outline-none focus:border-accent"
+            />
+            <textarea
+              aria-label="input set offer summary"
+              rows={2}
+              value={draft.offerSummary}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, offerSummary: event.target.value }));
+                setSaved(false);
+              }}
+              className="resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+            <input
+              aria-label="input set offer claims"
+              value={draft.offerClaims}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, offerClaims: event.target.value }));
+                setSaved(false);
+              }}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+            <input
+              aria-label="input set offer hero asset"
+              value={draft.offerHeroAsset}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, offerHeroAsset: event.target.value }));
+                setSaved(false);
+              }}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-caption text-2xs uppercase tracking-wide text-ink-faint">
+                campaign
+              </span>
+              <div className="flex items-center gap-1">
+                {syncToggle('campaign')}
+                <button
+                  type="button"
+                  onClick={() => openRailSection('campaign')}
+                  className="font-caption text-2xs text-ink-dim hover:text-ink"
+                >
+                  rail
+                </button>
+              </div>
+            </div>
+            <input
+              aria-label="input set campaign name"
+              value={draft.campaignName}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, campaignName: event.target.value }));
+                setSaved(false);
+              }}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-xs text-ink outline-none focus:border-accent"
+            />
+            <textarea
+              aria-label="input set campaign goal"
+              rows={2}
+              value={draft.campaignGoal}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, campaignGoal: event.target.value }));
+                setSaved(false);
+              }}
+              className="resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+            <textarea
+              aria-label="input set campaign audience"
+              rows={2}
+              value={draft.campaignAudience}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, campaignAudience: event.target.value }));
+                setSaved(false);
+              }}
+              className="resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+            <input
+              aria-label="input set campaign channels"
+              value={draft.campaignChannels}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, campaignChannels: event.target.value }));
+                setSaved(false);
+              }}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+            <input
+              aria-label="input set campaign cta"
+              value={draft.campaignCta}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, campaignCta: event.target.value }));
+                setSaved(false);
+              }}
+              className="rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-2" aria-label="material inputs">
+          <div className="flex items-center justify-between border-b border-border-soft pb-1">
+            <span className="font-caption text-xs text-ink">materials</span>
+            <span className="font-caption text-2xs text-ink-faint">
+              {context.inputSet.signalIds.length + references.length} inputs
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-baseline gap-2">
+                <span className="font-caption text-2xs uppercase tracking-wide text-ink-faint">
+                  signals
+                </span>
+                <span className="font-caption text-2xs text-ink-faint">
+                  {draft.signals.length} shown · {syncableSignalCount} rail
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                {syncToggle('signals')}
+                <button
+                  type="button"
+                  onClick={() => openRailSection('signals')}
+                  className="font-caption text-2xs text-ink-dim hover:text-ink"
+                >
+                  rail
+                </button>
+              </div>
+            </div>
+            {draft.signals.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                {draft.signals.map((signal) => (
+                  <div
+                    key={signal.id}
+                    className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-sm border border-border-soft bg-surface-panel px-2 py-1"
+                  >
+                    <span className="font-caption text-2xs text-ink-faint">
+                      {signal.label}
+                    </span>
+                    <input
+                      aria-label={`input set signal ${signal.id}`}
+                      value={signal.value}
+                      onChange={(event) => {
+                        setDraft((current) => ({
+                          ...current,
+                          signals: current.signals.map((entry) =>
+                            entry.id === signal.id
+                              ? { ...entry, value: event.target.value }
+                              : entry
+                          ),
+                        }));
+                        setSaved(false);
+                      }}
+                      className="min-w-0 rounded-xs border border-transparent bg-transparent font-caption text-2xs text-ink-dim outline-none focus:border-accent focus:bg-surface-panel-muted focus:px-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="font-caption text-2xs text-ink-faint">no signals tracked</span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-baseline gap-2">
+                <span className="font-caption text-2xs uppercase tracking-wide text-ink-faint">
+                  refs
+                </span>
+                <span className="font-caption text-2xs text-ink-faint">
+                  {draft.references.length} pinned
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                {syncToggle('references')}
+                <button
+                  type="button"
+                  onClick={() => openRailSection('references')}
+                  className="font-caption text-2xs text-ink-dim hover:text-ink"
+                >
+                  rail
+                </button>
+              </div>
+            </div>
+            {draft.references.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                {draft.references.map((ref, index) => (
+                  <div
+                    key={ref.id}
+                    className="flex flex-col gap-1 rounded-sm border border-border-soft bg-surface-panel px-2 py-1.5"
+                  >
+                    <span className="font-caption text-2xs text-ink-faint">
+                      {index + 1} · {ref.source}
+                    </span>
+                    <input
+                      aria-label={`input set reference ${ref.id} title`}
+                      value={ref.title}
+                      onChange={(event) => {
+                        setDraft((current) => ({
+                          ...current,
+                          references: current.references.map((entry) =>
+                            entry.id === ref.id ? { ...entry, title: event.target.value } : entry
+                          ),
+                        }));
+                        setSaved(false);
+                      }}
+                      className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1 font-caption text-2xs text-ink outline-none focus:border-accent"
+                    />
+                    <input
+                      aria-label={`input set reference ${ref.id} usage`}
+                      value={ref.usageIntent}
+                      onChange={(event) => {
+                        setDraft((current) => ({
+                          ...current,
+                          references: current.references.map((entry) =>
+                            entry.id === ref.id
+                              ? { ...entry, usageIntent: event.target.value }
+                              : entry
+                          ),
+                        }));
+                        setSaved(false);
+                      }}
+                      className="rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+                    />
+                    <textarea
+                      aria-label={`input set reference ${ref.id} notes`}
+                      rows={2}
+                      value={ref.notes}
+                      onChange={(event) => {
+                        setDraft((current) => ({
+                          ...current,
+                          references: current.references.map((entry) =>
+                            entry.id === ref.id ? { ...entry, notes: event.target.value } : entry
+                          ),
+                        }));
+                        setSaved(false);
+                      }}
+                      className="resize-none rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="font-caption text-2xs text-ink-faint">no refs pinned</span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5 rounded-sm border border-border-soft bg-surface-panel-muted px-2 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-caption text-2xs uppercase tracking-wide text-ink-faint">
+                constraints
+              </span>
+              {syncToggle('constraints')}
+            </div>
+            <textarea
+              aria-label="input set constraints"
+              rows={3}
+              value={draft.constraints}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, constraints: event.target.value }));
+                setSaved(false);
+              }}
+              className="resize-none rounded-sm border border-border-soft bg-surface-panel px-2 py-1 font-caption text-2xs text-ink-dim outline-none focus:border-accent"
+            />
+          </div>
+        </section>
+      </div>
+
+      <footer className="flex items-center justify-between gap-2 border-t border-border-soft px-3 py-2">
+        <span className="font-caption text-2xs text-ink-faint">
+          {saved ? 'synced selected rail sections' : 'edit here, then sync selected parts back to rails'}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-sm border border-border-soft px-2 py-1 font-caption text-2xs text-ink-dim transition-colors hover:text-ink"
+          >
+            close
+          </button>
+          <button
+            type="button"
+            onClick={saveSelected}
+            className="rounded-sm border border-accent bg-accent px-2 py-1 font-caption text-2xs text-ink-on-accent transition-opacity hover:opacity-90"
+          >
+            sync selected
+          </button>
+        </div>
+      </footer>
+    </div>
+  );
+}
 
 const LOG_TAG = '[aether/generate]';
 const log = (...args: unknown[]) => {
@@ -275,6 +962,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const definitions = useCapabilityDefinitions();
   const runs = useRuns();
   const references = useReferences(wsId);
+  const signalRecords = useSignals(wsId);
   const creatorContext = useCreatorContext(wsId);
   const providerPrefs = useWorkspaceProviderPrefs(wsId);
   const saveProviderPrefs = useSaveWorkspaceProviderPrefs();
@@ -282,6 +970,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
   const [exporting, setExporting] = useState(false);
   const [view, setView] = useState<ViewId>('canvas');
   const [safeZonesVisible, setSafeZonesVisible] = useState(true);
+  const [inputSetOpen, setInputSetOpen] = useState(false);
   const [publishPreviewOpen, setPublishPreviewOpen] = useState(false);
   useEffect(() => {
     // Deep-link: `?publishPreview=<id>` opens the overlay on mount. The
@@ -1405,8 +2094,22 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
       });
       log('pinned capability:', def.id, '·', def.name);
       setPinTargetRun(null);
+      const prompt = def.runTemplate.prompt ?? def.trigger;
+      void Promise.resolve().then(async () => {
+        if (def.tool === 'spatial-gen') {
+          await runSpatialOnCanvas(prompt, {
+            definitionId: def.id,
+            formatOverride: def.runTemplate.format,
+            qualityOverride: def.runTemplate.quality,
+          });
+          return;
+        }
+        if (def.tool === 'image-gen') {
+          await runImageOnCanvas(prompt, { definitionId: def.id });
+        }
+      });
     },
-    []
+    [runImageOnCanvas, runSpatialOnCanvas]
   );
 
   const handleCapabilityPress = useCallback(
@@ -1562,6 +2265,17 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         />
       </div>
 
+      {inputSetOpen ? (
+        <InputSetPanel
+          context={creatorContext}
+          references={references}
+          signalRecords={signalRecords}
+          workspaceId={wsId}
+          inputCount={inputCount}
+          onClose={() => setInputSetOpen(false)}
+        />
+      ) : null}
+
       <PromptComposer
         ref={composerRef}
         onSubmit={handlePrompt}
@@ -1571,11 +2285,7 @@ function WorkspaceShellInner({ wsId }: { wsId: string }) {
         formats={composerFormats}
         activeFormatId={activeFormatId ?? undefined}
         onActiveFormatChange={setActiveFormatId}
-        onOpenInputSet={() => {
-          document
-            .querySelector<HTMLButtonElement>('[data-rail-section="references"]')
-            ?.click();
-        }}
+        onOpenInputSet={() => setInputSetOpen((open) => !open)}
         className="h-composer"
       />
       <ComposerStatus />

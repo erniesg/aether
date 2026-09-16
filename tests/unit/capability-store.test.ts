@@ -37,7 +37,10 @@ function seed(
 }
 
 describe('capability/store', () => {
-  beforeEach(() => clearDefinitions());
+  beforeEach(() => {
+    window.localStorage.clear();
+    clearDefinitions();
+  });
 
   it('adds a definition and returns a stamped record', () => {
     const def = seed();
@@ -51,6 +54,10 @@ describe('capability/store', () => {
       id: 'image-gen',
       version: 1,
     });
+    const stored = JSON.parse(
+      window.localStorage.getItem('aether.capability.definitions.v1') ?? '[]'
+    ) as CapabilityDefinitionRecord[];
+    expect(stored[0]?.id).toBe(def.id);
   });
 
   it('lists definitions most-recent first', () => {
@@ -80,5 +87,8 @@ describe('capability/store', () => {
     expect(listDefinitions().length).toBe(2);
     clearDefinitions();
     expect(listDefinitions().length).toBe(0);
+    expect(
+      JSON.parse(window.localStorage.getItem('aether.capability.definitions.v1') ?? '[]')
+    ).toEqual([]);
   });
 });

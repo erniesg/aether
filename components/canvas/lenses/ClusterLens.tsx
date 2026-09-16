@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { Loader2, Sparkles, WandSparkles } from 'lucide-react';
 import {
@@ -52,6 +52,45 @@ const EMPTY_HINTS: Record<ClusterColumn, string> = {
   Generating: 'Shortlisted cards seed variants',
   Hero: 'Promote one to commit the hero',
 };
+
+const PREVIEW_PALETTES: Record<string, [string, string, string]> = {
+  pinterest: ['#f5d7d8', '#c83c4a', '#5f1d2a'],
+  instagram: ['#f0d8ef', '#c35aa5', '#3a2a62'],
+  tiktok: ['#f3f0e8', '#29c7c7', '#122026'],
+  xhs: ['#f4d8ce', '#d75644', '#52211e'],
+  web: ['#dbe7ee', '#6481a6', '#1f2933'],
+};
+
+function escapeSvgText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fallbackPreviewDataUrl(label: string, source = 'web'): string {
+  const [paper, accent, ink] = PREVIEW_PALETTES[source.toLowerCase()] ?? PREVIEW_PALETTES.web;
+  const words = label
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const lineOne = words.slice(0, 2).join(' ') || source;
+  const lineTwo = words.slice(2).join(' ');
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">',
+    `<rect width="160" height="160" rx="14" fill="${paper}"/>`,
+    `<circle cx="104" cy="52" r="38" fill="${accent}" opacity="0.78"/>`,
+    `<rect x="24" y="86" width="112" height="32" rx="6" fill="${ink}" opacity="0.92"/>`,
+    `<text x="18" y="132" fill="${ink}" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700">${escapeSvgText(lineOne)}</text>`,
+    lineTwo
+      ? `<text x="18" y="150" fill="${ink}" font-family="Arial, Helvetica, sans-serif" font-size="13">${escapeSvgText(lineTwo)}</text>`
+      : '',
+    '</svg>',
+  ].join('');
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
 
 /**
  * The kanban cluster lens. Four hard-taxonomied columns:
@@ -211,13 +250,13 @@ export function ClusterLens({
       data-testid="cluster-lens"
       data-taxonomy="tool"
       className={cn(
-        'pointer-events-auto absolute inset-0 z-[5] flex flex-col bg-surface-bg/95 backdrop-blur-sm',
+        'pointer-events-auto absolute inset-0 z-[5] flex flex-col bg-surface-bg',
         className
       )}
       aria-label="cluster lens"
     >
       <header
-        className="flex items-center justify-between border-b border-border-soft bg-surface-panel/95 px-4 py-2"
+        className="flex items-center justify-between border-b border-border-soft bg-surface-panel px-4 py-2"
       >
         <div className="flex items-baseline gap-3">
           <span className="font-display text-sm text-ink">clusters</span>
@@ -280,7 +319,7 @@ export function ClusterLens({
               onDrop={(e) => onDrop(e, column)}
               aria-label={`${column} column`}
               className={cn(
-                'flex min-w-[248px] shrink-0 flex-col gap-2 rounded-md border border-border-soft bg-surface-panel-muted/80 p-2',
+                'flex min-w-[248px] shrink-0 flex-col gap-2 rounded-md border border-border-soft bg-surface-panel-muted p-2',
                 dropTarget === column && 'border-accent bg-accent/5'
               )}
             >
@@ -431,7 +470,7 @@ function MoodboardPanel({
       data-testid="moodboard-panel"
       data-taxonomy="tool"
       aria-label="moodboard"
-      className="flex w-[320px] shrink-0 flex-col gap-3 border-l border-border-soft bg-surface-panel/92 px-3 py-3"
+      className="flex w-[320px] shrink-0 flex-col gap-3 border-l border-border-soft bg-surface-panel px-3 py-3"
     >
       <header className="flex items-center justify-between gap-2">
         <span className="truncate font-display text-sm text-ink">{spec.label}</span>
@@ -447,10 +486,10 @@ function MoodboardPanel({
             className="aspect-[4/5] overflow-hidden rounded-xs border border-border-soft bg-surface-panel-muted"
             title={source.title}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <SafePreviewImage
               src={source.thumbnailUrl}
-              alt={source.title}
+              label={source.title}
+              source={source.source}
               className="h-full w-full object-cover"
             />
           </figure>
@@ -508,6 +547,38 @@ function MoodboardPanel({
   );
 }
 
+function SafePreviewImage({
+  src,
+  label,
+  source,
+  className,
+}: {
+  src?: string;
+  label: string;
+  source?: string;
+  className?: string;
+}) {
+  const fallback = useMemo(
+    () => fallbackPreviewDataUrl(label, source),
+    [label, source]
+  );
+  const [resolvedSrc, setResolvedSrc] = useState(src?.trim() || fallback);
+
+  useEffect(() => {
+    setResolvedSrc(src?.trim() || fallback);
+  }, [fallback, src]);
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={resolvedSrc}
+      alt={label}
+      className={className}
+      onError={() => setResolvedSrc(fallback)}
+    />
+  );
+}
+
 function CardTile({
   card,
   onDragStart,
@@ -543,10 +614,10 @@ function CardTile({
         'focus:border-accent focus:outline-none'
       )}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <SafePreviewImage
         src={card.thumbnailUrl}
-        alt={label}
+        label={label}
+        source={card.attribution.source}
         className="h-10 w-10 shrink-0 rounded-xs object-cover"
       />
       <div className="flex min-w-0 flex-1 flex-col">

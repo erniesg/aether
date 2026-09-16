@@ -173,7 +173,8 @@ export function addReference(record: ReferenceRecord, workspaceId?: string): voi
         },
       } as never)
       .catch(() => {
-        update((prev) => prev.filter((r) => referenceKey(r) !== referenceKey(record)));
+        // Keep the creator loop moving even when Convex is unavailable or slow.
+        // The local record still feeds clustering, prompt context, and canvas refs.
       });
     return;
   }

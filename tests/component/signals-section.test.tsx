@@ -59,6 +59,18 @@ describe('SignalsSection · CRUD', () => {
     ).toBeNull();
   });
 
+  it('tracks all suggested signals into their groups', async () => {
+    render(<SignalsSection />);
+
+    await userEvent.click(screen.getByRole('button', { name: /track all/i }));
+
+    const keywordGroup = document.querySelector<HTMLElement>(
+      '[data-signal-group="keyword"]'
+    )!;
+    expect(within(keywordGroup).getByText('ceramide cleanse')).toBeInTheDocument();
+    expect(within(keywordGroup).getByText('niacinamide glow')).toBeInTheDocument();
+  });
+
   it('adds a hashtag with the leading # stripped and displayed back with it', async () => {
     render(<SignalsSection />);
     await userEvent.type(screen.getByLabelText(/add hashtag/i), '#goldenhour');

@@ -1,14 +1,27 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@/app/design-system/ThemeProvider';
 import { WorkspaceShell } from '@/components/workspace/WorkspaceShell';
 import { resetRunsForTests } from '@/lib/store/runs';
+import {
+  CAMPAIGN_CONTEXT_STORAGE_KEY,
+  resetCreatorContextForTests,
+} from '@/lib/context/creator-store';
+import { resetSignalsForTests } from '@/lib/signals/store';
+import { clearReferencesForTests } from '@/lib/references/store';
 
-afterEach(() => {
+function resetShellState() {
   cleanup();
+  window.localStorage.clear();
   resetRunsForTests();
-});
+  resetCreatorContextForTests();
+  resetSignalsForTests();
+  clearReferencesForTests();
+}
+
+beforeEach(resetShellState);
+afterEach(resetShellState);
 
 function renderShell() {
   return render(
@@ -98,5 +111,22 @@ describe('ViewSwitcher · focus lens = camera, not chrome', () => {
       'aria-current',
       'page'
     );
+  });
+
+  it('opens the composer input set as an editable breakdown with explicit rail sync', async () => {
+    renderShell();
+
+    await userEvent.click(screen.getByRole('button', { name: /^input set/i }));
+
+    expect(screen.getByRole('dialog', { name: /^input set$/i })).toHaveTextContent(
+      /3 context \+ 2 signals \+ 0 refs/i
+    );
+    const campaignName = screen.getByLabelText(/input set campaign name/i);
+    await userEvent.clear(campaignName);
+    await userEvent.type(campaignName, 'Edited Campaign');
+    await userEvent.click(screen.getByRole('button', { name: /sync selected/i }));
+
+    const saved = JSON.parse(window.localStorage.getItem(CAMPAIGN_CONTEXT_STORAGE_KEY) ?? '{}');
+    expect(saved.name).toBe('Edited Campaign');
   });
 });

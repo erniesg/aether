@@ -62,8 +62,79 @@ async function ingestUrl(
   });
   if (!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
   const html = await res.text();
-  const extract = extractFromHtml(html, normalizedUrl);
+  const htmlWithLinkedCss = await appendLinkedStylesheets(html, normalizedUrl, fetcher);
+  const extract = extractFromHtml(htmlWithLinkedCss, normalizedUrl);
   return { extract, source: { kind: 'url', url: normalizedUrl } };
+}
+
+async function appendLinkedStylesheets(
+  html: string,
+  baseUrl: string,
+  fetcher: typeof fetch
+): Promise<string> {
+  const urls = linkedStylesheetUrls(html, baseUrl);
+  if (urls.length === 0) return html;
+
+  const cssParts = await Promise.all(
+    urls.map(async (cssUrl) => {
+      try {
+        const res = await fetcher(cssUrl, {
+          headers: {
+            Accept: 'text/css,*/*;q=0.1',
+            'User-Agent': 'aether-brand-ingest/0.1 (+https://aether.berlayar.ai)',
+          },
+        });
+        if (!res.ok) return '';
+        return await res.text();
+      } catch {
+        return '';
+      }
+    })
+  );
+  const css = cssParts
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 500_000);
+  if (!css) return html;
+  return `${html}\n<style data-aether-linked-css>\n${css}\n</style>`;
+}
+
+function linkedStylesheetUrls(html: string, baseUrl: string): string[] {
+  const base = new URL(baseUrl);
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
+    const tag = match[0];
+    const href = getHtmlAttr(tag, 'href');
+    if (!href) continue;
+    const rel = getHtmlAttr(tag, 'rel') ?? '';
+    const as = getHtmlAttr(tag, 'as') ?? '';
+    const stylesheetLike =
+      /\bstylesheet\b/i.test(rel) ||
+      /\bstyle\b/i.test(as) ||
+      /\.css(?:[?#]|$)/i.test(href);
+    if (!stylesheetLike) continue;
+    let resolved: URL;
+    try {
+      resolved = new URL(href, base);
+    } catch {
+      continue;
+    }
+    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') continue;
+    if (resolved.origin !== base.origin) continue;
+    const url = resolved.toString();
+    if (seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+    if (urls.length >= 10) break;
+  }
+  return urls;
+}
+
+function getHtmlAttr(tag: string, name: string): string | undefined {
+  const quoted = new RegExp(`\\b${name}=["']([^"']+)["']`, 'i').exec(tag)?.[1];
+  if (quoted) return quoted;
+  return new RegExp(`\\b${name}=([^\\s>]+)`, 'i').exec(tag)?.[1];
 }
 
 const GITHUB_REPO_RE = /^https?:\/\/github\.com\/([^/\s]+)\/([^/\s?#]+)/i;

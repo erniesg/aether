@@ -54,20 +54,36 @@ export function extractFontFamiliesFromCss(input: string): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
   const add = (name: string) => {
+    if (isUnusableFontCandidate(name)) return;
     const key = name.toLowerCase();
     if (!seen.has(key) && name.length > 0) {
       seen.add(key);
       result.push(name);
     }
   };
-  const declRe = /font-family\s*:\s*([^;{}]+)/gi;
-  for (const match of input.matchAll(declRe)) {
-    const body = match[1] ?? '';
-    const families = body
+  const parseFamilies = (body: string): string[] =>
+    body
       .split(',')
       .map((s) => s.trim().replace(/^['"]|['"]$/g, '').trim())
       .filter((s) => s && !isGenericCssFontKeyword(s));
-    for (const f of families) add(f);
+
+  // Design systems often define the actual family behind CSS custom
+  // properties, then use `font-family: var(--font-family--primary)`.
+  // Capture the variable definitions before dropping var() indirections.
+  const fontVarValues = new Map<string, string>();
+  const fontVarRe = /(--[^:;{}]*font-family[^:;{}]*)\s*:\s*([^;{}]+)/gi;
+  for (const match of input.matchAll(fontVarRe)) {
+    const name = match[1]?.trim().toLowerCase();
+    const value = match[2] ?? '';
+    if (name) fontVarValues.set(name, value);
+  }
+  for (const value of fontVarValues.values()) {
+    for (const f of parseFamilies(value)) add(f);
+  }
+
+  const declRe = /font-family\s*:\s*([^;{}]+)/gi;
+  for (const match of input.matchAll(declRe)) {
+    for (const f of parseFamilies(match[1] ?? '')) add(f);
   }
   // Also pick up Google-Fonts-style `family=Name+Space` from <link> hrefs.
   const googleRe = /fonts\.googleapis\.com\/css2?\?[^"'\s]*family=([^"'\s&]+)/gi;
@@ -76,6 +92,17 @@ export function extractFontFamiliesFromCss(input: string): string[] {
     if (fam) add(fam.trim());
   }
   return result;
+}
+
+function isUnusableFontCandidate(s: string): boolean {
+  const k = s.trim().toLowerCase();
+  return (
+    !k ||
+    k.startsWith('var(') ||
+    k.includes('var(') ||
+    k.includes('calc(') ||
+    k.includes('url(')
+  );
 }
 
 function isGenericCssFontKeyword(s: string): boolean {

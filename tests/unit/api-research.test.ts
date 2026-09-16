@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   ingestReferenceUrl: vi.fn(),
 }));
+const ORIGINAL_ENV = process.env;
 
 vi.mock('@/lib/providers/reference/registry', () => ({
   ingestReferenceUrl: mocks.ingestReferenceUrl,
@@ -10,6 +11,7 @@ vi.mock('@/lib/providers/reference/registry', () => ({
 
 describe('/api/research', () => {
   afterEach(() => {
+    process.env = ORIGINAL_ENV;
     vi.resetModules();
     mocks.ingestReferenceUrl.mockReset();
   });
@@ -86,5 +88,34 @@ describe('/api/research', () => {
     expect(json.records[0]?.fullUrl).toContain('pinterest.com/search');
     expect(json.records[0]?.attribution.source).toBe('pinterest');
     expect(json.materializedCount).toBe(1);
+  });
+
+  it('uses configured signal search before source-target fallback', async () => {
+    process.env = { ...ORIGINAL_ENV, SIGNALS_EXECUTION_MODE: 'mock' };
+    const { POST } = await import('@/app/api/research/route');
+    const res = await POST(
+      new Request('http://localhost/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          seedText: 'barrier glow shelf',
+          platforms: ['instagram'],
+          limit: 1,
+        }),
+      })
+    );
+
+    const json = (await res.json()) as {
+      ok: boolean;
+      records: Array<{ usageIntent: string; attribution: { source: string } }>;
+      signalCount: number;
+      materializedCount: number;
+    };
+    expect(res.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.signalCount).toBeGreaterThan(0);
+    expect(json.materializedCount).toBe(0);
+    expect(json.records[0]?.usageIntent).toBe('research signal');
+    expect(json.records[0]?.attribution.source).toBe('instagram');
   });
 });

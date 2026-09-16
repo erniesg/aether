@@ -69,6 +69,14 @@ describe('/api/brand/propose', () => {
         cta: 'shop now',
       },
     ],
+    signals: [
+      {
+        id: 'signal-1',
+        kind: 'keyword',
+        value: 'golden hour skincare',
+        reason: 'brand mood',
+      },
+    ],
     coverage: { ok: true, notes: [] },
   };
 
@@ -89,6 +97,7 @@ describe('/api/brand/propose', () => {
     expect(json.ok).toBe(true);
     expect(json.offers).toBeInstanceOf(Array);
     expect(json.campaigns).toBeInstanceOf(Array);
+    expect(json.signals).toBeInstanceOf(Array);
     expect(typeof json.coverage.ok).toBe('boolean');
     expect(mocks.proposeBrandFollowups).toHaveBeenCalledWith({ snapshot: SNAPSHOT });
   });

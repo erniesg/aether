@@ -83,10 +83,56 @@ function normalizeLabel(raw: string, fallback: string): string {
   return words.join(' ');
 }
 
-function fallbackLabelFor(clusterId: string, samples?: string[]): string {
-  if (samples && samples.length > 0) {
-    return `direction ${clusterId}`;
+const FALLBACK_STOPWORDS = new Set([
+  'account',
+  'and',
+  'author',
+  'campaign',
+  'creator',
+  'direction',
+  'generic',
+  'hashtag',
+  'image',
+  'images',
+  'intent',
+  'keyword',
+  'notes',
+  'platform',
+  'pinterest',
+  'research',
+  'social',
+  'source',
+  'tags',
+  'target',
+  'the',
+  'tiktok',
+  'url',
+  'usage',
+  'visual',
+  'web',
+  'xhs',
+]);
+
+function fallbackLabelFromSamples(samples: string[]): string | null {
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const sample of samples) {
+    for (const match of sample.toLowerCase().matchAll(/[a-z][a-z0-9-]{2,}/g)) {
+      const parts = match[0].replace(/^-+|-+$/g, '').split('-');
+      for (const token of parts) {
+        if (!token || FALLBACK_STOPWORDS.has(token) || seen.has(token)) continue;
+        seen.add(token);
+        tokens.push(token);
+        if (tokens.length >= 3) return tokens.join(' ');
+      }
+    }
   }
+  return tokens.length >= 2 ? tokens.join(' ') : null;
+}
+
+function fallbackLabelFor(clusterId: string, samples?: string[]): string {
+  const sampled = samples && samples.length > 0 ? fallbackLabelFromSamples(samples) : null;
+  if (sampled) return sampled;
   return `direction ${clusterId}`;
 }
 

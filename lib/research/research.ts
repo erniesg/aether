@@ -373,7 +373,7 @@ function researchPreviewDataUrl(target: ResearchTarget, index: number): string {
     `<text x="88" y="806" fill="${ink}" opacity="0.68" font-family="Arial, Helvetica, sans-serif" font-size="20">${escapeXml(target.kind)} research target</text>`,
     `</svg>`,
   ].join('');
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 export function recordFromResearchTarget(

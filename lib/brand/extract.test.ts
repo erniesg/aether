@@ -49,6 +49,18 @@ describe('brand · extract typography helpers', () => {
     expect(families).toEqual(['Canela Deck', 'Inter', 'Helvetica', 'JetBrains Mono']);
   });
 
+  it('extractFontFamiliesFromCss resolves custom-property font families and ignores var references', () => {
+    const css = `
+      :root {
+        --font-family--primary: "Roboto", serif;
+        --font-family--secondary: "Raleway", sans-serif;
+      }
+      body { font-family: var(--font-family--secondary); }
+    `;
+    const families = extractFontFamiliesFromCss(css);
+    expect(families).toEqual(['Roboto', 'Raleway']);
+  });
+
   it('extractFontFamiliesFromCss picks up Google Fonts links', () => {
     const html = `
       <link href="https://fonts.googleapis.com/css2?family=Canela+Deck:wght@400;600&display=swap" />

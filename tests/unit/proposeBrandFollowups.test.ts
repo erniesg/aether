@@ -60,6 +60,13 @@ function makeCoverageResponse(ok: boolean, notes: string[]) {
   };
 }
 
+function makeSignalResponse(signal: object) {
+  return {
+    content: [{ type: 'tool_use', name: 'propose_signals', input: { signals: [signal] } }],
+    stop_reason: 'tool_use',
+  };
+}
+
 const MOCK_OFFER = {
   id: 'offer-spring-reset-01',
   name: 'Spring Reset Duo',
@@ -75,6 +82,13 @@ const MOCK_CAMPAIGN = {
   audience: 'skin-care-first shoppers on Instagram and TikTok',
   channels: ['IG post', 'story', 'reel cover'],
   cta: 'shop the drop',
+};
+
+const MOCK_SIGNAL = {
+  id: 'signal-golden-hour-skincare-01',
+  kind: 'keyword',
+  value: 'golden hour skincare',
+  reason: 'brand mood',
 };
 
 // ---------------------------------------------------------------------------
@@ -96,22 +110,24 @@ describe('proposeBrandFollowups', () => {
     mockCreate.mockReset();
   });
 
-  it('issues exactly 3 model calls', async () => {
+  it('issues exactly 4 model calls', async () => {
     mockCreate
       .mockResolvedValueOnce(makeOfferResponse(MOCK_OFFER))
       .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockResolvedValueOnce(makeSignalResponse(MOCK_SIGNAL))
       .mockResolvedValueOnce(makeCoverageResponse(true, []));
 
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');
     await proposeBrandFollowups({ snapshot: SNAPSHOT, client: fakeClient });
 
-    expect(mockCreate).toHaveBeenCalledTimes(3);
+    expect(mockCreate).toHaveBeenCalledTimes(4);
   });
 
-  it('uses distinct system prompts for each of the three workers', async () => {
+  it('uses distinct system prompts for each worker', async () => {
     mockCreate
       .mockResolvedValueOnce(makeOfferResponse(MOCK_OFFER))
       .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockResolvedValueOnce(makeSignalResponse(MOCK_SIGNAL))
       .mockResolvedValueOnce(makeCoverageResponse(true, []));
 
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');
@@ -124,21 +140,22 @@ describe('proposeBrandFollowups', () => {
       return sys ?? '';
     });
 
-    // All three must be non-empty strings
+    // All prompts must be non-empty strings
     for (const text of systemTexts) {
       expect(typeof text).toBe('string');
       expect(text.length).toBeGreaterThan(20);
     }
 
-    // All three must be distinct
+    // All prompts must be distinct
     const unique = new Set(systemTexts);
-    expect(unique.size).toBe(3);
+    expect(unique.size).toBe(4);
   });
 
   it('returns the assembled BrandFollowups shape', async () => {
     mockCreate
       .mockResolvedValueOnce(makeOfferResponse(MOCK_OFFER))
       .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockResolvedValueOnce(makeSignalResponse(MOCK_SIGNAL))
       .mockResolvedValueOnce(makeCoverageResponse(true, ['snapshot is rich']));
 
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');
@@ -168,13 +185,22 @@ describe('proposeBrandFollowups', () => {
     });
 
     // coverage
+    expect(result.signals).toEqual([
+      expect.objectContaining({
+        id: expect.any(String),
+        kind: 'keyword',
+        value: 'golden hour skincare',
+        reason: expect.any(String),
+      }),
+    ]);
     expect(typeof result.coverage.ok).toBe('boolean');
     expect(result.coverage.notes).toBeInstanceOf(Array);
   });
 
-  it('all three calls happen concurrently (Promise.all fan-out)', async () => {
+  it('all calls happen concurrently (Promise.all fan-out)', async () => {
     let offerResolved = false;
     let campaignResolved = false;
+    let signalResolved = false;
     let coverageResolved = false;
     let allStartedBeforeAnyResolved = false;
 
@@ -183,9 +209,10 @@ describe('proposeBrandFollowups', () => {
       callCount++;
       const thisCall = callCount;
       if (
-        thisCall === 3 &&
+        thisCall === 4 &&
         !offerResolved &&
         !campaignResolved &&
+        !signalResolved &&
         !coverageResolved
       ) {
         allStartedBeforeAnyResolved = true;
@@ -198,6 +225,9 @@ describe('proposeBrandFollowups', () => {
           } else if (thisCall === 2) {
             campaignResolved = true;
             resolve(makeCampaignResponse(MOCK_CAMPAIGN));
+          } else if (thisCall === 3) {
+            signalResolved = true;
+            resolve(makeSignalResponse(MOCK_SIGNAL));
           } else {
             coverageResolved = true;
             resolve(makeCoverageResponse(true, []));
@@ -209,7 +239,7 @@ describe('proposeBrandFollowups', () => {
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');
     await proposeBrandFollowups({ snapshot: SNAPSHOT, client: fakeClient });
 
-    expect(mockCreate).toHaveBeenCalledTimes(3);
+    expect(mockCreate).toHaveBeenCalledTimes(4);
     expect(allStartedBeforeAnyResolved).toBe(true);
   });
 
@@ -217,6 +247,7 @@ describe('proposeBrandFollowups', () => {
     mockCreate
       .mockRejectedValueOnce(new Error('offerProposer network error'))
       .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockResolvedValueOnce(makeSignalResponse(MOCK_SIGNAL))
       .mockResolvedValueOnce(makeCoverageResponse(false, ['offer proposer failed']));
 
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');
@@ -225,6 +256,7 @@ describe('proposeBrandFollowups', () => {
     expect(result.offers).toBeInstanceOf(Array);
     expect(result.offers.length).toBe(0);
     expect(result.campaigns.length).toBeGreaterThan(0);
+    expect(result.signals.length).toBeGreaterThan(0);
     expect(typeof result.coverage.ok).toBe('boolean');
   });
 
@@ -232,6 +264,7 @@ describe('proposeBrandFollowups', () => {
     mockCreate
       .mockResolvedValueOnce(makeOfferResponse(MOCK_OFFER))
       .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockResolvedValueOnce(makeSignalResponse(MOCK_SIGNAL))
       .mockRejectedValueOnce(new Error('coverageReviewer timeout'));
 
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');
@@ -239,14 +272,31 @@ describe('proposeBrandFollowups', () => {
 
     expect(result.offers.length).toBeGreaterThan(0);
     expect(result.campaigns.length).toBeGreaterThan(0);
+    expect(result.signals.length).toBeGreaterThan(0);
     expect(result.coverage.ok).toBe(false);
     expect(result.coverage.notes.length).toBeGreaterThan(0);
   });
 
-  it('uses the claude-opus-4-7 model for all three calls', async () => {
+  it('fails soft: if signalProposer errors, offers + campaigns still come back', async () => {
     mockCreate
       .mockResolvedValueOnce(makeOfferResponse(MOCK_OFFER))
       .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockRejectedValueOnce(new Error('signalProposer timeout'))
+      .mockResolvedValueOnce(makeCoverageResponse(true, []));
+
+    const { proposeBrandFollowups } = await import('@/lib/brand/propose');
+    const result = await proposeBrandFollowups({ snapshot: SNAPSHOT, client: fakeClient });
+
+    expect(result.offers.length).toBeGreaterThan(0);
+    expect(result.campaigns.length).toBeGreaterThan(0);
+    expect(result.signals).toEqual([]);
+  });
+
+  it('uses the claude-opus-4-7 model for all calls', async () => {
+    mockCreate
+      .mockResolvedValueOnce(makeOfferResponse(MOCK_OFFER))
+      .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockResolvedValueOnce(makeSignalResponse(MOCK_SIGNAL))
       .mockResolvedValueOnce(makeCoverageResponse(true, []));
 
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');
@@ -262,6 +312,7 @@ describe('proposeBrandFollowups', () => {
     mockCreate
       .mockResolvedValueOnce(makeOfferResponse(MOCK_OFFER))
       .mockResolvedValueOnce(makeCampaignResponse(MOCK_CAMPAIGN))
+      .mockResolvedValueOnce(makeSignalResponse(MOCK_SIGNAL))
       .mockResolvedValueOnce(makeCoverageResponse(true, []));
 
     const { proposeBrandFollowups } = await import('@/lib/brand/propose');

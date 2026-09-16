@@ -11,6 +11,7 @@ const HTML_FIXTURE = `
       <meta name="theme-color" content="#0F1013" />
       <link rel="icon" href="/mark.svg" />
       <link href="https://fonts.googleapis.com/css2?family=Canela+Deck" rel="stylesheet" />
+      <link rel="stylesheet" href="/theme.css" />
       <style>
         :root { --ink: #0F1013; --bone: #E8E4D6; --sun: #C48B5E; --leaf: #7C9885; }
         body { font-family: 'Canela Deck', serif; }
@@ -26,6 +27,14 @@ const HTML_FIXTURE = `
   </html>
 `;
 
+const CSS_FIXTURE = `
+  :root {
+    --brand-blue: #2E4057;
+    --font-family--primary: "Inter", sans-serif;
+  }
+  body { font-family: var(--font-family--primary); }
+`;
+
 function buildResponse(body: string, ok = true, status = 200): Response {
   return new Response(body, {
     status: ok ? status : status,
@@ -35,21 +44,25 @@ function buildResponse(body: string, ok = true, status = 200): Response {
 
 describe('brand · ingest · url mode', () => {
   it('fetches the URL, parses the HTML, and returns a BrandSnapshot', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL) => buildResponse(HTML_FIXTURE));
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      return url.endsWith('/theme.css') ? buildResponse(CSS_FIXTURE) : buildResponse(HTML_FIXTURE);
+    });
     const snap = await ingestBrand(
       { kind: 'url', source: 'https://solsticeskin.com/' },
       { fetcher: fetcher as unknown as typeof fetch, bypassAgent: true }
     );
 
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
     expect(String(fetcher.mock.calls[0]![0])).toBe('https://solsticeskin.com/');
+    expect(String(fetcher.mock.calls[1]![0])).toBe('https://solsticeskin.com/theme.css');
 
     expect(snap.source).toEqual({ kind: 'url', url: 'https://solsticeskin.com/' });
     expect(snap.palette.map((p) => p.hex)).toEqual(
       expect.arrayContaining(['#0f1013', '#e8e4d6', '#c48b5e', '#7c9885'])
     );
     expect(snap.typography.map((t) => t.family)).toEqual(
-      expect.arrayContaining(['Canela Deck'])
+      expect.arrayContaining(['Inter', 'Canela Deck'])
     );
     expect(snap.voice.samples.some((s) => s.includes('Slow, certain skincare'))).toBe(true);
     expect(

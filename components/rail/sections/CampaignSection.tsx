@@ -11,6 +11,17 @@ import { summarizeInputSet, type CampaignContext } from '@/lib/context/model';
 
 type SaveState = 'idle' | 'saved';
 
+function campaignContextSignature(context: CampaignContext): string {
+  return JSON.stringify({
+    id: context.id,
+    name: context.name,
+    goal: context.goal,
+    audience: context.audience,
+    channels: context.channels,
+    cta: context.cta,
+  });
+}
+
 export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
   const saved = useCampaignContext(workspaceId);
   const creatorContext = useCreatorContext(workspaceId);
@@ -22,17 +33,23 @@ export function CampaignSection({ workspaceId }: { workspaceId?: string }) {
   // Two-phase hydration — see BrandSection for the rationale.
   const hasEdited = useRef(false);
   const lastWorkspaceId = useRef<string | undefined>(workspaceId);
+  const savedSignature = useMemo(() => campaignContextSignature(saved), [saved]);
+  const lastAppliedSavedSignature = useRef(savedSignature);
   useEffect(() => {
     if (lastWorkspaceId.current !== workspaceId) {
       lastWorkspaceId.current = workspaceId;
       hasEdited.current = false;
+      lastAppliedSavedSignature.current = savedSignature;
       setDraft(saved);
       setDirty(false);
+      setSaveState('idle');
       return;
     }
     if (hasEdited.current) return;
+    if (lastAppliedSavedSignature.current === savedSignature) return;
+    lastAppliedSavedSignature.current = savedSignature;
     setDraft(saved);
-  }, [workspaceId, saved]);
+  }, [workspaceId, saved, savedSignature]);
 
   const validationMessage = useMemo(() => {
     if (!draft.name.trim()) return 'campaign name required';

@@ -33,6 +33,7 @@ export async function POST(request: Request): Promise<Response> {
       ok: true,
       offers: followups.offers,
       campaigns: followups.campaigns,
+      signals: followups.signals,
       coverage: followups.coverage,
     });
   } catch (err) {

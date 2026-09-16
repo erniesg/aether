@@ -7,7 +7,9 @@ import {
   recordFromResearchTarget,
   type ResearchPlan,
   type ResearchRequest,
+  type ResearchTarget,
 } from '@/lib/research/research';
+import { searchSignalReferencesForTarget } from '@/lib/research/signals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +19,11 @@ export interface ResearchResponse {
   plan?: ResearchPlan;
   records?: ReferenceRecord[];
   scrapedCount?: number;
+  signalCount?: number;
   materializedCount?: number;
+  debug?: {
+    warnings: string[];
+  };
   error?: string;
 }
 
@@ -45,7 +51,7 @@ function normalizeRequest(body: unknown): ResearchRequest | null {
 
 function withResearchDefaults(
   record: ReferenceRecord,
-  target: NonNullable<ResearchPlan['targets'][number]>
+  target: ResearchTarget
 ): ReferenceRecord {
   return {
     ...record,
@@ -61,9 +67,9 @@ function withResearchDefaults(
  *
  * Accepts creator context plus optional seed text, decomposes it into URL,
  * keyword, hashtag, and account targets, then returns materialized references.
- * Direct URLs go through the existing public OG scrape adapters. Non-URL
- * targets become source-linked research artifacts so creators can cluster and
- * moodboard before external discovery connectors are provisioned.
+ * Direct URLs go through the existing public OG scrape adapters. Social search
+ * targets try configured signal APIs first, then degrade to source-linked
+ * research artifacts so creators can still cluster and moodboard.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -76,24 +82,61 @@ export async function POST(request: Request) {
   const normalized = normalizeRequest(body);
   if (!normalized) return jsonError(400, 'body must be an object');
 
+  const debugMode = new URL(request.url).searchParams.get('debug') === '1';
   const plan = planResearch(normalized);
   const records: ReferenceRecord[] = [];
+  const seenRecords = new Set<string>();
+  const debugWarnings: string[] = [];
   let scrapedCount = 0;
+  let signalCount = 0;
+  let signalTargetsTried = 0;
   let materializedCount = 0;
+
+  const pushRecord = (record: ReferenceRecord) => {
+    const key = record.fullUrl ?? record.previewUrl;
+    if (seenRecords.has(key)) return false;
+    seenRecords.add(key);
+    records.push(record);
+    return true;
+  };
 
   for (const [index, target] of plan.targets.entries()) {
     if (target.kind === 'url') {
       try {
         const outcome = await ingestReferenceUrl(target.sourceUrl);
-        records.push(withResearchDefaults(outcome.record, target));
+        pushRecord(withResearchDefaults(outcome.record, target));
         scrapedCount += 1;
         continue;
-      } catch {
+      } catch (err) {
+        if (debugMode) {
+          debugWarnings.push(
+            `${target.label}: ${err instanceof Error ? err.message : 'source scrape failed'}`
+          );
+        }
         // Keep the source in the research set even when the public URL scrape
         // fails; the creator can still inspect or remove it in the rail.
       }
     }
-    records.push(recordFromResearchTarget(target, index));
+
+    if (signalTargetsTried < 4) {
+      const signalOutcome = await searchSignalReferencesForTarget(target, {
+        limit: 3,
+      });
+      if (signalOutcome.tried) signalTargetsTried += 1;
+      if (debugMode && signalOutcome.warnings.length > 0) {
+        debugWarnings.push(
+          ...signalOutcome.warnings.map((warning) => `${target.label}: ${warning}`)
+        );
+      }
+      if (signalOutcome.records.length > 0) {
+        for (const record of signalOutcome.records) {
+          if (pushRecord(withResearchDefaults(record, target))) signalCount += 1;
+        }
+        continue;
+      }
+    }
+
+    pushRecord(recordFromResearchTarget(target, index));
     materializedCount += 1;
   }
 
@@ -102,6 +145,8 @@ export async function POST(request: Request) {
     plan,
     records,
     scrapedCount,
+    signalCount,
     materializedCount,
+    debug: debugMode ? { warnings: debugWarnings } : undefined,
   } satisfies ResearchResponse);
 }
