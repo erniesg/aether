@@ -1,0 +1,16 @@
+{
+  "input": {
+    "reference_images": [
+      "https://api.replicate.com/v1/files/N2I3NjhmYjMtYjgwMy00MDdiLWEyYjctNTVmOTJlMTUzODNl.png"
+    ],
+    "reference_audios": [
+      "https://api.replicate.com/v1/files/MjM5NzdlNDEtMDgwMS00YmIzLTk0ZDQtZTgwMWE4Njg0MDli.wav"
+    ],
+    "prompt": "Use [Image1] as the exact visual composition, character, set, style, and opening shot. Animate this handcrafted paper-cutout night newsroom as a five-second 16:9 cinematic motion plate, synchronized to the cadence of [Audio1]. [Audio1] is timing reference only: do not reproduce, imitate, remix, or include its voice or any spoken words in the output audio. Open with the same camera angle and arrangement as [Image1]. The pineapple office worker is exhausted and stressed after market close: shoulders slumped, one hand supporting his head, a tiny weary exhale and restrained body sag. Preserve his exact pineapple identity, green leaf crown, gold diamond paper texture, navy jacket, proportions, chair, desk, keyboard, mug, monitor, lamp, night office, windows, shelves, lighting, shadows, palette, and layered fibrous cardstock style. Timing and camera choreography: 0.00-0.90 seconds, hold the wide desk composition with only subtle exhausted motion from the pineapple worker. Around 0.90 seconds, matching the word 'routine' in [Audio1], begin one smooth, deliberate camera push and slight pan left from the worker toward the desk lamp. By 2.10 seconds the lamp is the clear subject in close-up while the worker falls softly into the background. From 2.14-3.25 seconds, matching the final spoken question in [Audio1], the articulated lamp behaves like a weary colleague without gaining a face: its metal arm settles downward a few millimetres, its shade droops, then slowly swivels so the open illuminated shade looks directly toward the camera. End on the lamp holding that tired camera-facing pose with a quiet resigned beat through 5.00 seconds. Movement is subtle, physically plausible, and emotionally deadpan. The monitor must remain a perfectly flat, uniformly bright pure-green insertion surface with sharp rigid edges and no generated content for as long as it is visible. Do not add any text, letters, icons, graphics, charts, UI, captions, logos, faces, eyes, mouths, extra limbs, new objects, scene cuts, camera shake, flicker, melting, morphing, texture crawl, or lighting changes. Do not deform the pineapple, lamp, desk, monitor, or background. Generate synchronized sound effects only: faint late-night office room tone, a soft chair/cloth creak from the worker's small sag, restrained metal joint creaks during the lamp movement, and one quiet mechanical settling click as the lamp faces camera. No dialogue, voiceover, speech, whispering, words, vocalization, background music, score, melody, rhythm, beat, singing, radio, television, crowd, keyboard typing, or notification sounds.",
+    "duration": 5,
+    "resolution": "720p",
+    "aspect_ratio": "16:9",
+    "generate_audio": true,
+    "seed": 303
+  }
+}

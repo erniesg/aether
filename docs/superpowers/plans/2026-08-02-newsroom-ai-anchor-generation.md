@@ -43,7 +43,7 @@
 
 - [ ] **Step 1: Generate a representative three-frame pilot**
 
-Generate `F04`, `F05`, and `F08` first because they test exact key surfaces, the live-demo monitor, and the four-screen scale-out.
+Generate `F01`, `F04`, and `F06` first because they test the original over-shoulder newspaper composition, exact keyboard-label surfaces, explicit Singaporean casting, and the live-demo chroma monitor with a human reviewer.
 
 - [ ] **Step 2: Inspect the pilot at full resolution**
 

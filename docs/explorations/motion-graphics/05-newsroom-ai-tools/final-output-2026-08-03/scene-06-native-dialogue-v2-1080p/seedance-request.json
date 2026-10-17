@@ -1,0 +1,11 @@
+{
+  "input": {
+    "image": "https://api.replicate.com/v1/files/NzdhNzI1MGMtNDNlZS00N2Q1LWE1ZTMtMTcyOTk0OTNiODkx.png",
+    "last_frame_image": "https://api.replicate.com/v1/files/NzdhNzI1MGMtNDNlZS00N2Q1LWE1ZTMtMTcyOTk0OTNiODkx.png",
+    "prompt": "Animate the supplied first-frame interview image at 1080p. The source image is also the required final frame. Treat the entire SPH Media / Studio+65 set as a completely frozen matte plate: every pixel of the glass office wall, glass reflections, vertical window seams, plants and leaves, wall panels, clapperboard, colored stripes, sph media logo, red digital clock, STUDIO+65 bar, STRAITS TIMES line, DATE: 12 AUG 2026, INTERVIEW W/ ONG LAI, floor, stool legs, lighting, highlights, and shadows must remain perfectly stationary and temporally consistent for the whole shot. Absolutely no moving shadow or reflection on the glass, no lighting sweep, no parallax, no plant movement, no background warping, and no camera movement. Animate only the pineapple mascot's mouth, eyelids, pupils, head by a few millimetres, and forearms/hands. Keep his torso, stool, leafy crown silhouette, navy polo, cream trousers and shoes stable. He looks into camera and speaks exactly: \"This isn't about automating journalism. It's about removing the grunt work around it.\" Voice performance: youthful male Singaporean English, high-pitched and playfully cartoonish, warm and intelligent rather than silly, natural Singaporean cadence without caricature and without imitating any existing copyrighted character. Deliver the first sentence calmly and reassuringly, pause briefly, then say the second with confident emphasis on \"removing\" and \"grunt work\". Precise lip synchronization; subtle blink; one small sincere nod; one restrained open-hand explanatory gesture that returns smoothly to the source pose by the final frame. Preserve the exact gold diamond paper texture, face identity, body proportions, cardstock fibers, layered edges and 16:9 composition. Audio is clean dry dialogue only. No added words, gibberish, laughter, singing, sound effects, background music, score, beat, ambient crowd, room chatter or hum.",
+    "duration": 8,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "generate_audio": true
+  }
+}

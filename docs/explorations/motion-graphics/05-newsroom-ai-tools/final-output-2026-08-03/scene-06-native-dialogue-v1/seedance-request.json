@@ -1,0 +1,10 @@
+{
+  "input": {
+    "image": "https://api.replicate.com/v1/files/MzU1MzQ2YWUtYWViMS00ODc1LTg4ODgtOWIwZjllODczNDU5.png",
+    "prompt": "Animate the supplied first-frame image as a polished Precision Layered Paper Cutout interview shot. Keep the same pineapple mascot seated on the same stool in the SPH Media / Studio+65 set, wearing the same navy short-sleeve polo and cream trousers. He looks into camera and speaks exactly: \"This isn't about automating journalism. It's about removing the grunt work around it.\" Voice performance: youthful male Singaporean English, high-pitched and playfully cartoonish, warm and intelligent rather than silly, with natural Singaporean cadence but no exaggerated caricature and no imitation of any existing copyrighted character. Emotional arc: the first sentence is calm and reassuring; make a brief natural pause; deliver the second sentence with confident emphasis on \"removing\" and \"grunt work\". Use precise lip synchronization to every word, subtle blinks, a small sincere nod, and one restrained open-hand explanatory gesture. Preserve the pineapple's face, gold diamond texture, leafy crown, clothing, body proportions, stool, camera framing, cardstock fibers, clapperboard, sph media logo, red digital clock, STUDIO+65, STRAITS TIMES, DATE: 12 AUG 2026, and INTERVIEW W/ ONG LAI. All set text stays stable, sharp, unobstructed, and unchanged. No camera movement, no crop shift, no morphing, no extra characters, no extra spoken words, no gibberish, no laughter, no singing. Audio is clean dry dialogue only; optional barely audible natural cloth or stool movement, but no background music, no score, no beat, no ambient crowd, no room chatter, and no sound effects that compete with the voice.",
+    "duration": 8,
+    "resolution": "720p",
+    "aspect_ratio": "16:9",
+    "generate_audio": true
+  }
+}

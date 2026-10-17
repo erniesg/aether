@@ -22,6 +22,26 @@ import {
   StylePreview,
   type StylePreviewVariant,
 } from './StylePreview';
+import {
+  ROUTINE_SCREEN_DURATION,
+  ROUTINE_SCREEN_FPS,
+  RoutineScreenPreview,
+} from './RoutineScreenPreview';
+import {
+  SCENE_01_NEWS_DURATION,
+  SCENE_01_NEWS_FPS,
+  Scene01NewsHeadlines,
+} from './Scene01NewsHeadlines';
+import {
+  INTRO_CREDITS_DURATION_IN_FRAMES,
+  INTRO_CREDITS_FPS,
+  IntroCredits,
+} from './IntroCredits';
+import {
+  BROADCAST_DURATION_IN_FRAMES,
+  BROADCAST_FPS,
+  BroadcastSlateFilm,
+} from './BroadcastSlateFilm';
 
 const styles: Array<{id: string; label: string; visualStyle: VisualStyle}> = [
   {
@@ -90,6 +110,38 @@ export const RemotionRoot = () => {
         height={1080}
         fps={BRAND_FILM_FPS}
         durationInFrames={BRAND_FILM_DURATION_IN_FRAMES}
+      />
+      <Composition
+        id="NewsroomAI-BroadcastSlate-Final"
+        component={BroadcastSlateFilm}
+        width={1920}
+        height={1080}
+        fps={BROADCAST_FPS}
+        durationInFrames={BROADCAST_DURATION_IN_FRAMES}
+      />
+      <Composition
+        id="NewsroomAI-IntroCredits"
+        component={IntroCredits}
+        width={1920}
+        height={1080}
+        fps={INTRO_CREDITS_FPS}
+        durationInFrames={INTRO_CREDITS_DURATION_IN_FRAMES}
+      />
+      <Composition
+        id="Scene03-RoutineScreen-Preview"
+        component={RoutineScreenPreview}
+        width={1280}
+        height={720}
+        fps={ROUTINE_SCREEN_FPS}
+        durationInFrames={ROUTINE_SCREEN_DURATION}
+      />
+      <Composition
+        id="Scene01-NewsHeadlines-Animated"
+        component={Scene01NewsHeadlines}
+        width={1920}
+        height={1080}
+        fps={SCENE_01_NEWS_FPS}
+        durationInFrames={SCENE_01_NEWS_DURATION}
       />
       {styles.map(({id, label, visualStyle}) => (
         <Composition

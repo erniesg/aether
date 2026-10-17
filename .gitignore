@@ -78,3 +78,11 @@ yarn-error.log*
 
 # Agent evidence bundles
 .agent/evidence/
+
+# large generated media — keep out of git (avoid repo bloat)
+docs/explorations/**/renders/
+docs/explorations/**/final-output-*/
+docs/explorations/**/generated/
+generated/
+assets/
+public/storyboards/

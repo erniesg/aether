@@ -1,0 +1,14 @@
+Scene 03 Seedance 2 native-audio QC
+
+Source video: S03-routine-lamp-sfx-seedance2-720p.mp4
+Audio codec: AAC stereo, 44.1 kHz
+Mean volume: -36.7 dB
+Peak volume: -4.7 dB
+
+Whisper tiny transcription check:
+- Text: "Haha."
+- Segment: 0.00-2.70 seconds
+- Average log probability: -2.1751
+- No-speech probability: 0.3933
+
+Interpretation: the isolated one-word result has very low confidence and is not credible intelligible speech. The spectrogram is transient-led and does not show a sustained harmonic music bed. The audio is suitable as sparse generated room/mechanical effects beneath the approved voiceover.

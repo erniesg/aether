@@ -1,0 +1,15 @@
+{
+  "id": "xy9kst0fysrmt0czs01tad2dd8",
+  "status": "succeeded",
+  "model": "bytedance/seedance-2.0",
+  "web_url": "https://replicate.com/p/xy9kst0fysrmt0czs01tad2dd8",
+  "output_url": "https://replicate.delivery/xezq/J4cuJIirLGaJBFuL6caS7mjDWehnO1TpXQffNeACfrwF2r83C/tmpcckf6ac4.mp4",
+  "metrics": {
+    "model_variant": "non_video_in",
+    "predict_time": 273.26459486,
+    "resolution_target": "720p",
+    "token_output_count": 152100,
+    "total_time": 273.282752294,
+    "video_output_duration_seconds": 7
+  }
+}

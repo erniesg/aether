@@ -1,0 +1,16 @@
+{
+  "input": {
+    "reference_images": [
+      "https://api.replicate.com/v1/files/YWJjZGY4MDUtZjdmZS00NWU5LWIyMWEtNDM1YmUyMGI2OGM3.png"
+    ],
+    "reference_audios": [
+      "https://api.replicate.com/v1/files/Y2NjNTJmYTAtYWZiYi00NzFiLTg4ZmItYTc1MTYxODM4M2Fj.wav"
+    ],
+    "duration": 7,
+    "resolution": "720p",
+    "aspect_ratio": "16:9",
+    "generate_audio": true,
+    "seed": 304,
+    "prompt_summary": "Begin on the stressed pineapple worker. Make a strong leftward truck/pan and push toward the lamp. Remove the monitor and worker completely from the ending composition. Pitch the lamp shade upward 35-45 degrees until its illuminated opening faces directly into the lens. Finish the pose and hold. Generate room, cloth, spring, hinge and settling effects only; no speech, voiceover or music."
+  }
+}

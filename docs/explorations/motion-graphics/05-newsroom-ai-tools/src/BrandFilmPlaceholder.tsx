@@ -27,6 +27,11 @@ import {
   Texture,
 } from './primitives';
 import {THEMES} from './theme';
+import {
+  CREDITS_DURATION_IN_FRAMES,
+  NewsroomCredits,
+  NewsroomIntro,
+} from './IntroCredits';
 
 const THEME = THEMES.kirigami;
 export const BRAND_FILM_FPS = 30;
@@ -40,7 +45,7 @@ const replacementEndSeconds =
 const voEndSeconds =
   replacementEndSeconds +
   (emotionalVoiceDuration - originalAfterReplacementSeconds);
-const creditsDurationSeconds = 6;
+const creditsDurationSeconds = CREDITS_DURATION_IN_FRAMES / BRAND_FILM_FPS;
 
 export const BRAND_FILM_CREDITS_START_SECONDS = voEndSeconds;
 export const BRAND_FILM_DURATION_SECONDS =
@@ -458,207 +463,6 @@ const DialogueVideoScene = ({durationInFrames}: {durationInFrames: number}) => {
   );
 };
 
-const IntroOverlay = () => {
-  const frame = useCurrentFrame();
-  const titleIn = reveal(frame, 4, 26);
-  const subIn = reveal(frame, 23, 42);
-  const fadeOut = interpolate(frame, [48, 72], [1, 0], clamp);
-
-  return (
-    <AbsoluteFill
-      style={{
-        background: `radial-gradient(circle at 25% 20%, ${THEME.background} 0%, ${THEME.backgroundAlt} 75%)`,
-        color: THEME.paper,
-        fontFamily: THEME.body,
-        opacity: fadeOut,
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        zIndex: 30,
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: 104,
-          top: 78,
-          color: THEME.accent2,
-          fontFamily: THEME.mono,
-          fontSize: 21,
-          fontWeight: 700,
-          letterSpacing: '0.2em',
-          opacity: subIn,
-          textTransform: 'uppercase',
-        }}
-      >
-        SPH STAFF AWARDS • INNOVATION AWARD
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 104,
-          top: 300,
-          width: 1400,
-          fontFamily: THEME.headline,
-          fontSize: 142,
-          fontWeight: 900,
-          letterSpacing: '-0.065em',
-          lineHeight: 0.88,
-          opacity: titleIn,
-          transform: `translateX(${(1 - titleIn) * -120}px)`,
-        }}
-      >
-        NEWSROOM
-        <br />
-        <span style={{color: THEME.accent}}>AI TOOLS</span>
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 108,
-          bottom: 86,
-          width: 620,
-          height: 5,
-          background: THEME.accent2,
-          opacity: subIn,
-          transform: `scaleX(${subIn})`,
-          transformOrigin: 'left center',
-        }}
-      />
-    </AbsoluteFill>
-  );
-};
-
-const CREDITS = [
-  'Benjamin Cher',
-  'Chloe Lim',
-  'Daniel Buenas',
-  'David Li Zuowei',
-  'Ernie Chen',
-  'Gareth Chung JK',
-  'Ivan Tan',
-  'Jeanette Lee SS',
-  'Tessa Oh',
-  'Vivien Ang CN',
-  'Yeo Cheng Yong',
-];
-
-const CreditsScene = ({durationInFrames}: {durationInFrames: number}) => {
-  const frame = useCurrentFrame();
-  const fadeIn = reveal(frame, 0, 24);
-  const titleIn = reveal(frame, 10, 36);
-  const fadeOut = interpolate(
-    frame,
-    [durationInFrames - 18, durationInFrames],
-    [1, 0],
-    clamp
-  );
-  const columns = [CREDITS.slice(0, 6), CREDITS.slice(6)];
-
-  return (
-    <AbsoluteFill
-      style={{
-        background: `radial-gradient(circle at 50% 0%, ${THEME.background} 0%, ${THEME.backgroundAlt} 78%)`,
-        color: THEME.paper,
-        fontFamily: THEME.body,
-        opacity: fadeIn * fadeOut,
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: 104,
-          top: 72,
-          color: THEME.accent2,
-          fontFamily: THEME.mono,
-          fontSize: 20,
-          fontWeight: 700,
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-        }}
-      >
-        CREDITS • TEAM BEHIND BT / NEWSROOM AI TOOLS
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 104,
-          top: 142,
-          color: THEME.paper,
-          fontFamily: THEME.headline,
-          fontSize: 74,
-          fontWeight: 900,
-          letterSpacing: '-0.05em',
-          opacity: titleIn,
-          transform: `translateY(${(1 - titleIn) * 36}px)`,
-        }}
-      >
-        More time for the work that matters.
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 104,
-          right: 104,
-          top: 290,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          columnGap: 82,
-          padding: '30px 38px',
-          background: THEME.paper,
-          boxShadow: `0 24px 48px ${THEME.shadow}`,
-          color: THEME.ink,
-          transform: `translateY(${(1 - titleIn) * 56}px)`,
-          opacity: titleIn,
-        }}
-      >
-        {columns.map((column, columnIndex) => (
-          <div key={columnIndex} style={{display: 'grid', gap: 15}}>
-            {column.map((name, index) => {
-              const personIn = reveal(
-                frame,
-                38 + (columnIndex * 6 + index) * 4,
-                52 + (columnIndex * 6 + index) * 4
-              );
-              return (
-                <div
-                  key={name}
-                  style={{
-                    borderBottom: `2px solid ${THEME.background}`,
-                    fontFamily: THEME.body,
-                    fontSize: 26,
-                    fontWeight: 800,
-                    opacity: personIn,
-                    paddingBottom: 8,
-                    transform: `translateX(${(1 - personIn) * -28}px)`,
-                  }}
-                >
-                  {name}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 104,
-          bottom: 58,
-          color: THEME.paper,
-          fontFamily: THEME.mono,
-          fontSize: 21,
-          letterSpacing: '0.1em',
-          opacity: titleIn,
-          textTransform: 'uppercase',
-        }}
-      >
-        Video made with Codex and Seedance
-      </div>
-    </AbsoluteFill>
-  );
-};
-
 const PLACEHOLDER_SCENES = [
   {
     number: '01',
@@ -834,8 +638,8 @@ export const BrandFilmPlaceholder = () => {
         <DialogueVideoScene durationInFrames={replacementEnd - replacementStart} />
       </Sequence>
 
-      <Sequence from={0} durationInFrames={secondsToFrames(2.4)} premountFor={fps}>
-        <IntroOverlay />
+      <Sequence from={0} durationInFrames={secondsToFrames(3)} premountFor={fps}>
+        <NewsroomIntro />
       </Sequence>
 
       <Sequence
@@ -843,7 +647,7 @@ export const BrandFilmPlaceholder = () => {
         durationInFrames={durationInFrames - creditsStart}
         premountFor={fps}
       >
-        <CreditsScene durationInFrames={durationInFrames - creditsStart} />
+        <NewsroomCredits />
       </Sequence>
 
       {PLACEHOLDER_SCENES.map((scene) =>

@@ -1,0 +1,20 @@
+{
+  "id": "wdbj6k3a2srmy0czrzwtn88pac",
+  "status": "succeeded",
+  "model": "bytedance/seedance-2.0",
+  "web_url": "https://replicate.com/p/wdbj6k3a2srmy0czrzwtn88pac",
+  "output_url": "https://replicate.delivery/xezq/wChbp2q81z4wLdmodjDmnfueV7t3Fkfm8sovGsBohcfASVe3C/tmpt0wh7av6.mp4",
+  "metrics": {
+    "model_variant": "non_video_in",
+    "predict_time": 249.619942218,
+    "resolution_target": "720p",
+    "token_output_count": 108900,
+    "total_time": 249.639428397,
+    "video_output_duration_seconds": 5
+  },
+  "rejected_attempt": {
+    "id": "snv446dyadrmr0czrzw8v55h3w",
+    "status": "failed",
+    "reason": "Seedance 2 rejected combining a first-frame image with reference audio; the successful request used the office still as a reference image instead."
+  }
+}

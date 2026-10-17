@@ -1,0 +1,7 @@
+Scene 03 v2 Seedance native-audio QC
+
+Source: S03-v2-native-sfx.wav
+Mean volume: -29.0 dB
+Peak volume: -4.2 dB
+
+Whisper tiny returned "Thank you!" with average log probability -2.7185 and an impossible segment end at 14.54 seconds for a 7.06-second source. This is a low-confidence hallucination, not credible intelligible speech. The native track remains intended for sparse room and mechanical effects only.

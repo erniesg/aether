@@ -13,11 +13,18 @@
     "render:newsprint": "remotion render src/index.ts NewsroomAI-Newsprint renders/newsprint.mp4",
     "render:kirigami": "remotion render src/index.ts NewsroomAI-Kirigami renders/kirigami.mp4",
     "render:brand-film": "remotion render src/index.ts NewsroomAI-BrandFilm-Placeholder renders/newsroom-ai-brand-film-placeholder.mp4",
+    "render:broadcast-final": "remotion render src/index.ts NewsroomAI-BroadcastSlate-Final renders/newsroom-ai-tools-broadcast-slate-final.mp4",
+    "render:intro-credits": "remotion render src/index.ts NewsroomAI-IntroCredits renders/newsroom-ai-intro-credits.mp4",
+    "render:preview:editorial": "remotion render src/index.ts NewsroomStylePreview-EditorialPaper renders/style-previews/editorial-paper.mp4",
+    "render:preview:minimal": "remotion render src/index.ts NewsroomStylePreview-MinimalCinematic renders/style-previews/minimal-cinematic.mp4",
+    "render:preview:data": "remotion render src/index.ts NewsroomStylePreview-DataStory renders/style-previews/data-story.mp4",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@remotion/captions": "^4.0.483",
     "@remotion/cli": "4.0.483",
     "@remotion/media": "4.0.483",
+    "@remotion/transitions": "^4.0.483",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "remotion": "4.0.483"
